@@ -1,0 +1,438 @@
+a img:hover{
+    transform: scale(1.03);
+}
+
+.sort {
+    position: relative;
+}
+
+.container{
+    max-width: 95%!important;
+    min-width:1200px!important;
+  }
+
+.container.top{
+    min-height: 79vh;
+  }
+
+.desc {
+    position: absolute;
+    content: "";
+    top: 3px;
+    left: 2px;
+    width: 10px;
+    height: 7px;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+    background-color: #000;
+    cursor: pointer;
+}
+
+.asc {
+    position: absolute;
+    content: "";
+    top: 14px;
+    left: 2px;
+    width: 10px;
+    height: 7px;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+    background-color: #000;
+    cursor: pointer;
+}
+
+/* テーブル */
+
+.se {
+    background-color: #000;
+}
+
+.detail {
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* ボタン */
+.menuLogo {
+    width: 120px;
+    cursor: pointer;
+}
+
+.menuLogo:hover {
+    transform: scale(1.02);
+}
+
+.category.btn {
+    border-radius: 2px 2px 0 0 !important;
+    background-color: #aaaaaa;
+    border: 1px solid #c7c7c7;
+    border-bottom: none;
+}
+
+.category.btn:hover {
+    background-color: #fff !important;
+    color: #808080 !important;
+    transition: .3s;
+    font-weight: normal !important;
+}
+
+.category.btn.selected {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    cursor: text;
+}
+
+.category.btn.selected.contract {
+    margin-left: 11.5px !important;
+}
+
+/* お客様名 */
+.customer-info span {
+    font-size: .75rem;
+}
+
+/* 円グラフ */
+.pie {
+    width: 80% !important;
+    max-width: 650px !important;
+    height: auto !important;
+    margin: 0 auto;
+}
+
+.accordion-item {
+    border-radius: 0 !important;
+}
+
+.accordion-button {
+    border-radius: 0 !important;
+}
+
+.accordion-button:not(.collapsed) {
+    border-radius: 0 !important;
+}
+
+.accordion .accordion-button {
+    border-radius: 0 !important;
+}
+
+.accordion .accordion-collapse {
+    border-radius: 0 !important;
+}
+
+.accordion-button {
+    display: flex;
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.accordion-button::after {
+    content: "+";
+    order: -1;
+    /* テキストより前に表示 */
+    background-image: none !important;
+    /* デフォルトの矢印画像を削除 */
+    transform: none !important;
+    /* transform で回転されるデフォルト効果も無効化 */
+    font-size: 1.25rem;
+    /* 必要に応じてサイズ調整 */
+    margin-right: 1rem;
+    /* アイコンとテキスト間のスペース */
+}
+
+.accordion-button:not(.collapsed)::after {
+    content: "–";
+}
+
+.thread {
+    font-size: .875rem;
+}
+
+.tableTtl {
+    transform: translateY(1.2vw);
+    width: 100px;
+}
+
+.tableTtl.total {
+    transform: translateY(1.2vw);
+    width: 95px;
+}
+
+.totalTable {
+    width: 93.5%;
+    transform: translateX(33px);
+}
+
+.staffName {
+    width: 210px;
+}
+
+
+.accordion-button {
+    background-color: transparent;
+    /* お好みの色に変更 */
+}
+
+.accordion-item {
+    background-color: transparent
+        /* お好みのカラーコードを指定 */
+}
+
+
+.accordion-button:not(.collapsed) {
+    background-color: transparent;
+    /* お好みの色に変更 */
+}
+
+.lineGraph {
+    width: 70% !important;
+    height: auto !important;
+    margin: 0 auto;
+}
+
+/* loading */
+.spinning {
+    animation: rotateAnimation 2s linear infinite;
+}
+
+@keyframes rotateAnimation {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+
+}
+
+.form-select {
+    height: 40px !important;
+}
+
+
+.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 10000;
+}
+
+.sticky-column {
+    position: sticky;
+    left: 0;
+    /* 背景を設定し、他のセルと重ならないように */
+    z-index: 10;
+    /* 他の要素より前面に表示 */
+}
+
+.inquiry_ui {
+    height: 100vh;
+}
+
+.inquiry {
+    width: 100%;
+    overflow-x: scroll;
+    height: 90vh;
+}
+
+.inquiry_table {
+    width: 2600px;
+    font-size: .875rem;
+}
+
+.budget_table {
+    width: 3200px;
+    font-size: .875rem;
+}
+
+.budget_show{
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+
+.budget_note{
+    z-index: 1000!important;
+    width: 768px;
+    height: 50vh;
+    overflow-y: scroll;
+    top: 5vh;
+    left: calc( 49.5% - 384px );
+    text-decoration: none;
+    color: #000!important;
+    box-shadow: 0 0 8px gray;
+}
+
+.budget_note ul{
+    border-radius: 0!important;
+}
+
+.budget_note ul li{
+    font-size: .75rem;
+}
+
+.inquiry_table.bottom {
+    width: 2000px;
+    font-size: .875rem;
+}
+
+.plus-icon {
+    left: 24px !important;
+    cursor: pointer;
+}
+
+.minus-icon {
+    left: -24px !important;
+    cursor: pointer;
+}
+
+.pointer{
+    cursor: pointer;
+}
+
+
+/* position:stickyを有効にする処理 */
+.white-object{
+    content: "";
+    width: 1300px;
+    height: 56.5px;
+    z-index: 100;
+    background-color: rgb(255, 255, 255);
+}
+
+.campaign{
+    z-index: 1000;
+}
+
+.shopSelect{
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    font-weight: bold;
+    padding: 3px 0;
+}
+
+.shopSelect option{
+    background-color: #ffffff;
+    color: #000000;
+    font-weight: bold;
+}
+
+.kh{
+    background-color: #0f3675;
+    white-space:nowrap;
+}
+
+.djh{
+    background-color: #28aeba;
+    white-space:nowrap;
+}
+
+.nagomi{
+    background-color: #956134;
+    white-space:nowrap;
+}
+
+.nieru{
+    background-color: #0d9f6d;
+    white-space:nowrap;
+}
+
+.fh{
+    background-color: #cd3c33;
+    white-space:nowrap;
+}
+
+.pgh{
+    background-color: #000;
+    white-space:nowrap;
+}
+
+.shop_list{
+    height: 200px!important;
+    overflow-y: auto;
+    z-index: 1000;
+    width: 200px;
+    top:0px;
+    left:80px;
+}
+
+.shop_list p{
+    font-size: .75rem;
+}
+
+.shop_list ul li{
+    list-style: none;
+    font-size: .75rem;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+
+.duplicate{
+    font-size: .875rem;
+    padding: 0 10px;
+}
+
+.accounting{
+    top: -10px;
+    right: 3px;
+    font-size: .75rem;
+}
+
+thead tr:nth-of-type(even)  th{
+    background-color: #eeeeee!important; /* 奇数行にストライプを適用 */
+  }
+
+.sticky-header {
+    z-index: 100!important;
+}
+
+.pointer-icon{
+    cursor: pointer;
+    background-color: #ffffff9d;
+    padding: 2px;
+    }
+
+.table_content{
+    height: 70vh!important;
+    overflow-y: scroll;
+}
+
+.post_content{
+    top: 70vh;
+    right: 120px;
+    font-size: 50px;
+    cursor: pointer;
+    z-index: 1000;
+}
+
+.post_content:hover{
+    transform: scale(1.05);
+    opacity: .8;
+}
+
+.info_icon{
+    font-size: .875rem;
+}
+
+.dropzone{
+    border: dashed 3px;
+    cursor: pointer;
+}
+
+.preview-delete{
+    top:-12px;
+    left: 0;
+    cursor: pointer;
+}
+
+.preview-delete:hover{
+    transform: scale(1.02);
+}
+
+.forum_img{
+    cursor: pointer;
+}
+
+.forum_img:hover{
+    transform: scale(1.03);
+}

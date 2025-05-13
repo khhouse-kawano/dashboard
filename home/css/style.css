@@ -1,0 +1,26 @@
+a:hover{
+    transform: scale(1.03);
+    transition: .2s;
+}
+
+.low{
+    height: 10vw;
+}
+
+@media screen and (max-width: 768px){
+    .high{
+        height: 40vw;
+    }
+
+    .low{
+        height: 20vw;
+    }
+    
+    tbody{
+        font-size: .75rem;
+    }
+}
+
+.low.information{
+    overflow-y: scroll;
+}

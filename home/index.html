@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KHGマーケティング</title>
+    <link rel="stylesheet" href="./css/style.css">
+    <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM"
+    crossorigin="anonymous"
+  />
+</head>
+<body style="background-color: #c7c7c7;">
+    <div>
+        <div class="container mt-5 mb-0 bg-white p-5">
+            <div class='row'>
+                <div class="col high bg-light m-lg-2 m-1 p-lg-5 p-2 d-flex align-items-center rounded"><a href="https://pg-cloud.jp/" target='_blank'><img src="https://pg-cloud.jp/assets/header-logo-012b9388b9456aeef73f19ab61bbf6343c44c08a66444954c435371ff3e72653.png" class='w-100'/></a></div>
+                <div class="col high bg-light m-lg-2 m-1 p-lg-5 p-2 d-flex align-items-center rounded"><a href="../dashboard" target='_blank'><img src="./images/logo.png" class='w-100'/></a></div>
+            </div>
+            <div class='row'>
+                <div class="col-3 low bg-light m-lg-2 m-1 p-lg-5 p-2 d-flex align-items-center rounded"><a href="../manual_pg/" target='_blank'><img src="./images/logo2.png" class='w-100'/></a></div>
+                <div class="col-3 low bg-light m-lg-2 m-1 p-lg-5 p-2 d-flex align-items-center rounded"><a href="#" data-bs-toggle="modal" data-bs-target="#exampleModal"><img src="./images/logo3.png" class='w-100'/></a></div>
+                <div class="col low information m-lg-2 m-1 p-lg-1 p-1 d-flex align-items-top rounded">
+                    <table class="table">
+                    <thead>
+                      <tr>
+                        <th scope="col">更新日</th>
+                        <th scope="col">更新内容</th>
+                      </tr>
+                    </thead>
+                    <tbody id="table">
+                        <!-- <tr>
+                            <th scope="row">2025/03/18</th>
+                            <td><a href="../dashboard/" target='_blank'>Dashboard</a>リリース</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">2025/03/18</th>
+                            <td><a href="../manual_pg/" target='_blank'>マニュアル</a>にキャンセルになった場合の対応を追記</td>
+                        </tr> -->
+                    </tbody>
+                  </table></div>
+            </div>
+        </div>
+    </div>
+      <!-- Modal -->
+  <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h1 class="modal-title fs-5" id="exampleModalLabel">ID/PASSを入力</h1>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+                <input type="email" class="form-control" id="mail" placeholder="name@example.com">
+            </div>
+            <div class="mb-3">
+                <input type="password" class="form-control" id="pass" placeholder="password">
+            </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" id="maButton" data-bs-dismiss="modal">Go</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<script>
+window.onload = function(){
+    fetch('./informaiton.php')
+    .then(response =>{
+        if (response.ok){
+            return response.json()
+        } else {
+            throw new Error('Network response was not ok')
+        }
+    })
+    .then(data => {
+        const table = document.querySelector('#table');
+        table.innerHTML = "";
+
+        data.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <th scope="row">${ row.date }</th>
+                <td>${ row.content }</td>`;
+                table.appendChild(tr);
+        });
+    })
+    .catch(error => {
+        console.error('There has been a problem with your fetch operation:', error)
+    });
+}
+
+const maButton = document.querySelector('#maButton');
+maButton.addEventListener('click', () => {
+    const mail = document.querySelector('#mail').value;
+    const pass = document.querySelector('#pass').value;
+    const formData = new FormData();
+    formData.append('mail', mail);
+    formData.append('pass', pass);
+
+    if (!mail || !pass) {
+        alert('メールアドレスとパスワードを入力してください。');
+        return;
+    }
+
+    maButton.disabled = true; // ボタンを一時的に無効化
+
+    fetch('./login.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.result === 'yes') {
+            window.open('../ma', '_blank');
+        } else {
+            alert('認証に失敗しました。メールアドレスまたはパスワードを確認してください。');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('サーバーとの通信に問題が発生しました。');
+    })
+    .finally(() => {
+        maButton.disabled = false; // ボタンを再度有効化
+    });
+});
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+</body>
+</html>

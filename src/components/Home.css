@@ -1,0 +1,29 @@
+body{
+    background-color: #ededed!important;
+    width: 100%!important;
+    min-width:auto!important;
+}
+
+.home .box{
+    max-width: 500px;
+    height: 400px;
+    margin: calc( 50vh - 200px ) auto 0;
+}
+
+.home .img{
+    width: 200px;
+    margin: 0 auto;
+}
+
+.home .img img{
+    width: 100%;
+}
+
+.home .box input{
+    width: 80%;
+    margin: 0 auto;
+}
+
+.home .box .btn{
+    margin: 0 10%;
+}
