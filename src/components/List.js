@@ -92,10 +92,9 @@ const ListTest = () => {
         fetchData();
     },[]);
 
-    // useEffect(() => {
-    //     setCustomerLength(20);
-    //     setTotalLength(inquiryUsers.filter(item=>item.inquiry_date.includes(targetMonth)).length);
-    // }, [inquiryUsers]);
+    useEffect(() => {
+        setTotalLength(inquiryUsers.filter(item=>item.inquiry_date.includes(targetMonth)).length);
+    }, [inquiryUsers]);
 
     const startYear = 2025;
     const startMonth = 1;
