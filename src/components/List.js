@@ -92,10 +92,10 @@ const ListTest = () => {
         fetchData();
     },[]);
 
-    useEffect(() => {
-        setCustomerLength(20);
-        setTotalLength(inquiryUsers.filter(item=>item.inquiry_date.includes(targetMonth)).length);
-    }, [inquiryUsers]);
+    // useEffect(() => {
+    //     setCustomerLength(20);
+    //     setTotalLength(inquiryUsers.filter(item=>item.inquiry_date.includes(targetMonth)).length);
+    // }, [inquiryUsers]);
 
     const startYear = 2025;
     const startMonth = 1;
@@ -152,7 +152,7 @@ const ListTest = () => {
     const shopRef = useRef(null);
     const staffRef = useRef(null);
     const [selectedShop, setSelectedShop] = useState({});
-    const [synchronize, seSynchronize] = useState(false);
+    const [synchronize, setSynchronize] = useState(false);
 
     const shopChange = async (event, id) => {
         const shop = event.target.value;
@@ -279,7 +279,7 @@ const ListTest = () => {
                         <div className='position-absolute shop_list d-none bg-white py-2 text-primary'>
                             <ul>
                                 <p className='m-0 text-dark'>店舗を選択</p>
-                                <li onClick={() => handleShopReset()}><span className="text-white bg-danger rounded-pill duplicate">全店舗表示</span></li>
+                                <li onClick={() => handleShopReset()}><span className="text-white bg-danger rounded-pill duplicate mb-2">全店舗表示</span></li>
                                 { shop.map((value, index)=>{
                                     const kh = "text-white kh rounded-pill duplicate";
                                     const djh = "text-white djh rounded-pill duplicate";
