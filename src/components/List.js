@@ -277,8 +277,8 @@ const ListTest = () => {
                         <i className="fa-regular fa-square-plus ps-2 pointer" onClick={shopSort}></i>
                         <div className='position-absolute shop_list d-none bg-white py-2 text-primary'>
                             <ul>
-                                <p className='m-0 text-dark'>店舗を選択</p>
-                                <li onClick={() => handleShopReset()}><span className="text-white bg-danger rounded-pill duplicate mb-2">全店舗表示</span></li>
+                                <p className='mb-2 text-dark'>店舗を選択</p>
+                                <li onClick={() => handleShopReset()} className='mb-2'><span className="text-white bg-danger rounded-pill duplicate">全店舗表示</span></li>
                                 { shop.map((value, index)=>{
                                     const kh = "text-white kh rounded-pill duplicate";
                                     const djh = "text-white djh rounded-pill duplicate";
