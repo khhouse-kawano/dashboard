@@ -9,11 +9,6 @@ import Modal from 'react-bootstrap/Modal';
 import Pagination from 'react-bootstrap/Pagination';
 
 
-//開発用
-// import { shopList } from "./shopList.js";
-// import { customerList } from "./shopList.js";
-// import { staffList } from "./staffList.js";
-
 const Rank = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -70,13 +65,16 @@ const Rank = () => {
             return yearMonthArray;
         };
         
-        const [selectedMonth, setSelectedStartMonth] = useState("20");
-        const startMonthArray = getYearMonthArray(2025, 1);
-        const startMonthRef = useRef();
+    const [selectedMonth, setSelectedStartMonth] = useState("20");
+    const [formattedSelectedMonth, setFormattedSelectedMonth] = useState("20");
+    const startMonthArray = getYearMonthArray(2025, 1);
+    const startMonthRef = useRef();
         
-        const userFilter = () =>{
-          setSelectedStartMonth(startMonthRef.current.value);
-      }
+    const userFilter = () =>{
+          const monthValue = startMonthRef.current.value;
+          setSelectedStartMonth(monthValue);
+          setFormattedSelectedMonth(monthValue.replace('/', '年'));
+    };
 
     const sectionArray = [];
     shopList.map((item) => sectionArray.push(item.section));
@@ -104,13 +102,13 @@ const Rank = () => {
 
     const totalCustomers = customerList.filter(item=>item.register.includes(selectedMonth)).length;
     const reservedCustomers = customerList.filter(item => item.reserve.includes(selectedMonth)).length;
-    const contractedCustomers = customerList.filter(item => item.contract.includes(selectedMonth)).length;
+    const contractedCustomers = customerList.filter(item => item.status.includes('契約済み') && item.contract.includes(formattedSelectedMonth)).length;
     const rankCounts = {
-      A: customerList.filter(item => item.rank.includes("Aランク")  && !item.status.includes("契約") && item.register.includes(selectedMonth)).length,
-      B: customerList.filter(item => item.rank.includes("Bランク") && item.register.includes(selectedMonth)).length,
-      C: customerList.filter(item => item.rank.includes("Cランク") && item.register.includes(selectedMonth)).length,
-      D: customerList.filter(item => item.rank.includes("Dランク") && item.register.includes(selectedMonth)).length,
-      E: customerList.filter(item => item.rank.includes("Eランク") && item.register.includes(selectedMonth)).length
+      A: customerList.filter(item => item.rank.includes("Aランク")  && !item.status.includes("契約")).length,
+      B: customerList.filter(item => item.rank.includes("Bランク")).length,
+      C: customerList.filter(item => item.rank.includes("Cランク")).length,
+      D: customerList.filter(item => item.rank.includes("Dランク")).length,
+      E: customerList.filter(item => item.rank.includes("Eランク")).length
     };
 
     const bgArray = [ "table-primary ", "table-success ", "table-warning  ", "table-danger "];
@@ -293,13 +291,13 @@ const Rank = () => {
           {sortedSection.map((section, sectionIndex) => {
             const sectionCustomers = customerList.filter(item=> item.section.includes(section) && item.register.includes(selectedMonth)).length;
             const reservedCustomers = customerList.filter(item=> item.section.includes(section) && item.reserve.includes(selectedMonth)).length;
-            const contractedCustomers = customerList.filter(item=> item.section.includes(section) && item.contract.includes(selectedMonth)).length;
+            const contractedCustomers = customerList.filter(item=> item.section.includes(section) && item.contract.includes(formattedSelectedMonth)).length;
             const rankCounts = {
-              A: customerList.filter(item => item.section.includes(section) && item.rank.includes("Aランク") && !item.status.includes("契約") && item.register.includes(selectedMonth)).length,
-              B: customerList.filter(item => item.section.includes(section) && item.rank.includes("Bランク") && item.register.includes(selectedMonth)).length,
-              C: customerList.filter(item => item.section.includes(section) && item.rank.includes("Cランク") && item.register.includes(selectedMonth)).length,
-              D: customerList.filter(item => item.section.includes(section) && item.rank.includes("Dランク") && item.register.includes(selectedMonth)).length,
-              E: customerList.filter(item => item.section.includes(section) && item.rank.includes("Eランク") && item.register.includes(selectedMonth)).length
+              A: customerList.filter(item => item.section.includes(section) && item.rank.includes("Aランク") && !item.status.includes("契約")).length,
+              B: customerList.filter(item => item.section.includes(section) && item.rank.includes("Bランク")).length,
+              C: customerList.filter(item => item.section.includes(section) && item.rank.includes("Cランク")).length,
+              D: customerList.filter(item => item.section.includes(section) && item.rank.includes("Dランク")).length,
+              E: customerList.filter(item => item.section.includes(section) && item.rank.includes("Eランク")).length
             };
             return (
             <tbody key={sectionIndex} className={`section-${section}`}>
@@ -321,13 +319,13 @@ const Rank = () => {
                 .map((shop, shopIndex) => {
                   const shopCustomers = customerList.filter(item => item.shop.includes(shop.shop) && item.register.includes(selectedMonth)).length;
                   const reservedCustomers = customerList.filter(item => item.shop.includes(shop.shop) && item.reserve.includes(selectedMonth)).length;
-                  const contractedCustomers = customerList.filter(item => item.shop.includes(shop.shop) && item.contract.includes(selectedMonth)).length;
+                  const contractedCustomers = customerList.filter(item => item.shop.includes(shop.shop) && item.contract.includes(formattedSelectedMonth)).length;
                   const rankCounts = {
-                    A: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Aランク") && !item.status.includes("契約") && item.register.includes(selectedMonth)).length,
-                    B: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Bランク") && item.register.includes(selectedMonth)).length,
-                    C: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Cランク") && item.register.includes(selectedMonth)).length,
-                    D: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Dランク") && item.register.includes(selectedMonth)).length,
-                    E: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Eランク") && item.register.includes(selectedMonth)).length
+                    A: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Aランク") && !item.status.includes("契約")).length,
+                    B: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Bランク")).length,
+                    C: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Cランク")).length,
+                    D: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Dランク")).length,
+                    E: customerList.filter(item => item.shop.includes(shop.shop) && item.rank.includes("Eランク")).length
                   };
                   return(
                   <><tr key={`${sectionIndex}-${shopIndex}`} className={expandSections[section] ? tableBgArray[sectionIndex] : tableBgNoneArray[sectionIndex]}>
@@ -346,13 +344,13 @@ const Rank = () => {
                   {staffList.filter(item=>item.shop.includes(shop.shop) && item.category === 1).map((staff,staffIndex)=>{
                   const staffCustomers = customerList.filter(item => item.staff.includes(staff.name) && item.shop.includes(shop.shop) && item.register.includes(selectedMonth)).length;
                   const reservedCustomers = customerList.filter(item => item.staff.includes(staff.name) && item.shop.includes(shop.shop) && item.reserve.includes(selectedMonth)).length;
-                  const contractedCustomers = customerList.filter(item => item.staff.includes(staff.name) &&  item.shop.includes(shop.shop) && item.contract.includes(selectedMonth)).length;
+                  const contractedCustomers = customerList.filter(item => item.staff.includes(staff.name) &&  item.shop.includes(shop.shop) && item.contract.includes(formattedSelectedMonth)).length;
                   const rankCounts = {
-                    A: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) &&  !item.status.includes("契約") && item.rank.includes("Aランク") && item.register.includes(selectedMonth)).length,
-                    B: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && item.rank.includes("Bランク") && item.register.includes(selectedMonth)).length,
-                    C: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && item.rank.includes("Cランク") && item.register.includes(selectedMonth)).length,
-                    D: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && item.rank.includes("Dランク") && item.register.includes(selectedMonth)).length,
-                    E: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && item.rank.includes("Eランク") && item.register.includes(selectedMonth)).length
+                    A: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && !item.status.includes("契約") && item.rank.includes("Aランク")).length,
+                    B: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && item.rank.includes("Bランク")).length,
+                    C: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && item.rank.includes("Cランク")).length,
+                    D: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && item.rank.includes("Dランク")).length,
+                    E: customerList.filter(item => item.shop.includes(shop.shop) && item.staff.includes(staff.name) && item.rank.includes("Eランク")).length
                   };
                   return(
                     <tr key={staffIndex} className={expandShops[shop.shop] ? "table-white shops" : tableBgNoneArray[sectionIndex]}>

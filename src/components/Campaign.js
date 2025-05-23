@@ -51,7 +51,7 @@ useEffect(() => {
   const getYearMonthArray = (startYear, startMonth) => {
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1; // JavaScriptの月は0から始まるため、1を加算
+    const currentMonth = now.getMonth() + 1;
 
     const yearMonthArray = [];
     let year = startYear;
@@ -228,14 +228,19 @@ useEffect(() => {
                   <thead>
                     <tr>
                       <th>No</th>
-                      <th>営業</th>
+                      <th>キャンペーン名</th>
                       <th>反響合計</th>
                     </tr>
                   </thead>
                     <tbody>
+                    <tr>
+                      <th>1</th>
+                      <th>合計</th>
+                      <th>{campaignUsers.filter( item => item.ブランド.includes(activeBrand)).reduce((acc, num) => acc + Number(num.total) , 0)}</th>
+                    </tr>
                   {campaignUsers.filter( item => item.ブランド.includes(activeBrand)).slice(startID,endID).map((customer, index) => (
                     <tr key={index}>
-                      <th>{ startID + index + 1}</th>
+                      <th>{ startID + index + 2}</th>
                       <th>{ customer.キャンペーン名}</th>
                       <th>{ customer.total}</th>
                     </tr>
