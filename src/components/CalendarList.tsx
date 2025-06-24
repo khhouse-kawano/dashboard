@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import 'react-calendar/dist/Calendar.css';
 import Table from "react-bootstrap/Table";
 import axios from 'axios';
 import Modal from 'react-bootstrap/Modal';
 import Button from "react-bootstrap/Table";
 
-
 type ValueRange = { id: number, startDate: string, endDate: string, category: string, title: string, shop: string, flag: number };
 type shopList = { brand: string, shop: string };
+type ReservedCounter = { shop: string, event: string, date: string, count: number, category: string };
 interface CalendarListProps {
     activeTab: string | null;
 }
 
 const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
-    const [date, setDate] = useState<Date>(new Date());
+    const [standardDate, setStandardDate] = useState<string>('');
     const [dateArray, setDateArray] = useState<string[]>([]);
     const [weekdayArray, setWeekdayArray] = useState<string[]>([]);
     const [selectedRanges, setSelectedRanges] = useState<ValueRange[]>([]);
@@ -23,10 +23,16 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
     const [listShow, setListShow] = useState(false);
     const [modalShow, setModalShow] = useState(false);
     const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土'];
+    const [reservedNumber, setReservedNumber] = useState<ReservedCounter[]>([]);
 
 
     useEffect(() => {
         const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth() + 1;
+        const formattedMonth = String(month).padStart(2, '0');
+        const formattedDate = `${year}-${formattedMonth}`;
+        setStandardDate(formattedDate);
 
         const fetchEventData = async () => {
             try {
@@ -78,6 +84,18 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
 
         setDateArray([...pastDays.reverse(), ...futureDays].map(item => item.date));
         setWeekdayArray([...pastDays, ...futureDays].map(item => item.weekday));
+
+        const fetchReservedData = async () => {
+            try {
+                const response = await axios.post("/dashboard/api/changeCalendar.php");
+                setReservedNumber(response.data);
+            } catch (error) {
+                console.error("Error fetching user data:", error);
+            }
+        };
+
+        fetchReservedData();
+
     }, []);
 
     useEffect(() => {
@@ -143,10 +161,66 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
         })();
     }, [selectedRanges]);
 
+    const [khgArray, setKhgArray] = useState<number[]>([]);
+    const [khArray, setKhArray] = useState<number[]>([]);
+    const [djhArray, setDjhArray] = useState<number[]>([]);
+    const [nagomiArray, setNagomiArray] = useState<number[]>([]);
+    const [nieruArray, setNieruArray] = useState<number[]>([]);
+    const [pgArray, setPgArray] = useState<number[]>([]);
+
+    useEffect(() => {
+        let khgNumberArray = [];
+        let khNumberArray = [];
+        let djhNumberArray = [];
+        let nagomiNumberArray = [];
+        let nieruNumberArray = [];
+        let pgNumberArray = [];
+
+        const fetchReservedNumber = async () => {
+            khgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved').length);
+            khgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'new').length);
+            khgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'next').length);
+            khgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'registered').length);
+            setKhgArray(khgNumberArray);
+
+            khNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved' && item.shop.includes('KH')).length);
+            khNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'new' && item.shop.includes('KH')).length);
+            khNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'next' && item.shop.includes('KH')).length);
+            khNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'registered' && item.shop.includes('KH')).length);
+            setKhArray(khNumberArray);
+
+            djhNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved' && item.shop.includes('DJH')).length);
+            djhNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'new' && item.shop.includes('DJH')).length);
+            djhNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'next' && item.shop.includes('DJH')).length);
+            djhNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'registered' && item.shop.includes('DJH')).length);
+            setDjhArray(djhNumberArray);
+
+            nagomiNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved' && item.shop.includes('なごみ')).length);
+            nagomiNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'new' && item.shop.includes('なごみ')).length);
+            nagomiNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'next' && item.shop.includes('なごみ')).length);
+            nagomiNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'registered' && item.shop.includes('なごみ')).length);
+            setNagomiArray(nagomiNumberArray);
+
+            nieruNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved' && item.shop.includes('2L')).length);
+            nieruNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'new' && item.shop.includes('2L')).length);
+            nieruNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'next' && item.shop.includes('2L')).length);
+            nieruNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'registered' && item.shop.includes('2L')).length);
+            setNieruArray(nieruNumberArray);
+
+            pgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved' && item.shop.includes('PG')).length);
+            pgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'new' && item.shop.includes('PG')).length);
+            pgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'next' && item.shop.includes('PG')).length);
+            pgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'registered' && item.shop.includes('PG')).length);
+            setPgArray(pgNumberArray);
+        };
+
+        fetchReservedNumber();
+    }, [reservedNumber, standardDate]);
+
     const [eventDate, setEventDate] = useState<string>('');
     const [eventShop, setEventShop] = useState<string>('');
     const [modalEventShop, setModalEventShop] = useState<string>('');
-    const [modalEventId, setModalEventId] = useState<string>('');
+    const [modalEventId, setModalEventId] = useState<string>();
     const [modalEventTitle, setModalEventTitle] = useState<string>('');
     const [modalEventCategory, setModalEventCategory] = useState<string>('');
     const [modalEventStartDate, setModalEventStartDate] = useState<string>('');
@@ -222,14 +296,15 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
                     demand: modalEventDemand
                 };
 
-            try {
-                (async () =>{
-                    await fetch("/dashboard/api/changeEvent.php", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(postData)
-                });})();
-            } catch (error) {
+                try {
+                    (async () => {
+                        await fetch("/dashboard/api/changeEvent.php", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(postData)
+                        });
+                    })();
+                } catch (error) {
                     console.error("エラー:", error);
                 }
             });
@@ -242,7 +317,6 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
                 }
             })();
         }
-
 
         const postData = {
             id: modalEventId,
@@ -278,8 +352,16 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
         setModalShow(false);
     };
 
-    const changeEvent = async (idValue: number | null, titleValue: string, shopValue: string, categoryValue: string, startValue: string, endValue: string) => {
-
+    const changeEvent = async (idValue: string, titleValue: string, shopValue: string, categoryValue: string, startValue: string, endValue: string) => {
+        await setModalEventId(idValue);
+        await setModalEventShop(shopValue);
+        await setModalEventTitle(titleValue);
+        await setModalEventShop(shopValue);
+        await setModalEventCategory(categoryValue);
+        await setModalEventStartDate(startValue);
+        await setModalEventEndDate(endValue);
+        await setModalEventDemand('change');
+        await setListShow(true);
     };
 
     const deleteEvent = async (idValue: number, titleValue: string, shopValue: string) => {
@@ -309,6 +391,13 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
 
 
     useEffect(() => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth() + monthOffset + 1;
+        const formattedMonth = String(month).padStart(2, '0');
+        const formattedDate = `${year}-${formattedMonth}`;
+        setStandardDate(formattedDate);
+
         const start = new Date();
         start.setMonth(start.getMonth() + monthOffset);
         start.setDate(start.getDate() - 14);
@@ -366,6 +455,59 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
 
     return (
         <div className="custom-calendar">
+            <div className='text-center'>{standardDate.replace('-', '/')}_来場者数総計</div>
+            <Table className='text-center no-border-table' style={{ width: '100%', margin: '0 auto 40px' }}>
+                <thead>
+                    <tr>
+                        <th>グループ全体</th>
+                        <th>国分ハウジング</th>
+                        <th>Day Just House</th>
+                        <th>なごみ工務店</th>
+                        <th>ニーエルホーム</th>
+                        <th>PG HOUSE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>
+                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{khgArray[0]}名</div></span>
+                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{khgArray[1]}名</div></span>
+                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{khgArray[2]}名</div></span>
+                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{khgArray[3]}名</div></span>
+                        </th>
+                        <th>
+                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{khArray[0]}名</div></span>
+                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{khArray[1]}名</div></span>
+                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{khArray[2]}名</div></span>
+                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{khArray[3]}名</div></span>
+                        </th>
+                        <th>
+                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{djhArray[0]}名</div></span>
+                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{djhArray[1]}名</div></span>
+                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{djhArray[2]}名</div></span>
+                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{djhArray[3]}名</div></span>
+                        </th>
+                        <th>
+                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{nagomiArray[0]}名</div></span>
+                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{nagomiArray[1]}名</div></span>
+                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{nagomiArray[2]}名</div></span>
+                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{nagomiArray[3]}名</div></span>
+                        </th>
+                        <th>
+                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{nieruArray[0]}名</div></span>
+                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{nieruArray[1]}名</div></span>
+                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{nieruArray[2]}名</div></span>
+                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{nieruArray[3]}名</div></span>
+                        </th>
+                        <th>
+                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{pgArray[0]}名</div></span>
+                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{pgArray[1]}名</div></span>
+                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{pgArray[2]}名</div></span>
+                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{pgArray[3]}名</div></span>
+                        </th>
+                    </tr>
+                </tbody>
+            </Table>
             <div className='d-flex justify-content-between month_guide'>
                 <div className='btn bg-primary text-white rounded-pill' onClick={() => {
                     setMonthOffset(prev => prev - 1);
@@ -450,7 +592,7 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
                                     <th className='align-middle'>{item.category}</th>
                                     <th className='align-middle'>{item.startDate}</th>
                                     <th className='align-middle'>{item.endDate}</th>
-                                    <th><th className='align-middle'><div className='btn me-2 bg-primary text-white' onClick={() => changeEvent(item.id, item.title, item.shop, item.category, item.startDate, item.endDate)}><i className="fa-solid fa-file-pen"></i></div><div className='btn bg-danger text-white' onClick={() => deleteEvent(item.id, item.title, item.shop)}><i className="fa-solid fa-trash"></i></div></th></th>
+                                    <th><th className='align-middle'><div className='btn me-2 bg-primary text-white' onClick={() => changeEvent(String(item.id), item.title, item.shop, item.category, item.startDate, item.endDate)}><i className="fa-solid fa-file-pen"></i></div><div className='btn bg-danger text-white' onClick={() => deleteEvent(item.id, item.title, item.shop)}><i className="fa-solid fa-trash"></i></div></th></th>
                                 </tr>)}
                         </tbody>
                     </Table>

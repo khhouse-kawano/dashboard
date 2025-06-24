@@ -15,11 +15,16 @@ import BudgetAccounting from "./components/BudgetAccounting";
 import Rank from "./components/Rank";
 import Log from "./components/Log";
 import Calendar from "./components/CalendarHome"
+import Database from "./components/Database";
 import Drop from "./components/Drop";
 import User from "./components/User";
+import AuthProvider from "./context/AuthProvider";
+import ListDev from "./components/List_dev";
 
 function App() {
+
   return (
+    <AuthProvider>
     <Router basename="/dashboard/">
       <Routes>
         <Route path="/" element={<Home />} />
@@ -36,8 +41,11 @@ function App() {
         <Route path="/rank" element={<Rank />} />
         <Route path="/log" element={<Log />} />
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/database" element={<Database />} />
+        <Route path="/test" element={<ListDev />} />
       </Routes>
     </Router>
+  </AuthProvider>
   );
 }
 

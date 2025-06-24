@@ -1,24 +1,25 @@
-import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "./chartConfig";
 import Accordion from "react-bootstrap/Accordion";
 import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
 import Table from 'react-bootstrap/Table';
-import { Line } from "react-chartjs-2";
+import { Line } from "react-chartjs-2"; 
 import Menu from "./Menu";
-
+import AuthContext from '../context/AuthContext';
 
 export const Contract = ( ) => {
-  const location = useLocation();
-  const { brand } = location.state || {};
+  const { brand } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [contractUser, setUserData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [staffArray, setStaffArray] = useState([]);
 
   useEffect(() => {
-    const fetchData = async () => {
+      if( !brand || brand.trim() === "") navigate("/");
+      const fetchData = async () => {
       try {
         const response = await axios.post("/dashboard/contractCustomer.php");
         setUserData(response.data);
@@ -51,14 +52,14 @@ export const Contract = ( ) => {
     yearArray.push( startYear + i );
   }
   const monthArray = [ "06", "07", "08", "09", "10", "11", "12", "01", "02", "03", "04", "05"];
-  const sectionArray = [ "1課", "2課", "3課", "4課"];
+  const sectionArray = [ "1課", "2課", "3課", "4課", "不動産課"];
   const dataArray = [];
   for ( let i = 0; i < yearArray.length; i++){
     for ( let e = 0; e < monthArray.length; e ++){
       dataArray.push(`${yearArray[i]}/${monthArray[e]}`);
     }
   }
-  const bgArray = [ "bg-primary bg-opacity-25 ", "bg-success bg-opacity-25", "bg-warning bg-opacity-25 ", "bg-danger bg-opacity-25 "];
+  const bgArray = [ "bg-primary bg-opacity-25 ", "bg-success bg-opacity-25", "bg-warning bg-opacity-25 ", "bg-danger bg-opacity-25 ", "bg-secondary bg-opacity-25 "];
   let yearTotal = 0;
   const reverseYearArray = [...yearArray].reverse(); //タブの表示用に
   const groupedMonth = dataArray.reduce((acc, monthStr) => {
@@ -110,6 +111,15 @@ export const Contract = ( ) => {
     section4Array.push(total);
   });
 
+  const section5Array = [];
+  yearArray.forEach(year => {
+    let total = 0;
+    groupedMonth[Number(year) - 1].forEach(month =>{
+      total += contractUser.filter( item => item.contractDate.includes(month) && item.section.includes(sectionArray[4])).length
+   })
+    section5Array.push(total);
+  });
+
   const sectionTotalArray = [];
   yearArray.forEach(year => {
     let total = 0;
@@ -125,36 +135,44 @@ export const Contract = ( ) => {
         label: sectionArray[0],
         data: section1Array.slice(1),
         fill: false,
-        borderColor: "rgb(8, 47, 174)",
-        backgroundColor: "rgb(8, 47, 174)",
+        borderColor: "#082fae",
+        backgroundColor: "#082fae",
         tension: 0.1,
       },
       {
         label: sectionArray[1],
         data: section2Array.slice(1),
         fill: false,
-        borderColor: "rgb(12, 158, 77)",
-        backgroundColor: "rgb(12, 158, 77)",
+        borderColor: "#0c9e4d",
+        backgroundColor: "#0c9e4d",
         tension: 0.1,
       },
       {
         label: sectionArray[2],
         data: section3Array.slice(1),
         fill: false,
-        borderColor: "rgb(243, 186, 0)",
-        backgroundColor: "rgb(243, 186, 0)",
+        borderColor: "#f3ba00",
+        backgroundColor: "#f3ba00",
         tension: 0.1,
       },
       {
         label: sectionArray[3],
         data: section4Array.slice(1),
         fill: false,
-        borderColor: "rgb(201, 17, 17)",
-        backgroundColor: "rgb(201, 17, 17)",
+        borderColor: "#c91111",
+        backgroundColor: "#c91111",
         tension: 0.1,
       },
       {
-        label: "注文営業全体",
+        label: sectionArray[4],
+        data: section5Array.slice(1),
+        fill: false,
+        borderColor: "#6c757d",
+        backgroundColor: "#6c757d",
+        tension: 0.1,
+      },
+      {
+        label: "グループ全体",
         data: sectionTotalArray.slice(1),
         fill: false,
         borderColor: "rgb(0, 0, 0)",
@@ -216,7 +234,7 @@ export const Contract = ( ) => {
                       <Table striped bordered hover className="me-2 my-0 text-center">
                         <tbody>
                           <tr>
-                            <th rowSpan={2} className="px-5"><div className="tableTtl">注文営業{section}</div></th>
+                            <th rowSpan={2} className="px-5"><div className="tableTtl">{ section !== "不動産課" ? "注文営業" : ""}{section}</div></th>
                             { monthArray.map(((month, indexSection)=><th className="thread">{indexSection < 7 ? year -1: year}/{month}</th>))}
                             <th className="thread">{year}年度合計</th>
                           </tr>

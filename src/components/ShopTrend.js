@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Menu from "./Menu";
 import { Bar } from 'react-chartjs-2';
@@ -7,10 +7,11 @@ import './chartConfig';
 import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
 import { colorCodes } from "./ColorCodes";
+import AuthContext from '../context/AuthContext';
 
 const ShopTrend = () => {
-    const location = useLocation();
-    const { brand } = location.state || {};
+    const { brand } = useContext(AuthContext);
+    const navigate = useNavigate();
     const [userData, setUserData] = useState([]);
 
     const getYearMonthArray = (startYear, startMonth) => {
@@ -38,6 +39,7 @@ const ShopTrend = () => {
     const startMonthArray = getYearMonthArray(2025, 1);
 
     useEffect(() =>{
+        if( !brand || brand.trim() === "") navigate("/");
         const fetchData = async() =>{
             try {
                 const response = await axios.post("/dashboard/fetchShopTrendData.php");

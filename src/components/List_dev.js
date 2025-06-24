@@ -15,6 +15,7 @@ const Rank = () => {
     const [shopList, setShop] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [customerList, setUserData] = useState([]);
+    const [mediumArray, setMediumArray] = useState([]);
 
     const today = new Date();
     const year = today.getFullYear();
@@ -27,15 +28,17 @@ const Rank = () => {
         const formattedDate = `${year}-${month}`
         const fetchData = async () => {
         try {
-            const [customerResponse, shopResponse, staffResponse] = await Promise.all([
-                axios.post("/dashboard/api/customerList.php"),
-                axios.post("/dashboard/api/shopList.php"),
-                axios.post("/dashboard/api/staffList.php"),
+            const [customerResponse, shopResponse, staffResponse, mediumResponse] = await Promise.all([
+                await axios.post("/dashboard/api/customerList.php"),
+                await axios.post("/dashboard/api/shopList.php"),
+                await axios.post("/dashboard/api/staffList.php"),
+                await axios.post("/dashboard/api/mediumList.php")
             ]);
     
-            setUserData(customerResponse.data);
-            setShop(shopResponse.data.filter( item => !item.shop.includes('店舗未設定')));
-            setStaffList(staffResponse.data);    
+            await setUserData(customerResponse.data);
+            await setShop(shopResponse.data.filter( item => !item.shop.includes('店舗未設定')));
+            await setStaffList(staffResponse.data);    
+            await setMediumArray(mediumResponse.data.map( item => item.medium));
         } catch (error) {
             console.error("Error fetching data:", error);
         }
@@ -135,6 +138,26 @@ const Rank = () => {
     const [modalStaffName, setModalStaffName] = useState("");
     const [selectedRank, setSelectedRank] = useState("");
     const [isHovered, setIsHovered] = useState(false);
+    const [updateData, setUpdateData] = useState({
+    id: "",
+    shop: "",
+    name: "",
+    staff: "",
+    register: "",
+    reserve: "",
+    rank: "",
+    medium: "",
+    appointment: "",
+    line_group: "",
+    screening: "",
+    period: "",
+    rival: "",
+    estate: "",
+    budget: "",
+    importance: "",
+    survey: "",
+    note: ""
+  })
 
     let hoverTimeout;
 
@@ -209,7 +232,7 @@ const Rank = () => {
 
         hoverTimeout = setTimeout(() => {
           setModalShow(true); 
-        }, 100);
+        }, 200);
 
       try {
         const response = await axios.post("/dashboard/api/rankedCustomerDetail.php", {
@@ -221,6 +244,93 @@ const Rank = () => {
         setRankedDetail([]);
       }
     };
+
+    useEffect(() =>{
+      const fetchData = async()=>{
+        await setUpdateData({
+          id: rankedDetail[0]['id'],
+          shop: rankedDetail[0]['shop'],
+          name: rankedDetail[0]['name'],
+          staff: rankedDetail[0]['staff'],
+          register: rankedDetail[0]['register'],
+          reserve: rankedDetail[0]['reserve'],
+          rank: rankedDetail[0]['rank'],
+          medium: rankedDetail[0]['medium'],
+          appointment: rankedDetail[0]['appointment'],
+          line_group: rankedDetail[0]['line_group'],
+          screening: rankedDetail[0]['screening'],
+          period: rankedDetail[0]['period'],
+          rival: rankedDetail[0]['rival'],
+          estate: rankedDetail[0]['estate'],
+          budget: rankedDetail[0]['budget'],
+          importance: rankedDetail[0]['importance'],
+          survey: rankedDetail[0]['survey'],
+          note: rankedDetail[0]['note']
+        });
+      };
+
+      fetchData();
+    },[rankedDetail]);
+
+    const handleChange = async(event) => {
+      const { name, value } = event.target;
+      const today = new Date();
+      const formattedDate = today.toLocaleString("ja-jp", { timeZone: "Asia/Tokyo" });
+
+      await setUpdateData(prevData => ({
+        ...prevData,
+        [name]: value,
+        demand: 'changeByDashboard'
+      }));
+      await console.log(updateData);
+    };
+
+
+  const handleSubmit = async () => {
+    const formElements = document.querySelectorAll(".form-control, .form-select, textarea, input[type='hidden']");
+
+    const data = {};
+      formElements.forEach((element) => {
+        const input = element;
+        data[input.name] = input.value;
+    });
+
+    console.log("送信データ:", data);
+    let message;
+
+    try {
+      const response = await fetch("https://sync-pg-cloud-9f739ab131ed.herokuapp.com/api/update",{
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+      });
+      const result = await response.json();
+      message = result.message;
+      console.log(message);
+    } catch (error) {
+        console.error("エラー発生:", error);
+        alert("送信に失敗しました...");
+    }
+
+    try {
+        const response = await axios.post("/dashboard/api/updateDatabase.php",
+          updateData,
+          {headers: {
+          "Content-Type": "application/json"}
+          },
+        );
+        const result = await response.data;
+        message = result.message;
+        console.log(message);
+    } catch (error) {
+        console.error("エラー発生:", error);
+        alert("送信に失敗しました...");
+    }
+    setModalShow(false);
+  };
+
 
     const modalOfModalClose = () =>{
       setModalShow(false);
@@ -373,11 +483,11 @@ const Rank = () => {
                 <th className='align-middle text-center'>来場数</th>
                 <th className='align-middle text-center'>契約率</th>
                 <th className='align-middle text-center'>契約数</th>
-                <th className='text-center'><div className='mb-1'>Aランク<br></br><span style={{ fontSize: '11px'}}>今月契約予定(契約日確定)</span></div><div className='d-flex justify-content-center'><div className='col'>{now}</div><div className='col'>{customerList[0]?.last_meeting ? customerList[0].last_meeting.split(',').pop().split(" ")[0] : "前回営業会議"}</div></div></th>
-                <th className='text-center'><div className='mb-1'>Bランク<br></br><span style={{ fontSize: '11px'}}>今月見込み(確度高い)</span></div><div className='d-flex justify-content-center'><div className='col'>{now}</div><div className='col'>{customerList[0]?.last_meeting ? customerList[0].last_meeting.split(',').pop().split(" ")[0] : "前回営業会議"}</div></div></th>
-                <th className='text-center'><div className='mb-1'>Cランク<br></br><span style={{ fontSize: '11px'}}>今月見込み(勝負案件)</span></div><div className='d-flex justify-content-center'><div className='col'>{now}</div><div className='col'>{customerList[0]?.last_meeting ? customerList[0].last_meeting.split(',').pop().split(" ")[0] : "前回営業会議"}</div></div></th>
-                <th className='align-middle text-center'>Dランク<br></br><span style={{ fontSize: '11px'}}>継続顧客</span></th>
-                <th className='align-middle text-center'>Eランク<br></br><span style={{ fontSize: '11px'}}>中長期管理客</span></th>
+                <th className='text-center'><div className='mb-1'>Aランク</div><div className='d-flex justify-content-center'><div className='col'>{now}</div><div className='col'>{customerList[0]?.last_meeting ? customerList[0].last_meeting.split(" ")[0] : "前回営業会議"}</div></div></th>
+                <th className='text-center'><div className='mb-1'>Bランク</div><div className='d-flex justify-content-center'><div className='col'>{now}</div><div className='col'>{customerList[0]?.last_meeting ? customerList[0].last_meeting.split(" ")[0] : "前回営業会議"}</div></div></th>
+                <th className='text-center'><div className='mb-1'>Cランク</div><div className='d-flex justify-content-center'><div className='col'>{now}</div><div className='col'>{customerList[0]?.last_meeting ? customerList[0].last_meeting.split(" ")[0] : "前回営業会議"}</div></div></th>
+                <th className='align-middle text-center'>Dランク</th>
+                <th className='align-middle text-center'>Eランク</th>
                 <th className='align-middle text-center'>ランクダウン</th>
             </tr>
             <tr className='table-light' style={{ fontSize: '14px'}}>
@@ -509,7 +619,7 @@ const Rank = () => {
                     <td className='text-center'>{shopCustomers}</td>
                     <td className='text-center'>{Math.ceil( reservedShopCustomers / shopCustomers) * 100}%</td>
                     <td className='text-center'>{reservedShopCustomers}</td>
-                    <td className='text-center'>{Math.ceil( contractedShopCustomers / reservedShopCustomers* 100)}%</td>
+                    <td className='text-center'>{Math.ceil( contractedShopCustomers / reservedShopCustomers) * 100}%</td>
                     <td className='text-center' onClick={() => rankData("契約", section, shop.shop, "")} style={{ cursor: 'pointer'}}><div className="col detail text-primary">{contractedShopCustomers}</div></td>
                     <td className='text-center' onClick={() => rankData("Aランク", section, shop.shop, "")} style={{ cursor: 'pointer'}}>
                         <div className='d-flex justify-content-center'>
@@ -746,77 +856,128 @@ const Rank = () => {
                         <Modal.Title id="ranked-modal">顧客情報詳細</Modal.Title>
                       </Modal.Header>
                       <Modal.Body>
-                        {rankedDetail.map((value, index) =>(
-                          <div key={index}>
-                        <div className="row customer-info bg-light mb-2" style={{ fontSize: '13px'}}>
-                          <div className="col border mx-1">
-                            <p><span>お客様名</span><br></br>{value.name}</p>
-                          </div>
-                          <div className="col border mx-1">
-                            <p><span>担当店舗</span><br></br>{value.shop}</p>
-                          </div>
-                          <div className="col border mx-1">
-                            <p><span>担当営業</span><br></br>{value.staff}</p>
-                          </div>
-                          <div className="col border mx-1">
-                            <p><span>名簿取得日</span><br></br>{value.register}</p>
-                          </div>
-                          <div className="col border mx-1">
-                            <p><span>販促媒体名</span><br></br>{value.medium}</p>
-                          </div>
-                        </div>
-                        <div className="row customer-info bg-light mb-2" style={{ fontSize: '13px'}}>
-                          <div className="col border mx-1">
-                            <p><span>次回アポ</span><br></br>{value.appointment}</p>
-                          </div>
-                          <div className="col border mx-1">
-                            <p><span>LINEグループ作成</span><br></br>{value.line_group}</p>
-                          </div>
-                          <div className="col border mx-1">
-                            <p><span>事前審査</span><br></br>{value.screening}</p>
-                          </div>
-                          <div className="col border mx-1">
-                          <p><span>競合会社</span><br></br>{value.rival}</p>
-                          </div>
-                          <div className="col border mx-1">
-                          <p><span>土地</span><br></br>{value.estate}</p>
-                          </div>
-                        </div>
-                        <div className="row customer-info bg-light mb-2" style={{ fontSize: '13px'}}>
-                          <div className="col border mx-1">
-                          <p><span>希望予算</span><br></br>{value.budget}</p>
-                          </div>
-                          <div className="col border mx-1">
-                          <p><span>契約スケジュール</span><br></br>{value.period}</p>
-                          </div>
-                          <div className="col border mx-1">
-                          <p><span>重視項目</span><br></br>{value.importance}</p>
-                          </div>
-                          <div className="col mx-1">
-                          </div>
-                          <div className="col mx-1">
-                          </div>
-                        </div>
-                        <div className="row customer-info bg-light mb-2" style={{ fontSize: '13px'}}>
+                        <div>
+                        <div className="row customer-info bg-light">
                           <div className="col border">
-                            <p style={{ whiteSpace: 'pre-line'}}><span>商談後アンケートorユーザー感想</span><br></br>{value.survey.split('\\n').map((line, index)=>(
-                              <React.Fragment key={index}>
-                                {line}<br />
-                              </React.Fragment>
-                            ))}</p>
+                            <p style={{ fontSize: '13px'}}><span>お客様名</span><br></br><br></br>{updateData.name}</p>
+                            <input type="hidden" name="id" value={updateData.id}/>
+                            <input type="hidden" name="shop" value={updateData.shop}/>
                           </div>
-                        </div>
-                        <div className="row customer-info bg-light mb-2" style={{ fontSize: '13px'}}>
                           <div className="col border">
-                          <p style={{ whiteSpace: 'pre-line'}}><span>次回アポまでの対応内容・担当者の感覚</span><br></br>{value.note.split('\\n').map((line, index)=>(
-                              <React.Fragment key={index}>
-                                {line}<br />
-                              </React.Fragment>
-                            ))}</p>
+                            <p style={{ fontSize: '13px'}}><span>担当店舗</span><br></br><br></br>{updateData.shop}</p>
+                          </div>
+                          <div className="col border">
+                            <p><span>担当営業</span></p>
+                            <select className='form-select' name='staff' onChange={handleChange} style={{ fontSize: '13px'}}>
+                              <option value="">担当営業を選択</option>
+                              {staffList?.filter(item=>item.shop === updateData.shop).map((item, index) =>
+                              <option value={item.name} key={index} selected={item.name===updateData.staff}>{item.name}</option>
+                              )}
+                            </select>
+                          </div>
+                          <div className="col border">
+                            <p><span>名簿取得日</span></p>
+                            <input type="date" className="form-control" name="register" value={updateData.register?.replace(/\//g, '-').replace(/年|月/g, "-").replace(/日/g, "")} onChange={handleChange} style={{ fontSize: '13px'}}/>
+                          </div>
+                          <div className="col border">
+                            <p><span>販促媒体名</span></p>
+                            <select className='form-select' name='medium' onChange={handleChange} style={{ fontSize: '13px'}}>
+                              <option value="">販促媒体を選択</option>
+                              {mediumArray?.map((item, index) =>
+                              <option value={item} key={index} selected={item===updateData.medium}>{item}</option>
+                              )}
+                            </select>
+                        </div>
+                        </div>
+                        <div className="row customer-info bg-light">
+                          <div className="col border">
+                            <p><span>ランク</span></p>
+                            <select className='form-select' name='rank' onChange={handleChange} style={{ fontSize: '13px'}}>
+                              <option value="">ランクを選択</option>
+                              <option value="Aランク" selected={updateData.rank === "Aランク"}>Aランク</option>
+                              <option value="Bランク" selected={updateData.rank === "Bランク"}>Bランク</option>
+                              <option value="Cランク" selected={updateData.rank === "Cランク"}>Cランク</option>
+                              <option value="Dランク" selected={updateData.rank === "Dランク"}>Dランク</option>
+                              <option value="Eランク" selected={updateData.rank === "Eランク"}>Eランク</option>
+                            </select>
+                          </div>
+                          <div className="col border">
+                            <p><span>初回来場日</span></p>
+                            <input type="date" className="form-control" name="reserve" value={updateData.reserve?.replace(/\//g, '-').replace(/年|月/g, "-").replace(/日/g, "")} onChange={handleChange} style={{ fontSize: '13px'}}/>
+                          </div>                          <div className="col border">
+                            <p><span>次回アポ</span></p>
+                            <input type="date" className="form-control" name="appointment" value={updateData.appointment?.replace(/\//g, '-').replace(/年|月/g, "-").replace(/日/g, "")} onChange={handleChange} style={{ fontSize: '13px'}}/>
+                          </div>
+                          <div className="col border">
+                            <p><span>LINEグループ作成</span></p>
+                            <input type="date" className="form-control" name="line_group" value={updateData.line_group?.replace(/\//g, '-').replace(/年|月/g, "-").replace(/日/g, "")} onChange={handleChange} style={{ fontSize: '13px'}}/>
+                          </div>
+                          <div className="col border">
+                            <p><span>事前審査</span></p>
+                            <input type="date" className="form-control" name="screening" value={updateData.screening?.replace(/\//g, '-').replace(/年|月/g, "-").replace(/日/g, "")} onChange={handleChange} style={{ fontSize: '13px'}}/>
                           </div>
                         </div>
+                        <div className="row customer-info bg-light">
+                          <div className="col border">
+                            <p><span>競合会社</span></p>
+                            <input className='form-control' name='rival' value={updateData.rival} onChange={handleChange} style={{ fontSize: '13px'}}/>
+                          </div>
+                          <div className="col border">
+                            <p><span>土地</span></p>
+                            <select className='form-select' name='estate' onChange={handleChange} style={{ fontSize: '13px'}}>
+                              <option value="有" selected={updateData.estate === "有"}>有</option>
+                              <option value="無" selected={updateData.estate === "無"}>無</option>
+                            </select>
+                          </div>
+                          <div className="col border">
+                            <p><span>希望予算</span></p>
+                            <input type="text" className='form-control' name='budget' value={updateData.budget} onChange={handleChange} style={{ fontSize: '13px'}}/>
+                          </div>
+                          <div className="col border">
+                            <p><span>契約スケジュール</span></p>
+                            <select className='form-select' name='period' onChange={handleChange} style={{ fontSize: '13px'}}>
+                              <option value="">スケジュールを選択</option>
+                              <option value="1か月後" selected={updateData.period === "1か月後"}>1か月後</option>
+                              <option value="3か月後" selected={updateData.period === "3か月後"}>3か月後</option>
+                              <option value="半年後" selected={updateData.period === "半年後"}>半年後</option>
+                              <option value="9か月後" selected={updateData.period === "9か月後"}>9か月後</option>
+                              <option value="1年以上後" selected={updateData.period === "1年以上後"}>1年以上後</option>
+                              <option value="月内" selected={updateData.period === "月内"}>月内</option>
+                              <option value="半月内" selected={updateData.period === "半月内"}>半月内</option>
+                            </select>
+                          </div>
+                          <div className="col border">
+                            <p><span>重視項目</span></p>
+                            <select className='form-select' name='importance' onChange={handleChange} style={{ fontSize: '13px'}}>
+                              <option value="">重視項目を選択</option>
+                              <option value="性能" selected={updateData.importance === "性能"}>性能</option>
+                              <option value="デザイン" selected={updateData.importance === "デザイン"}>デザイン</option>
+                              <option value="価格" selected={updateData.importance === "価格"}>価格</option>
+                            </select>
+                          </div>
                         </div>
-                      ))}
+                        <div className="row customer-info bg-light">
+                          <div className="col border">
+                            <p style={{ whiteSpace: 'pre-line'}}><span>商談後アンケートorユーザー感想</span></p>
+                            <textarea className="form-control" value={updateData.survey} name='survey' rows={updateData.survey.split('\n').length + 1} onChange={handleChange} style={{ fontSize: '13px'}}></textarea>
+                          </div>
+                        </div>
+                        <div className="row customer-info bg-light">
+                          <div className="col border">
+                          <p style={{ whiteSpace: 'pre-line'}}><span>次回アポまでの対応内容・担当者の感覚</span></p>
+                            <textarea className="form-control" value={updateData.note} name='note' rows={updateData.note.split('\n').length + 1} onChange={handleChange} style={{ fontSize: '13px'}}></textarea>
+                          </div>
+                        </div>
+                        <div className="row mt-2">
+                          <div className='col btn bg-primary me-2 text-white' onClick={handleSubmit}>
+                            変更内容を保存      
+                          </div>
+                          <div className='col btn bg-danger text-white'>
+                            <a href={`https://pg-cloud.jp/customers/${updateData.id}/summary`} target="_blank" className='text-white' style={{textDecoration: 'none'}}>PG CLOUDへ移動</a>      
+                          </div>
+                          <div className='col-6'></div>
+                        </div>
+                      </div>
                       </Modal.Body>
                     </Modal>  
           </Modal.Body>

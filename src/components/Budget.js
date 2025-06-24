@@ -1,19 +1,20 @@
-import { useLocation } from 'react-router-dom';
-import React ,{ useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import React ,{ useEffect, useRef, useState, useContext } from 'react';
 import Menu from './Menu.js';
 import Table from "react-bootstrap/Table";
 import axios from 'axios';
+import AuthContext from '../context/AuthContext';
 
-// 開発用
 
 const Budget = () => {
-    const location = useLocation();
-    const { brand } = location.state || {};
+    const { brand } = useContext(AuthContext);
     const [shopList, setShop] = useState([]);
     const [mediumList, setMedium] = useState([]);
     const [budgetList, setBudget] = useState([]);
+    const navigate = useNavigate();
 
     useEffect(() =>{
+        if( !brand || brand.trim() === "") navigate("/");
         const fetchData = async() =>{
             try {
                 const response = await axios.post("/dashboard/api/shopList.php");

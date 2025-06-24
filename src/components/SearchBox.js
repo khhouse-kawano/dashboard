@@ -47,6 +47,7 @@ const SearchBox = ({ userData, brand }) => {
     "DJH鹿児島北",
     "DJH霧島",
     "DJH薩摩川内",
+    "DJH鹿屋",
     "DJH都城",
     "DJH宮崎",
     "なごみ",
@@ -64,7 +65,7 @@ const SearchBox = ({ userData, brand }) => {
   const getYearMonthArray = (startYear, startMonth) => {
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1; // JavaScriptの月は0から始まるため、1を加算
+    const currentMonth = now.getMonth() + 1; 
 
     const yearMonthArray = [];
     let year = startYear;
@@ -77,7 +78,6 @@ const SearchBox = ({ userData, brand }) => {
       const formattedMonth = month.toString().padStart(2, "0");
       yearMonthArray.push(`${year}/${formattedMonth}`);
 
-      // 次の月に移動
       month++;
       if (month > 12) {
         month = 1;
@@ -94,7 +94,6 @@ const SearchBox = ({ userData, brand }) => {
     ? startMonthArray.filter((month) => month >= selectedStartMonth)
     : startMonthArray;
 
-  // selectedStartMonthが変更されたときにendMonthRefの値を更新
   useEffect(() => {
     if (endMonthRef.current) {
       endMonthRef.current.value = selectedStartMonth;
@@ -604,8 +603,10 @@ const SearchBox = ({ userData, brand }) => {
                 <td><div>{customer.reserve_count}</div></td>
                 <td>{customer.contract_per}%</td>
                 <td><div>{customer.contract_count}</div></td>
-                <td><div className="detail text-primary" onClick={(event)=>rankAData(event, customer.medium)}>{customer.rankA_count}</div></td>
-                <td><div className="detail text-primary" onClick={(event)=>rankBData(event, customer.medium)}>{customer.rankB_count}</div></td>
+                <td><div>{customer.rankA_count}</div></td>
+                <td><div>{customer.rankB_count}</div></td>
+                {/* <td><div className="detail text-primary" onClick={(event)=>rankAData(event, customer.medium)}>{customer.rankA_count}</div></td>
+                <td><div className="detail text-primary" onClick={(event)=>rankBData(event, customer.medium)}>{customer.rankB_count}</div></td> */}
                 <td><div>{customer.rankC_count}</div></td>
                 {/* <td><div className="detail text-primary" onClick={(event)=>rankCData(event, customer.medium)}>{customer.rankC_count}</div></td> */}
                 <td><div>{customer.rankD_count}</div></td>

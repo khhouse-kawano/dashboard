@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useContext } from "react";
+import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -14,6 +15,7 @@ const Home = () => {
   const mailRef = useRef(null);
   const passwordRef = useRef(null);
   const navigate = useNavigate();
+  const { setBrand } = useContext(AuthContext);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -42,6 +44,7 @@ const Home = () => {
         });
 
         if (response.data.message === "success") {
+          setBrand(response.data.brand);
           navigate("/contract", {
             state: {
               brand: response.data.brand,

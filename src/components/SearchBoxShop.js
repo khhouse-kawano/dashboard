@@ -42,6 +42,7 @@ const SearchBoxShop = ({ userData, brand }) => {
     "DJH鹿児島北",
     "DJH霧島",
     "DJH薩摩川内",
+    "DJH鹿屋",
     "DJH都城",
     "DJH宮崎",
     "なごみ",
@@ -539,8 +540,10 @@ const SearchBoxShop = ({ userData, brand }) => {
                 <td><div>{customer.reserve_count}</div></td>
                 <td>{customer.contract_per}%</td>
                 <td><div>{customer.contract_count}</div></td>
-                <td><div className="detail text-primary" onClick={(event)=>rankAData(event, customer.shop)}>{customer.rankA_count}</div></td>
-                <td><div className="detail text-primary" onClick={(event)=>rankBData(event, customer.shop)}>{customer.rankB_count}</div></td>
+                {/* <td><div className="detail text-primary" onClick={(event)=>rankAData(event, customer.shop)}>{customer.rankA_count}</div></td>
+                <td><div className="detail text-primary" onClick={(event)=>rankBData(event, customer.shop)}>{customer.rankB_count}</div></td> */}
+                <td><div>{customer.rankA_count}</div></td>
+                <td><div>{customer.rankB_count}</div></td>
                 <td><div>{customer.rankC_count}</div></td>
                 {/* <td><div className="detail text-primary" onClick={(event)=>rankCData(event, customer.shop)}>{customer.rankC_count}</div></td> */}
                 <td><div>{customer.rankD_count}</div></td>

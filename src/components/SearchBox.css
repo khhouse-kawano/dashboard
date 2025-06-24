@@ -91,8 +91,12 @@ a img:hover {
 }
 
 /* お客様名 */
+.customer-info p {
+    margin-bottom: 0px;
+}
+
 .customer-info span {
-    font-size: .75rem;
+    font-size: .675rem;
 }
 
 /* 円グラフ */
@@ -275,7 +279,7 @@ a img:hover {
 }
 
 .inquiry_table.bottom {
-    width: 2000px;
+    width: 2600px;
     font-size: .875rem;
 }
 
@@ -293,6 +297,17 @@ a img:hover {
     cursor: pointer;
 }
 
+.tag{
+    width: fit-content;
+    cursor: pointer;
+    opacity: .3;
+    transform: scale(.9);
+}
+
+.tag.checked{
+    opacity: 1;
+    transform: scale(1);
+}
 
 /* position:stickyを有効にする処理 */
 .white-object {
@@ -349,6 +364,22 @@ a img:hover {
 
 .pgh {
     background-color: #000;
+    white-space: nowrap;
+}
+
+.jh {
+    background-color: #dc4235;
+    white-space: nowrap;
+}
+
+.kh.hotlead {
+    background-color: #0f3675;
+    white-space: nowrap;
+    text-decoration: underline;
+}
+
+.khg {
+    background-color: #6c757d;
     white-space: nowrap;
 }
 
@@ -683,7 +714,7 @@ thead tr:nth-of-type(even) th {
     position: relative;
 }
 
-.medium_list::before {
+.medium_list::after {
     position: absolute;
     content: '';
     z-index: 28;
@@ -738,4 +769,29 @@ input[type=date]::-webkit-calendar-picker-indicator {
     width: 97%;
     top: 40vh;
     z-index: 1000;
+}
+
+.inquiry-number{
+    top: 30px;
+    left: calc( 50% - 13px );
+}
+
+.month-label{
+    font-size: .875rem;
+    top: 4px;
+    left:-106px;
+}
+
+.no-border-table {
+    border: none !important;
+}
+
+.no-border-table th,
+.no-border-table td {
+    border: none !important;
+    cursor: text !important;
+}
+
+th {
+  border-right: none !important;
 }

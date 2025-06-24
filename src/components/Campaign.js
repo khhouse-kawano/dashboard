@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import "./chartConfig";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
@@ -9,11 +9,11 @@ import Menu from "./Menu";
 import axios from "axios";
 import { Bar } from 'react-chartjs-2';
 import { colorCodes } from "./ColorCodes";
+import AuthContext from '../context/AuthContext';
 
 export const Campaign = () => {
-  const location = useLocation();
   const [ activePage, setActivePage ] = useState(1);
-  const { brand } = location.state || {};
+  const { brand } = useContext(AuthContext);
   const brandsArray = ["KH", "DJH", "なごみ", "2L", "FH", "PGH"];
   const [activeBrand, setActiveBrand] = useState("KH");
   const [ campaignLength, setCampaignLength] = useState(0);
@@ -32,6 +32,7 @@ export const Campaign = () => {
   const navigate = useNavigate();
 
   useEffect(() =>{
+    if( !brand || brand.trim() === "") navigate("/");
     const fetchData = async() =>{
         try {
             const response = await axios.post("/dashboard/campaignTotal.php");

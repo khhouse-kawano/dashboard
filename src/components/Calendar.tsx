@@ -29,6 +29,11 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
   const [shopList, setShopList] = useState<shopList[]>([])
   const [reservedNumber, setReservedNumber] = useState<ReservedCounter[]>([]);
   const [targetDateModal, setTargetDateModal] = useState<string>('');
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [totalNewVisitor, setTotalNewVisitor] = useState<number>(0);
+  const [totalEffectiveVisitor, setTotalEffectiveVisitor] = useState<number>(0);
+  const [totalNextVisitor, setTotalNextVisitor] = useState<number>(0);
+  const [totalExistingVisitor, setTotalExistingVisitor] = useState<number>(0);
 
   useEffect(() => {
     const fetchShopData = async () => {
@@ -61,6 +66,7 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
       }
     };
     fetchEventData();
+
   }, []);
 
     useEffect(() => {
@@ -99,8 +105,26 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
 
   }, [activeTab]);
 
+  useEffect(()=>{
+      const fetchInquiryNumber = async() =>{
+      const year = currentDate?.getFullYear();
+      const month = currentDate?.getMonth() + 1;
+      const formattedDate = `${year}-${ String( month ).padStart( 2, '0')}`
+      const newVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const effectiveVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const nextVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const existingVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      await setTotalNewVisitor(newVisitor);
+      await setTotalEffectiveVisitor(effectiveVisitor);
+      await setTotalNextVisitor(nextVisitor);
+      await setTotalExistingVisitor(existingVisitor);
+    };
+    fetchInquiryNumber();
+  }, [reservedNumber])
+
   const [resultReserve, setResultReserve] = useState<number | undefined>(0);
   const [newReserve, setNewReserve] = useState<number | undefined>(0);
+  const [nextReserve, setNextReserve] = useState<number | undefined>(0);
   const [registeredReserve, setRegisteredReserve] = useState<number | undefined>(0);
 
   const addEvent = async (date: Date) => {
@@ -126,10 +150,12 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
     const formattedDate = `${adjustedYear}-${formattedAdjustedMonth}-${adjustedDay}`;
     const reservedList = reservedNumber ? reservedNumber.find(reserve => reserve.category === 'reserved' && reserve.shop === selectedShop && reserve.event === '常設EV・モデル見学' && reserve.date === `${adjustedYear}-${formattedAdjustedMonth}-${adjustedDay}`)?.count : 0;
     const newList = reservedNumber ? reservedNumber.find(reserve => reserve.shop === selectedShop && reserve.category === 'new' && reserve.event === '常設EV・モデル見学' && reserve.date === `${adjustedYear}-${formattedAdjustedMonth}-${adjustedDay}`)?.count : 0;
+    const nextList = reservedNumber ? reservedNumber.find(reserve => reserve.shop === selectedShop && reserve.category === 'next' && reserve.event === '常設EV・モデル見学' && reserve.date === `${adjustedYear}-${formattedAdjustedMonth}-${adjustedDay}`)?.count : 0;
     const resistedList = reservedNumber ? reservedNumber.find(reserve => reserve.shop === selectedShop && reserve.category === 'registered' && reserve.event === '常設EV・モデル見学' && reserve.date === `${adjustedYear}-${formattedAdjustedMonth}-${adjustedDay}`)?.count : 0;
     setTargetDateModal(formattedDate);
     await setResultReserve(reservedList);
     await setNewReserve(newList);
+    await setNextReserve(nextList);
     await setRegisteredReserve(resistedList);
     setListShow(true);
   };
@@ -143,11 +169,13 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
     const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     const resultReserve = reservedNumber.filter(item => item.shop === selectedShop && item.category === 'reserved' && item.date === formattedDate).reduce((sum, item) => sum + item.count, 0);
     const newReserve = reservedNumber.filter(item => item.shop === selectedShop && item.category === 'new' && item.date === formattedDate).reduce((sum, item) => sum + item.count, 0);
+    const nextReserve = reservedNumber.filter(item => item.shop === selectedShop && item.category === 'next' && item.date === formattedDate).reduce((sum, item) => sum + item.count, 0);
     const registerReserve = reservedNumber.filter(item => item.shop === selectedShop && item.category === 'registered' && item.date === formattedDate).reduce((sum, item) => sum + item.count, 0);
     return (
       <div className='customer_list position-absolute'>
         <span className='bg-danger text-white px-2 py-1 rounded-pill me-2'>{resultReserve ? resultReserve : '0'}</span>
         <span className='bg-primary text-white px-2 py-1 rounded-pill me-2'>{newReserve ? newReserve : '0'}</span>
+        <span className='bg-success text-white px-2 py-1 rounded-pill me-2'>{nextReserve ? nextReserve : '0'}</span>
         <span className='bg-secondary text-white px-2 py-1 rounded-pill me-2'>{registerReserve ? registerReserve : '0'}</span>
       </div>
     );
@@ -248,9 +276,37 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
     setEventListShow(false);
   };
 
+  const handleMonthChange = async( activeStartDate: Date | null ) =>{
+    if (activeStartDate) {
+      setCurrentDate(activeStartDate);
+      const year = activeStartDate?.getFullYear();
+      const month = activeStartDate?.getMonth() + 1;
+      const formattedDate = `${year}-${ String( month ).padStart( 2, '0')}`
+      const newVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const effectiveVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const nextVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const existingVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      await setTotalNewVisitor(newVisitor);
+      await setTotalEffectiveVisitor(effectiveVisitor);
+      await setTotalNextVisitor(nextVisitor);
+      await setTotalExistingVisitor(existingVisitor);
+    }
+  };
+
   const shopChange= async(shopValue: string) =>{
-    setSelectedShop(shopValue);
-  }
+    const year = currentDate?.getFullYear();
+    const month = currentDate?.getMonth() + 1;
+    const formattedDate = `${year}-${ String( month ).padStart( 2, '0')}`
+    await setSelectedShop(shopValue);
+    const newVisitor = await reservedNumber.filter( item => item.shop === shopValue && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+    const effectiveVisitor = await reservedNumber.filter( item => item.shop === shopValue && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+    const nextVisitor = await reservedNumber.filter( item => item.shop === shopValue && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+    const existingVisitor = await reservedNumber.filter( item => item.shop === shopValue && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+    await setTotalNewVisitor(newVisitor);
+    await setTotalEffectiveVisitor(effectiveVisitor);
+    await setTotalNextVisitor(nextVisitor);
+    await setTotalExistingVisitor(existingVisitor);
+  };
 
   return (
     <div>
@@ -261,13 +317,15 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
           ))}
         </select>
         <div className='position-absolute top-0 end-0'>
-          <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2'>新規来場者数</span>
-          <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2'>有効新規数</span>
-          <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2'>管理客来場者数</span>
+          <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規来場者数<div className='position-absolute text-danger fw-bold inquiry-number'>{totalNewVisitor}名</div></span>
+          <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効新規数<div className='position-absolute text-primary fw-bold inquiry-number'>{totalEffectiveVisitor}名</div></span>
+          <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次回アポ数<div className='position-absolute text-success fw-bold inquiry-number'>{totalNextVisitor}名</div></span>
+          <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客来場者数<div className='position-absolute text-secondary fw-bold inquiry-number'>{totalExistingVisitor}名</div></span>
         </div>
       </div>
       <Calendar
         onClickDay={(date) => addEvent(date)}
+        onActiveStartDateChange={({ activeStartDate}) => handleMonthChange(activeStartDate)}
         minDetail='month'
         maxDetail='month'
         nextLabel="次の月へ"
@@ -327,18 +385,20 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
             <thead>
               <tr className='modal_event_list text-center'>
                 <th>イベント</th>
-                <th><span className='p bg-primary text-white px-2 py-1 rounded-pill me-2'>来場予約者数</span></th>
-                <th><span className='p bg-success text-white px-2 py-1 rounded-pill me-2'>新規来場者数</span></th>
+                <th><span className='p bg-danger text-white px-2 py-1 rounded-pill me-2'>新規来場者数</span></th>
+                <th><span className='p bg-primary text-white px-2 py-1 rounded-pill me-2'>有効新規数</span></th>
+                <th><span className='p bg-success text-white px-2 py-1 rounded-pill me-2'>次回アポ数</span></th>
                 <th><span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2'>管理客来場者数</span></th>
                 <th>編集</th>
               </tr>
             </thead>
             <tbody>
-              {eventTitle.map(item => {
+              {eventTitle.filter( value => value.shop === selectedShop ).map(item => {
                 let category;
-                const resultReserve = reservedNumber?.find(reserve => reserve.shop === selectedShop && reserve.category === 'reserved' && reserve.event === item.title && reserve.date === targetDateModal);
-                const newReserve = reservedNumber?.find(reserve => reserve.shop === selectedShop && reserve.category === 'new' && reserve.event === item.title && reserve.date === targetDateModal);
-                const registeredReserve = reservedNumber?.find(reserve => reserve.shop === selectedShop && reserve.category === 'registered' && reserve.event === item.title && reserve.date === targetDateModal);
+                const resultReserve = reservedNumber?.find(reserve => reserve.category === 'reserved' && reserve.event === item.title && reserve.date === targetDateModal && reserve.date === targetDateModal && reserve.shop === selectedShop);
+                const newReserve = reservedNumber?.find(reserve => reserve.category === 'new' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
+                const nextReserve = reservedNumber?.find(reserve => reserve.category === 'next' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
+                const registeredReserve = reservedNumber?.find(reserve => reserve.category === 'registered' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
                 if (item.category.includes('event')) {
                   category = 'event_modal text-white rounded p-2';
                 } else {
@@ -351,6 +411,7 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
                     <th className='align-middle'><span className={category}>{item.title}</span></th>
                     <th>{item.category !== 'medium' ? <input type="number" min="0" placeholder={resultReserve ? String(resultReserve?.count) : "0"} defaultValue={resultReserve ? resultReserve.count : 0} className="form-control reserved-counter" onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'reserved')} /> : ""}</th>
                     <th>{item.category !== 'medium' ? <input type='number' min="0" placeholder={newReserve ? String(newReserve?.count) : "0"} defaultValue={newReserve ? newReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'new')} /> : ''}</th>
+                    <th>{item.category !== 'medium' ? <input type='number' min="0" placeholder={nextReserve ? String(nextReserve?.count) : '0'} defaultValue={nextReserve ? nextReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'next')} /> : ''}</th>
                     <th>{item.category !== 'medium' ? <input type='number' min="0" placeholder={registeredReserve ? String(registeredReserve?.count) : '0'} defaultValue={registeredReserve ? registeredReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'registered')} /> : ''}</th>
                     <th className='align-middle'><div className='btn me-2 bg-primary text-white' onClick={() => changeEvent(item.id, item.title, item.shop, item.category, item.startDate, item.endDate)}><i className="fa-solid fa-file-pen"></i></div><div className='btn bg-danger text-white' onClick={() => deleteEvent(item.id)}><i className="fa-solid fa-trash"></i></div></th>
                   </tr>
@@ -360,6 +421,7 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
                 <th className='align-middle'><span className='event_modal text-white rounded p-2'>{ }常設EV・モデル見学</span></th>
                 <th><input type="number" min="0" placeholder={resultReserve ? String(resultReserve) : '0'} defaultValue={resultReserve ? String(resultReserve) : '0'} className="form-control reserved-counter" onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'reserved')} /></th>
                 <th><input type='number' min="0" placeholder={newReserve ? String(newReserve) : '0'} defaultValue={newReserve ? String(newReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'new')} /></th>
+                <th><input type='number' min="0" placeholder={nextReserve ? String(nextReserve) : '0'} defaultValue={nextReserve ? String(nextReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'next')} /></th>
                 <th><input type='number' min="0" placeholder={registeredReserve ? String(registeredReserve) : '0'} defaultValue={registeredReserve ? String(registeredReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'registered')} /></th>
                 <th className='align-middle'></th>
               </tr>

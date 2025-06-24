@@ -1,17 +1,19 @@
-import React, {useEffect, useState} from 'react'
-import { useLocation, useNavigate } from "react-router-dom";
+import React, {useEffect, useState, useContext} from 'react'
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Menu from "./Menu";
 import Table from "react-bootstrap/Table";
 import "./SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+import AuthContext from '../context/AuthContext';
 
 const Log = () => {
     const [logList, setLogList ] = useState([]);
-    const location = useLocation();
-    const { brand } = location.state || {};
+    const { brand } = useContext(AuthContext);
+    const navigate = useNavigate();
 
     useEffect(() => {
+      if( !brand || brand.trim() === "") navigate("/");
       const fetchData = async () => {
         try {
           const response = await axios.post("/dashboard/api/loginLog.php");

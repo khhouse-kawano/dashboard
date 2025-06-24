@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Menu from "./Menu";
 import { Bar } from 'react-chartjs-2';
 import './chartConfig';
 import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
+import AuthContext from '../context/AuthContext';
 
 const CustomerTrend = () => {
-    const location = useLocation();
-    const { brand } = location.state || {};
+    const { brand } = useContext(AuthContext);
     const [userData, setUserData] = useState([]);
+    const navigate = useNavigate();
 
     const getYearMonthArray = (startYear, startMonth) => {
         const now = new Date();
@@ -37,7 +38,8 @@ const CustomerTrend = () => {
     const startMonthArray = getYearMonthArray(2025, 1);
 
     useEffect(() =>{
-            const fetchData = async() =>{
+      if( !brand || brand.trim() === "") navigate("/");
+      const fetchData = async() =>{
                 try {
                     const response = await axios.post("/dashboard/fetchCustomerTrendData.php");
                     setUserData(response.data);
