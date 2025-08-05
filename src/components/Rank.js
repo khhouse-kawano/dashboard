@@ -22,6 +22,8 @@ const Rank = () => {
     const day = today.getDate();
     const now = `${year}/${month}/${String(day).padStart(2, '0')}`;
 
+    const [selectedMonth, setSelectedStartMonth] = useState(`${year}/${month}`);
+
     useEffect(() => {
       if( !brand || brand.trim() === "") navigate("/");
         const formattedDate = `${year}-${month}`
@@ -71,16 +73,14 @@ const Rank = () => {
         
             return yearMonthArray;
         };
+    
         
-    const [selectedMonth, setSelectedStartMonth] = useState("20");
-    const [formattedSelectedMonth, setFormattedSelectedMonth] = useState("20");
     const startMonthArray = getYearMonthArray(2025, 1);
     const startMonthRef = useRef();
         
     const userFilter = () =>{
         const monthValue = startMonthRef.current.value;
         setSelectedStartMonth(monthValue);
-        setFormattedSelectedMonth(monthValue.replace('/', '年'));
     };
 
     const sectionArray = [];
@@ -352,10 +352,10 @@ const Rank = () => {
       <div className="container py-3  bg-white">
       <div className="row mt-3 mb-4" >
                 <div className="col d-flex">
-                    <select className="form-select campaign" ref={startMonthRef} name="startMonth" onChange={userFilter}>
+                    <select className="form-select campaign" name="startMonth" ref={startMonthRef} onChange={userFilter}>
                         <option value="20">全期間</option>
                         {startMonthArray.map((startMonth, index) => (
-                            <option key={index} value={startMonth}>{startMonth}</option>
+                            <option key={index} value={startMonth} selected={selectedMonth === startMonth}>{startMonth}</option>
                         ))}
                     </select>
                 </div>
@@ -636,7 +636,7 @@ const Rank = () => {
                                 </thead>
                                 <tbody>
                                     {rankedList.slice( sliceStart, sliceStart + 10 ).map((value, index) =>{
-                                        const prevRank = value.sales_meeting.split(' ')[1];
+                                        const prevRank = value.sales_meeting.split(',').pop().split(' ')[1];
                                         const rankArray = ['Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'];
                                         const prevRankIndex = rankArray.findIndex( item => item === prevRank);
                                         const currentRankIndex = rankArray.findIndex( item => item === value.rank);
@@ -680,7 +680,7 @@ const Rank = () => {
                             </div>}
                         </div>
                         {selectedRank === 'ランクダウン' || selectedRank === '契約' ? null : <div className='col p-2'>
-                            <div className='text-center' style={{ fontSize: '12px'}}>{customerList[0]?.last_meeting ? customerList[0].last_meeting.split(" ")[0] : "前回営業会議"}_{selectedRank}</div>
+                            <div className='text-center' style={{ fontSize: '12px'}}>{customerList[0]?.last_meeting ? customerList[0].last_meeting.split(",").pop().split(" ")[0] : "前回営業会議"}_{selectedRank}</div>
                             <Table striped style={{ fontSize: '12px'}} hover>
                                 <thead>
                                     <tr>

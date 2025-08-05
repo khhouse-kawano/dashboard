@@ -14,7 +14,7 @@ import AuthContext from '../context/AuthContext';
 export const Campaign = () => {
   const [ activePage, setActivePage ] = useState(1);
   const { brand } = useContext(AuthContext);
-  const brandsArray = ["KH", "DJH", "なごみ", "2L", "FH", "PGH"];
+  const brandsArray = ["KH", "DJH", "なごみ", "2L", "FH", "PGH", "JH"];
   const [activeBrand, setActiveBrand] = useState("KH");
   const [ campaignLength, setCampaignLength] = useState(0);
   const [campaignUsers, setCampaignUsers] = useState([]);
@@ -135,7 +135,7 @@ useEffect(() => {
     // グラフ
     const dataLabels =[];
     const dataTotal =[];
-    campaignUsers.filter(item=>item.ブランド.includes(activeBrand)).slice(0, 20).forEach((value) => {
+    campaignUsers.filter(item=>item.ブランド === activeBrand ).slice(0, 20).forEach((value) => {
       dataLabels.push(value.キャンペーン名);
       dataTotal.push(value.total);
     });
@@ -237,9 +237,9 @@ useEffect(() => {
                     <tr>
                       <th>1</th>
                       <th>合計</th>
-                      <th>{campaignUsers.filter( item => item.ブランド.includes(activeBrand)).reduce((acc, num) => acc + Number(num.total) , 0)}</th>
+                      <th>{campaignUsers.filter( item => item.ブランド === activeBrand).reduce((acc, num) => acc + Number(num.total) , 0)}</th>
                     </tr>
-                  {campaignUsers.filter( item => item.ブランド.includes(activeBrand)).slice(startID,endID).map((customer, index) => (
+                  {campaignUsers.filter( item => item.ブランド === activeBrand).slice(startID,endID).map((customer, index) => (
                     <tr key={index}>
                       <th>{ startID + index + 2}</th>
                       <th>{ customer.キャンペーン名}</th>

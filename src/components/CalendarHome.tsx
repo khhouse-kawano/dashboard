@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Menu from './Menu.js';
 import CalendarShop from "./Calendar";
 import CalendarList from "./CalendarList";
+import CalendarTable from './CalendarTable'
 import Table from 'react-bootstrap/Tab';
 import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
@@ -14,7 +15,7 @@ const CalendarHome = () => {
   const [activeTab, setActiveTab] = useState<string | null>('list');
 
   useEffect(() =>{
-          // if( !brand || brand.trim() === "") navigate("/");
+      // if( !brand || brand.trim() === "") navigate("/");
   },[])
 
   return (
@@ -31,6 +32,9 @@ const CalendarHome = () => {
           </Tab>
           <Tab eventKey="list" title="全体リスト">
             <CalendarList activeTab={activeTab}/>
+          </Tab>
+          <Tab eventKey="table" title="来場者集計">
+            <CalendarTable activeTab={activeTab}/>
           </Tab>
         </Tabs>
       </div>

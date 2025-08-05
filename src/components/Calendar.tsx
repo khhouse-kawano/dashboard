@@ -133,9 +133,9 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
     const currentMonth = today.getMonth();
     const clickedMonth = date.getMonth();
 
-    if (clickedMonth !== currentMonth) {
-      return;
-    }
+    // if (clickedMonth !== currentMonth) {
+    //   return;
+    // }
 
     const runningEvent = selectedRanges.filter(function (item) {
       const adjustedStartDate = new Date(item.startDate);
@@ -312,7 +312,7 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
     <div>
       <div className='text-center position-relative'>
         <select className='h5 form-select' style={{ width: '300px', margin: '30px auto'}} onChange={(e)=>shopChange(e.target.value)}>
-          {shopList.map((shop, index)=>(
+          {shopList.filter( shop => !shop.shop.includes('未設定')).map((shop, index)=>(
             <option key={index} selected={ selectedShop === shop.shop}>{shop.shop}</option>
           ))}
         </select>
@@ -325,6 +325,7 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
       </div>
       <Calendar
         onClickDay={(date) => addEvent(date)}
+        showNeighboringMonth={true} //※大事！当月以外でもイベントを発火するため　デフォルトではfalse
         onActiveStartDateChange={({ activeStartDate}) => handleMonthChange(activeStartDate)}
         minDetail='month'
         maxDetail='month'

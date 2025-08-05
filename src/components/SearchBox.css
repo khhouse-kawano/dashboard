@@ -102,7 +102,7 @@ a img:hover {
 /* 円グラフ */
 .pie {
     width: 80% !important;
-    max-width: 650px !important;
+    max-width: 550px !important;
     height: auto !important;
     margin: 0 auto;
 }
@@ -315,7 +315,7 @@ a img:hover {
     width: 1300px;
     height: 56.5px;
     z-index: 100;
-    background-color: rgb(255, 255, 255);
+    /* background-color: rgb(10, 10, 10); */
 }
 
 .campaign {
@@ -767,7 +767,7 @@ input[type=date]::-webkit-calendar-picker-indicator {
 .month_guide{
     position: fixed;
     width: 97%;
-    top: 40vh;
+    top: 19vh;
     z-index: 1000;
 }
 
@@ -794,4 +794,30 @@ input[type=date]::-webkit-calendar-picker-indicator {
 
 th {
   border-right: none !important;
+}
+
+.hover:hover{
+    color: red;
+    transform: scale(1.02);
+    font-weight: bold;
+}
+
+.custom-tooltip {
+  min-width: 80vw;
+  max-width: 80vw;
+  height: 30vw;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  font-size: 13px;
+  background-color: #000000;
+  color: #fff;
+  position: absolute;
+  top: 0;
+}
+
+/* これで背景を白っぽく変更できる */
+.custom-tooltip .tooltip-inner {
+  background-color: #f9f9f9 !important;
+  color: #333;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }

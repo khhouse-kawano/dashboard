@@ -14,13 +14,13 @@ const ListTest = () => {
     const [shop, setShop] = useState([]);
     const [listShop, setListShop] = useState([]);
     const [medium, setMedium] = useState([]);
-    const [mediumList, setMediumList] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [order, setOrder] = useState("ASC");
     const [customerLength, setCustomerLength] = useState(20);
     const [totalLength, setTotalLength ] = useState(0);
     const [targetShop, setTargetShop] = useState('');
     const [targetMedium, setTargetMedium] = useState('');
+    const [targetName, setTargetName] = useState('');
     const [targetSync, setTargetSync] = useState(3);
     const startYear = 2025;
     const startMonth = 1;
@@ -50,10 +50,10 @@ const ListTest = () => {
     };
 
     useEffect(() => {
-        if (!brand || brand.trim() === "") {
-            navigate("/");
-            return;
-        }
+        // if (!brand || brand.trim() === "") {
+        //     navigate("/");
+        //     return;
+        // }
 
         const fetchInquiryList = async () => {
             const response = await axios.post("/dashboard/api/inquiryList.php", { month: targetMonth });
@@ -81,24 +81,29 @@ const ListTest = () => {
     }, []);
 
     const filteredUsers = useMemo(() => 
-        originalData.filter(item =>
-            item.inquiry_date.includes(targetMonth) && item.shop.includes(targetShop) && item.response_medium.includes(targetMedium) && ( targetSync === 3 || item.sync == targetSync )
-        ), [originalData, targetMonth, targetShop, targetMedium, targetSync]);
+        originalData.filter(item =>{
+            const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+            return(
+            item.inquiry_date.includes(targetMonth) && item.shop.includes(targetShop) && item.response_medium.includes(targetMedium) && ( targetSync === 3 || item.sync == targetSync ) && fullName.includes(targetName)
+        )}), [originalData, targetMonth, targetShop, targetMedium, targetSync, targetName]);
 
     useEffect(() => {
         setInquiryUsers(filteredUsers);
     }, [filteredUsers]);
 
     useEffect(() => {
-        setTotalLength(originalData.filter(item =>
-            item.inquiry_date.includes(targetMonth) && item.shop.includes(targetShop) && item.response_medium.includes(targetMedium) && ( targetSync === 3 || item.sync == targetSync )
-        ).length);
+        setTotalLength(originalData.filter(item =>{
+            const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+            return(
+            item.inquiry_date.includes(targetMonth) && item.shop.includes(targetShop) && item.response_medium.includes(targetMedium) && ( targetSync === 3 || item.sync == targetSync ) && fullName.includes(targetName)
+        )}).length);
     }, [originalData, targetMonth]);
 
     const changeMonth = (month) => {
         setTargetMonth(month);
         setInquiryUsers(originalData.filter(item => item.inquiry_date.includes(month)));
         setTotalLength(inquiryUsers.length);
+        setTargetName('');
         setCustomerLength(20);
     };
 
@@ -123,56 +128,92 @@ const ListTest = () => {
     const [synchronize, setSynchronize] = useState(false);
 
     const handleShopSort = async(shop) => {
-        await setTargetShop(shop);
-        await setInquiryUsers(originalData.filter(item =>
-            item.inquiry_date.includes(targetMonth) &&
+        const shopValue = shop === 'PG HOUSE宮崎店' ? 'PG' : shop;
+        await setTargetShop(shopValue);
+        await setInquiryUsers(originalData.filter(item =>{
+            const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+            return(item.inquiry_date.includes(targetMonth) &&
             item.response_medium.includes(targetMedium) &&
-            (shop === "" || item.shop.includes(shop)) &&
-            (targetSync === 3 || item.sync === targetSync)
-        ));
+            (shopValue === "" || item.shop.includes(shopValue)) &&
+            (targetSync === 3 || item.sync === targetSync) &&
+            fullName.includes(targetName)
+        )}));
         await setCustomerLength(20);
-        await setTotalLength(originalData.filter(item =>
-            item.inquiry_date.includes(targetMonth) &&
+        await setTotalLength(originalData.filter(item =>{
+            const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+            return(item.inquiry_date.includes(targetMonth) &&
             item.response_medium.includes(targetMedium) &&
-            (shop === "" || item.shop.includes(shop)) &&
-            (targetSync === 3 || item.sync === targetSync)
-        ).length);
+            (shopValue === "" || item.shop.includes(shopValue)) &&
+            (targetSync === 3 || item.sync === targetSync) &&
+            fullName.includes(targetName)
+        )}).length);
     };
 
     const handleMediumSort = async(medium) => {
-        await setTargetMedium(medium);
-        await setInquiryUsers(originalData.filter(item =>
+        const formattedMedium = medium === '公式LINE' ? 'ALLGRIT' : medium;
+        await setTargetMedium(formattedMedium);
+        await setInquiryUsers(originalData.filter(item =>{
+            const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+            return(
             item.inquiry_date.includes(targetMonth) &&
             item.shop.includes(targetShop) &&
-            (medium === "" || item.response_medium.includes(medium)) &&
-            (targetSync === 3 || item.sync === targetSync)
+            (medium === "" || item.response_medium.includes(formattedMedium)) &&
+            (targetSync === 3 || item.sync === targetSync) &&
+            fullName.includes(targetName)
+        )}
         ));
         await setCustomerLength(20);
-        await setTotalLength(originalData.filter(item =>
-            item.inquiry_date.includes(targetMonth) &&
+        await setTotalLength(originalData.filter(item =>{
+            const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+            return (item.inquiry_date.includes(targetMonth) &&
             item.shop.includes(targetShop) &&
-            (medium === "" || item.response_medium.includes(medium)) &&
-            (targetSync === 3 || item.sync === targetSync)
-        ).length);
+            (medium === "" || item.response_medium.includes(formattedMedium)) &&
+            (targetSync === 3 || item.sync === targetSync) &&
+            fullName.includes(targetName)
+        )}).length);
     };
 
     const handleSyncSort = async(syncValue) => {
         const sync = parseInt(syncValue, 10);
         await setTargetSync(sync);
-        await setInquiryUsers(originalData.filter(item =>
-            item.inquiry_date.includes(targetMonth) &&
+        await setInquiryUsers(originalData.filter(item =>{
+            const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+            return( item.inquiry_date.includes(targetMonth) &&
             item.shop.includes(targetShop) &&
             item.response_medium.includes(targetMedium) &&
-            (sync === 3 || item.sync === sync)
+            (sync === 3 || item.sync === sync) &&
+            fullName.includes(targetName)
+        )}
         ));
         await setCustomerLength(20);
-        await setTotalLength(originalData.filter(item =>
+        await setTotalLength(originalData.filter(item =>{
+            const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+            return(item.inquiry_date.includes(targetMonth) &&
+            item.shop.includes(targetShop) &&
+            item.response_medium.includes(targetMedium) &&
+            (sync === 3 || item.sync === sync) &&
+            fullName.includes(targetName)
+        )}).length);
+        };
+
+    const handleNameSort = (nameValue) => {
+        setTargetName(nameValue);
+
+        const filtered = originalData.filter(item => {
+        const fullName = `${item.first_name || ""}${item.last_name || ""}`;
+        return (
             item.inquiry_date.includes(targetMonth) &&
             item.shop.includes(targetShop) &&
             item.response_medium.includes(targetMedium) &&
-            (sync === 3 || item.sync === sync)
-        ).length);
-        };
+            (sync === 3 || item.sync === sync) &&
+            fullName.includes(nameValue)
+            );
+        });
+
+        setInquiryUsers(filtered);
+        setCustomerLength(20);
+        setTotalLength(filtered.length);
+    };
 
     const shopChange = async (event, id) => {
         const shopValue = event.target.value;
@@ -332,10 +373,10 @@ const ListTest = () => {
         
         <Menu brand={brand} />
         <div className="container bg-white pt-3 inquiry_ui position-relative">
-            <div className='position-absolute white-object'></div>
-            <div className='position-absolute white-object side'></div>
+            {/* <div className='position-absolute white-object'></div>
+            <div className='position-absolute white-object side'></div> */}
             <div className='pb-3 row'>
-                <div className="d-flex col-9">
+                <div className="d-flex">
                     <select className="form-select campaign position-relative me-2" onChange={(event) =>changeMonth(event.target.value)}>
                         {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
                             ))}
@@ -347,26 +388,28 @@ const ListTest = () => {
                     </select>
                     <select className="form-select campaign position-relative me-2" onChange={(event) =>handleMediumSort(event.target.value)}>
                         <option value="" selected={ targetMedium === ""}>全媒体</option>
-                        {medium.map((value, index) => (<option key={index} value={value.medium} selected={value.medium === targetMedium}>{value.medium}</option>
+                        {medium.filter( item => item.list_medium === 1).map((value, index) => (
+                            <option key={index} value={value.medium} selected={value.medium === targetMedium}>{value.medium}</option>
                             ))}
                     </select>
-                    <select className="form-select campaign position-relative" onChange={(event) =>handleSyncSort(event.target.value)}>
+                    <select className="form-select campaign position-relative me-2" onChange={(event) =>handleSyncSort(event.target.value)}>
                         <option value="3" selected={ targetSync === 3 }>全て</option>
                         <option value="0" selected={ targetSync === 0 }>未同期</option>
                         <option value="1" selected={ targetSync === 1 }>同期済み</option>
                     </select>
+                    <input type="text" className='form-control' value={targetName} placeholder='氏名で検索' onChange={(event) =>handleNameSort(event.target.value)}/>
                 </div>
             </div>
             <div className='p-0 inquiry'>
             <Table striped bordered hover className='inquiry_table'>
-                <thead className='sticky-header' style={{ fontSize: "13px"}}> 
+                <thead className='sticky-header' style={{ fontSize: "12px"}}> 
                     {/* className='sticky-header' でヘッダー固定*/}
                     <tr className='sticky-header'>
                         <th className="sticky-column bg-success text-white">店舗名</th>
                         { shop.filter(item => !item.shop.includes('未設定')).map((value, index)=>( <th key={index} className='text-center bg-success text-white'>{value.shop}</th>))}
                     </tr>
                 </thead>
-                <tbody style={{ fontSize: "13px"}}>
+                <tbody style={{ fontSize: "12px"}}>
                     <tr>
                         <th className="sticky-column bg-warning text-white">                            
                             反響計<i className="fa-regular fa-square-plus plus-icon ps-2" onClick={mediumShow}></i><i className="fa-regular fa-square-minus minus-icon d-none ps-2" onClick={mediumHide}></i></th>
@@ -401,7 +444,7 @@ const ListTest = () => {
                 </tbody>
             </Table>
             <Table striped bordered hover className='inquiry_table bottom'>
-                <thead style={{ fontSize: "13px"}}> 
+                <thead style={{ fontSize: "12px"}}> 
                 <tr className='sticky-header'>
                     <th className="sticky-column bg-success text-white">同期</th>
                     <th className="sticky-column bg-success text-white">店舗名</th>
@@ -418,7 +461,7 @@ const ListTest = () => {
                     <th className='bg-success text-white'>備考</th>
                 </tr>
                 </thead>
-                <tbody style={{ fontSize: "13px"}}>
+                <tbody style={{ fontSize: "12px"}}>
                 {inquiryUsers.filter(item=>item.inquiry_date.includes(targetMonth)).slice(0, customerLength).map((value, index)=>{
                     let shopColorCode;
                     let shopColorCodeEvent;

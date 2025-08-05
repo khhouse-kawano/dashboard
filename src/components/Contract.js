@@ -46,11 +46,11 @@ export const Contract = ( ) => {
 
   const thisYear = new Date().getFullYear();
   const startYear = 2021;
-  const yearArray = [];
-  yearArray.push(startYear);
-  for ( let i = 1; i <= thisYear - startYear; i++){
-    yearArray.push( startYear + i );
-  }
+  const yearArray = [2021, 2022, 2023, 2024, 2025, 2026];
+  // yearArray.push(startYear);
+  // for ( let i = 1; i <= thisYear - startYear; i++){
+  //   yearArray.push( startYear + i );
+  // }
   const monthArray = [ "06", "07", "08", "09", "10", "11", "12", "01", "02", "03", "04", "05"];
   const sectionArray = [ "1課", "2課", "3課", "4課", "不動産課"];
   const dataArray = [];
@@ -203,7 +203,7 @@ export const Contract = ( ) => {
       <div className="bg-light">
       { loading === true ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) : null }
         <Line data={data} options={options} className="lineGraph"/>
-        <Tabs defaultActiveKey={thisYear} id="justify-tab-example" className="mt-5 mb-3 bg-white" justify>
+        <Tabs defaultActiveKey={yearArray.pop()} id="justify-tab-example" className="mt-5 mb-3 bg-white" justify>
           {reverseYearArray.map((year, index) => (
           <Tab eventKey={year} title={`${year}`} key={index}>
             <div>
@@ -254,7 +254,7 @@ export const Contract = ( ) => {
                     </Accordion.Header>
                       <Accordion.Body className="p-0 m-0">
                         <Accordion alwaysOpen>
-                          { [...new Set(contractUser.filter(item => item.contractDate.includes(year) && item.section.includes(section)).map((value)=>value.shop))].map((shop, index) => (
+                          { [...new Set(staffArray.filter(item => item.year.includes(year) && item.section.includes(section)).map((value)=>value.shop))].map((shop, index) => (
                           <Accordion.Item className={bgArray[indexSection]} eventKey={index}>
                             <Accordion.Header>
                             <Table striped bordered hover className="me-2 my-0 text-center">

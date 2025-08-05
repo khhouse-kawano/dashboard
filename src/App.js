@@ -3,10 +3,8 @@ import "./App.css";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./components/Home";
 import Contract from "./components/Contract";
-import Customer from "./components/Customer";
 import Result from "./components/Result";
 import Shop from "./components/Shop";
-import ShopTrend from "./components/ShopTrend";
 import CustomerTrend from "./components/CustomerTrend";
 import Campaign from "./components/Campaign";
 import List from "./components/List";
@@ -19,7 +17,11 @@ import Database from "./components/Database";
 import Drop from "./components/Drop";
 import User from "./components/User";
 import AuthProvider from "./context/AuthProvider";
-import ListDev from "./components/List_dev";
+import Customer from "./components/Customers";
+import Rank_Re from "./components/Rank_Dev"
+import ShopTrendDev from "./components/ShopTrendDev";
+import ListDev from './components/List_Dev';
+import Survey from './components/Survey';
 
 function App() {
 
@@ -30,19 +32,19 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/contract" element={<Contract />} />
         <Route path="/customer" element={<Customer />} />
-        <Route path="/result" element={<Result />} />
         <Route path="/shop" element={<Shop />} />
-        <Route path="/shopTrend" element={<ShopTrend />} />
+        <Route path="/result" element={<Result />} />
+        <Route path="/shopTrend" element={<ShopTrendDev />} />
         <Route path="/customerTrend" element={<CustomerTrend />} />
         <Route path="/campaign" element={<Campaign />} />
-        <Route path="/list" element={<List />} />
+        <Route path="/list" element={<ListDev />} />
         <Route path="/budget" element={<Budget />} />
         <Route path="/budgetAccounting" element={<BudgetAccounting />} />
-        <Route path="/rank" element={<Rank />} />
+        <Route path="/rank" element={<Rank_Re />} />
         <Route path="/log" element={<Log />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/database" element={<Database />} />
-        <Route path="/test" element={<ListDev />} />
+        <Route path="/test" element={<Survey />} />
       </Routes>
     </Router>
   </AuthProvider>

@@ -142,10 +142,10 @@ const Menu = ({brand}) => {
         <div className='menuLogo m-3' onClick={home}><img src={Logo} alt="PG-CLOUDダッシュボード" className='w-100'/></div>
         <div className="menu d-flex flex-wrap">
             <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold ${currentPath === "/contract" ? "selected ": ""}`} onClick={currentPath === "/contract" ? null : contract}>契約者数</div>
-            <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold ${currentPath === "/customer" ? "selected": ""}`} onClick={currentPath === "/customer" ? null : mediumSearch}>販促媒体別反響</div>
             <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/rank" ? "selected": ""}`} onClick={currentPath === "/rank" ? null : rank}>店舗・担当別反響</div>
-            <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/database" ? "selected": ""}`} onClick={currentPath === "/database" ? null : database}>顧客データベース<div className='position-absolute accounting bg-primary text-white rounded px-1'>new</div></div>
-            <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/shop" ? "selected": ""}`} onClick={currentPath === "/shop" ? null : shopSearch}>店舗・担当</div>
+            <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold ${currentPath === "/customer" ? "selected": ""}`} onClick={currentPath === "/customer" ? null : mediumSearch}>販促媒体別広告費</div>
+            <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold ${currentPath === "/shop" ? "selected": ""}`} onClick={currentPath === "/shop" ? null : shopSearch}>店舗別広告費</div>
+            <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/database" ? "selected": ""}`} onClick={currentPath === "/database" ? null : database}>顧客データベース</div>
             <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold ${currentPath === "/customerTrend" ? "selected": ""}`} onClick={currentPath === "/customerTrend" ? null : customerTrend}>販促媒体別反響推移</div>
             <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold ${currentPath === "/shopTrend" ? "selected": ""}`} onClick={currentPath === "/shopTrend" ? null : shopTrend}>店舗別反響推移</div>
             <div className={`category btn me-1 mb-1  btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/calendar" ? "selected": ""}`} onClick={currentPath === "/calendar" ? null : calendar}>カレンダー</div>

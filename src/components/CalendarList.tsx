@@ -167,6 +167,7 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
     const [nagomiArray, setNagomiArray] = useState<number[]>([]);
     const [nieruArray, setNieruArray] = useState<number[]>([]);
     const [pgArray, setPgArray] = useState<number[]>([]);
+    const [jhArray, setJhArray] = useState<number[]>([]);
 
     useEffect(() => {
         let khgNumberArray = [];
@@ -175,6 +176,7 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
         let nagomiNumberArray = [];
         let nieruNumberArray = [];
         let pgNumberArray = [];
+        let jhNumberArray = [];
 
         const fetchReservedNumber = async () => {
             khgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved').length);
@@ -212,6 +214,12 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
             pgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'next' && item.shop.includes('PG')).length);
             pgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'registered' && item.shop.includes('PG')).length);
             setPgArray(pgNumberArray);
+
+            jhNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved' && (item.shop.includes('JH熊本') || item.shop.includes('JH八代'))).length);
+            jhNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'new' && (item.shop.includes('JH熊本') || item.shop.includes('JH八代'))).length);
+            jhNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'next' && (item.shop.includes('JH熊本') || item.shop.includes('JH八代'))).length);
+            jhNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'registered' && (item.shop.includes('JH熊本') || item.shop.includes('JH八代'))).length);
+            setJhArray(jhNumberArray);
         };
 
         fetchReservedNumber();
@@ -456,58 +464,6 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
     return (
         <div className="custom-calendar">
             <div className='text-center'>{standardDate.replace('-', '/')}_来場者数総計</div>
-            <Table className='text-center no-border-table' style={{ width: '100%', margin: '0 auto 40px' }}>
-                <thead>
-                    <tr>
-                        <th>グループ全体</th>
-                        <th>国分ハウジング</th>
-                        <th>Day Just House</th>
-                        <th>なごみ工務店</th>
-                        <th>ニーエルホーム</th>
-                        <th>PG HOUSE</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th>
-                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{khgArray[0]}名</div></span>
-                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{khgArray[1]}名</div></span>
-                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{khgArray[2]}名</div></span>
-                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{khgArray[3]}名</div></span>
-                        </th>
-                        <th>
-                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{khArray[0]}名</div></span>
-                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{khArray[1]}名</div></span>
-                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{khArray[2]}名</div></span>
-                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{khArray[3]}名</div></span>
-                        </th>
-                        <th>
-                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{djhArray[0]}名</div></span>
-                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{djhArray[1]}名</div></span>
-                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{djhArray[2]}名</div></span>
-                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{djhArray[3]}名</div></span>
-                        </th>
-                        <th>
-                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{nagomiArray[0]}名</div></span>
-                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{nagomiArray[1]}名</div></span>
-                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{nagomiArray[2]}名</div></span>
-                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{nagomiArray[3]}名</div></span>
-                        </th>
-                        <th>
-                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{nieruArray[0]}名</div></span>
-                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{nieruArray[1]}名</div></span>
-                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{nieruArray[2]}名</div></span>
-                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{nieruArray[3]}名</div></span>
-                        </th>
-                        <th>
-                            <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規<div className='position-absolute text-danger fw-bold inquiry-number'>{pgArray[0]}名</div></span>
-                            <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効<div className='position-absolute text-primary fw-bold inquiry-number'>{pgArray[1]}名</div></span>
-                            <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次アポ<div className='position-absolute text-success fw-bold inquiry-number'>{pgArray[2]}名</div></span>
-                            <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客<div className='position-absolute text-secondary fw-bold inquiry-number'>{pgArray[3]}名</div></span>
-                        </th>
-                    </tr>
-                </tbody>
-            </Table>
             <div className='d-flex justify-content-between month_guide'>
                 <div className='btn bg-primary text-white rounded-pill' onClick={() => {
                     setMonthOffset(prev => prev - 1);
@@ -544,7 +500,7 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
                     </tr>
                 </thead>
                 <tbody>
-                    {selectedShop.map((shop, index) => (
+                    {selectedShop.filter( shop => !shop.shop.includes('未設定')).map((shop, index) => (
                         <tr key={index}>
                             <th className='align-middle'>{shop.shop}</th>
                             {dateArray.map((value, index) => {

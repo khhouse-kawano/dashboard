@@ -289,7 +289,7 @@ const Database = () => {
 
   return (
     <div>
-      <Menu brand='Master' />
+      <Menu brand={brand} />
       <div className='container bg-white py-3 mt-2'>
         <div className='pb-3 row'>
           <div className="d-flex col">

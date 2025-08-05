@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
-import SearchBoxShop from "../SearchBoxShop";
-import SearchBoxNullShop from "../SearchBoxNullShop";
+import SearchBoxShop from "./×SearchBoxShop";
+import SearchBoxNullShop from "./×SearchBoxNullShop";
 
 const ShopSearch = () => {
   const location = useLocation();
