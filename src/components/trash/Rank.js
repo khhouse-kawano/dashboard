@@ -1,13 +1,12 @@
 import React ,{ useEffect, useRef, useState, useContext } from 'react';
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import Menu from "./Menu";
+import Menu from "../Menu";
 import Table from "react-bootstrap/Table";
-import "./SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Modal from 'react-bootstrap/Modal';
 import Pagination from 'react-bootstrap/Pagination';
-import AuthContext from '../context/AuthContext';
+import AuthContext from '../../context/AuthContext';
 
 const Rank = () => {
     const navigate = useNavigate();
