@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate, useLocation } from "react-router-dom";
 import "./SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
-import Logo from "../assets/images/logo.png";
 
 const Menu = ({brand}) => {
     const location = useLocation();
@@ -139,7 +138,7 @@ const Menu = ({brand}) => {
 
   return (
     <div className='d-flex mt-2'>
-        <div className='menuLogo m-3' onClick={home}><img src={Logo} alt="PG-CLOUDダッシュボード" className='w-100'/></div>
+        <div className='menuLogo m-3' onClick={home}><img src='https://khg-marketing.info/home/images/logo.png' alt="PG-CLOUDダッシュボード" className='w-100'/></div>
         <div className="menu d-flex flex-wrap">
             <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold ${currentPath === "/contract" ? "selected ": ""}`} onClick={currentPath === "/contract" ? null : contract}>契約者数</div>
             <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/rank" ? "selected": ""}`} onClick={currentPath === "/rank" ? null : rank}>店舗・担当別反響</div>
@@ -152,7 +151,7 @@ const Menu = ({brand}) => {
             <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/list" ? "selected": ""}`} onClick={currentPath === "/list" ? null : list}>反響一覧</div>
             {/* <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/list" ? "selected": ""}`} onClick={currentPath === "/list" ? null : list}>反響一覧<div className='position-absolute accounting bg-primary text-white rounded px-1'>6/1より</div></div> */}
             {/* <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/database" ? "selected": ""}`} onClick={currentPath === "/database" ? null : database}>PG CLOUDデータベース</div> */}
-            { brand === "BrandAdmin" || brand === "Master" ? <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/campaign" ? "selected": ""}`} onClick={currentPath === "/campaign" ? null : campaign}>キャンペーン別反響<div className='position-absolute accounting bg-primary text-white rounded px-1'>管理者専用</div></div> : null}
+            { brand === "BrandAdmin" || brand === "Master" ? <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath.includes("/campaign") || currentPath.includes("/editcampaign") ? "selected": ""}`} onClick={currentPath === "/campaign" ? null : campaign}>キャンペーン管理<div className='position-absolute accounting bg-primary text-white rounded px-1'>管理者専用</div></div> : null}
             { brand === "BrandAdmin" || brand === "Master" ? <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/budget" ? "selected": ""}`} onClick={currentPath === "/budget" ? null : budget}>予算詳細<div className='position-absolute accounting bg-primary text-white rounded px-1'>管理者専用</div></div> : null}
             { brand === "BrandAdmin" || brand === "Master" ? <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/budgetAccounting" ? "selected": ""}`} onClick={currentPath === "/budgetAccounting" ? null : budgetAccounting}>予算詳細<div className='position-absolute accounting bg-danger text-white rounded px-1'>経理用</div></div> : null}
             { brand === "BrandAdmin" || brand === "Master" ? <div className={`category btn me-1 mb-1 btn-large text-dark px-2 fw-bold position-relative ${currentPath === "/log" ? "selected": ""}`} onClick={currentPath === "/log" ? null : loginLog}>ログイン履歴<div className='position-absolute accounting bg-primary text-white rounded px-1'>管理者専用</div></div> : null}

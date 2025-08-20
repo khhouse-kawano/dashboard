@@ -141,7 +141,7 @@ const RankDev = () =>{
     },[])
 
     useEffect(() => {
-        console.log(contractGoal)
+        console.log(contractGoal);
         const raw = customerList[0]?.last_meeting;
         if (!raw) {
             setLastMeeting('前回営業会議');

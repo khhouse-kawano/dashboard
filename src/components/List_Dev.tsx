@@ -232,12 +232,17 @@ const ListDev = () => {
             const updatedList = await fetchData();
             const targetID = updatedList.find(item => item.inquiry_id === idValue)?.pg_id;
 
-            if (targetID || elapsed >= maxTime) {
+            if (targetID) {
                 clearInterval(timer);
                 setProgress(100);
                 alert('同期が完了しました。');
                 setIsSyncing(false);
-            } else {
+            } else if(elapsed >= maxTime){
+                clearInterval(timer);
+                setProgress(100);
+                alert('同期に失敗しました。');
+                setIsSyncing(false);
+            }else {
                 elapsed += checkInterval;
                 const ratio = elapsed / maxTime;
                 setProgress(ratio * 100);
@@ -412,7 +417,7 @@ const ListDev = () => {
             <span>同期処理中</span>
             <ProgressBar now={progress} label={`${Math.round(progress)}%`} />
         </div>}
-        <Menu brand='Master' />
+        <Menu brand={brand} />
             <div className='container bg-white py-3 mt-2'>
             <div className='pb-3 row'>
                 <div className="d-flex">
@@ -497,34 +502,36 @@ const ListDev = () => {
                         <tr key={index} style={{ textAlign: 'left'}} className = {item.sync === 1 || item.black_list.split('duplicate').length % 2 === 0 || item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 ? 'table-primary' : ''}>
                             <td style={{textAlign: 'center'}}>
                                 {item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.shop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
-                                item.sync === 1 ? <a href={item.pg_id} target='_blank' style={{textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '10px', cursor: 'pointer'}}>PG CLOUDへ移動</a> :
+                                item.sync === 1 ? <a href={item.pg_id} target='_blank' style={{textDecoration: 'none', backgroundColor: 'blue', padding: '3px 3px', color: '#fff', borderRadius: '10px', cursor: 'pointer'}}>PG CLOUDへ移動</a> :
                                 <i className='fa-solid fa-arrows-rotate sticky-column pointer'
-                                onClick={()=>sync(
-                                item.inquiry_id,
-                                item.first_name,
-                                item.last_name,
-                                item.shop,
-                                item.inquiry_date,
-                                item.response_medium,
-                                item.first_name_kana,
-                                item.last_name_kana,
-                                item.mobile,
-                                item.landline,
-                                item.mail,
-                                item.zip,
-                                item.pref,
-                                item.city,
-                                item.town,
-                                item.street,
-                                item.building,
-                                item.staff,
-                                surveyBeforeList.find(value => value.brand === item.brand && value.emailAddress === item.mail)?.id ?? 0,
-                                item.hp_campaign
-                            )}
+                                onClick={()=>{
+                                    const staffID = staffList.find(staff => staff.name === item.staff && staff.shop === item.shop )?.pg_id;
+                                    sync(
+                                        item.inquiry_id,
+                                        item.first_name,
+                                        item.last_name,
+                                        item.shop,
+                                        item.inquiry_date,
+                                        item.response_medium,
+                                        item.first_name_kana,
+                                        item.last_name_kana,
+                                        item.mobile,
+                                        item.landline,
+                                        item.mail,
+                                        item.zip,
+                                        item.pref,
+                                        item.city,
+                                        item.town,
+                                        item.street,
+                                        item.building,
+                                        staffID as string,
+                                        surveyBeforeList.find(value => value.brand === item.brand && value.emailAddress === item.mail)?.id ?? 0,
+                                        item.hp_campaign
+                                    )}}
                                 ></i>
                                 }
                             </td>
-                            <td style={{textAlign: 'center'}}>{item.mhl_id !== "" ? <a href={item.mhl_id} target='_blank' style={{textDecoration: 'none', backgroundColor: 'red', padding: '3px 7px', color: '#fff', borderRadius: '10px', cursor: 'pointer'}}>マイホームロボへ移動</a> :
+                            <td style={{textAlign: 'center'}}>{item.mhl_id !== "" ? <a href={item.mhl_id} target='_blank' style={{textDecoration: 'none', backgroundColor: 'red', padding: '3px', color: '#fff', borderRadius: '10px', cursor: 'pointer'}}>マイホームロボへ移動</a> :
                             <i className='fa-solid fa-arrows-rotate sticky-column pointer'
                             onClick={()=>syncRobo(
                                 item.inquiry_id,
@@ -538,7 +545,7 @@ const ListDev = () => {
                                 )}
                                 ></i>}</td>
                             <td style={{ textAlign: 'center' }}>{surveyBeforeList.find(value => value.brand === item.brand && value.emailAddress === item.mail)?.id ? (
-                                <span style={{ textDecoration: 'none', backgroundColor: 'green', padding: '3px 12px', color: '#fff', borderRadius: '10px', cursor: 'pointer'}}
+                                <span style={{ textDecoration: 'none', backgroundColor: 'green', padding: '3px 5px', color: '#fff', borderRadius: '10px', cursor: 'pointer'}}
                                 onClick={() =>modalShow( surveyBeforeList.find( value => value.brand === item.brand && value.emailAddress === item.mail)!.id, item.hp_campaign)}>回答内容を表示</span>) 
                                 : ('-')}
                             </td>

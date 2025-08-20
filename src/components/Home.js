@@ -97,6 +97,7 @@ const Home = () => {
         >
           ログイン
         </button>
+        {/* <h5 className="text-center">ただいま改修作業中です</h5> */}
       </div>
     </div>
   );

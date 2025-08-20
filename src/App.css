@@ -2,5 +2,11 @@ body{
   background-color: #ededed!important;
   width: 100%;
   min-width:1300px ;
+  font-family: "Noto Sans JP", serif !important;
 }
 
+input::placeholder {
+  color: #cfcfcf!important;
+  font-size: 12px;
+  opacity: 1; /* Firefox対策 */
+}

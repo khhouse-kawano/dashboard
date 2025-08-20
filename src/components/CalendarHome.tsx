@@ -4,7 +4,6 @@ import Menu from './Menu.js';
 import CalendarShop from "./Calendar";
 import CalendarList from "./CalendarList";
 import CalendarTable from './CalendarTable'
-import Table from 'react-bootstrap/Tab';
 import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
 import AuthContext from '../context/AuthContext';
@@ -15,7 +14,7 @@ const CalendarHome = () => {
   const [activeTab, setActiveTab] = useState<string | null>('list');
 
   useEffect(() =>{
-      // if( !brand || brand.trim() === "") navigate("/");
+      if( !brand || brand.trim() === "") navigate("/");
   },[])
 
   return (

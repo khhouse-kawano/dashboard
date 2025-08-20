@@ -8,7 +8,7 @@ import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../context/AuthContext';
 
 type shopList = { brand: string, shop: string };
-type staffList = { name: string, shop: string };
+type staffList = { name: string, shop: string; pg_id: string; category: number };
 type customerList = {[key: string]: string;};
 type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number}
 
@@ -56,7 +56,7 @@ const Database = () => {
   })
 
   useEffect(()=>{
-    if( !brand || brand.trim() === "") navigate("/");
+    // if( !brand || brand.trim() === "") navigate("/");
     const getYearMonthArray = (startYear:number, startMonth:number) => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -391,8 +391,8 @@ const Database = () => {
                             <p><span>担当営業</span></p>
                             <select className='form-select' name='staff' onChange={handleChange} style={{ fontSize: "12px"}}>
                               <option value="">担当営業を選択</option>
-                              {staffArray?.filter(item=>item.shop === updateData.shop).map((item, index) =>
-                              <option value={item.name} key={index} selected={item.name===updateData.staff}>{item.name}</option>
+                              {staffArray?.filter(item=>item.shop === updateData.shop && item.category === 1).map((item, index) =>
+                              <option value={item.pg_id} key={index} selected={item.name===updateData.staff}>{item.name}</option>
                               )}
                             </select>
                           </div>
