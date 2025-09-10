@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import React ,{ useEffect, useRef, useState, useContext,  useMemo  } from 'react';
-import Menu from './Menu.js';
+import Menu from '../Menu.js';
 import Table from "react-bootstrap/Table";
 import axios from 'axios';
-import AuthContext from '../context/AuthContext';
+import AuthContext from '../../context/AuthContext.js';
 
 const ListTest = () => {
     const { brand } = useContext(AuthContext);

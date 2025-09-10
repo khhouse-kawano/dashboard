@@ -10,3 +10,43 @@ input::placeholder {
   font-size: 12px;
   opacity: 1; /* Firefox対策 */
 }
+
+.custom-pagination {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  gap: 4px;
+}
+
+.custom-pagination li button {
+  background-color: #f0f0f0; /* グレイ */
+  color: #333;               /* 黒に近い文字色 */
+  border: 1px solid #ffffff;
+  padding: 3px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.custom-pagination li.active button {
+  background-color: #333;    /* 黒背景 */
+  color: #fff;               /* 白文字 */
+  border-color: #333;
+}
+
+.menu_tab{
+  background-color: blue;
+  color: #fff;
+  padding: 5px 8px;
+  text-align: center;
+  border: 1px solid #fff;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  width: 130px;
+}
+
+.menu_tab:hover{
+  opacity: .8;
+  transform: scale(1.05);
+}

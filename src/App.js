@@ -7,7 +7,6 @@ import Result from "./components/Result";
 import Shop from "./components/Shop";
 import CustomerTrend from "./components/CustomerTrend";
 import Campaign from "./components/Campaign";
-import List from "./components/List";
 import Budget from "./components/Budget";
 import BudgetAccounting from "./components/BudgetAccounting";
 import Rank from "./components/trash/Rank";
@@ -23,7 +22,8 @@ import ListDev from './components/List_Dev';
 import Survey from './components/Survey';
 import CampaignHome from './components/CampaignHome'
 import NewCampaign from './components/NewCampaign'
-import Drop from "./components/Rank_dev";
+import RankDev from "./components/Rank_dev";
+import DatabaseDev from "./components/Database_dev";
 
 function App() {
 
@@ -40,14 +40,13 @@ function App() {
         <Route path="/customerTrend" element={<CustomerTrend />} />
         <Route path="/list" element={<ListDev />} />
         <Route path="/database" element={<Database />} />
-        <Route path="/budget" element={<Budget />} />
-        <Route path="/budgetAccounting" element={<BudgetAccounting />} />
-        <Route path="/rank" element={<Rank_Re />} />
+        <Route path="/budget" element={<BudgetAccounting />} />
+        <Route path="/rank" element={<RankDev />} />
         <Route path="/log" element={<Log />} />
         <Route path="/calendar" element={<Calendar />} />
-        <Route path="/test" element={<Drop />} />
         <Route path="/campaign" element={<CampaignHome />} />
         <Route path="/editcampaign" element={<NewCampaign />} />
+        <Route path="/test" element={<DatabaseDev />} />
         <Route path="*" element={<Home />} />
       </Routes>
     </Router>

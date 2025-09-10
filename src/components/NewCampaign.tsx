@@ -273,7 +273,7 @@ const NewCampaign = () => {
                 } else if (brandValue === 'nagomi') {
                     urlValue = `https://www.nagomi-koumuten.jp/form/?id=${value}&brand=${brandValue}`
                     tagValue = `<iframe id=f src="/form/?id=${value}&brand=${brandValue}" width=100% frameborder=0 scrolling=no style="border:none"></iframe><script>setInterval(r=()=>f.style.height=f.contentWindow?.document?.body?.scrollHeight+120+"px",1e3);f.addEventListener("load",r);</script>`
-                } else if (brandValue === 'nieru') {
+                } else if (brandValue === '2l') {
                     urlValue = `https://2lhome.net/form/?id=${value}&brand=${brandValue}`
                     tagValue = `<iframe id=f src="/form/?id=${value}&brand=${brandValue}" width=100% frameborder=0 scrolling=no style="border:none"></iframe><script>setInterval(r=()=>f.style.height=f.contentWindow?.document?.body?.scrollHeight+120+"px",1e3);f.addEventListener("load",r);</script>`
                 } else if (brandValue === 'fh') {
@@ -318,7 +318,7 @@ const NewCampaign = () => {
         setValidation([]);
         const missing: string[] = [];
         for (const [key, value] of Object.entries(form)) {
-            const required: string[] = ['campaign', 'campaign_id', 'mail_to', 'mail_cc', 'thanks', 'redirect'];
+            const required: string[] = ['campaign', 'campaign_id', 'mail_to', 'mail_cc', 'redirect'];
             required.map(item => {
                 if (item === key && !value) missing.push(key);
             }

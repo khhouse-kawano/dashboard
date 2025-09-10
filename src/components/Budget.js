@@ -85,7 +85,7 @@ const Budget = () => {
         setSelectedStartMonth(startMonthRef.current.value);
     }
 
-    const brandArray =[ "KH", "DJH", "なごみ", "2L", "FH", "PG HOUSE"];
+    const brandArray =[ "KH", "DJH", "なごみ", "2L", "FH", "PG HOUSE", "JH"];
 
     const alertTest = (event) => {
         const budgetNote = event.currentTarget.querySelector('.budget_note');

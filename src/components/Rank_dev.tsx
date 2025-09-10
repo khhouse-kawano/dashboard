@@ -587,13 +587,13 @@ const RankDev = () => {
                                 </OverlayTrigger>
                             </td>
                             <td>
-                                <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{selectedMonth}の契約者数 ()内はAランクも合わせた数</Tooltip>}>
-                                    <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約数</span>
+                                <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{selectedMonth}の目標数 なごみ工務店は店舗数で割った数</Tooltip>}>
+                                    <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>目標数</span>
                                 </OverlayTrigger>
                             </td>
                             <td>
-                                <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{selectedMonth}の目標数 なごみ工務店は店舗数で割った数</Tooltip>}>
-                                    <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>目標数</span>
+                                <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{selectedMonth}の契約者数 ()内はAランクも合わせた数</Tooltip>}>
+                                    <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約数</span>
                                 </OverlayTrigger>
                             </td>
                             <td>
@@ -603,7 +603,7 @@ const RankDev = () => {
                             </td>
                             <td>
                                 <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{selectedMonth}の契約が見込める数</Tooltip>}>
-                                    <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>期待値</span>
+                                    <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>当月契約確約数</span>
                                 </OverlayTrigger>
                             </td>
                             <td className='text-center'>
@@ -651,8 +651,8 @@ const RankDev = () => {
                             <td>{Number.isFinite(totalReserve / totalResponse) ? `${Math.ceil(totalReserve / totalResponse * 100)}%` : 0}</td>
                             <td>{totalReserve}</td>
                             <td>{Number.isFinite(totalContract / totalReserve) ? `${Math.ceil(totalContract / totalReserve * 100)}%` : 0}</td>
-                            <td style={{ cursor: 'pointer' }} className='hover' onClick={() => modalShow('契約(契約見込み)', 'all', '')}><div style={{ textDecoration: 'underline' }}>{totalContract}<span style={{ color: "blue" }}>{selectedMonth !== `${String(year)}/${month}` || ` (${totalContract + totalARank})`}</span></div></td>
                             <td>{contractGoalFilter.find(item => item.section === '注文営業全体')?.goal ? contractGoalFilter.find(item => item.section === '注文営業全体')?.goal : '-'}</td>
+                            <td style={{ cursor: 'pointer' }} className='hover' onClick={() => modalShow('契約(契約見込み)', 'all', '')}><div style={{ textDecoration: 'underline' }}>{totalContract}<span style={{ color: "blue" }}>{selectedMonth !== `${String(year)}/${month}` || ` (${totalContract + totalARank})`}</span></div></td>
                             {(() => {
                                 const goal = contractGoalFilter.find(item => item.section === '注文営業全体')?.goal;
                                 const goalAchievement = goal && Number.isFinite(totalContract / goal) ? `${Math.ceil(totalContract / goal * 100)}%` : '-';
@@ -682,8 +682,8 @@ const RankDev = () => {
                                 <td>{Number.isFinite(totalReserveArray[sectionIndex] / totalResponseArray[sectionIndex]) ? `${Math.ceil(totalReserveArray[sectionIndex] / totalResponseArray[sectionIndex] * 100)}%` : '0%'}</td>
                                 <td>{totalReserveArray[sectionIndex]}</td>
                                 <td>{Number.isFinite(totalContractArray[sectionIndex] / totalReserveArray[sectionIndex]) ? `${Math.ceil(totalContractArray[sectionIndex] / totalReserveArray[sectionIndex] * 100)}%` : '0%'}</td>
-                                <td style={{ cursor: 'pointer' }} className='hover' onClick={() => modalShow('契約(契約見込み)', section.name, section.category)}><div style={{ textDecoration: 'underline' }}>{totalContractArray[sectionIndex]}<span style={{ color: "blue" }}>{selectedMonth !== `${String(year)}/${month}` || ` (${totalContractArray[sectionIndex] + totalARankArray[sectionIndex]})`}</span></div></td>
                                 <td>{contractGoalFilter.find(item => item.section === section.name)?.goal ? contractGoalFilter.find(item => item.section === section.name)?.goal : '-'}</td>
+                                <td style={{ cursor: 'pointer' }} className='hover' onClick={() => modalShow('契約(契約見込み)', section.name, section.category)}><div style={{ textDecoration: 'underline' }}>{totalContractArray[sectionIndex]}<span style={{ color: "blue" }}>{selectedMonth !== `${String(year)}/${month}` || ` (${totalContractArray[sectionIndex] + totalARankArray[sectionIndex]})`}</span></div></td>
                                 {(() => {
                                     const goal = contractGoalFilter.find(item => item.section === section.name)?.goal;
                                     const goalAchievement = goal && Number.isFinite(totalContractArray[sectionIndex] / goal) ? `${Math.ceil(totalContractArray[sectionIndex] / goal * 100)}%` : '-';
