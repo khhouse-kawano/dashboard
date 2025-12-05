@@ -45,7 +45,7 @@ const Home = () => {
 
         if (response.data.message === "success") {
           setBrand(response.data.brand);
-          navigate("/contract", {
+          navigate("/list", {
             state: {
               brand: response.data.brand,
             },

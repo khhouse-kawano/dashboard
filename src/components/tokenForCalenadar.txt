@@ -1,0 +1,21 @@
+取得したトークン: {
+  access_token: 'ya29.a0AQQ_BDQpBhhOT34PWyOcXTfdIbbb6Zh1EuDeoySTTeBHIpoibp3CHdSujMbJTNZa90ItXrReKq-kulsK9l-q1LJ9vKxIZBFVoCrfovX-ntrejxGe-mFUmkQZD3Z1AfZxzK7syHUZy4aEcpIqqVyQj3hwY5f7tSYH_5j1hpogP1rBDi_YN-ZC7B4GJyleikVADlw0OFIaCgYKAb8SARYSFQHGX2MinEfRQCCxhCXcohX0thWvUg0206',
+  refresh_token: '1//0e8jSctjAEqmUCgYIARAAGA4SNwF-L9IrYJlsGL3LbUN4Otzzr975pxl83diUuaIu9iMIKbcCPJp1vg1kr7HiT-T2V4GYEOH4W74',
+  scope: 'https://www.googleapis.com/auth/calendar.events',
+  token_type: 'Bearer',
+  expiry_date: 1759739872540
+}
+
+↓境さん
+  access_token: 'ya29.a0AQQ_BDQUKAB9iQuP10wFkE59vRKwyd-AiGjJ1E6aWgvxgLOwDyR4uz2uR1t-yDKyKUAAxHVtlc17JbCE6wnOIX2189iTvKccBjpyGXTKDdKzIgy_AVuApbssVYxafuMdyP6BeFsAOfveG0_DglN-6BSJkIopwGwhn4p8we5iQQOuwubsznESQZXrKMGrEALr0X3xTAYaCgYKAYMSARISFQHGX2Minq2yhbcwmBBZ-nKj1j5H5Q0206',
+  refresh_token: '1//0eakOxFa1KVJiCgYIARAAGA4SNwF-L9IrYmtKVDEXtcszDc-nMqdBVZJxkjRF5FJ9n-4q7R1Ax82-UJ1Gvkf6R72Z86y6dYc8vps',
+  scope: 'https://www.googleapis.com/auth/calendar.events',
+  token_type: 'Bearer',
+  expiry_date: 1759741481705
+}
+
+
+heroku config:set GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+heroku config:set GOOGLE_CLIENT_SECRET=yyyyyyyyyyyy
+heroku config:set GOOGLE_REDIRECT_URI=https://your-app.herokuapp.com/oauth2callback
+heroku config:set GOOGLE_REFRESH_TOKEN=1//0gxxxxxxxxxxxx

@@ -170,13 +170,13 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
     const [jhArray, setJhArray] = useState<number[]>([]);
 
     useEffect(() => {
-        let khgNumberArray = [];
-        let khNumberArray = [];
-        let djhNumberArray = [];
-        let nagomiNumberArray = [];
-        let nieruNumberArray = [];
-        let pgNumberArray = [];
-        let jhNumberArray = [];
+        let khgNumberArray: number[] = [];
+        let khNumberArray: number[] = [];
+        let djhNumberArray: number[] = [];
+        let nagomiNumberArray: number[] = [];
+        let nieruNumberArray: number[] = [];
+        let pgNumberArray: number[] = [];
+        let jhNumberArray: number[] = [];
 
         const fetchReservedNumber = async () => {
             khgNumberArray.push(await reservedNumber.filter(item => item.date.includes(standardDate) && item.category === 'reserved').length);
@@ -462,158 +462,162 @@ const CalendarList: React.FC<CalendarListProps> = ({ activeTab }) => {
     }, [monthOffset]);
 
     return (
-        <div className="custom-calendar">
-            <div className='text-center'>{standardDate.replace('-', '/')}_来場者数総計</div>
-            <div className='d-flex justify-content-between month_guide'>
-                <div className='btn bg-primary text-white rounded-pill' onClick={() => {
-                    setMonthOffset(prev => prev - 1);
-                    updateMonth();
-                }}>前の月へ</div>
-                <div className='btn bg-primary text-white rounded-pill' onClick={() => {
-                    setMonthOffset(prev => prev + 1);
-                    updateMonth();
-                }}>次の月へ</div>
-            </div>
-            <Table>
-                <thead className='sticky-header'>
-                    <tr className='sticky-header'>
-                        <th className='sticky-column'></th>
-                        {weekdayArray.map((value, index) => {
-                            let weekdayClass;
-                            if (value === '土') { weekdayClass = 'text-primary'; }
-                            else if (value === '日') { weekdayClass = 'text-danger' }
-                            return (
-                                <th key={index} className='text-center'><span className={weekdayClass}>{value}</span></th>
-                            )
-                        })}
-                    </tr>
-                    <tr className='sticky-header'>
-                        <th className='sticky-column'>店舗名</th>
-                        {dateArray.map((value, index) => {
-                            let weekdayClass;
-                            if (weekdayArray[index] === '土') { weekdayClass = 'text-primary'; }
-                            else if (weekdayArray[index] === '日') { weekdayClass = 'text-danger' }
-                            return (
-                                <th key={index} className='text-center'><span className={weekdayClass}>{value.split('-')[1]}/{value.split('-')[2]}</span></th>
-                            )
-                        })}
-                    </tr>
-                </thead>
-                <tbody>
-                    {selectedShop.filter( shop => !shop.shop.includes('未設定')).map((shop, index) => (
-                        <tr key={index}>
-                            <th className='align-middle'>{shop.shop}</th>
-                            {dateArray.map((value, index) => {
-                                const eventClass = ['list position-relative'];
-                                if (eventTitle.filter(event => event.shop === shop.shop && event.startDate <= value && event.endDate >= value && event.category.includes('open')).length > 0) {
-                                    eventClass.push('openhouse_list');
-                                }
-                                if (eventTitle.filter(event => event.shop === shop.shop && event.startDate <= value && event.endDate >= value && event.category === 'event').length > 0) {
-                                    eventClass.push('event_list');
-                                }
-                                if (eventTitle.filter(event => event.shop === shop.shop && event.startDate <= value && event.endDate >= value && event.category === 'event_even').length > 0) {
-                                    eventClass.push('event_even_list');
-                                }
-                                if (eventTitle.filter(event => event.shop === shop.shop && event.startDate <= value && event.endDate >= value && event.category.includes('medium')).length > 0) {
-                                    eventClass.push('medium_list');
-                                }
-                                const eventClassArray = eventClass.join(' ');
-                                return (
-                                    <th style={{ height: '80px' }} onClick={() => addEvent(value, shop.shop)}><div className={eventClassArray}>{eventTitle.filter(event => event.shop === shop.shop && event.startDate === value).map((value => <div className={value.category}>{value.title}</div>))}</div></th>
-                                )
-                            })}
-                        </tr>))}
-                </tbody>
-            </Table>
-
-            <Modal show={modalShow} onHide={modalClose} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title id="ranked-modal"></Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Table striped>
-                        <thead>
-                            <tr className='modal_event_list text-center'>
-                                <th>タイトル・媒体名</th>
-                                <th>カテゴリー</th>
-                                <th>開始日</th>
-                                <th>終了日</th>
-                                <th>編集</th>
+        <div className="table-wrapper">
+            <div className="list_table">
+                <div className="custom-calendar">
+                    <div className='d-flex justify-content-between month_guide'>
+                        <div className='btn bg-primary text-white rounded-pill' onClick={() => {
+                            setMonthOffset(prev => prev - 1);
+                            updateMonth();
+                        }}>前の月へ</div>
+                        <div className='btn bg-primary text-white rounded-pill' onClick={() => {
+                            setMonthOffset(prev => prev + 1);
+                            updateMonth();
+                        }}>次の月へ</div>
+                    </div>
+                    <Table>
+                        <thead className='sticky-header'>
+                            <tr className='sticky-header'>
+                                <th className='sticky-column'></th>
+                                {weekdayArray.map((value, index) => {
+                                    let weekdayClass;
+                                    if (value === '土') { weekdayClass = 'text-primary'; }
+                                    else if (value === '日') { weekdayClass = 'text-danger' }
+                                    return (
+                                        <th key={index} className='text-center'><span className={weekdayClass}>{value}</span></th>
+                                    )
+                                })}
+                            </tr>
+                            <tr className='sticky-header'>
+                                <th className='sticky-column'>店舗名</th>
+                                {dateArray.map((value, index) => {
+                                    let weekdayClass;
+                                    if (weekdayArray[index] === '土') { weekdayClass = 'text-primary'; }
+                                    else if (weekdayArray[index] === '日') { weekdayClass = 'text-danger' }
+                                    return (
+                                        <th key={index} className='text-center'><span className={weekdayClass}>{value.split('-')[1]}/{value.split('-')[2]}</span></th>
+                                    )
+                                })}
                             </tr>
                         </thead>
                         <tbody>
-                            {modalEvent.map((item, index) =>
-                                <tr className='modal_event_list text-center' key={index}>
-                                    <th className='align-middle'>{item.title}</th>
-                                    <th className='align-middle'>{item.category}</th>
-                                    <th className='align-middle'>{item.startDate}</th>
-                                    <th className='align-middle'>{item.endDate}</th>
-                                    <th><th className='align-middle'><div className='btn me-2 bg-primary text-white' onClick={() => changeEvent(String(item.id), item.title, item.shop, item.category, item.startDate, item.endDate)}><i className="fa-solid fa-file-pen"></i></div><div className='btn bg-danger text-white' onClick={() => deleteEvent(item.id, item.title, item.shop)}><i className="fa-solid fa-trash"></i></div></th></th>
-                                </tr>)}
+                            {selectedShop.filter(shop => !shop.shop.includes('未設定')).map((shop, index) => (
+                                <tr key={index}>
+                                    <th className='align-middle'>{shop.shop}</th>
+                                    {dateArray.map((value, index) => {
+                                        const eventClass = ['list position-relative'];
+                                        if (eventTitle.filter(event => event.shop === shop.shop && event.startDate <= value && event.endDate >= value && event.category.includes('open')).length > 0) {
+                                            eventClass.push('openhouse_list');
+                                        }
+                                        if (eventTitle.filter(event => event.shop === shop.shop && event.startDate <= value && event.endDate >= value && event.category === 'event').length > 0) {
+                                            eventClass.push('event_list');
+                                        }
+                                        if (eventTitle.filter(event => event.shop === shop.shop && event.startDate <= value && event.endDate >= value && event.category === 'event_even').length > 0) {
+                                            eventClass.push('event_even_list');
+                                        }
+                                        if (eventTitle.filter(event => event.shop === shop.shop && event.startDate <= value && event.endDate >= value && event.category.includes('medium')).length > 0) {
+                                            eventClass.push('medium_list');
+                                        }
+                                        const eventClassArray = eventClass.join(' ');
+                                        return (
+                                            <th style={{ height: '80px' }} onClick={() => addEvent(value, shop.shop)}><div className={eventClassArray}>{eventTitle.filter(event => event.shop === shop.shop && event.startDate === value).map((value => <div className={value.category}>{value.title}</div>))}</div></th>
+                                        )
+                                    })}
+                                </tr>))}
                         </tbody>
                     </Table>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button className='bg-secondary rounded text-white btn calendar_modal_close' variant="secondary" onClick={modalClose}>
-                        閉じる
-                    </Button>
-                    <Button className='bg-primary rounded text-white btn calendar_modal_close' variant="secondary" onClick={() => registerEvent(eventDate, eventShop)}>
-                        イベント新規登録
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+
+                    <Modal show={modalShow} onHide={modalClose} size="lg">
+                        <Modal.Header closeButton>
+                            <Modal.Title id="ranked-modal"></Modal.Title>
+                        </Modal.Header>
+                        <Modal.Body>
+                            <div className="table-wrapper">
+                                <div className="list_table calendar">
+                                    <Table striped>
+                                        <thead>
+                                            <tr className='modal_event_list text-center'>
+                                                <th>タイトル・媒体名</th>
+                                                <th>カテゴリー</th>
+                                                <th>開始日</th>
+                                                <th>終了日</th>
+                                                <th>編集</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {modalEvent.map((item, index) =>
+                                                <tr className='modal_event_list text-center' key={index}>
+                                                    <th className='align-middle'>{item.title}</th>
+                                                    <th className='align-middle'>{item.category}</th>
+                                                    <th className='align-middle'>{item.startDate}</th>
+                                                    <th className='align-middle'>{item.endDate}</th>
+                                                    <th><th className='align-middle'><div className='btn me-2 bg-primary text-white' onClick={() => changeEvent(String(item.id), item.title, item.shop, item.category, item.startDate, item.endDate)}><i className="fa-solid fa-file-pen"></i></div><div className='btn bg-danger text-white' onClick={() => deleteEvent(item.id, item.title, item.shop)}><i className="fa-solid fa-trash"></i></div></th></th>
+                                                </tr>)}
+                                        </tbody>
+                                    </Table>
+                                </div></div>
+                        </Modal.Body>
+                        <Modal.Footer>
+                            <Button className='bg-secondary rounded text-white btn calendar_modal_close'  style={{fontSize: '12px'}} variant="secondary" onClick={modalClose}>
+                                閉じる
+                            </Button>
+                            <Button className='bg-primary rounded text-white btn calendar_modal_close'  style={{fontSize: '12px'}} variant="secondary" onClick={() => registerEvent(eventDate, eventShop)}>
+                                イベント新規登録
+                            </Button>
+                        </Modal.Footer>
+                    </Modal>
 
 
-            <Modal show={listShow} onHide={listClose} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title id="ranked-modal"></Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <div className='mb-3'>
-                        <label className='form-label mb-0'>店舗選択</label>
-                        <select className='form-select' value={modalEventShop} onChange={(e) => setModalEventShop(e.target.value)}>
-                            {modalShopList.map((shop, index) =>
-                                <option key={index} selected={shop.shop === eventShop}>{shop.shop}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div className='mb-3'>
-                        <label className='form-label mb-0'>タイトル</label>
-                        <input type='text' className='form-control' value={modalEventTitle} onChange={(e) => setModalEventTitle(e.target.value)} />
-                        {titleValidation ? <div className='text-danger'>イベント名・媒体名が未入力です</div> : null}
-                    </div>
-                    <div className='mb-3'>
-                        <label className='form-label mb-0'>カテゴリー</label>
-                        <select className='form-control' value={modalEventCategory} onChange={(e) => setModalEventCategory(e.target.value)}>
-                            <option value=''>カテゴリーを選択</option>
-                            <option value='event' >イベント(上段)</option>
-                            <option value='event_even'>イベント(下段)</option>
-                            <option value='openhouse'>完成見学会</option>
-                            <option value='medium' >販促媒体</option>
-                        </select>
-                        {categoryValidation ? <div className='text-danger'>カテゴリーが未入力です</div> : null}
-                    </div>
-                    <div className='mb-3'>
-                        <label className='form-label mb-0'>開始日</label>
-                        <input type='date' className='form-control mb-3 date-wrapper' value={modalEventStartDate} onChange={(e) => setModalEventStartDate(e.target.value)} />
-                        {startValidation ? <div className='text-danger'>開始日が未入力です</div> : null}
-                    </div>
-                    <div className='mb-3'>
-                        <label className='form-label mb-0'>終了日</label>
-                        <input type='date' className='form-control mb-3 date-wrapper' value={modalEventEndDate} onChange={(e) => setModalEventEndDate(e.target.value)} />
-                        {endValidation ? <div className='text-danger'>終了日が未入力です</div> : null}
-                    </div>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button className='bg-secondary rounded text-white btn calendar_modal_close' variant="secondary" onClick={listClose}>
-                        閉じる
-                    </Button>
-                    <Button className='bg-primary rounded text-white btn calendar_modal_close' variant="secondary" onClick={() => confirmEvent()}>
-                        入力内容で登録
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-        </div>
+                    <Modal show={listShow} onHide={listClose} size="lg">
+                        <Modal.Header closeButton>
+                            <Modal.Title id="ranked-modal"></Modal.Title>
+                        </Modal.Header>
+                        <Modal.Body>
+                            <div className='mb-3'>
+                                <label className='form-label mb-0'>店舗選択</label>
+                                <select className='form-select' value={modalEventShop} onChange={(e) => setModalEventShop(e.target.value)}>
+                                    {modalShopList.map((shop, index) =>
+                                        <option key={index} selected={shop.shop === eventShop}>{shop.shop}</option>
+                                    )}
+                                </select>
+                            </div>
+                            <div className='mb-3'>
+                                <label className='form-label mb-0'>タイトル</label>
+                                <input type='text' className='form-control' value={modalEventTitle} onChange={(e) => setModalEventTitle(e.target.value)} />
+                                {titleValidation ? <div className='text-danger'>イベント名・媒体名が未入力です</div> : null}
+                            </div>
+                            <div className='mb-3'>
+                                <label className='form-label mb-0'>カテゴリー</label>
+                                <select className='form-control' value={modalEventCategory} onChange={(e) => setModalEventCategory(e.target.value)}>
+                                    <option value=''>カテゴリーを選択</option>
+                                    <option value='event' >イベント(上段)</option>
+                                    <option value='event_even'>イベント(下段)</option>
+                                    <option value='openhouse'>完成見学会</option>
+                                    <option value='medium' >販促媒体</option>
+                                </select>
+                                {categoryValidation ? <div className='text-danger'>カテゴリーが未入力です</div> : null}
+                            </div>
+                            <div className='mb-3'>
+                                <label className='form-label mb-0'>開始日</label>
+                                <input type='date' className='form-control mb-3 date-wrapper' value={modalEventStartDate} onChange={(e) => setModalEventStartDate(e.target.value)} />
+                                {startValidation ? <div className='text-danger'>開始日が未入力です</div> : null}
+                            </div>
+                            <div className='mb-3'>
+                                <label className='form-label mb-0'>終了日</label>
+                                <input type='date' className='form-control mb-3 date-wrapper' value={modalEventEndDate} onChange={(e) => setModalEventEndDate(e.target.value)} />
+                                {endValidation ? <div className='text-danger'>終了日が未入力です</div> : null}
+                            </div>
+                        </Modal.Body>
+                        <Modal.Footer>
+                            <Button className='bg-secondary rounded text-white btn calendar_modal_close'  style={{fontSize: '12px'}} variant="secondary" onClick={listClose}>
+                                閉じる
+                            </Button>
+                            <Button className='bg-primary rounded text-white btn calendar_modal_close' style={{fontSize: '12px'}}  variant="secondary" onClick={() => confirmEvent()}>
+                                入力内容で登録
+                            </Button>
+                        </Modal.Footer>
+                    </Modal>
+                </div></div></div>
     );
 };
 

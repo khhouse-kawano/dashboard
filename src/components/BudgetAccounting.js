@@ -4,6 +4,7 @@ import Menu from "./Menu.js";
 import Table from "react-bootstrap/Table";
 import axios from "axios";
 import AuthContext from "../context/AuthContext";
+import MenuDev from "./MenuDev";
 
 const Budget = () => {
   const { brand } = useContext(AuthContext);
@@ -114,191 +115,204 @@ const Budget = () => {
     }
   };
   return (
-    <div>
-      <Menu brand={brand} />
-      <div className="container bg-white pt-3 inquiry_ui position-relative">
-        <div className="row mt-3 mb-4">
-          <div className="col d-flex">
-            <select
-              className="form-select campaign"
-              ref={startMonthRef}
-              name="startMonth"
-              onChange={userFilter}
-            >
-              <option value="">全期間</option>
-              {startMonthArray.map((startMonth, index) => (
-                <option key={index} value={startMonth}>
-                  {startMonth}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col"></div>
-          <div className="col-4"></div>
+    <div className="outer-container">
+      <div className="d-flex">
+        <div className="modal_menu" style={{ width: "20%" }}>
+          <MenuDev brand={brand} />
         </div>
-        <div className="p-0 inquiry">
-          <Table striped bordered hover className="budget_table">
-            <thead className="sticky-header">
-              <tr className="sticky-header">
-                <th className="sticky-column text-white bg-secondary">
-                  販促媒体
-                </th>
-                <th className="text-white bg-secondary">合計</th>
-                {mediumList.map((medium, index) => {
-                  const medium_bg =
-                    medium.response_medium === 0
-                      ? "bg-success text-white"
-                      : "bg-primary text-white";
-                  return (
-                    <th key={index} className={medium_bg}>
-                      {medium.medium}
-                    </th>
-                  );
-                })}
-              </tr>
-              <tr className="sticky-header">
-                <th className="sticky-column">グループ全体</th>
-                <th>
-                  ￥
-                  {budgetList
-                    .filter((item) =>
-                      item.budget_period.includes(selectedMonth)
-                    )
-                    .reduce((sum, item) => sum + item.budget_value, 0)
-                    .toLocaleString()}
-                </th>
-                {mediumList.map((medium, index) => (
-                  <th key={index} className="fw-normal">
-                    ￥
-                    {budgetList
-                      .filter(
-                        (item) =>
-                          item.budget_period.includes(selectedMonth) &&
-                          item.medium.includes(medium.medium)
-                      )
-                      .reduce((sum, item) => sum + item.budget_value, 0)
-                      .toLocaleString()}
-                  </th>
-                ))}
-              </tr>
-              {brandArray.map((brand, index) => (
-                <tr key={index} className="sticky-header">
-                  <th className="sticky-column">{brand}合計</th>
-                  <th>
-                    ￥
-                    {budgetList
-                      .filter((item) => {
-                        let brandValue = "";
-                        const prefix = item.shop.slice(0, 2);
-                        if (prefix === "KH") brandValue = "KH";
-                        else if (prefix === "DJ") brandValue = "DJH";
-                        else if (prefix === "なご") brandValue = "なごみ";
-                        else if (prefix === "2L") brandValue = "2L";
-                        else if (prefix === "FH") brandValue = "FH";
-                        else if (prefix === "PG") brandValue = "PG HOUSE";
-                        else if (prefix === "JH") brandValue = "JH";
-                        else if (prefix === "かえ") brandValue = "かえる";
-
+        <div className="content bg-white p-2">
+          <div className="table-wrapper">
+            <div className="list_table">
+              <div className="row mt-3 mb-4">
+                <div className="col d-flex">
+                  <select
+                    className="form-select campaign"
+                    ref={startMonthRef}
+                    name="startMonth"
+                    onChange={userFilter}
+                  >
+                    <option value="">全期間</option>
+                    {startMonthArray.map((startMonth, index) => (
+                      <option key={index} value={startMonth}>
+                        {startMonth}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col"></div>
+                <div className="col-4"></div>
+              </div>
+              <div className="p-0 inquiry">
+                <Table striped bordered hover className="budget_table">
+                  <thead className="sticky-header">
+                    <tr className="sticky-header">
+                      <th className="sticky-column text-white bg-secondary">
+                        販促媒体
+                      </th>
+                      <th className="text-white bg-secondary">合計</th>
+                      {mediumList.map((medium, index) => {
+                        const medium_bg =
+                          medium.response_medium === 0
+                            ? "bg-success text-white"
+                            : "bg-primary text-white";
                         return (
-                          item.budget_period.includes(selectedMonth) &&
-                          brandValue === brand
+                          <th key={index} className={medium_bg}>
+                            {medium.medium}
+                          </th>
                         );
-                      })
-                      .reduce((sum, item) => sum + item.budget_value, 0)
-                      .toLocaleString()}
-                  </th>
-                  {mediumList.map((medium, index) => (
-                    <th key={index} className="fw-normal">
-                      ￥
-                      {budgetList
-                        .filter((item) => {
-                          let brandValue = "";
-                          const prefix = item.shop.slice(0, 2);
-                          if (prefix === "KH") brandValue = "KH";
-                          else if (prefix === "DJ") brandValue = "DJH";
-                          else if (prefix === "なご") brandValue = "なごみ";
-                          else if (prefix === "2L") brandValue = "2L";
-                          else if (prefix === "FH") brandValue = "FH";
-                          else if (prefix === "PG") brandValue = "PG HOUSE";
-                          else if (prefix === "JH") brandValue = "JH";
-                          else if (prefix === "かえ") brandValue = "かえる";
-
-                          return (
-                            item.budget_period.includes(selectedMonth) &&
-                            item.medium.includes(medium.medium) &&
-                            brandValue === brand
-                          );
-                        })
-                        .reduce((sum, item) => sum + item.budget_value, 0)
-                        .toLocaleString()}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {shopList.map((shop, index) => (
-                <tr key={index} className="bg-success text-white">
-                  <th className="sticky-column">{shop.shop}</th>
-                  <th>
-                    ￥
-                    {budgetList
-                      .filter(
-                        (item) =>
-                          item.budget_period.includes(selectedMonth) &&
-                          item.shop.includes(shop.shop)
-                      )
-                      .reduce((sum, item) => sum + item.budget_value, 0)
-                      .toLocaleString()}
-                  </th>
-                  {mediumList.map((medium, index) => (
-                    <th
-                      key={index}
-                      className="text-primary fw-normal budget_show"
-                      onClick={(event) => alertTest(event)}
-                    >
-                      ￥
-                      {budgetList
-                        .filter(
-                          (item) =>
-                            item.budget_period.includes(selectedMonth) &&
-                            item.medium.includes(medium.medium) &&
-                            item.shop.includes(shop.shop)
-                        )
-                        .reduce((sum, item) => sum + item.budget_value, 0)
-                        .toLocaleString()}
-                      <div className="budget_note d-none position-absolute bg-white">
-                        <button
-                          className="btn position-absolute top-0 end-0"
-                          onClick={(event) => closeBudgetNote(event)}
-                        >
-                          <i class="fa-solid fa-square-xmark"></i>
-                        </button>
-                        <div className="ps-3 py-2">
-                          {selectedMonth} {shop.shop}_{medium.medium}詳細
-                        </div>
-                        <ul className="list-group">
+                      })}
+                    </tr>
+                    <tr className="sticky-header">
+                      <th className="sticky-column">グループ全体</th>
+                      <th>
+                        ￥
+                        {budgetList
+                          .filter((item) =>
+                            item.budget_period.includes(selectedMonth)
+                          )
+                          .reduce((sum, item) => sum + item.budget_value, 0)
+                          .toLocaleString()}
+                      </th>
+                      {mediumList.map((medium, index) => (
+                        <th key={index} className="fw-normal">
+                          ￥
                           {budgetList
                             .filter(
                               (item) =>
                                 item.budget_period.includes(selectedMonth) &&
-                                item.shop.includes(shop.shop) &&
                                 item.medium.includes(medium.medium)
                             )
-                            .map((value) => (
-                              <li className="list-group-item">
-                                ￥{value.budget_value.toLocaleString()}（
-                                {value.note}_{value.company}）
-                              </li>
-                            ))}
-                        </ul>
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+                            .reduce((sum, item) => sum + item.budget_value, 0)
+                            .toLocaleString()}
+                        </th>
+                      ))}
+                    </tr>
+                    {brandArray.map((brand, index) => (
+                      <tr key={index} className="sticky-header">
+                        <th className="sticky-column">{brand}合計</th>
+                        <th>
+                          ￥
+                          {budgetList
+                            .filter((item) => {
+                              let brandValue = "";
+                              const prefix = item.shop.slice(0, 2);
+                              if (prefix === "KH") brandValue = "KH";
+                              else if (prefix === "DJ") brandValue = "DJH";
+                              else if (prefix === "なご") brandValue = "なごみ";
+                              else if (prefix === "2L") brandValue = "2L";
+                              else if (prefix === "FH") brandValue = "FH";
+                              else if (prefix === "PG") brandValue = "PG HOUSE";
+                              else if (prefix === "JH") brandValue = "JH";
+                              else if (prefix === "かえ") brandValue = "かえる";
+
+                              return (
+                                item.budget_period.includes(selectedMonth) &&
+                                brandValue === brand
+                              );
+                            })
+                            .reduce((sum, item) => sum + item.budget_value, 0)
+                            .toLocaleString()}
+                        </th>
+                        {mediumList.map((medium, index) => (
+                          <th key={index} className="fw-normal">
+                            ￥
+                            {budgetList
+                              .filter((item) => {
+                                let brandValue = "";
+                                const prefix = item.shop.slice(0, 2);
+                                if (prefix === "KH") brandValue = "KH";
+                                else if (prefix === "DJ") brandValue = "DJH";
+                                else if (prefix === "なご")
+                                  brandValue = "なごみ";
+                                else if (prefix === "2L") brandValue = "2L";
+                                else if (prefix === "FH") brandValue = "FH";
+                                else if (prefix === "PG")
+                                  brandValue = "PG HOUSE";
+                                else if (prefix === "JH") brandValue = "JH";
+                                else if (prefix === "かえ")
+                                  brandValue = "かえる";
+
+                                return (
+                                  item.budget_period.includes(selectedMonth) &&
+                                  item.medium.includes(medium.medium) &&
+                                  brandValue === brand
+                                );
+                              })
+                              .reduce((sum, item) => sum + item.budget_value, 0)
+                              .toLocaleString()}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {shopList.map((shop, index) => (
+                      <tr key={index} className="bg-success text-white">
+                        <th className="sticky-column">{shop.shop}</th>
+                        <th>
+                          ￥
+                          {budgetList
+                            .filter(
+                              (item) =>
+                                item.budget_period.includes(selectedMonth) &&
+                                item.shop.includes(shop.shop)
+                            )
+                            .reduce((sum, item) => sum + item.budget_value, 0)
+                            .toLocaleString()}
+                        </th>
+                        {mediumList.map((medium, index) => (
+                          <th
+                            key={index}
+                            className="text-primary fw-normal budget_show"
+                            onClick={(event) => alertTest(event)}
+                          >
+                            ￥
+                            {budgetList
+                              .filter(
+                                (item) =>
+                                  item.budget_period.includes(selectedMonth) &&
+                                  item.medium.includes(medium.medium) &&
+                                  item.shop.includes(shop.shop)
+                              )
+                              .reduce((sum, item) => sum + item.budget_value, 0)
+                              .toLocaleString()}
+                            <div className="budget_note d-none position-absolute bg-white">
+                              <button
+                                className="btn position-absolute top-0 end-0"
+                                onClick={(event) => closeBudgetNote(event)}
+                              >
+                                <i class="fa-solid fa-square-xmark"></i>
+                              </button>
+                              <div className="ps-3 py-2">
+                                {selectedMonth} {shop.shop}_{medium.medium}詳細
+                              </div>
+                              <ul className="list-group">
+                                {budgetList
+                                  .filter(
+                                    (item) =>
+                                      item.budget_period.includes(
+                                        selectedMonth
+                                      ) &&
+                                      item.shop.includes(shop.shop) &&
+                                      item.medium.includes(medium.medium)
+                                  )
+                                  .map((value) => (
+                                    <li className="list-group-item">
+                                      ￥{value.budget_value.toLocaleString()}（
+                                      {value.note}_{value.company}）
+                                    </li>
+                                  ))}
+                              </ul>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            </div>
+          </div>{" "}
         </div>
       </div>
     </div>

@@ -65,30 +65,7 @@ a img:hover {
     height: 34px;
 }
 
-.category.btn {
-    border-radius: 2px 2px 0 0 !important;
-    background-color: #aaaaaa;
-    border: 1px solid #c7c7c7;
-    border-bottom: none;
-    font-size: 12px;
-}
 
-.category.btn:hover {
-    background-color: #fff !important;
-    color: #808080 !important;
-    transition: .3s;
-    font-weight: normal !important;
-}
-
-.category.btn.selected {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    cursor: text;
-}
-
-.category.btn.selected.contract {
-    margin-left: 11.5px !important;
-}
 
 /* お客様名 */
 .customer-info p {
@@ -102,49 +79,32 @@ a img:hover {
 /* 円グラフ */
 .pie {
     width: 80% !important;
-    max-width: 550px !important;
+    max-width: 420px !important;
     height: auto !important;
-    margin: 0 auto;
+    margin: 10px auto;
 }
 
-.accordion-item {
-    border-radius: 0 !important;
-}
-
-.accordion-button {
-    border-radius: 0 !important;
-}
-
-.accordion-button:not(.collapsed) {
-    border-radius: 0 !important;
-}
-
-.accordion .accordion-button {
-    border-radius: 0 !important;
-}
-
-.accordion .accordion-collapse {
-    border-radius: 0 !important;
-}
-
-.accordion-button {
-    display: flex;
-    justify-content: flex-start;
-    text-align: left;
+.pie.kaeru {
+    width: 80% !important;
+    max-width: 580px !important;
+    height: auto !important;
+    margin: 10px auto;
 }
 
 .accordion-button::after {
+    position: absolute;
+    left: 4px;
     content: "+";
-    order: -1;
     /* テキストより前に表示 */
     background-image: none !important;
     /* デフォルトの矢印画像を削除 */
     transform: none !important;
     /* transform で回転されるデフォルト効果も無効化 */
-    font-size: 1.25rem;
-    /* 必要に応じてサイズ調整 */
-    margin-right: 1rem;
-    /* アイコンとテキスト間のスペース */
+    font-size: 1rem;
+    background-color: #fff;
+    text-align: center;
+    width: 14px;
+    border-radius: 3px;
 }
 
 .accordion-button:not(.collapsed)::after {
@@ -152,22 +112,20 @@ a img:hover {
 }
 
 .thread {
-    font-size: .875rem;
-}
-
-.tableTtl {
-    transform: translateY(1.2vw);
-    width: 100px;
-}
-
-.tableTtl.total {
-    transform: translateY(1.2vw);
-    width: 95px;
+    font-size: 11px
 }
 
 .totalTable {
-    width: 93.5%;
-    transform: translateX(33px);
+    width: 96%;
+    font-size: 12px;
+}
+
+.sectionTable {
+    font-size: 11px;
+}
+
+.tableTtl.total {
+    width: 100px;
 }
 
 .staffName {
@@ -192,8 +150,8 @@ a img:hover {
 }
 
 .lineGraph {
-    width: 70% !important;
-    height: auto !important;
+    width: 50% !important;
+    height: 300px !important;
     margin: 0 auto;
 }
 
@@ -221,15 +179,35 @@ a img:hover {
 .sticky-header {
     position: sticky;
     top: 0;
-    z-index: 10000;
+    z-index: 20;
+    /* 列より大きく */
+    background: #fff;
 }
 
 .sticky-column {
     position: sticky;
     left: 0;
-    /* 背景を設定し、他のセルと重ならないように */
     z-index: 10;
-    /* 他の要素より前面に表示 */
+    background: #fff;
+}
+
+
+.sticky-corner {
+    position: sticky;
+    top: 0;
+    /* 上方向に固定 */
+    left: 0;
+    /* 左方向に固定 */
+    background: #fff;
+    /* 背景を必ず指定（透け防止） */
+    z-index: 3;
+    /* 他セルより前面に出す */
+}
+
+.sticky-top {
+    z-index: 10000;
+    background: #fff;
+    position: relative;
 }
 
 .inquiry_ui {
@@ -297,14 +275,14 @@ a img:hover {
     cursor: pointer;
 }
 
-.tag{
+.tag {
     width: fit-content;
     cursor: pointer;
     opacity: .3;
     transform: scale(.9);
 }
 
-.tag.checked{
+.tag.checked {
     opacity: 1;
     transform: scale(1);
 }
@@ -413,6 +391,12 @@ a img:hover {
     top: -10px;
     right: 3px;
     font-size: .75rem;
+}
+
+.accounting_new {
+    top: -3px;
+    right: 3px;
+    font-size: 8px;
 }
 
 thead tr:nth-of-type(even) th {
@@ -764,22 +748,22 @@ input[type=date]::-webkit-calendar-picker-indicator {
     opacity: 0;
 }
 
-.month_guide{
+.month_guide {
     position: fixed;
-    width: 97%;
+    width: 77%;
     top: 19vh;
     z-index: 1000;
 }
 
-.inquiry-number{
+.inquiry-number {
     top: 30px;
-    left: calc( 50% - 13px );
+    left: calc(50% - 13px);
 }
 
-.month-label{
+.month-label {
     font-size: .875rem;
     top: 4px;
-    left:-106px;
+    left: -106px;
 }
 
 .no-border-table {
@@ -793,31 +777,436 @@ input[type=date]::-webkit-calendar-picker-indicator {
 }
 
 th {
-  border-right: none !important;
+    border-right: none !important;
 }
 
-.hover:hover{
+.hover:hover {
     color: red;
     transform: scale(1.02);
     font-weight: bold;
 }
 
 .custom-tooltip {
-  min-width: 80vw;
-  max-width: 80vw;
-  height: 30vw;
-  overflow-y: scroll;
-  overflow-x: hidden;
-  font-size: 13px;
-  background-color: #000000;
-  color: #fff;
-  position: absolute;
-  top: 0;
+    min-width: 80vw;
+    max-width: 80vw;
+    height: 30vw;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    font-size: 13px;
+    background-color: #000000;
+    color: #fff;
+    position: absolute;
+    top: 0;
 }
 
 /* これで背景を白っぽく変更できる */
 .custom-tooltip .tooltip-inner {
-  background-color: #f9f9f9 !important;
-  color: #333;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    background-color: #f9f9f9 !important;
+    color: #333;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+
+/* 一括査定 */
+.category_menu {
+    font-size: 11px;
+    background-color: #D3D3D3;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 5px;
+    text-align: center;
+    padding: 7px;
+}
+
+.category_menu.selected {
+    font-size: 11px;
+    background-color: #707070;
+    font-weight: 500;
+    color: #fff;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow-y: hidden;
+    width: calc(80% + (20% - 200px));
+}
+
+.content.database {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow-y: scroll;
+}
+
+.content.calendar {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow-y: scroll;
+}
+
+
+.content.customer {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.top_content {
+    overflow-y: scroll;
+}
+
+.divider {
+    height: 6px;
+    cursor: row-resize;
+    background: #666;
+}
+
+.bottom_content {
+    flex: 1;
+    overflow-y: scroll;
+}
+
+.target {
+    border-radius: 6px;
+    height: 30px;
+    width: 200px;
+    padding-left: 4px;
+    font-size: 12px;
+    border: 1px solid #D3D3D3;
+}
+
+.target.resale_call {
+    border-radius: 6px;
+    height: 30px;
+    width: 110px;
+    padding-left: 4px;
+    font-size: 12px;
+    border: 1px solid #D3D3D3;
+}
+
+.target.textarea {
+    width: 200px;
+    height: 70px;
+    padding-left: 4px;
+    font-size: 12px;
+    border: 1px solid #D3D3D3;
+}
+
+.bottom_left {
+    width: 500px;
+}
+
+.bottom_right {
+    width: calc(100% - 600px);
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* iOSで慣性スクロール */
+}
+
+.list_table {
+    width: 98%;
+}
+
+.list_table.calendar {
+    height: 100vh;
+    overflow-y: scroll;
+}
+
+.customer_detail {
+    position: absolute;
+    top: -10px;
+    left: 51px;
+    margin-top: 4px;
+    padding: 8px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    width: 600px;
+    height: 500px;
+    overflow-y: scroll;
+}
+
+.customer_detail.middle {
+    top: -200px;
+}
+
+.customer_detail.under,
+.customer_detail.right.under {
+    top: -475px;
+}
+
+.customer_detail.right {
+    left: -600px;
+}
+
+.customer_detail.middle.bottom_right {
+    top: -200px;
+}
+
+.graph_pc {
+    display: none;
+}
+
+.graph_pc.show {
+    display: block;
+}
+
+.kaeru_icon {
+    position: relative;
+    padding-left: 10px;
+}
+
+.kaeru_icon::after {
+    position: absolute;
+    content: '+';
+    top: 0;
+    left: -6px;
+    cursor: pointer;
+    background-color: #D3D3D3;
+    padding: 0 3px;
+    border-radius: 2px;
+}
+
+.kaeru_icon.minus::after {
+    position: absolute;
+    content: '-';
+    top: 0;
+    left: -6px;
+    cursor: pointer;
+    background-color: #D3D3D3;
+    padding: 0 3px;
+    border-radius: 2px;
+}
+
+.phone_call {
+    display: none;
+}
+
+.pointerZoom {
+    cursor: pointer;
+}
+
+.pointerZoom:hover {
+    transform: scale(1.2);
+}
+
+.resale_customer_button {
+    background-color: #007bff;
+    color: #fff;
+    font-size: 12px;
+    padding: 3px 13px;
+    border-radius: 15px;
+    cursor: pointer;
+}
+
+.resultModal {
+    position: fixed;
+    width: 70vw;
+    background-color: #535353;
+    box-shadow: 0px 0px 15px -5px #777777;
+    height: 300px;
+    top: 0;
+    right: 0;
+    color: #fff;
+    font-size: 12px;
+}
+
+.resultModal table tr td{
+    border: 1px solid #ffffff5b;
+}
+
+.medium_expand{
+    cursor: pointer;
+}
+
+@media screen and (max-width: 768px) {
+    .month_guide {
+        position: fixed;
+        width: 90%;
+        top: 19vh;
+        z-index: 1000;
+    }
+
+    .target {
+        border-radius: 6px;
+        height: 30px;
+        width: 43vw;
+        padding-left: 4px;
+        font-size: 12px;
+        border: 1px solid #D3D3D3;
+    }
+
+    .target.textarea {
+        width: 43vw;
+    }
+
+    .list_table {
+        width: 100%;
+        min-width: 1200px;
+    }
+
+    .list_table.contract {
+        width: 100%;
+        min-width: 520px;
+    }
+
+    .list_table.resale {
+        width: 100%;
+        min-width: 520px;
+    }
+
+    .list_table.rank {
+        width: 100%;
+        min-width: 1200px;
+        overflow-x: scroll;
+    }
+
+    .list_table.customer {
+        width: 100%;
+        min-width: 900px;
+        overflow-x: scroll;
+    }
+
+    .list_table.database {
+        width: 100%;
+        min-width: 300px;
+        max-width: 700px;
+    }
+
+    .list_table.database_list {
+        width: 100%;
+        min-width: 800px;
+        max-width: 900px;
+    }
+
+    .list_table.calendar {
+        width: 100%;
+        min-width: 700px;
+    }
+
+    .list_table.map {
+        width: 100%;
+        min-width: none;
+    }
+
+    .list_table.kaeru {
+        width: 100%;
+        min-width: 700px;
+    }
+
+    .bottom_left {
+        width: 100%;
+    }
+
+    .bottom_right {
+        width: 100%;
+    }
+
+    .content {
+        display: flex;
+        flex-direction: column;
+        /* ←これが必須 */
+        height: 100vh;
+        overflow-y: hidden;
+        width: 100%;
+        margin-top: 12vw;
+    }
+
+    .lineGraph {
+        width: 90vw !important;
+        height: 80vw !important;
+        margin-left: 0;
+    }
+
+    .totalTable {
+        width: 93vw;
+    }
+
+    .sectionTable {
+        width: 98vw;
+    }
+
+    .tableTtl {
+        font-size: 10px;
+        transform: translateY(1vw);
+    }
+
+    .thread {
+        font-size: 8px;
+        width: 30px;
+    }
+
+    .tableTtl.total {
+        transform: translateY(0);
+        width: 30px;
+    }
+
+    .thread_bottom {
+        font-size: 12px;
+    }
+
+    .customer_detail {
+        position: absolute;
+        top: 20px;
+        left: -20vw;
+        margin-top: 4px;
+        padding: 8px;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        z-index: 10;
+        width: 80vw;
+        height: 500px;
+        overflow-y: scroll;
+        overflow-x: scroll;
+    }
+
+    .customer_detail.middle {
+        top: 20px;
+    }
+
+    .customer_detail.under,
+    .customer_detail.right.under {
+        top: -485px;
+    }
+
+    .customer_detail.right {
+        left: -600px;
+    }
+
+    .customer_detail.middle.bottom_right {
+        top: -200px;
+    }
+
+    .pie.kaeru {
+        width: 90vw !important;
+        max-width: 350px !important;
+        height: auto !important;
+        margin: 10px auto;
+    }
+
+    .phone_call {
+        display: block;
+        position: fixed;
+        bottom: 2vw;
+        left: 2.5%;
+        width: 90%;
+        background-color: #cd3c33;
+        border-radius: 5vw;
+        z-index: 99999;
+        color: #fff;
+        text-align: center;
+        padding: 2vw;
+        font-size: 4vw;
+        font-weight: 800;
+        letter-spacing: 1vw;
+        box-shadow: 0px 0px 35px -35px #777777;
+    }
 }

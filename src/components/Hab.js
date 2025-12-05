@@ -237,8 +237,8 @@ const Test = () => {
         <div className='w-50'>
           <div className='row my-3'>
             <div className='col d-flex justify-content-center align-items-center text-center py-5 mx-2 bg-light'>
-              <a href ="https://pg-cloud.jp/" target="_blank">
-                <img src="https://pg-cloud.jp/assets/header-logo-012b9388b9456aeef73f19ab61bbf6343c44c08a66444954c435371ff3e72653.png" className='w-75'/>
+              <a href ="https://pg-cloud.cloud/" target="_blank">
+                <img src="https://pg-cloud.cloud/assets/header-logo-012b9388b9456aeef73f19ab61bbf6343c44c08a66444954c435371ff3e72653.png" className='w-75'/>
               </a>
             </div>
             <div className='col d-flex justify-content-center align-items-center py-5 mx-2 bg-light'>

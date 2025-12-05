@@ -1,29 +1,39 @@
-body{
-    background-color: #ededed!important;
-    width: 100%!important;
-    min-width:auto!important;
+body {
+    background-color: #ffffff !important;
+    width: 100%;
+    font-family: "Noto Sans JP", serif !important;
+    overflow-x: hidden;
 }
 
-.home .box{
+@media screen and (max-width: 768px) {
+    body {
+        background-color: #ffffff !important;
+        width: 100%;
+        min-width: 100%;
+        font-family: "Noto Sans JP", serif !important;
+    }
+}
+
+.home .box {
     max-width: 500px;
     height: 400px;
-    margin: calc( 50vh - 200px ) auto 0;
+    margin: calc(50vh - 200px) auto 0;
 }
 
-.home .img{
+.home .img {
     width: 200px;
     margin: 0 auto;
 }
 
-.home .img img{
+.home .img img {
     width: 100%;
 }
 
-.home .box input{
+.home .box input {
     width: 80%;
     margin: 0 auto;
 }
 
-.home .box .btn{
+.home .box .btn {
     margin: 0 10%;
 }

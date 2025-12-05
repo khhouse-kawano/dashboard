@@ -1,0 +1,445 @@
+<?php
+header("Content-Type: application/json");
+
+$data = json_decode(file_get_contents("php://input"), true);
+$shop = $data['shop'];
+$startMonth = $data['startMonth'];
+$endMonth = $data['endMonth'];
+$rank = $data['rank'];
+$medium = $data['medium'];
+
+    // // ローカルデータベース接続 (PDO)
+    // $dsn = 'mysql:host=127.0.0.1;port=3306;dbname=owners_house;charset=utf8';
+    // $db_user = 'root';
+    // $db_password = '';
+
+    // 本番サーバーデータベース接続 (PDO)
+    $dsn = 'mysql:host=localhost:3306;dbname=xs200571_kawano;charset=utf8';
+    $db_user = 'xs200571_kawano';
+    $db_password = '4081kawano';
+
+// 対象となる媒体リスト
+$shops = [
+    "全店舗",
+    "KH",
+    "KH鹿児島店",
+    "KH姶良店",
+    "KH霧島店",
+    "KH鹿屋店",
+    "KH薩摩川内店",
+    "KH出水阿久根店",
+    "KH加世田店",
+    "KH都城店",
+    "KH宮崎店",
+    "KH延岡店",
+    "KH大分店",
+    "KH八代店",
+    "DJH",
+    "DJH鹿児島北店",
+    "DJH霧島店",
+    "DJH薩摩川内店",
+    "DJH鹿屋店",
+    "DJH都城店",
+    "DJH宮崎店",
+    "なごみ",
+    "なごみ鹿児島店",
+    "なごみ姶良霧島店",
+    "2L鹿児島店",
+    "FH",
+    "FH鹿児島店",
+    "FH霧島店",
+    "PG HOUSE宮崎店"
+];
+
+$placeholders = rtrim(str_repeat('?,', count($shops)), ',');
+
+try {
+    $pdo = new PDO($dsn, $db_user, $db_password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // SQLクエリを構築
+    $sql = "SELECT
+    shop,
+    COUNT(register) AS register_count,
+    COUNT(CASE WHEN reserve LIKE '%20%' THEN 1 END) AS reserve_count,
+    COUNT(CASE WHEN status = '契約済み' THEN 1 END) AS contract_count,
+    COUNT(CASE WHEN rank = 'Aランク' THEN 1 END) AS rankA_count,
+    COUNT(CASE WHEN rank = 'Bランク' THEN 1 END) AS rankB_count,
+    COUNT(CASE WHEN rank = 'Cランク' THEN 1 END) AS rankC_count,
+    COUNT(CASE WHEN rank = 'Dランク' THEN 1 END) AS rankD_count,
+    COUNT(CASE WHEN rank = 'Eランク' THEN 1 END) AS rankE_count,
+    (SELECT SUM(budget_value) FROM budget WHERE budget.shop = customers.shop";
+
+    if ($medium != null) {
+        $mediumSearch = str_replace("'", "''", $medium);
+        $sql .= " AND budget.medium LIKE '%{$mediumSearch}%'";
+        }
+    if( $startMonth != $endMonth ) {
+        if ($startMonth != "" && $endMonth != "") {
+            $startDate = $startMonth . '/01'; // 例: '2025/01/01'
+            
+            // endMonthをyyyy/MM/01形式に変換し、次の月の1日前の日付を計算
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $sql .= " AND budget.budget_period BETWEEN '{$startDate}' AND '{$endDate}'";
+        } elseif ($startMonth == "" && $endMonth != "") {
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $sql .= " AND budget.budget_period  BETWEEN '2025/01/01' AND '{$endDate}'";
+        }
+         } else {
+            if ($startMonth != "" && $endMonth != "") {
+            $sql .= " AND budget.budget_period  LIKE '%{$startMonth}%'";
+        }}
+
+    $sql .= ") AS total_budget
+    FROM
+        customers
+    WHERE
+        shop IN ($placeholders)";
+
+    if( $startMonth != $endMonth ) {
+        if ($startMonth != "" && $endMonth != "") {
+            $startDate = $startMonth . '/01'; // 例: '2025/01/01'
+            
+            // endMonthをyyyy/MM/01形式に変換し、次の月の1日前の日付を計算
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $sql .= " AND register BETWEEN '{$startDate}' AND '{$endDate}'";
+        } elseif ($startMonth == "" && $endMonth != "") {
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $sql .= " AND register BETWEEN '2025/01/01' AND '{$endDate}'";
+        }
+         } else {
+            if ($startMonth != "" && $endMonth != "") {
+            $sql .= " AND register LIKE '%{$startMonth}%'";
+        }}
+    if ($shop != null) {
+        $shopSearch = $shop == "グループ全体" ? "" : $shop;
+        $sql .= " AND shop LIKE '%{$shopSearch}%'";
+    }
+    if ($rank != null) {
+        $sql .= " AND rank LIKE '%{$rank}%'";
+    }
+    if ($medium != null) {
+        $mediumSearch = str_replace("'", "''", $medium);
+        $sql .= " AND medium LIKE '%{$mediumSearch}%'";
+    }
+
+    // GROUP BY を追加
+    $sql .= " GROUP BY shop";
+
+    // ORDER BY を追加
+    $orderClauses = [];
+    if ($data['registerSort'] != "") {
+        $orderClauses[] = "register_count {$data['registerSort']}";
+    }
+    if ($data['reserveSort'] != "") {
+        $orderClauses[] = "reserve_count {$data['reserveSort']}";
+    }
+    if ($data['contractSort']  != "") {
+        $orderClauses[] = "contract_count {$data['contractSort']}";
+    }
+    if (!empty($orderClauses)) {
+        $sql .= " ORDER BY " . implode(', ', $orderClauses);
+    } else {
+        $sql .= " ORDER BY register_count DESC";
+    }
+
+    // SQLクエリの実行
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($shops);
+    $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
+    // 全媒体合計クエリを追加
+    if( $shop == "グループ全体"){$totalSql = "SELECT
+            'グループ全体' AS shop,
+                COUNT(register) AS register_count,
+                COUNT(CASE WHEN reserve LIKE '%20%' THEN 1 END) AS reserve_count,
+                COUNT(CASE WHEN status = '契約済み' THEN 1 END) AS contract_count,
+                COUNT(CASE WHEN rank = 'Aランク' THEN 1 END) AS rankA_count,
+                COUNT(CASE WHEN rank = 'Bランク' THEN 1 END) AS rankB_count,
+                COUNT(CASE WHEN rank = 'Cランク' THEN 1 END) AS rankC_count,
+                COUNT(CASE WHEN rank = 'Dランク' THEN 1 END) AS rankD_count,
+                COUNT(CASE WHEN rank = 'Eランク' THEN 1 END) AS rankE_count,
+                (SELECT SUM(budget_value) FROM budget";
+
+    $totalConditions = [];
+    if ($medium != null) {
+        $mediumSearch = str_replace("'", "''", $medium);
+        $totalConditions[] = " budget.medium LIKE '%{$mediumSearch}%'";
+    }
+
+    if( $startMonth != $endMonth ) {
+        if ($startMonth != "" && $endMonth != "") {
+            $startDate = $startMonth . '/01'; // 例: '2025/01/01'
+            
+            // endMonthをyyyy/MM/01形式に変換し、次の月の1日前の日付を計算
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $totalConditions[] =  " budget.budget_period BETWEEN '{$startDate}' AND '{$endDate}'";
+        } elseif ($startMonth == "" && $endMonth != "") {
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $totalConditions[] =  " budget.budget_period BETWEEN '2025/01/01' AND '{$endDate}'";
+        }
+         } else {
+            if ($startMonth != "" && $endMonth != "") {
+            $totalConditions[] =  " budget.budget_period LIKE '%{$startMonth}%'";
+        }}
+    if (count($totalConditions) > 0) {
+            $totalSql .= " WHERE " . implode(' AND ', $totalConditions);
+    }
+
+    $totalSql .=") AS total_budget
+            FROM
+                customers";
+
+    // 全媒体合計の条件を追加
+    $conditions = [];
+    if ($rank != null) {
+        $rankSearch = $rank;
+        $conditions[] = "rank LIKE '%{$rankSearch}%'";
+    }
+    if ($medium != null) {
+        $mediumSearch = str_replace("'", "''", $medium);
+        $conditions[] = "medium LIKE '%{$mediumSearch}%'";
+    }
+    if( $startMonth != $endMonth ) {
+        if ($startMonth != "" && $endMonth != "") {
+            $startDate = $startMonth . '/01'; // 例: '2025/01/01'
+            
+            // endMonthをyyyy/MM/01形式に変換し、次の月の1日前の日付を計算
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $conditions[] =  " register BETWEEN '{$startDate}' AND '{$endDate}'";
+        } elseif ($startMonth == "" && $endMonth != "") {
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $conditions[] =  " register BETWEEN '2025/01/01' AND '{$endDate}'";
+        }
+         } else {
+            if ($startMonth != "" && $endMonth != "") {
+            $conditions[] =  " register LIKE '%{$startMonth}%'";
+        }}
+
+    // 条件がある場合に WHERE を追加
+    if (count($conditions) > 0) {
+        $totalSql .= " WHERE " . implode(' AND ', $conditions);
+    }
+
+    $total_stmt = $pdo->prepare($totalSql);
+    $total_stmt->execute();
+    $total_customers = $total_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // 全媒体合計を結果にマージ
+    $customers = array_merge($total_customers, $customers);
+} elseif ($shop != "グループ全体" && $shop != "KH" && $shop != "DJH" && $shop != "なごみ" && $shop != "FH") {
+    $staffSearch = '%' . $shop . '%';
+    $staffSql = "SELECT DISTINCT staff FROM customers WHERE shop LIKE :staffSearch";
+    $stmt = $pdo->prepare($staffSql);
+    $stmt->bindParam(':staffSearch', $staffSearch, PDO::PARAM_STR);
+    $stmt->execute();
+
+    $staffList = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $placeholders = rtrim(str_repeat('?,', count($staffList)), ',');
+    $mainSql = "SELECT
+    staff AS shop,
+    COUNT(register) AS register_count,
+    COUNT(CASE WHEN reserve LIKE '%20%' THEN 1 END) AS reserve_count,
+    COUNT(CASE WHEN status = '契約済み' THEN 1 END) AS contract_count,
+    COUNT(CASE WHEN rank = 'Aランク' THEN 1 END) AS rankA_count,
+    COUNT(CASE WHEN rank = 'Bランク' THEN 1 END) AS rankB_count,
+    COUNT(CASE WHEN rank = 'Cランク' THEN 1 END) AS rankC_count,
+    COUNT(CASE WHEN rank = 'Dランク' THEN 1 END) AS rankD_count,
+    COUNT(CASE WHEN rank = 'Eランク' THEN 1 END) AS rankE_count,
+    (SELECT SUM(budget_value) FROM budget WHERE budget.shop LIKE '%{$shop}%'";
+
+    if ($medium != null) {
+        $mediumSearch = str_replace("'", "''", $medium);
+        $mainSql .= " AND budget.medium LIKE '%{$mediumSearch}%'";
+        }
+    if( $startMonth != $endMonth ) {
+        if ($startMonth != "" && $endMonth != "") {
+            $startDate = $startMonth . '/01'; // 例: '2025/01/01'
+            
+            // endMonthをyyyy/MM/01形式に変換し、次の月の1日前の日付を計算
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $mainSql .= " AND budget.budget_period BETWEEN '{$startDate}' AND '{$endDate}'";
+        } elseif ($startMonth == "" && $endMonth != "") {
+            $date = DateTime::createFromFormat('Y/m', $endMonth);
+            $date->modify('last day of this month');
+            $endDate = $date->format('Y/m/d'); 
+        
+            $mainSql .= " AND budget.budget_period  BETWEEN '2025/01/01' AND '{$endDate}'";
+        }
+         } else {
+            if ($startMonth != "" && $endMonth != "") {
+            $mainSql .= " AND budget.budget_period  LIKE '%{$startMonth}%'";
+        }}
+
+    $mainSql .= ") as total_budget
+    FROM
+        customers
+    WHERE
+        staff IN ($placeholders) AND shop LIKE '%{$shop}%'";
+
+    if( $startMonth != $endMonth ) {
+    if ($startMonth != "" && $endMonth != "") {
+        $startDate = $startMonth . '/01'; // 例: '2025/01/01'
+        
+        // endMonthをyyyy/MM/01形式に変換し、次の月の1日前の日付を計算
+        $date = DateTime::createFromFormat('Y/m', $endMonth);
+        $date->modify('last day of this month');
+        $endDate = $date->format('Y/m/d'); 
+    
+        $mainSql .=  " AND register BETWEEN '{$startDate}' AND '{$endDate}'";
+    } elseif ($startMonth == "" && $endMonth != "") {
+        $date = DateTime::createFromFormat('Y/m', $endMonth);
+        $date->modify('last day of this month');
+        $endDate = $date->format('Y/m/d'); 
+    
+        $mainSql .=  " AND register BETWEEN '2025/01/01' AND '{$endDate}'";
+    }
+     } else {
+        if ($startMonth != "" && $endMonth != "") {
+            $mainSql .=  " AND register LIKE '%{$startMonth}%'";
+    }}
+    if ($rank != null) {
+        $mainSql .= " AND rank LIKE '%{$rank}%'";
+    }
+    if ($medium != null) {
+        $mediumSearch = str_replace("'", "''", $medium);
+        // SQLクエリを構築
+        $mainSql .= " AND medium LIKE '%{$mediumSearch}%'";
+    }
+
+    $orderClauses = [];
+
+    if ($data['registerSort'] != "") {
+        $orderClauses[] = "register_count {$registerSort}";
+    }
+    if ($data['reserveSort'] != "") {
+        $orderClauses[] = "reserve_count {$reserveSort}";
+    }
+    if ($data['contractSort'] != "") {
+        $orderClauses[] = "contract_count {$contractSort}";
+    }
+
+    // GROUP BY を追加
+    $mainSql .= " GROUP BY staff";
+
+    if (!empty($orderClauses)) {
+        $mainSql .= " ORDER BY " . implode(', ', $orderClauses);
+    } else {
+        $mainSql .= " ORDER BY register_count DESC";
+    }
+
+    $mainStmt = $pdo->prepare($mainSql);
+    $mainStmt->execute($staffList);
+    $results = $mainStmt->fetchAll(PDO::FETCH_ASSOC);
+    $customers = array_merge($customers, $results);
+}
+
+    // 結果の計算
+    if ($shop != "グループ全体" && $shop != "KH" && $shop != "DJH" && $shop != "なごみ" && $shop != "FH") {
+            // 顧客データと予算データの結合
+    $budget_map = [];
+    $totalBudgetSum = 0;
+    $totalRegisterSum = 0;
+    foreach ($customers as $budget) {
+        $totalBudgetSum += $budget['total_budget'] / count($customers);
+        $totalRegisterSum += $budget['register_count'] / 2;
+    }
+        foreach ($customers as &$customer) {
+            if( $customer['shop'] == "") {
+                $customer['shop'] = "担当未入力";
+            }
+            if( strpos($customer['shop'], $shop) === false){
+                $customer['total_budget'] = round($totalBudgetSum / $totalRegisterSum * $customer['register_count'] , 0);
+            }
+            $customer['reserve_per'] = $customer['register_count'] != 0 && $customer['reserve_count'] != 0
+                ? round(100 * ($customer['reserve_count'] / $customer['register_count']), 1)
+                : 0;
+
+            $customer['contract_per'] = $customer['reserve_count'] != 0 && $customer['contract_count'] != 0
+                ? round(100 * ($customer['contract_count'] / $customer['reserve_count']), 1)
+                : 0;
+
+            $customer['total_budget'] = $customer['total_budget'] == null ? 0 : $customer['total_budget'];
+
+            $customer['register_cost'] = $customer['total_budget'] != 0 && $customer['register_count'] != 0
+            ? number_format(round(($customer['total_budget'] / $customer['register_count']), 0))
+            : 0;
+
+            $customer['reserve_cost'] = $customer['total_budget'] != 0 && $customer['reserve_count'] != 0
+                ? number_format(round(($customer['total_budget'] / $customer['reserve_count'] ), 0))
+                : 0;
+
+            $customer['contract_cost'] = $customer['total_budget'] != 0 && $customer['contract_count'] != 0
+                ? number_format(round(($customer['total_budget'] / $customer['contract_count']), 0))
+                : 0;
+
+            $customer['total_budget'] = $customer['total_budget'] == null ? '0' : number_format($customer['total_budget']);
+
+        }
+    } else {
+    foreach ($customers as &$customer) {
+        $customer['reserve_per'] = $customer['register_count'] != 0 && $customer['reserve_count'] != 0
+            ? round(100 * ($customer['reserve_count'] / $customer['register_count']), 1)
+            : 0;
+
+        $customer['contract_per'] = $customer['reserve_count'] != 0 && $customer['contract_count'] != 0
+            ? round(100 * ($customer['contract_count'] / $customer['reserve_count']), 1)
+            : 0;
+
+        $customer['total_budget'] = $customer['total_budget'] == null ? 0 : $customer['total_budget'];
+
+        $customer['register_cost'] = $customer['total_budget'] != 0 && $customer['register_count'] != 0
+            ? number_format(round(($customer['total_budget'] / $customer['register_count']), 0))
+            : 0;
+
+        $customer['reserve_cost'] = $customer['total_budget'] != 0 && $customer['reserve_count'] != 0
+            ? number_format(round(($customer['total_budget'] / $customer['reserve_count']), 0))
+            : 0;
+
+        $customer['contract_cost'] = $customer['total_budget'] != 0 && $customer['contract_count'] != 0
+            ? number_format(round(($customer['total_budget'] / $customer['contract_count']), 0))
+            : 0;
+
+        $customer['total_budget'] = $customer['total_budget'] == null ? '0' : number_format($customer['total_budget']);
+
+        } 
+    }
+
+    // デバッグのためのログ出力
+    error_log(json_encode($customers));
+
+    // 結果をJSON形式で出力
+    echo json_encode($customers);
+} catch (PDOException $e) {
+    // エラーハンドリング
+    echo json_encode(["message" => "error", "details" => "データベースエラーが発生しました: " . $e->getMessage()]);
+}

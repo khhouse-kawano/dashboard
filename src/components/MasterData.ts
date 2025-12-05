@@ -4,6 +4,7 @@ export type MasterData = {
   customer_contacts_name: string;
   in_charge_store: string;
   in_charge_user: string;
+  in_charge_user_id: string;
   reaction_date: string;
   first_interviewed_date: string;
   full_address: string;
@@ -153,4 +154,9 @@ export type MasterData = {
   competitor_name: string;
   competitor: string;
   competitor_lost_contract_reason: string;
+  customer_desired_order: string;
+  customer_desired_floor: string;
+  customer_desired_period: string;
+  customer_desired_estate: string;
+  call_status: string;
 }

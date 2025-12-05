@@ -18,7 +18,7 @@ type ReservedProps = {
 };
 
 interface CalendarListProps {
-    activeTab: string | null;
+  activeTab: string | null;
 }
 
 const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
@@ -69,7 +69,7 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
 
   }, []);
 
-    useEffect(() => {
+  useEffect(() => {
     const fetchShopData = async () => {
       try {
         const response = await axios.post("/dashboard/api/shopCalendarList.php");
@@ -105,15 +105,15 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
 
   }, [activeTab]);
 
-  useEffect(()=>{
-      const fetchInquiryNumber = async() =>{
+  useEffect(() => {
+    const fetchInquiryNumber = async () => {
       const year = currentDate?.getFullYear();
       const month = currentDate?.getMonth() + 1;
-      const formattedDate = `${year}-${ String( month ).padStart( 2, '0')}`
-      const newVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-      const effectiveVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-      const nextVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-      const existingVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const formattedDate = `${year}-${String(month).padStart(2, '0')}`
+      const newVisitor = await reservedNumber.filter(item => item.shop === selectedShop && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const effectiveVisitor = await reservedNumber.filter(item => item.shop === selectedShop && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const nextVisitor = await reservedNumber.filter(item => item.shop === selectedShop && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const existingVisitor = await reservedNumber.filter(item => item.shop === selectedShop && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
       await setTotalNewVisitor(newVisitor);
       await setTotalEffectiveVisitor(effectiveVisitor);
       await setTotalNextVisitor(nextVisitor);
@@ -173,10 +173,10 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
     const registerReserve = reservedNumber.filter(item => item.shop === selectedShop && item.category === 'registered' && item.date === formattedDate).reduce((sum, item) => sum + item.count, 0);
     return (
       <div className='customer_list position-absolute'>
-        <span className='bg-danger text-white px-2 py-1 rounded-pill me-2'>{resultReserve ? resultReserve : '0'}</span>
-        <span className='bg-primary text-white px-2 py-1 rounded-pill me-2'>{newReserve ? newReserve : '0'}</span>
-        <span className='bg-success text-white px-2 py-1 rounded-pill me-2'>{nextReserve ? nextReserve : '0'}</span>
-        <span className='bg-secondary text-white px-2 py-1 rounded-pill me-2'>{registerReserve ? registerReserve : '0'}</span>
+        <span className='bg-danger text-white p-1 me-1' style={{ borderRadius: '3px' }}>{resultReserve ? resultReserve : '0'}</span>
+        <span className='bg-primary text-white p-1 me-1' style={{ borderRadius: '3px' }}>{newReserve ? newReserve : '0'}</span>
+        <span className='bg-success text-white p-1 me-1' style={{ borderRadius: '3px' }}>{nextReserve ? nextReserve : '0'}</span>
+        <span className='bg-secondary text-white p-1' style={{ borderRadius: '3px' }}>{registerReserve ? registerReserve : '0'}</span>
       </div>
     );
   };
@@ -276,16 +276,16 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
     setEventListShow(false);
   };
 
-  const handleMonthChange = async( activeStartDate: Date | null ) =>{
+  const handleMonthChange = async (activeStartDate: Date | null) => {
     if (activeStartDate) {
       setCurrentDate(activeStartDate);
       const year = activeStartDate?.getFullYear();
       const month = activeStartDate?.getMonth() + 1;
-      const formattedDate = `${year}-${ String( month ).padStart( 2, '0')}`
-      const newVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-      const effectiveVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-      const nextVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-      const existingVisitor = await reservedNumber.filter( item => item.shop === selectedShop && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const formattedDate = `${year}-${String(month).padStart(2, '0')}`
+      const newVisitor = await reservedNumber.filter(item => item.shop === selectedShop && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const effectiveVisitor = await reservedNumber.filter(item => item.shop === selectedShop && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const nextVisitor = await reservedNumber.filter(item => item.shop === selectedShop && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+      const existingVisitor = await reservedNumber.filter(item => item.shop === selectedShop && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
       await setTotalNewVisitor(newVisitor);
       await setTotalEffectiveVisitor(effectiveVisitor);
       await setTotalNextVisitor(nextVisitor);
@@ -293,15 +293,15 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
     }
   };
 
-  const shopChange= async(shopValue: string) =>{
+  const shopChange = async (shopValue: string) => {
     const year = currentDate?.getFullYear();
     const month = currentDate?.getMonth() + 1;
-    const formattedDate = `${year}-${ String( month ).padStart( 2, '0')}`
+    const formattedDate = `${year}-${String(month).padStart(2, '0')}`
     await setSelectedShop(shopValue);
-    const newVisitor = await reservedNumber.filter( item => item.shop === shopValue && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-    const effectiveVisitor = await reservedNumber.filter( item => item.shop === shopValue && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-    const nextVisitor = await reservedNumber.filter( item => item.shop === shopValue && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
-    const existingVisitor = await reservedNumber.filter( item => item.shop === shopValue && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+    const newVisitor = await reservedNumber.filter(item => item.shop === shopValue && item.category === 'reserved' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+    const effectiveVisitor = await reservedNumber.filter(item => item.shop === shopValue && item.category === 'new' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+    const nextVisitor = await reservedNumber.filter(item => item.shop === shopValue && item.category === 'next' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
+    const existingVisitor = await reservedNumber.filter(item => item.shop === shopValue && item.category === 'registered' && item.date.includes(formattedDate)).reduce((acc, obj) => acc + obj.count, 0);
     await setTotalNewVisitor(newVisitor);
     await setTotalEffectiveVisitor(effectiveVisitor);
     await setTotalNextVisitor(nextVisitor);
@@ -310,174 +310,181 @@ const CalendarApp: React.FC<CalendarListProps> = ({ activeTab }) => {
 
   return (
     <div>
-      <div className='text-center position-relative'>
-        <select className='h5 form-select' style={{ width: '300px', margin: '30px auto'}} onChange={(e)=>shopChange(e.target.value)}>
-          {shopList.filter( shop => !shop.shop.includes('未設定')).map((shop, index)=>(
-            <option key={index} selected={ selectedShop === shop.shop}>{shop.shop}</option>
-          ))}
-        </select>
-        <div className='position-absolute top-0 end-0'>
-          <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規来場者数<div className='position-absolute text-danger fw-bold inquiry-number'>{totalNewVisitor}名</div></span>
-          <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効新規数<div className='position-absolute text-primary fw-bold inquiry-number'>{totalEffectiveVisitor}名</div></span>
-          <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次回アポ数<div className='position-absolute text-success fw-bold inquiry-number'>{totalNextVisitor}名</div></span>
-          <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客来場者数<div className='position-absolute text-secondary fw-bold inquiry-number'>{totalExistingVisitor}名</div></span>
+      <div className="table-wrapper">
+        <div className="list_table">
+          <div className='text-center position-relative'>
+            <select className='target my-3' onChange={(e) => shopChange(e.target.value)}>
+              {shopList.filter(shop => !shop.shop.includes('未設定')).map((shop, index) => (
+                <option key={index} selected={selectedShop === shop.shop}>{shop.shop}</option>
+              ))}
+            </select>
+            <div className='position-absolute' style={{ fontSize: '11px', top: '15px', right: '30px' }}>
+              <span className='p bg-danger text-white px-2 py-1 rounded-pill me-2 position-relative'>新規来場者数<div className='position-absolute text-danger fw-bold inquiry-number'>{totalNewVisitor}名</div></span>
+              <span className='p bg-primary text-white px-2 py-1 rounded-pill me-2 position-relative'>有効新規数<div className='position-absolute text-primary fw-bold inquiry-number'>{totalEffectiveVisitor}名</div></span>
+              <span className='p bg-success text-white px-2 py-1 rounded-pill me-2 position-relative'>次回アポ数<div className='position-absolute text-success fw-bold inquiry-number'>{totalNextVisitor}名</div></span>
+              <span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2 position-relative'>管理客来場者数<div className='position-absolute text-secondary fw-bold inquiry-number'>{totalExistingVisitor}名</div></span>
+            </div>
+          </div>
+          <Calendar
+            onClickDay={(date) => addEvent(date)}
+            showNeighboringMonth={true} //※大事！当月以外でもイベントを発火するため　デフォルトではfalse
+            onActiveStartDateChange={({ activeStartDate }) => handleMonthChange(activeStartDate)}
+            minDetail='month'
+            maxDetail='month'
+            nextLabel="次の月へ"
+            prevLabel="前の月へ"
+            className="rounded bg-light border"
+            tileClassName={({ date }) => {
+              const classes: string[] = [];
+              selectedRanges.forEach(item => {
+                if (!item.startDate || !item.endDate) return;
+
+                const adjustedStartDate = new Date(item.startDate);
+                const adjustedEndDate = new Date(item.endDate);
+
+                if (item.shop === selectedShop && date >= new Date(adjustedStartDate.setDate(adjustedStartDate.getDate() - 1)) && date <= new Date(item.endDate)) {
+                  classes.push('selected-range');
+                  classes.push(item.category);
+                }
+
+                if (item.shop === selectedShop && item.category === 'event' || item.category === 'event_even' || item.category === 'medium') {
+                  if (date.getDate() === new Date(item.startDate).getDate()) {
+                    classes.push(`${item.category}_start`);
+                  }
+                  if (date.getDate() === new Date(item.endDate).getDate()) {
+                    classes.push(`${item.category}_end`);
+                  }
+                }
+              });
+              return classes.join(' ');
+
+            }}
+
+            tileContent={({ date }) => {
+              const matchingRanges = selectedRanges.filter(item => {
+                const targetDate = new Date(item.startDate);
+                return date.getFullYear() === targetDate.getFullYear() &&
+                  date.getMonth() === targetDate.getMonth() &&
+                  date.getDate() === targetDate.getDate();
+              });
+
+              return matchingRanges.length > 0 ? (
+                <div className='title position-relative' style={{ fontSize: '11px' }}><ReservedCounter message={date} />{matchingRanges.filter(shop => shop.shop === selectedShop).map((value, index) => (
+                  <div key={index} className={value.category}>{value.title}</div>
+                ))}
+                </div>
+              ) : <div className='title position-relative' style={{ fontSize: '10px' }}><ReservedCounter message={date} />
+              </div>;
+            }}
+          />
+
+
+          <Modal show={listShow} onHide={modalClose} size="lg">
+            <Modal.Header closeButton>
+              <Modal.Title id="ranked-modal">{selectedShop} {targetDateModal} 反響</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <div className="table-wrapper">
+                <div className="list_table calendar">
+                  <Table striped style={{ fontSize: '11px' }}>
+                    <thead>
+                      <tr className='modal_event_list text-center'>
+                        <td>イベント</td>
+                        <td><span className='bg-danger text-white px-2 py-1 rounded me-2'>新規来場者数</span></td>
+                        <td><span className='bg-primary text-white px-2 py-1 rounded me-2'>有効新規数</span></td>
+                        <td><span className='bg-success text-white px-2 py-1 rounded me-2'>次回アポ数</span></td>
+                        <td><span className='bg-secondary text-white px-2 py-1 rounded me-2'>管理客来場者数</span></td>
+                        <td>編集</td>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventTitle.filter(value => value.shop === selectedShop).map(item => {
+                        let category;
+                        const resultReserve = reservedNumber?.find(reserve => reserve.category === 'reserved' && reserve.event === item.title && reserve.date === targetDateModal && reserve.date === targetDateModal && reserve.shop === selectedShop);
+                        const newReserve = reservedNumber?.find(reserve => reserve.category === 'new' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
+                        const nextReserve = reservedNumber?.find(reserve => reserve.category === 'next' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
+                        const registeredReserve = reservedNumber?.find(reserve => reserve.category === 'registered' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
+                        if (item.category.includes('event')) {
+                          category = 'event_modal text-white rounded p-2';
+                        } else {
+                          category = `${item.category}_modal text-white rounded p-2`;
+                        }
+                        return (
+                          <tr className='modal_event_list text-center'>
+                            {/* <td className='align-middle'>{startYear}/{startFormattedMonth}/{startFormattedDay}</td>
+                    <td className='align-middle'>{endYear}/{endFormattedMonth}/{endFormattedDay}</td> */}
+                            <td className='align-middle'><span className={category}>{item.title}</span></td>
+                            <td>{item.category !== 'medium' ? <input type="number" min="0" placeholder={resultReserve ? String(resultReserve?.count) : "0"} defaultValue={resultReserve ? resultReserve.count : 0} className="form-control reserved-counter" onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'reserved')} /> : ""}</td>
+                            <td>{item.category !== 'medium' ? <input type='number' min="0" placeholder={newReserve ? String(newReserve?.count) : "0"} defaultValue={newReserve ? newReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'new')} /> : ''}</td>
+                            <td>{item.category !== 'medium' ? <input type='number' min="0" placeholder={nextReserve ? String(nextReserve?.count) : '0'} defaultValue={nextReserve ? nextReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'next')} /> : ''}</td>
+                            <td>{item.category !== 'medium' ? <input type='number' min="0" placeholder={registeredReserve ? String(registeredReserve?.count) : '0'} defaultValue={registeredReserve ? registeredReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'registered')} /> : ''}</td>
+                            <td className='align-middle'><div className='btn me-2 bg-primary text-white' onClick={() => changeEvent(item.id, item.title, item.shop, item.category, item.startDate, item.endDate)}><i className="fa-solid fa-file-pen"></i></div><div className='btn bg-danger text-white' onClick={() => deleteEvent(item.id)}><i className="fa-solid fa-trash"></i></div></td>
+                          </tr>
+                        )
+                      })}
+                      <tr className='modal_event_list text-center'>
+                        <td className='align-middle'><span className='event_modal text-white rounded p-2'>{ }常設EV・モデル見学</span></td>
+                        <td><input type="number" min="0" placeholder={resultReserve ? String(resultReserve) : '0'} defaultValue={resultReserve ? String(resultReserve) : '0'} className="form-control reserved-counter" onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'reserved')} /></td>
+                        <td><input type='number' min="0" placeholder={newReserve ? String(newReserve) : '0'} defaultValue={newReserve ? String(newReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'new')} /></td>
+                        <td><input type='number' min="0" placeholder={nextReserve ? String(nextReserve) : '0'} defaultValue={nextReserve ? String(nextReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'next')} /></td>
+                        <td><input type='number' min="0" placeholder={registeredReserve ? String(registeredReserve) : '0'} defaultValue={registeredReserve ? String(registeredReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'registered')} /></td>
+                        <td className='align-middle'></td>
+                      </tr>
+                    </tbody>
+                  </Table></div></div>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button className='bg-secondary rounded text-white btn calendar_modal_close' style={{fontSize: '12px'}} variant="secondary" onClick={modalClose}>
+                閉じる
+              </Button>
+              <Button className='bg-primary rounded text-white btn calendar_modal_close' style={{fontSize: '12px'}} variant="secondary" onClick={() => changeEvent(null, '', '', '', '', '')}>
+                イベント新規登録
+              </Button>
+            </Modal.Footer>
+          </Modal>
+
+          <Modal show={eventListShow} onHide={modalEventClose} animation={false}>
+            <Modal.Header closeButton>
+              <Modal.Title>{modalEventTitle}</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <div className='mb-3'>
+                <label className='form-label mb-0'>イベント名</label>
+                <input type='text' className='form-control' value={modalEventTitle !== '' ? modalEventTitle : 'イベント名を入力'} onChange={(e) => setModalEventTitle(e.target.value)} />
+              </div>
+              <div className='mb-3'>
+                <label className='form-label mb-0'>カテゴリー</label>
+                <select className='form-control' onChange={(e) => setModalEventCategory(e.target.value)}>
+                  <option value=''>カテゴリーを選択</option>
+                  <option value='event' selected={modalEventCategory === 'event' ? true : false}>イベント(上段)</option>
+                  <option value='event_even' selected={modalEventCategory === 'event_even' ? true : false}>イベント(下段)</option>
+                  <option value='openhouse' selected={modalEventCategory === 'openhouse' ? true : false}>完成見学会</option>
+                  <option value='medium' selected={modalEventCategory === 'medium' ? true : false}>販促媒体</option>
+                </select>
+              </div>
+              <div className='mb-3'>
+                <label className='form-label mb-0'>開始日</label>
+                <input type='date' className='form-control mb-3' value={modalEventStartDate} onChange={(e) => setModalEventStartDate(e.target.value)} />
+              </div>
+              <div className='mb-3'>
+                <label className='form-label mb-0'>終了日</label>
+                <input type='date' className='form-control mb-3' value={modalEventEndDate} onChange={(e) => setModalEventEndDate(e.target.value)} />
+              </div>
+
+            </Modal.Body>
+            <Modal.Footer>
+              <Button className='bg-secondary rounded text-white btn calendar_modal_close'  style={{fontSize: '12px'}} variant="secondary" onClick={modalEventClose}>
+                閉じる
+              </Button>
+              <Button className='bg-primary rounded text-white btn calendar_modal_close'  style={{fontSize: '12px'}} variant="secondary" onClick={modalEventRegister}>
+                保存
+              </Button>
+            </Modal.Footer>
+          </Modal>
         </div>
       </div>
-      <Calendar
-        onClickDay={(date) => addEvent(date)}
-        showNeighboringMonth={true} //※大事！当月以外でもイベントを発火するため　デフォルトではfalse
-        onActiveStartDateChange={({ activeStartDate}) => handleMonthChange(activeStartDate)}
-        minDetail='month'
-        maxDetail='month'
-        nextLabel="次の月へ"
-        prevLabel="前の月へ"
-        className="rounded bg-light border"
-        tileClassName={({ date }) => {
-          const classes: string[] = [];
-          selectedRanges.forEach(item => {
-            if (!item.startDate || !item.endDate) return;
-
-            const adjustedStartDate = new Date(item.startDate);
-            const adjustedEndDate = new Date(item.endDate);
-
-            if ( item.shop === selectedShop && date >= new Date(adjustedStartDate.setDate(adjustedStartDate.getDate() - 1)) && date <= new Date(item.endDate)) {
-              classes.push('selected-range');
-              classes.push(item.category);
-            }
-
-            if ( item.shop === selectedShop && item.category === 'event' || item.category === 'event_even' || item.category === 'medium') {
-              if (date.getDate() === new Date(item.startDate).getDate()) {
-                classes.push(`${item.category}_start`);
-              }
-              if (date.getDate() === new Date(item.endDate).getDate()) {
-                classes.push(`${item.category}_end`);
-              }
-            }
-          });
-          return classes.join(' ');
-
-        }}
-
-        tileContent={({ date }) => {
-          const matchingRanges = selectedRanges.filter(item => {
-            const targetDate = new Date(item.startDate);
-            return date.getFullYear() === targetDate.getFullYear() &&
-              date.getMonth() === targetDate.getMonth() &&
-              date.getDate() === targetDate.getDate();
-          });
-
-          return matchingRanges.length > 0 ? (
-            <div className='title position-relative'><ReservedCounter message={date} />{matchingRanges.filter(shop => shop.shop === selectedShop).map((value, index) => (
-              <div key={index} className={value.category}>{value.title}</div>
-            ))}
-            </div>
-          ) : <div className='title position-relative'><ReservedCounter message={date} />
-          </div>;
-        }}
-      />
-
-
-      <Modal show={listShow} onHide={modalClose} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title id="ranked-modal">{selectedShop} {targetDateModal} 反響</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Table striped>
-            <thead>
-              <tr className='modal_event_list text-center'>
-                <th>イベント</th>
-                <th><span className='p bg-danger text-white px-2 py-1 rounded-pill me-2'>新規来場者数</span></th>
-                <th><span className='p bg-primary text-white px-2 py-1 rounded-pill me-2'>有効新規数</span></th>
-                <th><span className='p bg-success text-white px-2 py-1 rounded-pill me-2'>次回アポ数</span></th>
-                <th><span className='p bg-secondary text-white px-2 py-1 rounded-pill me-2'>管理客来場者数</span></th>
-                <th>編集</th>
-              </tr>
-            </thead>
-            <tbody>
-              {eventTitle.filter( value => value.shop === selectedShop ).map(item => {
-                let category;
-                const resultReserve = reservedNumber?.find(reserve => reserve.category === 'reserved' && reserve.event === item.title && reserve.date === targetDateModal && reserve.date === targetDateModal && reserve.shop === selectedShop);
-                const newReserve = reservedNumber?.find(reserve => reserve.category === 'new' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
-                const nextReserve = reservedNumber?.find(reserve => reserve.category === 'next' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
-                const registeredReserve = reservedNumber?.find(reserve => reserve.category === 'registered' && reserve.event === item.title && reserve.date === targetDateModal && reserve.shop === selectedShop);
-                if (item.category.includes('event')) {
-                  category = 'event_modal text-white rounded p-2';
-                } else {
-                  category = `${item.category}_modal text-white rounded p-2`;
-                }
-                return (
-                  <tr className='modal_event_list text-center'>
-                    {/* <th className='align-middle'>{startYear}/{startFormattedMonth}/{startFormattedDay}</th>
-                    <th className='align-middle'>{endYear}/{endFormattedMonth}/{endFormattedDay}</th> */}
-                    <th className='align-middle'><span className={category}>{item.title}</span></th>
-                    <th>{item.category !== 'medium' ? <input type="number" min="0" placeholder={resultReserve ? String(resultReserve?.count) : "0"} defaultValue={resultReserve ? resultReserve.count : 0} className="form-control reserved-counter" onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'reserved')} /> : ""}</th>
-                    <th>{item.category !== 'medium' ? <input type='number' min="0" placeholder={newReserve ? String(newReserve?.count) : "0"} defaultValue={newReserve ? newReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'new')} /> : ''}</th>
-                    <th>{item.category !== 'medium' ? <input type='number' min="0" placeholder={nextReserve ? String(nextReserve?.count) : '0'} defaultValue={nextReserve ? nextReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'next')} /> : ''}</th>
-                    <th>{item.category !== 'medium' ? <input type='number' min="0" placeholder={registeredReserve ? String(registeredReserve?.count) : '0'} defaultValue={registeredReserve ? registeredReserve.count : 0} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, item.title, item.shop, targetDateModal, 'registered')} /> : ''}</th>
-                    <th className='align-middle'><div className='btn me-2 bg-primary text-white' onClick={() => changeEvent(item.id, item.title, item.shop, item.category, item.startDate, item.endDate)}><i className="fa-solid fa-file-pen"></i></div><div className='btn bg-danger text-white' onClick={() => deleteEvent(item.id)}><i className="fa-solid fa-trash"></i></div></th>
-                  </tr>
-                )
-              })}
-              <tr className='modal_event_list text-center'>
-                <th className='align-middle'><span className='event_modal text-white rounded p-2'>{ }常設EV・モデル見学</span></th>
-                <th><input type="number" min="0" placeholder={resultReserve ? String(resultReserve) : '0'} defaultValue={resultReserve ? String(resultReserve) : '0'} className="form-control reserved-counter" onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'reserved')} /></th>
-                <th><input type='number' min="0" placeholder={newReserve ? String(newReserve) : '0'} defaultValue={newReserve ? String(newReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'new')} /></th>
-                <th><input type='number' min="0" placeholder={nextReserve ? String(nextReserve) : '0'} defaultValue={nextReserve ? String(nextReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'next')} /></th>
-                <th><input type='number' min="0" placeholder={registeredReserve ? String(registeredReserve) : '0'} defaultValue={registeredReserve ? String(registeredReserve) : '0'} className='form-control reserved-counter' onChange={(e) => handleCount(e.target.value, '常設EV・モデル見学', selectedShop, targetDateModal, 'registered')} /></th>
-                <th className='align-middle'></th>
-              </tr>
-            </tbody>
-          </Table>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button className='bg-secondary rounded text-white btn calendar_modal_close' variant="secondary" onClick={modalClose}>
-            閉じる
-          </Button>
-          <Button className='bg-primary rounded text-white btn calendar_modal_close' variant="secondary" onClick={() => changeEvent(null, '', '', '', '', '')}>
-            イベント新規登録
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
-      <Modal show={eventListShow} onHide={modalEventClose} animation={false}>
-        <Modal.Header closeButton>
-          <Modal.Title>{modalEventTitle}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <div className='mb-3'>
-            <label className='form-label mb-0'>イベント名</label>
-            <input type='text' className='form-control' value={modalEventTitle !== '' ? modalEventTitle : 'イベント名を入力'} onChange={(e) => setModalEventTitle(e.target.value)} />
-          </div>
-          <div className='mb-3'>
-            <label className='form-label mb-0'>カテゴリー</label>
-            <select className='form-control' onChange={(e) => setModalEventCategory(e.target.value)}>
-              <option value=''>カテゴリーを選択</option>
-              <option value='event' selected={modalEventCategory === 'event' ? true : false}>イベント(上段)</option>
-              <option value='event_even' selected={modalEventCategory === 'event_even' ? true : false}>イベント(下段)</option>
-              <option value='openhouse' selected={modalEventCategory === 'openhouse' ? true : false}>完成見学会</option>
-              <option value='medium' selected={modalEventCategory === 'medium' ? true : false}>販促媒体</option>
-            </select>
-          </div>
-          <div className='mb-3'>
-            <label className='form-label mb-0'>開始日</label>
-            <input type='date' className='form-control mb-3' value={modalEventStartDate} onChange={(e) => setModalEventStartDate(e.target.value)} />
-          </div>
-          <div className='mb-3'>
-            <label className='form-label mb-0'>終了日</label>
-            <input type='date' className='form-control mb-3' value={modalEventEndDate} onChange={(e) => setModalEventEndDate(e.target.value)} />
-          </div>
-
-        </Modal.Body>
-        <Modal.Footer>
-          <Button className='bg-secondary rounded text-white btn calendar_modal_close' variant="secondary" onClick={modalEventClose}>
-            閉じる
-          </Button>
-          <Button className='bg-primary rounded text-white btn calendar_modal_close' variant="secondary" onClick={modalEventRegister}>
-            保存
-          </Button>
-        </Modal.Footer>
-      </Modal>
     </div>
+
   )
 }
 

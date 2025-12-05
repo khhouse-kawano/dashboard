@@ -138,7 +138,7 @@ const Survey = () => {
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
-        const array = [];
+        const array: string[] = [];
         let year = startYear;
         let month = startMonth;
         while (year < currentYear || (year === currentYear && month <= currentMonth)) {
