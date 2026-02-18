@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useContext } from 'react';
-import Menu from "./Menu";
 import Table from "react-bootstrap/Table";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
@@ -182,9 +181,11 @@ const NewCampaign = () => {
     const [newTime, setNewTime] = useState<string>('');
     const [newMedium, setNewMedium] = useState<string>('');
     const [validation, setValidation] = useState<string[]>([]);
+    const { token } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
 
     useEffect(() => {
-        if (!brand || brand.trim() === "") navigate("/");
+        if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
 
         const fetchData = async () => {
             if (idValue) {

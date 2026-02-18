@@ -117,7 +117,7 @@ const CampaignReport: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
         setSortOrder(order)
     };
 
-    const modalClose = async()=>
+    const modalClose = async () =>
         await setShow(false);
 
     return (
@@ -154,6 +154,10 @@ const CampaignReport: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
                                         <span style={{ position: 'absolute', top: '4px', right: '5px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'cv')}>▲</span>
                                         <span style={{ position: 'absolute', top: '14px', right: '5px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'cv')}>▼</span>
                                     </td>
+                                    <td className='text-center table-secondary' style={{ position: 'relative' }}>CV率
+                                        <span style={{ position: 'absolute', top: '4px', right: '5px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'cvPer')}>▲</span>
+                                        <span style={{ position: 'absolute', top: '14px', right: '5px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'cvPer')}>▼</span>
+                                    </td>
                                     <td className='text-center table-danger' style={{ position: 'relative' }}>フォーム離脱
                                         <span style={{ position: 'absolute', top: '4px', right: '5px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'breakaway')}>▲</span>
                                         <span style={{ position: 'absolute', top: '14px', right: '5px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'breakaway')}>▼</span>
@@ -180,17 +184,19 @@ const CampaignReport: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
                                 {filteredCampaign.sort((a, b) => {
                                     let countA;
                                     let countB;
+                                    const campaignNameA = formList.find(form => form.campaign_id === a.campaign)?.campaign;
+                                    const campaignNameB = formList.find(form => form.campaign_id === b.campaign)?.campaign;
                                     if (sortKey === 'access') {
                                         countA = a.campaign === '合計' ? form.length : form.filter(form => form.campaign === a.campaign).length;
                                         countB = b.campaign === '合計' ? form.length : form.filter(form => form.campaign === b.campaign).length;
                                     } else if (sortKey === 'cv') {
-                                        const campaignNameA = formList.find(form => form.campaign_id === a.campaign)?.campaign;
-                                        const campaignNameB = formList.find(form => form.campaign_id === b.campaign)?.campaign;
                                         countA = a.campaign === '合計' ? campaignSummary.filter(c => c.period.includes(selectedMonth)).length : campaignSummary.filter(c => c.name === campaignNameA && c.period.includes(selectedMonth)).length;
                                         countB = b.campaign === '合計' ? campaignSummary.filter(c => c.period.includes(selectedMonth)).length : campaignSummary.filter(c => c.name === campaignNameB && c.period.includes(selectedMonth)).length;
+                                    } else if (sortKey === 'cvPer') {
+
+                                        countA = a.campaign === '合計' ? campaignSummary.filter(c => c.period.includes(selectedMonth)).length / form.length : campaignSummary.filter(c => c.name === campaignNameA && c.period.includes(selectedMonth)).length / form.filter(form => form.campaign === a.campaign).length;
+                                        countB = b.campaign === '合計' ? campaignSummary.filter(c => c.period.includes(selectedMonth)).length / form.length : campaignSummary.filter(c => c.name === campaignNameB && c.period.includes(selectedMonth)).length / form.filter(form => form.campaign === b.campaign).length;
                                     } else if (sortKey === 'breakaway') {
-                                        const campaignNameA = formList.find(form => form.campaign_id === a.campaign)?.campaign;
-                                        const campaignNameB = formList.find(form => form.campaign_id === b.campaign)?.campaign;
                                         countA = a.campaign === '合計' ? breakaway.length : breakaway.filter(br => br.campaign === campaignNameA).length;
                                         countB = b.campaign === '合計' ? breakaway.length : breakaway.filter(br => br.campaign === campaignNameB).length;
                                     } else if (sortKey === 'meta') {
@@ -210,18 +216,20 @@ const CampaignReport: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
                                 }).map((f, index) => {
                                     const campaignName = f.campaign === '合計' ? '合計' : formList.find(form => form.campaign_id === f.campaign)?.campaign;
                                     const accessLength = f.campaign === '合計' ? form.length : form.filter(form => form.campaign === f.campaign).length;
-                                    const breakawayLength = f.campaign === '合計' ? breakaway.length : breakaway.filter(b => b.campaign === campaignName && b.time.replace(/-/g, '/').includes(selectedMonth)).length;
+                                    const breakawayLength = f.campaign === '合計' ? breakaway.filter(b => b.time.replace(/-/g, '/').includes(selectedMonth)).length : breakaway.filter(b => b.campaign === campaignName && b.time.replace(/-/g, '/').includes(selectedMonth)).length;
                                     const campaignUrl = f.campaign === '合計' ? '' : form.find(form => form.campaign === f.campaign)?.url;
                                     const metaLength = f.campaign === '合計' ? form.filter(form => form.source.toLowerCase() === 'facebook/instagram' || form.source.toLowerCase().includes('ig') || form.source.toLowerCase().includes('fb')).length : form.filter(form => form.campaign === f.campaign && (form.source.toLowerCase() === 'facebook/instagram' || form.source.toLowerCase().includes('ig') || form.source.toLowerCase().includes('fb'))).length;
                                     const googleLength = f.campaign === '合計' ? form.filter(form => form.source.toLowerCase() === 'google').length : form.filter(form => form.campaign === f.campaign && form.source.toLowerCase() === 'google').length;
                                     const yahooLength = f.campaign === '合計' ? form.filter(form => form.source.toLowerCase() === 'yahoo').length : form.filter(form => form.campaign === f.campaign && form.source.toLowerCase() === 'yahoo').length;
                                     const flyerLength = f.campaign === '合計' ? form.filter(form => form.source.toLowerCase() === 'flyer').length : form.filter(form => form.campaign === f.campaign && form.source.toLowerCase() === 'flyer').length;
                                     const cvLength = f.campaign === '合計' ? campaignSummary.filter(c => c.period.includes(selectedMonth)).length : campaignSummary.filter(c => c.name === campaignName && c.period.includes(selectedMonth)).length;
+                                    const cvPer = !isNaN(cvLength / accessLength) ? Math.ceil(cvLength / accessLength * 10000) / 100 : '0';
                                     return (<tr style={{ fontSize: '12px' }}>
                                         <td>{index + 1}</td>
                                         <td>{f.campaign === '合計' ? '合計' : <a href={campaignUrl?.split('?')[0]} target='_blank'><div className="">{campaignName}</div></a>}</td>
                                         <td className='text-center table-primary'>{accessLength}</td>
                                         <td className='text-center table-success'>{cvLength}</td>
+                                        <td className='text-center table-secondary'>{cvPer}%</td>
                                         <td className="text-center table-danger">{breakawayLength}</td>
                                         <td className='text-center'>{metaLength}</td>
                                         <td className='text-center'>{googleLength}</td>

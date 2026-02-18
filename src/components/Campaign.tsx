@@ -4,13 +4,15 @@ import axios from "axios";
 import { Bar } from 'react-chartjs-2';
 import { colorCodes } from "./ColorCodes";
 import { ChartOptions } from "chart.js";
+import { getYearMonthArray } from '../utils/getYearMonthArray';
 
 interface CampaignSummaryProps {
     activeTab: string | null;
 }
 
 type Summary = { period: string; name: string; brand: string };
-type Shop = { brand: string; shop: string; section: string; area: string; }
+type Shop = { brand: string; shop: string; section: string; area: string; };
+type Campaign = { register: string, reserve: string, contract: string, shop: string, campaign: string, reserved_status: string };
 
 const CampaignDev: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
     const now = new Date();
@@ -19,44 +21,24 @@ const CampaignDev: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [selectedMonth, setSelectedMonth] = useState<string>('');
     const [campaignSummary, setCampaignSummary] = useState<Summary[]>([]);
-    const [campaignList, setCampaignList] = useState<Summary[]>([]);
     const [shopArray, setShopArray] = useState<Shop[]>([]);
     const [selectedBrand, setSelectedBrand] = useState<string>('');
-    const getYearMonthArray = (startYear: number, startMonth: number) => {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth() + 1;
-        const yearMonthArray: string[] = [];
-        let year = startYear;
-        let month = startMonth;
-
-        while (
-            year < currentYear ||
-            (year === currentYear && month <= currentMonth)) {
-            const formattedMonth = month.toString().padStart(2, "0");
-            yearMonthArray.push(`${String(year)}/${formattedMonth}`);
-
-            month++;
-            if (month > 12) {
-                month = 1;
-                year++;
-            }
-        }
-
-        return yearMonthArray;
-    };
+    const [campaignList, setCampaignList] = useState<Campaign[]>([]);
 
     useEffect(() => {
-        const monthArray = getYearMonthArray(2025, 1);
+        const monthArray = getYearMonthArray(2025, 6);
         setMonthArray(monthArray);
         setSelectedMonth(`${String(year)}/${month}`);
         const fetchData = async () => {
             try {
                 const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "campaign" }, { headers });
+                const responseInquiry = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "campaign_inquiry" }, { headers });
                 const responseShop = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers });
-                await setCampaignSummary(response.data);
+                const responseCustomer = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_campaign" }, { headers });
+                await setCampaignSummary(responseInquiry.data.filter(item => item.name));
                 await setShopArray(responseShop.data);
+                await setCampaignList(responseCustomer.data);
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -73,7 +55,6 @@ const CampaignDev: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
             (selectedMonth === '' || item.period.includes(selectedMonth)) &&
             (selectedBrand === '' || item.brand.toLowerCase() === selectedBrand.toLowerCase())
         );
-        console.log(filteredArray)
         return Array.from(new Map(filteredArray.map(item => [item.name, item])).values());
     }, [campaignSummary, selectedMonth, selectedBrand]);
 
@@ -91,7 +72,7 @@ const CampaignDev: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
             return countB - countA;
         });
     }, [filtered, filteredLength]);
-    
+
     const dataLabels: string[] = [];
     const dataTotal: number[] = [];
     sortedCampaignList.filter(item => (selectedBrand === "" || item.brand.toLowerCase() === selectedBrand.toLowerCase())).forEach((value) => {
@@ -129,13 +110,14 @@ const CampaignDev: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
             },
         },
     };
+
     return (
         <div>
             <div className='container bg-white py-3 mt-2'>
                 <div className="d-flex  mb-3">
                     <div className="m-1">
                         <select className="target" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-                            <option value=''>全期間</option>
+                            <option value=''>{monthArray[0]} ~ {monthArray[monthArray.length - 1]}</option>
                             {monthArray.map((item, index) =>
                                 <option value={item} key={index}>{item}</option>)}
                         </select>
@@ -149,32 +131,42 @@ const CampaignDev: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
                     </div>
                 </div>
                 <div className="row">
-                    <div className="col-5">
+                    <div className="col-7">
                         <Table striped bordered>
                             <thead>
                                 <tr style={{ fontSize: '12px' }}>
                                     <td>No</td>
                                     <td>キャンペーン名</td>
                                     <td>反響数</td>
+                                    <td>来場数</td>
+                                    <td>契約数</td>
+                                    <td>キャンセル数</td>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr style={{ fontSize: '12px' }}>
-                                    <td>1</td>
-                                    <td>合計</td>
-                                    <td>{filteredLength.length}</td>
-                                </tr>
-                                {sortedCampaignList.map((item, index) => (
-                                    <tr key={index} style={{ fontSize: '12px' }}>
-                                        <td>{index + 2}</td>
-                                        <td>{item.name}</td>
-                                        <td>{filteredLength.filter(campaign => campaign.name === item.name).length}</td>
-                                    </tr>
-                                ))}
+                                {[{ period: '', name: '合計', brand: '' }, ...sortedCampaignList].map((item, index) => {
+                                    const brandValue = (value: string) => {
+                                        return value.slice(0, 2);
+                                    }
+                                    const registerLength = filteredLength.filter(f => index > 0 ? f.name === item.name : f.name);
+                                    const campaignLength = campaignList.filter(c => (index > 0 ? c.campaign === item.name : c.campaign) && (selectedBrand ? brandValue(selectedBrand) === brandValue(c.shop) : true) && (selectedMonth ? c.reserve.replace(/-/g, '/').includes(selectedMonth) : c.reserve));
+                                    const contractLength = campaignList.filter(c => (index > 0 ? c.campaign === item.name : c.campaign) && (selectedBrand ? brandValue(selectedBrand) === brandValue(c.shop) : true)  && (selectedMonth ? (c.register.replace(/-/g, '/').includes(selectedMonth) && c.contract) : c.contract));
+                                    const cancelLength = campaignList.filter(c => (index > 0 ? c.campaign === item.name : c.campaign) && (selectedBrand ? brandValue(selectedBrand) === brandValue(c.shop) : true)  && (selectedMonth ? c.reserved_status.replace(/-/g, '/').includes(selectedMonth) && !c.reserve.includes(selectedMonth) : c.reserved_status && !c.reserve));
+                                    return (
+                                        <tr key={index} style={{ fontSize: '12px' }}>
+                                            <td>{index + 1}</td>
+                                            <td>{item.name}</td>
+                                            <td style={{ textAlign: 'right' }}>{registerLength.length}</td>
+                                            <td style={{ textAlign: 'right' }}>{campaignLength.length}</td>
+                                            <td style={{ textAlign: 'right' }}>{contractLength.length}</td>
+                                            <td style={{ textAlign: 'right' }}>{cancelLength.length}</td>
+                                        </tr>
+                                    )
+                                })}
                             </tbody>
                         </Table>
                     </div>
-                    <div className="col-7">
+                    <div className="col-5">
                         <div style={{ height: `${sortedCampaignList.length * 43 + 43}px`, width: "100%" }}>
                             <Bar data={data} options={options} />
                         </div>

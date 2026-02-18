@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
 import Table from 'react-bootstrap/esm/Table';
 import MenuDev from "./MenuDev";
-import AuthContext from "../context/AuthContext.js";
+import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 type PieDataType = {

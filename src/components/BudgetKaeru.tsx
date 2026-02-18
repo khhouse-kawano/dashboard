@@ -8,8 +8,9 @@ import { colorCodes } from './ColorCodes.js';
 import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
 import { ChartOptions } from 'chart.js';
-import AuthContext from "../context/AuthContext.js";
+import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { getYearMonthArray } from '../utils/getYearMonthArray';
 
 type PieDataType = {
     labels: string[];
@@ -73,6 +74,8 @@ const Dev = () => {
         ],
     });
     const { brand } = useContext(AuthContext);
+        const { token } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(true);
     const staffMapping = [{ name: '桑田 哲朗', area: '' },
@@ -150,30 +153,7 @@ const Dev = () => {
     const tables = ['table-primary', 'table-danger', 'table-success', 'table-secondary'];
 
     useEffect(() => {
-        if (!brand || brand.trim() === "") navigate("/");
-        const getYearMonthArray = (startYear: number, startMonth: number) => {
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth() + 1;
-            const yearMonthArray: string[] = [];
-            let year = startYear;
-            let month = startMonth;
-
-            while (
-                year < currentYear ||
-                (year === currentYear && month <= currentMonth)) {
-                const formattedMonth = month.toString().padStart(2, "0");
-                yearMonthArray.push(`${year}/${formattedMonth}`);
-
-                month++;
-                if (month > 12) {
-                    month = 1;
-                    year++;
-                }
-            }
-
-            return yearMonthArray;
-        };
+        if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
         setMonthArray(getYearMonthArray(2025, 1));
         setAreaArray(areas);
         const fetchData = async () => {

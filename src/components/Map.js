@@ -2,13 +2,13 @@
 import React, { useEffect, useState, useRef, useContext } from "react";
 import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import axios from "axios";
-import Menu from "./Menu";
 import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import Table from "react-bootstrap/Table";
 import Blue from "../assets/images/blue_ping.png";
 import Red from "../assets/images/red_ping.png";
 import MenuDev from "./MenuDev";
+import { getYearMonthArray } from '../utils/getYearMonthArray';
 
 const libraries = ["marker"];
 
@@ -37,33 +37,11 @@ const Map = () => {
   const [targetShop, setTargetShop] = useState("");
   const [areaList, setAreaList] = useState([]);
   const [slice, setSlice] = useState(20);
-
+    const { token } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
   const mapRef = useRef(null);
   const initialCenter = { lat: 31.584172816548488, lng: 130.7938207962173 };
 
-  /** 年月配列を生成 */
-  const getYearMonthArray = (startYear, startMonth) => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    const yearMonthArray = [];
-    let year = startYear;
-    let month = startMonth;
-
-    while (
-      year < currentYear ||
-      (year === currentYear && month <= currentMonth)
-    ) {
-      const formattedMonth = month.toString().padStart(2, "0");
-      yearMonthArray.push(`${year}/${formattedMonth}`);
-      month++;
-      if (month > 12) {
-        month = 1;
-        year++;
-      }
-    }
-    return yearMonthArray;
-  };
 
   /** エリアリストを生成 */
   const buildAreaList = (filtered) => {
@@ -115,10 +93,7 @@ const Map = () => {
 
   /** 初期データ取得 */
   useEffect(() => {
-    if (!brand || brand.trim() === "") {
-      navigate("/");
-      return;
-    }
+    if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
     if (!isLoaded) return;
 
     setMonthArray(getYearMonthArray(2025, 1));

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useContext } from 'react';
 import { useNavigate } from "react-router-dom";
-import Menu from "./Menu";
 import Table from "react-bootstrap/Table";
 import axios from "axios";
 import AuthContext from '../context/AuthContext';
@@ -13,6 +12,7 @@ import { ChartOptions } from 'chart.js';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import MenuDev from "./MenuDev";
+import { getYearMonthArray } from '../utils/getYearMonthArray';
 
 type Customer = Record<string, string>;
 type Budget = { id: number; medium: string; budget_period: string; shop: string; budget_value: number; note: string; company: string; response_medium: number; category: string; section: string; order_section: string }
@@ -83,34 +83,13 @@ const CustomersDev = () => {
     });
     const [open, setOpen] = useState(false);
     const [show, setShow] = useState(false);
+    const { token } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
 
     useEffect(() => {
-        if( !brand || brand.trim() === "") navigate("/");
-        const getYearMonthArray = (startYear: number, startMonth: number) => {
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth() + 1;
-            const yearMonthArray: string[] = [];
-            let year = startYear;
-            let month = startMonth;
+        if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
 
-            while (
-                year < currentYear ||
-                (year === currentYear && month <= currentMonth)) {
-                const formattedMonth = month.toString().padStart(2, "0");
-                yearMonthArray.push(`${year}/${formattedMonth}`);
-
-                month++;
-                if (month > 12) {
-                    month = 1;
-                    year++;
-                }
-            }
-
-            return yearMonthArray;
-        };
         setMonthArray(getYearMonthArray(2025, 1));
-
 
         const fetchData = async () => {
             try {
@@ -125,7 +104,7 @@ const CustomersDev = () => {
                 await setCustomerList(customerResponse.data);
                 await setOriginalList(customerResponse.data);
                 await setShopArray(shopResponse.data);
-                await setMediumArray(mediumResponse.data);
+                await setMediumArray(mediumResponse.data.filter(m => m.list_medium === 1));
                 await setBudgetList(budgetResponse.data);
                 await setOriginalBudgetList(budgetResponse.data);
                 await setSectionList(sectionResponse.data);
@@ -134,8 +113,7 @@ const CustomersDev = () => {
             }
         };
         fetchData();
-    }, [])
-
+    }, []);
 
     useEffect(() => {
         if (!originalList.length) return;
@@ -343,7 +321,7 @@ const CustomersDev = () => {
                     <div className="table-wrapper mt-3">
                         <div className="list_table">
 
-                            <Table striped style={{ fontSize: '12px' }}>
+                            <Table striped style={{ fontSize: '12px' }} bordered>
                                 <tbody>
                                     <tr className='sticky-header'>
                                         <td className='sticky-column' style={{ position: 'relative', textAlign: 'center' }}>販促媒体名</td>

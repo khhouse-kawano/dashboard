@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState, useContext } from 'react';
 import { useNavigate } from "react-router-dom";
-import Menu from "./Menu";
 import Table from "react-bootstrap/Table";
 import axios from "axios";
 import AuthContext from '../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import MenuDev from "./MenuDev";
+import { getYearMonthArray } from '../utils/getYearMonthArray';
 
 type Customer = Record<string, string>;
 type Budget = { id: number; medium: string; budget_period: string; shop: string; budget_value: number; note: string; company: string; response_medium: number; category: string; section: string; order_section: string }
@@ -22,6 +22,7 @@ type PieDataType = {
     }[];
 };
 type Section = { no: number, name: string };
+type Staff = { name: string; shop: string; rank: number };
 
 const CustomersDev = () => {
     const navigate = useNavigate();
@@ -32,6 +33,7 @@ const CustomersDev = () => {
     const [mediumArray, setMediumArray] = useState<Medium[]>([]);
     const [customerList, setCustomerList] = useState<Customer[]>([]);
     const [originalList, setOriginalList] = useState<Customer[]>([]);
+    const [staff, setStaff] = useState<Staff[]>([]);
     const [budgetList, setBudgetList] = useState<Budget[]>([]);
     const [originalBudgetList, setOriginalBudgetList] = useState<Budget[]>([]);
     const [startMonth, setStartMonth] = useState<string>('');
@@ -44,60 +46,39 @@ const CustomersDev = () => {
     const [sortOrder, setSortOrder] = useState<string>('');
     const [open, setOpen] = useState(false);
     const [sectionList, setSectionList] = useState<Section[]>([]);
-
+    const { token } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
     useEffect(() => {
-        if (!brand || brand.trim() === "") navigate("/");
-        const getYearMonthArray = (startYear: number, startMonth: number) => {
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth() + 1;
-            const yearMonthArray: string[] = [];
-            let year = startYear;
-            let month = startMonth;
-
-            while (
-                year < currentYear ||
-                (year === currentYear && month <= currentMonth)) {
-                const formattedMonth = month.toString().padStart(2, "0");
-                yearMonthArray.push(`${year}/${formattedMonth}`);
-
-                month++;
-                if (month > 12) {
-                    month = 1;
-                    year++;
-                }
-            }
-
-            return yearMonthArray;
-        };
+        if (!brand || !token || !category) navigate("/login");
         setMonthArray(getYearMonthArray(2025, 1));
-
 
         const fetchData = async () => {
             try {
                 const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-                const [customerResponse, shopResponse, mediumResponse, budgetResponse, sectionResponse] = await Promise.all([
+                const [customerResponse, shopResponse, mediumResponse, budgetResponse, sectionResponse, staffResponse] = await Promise.all([
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_list" }, { headers }),
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers }),
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "medium_list" }, { headers }),
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_budget" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "section_list" }, { headers })
+                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "section_list" }, { headers }),
+                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "staff_list" }, { headers })
+
                 ]);
                 await setCustomerList(customerResponse.data);
                 await setOriginalList(customerResponse.data);
                 await setShopArray(shopResponse.data);
                 await setOriginalShopArray(shopResponse.data);
-                await setMediumArray(mediumResponse.data);
+                await setMediumArray(mediumResponse.data.filter(m => m.list_medium === 1));
                 await setBudgetList(budgetResponse.data);
                 await setOriginalBudgetList(budgetResponse.data);
                 await setSectionList(sectionResponse.data);
+                await setStaff(staffResponse.data.filter(s => s.rank === 1));
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
         };
         fetchData();
-    }, [])
-
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -155,7 +136,6 @@ const CustomersDev = () => {
         fetchData();
     }, [originalList, startMonth, endMonth, selectedMedium, selectedShop, selectedSection, selectedArea]);
 
-
     const handleSort = async (start: string, end: string, medium: string, shop: string, section: string, area: string) => {
         await setStartMonth(start);
         await setEndMonth(end);
@@ -170,6 +150,12 @@ const CustomersDev = () => {
         setSortOrder(order)
     };
 
+    const filteredValue = (shopValue: string, category: string, rankValue: string) => {
+        return customerList.filter(c => (
+            shopValue !== 'グループ全体' ? c.shop === shopValue : true)
+            && (category ? c[category] !== '' : true)
+            && (rankValue ? (c.rank === rankValue && c.contract === '') : true)).length
+    };
     return (
         <div className='outer-container' style={{ width: '100vw' }}>
             <div className="d-flex">
@@ -247,10 +233,11 @@ const CustomersDev = () => {
                     </div>
                     <div className="table-wrapper">
                         <div className="list_table">
-                            <Table striped style={{ fontSize: '12px' }}>
+                            <Table striped style={{ fontSize: '12px' }} bordered>
                                 <tbody>
                                     <tr className='sticky-header'>
                                         <td className='sticky-column' style={{ position: 'relative', textAlign: 'center' }}>店舗名</td>
+                                        <td className='text-center'>営業人数</td>
                                         <td style={{ position: 'relative', textAlign: 'center' }}>
                                             <OverlayTrigger
                                                 placement="top"
@@ -382,16 +369,16 @@ const CustomersDev = () => {
                                     {shopArray
                                         .sort((a, b) => {
                                             const getKey = (value: typeof a) => {
-                                                const totalValue = customerList.filter(item => value.shop === 'グループ全体' || item.shop === value.shop).length;
-                                                const reserveValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.reserve !== '').length;
-                                                const contractValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.contract !== '').length;
+                                                const totalValue = filteredValue(value.shop, '', '');
+                                                const reserveValue = filteredValue(value.shop, 'reserve', '');
+                                                const contractValue = filteredValue(value.shop, 'contract', '');
                                                 const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
                                                 const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
-                                                const rankAValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Aランク' && item.contract === '').length;
-                                                const rankBValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Bランク' && item.contract === '').length;
-                                                const rankCValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Cランク' && item.contract === '').length;
-                                                const rankDValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Dランク' && item.contract === '').length;
-                                                const rankEValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Eランク' && item.contract === '').length;
+                                                const rankAValue = filteredValue(value.shop, '', 'Aランク');
+                                                const rankBValue = filteredValue(value.shop, '', 'Bランク');
+                                                const rankCValue = filteredValue(value.shop, '', 'Cランク');
+                                                const rankDValue = filteredValue(value.shop, '', 'Eランク');
+                                                const rankEValue = filteredValue(value.shop, '', 'Dランク');
                                                 const totalBudget = budgetList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop)).reduce((acc, cur) => acc + cur.budget_value, 0);
                                                 switch (sortKey) {
                                                     case 'total':
@@ -431,34 +418,31 @@ const CustomersDev = () => {
                                         })
                                         .filter(item => !item.shop.includes('未設定'))
                                         .map((value, index) => {
-                                            const totalValue = customerList.filter(item => value.shop === 'グループ全体' || item.shop === value.shop).length;
-                                            const reserveValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.reserve !== '').length;
-                                            const contractValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.contract !== '').length;
+                                            const totalValue = filteredValue(value.shop, '', '');
+                                            const reserveValue = filteredValue(value.shop, 'reserve', '');
+                                            const contractValue = filteredValue(value.shop, 'contract', '');
                                             const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
                                             const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
-                                            const rankAValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Aランク' && item.contract === '').length;
-                                            const rankBValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Bランク' && item.contract === '').length;
-                                            const rankCValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Cランク' && item.contract === '').length;
-                                            const rankDValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Dランク' && item.contract === '').length;
-                                            const rankEValue = customerList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop) && item.rank === 'Eランク' && item.contract === '').length;
                                             const totalBudget = budgetList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop)).reduce((acc, cur) => acc + cur.budget_value, 0);
+                                            const staffValue = staff.filter(s => (value.shop !== 'グループ全体' ? s.shop === value.shop: true)).length;
                                             return (
-                                                <tr key={index}>
-                                                    <td className='sticky-column' style={{ textAlign: 'center' }}>{value.shop}</td>
-                                                    <td style={{ textAlign: 'center' }}>{totalValue.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'center' }}>{perReserve}%</td>
-                                                    <td style={{ textAlign: 'center' }}>{reserveValue.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'center' }}>{perContract}%</td>
-                                                    <td style={{ textAlign: 'center' }}>{contractValue.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'center' }}>{rankAValue.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'center' }}>{rankBValue.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'center' }}>{rankCValue.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'center' }}>{rankDValue.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'center' }}>{rankEValue.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'center' }}>{`¥${totalBudget.toLocaleString()}`}</td>
-                                                    <td style={{ textAlign: 'center' }}>{isFinite(totalBudget / totalValue) ? `¥${Math.round(totalBudget / totalValue).toLocaleString()}` : '-'}</td>
-                                                    <td style={{ textAlign: 'center' }}>{isFinite(totalBudget / reserveValue) ? `¥${Math.round(totalBudget / reserveValue).toLocaleString()}` : '-'}</td>
-                                                    <td style={{ textAlign: 'center' }}>{isFinite(totalBudget / contractValue) ? `¥${Math.round(totalBudget / contractValue).toLocaleString()}` : '-'}</td>
+                                                <tr key={index} style={{ textAlign: 'center' }}>
+                                                    <td>{value.shop}</td>
+                                                    <td>{staffValue}</td>
+                                                    <td>{totalValue.toLocaleString()}</td>
+                                                    <td>{perReserve}%</td>
+                                                    <td>{reserveValue.toLocaleString()}</td>
+                                                    <td>{perContract}%</td>
+                                                    <td>{contractValue.toLocaleString()}</td>
+                                                    <td>{filteredValue(value.shop, '', 'Aランク').toLocaleString()}</td>
+                                                    <td>{filteredValue(value.shop, '', 'Bランク').toLocaleString()}</td>
+                                                    <td>{filteredValue(value.shop, '', 'Cランク').toLocaleString()}</td>
+                                                    <td>{filteredValue(value.shop, '', 'Dランク').toLocaleString()}</td>
+                                                    <td>{filteredValue(value.shop, '', 'Eランク').toLocaleString()}</td>
+                                                    <td>{`¥${totalBudget.toLocaleString()}`}</td>
+                                                    <td>{isFinite(totalBudget / totalValue) ? `¥${Math.round(totalBudget / totalValue).toLocaleString()}` : '-'}</td>
+                                                    <td>{isFinite(totalBudget / reserveValue) ? `¥${Math.round(totalBudget / reserveValue).toLocaleString()}` : '-'}</td>
+                                                    <td>{isFinite(totalBudget / contractValue) ? `¥${Math.round(totalBudget / contractValue).toLocaleString()}` : '-'}</td>
                                                 </tr>
                                             )
                                         })}

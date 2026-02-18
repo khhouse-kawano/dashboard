@@ -15,7 +15,7 @@ const CampaignDev = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // if( !brand || brand.trim() === "") navigate("/");
+    if( !brand || brand.trim() === "") navigate("/");
   }, [])
   return (
     <div className='outer-container'>

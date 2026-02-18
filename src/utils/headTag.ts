@@ -1,0 +1,2 @@
+export const headTag = `<!doctype html><html lang="ja"><head><meta charset="UTF-8"><title>【先着10名】ご来場で2万円ギフトカード</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+                                <body style="margin:0 auto; padding:0; background:#f5f7fa;width: 100%; max-width: 560px;">`;

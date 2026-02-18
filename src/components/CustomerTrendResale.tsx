@@ -2,10 +2,10 @@ import React, { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
 import Table from 'react-bootstrap/esm/Table';
 import MenuDev from "./MenuDev";
-import AuthContext from "../context/AuthContext.js";
+import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import Modal from 'react-bootstrap/Modal';
-import Month from 'react-calendar/dist/cjs/YearView/Month';
+import { getYearMonthArray } from '../utils/getYearMonthArray';
 
 type Customer = { id_related: string, name: string, staff: string; status: string; action: string; registered: string; medium: string; case: string; reserved: string; contract: string; rank: string };
 type Action = { date: string, method: string, subject: string, staff: string, note: string, status: string };
@@ -38,31 +38,11 @@ const Dev = () => {
     const [achievement, setAchievement] = useState<Achievement[]>([]);
     const [targetStaff, setTargetStaff] = useState('');
     const [personalData, setPersonalData] = useState(false);
+    const { token } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
+
     useEffect(() => {
-        if (!brand || brand.trim() === "") navigate("/");
-        const getYearMonthArray = (startYear: number, startMonth: number) => {
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth() + 1;
-            const yearMonthArray: string[] = [];
-            let year = startYear;
-            let month = startMonth;
-
-            while (
-                year < currentYear ||
-                (year === currentYear && month <= currentMonth)) {
-                const formattedMonth = month.toString().padStart(2, "0");
-                yearMonthArray.push(`${year}/${formattedMonth}`);
-
-                month++;
-                if (month > 12) {
-                    month = 1;
-                    year++;
-                }
-            }
-
-            return yearMonthArray;
-        };
+        if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
         setMonthArray(getYearMonthArray(2025, 1));
         const fetchData = async () => {
             setIsLoading(true);

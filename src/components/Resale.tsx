@@ -76,7 +76,9 @@ const Resale = () => {
     const { brand } = useContext(AuthContext);
     const [phone, setPhone] = useState<string>('');
     const navigate = useNavigate();
-
+    const { token } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
+    
     const getYearMonthArray = (startYear, startMonth) => {
         const now = new Date();
         const currentYear = now.getFullYear();
@@ -123,7 +125,7 @@ const Resale = () => {
     { id: "99", value: "その他メモ" }];
 
     useEffect(() => {
-        if (!brand || brand.trim() === "") navigate("/");
+        if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
         setMonthArray(getYearMonthArray(2025, 1));
         const fetchData = async () => {
             const headers = {

@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import Menu from "./Menu";
 import Table from "react-bootstrap/Table";
 import "./SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -12,9 +11,11 @@ const Log = () => {
   const [logList, setLogList] = useState([]);
   const { brand } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { token } = useContext(AuthContext);
+  const { category } = useContext(AuthContext);
 
   useEffect(() => {
-    if( !brand || brand.trim() === "") navigate("/");
+    if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
     const fetchData = async () => {
       try {
         const response = await axios.post("/dashboard/api/loginLog.php");
@@ -32,27 +33,25 @@ const Log = () => {
     <div className="outer-container">
       <div className="d-flex">
         <div className="modal_menu" style={{ width: "20%" }}>
-          <MenuDev brand={brand}/>
+          <MenuDev brand={brand} />
         </div>
         <div className="content database bg-white p-2">
-
-              <Table bordered hover>
-                <thead>
-                  <tr>
-                    <th>ログイン日時</th>
-                    <th>氏名</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logList.map((value, index) => (
-                    <tr key={index}>
-                      <th>{value.timestamp}</th>
-                      <th>{value.staff}</th>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-
+          <Table bordered hover>
+            <thead>
+              <tr>
+                <th>ログイン日時</th>
+                <th>氏名</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logList.map((value, index) => (
+                <tr key={index}>
+                  <th>{value.timestamp}</th>
+                  <th>{value.staff}</th>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
         </div>
       </div>
     </div>
