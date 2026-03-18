@@ -792,7 +792,13 @@ thead tr:nth-of-type(even) th {
 
 input[type=date]::-webkit-calendar-picker-indicator {
     position: absolute;
-    width: 100%;
+    width: 90%;
+    opacity: 0;
+}
+
+input[type=month]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    width: 90%;
     opacity: 0;
 }
 
@@ -1517,7 +1523,7 @@ td.sticky-column.budget {
     color: #fff;
     top: -5px;
     right: -22px;
-    z-index: 2000;
+    z-index: 200;
 }
 
 @media screen and (max-width: 768px) {

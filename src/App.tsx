@@ -36,6 +36,7 @@ import UsedBuy from "./components/UsedBuy";
 import RegisteredEstate from "./components/RegisteredEstate";
 import ResaleManual from "./components/ResaleManual";
 import Login from "./components/Login";
+import KengakuCloud from "./components/KengakuCloud";
 import Dev from "./components/Dev";
 
 function App() {
@@ -75,6 +76,7 @@ function App() {
           <Route path="/portal_sell" element={<PortalSell />} />
           <Route path="/registered_estate" element={<RegisteredEstate />} />
           <Route path="/resale_manual" element={<ResaleManual />} />
+          <Route path="/kengakuCloud" element={<KengakuCloud />} />
           <Route path="*" element={<Category />} />
         </Routes>
       </AuthProvider>

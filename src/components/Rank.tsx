@@ -11,11 +11,11 @@ import MenuDev from "./MenuDev";
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import { headers } from '../utils/headers';
 
-type Customer = { date: string, status: string, rank: string, register: string, reserve: string, shop: string, staff: string, section: string; contract: string };
+type Customer = { date: string, status: string, rank: string, register: string, reserve: string, shop: string, staff: string, section: string; contract: string, rank_period: string };
 type CustomerList = Customer & {
     id: string, name: string, medium: string, sales_meeting: string, latest_date: string, last_meeting: string, estate: string, meeting: string, appointment: string, line_group: string, screening: string; rival: string, period: string, survey: string, importance: string, note: string, budget: string
 };
-type Goal = { id: number, period: string, shop: string, section: string, goal: number };
+type Achievement = { category: string, name: string, period: string, value: string }
 type Expect = { date: string, shop: string, section: string, count: number };
 type Target = { [key: string]: boolean };
 type Shop = { brand: string, shop: string, section: string, area: string, };
@@ -32,6 +32,12 @@ type InterviewLog = {
     name: string,
     interview_log: string,
 };
+type ModalInfo = {
+    label: string,
+    category: string,
+    rank: string,
+    rank_period: number
+};
 const Rank = () => {
     const { brand } = useContext(AuthContext);
     const [open, setOpen] = useState(false);
@@ -39,7 +45,6 @@ const Rank = () => {
     const [targetMonth, setTargetMonth] = useState('');
     const [customerList, setCustomerList] = useState<Customer[]>([]);
     const [labelList, setLabelList] = useState<Label[]>([]);
-    const [goalList, setGoalList] = useState<Goal[]>([]);
     const [expectedContract, setExpectedContract] = useState<Expect[]>([]);
     const [showTarget, setShowTarget] = useState<Target>({});
     const [shopList, setShopList] = useState<Shop[]>([]);
@@ -50,13 +55,16 @@ const Rank = () => {
         section: '',
         count: 0
     });
-    const [modalShow, setModalShow] = useState({
+    const [modalShow, setModalShow] = useState<ModalInfo>({
         label: '',
         category: '',
-        rank: ''
+        rank: '',
+        rank_period: 0
     });
+
     const [modalList, setModalList] = useState<CustomerList[]>([]);
     const [page, setPage] = useState(20);
+    const [achievement, setAchievement] = useState<Achievement[]>([]);
 
     const now = new Date();
     const year = now.getFullYear();
@@ -68,16 +76,16 @@ const Rank = () => {
 
         const fetchData = async () => {
             try {
-                const [customerResponse, sectionResponse, goalResponse, expectedResponse, shopResponse, staffResponse] = await Promise.all([
+                const [customerResponse, sectionResponse, expectedResponse, shopResponse, staffResponse, achievementResponse] = await Promise.all([
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_detail" }, { headers }),
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "section_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "contract_goal" }, { headers }),
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "contract_expected" }, { headers }),
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers }),
                     axios.post("https://khg-marketing.info/dashboard/api/", { demand: "staff_list" }, { headers }),
+                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "company_achievement" }, { headers })
                 ]);
-                await setCustomerList(customerResponse.data);
-                await setGoalList(goalResponse.data);
+                const filteredCustomer = customerResponse.data.filter(c => c.trash === 1);
+                await setCustomerList(filteredCustomer);
                 await setExpectedContract(expectedResponse.data);
                 await setShopList(shopResponse.data);
                 const sectionList = sectionResponse.data.map(s => s.name).map(sectionValue => ({
@@ -87,6 +95,7 @@ const Rank = () => {
                 }));
                 await setLabelList(sectionList);
                 await setStaffList(staffResponse.data);
+                await setAchievement(achievementResponse.data);
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -119,6 +128,8 @@ const Rank = () => {
         { label: 'Eランク', desc: '中長期管理' },
         // { label: 'ランクダウン', desc: 'A~CランクからD~Eランクにダウンした数' },
     ];
+
+    const rankLabels = ['Aランク', 'Bランク', 'Cランク'];
 
     const background = {
         '鹿児島営業1課': 'table-primary ',
@@ -191,10 +202,14 @@ const Rank = () => {
         }
     };
 
-    const listFilter = (customerList: Customer[], period: string, category: string, target: string, index: number, rank: string) => {
+    const listFilter = (customerList: Customer[], period: string, category: string, target: string, index: number, rank: string, rank_period: number) => {
+        const targetPeriod = rank_period ? `${targetMonth.split('/')[0]}/${String(Number(targetMonth.split('/')[1]) + rank_period).padStart(2, '0')}` : '';
         return customerList.filter(item => (period ? item[period].includes(targetMonth) : true)
-            && (index > 0 ? item[category] === target : true) && (rank ? item.rank === rank && !item.contract && item.status !== '契約済み' : true))
+            && (index > 0 ? item[category] === target : true)
+            && (rank ? item.rank === rank && !item.contract && item.status !== '契約済み' : true)
+            && (rank_period > 0 ? item.rank_period === targetPeriod : (!item.rank_period || item.rank_period === targetMonth)));
     };
+
     const perFormate = (value: number) => {
         return Number.isFinite(value) ? Math.ceil(value * 1000) / 10 : 0;
     };
@@ -232,7 +247,8 @@ const Rank = () => {
         setModalShow({
             label: '',
             category: '',
-            rank: ''
+            rank: '',
+            rank_period: 0
         });
         setModalList([]);
         setPage(20);
@@ -247,9 +263,11 @@ const Rank = () => {
         const fetchData = async () => {
             try {
                 const customerResponse = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_detail" }, { headers });
-                const rankList: CustomerList[] = customerResponse.data.filter(item =>
-                    (modalShow.rank === '契約者' ? ((item.rank === 'Aランク' && item.status !== '契約済み') || item.contract.includes(targetMonth)) : (item.rank === modalShow.rank && item.status !== '契約済み'))
-                    && (modalShow.category === 'all' ? true : item[modalShow.category] === modalShow.label)
+                const rankList: CustomerList[] = customerResponse.data.filter(item => {
+                    const targetPeriod = modalShow.rank_period ? `${targetMonth.split('/')[0]}/${String(Number(targetMonth.split('/')[1]) + modalShow.rank_period).padStart(2, '0')}` : '';
+                    return (modalShow.rank === '契約者' ? ((item.rank === 'Aランク' && item.status !== '契約済み') || item.contract.includes(targetMonth)) : (item.rank === modalShow.rank && item.status !== '契約済み'))
+                        && (modalShow.category === 'all' ? true : item[modalShow.category] === modalShow.label) && (modalShow.rank_period > 0 ? item.rank_period === targetPeriod : (!item.rank_period || item.rank_period === targetMonth));
+                }
                 );
                 setModalList(rankList);
                 const InterviewResponse = await axios.post('https://khg-marketing.info/dashboard/api/', { demand: 'show_customer_interview_list' }, { headers });
@@ -301,6 +319,36 @@ const Rank = () => {
         await window.open(`./database?id=${idValue}`, '_blank');
     };
 
+    const setNewRank = async (idValue: string, newRank: string, periodValue: string) => {
+        if (!idValue) return;
+        const postData = {
+            id: idValue,
+            rank: newRank ?? '',
+            rank_period: periodValue ?? '',
+            demand: 'update_rank'
+        };
+        try {
+            const response = await axios.post('https://khg-marketing.info/dashboard/api/', postData, { headers });
+            console.log(response.data.status);
+            await setCustomerList(response.data.customers);
+        } catch (e) {
+            console.error(e);
+        }
+
+        const newList = modalList.filter(m => m.id !== idValue);
+
+        if (newList.length === 0) {
+            modalClose();
+            return;
+        }
+        setModalShow({
+            label: modalShow.label,
+            category: modalShow.category,
+            rank: modalShow.rank,
+            rank_period: modalShow.rank_period
+        });
+    };
+
     return (
         <>
             <div className='outer-container'>
@@ -328,35 +376,54 @@ const Rank = () => {
                                     ))}
                                 </select>
                             </div>
-                            <div className="col d-flex align-items-center" style={{ fontSize: '13px' }}>
+                            {/* <div className="col d-flex align-items-center" style={{ fontSize: '13px' }}>
                                 最終更新 {
                                     (() => {
                                         const earliest = customerList.reduce<Date | null>((acc, c) => {
                                             if (!c.date) return acc;
-
                                             const d = new Date(String(c.date));
                                             if (isNaN(d.getTime())) return acc;
-
                                             if (!acc || d < acc) return d;
                                             return acc;
                                         }, null);
-
                                         return earliest ? earliest.toISOString().slice(0, 10) : "";
                                     })()
                                 }
-                            </div>
-
+                            </div> */}
                         </div>
                         <div className="">
-                            <Table bordered striped>
-                                <tbody style={{ fontSize: '12px' }}>
-                                    <tr className='text-center'>
-                                        <td>店舗</td>
-                                        {tooltipItems.map((item, i) => (
-                                            <td key={i}>
-                                                <OverlayTriggerComponent label={item.label} desc={item.desc} />
-                                            </td>
-                                        ))}
+                            <Table bordered>
+                                <tbody style={{ fontSize: '11px' }} className='align-middle'>
+                                    <tr className="text-center">
+                                        <td rowSpan={2}>店舗</td>
+                                        {tooltipItems.map((item, i) => {
+                                            const isRank = rankLabels.includes(item.label);
+                                            return (
+                                                <td
+                                                    key={`head-${i}`}
+                                                    colSpan={isRank ? 3 : 1}
+                                                    rowSpan={isRank ? 1 : 2}
+                                                    className="align-middle"
+                                                >
+                                                    <OverlayTriggerComponent label={item.label} desc={item.desc} />
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                    <tr className="text-center">
+                                        {tooltipItems.map((item, i) => {
+                                            const isRank = rankLabels.includes(item.label);
+                                            if (!isRank) {
+                                                return null;
+                                            }
+                                            return (
+                                                <React.Fragment key={`sub-${i}`}>
+                                                    <td>{targetMonth}</td>
+                                                    <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 1).padStart(2, '0')}</td>
+                                                    <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 2).padStart(2, '0')}</td>
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </tr>
                                     {[{ label: '注文営業全体', category: 'all', show: true }, ...labelList].map((target, targetIndex) => {
                                         let bgKey;
@@ -365,12 +432,12 @@ const Rank = () => {
                                         } else if (target.category === 'shop') {
                                             bgKey = shopList.find(s => s.shop === target.label)?.section;
                                         }
-                                        const register = listFilter(customerList, 'register', target.category, target.label, targetIndex, '');
-                                        const reserve = listFilter(customerList, 'reserve', target.category, target.label, targetIndex, '');
-                                        const contract = listFilter(customerList, 'contract', target.category, target.label, targetIndex, '');
-                                        const rankA = listFilter(customerList, '', target.category, target.label, targetIndex, 'Aランク');
-                                        const rankE = listFilter(customerList, '', target.category, target.label, targetIndex, 'Eランク');
-                                        const goal = goalList.filter(item => item.period === targetMonth && (targetIndex > 0 ? item.section === target.label : true)).reduce((acc, cur) => acc + cur.goal, 0);
+                                        const register = listFilter(customerList, 'register', target.category, target.label, targetIndex, '', 0);
+                                        const reserve = listFilter(customerList, 'reserve', target.category, target.label, targetIndex, '', 0);
+                                        const contract = listFilter(customerList, 'contract', target.category, target.label, targetIndex, '', 0);
+                                        const rankA = listFilter(customerList, '', target.category, target.label, targetIndex, 'Aランク', 0);
+                                        const rankE = listFilter(customerList, '', target.category, target.label, targetIndex, 'Eランク', 0);
+                                        const goal = achievement.find(a => (target.category === 'all' ? a.name === '注文事業' : a.name === target.label) && a.period.replace(/-/g, '/') === targetMonth)?.value;
                                         const expectedList = expectedContract.filter(item => item.date === targetMonth
                                             && ((targetIndex > 0) ? item[target.category] === target.label : true));
                                         const expected = expectedList.reduce((acc, cur) => acc + cur.count, 0);
@@ -384,13 +451,14 @@ const Rank = () => {
                                                 <td>{perFormate(reserve.length / register.length)}%</td>
                                                 <td>{reserve.length}</td>
                                                 <td>{perFormate(contract.length / reserve.length)}%</td>
-                                                <td>{goal}</td>
+                                                <td>{target.category === 'staff' ? '-' : goal}</td>
                                                 <td onClick={() => contract.length + rankA.length > 0 ? setModalShow({
                                                     label: target.label,
                                                     category: target.category,
-                                                    rank: '契約者'
+                                                    rank: '契約者',
+                                                    rank_period: 0
                                                 }) : null} style={{ textDecoration: contract.length + rankA.length > 0 ? 'underline' : '', cursor: contract.length + rankA.length > 0 ? 'pointer' : '' }}>{contract.length}(<span className='text-primary'>{contract.length + rankA.length}</span>)</td>
-                                                <td>{perFormate(contract.length / goal)}%(<span className='text-primary'>{perFormate((contract.length + rankA.length) / goal)}%</span>)</td>
+                                                <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%(<span className='text-primary'>{goal ? perFormate((contract.length + rankA.length) / Number(goal)) : 0}%</span>)</td>
                                                 <td className='text-center'>
                                                     {(targetIndex === 0 || target.category === 'section') && expected}
                                                     {(target.category === 'shop') && <input type='number' className='target text-center' value={expected}
@@ -422,16 +490,35 @@ const Rank = () => {
                                                         }}
                                                     />}</td>
                                                 {['A', 'B', 'C', 'D'].map((rank, rankIndex) => {
-                                                    const count = listFilter(customerList, '', target.category, target.label, targetIndex, `${rank}ランク`).length;
-                                                    return <td onClick={() => count > 0 ? setModalShow({
-                                                        label: target.label,
-                                                        category: target.category,
-                                                        rank: `${rank}ランク`
-                                                    }) : null} style={{
-                                                        textDecoration: count > 0 ? 'underline' : ''
-                                                        , cursor: count > 0 ? 'pointer' : ''
-                                                    }}
-                                                        key={rankIndex}>{count}</td>
+                                                    const count = listFilter(customerList, '', target.category, target.label, targetIndex, `${rank}ランク`, 0).length;
+                                                    return <>
+                                                        <td onClick={() => count > 0 ? setModalShow({
+                                                            label: target.label,
+                                                            category: target.category,
+                                                            rank: `${rank}ランク`,
+                                                            rank_period: 0
+                                                        }) : null} style={{
+                                                            textDecoration: count > 0 ? 'underline' : ''
+                                                            , cursor: count > 0 ? 'pointer' : ''
+                                                        }}
+                                                            key={rankIndex}>{count}</td>
+                                                        {rankIndex < 3 && <>
+                                                            {[1, 2].map(num => {
+                                                                const countValue = listFilter(customerList, '', target.category, target.label, targetIndex, `${rank}ランク`, num).length;
+                                                                return <td onClick={() => countValue > 0 ? setModalShow({
+                                                                    label: target.label,
+                                                                    category: target.category,
+                                                                    rank: `${rank}ランク`,
+                                                                    rank_period: num
+                                                                }) : null} style={{
+                                                                    textDecoration: countValue > 0 ? 'underline' : ''
+                                                                    , cursor: countValue > 0 ? 'pointer' : ''
+                                                                }}
+                                                                    key={num}>{countValue}</td>
+                                                            }
+                                                            )}
+                                                        </>}
+                                                    </>
                                                 }
                                                 )}
                                                 <td>{rankE.length}</td>
@@ -443,16 +530,17 @@ const Rank = () => {
                         </div>
                     </div>
                 </div>
-            </div >
+            </div>
             <Modal show={modalShow.label !== ''} onHide={modalClose} size='lg'>
                 <Modal.Header closeButton>
-                    <Modal.Title style={{ fontSize: '15px' }}>{modalShow.label}_{modalShow.rank}_顧客情報詳細{modalShow.rank === '契約者' && <div><i className="fa-solid fa-crown ps-1"></i>は契約者</div>}</Modal.Title>
+                    <Modal.Title style={{ fontSize: '15px' }}>{modalShow.label}_{modalShow.rank}_顧客情報詳細{modalShow.rank === '契約者' && <div><i className="fa-solid fa-crown ps-1"></i>は契約者</div>} ({targetMonth.split('/')[0]}年{Number(targetMonth.split('/')[1]) + modalShow.rank_period}月度)</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     {modalList.length === 0
                         ? <div className="text-center mt-1 w-100"><i className='fa-solid fa-arrows-rotate sticky-column pointer spinning me-1'></i>Loading...</div>
                         :
                         <>
+                            <div style={{ fontSize: '10px', fontWeight: '500' }} className='text-danger mb-2'>※「見込み月」には契約見込みの月を選択する。</div>
                             <Table bordered striped style={{ fontSize: '11px' }} className='align-middle'>
                                 <tbody>
                                     <tr>
@@ -460,9 +548,11 @@ const Rank = () => {
                                         <td>店舗</td>
                                         <td>担当営業</td>
                                         <td>お客様名</td>
+                                        <td>ランク</td>
+                                        <td>見込み月</td>
                                         <td>反響日</td>
                                         <td>初回来場日</td>
-                                        <td>編集</td>
+                                        <td>詳細編集</td>
                                     </tr>
                                     {modalList.slice(page - 20, page).map((item, index) =>
                                         <tr key={index}>
@@ -475,6 +565,30 @@ const Rank = () => {
                                                     {item.status === '契約済み' && <i className="fa-solid fa-crown pe-1"></i>}{item.name}
                                                 </div>
                                             </td>
+                                            <td>
+                                                <select className='target' style={{ width: '80px' }} value={item.rank}
+                                                    onChange={(e) => {
+                                                        const recentRank = modalShow.rank;
+                                                        setNewRank(item.id, e.target.value, '');
+                                                    }}>
+                                                    {['Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'].map(rank => {
+                                                        return <option value={rank} key={rank} selected={rank === item.rank}>{rank}</option>
+                                                    }
+                                                    )}
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <select className='target' style={{ width: '80px' }} value={item.rank_period || targetMonth}
+                                                    onChange={(e) => {
+                                                        setNewRank(item.id, '', e.target.value);
+                                                    }}>
+                                                    {[targetMonth,
+                                                        `${targetMonth.split('/')[0]}/${String(Number(targetMonth.split('/')[1]) + 1).padStart(2, '0')}`,
+                                                        `${targetMonth.split('/')[0]}/${String(Number(targetMonth.split('/')[1]) + 2).padStart(2, '0')}`].map(period => {
+                                                            return <option value={period} key={period} selected={period === item.rank_period}>{period}</option>
+                                                        }
+                                                        )}
+                                                </select></td>
                                             <td>{item.register}</td>
                                             <td>{item.reserve}</td>
                                             <td className='text-center'><div className="bg-danger text-white rounded text-center btn" style={{ fontSize: '12px' }}

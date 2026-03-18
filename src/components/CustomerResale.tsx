@@ -14,6 +14,7 @@ type Achievement = { name: string, shop: string, period: string, total: string, 
 const Dev = () => {
     const [originalCustomers, setOriginalCustomers] = useState<Customer[]>([]);
     const [monthArray, setMonthArray] = useState<string[]>([]);
+    const [originalMonthArray, setOriginalMonthArray] = useState<string[]>([]);
     const [yearArray, setYearArray] = useState<string[]>([]);
     const [startMonth, setStartMonth] = useState<string>('');
     const [endMonth, setEndMonth] = useState<string>('');
@@ -36,7 +37,7 @@ const Dev = () => {
     useEffect(() => {
         if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
 
-        setMonthArray(getYearMonthArray(2025, 1));
+        setOriginalMonthArray(getYearMonthArray(2025, 1));
         const fetchData = async () => {
             setIsLoading(true);
             try {
@@ -58,23 +59,27 @@ const Dev = () => {
     }, []);
 
     useEffect(() => {
+        const startIndex = startMonth ? originalMonthArray.indexOf(startMonth) : 0;
+        const endIndex = endMonth ? originalMonthArray.indexOf(endMonth) : originalMonthArray.length;
+        const filteredMonthArray = originalMonthArray.slice(startIndex, endIndex);
+        setMonthArray(filteredMonthArray);
 
         const callMonth: string[] = [];
         if (startMonth !== '' && endMonth !== '') {
-            for (let i = monthArray.indexOf(startMonth); i <= monthArray.indexOf(endMonth); i++) {
-                callMonth.push(monthArray[i]);
+            for (let i = originalMonthArray.indexOf(startMonth); i <= originalMonthArray.indexOf(endMonth); i++) {
+                callMonth.push(originalMonthArray[i]);
             }
         } else if (startMonth !== '' && endMonth === '') {
-            for (let i = monthArray.indexOf(startMonth); i <= monthArray.length - 1; i++) {
-                callMonth.push(monthArray[i]);
+            for (let i = originalMonthArray.indexOf(startMonth); i <= originalMonthArray.length - 1; i++) {
+                callMonth.push(originalMonthArray[i]);
             }
         } else if (startMonth === '' && endMonth !== '') {
-            for (let i = monthArray.indexOf(monthArray[0]); i <= monthArray.indexOf(endMonth); i++) {
-                callMonth.push(monthArray[i]);
+            for (let i = originalMonthArray.indexOf(originalMonthArray[0]); i <= originalMonthArray.indexOf(endMonth); i++) {
+                callMonth.push(originalMonthArray[i]);
             }
         } else if (startMonth === '' && endMonth === '') {
-            for (let i = monthArray.indexOf(monthArray[0]); i <= monthArray.length - 1; i++) {
-                callMonth.push(monthArray[i]);
+            for (let i = originalMonthArray.indexOf(originalMonthArray[0]); i <= originalMonthArray.length - 1; i++) {
+                callMonth.push(originalMonthArray[i]);
             }
         }
 
@@ -89,9 +94,8 @@ const Dev = () => {
                 return [];
             }
         });
-        console.log(filteredActionArray)
         setCallDetail(filteredActionArray);
-    }, [originalCustomers, startMonth, endMonth]);
+    }, [originalCustomers, startMonth, endMonth, originalMonthArray]);
 
     useEffect(() => {
         const filtered: string[] = monthArray.map(month => month.split('/')[0]);
@@ -137,7 +141,6 @@ const Dev = () => {
                     )
                 );
 
-
             } catch (error) {
                 alert('目標値の更新に失敗');
                 console.log(error);
@@ -166,14 +169,14 @@ const Dev = () => {
                         <div className="m-1">
                             <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
                                 <option value="" selected>開始月を選択</option>
-                                {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                                {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                                 ))}
                             </select>
                         </div>
                         <div className="m-1">
                             <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
                                 <option value="" selected>終了月を選択</option>
-                                {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                                {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                                 ))}
                             </select>
                         </div>
@@ -191,11 +194,12 @@ const Dev = () => {
                                                 <td style={{ width: '15%' }} colSpan={3}>チーム行動量</td>
                                                 {['合計', ...monthArray].map(m => <td>{m}</td>)}
                                             </tr>
-                                            {staff.map((item, index) => {
+                                            {staff.map((item, iIndex) => {
                                                 const total = callDetail.filter(c => c.staff === item.name && c.method === '電話(掛)');
-                                                const totalGoal = achievement.filter(a => a.name === item.name);
+                                                const totalGoal = achievement.filter(a => a.name === item.name && monthArray.includes(a.period));
+                                                console.log(achievement)
                                                 console.log(totalGoal)
-                                                return (<>
+                                                return (<React.Fragment key={iIndex}>
                                                     {['架電', '', '通電', '', 'アポ', ''].map((action, index) =>
                                                         <tr key={index}>
                                                             {index === 0 && <td className='table-light' rowSpan={6}>{item.name}</td>}
@@ -233,11 +237,11 @@ const Dev = () => {
                                                             }
                                                             )}
                                                         </tr>)}
-                                                </>
+                                                </React.Fragment>
                                                 )
                                             }
                                             )}
-                                            <tr className='table-primary fw-bold'>
+                                            {/* <tr className='table-primary fw-bold'>
                                                 <td>中古住宅専門店合計</td>
                                                 {(() => {
                                                     const filteredAchievement: Achievement[] = achievement.filter(item => {
@@ -266,7 +270,7 @@ const Dev = () => {
                                                         <td style={{ textAlign: 'right' }}>{appointmentTotalAchievement}%</td>
                                                     </>);
                                                 })()}
-                                            </tr>
+                                            </tr> */}
                                         </tbody>
                                     </Table>
                                 </div>

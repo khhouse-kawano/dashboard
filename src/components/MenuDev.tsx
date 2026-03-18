@@ -81,6 +81,8 @@ const MenuDev = ({ brand }) => {
                 onClick={() => navigate("/map", { state: { brand: brand, }, })}>エリア別反響MAP</div>}
             {category === 'order' && <div className={`category_menu  mb-2 px-2 ${currentPath === "/market" ? "selected " : ""}`}
                 onClick={() => navigate("/market", { state: { brand: brand, }, })}>マーケット情報</div>}
+            {category === 'order' && <div className={`category_menu  mb-2 px-2 ${currentPath === "/kengakuCloud" ? "selected " : ""}`}
+                onClick={() => navigate("/kengakuCloud", { state: { brand: brand, }, })}>KengakuCloudマニュアル</div>}
             {category === 'order' && <div className={`category_menu  mb-2 px-2 ${currentPath === "/registered_estate" ? "selected " : ""}`}
                 onClick={() => navigate("/registered_estate", { state: { brand: brand, }, })}>土地情報登録状況</div>}
             {/* {category === 'used' && <div className={`category_menu  mb-2 px-2  ${currentPath.includes("/resale") ? "selected" : ""}`}

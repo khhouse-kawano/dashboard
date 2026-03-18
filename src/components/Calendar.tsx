@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react'
 import MenuDev from "./MenuDev";
 import AuthContext from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Table from "react-bootstrap/Table";
 import axios from "axios";
 import { colorCodes } from "../utils/colors";
 import Modal from 'react-bootstrap/Modal';
+import IceWorld from './IceWorld';
 
 type Calendar = { id: number, shop: string, startDate: string, endDate: string, category: string, title: string, flag: number, color: string, note: string, url: string };
 type ResponseChange = {
@@ -106,6 +107,9 @@ const Company = () => {
 
     const [summary, setSummary] = useState(false);
     const [customer, setCustomer] = useState<Customer[]>([]);
+    const location = useLocation();
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('id');
 
     // 共通
     const youbi = ['日', '月', '火', '水', '木', '金', '土'];
@@ -140,6 +144,10 @@ const Company = () => {
         };
 
         fetchData();
+
+        if (editId) {
+            setTargetShop('iceWorld');
+        };
     }, []);
 
     useEffect(() => {
@@ -179,7 +187,6 @@ const Company = () => {
             setLastDay(end.getDate());
         }
     }, [targetMonth, display]);
-
 
     const getColoredEvents = useCallback(() => {
         const [year, month] = targetMonth.split('/').map(Number);
@@ -330,6 +337,9 @@ const Company = () => {
             if (!ok) return; // キャンセルなら終了
         }
 
+        if (targetShop === 'iceWorld') {
+            setTargetShop('');
+        }
         setShow(false);
         setSummary(false);
     };
@@ -403,64 +413,64 @@ const Company = () => {
     const changeEvent = async () => {
         console.log(eventData);
         const requestArray: string[] = [];
-            if (eventData.title !== '') requestArray.push('title');
-            if (eventData.startDate !== '') requestArray.push('startDate');
-            if (eventData.endDate !== '') requestArray.push('endDate');
-            if (eventData.reserved != null) requestArray.push('reserved');
-            if (eventData.new != null) requestArray.push('new');
-            if (eventData.next != null) requestArray.push('next');
-            if (eventData.registered != null) requestArray.push('registered');
-            if (eventData.note != '') requestArray.push('note');
-            if (eventData.url != '') requestArray.push('url');
+        if (eventData.title !== '') requestArray.push('title');
+        if (eventData.startDate !== '') requestArray.push('startDate');
+        if (eventData.endDate !== '') requestArray.push('endDate');
+        if (eventData.reserved !== null) requestArray.push('reserved');
+        if (eventData.new !== null) requestArray.push('new');
+        if (eventData.next !== null) requestArray.push('next');
+        if (eventData.registered !== null) requestArray.push('registered');
+        if (eventData.note !== '') requestArray.push('note');
+        if (eventData.url !== '') requestArray.push('url');
 
-            if (numberKey.some(n => requestArray.includes(n))) {
-                const postData = {
-                    ...eventData,
-                    id: eventData.id ?? 0,
-                    demand: 'calendar_change',
-                    request: 'response_change',
-                    requestArray: requestArray
-                };
-                const fetchData = async () => {
-                    const response = await axios.post(url, postData, { headers });
-                    setOriginalResponse(response.data);
-                };
-                await fetchData();
-            }
+        if (numberKey.some(n => requestArray.includes(n))) {
+            const postData = {
+                ...eventData,
+                id: eventData.id ?? 0,
+                demand: 'calendar_change',
+                request: 'response_change',
+                requestArray: requestArray
+            };
+            const fetchData = async () => {
+                const response = await axios.post(url, postData, { headers });
+                setOriginalResponse(response.data);
+            };
+            await fetchData();
+        }
 
-            if (eventKey.some(n => requestArray.includes(n))) {
-                const postData = {
-                    ...eventData,
-                    demand: 'calendar_change',
-                    request: 'calendar_change',
-                    requestArray: requestArray
-                };
-                console.log(postData)
-                const fetchData = async () => {
-                    const response = await axios.post(url, postData, { headers });
-                    setCalendar(response.data);
-                    setModalOriginalList(response.data);
-                };
-                await fetchData();
-            }
+        if (eventKey.some(n => requestArray.includes(n))) {
+            const postData = {
+                ...eventData,
+                demand: 'calendar_change',
+                request: 'calendar_change',
+                requestArray: requestArray
+            };
+            console.log(postData)
+            const fetchData = async () => {
+                const response = await axios.post(url, postData, { headers });
+                setCalendar(response.data);
+                setModalOriginalList(response.data);
+            };
+            await fetchData();
+        }
 
-            setEventData({
-                id: null,
-                shop: '',
-                startDate: '',
-                endDate: '',
-                category: '',
-                title: '',
-                flag: 1,
-                color: '',
-                date: '',
-                reserved: null,
-                new: null,
-                next: null,
-                registered: null,
-                note: '',
-                url: ''
-            });
+        setEventData({
+            id: null,
+            shop: '',
+            startDate: '',
+            endDate: '',
+            category: '',
+            title: '',
+            flag: 1,
+            color: '',
+            date: '',
+            reserved: null,
+            new: null,
+            next: null,
+            registered: null,
+            note: '',
+            url: ''
+        });
 
     };
 
@@ -550,8 +560,9 @@ const Company = () => {
                                 </div>
                                 <div className='me-2'>
                                     <select className='target' onChange={(e) => setTargetShop(e.target.value)} disabled={display === 'list'}>
-                                        <option value="">店舗を選択</option>
-                                        {shopList.map((shop, index) => <option value={shop.shop} key={index}>{shop.shop}</option>)}
+                                        <option value="" selected={targetShop === ''}>店舗を選択</option>
+                                        <option value="iceWorld">アイスワールド</option>
+                                        {shopList.map((shop, index) => <option value={shop.shop} key={index} selected={targetShop === shop.shop}>{shop.shop}</option>)}
                                     </select>
                                 </div>
                                 {display === 'shop' && <div className="calendarResponse menu">
@@ -676,7 +687,7 @@ const Company = () => {
                                                                     const showTitle = firstAppear[e.id] === i;
                                                                     return (
                                                                         <div key={e.id} style={{
-                                                                            backgroundColor: '#2C82C9',
+                                                                            backgroundColor: '#b3d6f4',
                                                                             top,
                                                                             height: '22px',
                                                                             width: '105%',
@@ -939,6 +950,12 @@ const Company = () => {
                             閉じる
                         </div>
                     </div>
+                </Modal.Body>
+            </Modal>
+            <Modal show={targetShop === 'iceWorld'} size='xl' onHide={modalClose}>
+                <Modal.Header closeButton>ぶるぶるアイスワールド利用予約</Modal.Header>
+                <Modal.Body>
+                    <IceWorld shopList={shopList} editId={editId} />
                 </Modal.Body>
             </Modal>
         </>

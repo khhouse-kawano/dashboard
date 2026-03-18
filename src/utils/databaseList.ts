@@ -33,8 +33,14 @@ export const databaseList = [
     {value: '希望土地面積', id: 'desired_land_area', status: false},
     {value: '土地予算', id: 'land_budget', status: false},
     {value: '建設予定地', id: 'planned_construction_site', status: false},
+    {value: '家族情報', id: 'family_info', status: false},
     {value: '面談時アンケート', id: 'customized_input_01J95TC6KEES87F0YXH29AJP7K', status: false},
     {value: '備考', id: 'remarks', status: false},
     {value: '商談ステップ', id: 'interview_status', status: true},
     {value: '架電状況', id: 'call_status', status: true},
+    {value: 'ギフト進呈', id: 'gift', status: false},
 ];
+
+
+
+

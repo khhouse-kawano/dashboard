@@ -16,7 +16,6 @@ import {
     Tooltip,
     Legend,
     ResponsiveContainer,
-    Label,
 } from "recharts";
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import { setSection } from '../utils/setSection';
@@ -67,8 +66,6 @@ const ShopTrendDev = () => {
     const { token } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
     const [budgetList, setBudget] = useState<Budget[]>([]);
-
-
     const [checked, setChecked] = useState<CheckedState>({
         register: { name: '総反響数', show: true },
         reserve: { name: '来場予約数', show: true },
@@ -79,7 +76,7 @@ const ShopTrendDev = () => {
         budget: { name: '広告費', show: false },
         comparison: { name: '昨年実績', show: false }
     });
-
+    const [mediumChecked, setMediumChecked] = useState({});
 
     useEffect(() => {
         if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
@@ -114,9 +111,13 @@ const ShopTrendDev = () => {
     useEffect(() => {
         const filtered = originalCustomerList.filter(item => {
             const brand = item.shop.slice(0, 2);
-            return (targetMedium ? item.medium === targetMedium : true) &&
-                (targetSection && targetSection !== 'all' ? item.section === targetSection : true) &&
-                (targetBrand ? brand === targetBrand.slice(0, 2) : true)
+            const mediumList = Object.entries(mediumChecked).filter(([_, value]) => value).map(([key, _]) => key);
+            return ((targetMedium && targetMedium !== 'all') ? item.medium === targetMedium : true) &&
+                ((targetMedium === 'all' && !Object.values(mediumChecked).every(v => v))
+                    ? (mediumChecked[item.medium] !== false)
+                    : true)
+                && (targetSection && targetSection !== 'all' ? item.section === targetSection : true)
+                && (targetBrand ? brand === targetBrand.slice(0, 2) : true)
         });
         setCustomerList(filtered);
 
@@ -139,7 +140,7 @@ const ShopTrendDev = () => {
             return numA - numB
         });
         setSectionArray(filteredSectionArray);
-    }, [originalCustomerList, originalMonthArray, originalShopArray, startMonth, endMonth, targetMedium, targetSection, targetBrand]);
+    }, [originalCustomerList, originalMonthArray, originalShopArray, startMonth, endMonth, targetMedium, targetSection, targetBrand, mediumChecked]);
 
     useEffect(() => {
         if (!geminiApi) return;
@@ -196,6 +197,16 @@ const ShopTrendDev = () => {
         };
         fetchData();
     }, [geminiApi]);
+
+    useEffect(() => {
+        if (targetMedium !== 'all') return;
+        const checkedObject = {};
+        mediumArray.forEach(m =>
+            checkedObject[m.medium] = true
+        );
+        checkedObject['その他'] = true;
+        setMediumChecked(checkedObject);
+    }, [targetMedium]);
 
     const modalShow = (title: string) => {
         setShow(true);
@@ -285,7 +296,7 @@ const ShopTrendDev = () => {
                         <MenuDev brand={brand} />
                     </div>
                     <div className='content bg-white p-2'>
-                        <div className="d-flex flex-wrap mb-3 search_condition">
+                        <div className="d-flex flex-wrap mb-1 search_condition">
                             <div className="m-1">
                                 <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
                                     <option value="" selected>開始月</option>
@@ -310,6 +321,7 @@ const ShopTrendDev = () => {
                                     {mediumArray.map((item, index) =>
                                         <option key={index} value={item.medium} selected={targetMedium === item.medium}>{item.medium}</option>
                                     )}
+                                    <option value='all'>詳細設定</option>
                                 </select>
                             </div>
                             <div className="m-1">
@@ -352,14 +364,30 @@ const ShopTrendDev = () => {
                                     )}
                                 </select>
                             </div>
-                            {Object.entries(checked).map(([key, value]) => {
-                                return <div className="m-1">
+                        </div>
+                        <div className="d-flex flex-wrap mb-1 search_condition">
+                            {Object.entries(checked).map(([key, value], index) => {
+                                return <div className="m-1" key={index}>
                                     <label className="target checkbox d-flex align-items-center">
                                         <input type="checkbox" checked={value.show} name={key} className='me-1' onChange={checkedChange} />{value.name}を表示
                                     </label>
                                 </div>
                             })}
                         </div>
+                        {targetMedium === 'all' && <>
+                            <div style={{ fontSize: '12px' }}>表示する販促媒体を選択</div>
+                            <div className="d-flex flex-wrap my-1 search_condition rounded" style={{ backgroundColor: '#d4d4d4' }}>
+                                {[...mediumArray, { id: 0, medium: 'その他', list_number: 0 }].map((m, mIndex) =>
+                                    <div className="mx-1" key={mIndex}>
+                                        <label className="target checkbox d-flex align-items-center">
+                                            <input type="checkbox" checked={mediumChecked[m.medium]} name={m.medium} className='me-1' onChange={() => setMediumChecked(prev => ({
+                                                ...prev,
+                                                [m.medium]: !prev[m.medium]
+                                            }))} />{m.medium}
+                                        </label>
+                                    </div>
+                                )}
+                            </div></>}
                         <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                         <div className="table-wrapper">
                             <div className="list_table">
@@ -447,7 +475,7 @@ const ShopTrendDev = () => {
                                                     return <>
                                                         <tr>
                                                             <td className='align-middle  sticky-column text-center' rowSpan={checked.budget.show ? 2 : 1}>
-                                                                {targetMedium && <div>{targetMedium}</div>}
+                                                                {(targetMedium && targetMedium !== 'all') && <div>{targetMedium}</div>}
                                                                 <div>{target.shop}</div>
                                                                 <div className='text-primary fw-bold'>({staffLength}名)</div>
                                                                 <div className="bg-primary btn text-white rounded-pill py-0 mt-2" style={{ fontSize: '11px', cursor: 'pointer' }}

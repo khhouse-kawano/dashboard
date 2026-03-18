@@ -707,7 +707,7 @@ const ListDev = () => {
                                             <td>{item.pref}{item.city}{item.town}{item.street}{item.building}</td>
                                             <td>{item.duplicate && item.duplicate.split(',').map(value => {
                                                 return (
-                                                    <div style={styleClass} className='mb-1'>{(formattedValue.includes('ホットリード') ? <a href={item.hotlead_url} target='_blank' style={{ color: '#fff' }}>#{value.replace('PGH', 'PG HOUSE')}</a> : value.replace('PGH', 'PG HOUSE'))}</div>
+                                                    <div style={styleClass} className='mb-1'>{(formattedValue.includes('ホットリード') ? <a href={item.hotlead_url} target='_blank' style={{ color: '#fff' }}>#{value}</a> : value)}</div>
                                                 )
                                             })}</td>
                                             <td>{item.area}</td>

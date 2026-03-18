@@ -355,7 +355,7 @@ const ResalePerformance = () => {
                                                                     const upperValue = upperCustomers.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
                                                                     const lowerValue = lowerCustomers.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
                                                                     return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
-                                                                        {mIndex <= monthArray.length && <>{performanceValue}<span className={`${performanceValue - achievementValue >= 0 ? 'text-primary' : 'text-danger'}`}>({performanceValue - achievementValue >= 0 && '+'}{performanceValue - achievementValue})</span></>}
+                                                                        {mIndex <= monthArray.length && <>{performanceValue.toFixed(1)}<span className={`${performanceValue - achievementValue >= 0 ? 'text-primary' : 'text-danger'}`}>({performanceValue - achievementValue >= 0 && '+'}{(performanceValue - achievementValue).toFixed(1)})</span></>}
                                                                         {mIndex === monthArray.length + 1 && upperValue}{mIndex === monthArray.length + 2 && lowerValue}
                                                                     </td>
                                                                 }
@@ -437,7 +437,7 @@ const ResalePerformance = () => {
                                                                     const upperValue = upperCustomers.filter(c => c.staff === staff.name).reduce((acc, cur) => Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
                                                                     const lowerValue = lowerCustomers.filter(c => c.staff === staff.name).reduce((acc, cur) => Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
                                                                     return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
-                                                                        {mIndex <= monthArray.length && <>{performanceValue}<span className={`${performanceValue - achievementValue >= 0 ? 'text-primary' : 'text-danger'}`}>({performanceValue - achievementValue >= 0 && '+'}{performanceValue - achievementValue})</span></>}
+                                                                        {mIndex <= monthArray.length && <>{performanceValue.toFixed(1)}<span className={`${performanceValue - achievementValue >= 0 ? 'text-primary' : 'text-danger'}`}>({performanceValue - achievementValue >= 0 && '+'}{(performanceValue - achievementValue).toFixed(1)})</span></>}
                                                                         {mIndex === monthArray.length + 1 && upperValue}{mIndex === monthArray.length + 2 && lowerValue}
                                                                     </td>
                                                                 }

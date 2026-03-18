@@ -12,7 +12,7 @@ type Shop = { brand: string, shop: string, section: string, area: string, divisi
 type Section = { no: number, name: string, division: string };
 type Customer = { name: string, contract: string, shop: string, staff: string, section: string, rank: string, status: string };
 type Achievement = { category: string, name: string, period: string, value: string }
-
+ 
 const Company = () => {
   const { brand } = useContext(AuthContext);
   const { token } = useContext(AuthContext);
