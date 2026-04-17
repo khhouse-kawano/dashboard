@@ -2,6 +2,7 @@ import React, { useState, useEffect, ReactNode } from "react";
 import AuthContext from "./AuthContext";
 import axios from "axios";
 import { useLocation } from "react-router-dom";
+import { newVersion } from '../utils/version';
 type Props = {
     children: ReactNode;
 };
@@ -11,6 +12,9 @@ const AuthProvider = ({ children }: Props) => {
     const [brand, setBrand] = useState(() => localStorage.getItem("brand") || "");
     const [token, setToken] = useState(() => localStorage.getItem("token") || "");
     const [category, setCategory] = useState(() => localStorage.getItem("category") || "");
+    const [userName, setUserName] = useState(() => localStorage.getItem("userName") || "");
+    const version = newVersion;
+
     const headers = {
         Authorization: "4081Kokubu",
         "Content-Type": "application/json",
@@ -29,7 +33,15 @@ const AuthProvider = ({ children }: Props) => {
         token
             ? localStorage.setItem("token", token)
             : localStorage.removeItem("token");
-    }, [brand, category, token]);
+
+        userName
+            ? localStorage.setItem("userName", userName)
+            : localStorage.removeItem("userName");
+
+        version
+            ? localStorage.setItem("version", version)
+            : localStorage.removeItem("version");
+    }, [brand, category, token, userName, version]);
 
     useEffect(() => {
         if (location.pathname.includes('login')) return;
@@ -62,6 +74,16 @@ const AuthProvider = ({ children }: Props) => {
                     return;
                 }
 
+                const showVersion = await axios.post(
+                    "https://khg-marketing.info/dashboard/api/",
+                    { demand: 'show_version' },
+                    { headers }
+                );
+
+                if (showVersion.data.version !== version) {
+                    window.location.reload();
+                }
+
             } catch (error) {
                 console.error("Token verification failed:", error);
                 if (token !== "") {
@@ -80,7 +102,7 @@ const AuthProvider = ({ children }: Props) => {
 
     return (
         <AuthContext.Provider
-            value={{ brand, setBrand, token, setToken, category, setCategory }}
+            value={{ brand, setBrand, token, setToken, category, setCategory, version, userName, setUserName }}
         >
             {children}
         </AuthContext.Provider>

@@ -15,9 +15,12 @@ import { databaseList } from '../utils/databaseList';
 import SurveyList from './Survey';
 import CancelList from './CancelList';
 import CustomerEdit from './CustomerEdit';
+import CallStatus from './CallStatus';
+import InformationEdit from './InformationEdit';
+import Estate from './Estate';
 
 type shopList = { brand: string, shop: string, section: string };
-type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number };
+type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
 type customerList = { id: string; shop: string; name: string; staff: string; status: string; rank: string; medium: string; reserve: string; register: string; before_survey: number; before_interview: number; after_interview: number; call_status: string, reserved_status: string, full_address: string; phone_number: string; trash: number, section: string, cancel_status: string, campaign: string, second_reserve: string, note: string, survey: string, gift: string, rank_period: string };
 type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number }
 type CallAction = {
@@ -25,6 +28,7 @@ type CallAction = {
   time: string;
   action: string;
   note: string;
+  staff: string
 };
 type CallLog = {
   id: string;
@@ -65,7 +69,7 @@ type UpdatedData = { id: string, shop: string, remarks: string };
 
 const Database = () => {
   const navigate = useNavigate();
-  const { brand } = useContext(AuthContext);
+  const { brand, userName } = useContext(AuthContext);
   const [shopArray, setShopArray] = useState<shopList[]>([]);
   const [mediumArray, setMediumArray] = useState<string[]>([]);
   const [staffArray, setStaffArray] = useState<staffList[]>([]);
@@ -81,6 +85,7 @@ const Database = () => {
   const [searchedName, setSearchedName] = useState<string>('')
   const [searchedStaff, setSearchedStaff] = useState<string>('');
   const [searchedPhone, setSearchedPhone] = useState<string>('')
+  const [searchedAddress, setSearchedAddress] = useState<string>('')
   const [displayLength, setDisplayLength] = useState<number>(20);
   const [beforeSurvey, setBeforeSurvey] = useState<number | null>(null);
   const [beforeInterview, setBeforeInterview] = useState<number | null>(null);
@@ -128,21 +133,22 @@ const Database = () => {
   const [giftDate, setGiftDate] = useState('');
   const [rankPeriod, setRankPeriod] = useState('');
   const [firstCallDate, setFirstCallDate] = useState<CallLog[]>([]);
+  const [estateShow, setEstateShow] = useState(false);
+  const [estateId, setEstateId] = useState('');
 
   const location = useLocation();
   const params = new URLSearchParams(location.search);
-  const editId = params.get('id');
 
   const actionMap = {
     '初回面談': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
     '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
     '事前審査': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
-    'LINEグループ作成': 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN'
+    'LINEグループ作成': 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
+    '契約': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'
   };
 
   useEffect(() => {
     if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
-
     setMonthArray(getYearMonthArray(2025, 1));
 
     const fetchData = async () => {
@@ -176,14 +182,6 @@ const Database = () => {
   }, []);
 
   useEffect(() => {
-    if (!editId) return;
-    if (originalDatabase.length === 0) return;
-
-    setModalCategory('database');
-    showModal(editId, 'information_edit', '', '');
-  }, [originalDatabase, editId]);
-
-  useEffect(() => {
     const fetchData = async () => {
       const filtered = originalDatabase.filter(item => {
         if (trash === 1 && item.trash === 0) return false;
@@ -214,6 +212,7 @@ const Database = () => {
         if ((searchedPhone || searchedName) && !item.phone_number.includes(formattedNumber)) return false;
         const formattedAddress = searchedName.includes('+') ? searchedName.split('+')[1] : '';
         if ((formattedAddress) && !item.full_address.includes(formattedAddress)) return false;
+        if (searchedAddress && !item.full_address.replace(/[\s　]+/g, "").includes(searchedAddress)) return false;
         if (beforeSurvey !== null && item.before_survey !== beforeSurvey) return false;
         if (beforeInterview !== null && item.before_interview !== beforeInterview) return false;
         if (afterInterview !== null && item.after_interview !== afterInterview) return false;
@@ -240,6 +239,7 @@ const Database = () => {
     selectedStatus,
     searchedName,
     searchedStaff,
+    searchedAddress,
     beforeSurvey,
     beforeInterview,
     afterInterview,
@@ -302,6 +302,8 @@ const Database = () => {
   });
 
   const [callLogList, setCallLogList] = useState<CallLogList[]>([]);
+
+  const [editId, setEditId] = useState('')
 
   const showModal = async (idValue: string, request: string, name: string, shop: string) => {
     if (request === 'before_visit') {
@@ -461,7 +463,7 @@ const Database = () => {
       day: '', action: '', note: ''
     });
     setCall({
-      status: '', day: '', time: '', action: '', note: ''
+      status: '', day: '', time: '', action: '', note: '', staff: ''
     });
     setModalCategory('');
   };
@@ -489,7 +491,8 @@ const Database = () => {
     day: '',
     time: '',
     action: '',
-    note: ''
+    note: '',
+    staff: ''
   });
 
   const handleSave = async (isNavigate: boolean) => {
@@ -497,10 +500,20 @@ const Database = () => {
     let interviewData;
     const isAddInterview = interview.day && interview.action && interview.note;
 
+    let newMasterData = {
+      ...masterData,
+      request: 'before_interview_zero'
+    };
+
     if (isAddInterview) {
       updatedData.id = interviewLog.id;
       const key = actionMap[interview.action];
       updatedData[key] = interview.day;
+      newMasterData = {
+        ...masterData,
+        request: 'before_interview_zero',
+        [key]: interview.day
+      };
       const shopValue = originalDatabase.find(o => o.id === interviewLog.id)?.shop ?? '';
       updatedData.shop = shopValue;
       const newInterviewLog = {
@@ -521,6 +534,8 @@ const Database = () => {
       }
     }
 
+
+
     if (isAddInterview || interviewLog.add) {
       try {
         await axios.post("https://khg-marketing.info/dashboard/api/", interviewData, { headers });
@@ -536,7 +551,7 @@ const Database = () => {
         ...callLog,
         call_log: [
           ...callLog.call_log,
-          { day: call.day, time: call.time ?? '', action: call.action, note: call.note ?? '' }
+          { day: call.day, time: call.time ?? '', action: call.action, note: call.note ?? '', staff: userName ?? '' }
         ]
       };
       postData = {
@@ -560,24 +575,19 @@ const Database = () => {
       }
     }
 
-    const newMasterData = {
-      ...masterData,
-      request: 'before_interview_zero'
-    };
-
     try {
       await axios.post("https://khg-marketing.info/survey/api/", newMasterData, { headers });
     } catch (error) {
       console.error("データ取得エラー:", error);
     }
 
-    // if (updatedData.id) {
-    //   try {
-    //     await axios.post(`${baseURL}/api/update`, updatedData, { headers });
-    //   } catch (error) {
-    //     console.error("データ取得エラー:", error);
-    //   }
-    // }
+    if (updatedData.id) {
+      try {
+        await axios.post(`${baseURL}/api/update`, updatedData, { headers });
+      } catch (error) {
+        console.error("データ取得エラー:", error);
+      }
+    }
 
     if (brand === 'insideSales' && calendarAdd && postData.call_log[postData.call_log.length - 1]['time']) {
       const pad = (num: number): string => String(num).padStart(2, '0');
@@ -641,37 +651,14 @@ const Database = () => {
       day: '',
       time: '',
       action: '',
-      note: ''
+      note: '',
+      staff: ''
     });
     if (isNavigate) {
       navigate('/rank');
     } else {
       await modalClose();
     }
-
-  };
-
-  const convertCsv = async () => {
-    const postData = {
-      shop: selectedShop,
-      registered: selectedRegister,
-      reserve: selectedReserve,
-      rank: selectedRank,
-      medium: selectedMedium,
-      status: selectedStatus,
-      beforeSurvey: beforeSurvey,
-      afterInterview: afterInterview,
-      beforeInterview: beforeInterview,
-      callStatus: callStatus
-    };
-
-    console.log(postData);
-
-    const fetchData = async () => {
-
-    };
-
-    fetchData();
   };
 
   const goToGarbage = async (id: string, name: string) => {
@@ -831,6 +818,12 @@ const Database = () => {
     window.open(`./calendar?id=${id}`, '_blank');
   };
 
+  const formate = (value: string) => {
+    return value ? value.replace(/-/g, '/') : '';
+  };
+
+  const closeInformationEdit = () => setEditId('');
+
   return (
     <div className='outer-container'>
       <div className="d-flex">
@@ -965,6 +958,11 @@ const Database = () => {
             <div className="m-1">
               <input className="target" placeholder='電話番号で検索' onChange={(e) => setSearchedPhone(e.target.value)} />
             </div>
+            <div className="m-1">
+              <input className="target" placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
+            </div>
+            <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+              onClick={() => setEditId('new')}>新規登録</div>
           </div>
           <div className="d-md-flex">
             <div className="d-flex flex-wrap align-items-center">
@@ -1039,11 +1037,12 @@ const Database = () => {
                   <td>担当営業</td>
                   <td>ステータス</td>
                   <td>反響日</td>
+                  <td>初回通電日</td>
                   <td>初回来場日<br /><span style={{ fontSize: '9px' }}>(来場予約日)</span></td>
                   <td>ランク</td>
                   <td>販促媒体</td>
+                  <td>住所</td>
                   <td>架電状況</td>
-                  <td>初回通電日</td>
                   <td>架電件数</td>
                   <td>来場前<br />アンケート</td>
                   <td>面談前<br />アンケート</td>
@@ -1052,44 +1051,51 @@ const Database = () => {
                 </tr>
               </thead>
               <tbody className='align-middle'>
-                {filteredDatabase.slice(sliceStart, sliceStart + basicLength).map((item, index) => {
-                  const callLog = firstCallDate.find(f => f.id === item.id)?.call_log;
-                  const firstDate = callLog ?
-                    callLog.filter(c => c.action === '架電').sort((a, b) => {
-                      const dateA = new Date(a.day);
-                      const dateB = new Date(b.day);
-                      return dateA.getTime() - dateB.getTime()
-                    })[0]?.day ?? ''
-                    : '';
-                  const callLength = callLog ? callLog.filter(c => c.action === '架電').length : 0;
-                  return <tr key={index}>
-                    <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
-                      onClick={() => {
-                        setModalCategory('database');
-                        showModal(item.id, 'information_edit', '', '');
-                      }}>編集</div></td>
-                    <td>{item.shop}</td>
-                    <td><div className='position-relative'>{item.name}
-                      {/* {((item.survey || item.note) && item.reserve && familyList.includes(item.id) && !item.gift) && <div className="bg-primary d-flex align-items-center justify-content-center rounded-pill position-absolute" style={{ width: "13px", height: "13px", fontSize: '6px', top: '0', right: '-5px', opacity: '.4' }}><i className="fa-solid fa-g text-white"></i></div>}
+                {filteredDatabase
+                  .sort((a, b) => {
+                    const dayA = new Date(a.register).getTime();
+                    const dayB = new Date(b.register).getTime();
+                    return dayB - dayA
+                  })
+                  .slice(sliceStart, sliceStart + basicLength).map((item, index) => {
+                    const callLog = firstCallDate.find(f => f.id === item.id)?.call_log;
+                    const firstDate = callLog ?
+                      callLog.filter(c => c.action === '架電').sort((a, b) => {
+                        const dateA = new Date(a.day);
+                        const dateB = new Date(b.day);
+                        return dateA.getTime() - dateB.getTime()
+                      })[0]?.day ?? ''
+                      : '';
+                    const callLength = callLog ? callLog.filter(c => c.action === '架電').length : 0;
+                    return <tr key={index}>
+                      <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
+                        onClick={() => {
+                          setModalCategory('database');
+                          showModal(item.id, 'information_edit', '', '');
+                        }}>編集</div></td>
+                      <td>{item.shop}</td>
+                      <td><div className='position-relative'>{item.name}
+                        {/* {((item.survey || item.note) && item.reserve && familyList.includes(item.id) && !item.gift) && <div className="bg-primary d-flex align-items-center justify-content-center rounded-pill position-absolute" style={{ width: "13px", height: "13px", fontSize: '6px', top: '0', right: '-5px', opacity: '.4' }}><i className="fa-solid fa-g text-white"></i></div>}
                       {item.gift && <div className="bg-primary d-flex align-items-center justify-content-center rounded-pill position-absolute" style={{ width: "13px", height: "13px", fontSize: '6px', top: '0', right: '-5px', opacity: '.9' }}><i className="fa-solid fa-g text-white"></i></div>} */}
-                    </div>
-                    </td>
-                    <td>{item.staff}</td>
-                    <td>{item.status}</td>
-                    <td>{item.register}</td>
-                    <td>{item.reserve}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_status ? <>({item.reserved_status.replace(/-/g, '/')})</> : ''}</span></td>
-                    <td>{item.rank}</td>
-                    <td>{item.medium}</td>
-                    <td>{item.call_status}</td>
-                    <td>{firstDate}</td>
-                    <td>{callLength}</td>
-                    <td>{item.before_survey !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'before_visit', item.name, item.shop)}>詳細</div>}</td>
-                    <td>{item.before_interview !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'before_interview', item.name, item.shop)}>詳細</div>}</td>
-                    <td>{item.after_interview !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'after_interview', item.name, item.shop)}>詳細</div>}</td>
-                    {trash === 1 && <td style={{ cursor: 'pointer' }} onClick={() => goToGarbage(item.id, item.name)}><i className="fa-solid fa-trash"></i></td>}
-                    {trash === 0 && <td style={{ cursor: 'pointer' }} onClick={() => backFromGarbage(item.id, item.name)}><i className="fa-solid fa-trash-can-arrow-up"></i></td>}
-                  </tr>
-                })}
+                      </div>
+                      </td>
+                      <td>{item.staff}</td>
+                      <td>{item.status}</td>
+                      <td>{formate(item.register)}</td>
+                      <td>{formate(firstDate)}</td>
+                      <td>{formate(item.reserve)}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_status ? <>({formate(item.reserved_status)})</> : ''}</span></td>
+                      <td>{item.rank.replace('ランク', '')}</td>
+                      <td>{item.medium}</td>
+                      <td style={{ textAlign: 'left' }}>{item.full_address}</td>
+                      <td>{item.call_status}</td>
+                      <td>{callLength}</td>
+                      <td>{item.before_survey !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'before_visit', item.name, item.shop)}>詳細</div>}</td>
+                      <td>{item.before_interview !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'before_interview', item.name, item.shop)}>詳細</div>}</td>
+                      <td>{item.after_interview !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'after_interview', item.name, item.shop)}>詳細</div>}</td>
+                      {trash === 1 && <td style={{ cursor: 'pointer' }} onClick={() => goToGarbage(item.id, item.name)}><i className="fa-solid fa-trash"></i></td>}
+                      {trash === 0 && <td style={{ cursor: 'pointer' }} onClick={() => backFromGarbage(item.id, item.name)}><i className="fa-solid fa-trash-can-arrow-up"></i></td>}
+                    </tr>
+                  })}
               </tbody>
             </Table>
           </div>
@@ -1138,6 +1144,7 @@ const Database = () => {
               ) : (
                 <>
                   <CustomerEdit
+                    name={userName}
                     selected={selected}
                     staffArray={staffArray}
                     mediumArray={mediumArray}
@@ -1156,160 +1163,20 @@ const Database = () => {
                     call={call}
                     actionMap={actionMap}
                     giftDate={giftDate}
-                    rankPeriod={rankPeriod} />
+                    rankPeriod={rankPeriod}
+                    shopArray={shopArray}/>
                 </>
               )}</>}
             {modalCategory === 'inside' && <>
-              <div className="d-flex justify-content-center my-3" style={{ fontSize: '13px' }}>
-                <div className="bg-primary text-white px-3 py-1 rounded-pill me-3"
-                  style={{ cursor: insideSalesCategory === 'kumamoto' ? 'text' : 'pointer', opacity: insideSalesCategory === 'kumamoto' ? '0.5' : '1' }}
-                  onClick={() => setInsideSalesCategory('kumamoto')}>インサイドセールス</div>
-                <div className="bg-primary text-white px-3 py-1 rounded-pill"
-                  style={{ cursor: insideSalesCategory === 'inside' ? 'text' : 'pointer', opacity: insideSalesCategory === 'tochishinchaku' ? '0.5' : '1' }}
-                  onClick={() => setInsideSalesCategory('tochishinchaku')}>土地新着ネット</div>
-              </div>
-              {insideSalesCategory === 'tochishinchaku' ? <Table bordered striped>
-                <tbody style={{ fontSize: '11px' }} className='align-middle'>
-                  <tr>
-                    <td>担当</td>
-                    <td>店舗</td>
-                    <td>種別</td>
-                    <td>合計</td>
-                    {[...monthArray.slice(12)].map(month =>
-                      <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }}>{month}</td>
-                    )}
-                  </tr>
-                  {[{ name: '合計', shop: '', pg_id: '', category: '', estate: 1 }, ...staffArray].filter(staff => staff.estate === 1).map((staff, sIndex) => {
-                    const targetStaff = staffArray.filter(s => s.estate === 1).map(s => s.name);
-                    const customerFilter = callLogList.filter(c => sIndex > 0 ? c.staff === staff.name : targetStaff.includes(c.staff));
-                    const callFilter = customerFilter.filter(c => c.status && c.status !== '未通電').map(c => c.id);
-                    const calledCustomer = originalDatabase.filter(o => callFilter.includes(o.id)).map(o => o.register);
-                    const appointFilter = customerFilter.filter(c => c.status === '来場アポ').map(c => c.id);
-                    const appointCustomer = originalDatabase.filter(o => appointFilter.includes(o.id)).map(o => o.register);
-                    const interviewFilter = customerFilter.filter(c => c.status === '来場済み').map(c => c.id);
-                    const interviewCustomer = originalDatabase.filter(o => interviewFilter.includes(o.id)).map(o => o.register);
-                    const targetCustomerId = customerFilter.map(c => c.id);
-                    const parsed = customerFilter.map(shop => {
-                      const raw = shop.call_log;
-                      if (!raw || raw.trim() === "") return [];
-                      try {
-                        return JSON.parse(raw);
-                      } catch (e) {
-                        return [];
-                      }
-                    }).flat();
-                    const targetCustomer = originalDatabase.filter(o => targetCustomerId.includes(o.id));
-                    const response = originalDatabase.filter(o => o.medium === '土地新着ネット' &&
-                      (staff.name === '合計' ? true : o.staff === staff.name)
-                      );
-                    return ['土地新着ネット反響数', '総架電数', '通電数', 'アポ取得数', '来場数'].map((category, cIndex) => {
-                      return (
-                        <tr key={`${sIndex}-${cIndex}`}>
-                          {cIndex === 0 && <td rowSpan={cIndex === 0 ? 5 : 1}>{staff.name}</td>}
-                          {cIndex === 0 && <td rowSpan={cIndex === 0 ? 5 : 1}>{staff.shop !== '' ? staff.shop : '-'}</td>}
-                          <td>{category}</td>
-                          {['total', ...monthArray.slice(12)].map((month, mIndex) => {
-                            let value;
-                            if (cIndex === 0) {
-                              value = response.filter(r => mIndex > 0 ? r.register.includes(month) : true).length;
-                            }
-                            else if (cIndex === 1) {
-                              value = parsed.filter(p => (mIndex > 0 ? p.day.includes(month.replace(/\//g, '-')) : true) && p.action === '架電').length;
-                            } else if (cIndex === 2) {
-                              value = calledCustomer.filter(c => mIndex > 0 ? c.slice(0, 7) === month : true).length;
-                            } else if (cIndex === 3) {
-                              value = appointCustomer.filter(c => mIndex > 0 ? c.slice(0, 7) === month : true).length;
-                            } else {
-                              value = interviewCustomer.filter(c => mIndex > 0 ? c.slice(0, 7) === month : true).length;
-                            }
-                            return <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }}>{value}</td>
-                          }
-                          )}
-                        </tr>
-                      )
-                    });
-                  })}
-
-                </tbody>
-              </Table>
-                :
-                <div style={{overflowX: 'scroll'}}>
-                <div style={{width: `${monthArray.slice(8).length * 170}px`}}>
-                <Table bordered striped>
-                  <tbody style={{ fontSize: '11px' }}>
-                    <tr>
-                      <td>店舗</td>
-                      {['種別', '合計', ...monthArray.slice(8)].map(month => <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }}>{month}</td>
-                      )}
-                    </tr>
-                    {[{ brand: '', shop: '熊本営業課', section: '熊本営業課' }, ...shopArray].sort().filter(s => s.section === '熊本営業課').map((s, sIndex) => {
-                      const targetShop = shopArray.filter(shop => shop.section === '熊本営業課').map(shop => shop.shop);
-                      const customerFilter = callLogList.filter(c => sIndex === 0 ? targetShop.includes(c.shop) : c.shop === s.shop);
-                      const parsed = customerFilter.map(shop => {
-                        const raw = shop.call_log;
-                        if (!raw || raw.trim() === "") return [];
-                        try {
-                          return JSON.parse(raw);
-                        } catch (e) {
-                          return [];
-                        }
-                      }).flat();
-                      const registerFilter = originalDatabase.filter(o => sIndex === 0 ? o.section === '熊本営業課' : o.shop === s.shop);
-                      const callLogId = customerFilter.filter(c => targetShop.includes(c.shop)).map(c => c.id);
-                      const calledCustomer = originalDatabase.filter(o => callLogId.includes(o.id));
-                      const callFilter = parsed.filter(p => p.action === '架電');
-                      const postFilter = parsed.filter(p => p.action === '資料郵送');
-                      const mailFilter = parsed.filter(p => p.action === 'メール送信');
-                      const smsFilter = parsed.filter(p => p.action === 'SMS送信');
-                      const continueFilter = customerFilter.filter(c => c.status === '継続');
-                      const appointFilter = customerFilter.filter(c => c.status === '来場アポ');
-                      const interviewFilter = customerFilter.filter(c => c.status === '来場済み');
-                      return ['総反響数', '対応反響数', '対応中', 'アポ取得数', '対応反響数からの来場数', '総架電数', '資料郵送数', 'SMS送信数', 'メール送信数'].map((item, index) => <tr>
-                        {index === 0 && <td rowSpan={9} className='align-middle'>{s.shop}</td>}
-                        <td className={`${index === 4 ? 'fw-bold text-primary table-primary' : index === 3 ? 'fw-bold text-danger table-danger' : (index === 2 || index === 1) ? 'fw-bold' : ''}`}>{item}</td>
-                        {['total', ...monthArray.slice(8)].map((month, mIndex) => {
-                          const formattedRegisterFilter = registerFilter.filter(r => mIndex === 0 ? true : r.register.includes(month));
-                          const formattedCalledCustomer = calledCustomer.filter(c => mIndex === 0 ? true : c.register.includes(month));
-                          const formattedCallFilter = callFilter.filter(call => mIndex === 0 ? true : call.day.replace(/-/g, '/').includes(month));
-                          const formattedPostFilter = postFilter.filter(call => mIndex === 0 ? true : call.day.replace(/-/g, '/').includes(month));
-                          const formattedSmsFilter = smsFilter.filter(call => mIndex === 0 ? true : call.day.replace(/-/g, '/').includes(month));
-                          const formattedContinueFilter = continueFilter.filter(c => {
-                            const callLog: CallAction[] = JSON.parse(c.call_log);
-                            const newest: CallAction | null = callLog.length > 0 ? callLog[callLog.length - 1] : null;
-                            if (!newest) return false;
-                            return mIndex === 0 ? true : newest.day.includes(month.replace(/\//g, '-'))
-                          });
-                          const formattedAppointFilter = appointFilter.filter(interview => mIndex === 0 ? true : interview.reserved_status.replace(/-/g, '/').includes(month));
-                          const formattedMailFilter = mailFilter.filter(call => mIndex === 0 ? true : call.day.replace(/-/g, '/').includes(month));
-                          const formattedInterviewFilter = interviewFilter.filter(interview => mIndex === 0 ? true : interview.reserved_status.replace(/-/g, '/').includes(month));
-                          const perAppoint = Math.ceil((formattedAppointFilter.length + formattedInterviewFilter.length) / formattedCalledCustomer.length * 1000) / 10
-                          const perInterview = Math.ceil(formattedInterviewFilter.length / formattedCalledCustomer.length * 1000) / 10
-                          return <td style={{ textAlign: 'right' }} className={`${mIndex === 0 ? 'fw-bold ' : ''}${index === 4 ? 'fw-bold text-primary table-primary' : index === 3 ? 'fw-bold text-danger table-danger' : (index === 2 || index === 1) ? 'fw-bold' : ''}`}>
-                            {index === 0 && formattedRegisterFilter.length}
-                            {index === 1 && <div style={{ textDecoration: formattedContinueFilter.length > 0 ? 'underline' : '', cursor: 'pointer' }}
-                              onClick={() =>
-                                formattedCalledCustomer.length > 0 ? miniModalOpen(formattedCalledCustomer) : null}>{formattedCalledCustomer.length}</div>}
-                            {index === 2 && <div style={{ textDecoration: formattedContinueFilter.length > 0 ? 'underline' : '', cursor: 'pointer' }}
-                              onClick={() =>
-                                formattedInterviewFilter.length > 0 ? miniModalOpen(formattedContinueFilter) : null}>{formattedContinueFilter.length}</div>}
-                            {index === 3 && <div style={{ textDecoration: formattedAppointFilter.length + formattedInterviewFilter.length > 0 ? 'underline' : '', cursor: 'pointer' }}
-                              onClick={() =>
-                                formattedInterviewFilter.length > 0 ? miniModalOpen([...formattedAppointFilter, ...formattedInterviewFilter]) : null}>{formattedAppointFilter.length + formattedInterviewFilter.length}{`(${perAppoint}%)`}</div>}
-                            {index === 4 && <div style={{ textDecoration: formattedInterviewFilter.length > 0 ? 'underline' : '', cursor: 'pointer' }}
-                              onClick={() =>
-                                formattedInterviewFilter.length > 0 ? miniModalOpen(formattedInterviewFilter) : null}>{formattedInterviewFilter.length}</div>}
-                            {index === 5 && formattedCallFilter.length}
-                            {index === 6 && formattedPostFilter.length}
-                            {index === 7 && formattedSmsFilter.length}
-                            {index === 8 && formattedMailFilter.length}
-                          </td>
-                        })
-                        }
-                      </tr>)
-                    }
-                    )}
-                  </tbody>
-                </Table></div></div>}
+              <CallStatus
+                shopArray={shopArray}
+                monthArray={monthArray}
+                staffArray={staffArray}
+                callLogList={callLogList}
+                originalDatabase={originalDatabase}
+                insideSalesCategory={insideSalesCategory}
+                miniModalOpen={miniModalOpen}
+                setInsideSalesCategory={setInsideSalesCategory} />
             </>}
             {modalCategory === 'cancel' &&
               <CancelList
@@ -1334,14 +1201,17 @@ const Database = () => {
                 handleSave(false);
               }}>保存</div> : <div className="button bg-secondary text-white" style={{ cursor: 'text' }}>保存中</div>}
               <div className="button" onClick={() => setModalShow(false)}>閉じる</div>
-              <a href={`https://pg-cloud.cloud/customers/${masterData.id}/summary`} target='_blank'><div className="button bg-danger text-white">PG CLOUD</div></a>
-              {sending === true ? <div className="button bg-primary text-white" onClick={() => {
-                handleSave(true);
-              }}>保存して店舗・担当別一覧へ</div> : <div className="button bg-secondary text-white" style={{ cursor: 'text' }}>保存中</div>}
               <div className="button bg-info text-white" onClick={() => {
                 navigateIceWorld(iceWorld);
               }}>アイスワールド利用予約</div>
+              {/* <div className="button bg-success text-white"
+                style={{ fontSize: '11px' }}
+                onClick={() => { 
+                  setEstateShow(true);
+                  setEstateId(masterData.id)
+                   }}>土地検索</div> */}
             </div>
+
           </Modal.Footer>}
         </Modal>
         <Modal show={miniModalShow} onHide={miniModalClose} size='lg'>
@@ -1379,6 +1249,15 @@ const Database = () => {
               </tbody>
             </Table>
           </ModalBody>
+        </Modal>
+        <InformationEdit id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
+        <Modal show={estateShow} onHide={() => {
+          setEstateShow(false);
+        }} size='xl'>
+          <Modal.Header closeButton></Modal.Header>
+          <Modal.Body>
+            <Estate estateId={estateId} />
+          </Modal.Body>
         </Modal>
       </div>
     </div >

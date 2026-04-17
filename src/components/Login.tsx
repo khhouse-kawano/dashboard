@@ -20,8 +20,7 @@ const Login = () => {
   const mailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-  const { setBrand } = useContext(AuthContext);
-  const { setToken } = useContext(AuthContext);
+  const { setBrand, setToken, setUserName } = useContext(AuthContext);
 
   const handleLogin = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -50,10 +49,11 @@ const Login = () => {
           password: passwordValue,
           demand: "login"
         }, { headers });
- 
+
         if (response.data.message === "success") {
           setBrand(response.data.brand);
           setToken(response.data.token);
+          setUserName(response.data.userName);
           navigate("/home", {
             state: {
               brand: response.data.brand,

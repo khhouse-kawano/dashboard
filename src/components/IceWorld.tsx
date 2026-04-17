@@ -13,7 +13,7 @@ type Customer = { id: string, name: string, medium: string, register: string, re
 const IceWorld = ({ shopList, editId }: Props) => {
     const youbi = ['日', '月', '火', '水', '木', '金', '土'];
     const today = new Date();
-    const time = ['9:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00']
+    const time = ['9:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00']
     const [targetDate, setTargetDate] = useState(today);
     const [modalShow, setModalShow] = useState(false);
     const [reserve, setReserve] = useState<Record<string, string>>({});

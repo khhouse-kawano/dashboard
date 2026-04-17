@@ -6,7 +6,10 @@ type AuthContextType = {
   token: string,
   setToken: (value: string) => void,
   category: string,
-  setCategory: (value: string) => void
+  setCategory: (value: string) => void,
+  version: string,
+  userName: string,
+  setUserName: (value: string) => void,
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -15,7 +18,10 @@ const AuthContext = createContext<AuthContextType>({
   token: "",
   setToken: (value: string) => { },
   category: "",
-  setCategory: (value: string) => { }
+  setCategory: (value: string) => { },
+  version: "",
+  userName: "",
+  setUserName: (value: string) => { },
 });
 
 export default AuthContext;

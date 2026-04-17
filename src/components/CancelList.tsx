@@ -47,6 +47,10 @@ const CancelList = ({ originalDatabase, saveReason, reasons, setReasons, setModa
         setCancelCustomers(filtered);
     }, [total]);
 
+      const formate= (value: string) =>{
+    return value ? value.replace(/-/g, '/') : '';
+  };
+
     return (
         <>
             <div className="bg-primary text-white px-4 py-1 rounded-pill mb-3" style={{ fontSize: '12px', width: 'fit-content', cursor: 'pointer' }}
@@ -71,7 +75,7 @@ const CancelList = ({ originalDatabase, saveReason, reasons, setReasons, setModa
                             return <tr key={index}>
                                 <td>{index + 1}</td>
                                 <td>{item.shop}</td>
-                                <td>{item.register}</td>
+                                <td>{formate(item.register)}</td>
                                 <td>{item.campaign}</td>
                                 <td>{item.medium}</td>
                                 <td>{item.cancel_status}</td>
@@ -107,7 +111,7 @@ const CancelList = ({ originalDatabase, saveReason, reasons, setReasons, setModa
                                 <td>{item.shop}</td>
                                 <td>{item.staff}</td>
                                 <td>{item.name}</td>
-                                <td>{item.reserved_status}</td>
+                                <td>{formate(item.reserved_status)}</td>
                                 <td>
                                     <div className='d-flex align-items-center justify-content-around'>
                                         {['0次面談でお断り', '怪我・病気', '急用', '他決', '計画中止', '不明'].map((r, rIndex) =>

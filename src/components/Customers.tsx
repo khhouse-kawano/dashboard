@@ -3,12 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Table from "react-bootstrap/Table";
 import axios from "axios";
 import AuthContext from '../context/AuthContext';
-import { Pie } from 'react-chartjs-2';
 import './chartConfig';
-import { colorCodes } from './ColorCodes.js';
-import Tab from 'react-bootstrap/Tab';
-import Tabs from 'react-bootstrap/Tabs';
-import { ChartOptions } from 'chart.js';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import MenuDev from "./MenuDev";
@@ -29,7 +24,6 @@ type PieDataType = {
 };
 type Section = { no: number, name: string }
 
-
 const CustomersDev = () => {
     const navigate = useNavigate();
     const { brand } = useContext(AuthContext);
@@ -48,41 +42,7 @@ const CustomersDev = () => {
     const [sortKey, setSortKey] = useState<string>('');
     const [sortOrder, setSortOrder] = useState<string>('');
     const [sectionList, setSectionList] = useState<Section[]>([]);
-    const [dataRegisterPie, setDataRegisterPie] = useState<PieDataType>({
-        labels: [],
-        datasets: [
-            {
-                data: [],
-                backgroundColor: [],
-                borderColor: [],
-                borderWidth: 1,
-            },
-        ],
-    });
-    const [dataReservePie, setDataReservePie] = useState<PieDataType>({
-        labels: [],
-        datasets: [
-            {
-                data: [],
-                backgroundColor: [],
-                borderColor: [],
-                borderWidth: 1,
-            },
-        ],
-    });
-    const [dataContractPie, setDataContractPie] = useState<PieDataType>({
-        labels: [],
-        datasets: [
-            {
-                data: [],
-                backgroundColor: [],
-                borderColor: [],
-                borderWidth: 1,
-            },
-        ],
-    });
     const [open, setOpen] = useState(false);
-    const [show, setShow] = useState(false);
     const { token } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
 
@@ -129,7 +89,7 @@ const CustomersDev = () => {
         }
 
         const filtered = originalList.filter(item => {
-            const targetDate = new Date(item.register);
+            const targetDate = new Date(item.register.replace(/\//g, '-'));
             return (
                 (!startDate || targetDate >= startDate) &&
                 (!endDate || targetDate <= endDate) &&
@@ -154,55 +114,6 @@ const CustomersDev = () => {
 
         setBudgetList(filteredBudget);
 
-        // グラフ↓
-
-        const registerLengthArray = mediumArray.map(mediumItem => {
-            return filtered.filter(filteredItem => filteredItem.medium === mediumItem.medium).length
-        });
-        const reserveLengthArray = mediumArray.map(mediumItem => {
-            return filtered.filter(filteredItem => filteredItem.medium === mediumItem.medium && filteredItem.reserve !== '').length
-        });
-        const contractLengthArray = mediumArray.map(mediumItem => {
-            return filtered.filter(filteredItem => filteredItem.medium === mediumItem.medium && filteredItem.contract !== '').length
-        });
-        setDataRegisterPie(prev => ({
-            ...prev,
-            labels: mediumArray.map(item => item.medium),
-            datasets: [
-                {
-                    ...prev.datasets[0],
-                    data: registerLengthArray,
-                    backgroundColor: mediumArray.map((_, index) => colorCodes[index]),
-                    borderColor: mediumArray.map((_, index) => colorCodes[index])
-                },
-            ],
-        }));
-
-        setDataReservePie(prev => ({
-            ...prev,
-            labels: mediumArray.map(item => item.medium),
-            datasets: [
-                {
-                    ...prev.datasets[0],
-                    data: reserveLengthArray,
-                    backgroundColor: mediumArray.map((_, index) => colorCodes[index]),
-                    borderColor: mediumArray.map((_, index) => colorCodes[index])
-                },
-            ],
-        }));
-
-        setDataContractPie(prev => ({
-            ...prev,
-            labels: mediumArray.map(item => item.medium),
-            datasets: [
-                {
-                    ...prev.datasets[0],
-                    data: contractLengthArray,
-                    backgroundColor: mediumArray.map((_, index) => colorCodes[index]),
-                    borderColor: mediumArray.map((_, index) => colorCodes[index])
-                },
-            ],
-        }));
     }, [originalList, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
 
 
@@ -218,21 +129,6 @@ const CustomersDev = () => {
         setSortKey(key);
         setSortOrder(order)
     };
-
-    // 円グラフの設定
-    const options: ChartOptions<'pie'> = {
-        plugins: {
-            legend: {
-                position: 'right',
-            },
-            title: {
-                display: true,
-                text: '媒体別人数'
-            }
-        },
-    };
-
-
 
     return (
         <div className='outer-container'>
@@ -301,26 +197,8 @@ const CustomersDev = () => {
                             </select>
                         </div>
                     </div>
-                    <div className="m-1">
-                        {show === true ? <input type="button" className='target bg-danger text-white' value='グラフを非表示' onClick={() => setShow(false)} /> :
-                            <input type="button" className='target bg-primary text-white' value='グラフを表示' onClick={() => setShow(true)} />}
-                    </div>
-                    <div className={`mt-3 graph_pc ${show === true ? 'show' : ''}`}>
-                        <Tabs defaultActiveKey="home" id="justify-tab-example" className="mb-3 bg-white" justify style={{ fontSize: '12px', letterSpacing: '1px', width: '80vw' }}>
-                            <Tab eventKey="home" title="総反響詳細">
-                                <Pie data={dataRegisterPie} options={options} className='pie' />
-                            </Tab>
-                            <Tab eventKey="profile" title="来場者詳細">
-                                <Pie data={dataReservePie} options={options} className='pie' />
-                            </Tab>
-                            <Tab eventKey="longer-tab" title="契約者詳細">
-                                <Pie data={dataContractPie} options={options} className='pie' />
-                            </Tab>
-                        </Tabs>
-                    </div>
                     <div className="table-wrapper mt-3">
                         <div className="list_table">
-
                             <Table striped style={{ fontSize: '12px' }} bordered>
                                 <tbody>
                                     <tr className='sticky-header'>
@@ -456,8 +334,8 @@ const CustomersDev = () => {
                                         .sort((a, b) => {
                                             const getKey = (value: typeof a) => {
                                                 const totalValue = customerList.filter(item => value.medium === '総反響' || item.medium === value.medium).length;
-                                                const reserveValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.reserve !== '').length;
-                                                const contractValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.contract !== '').length;
+                                                const reserveValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.reserve).length;
+                                                const contractValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.contract).length;
                                                 const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
                                                 const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
                                                 const rankAValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.rank === 'Aランク' && item.contract === '').length;
@@ -498,15 +376,14 @@ const CustomersDev = () => {
                                                         return isFinite(totalBudget / contractValue) ? Math.round(totalBudget / contractValue) : 0;
                                                 }
                                             };
-
                                             const aVal = getKey(a);
                                             const bVal = getKey(b);
                                             return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
                                         })
                                         .map((value, index) => {
                                             const totalValue = customerList.filter(item => value.medium === '総反響' || item.medium === value.medium).length;
-                                            const reserveValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.reserve !== '').length;
-                                            const contractValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.contract !== '').length;
+                                            const reserveValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.reserve).length;
+                                            const contractValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.contract).length;
                                             const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
                                             const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
                                             const rankAValue = customerList.filter(item => (value.medium === '総反響' || item.medium === value.medium) && item.rank === 'Aランク' && item.contract === '').length;

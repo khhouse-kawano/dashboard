@@ -40,15 +40,15 @@ textarea::placeholder {
 }
 
 .menu_tab {
-  background-color: #aaaaaa;
+  background-color: #ffffff;
   color: #000;
   padding: 5px 0;
   text-align: center;
-  border: 1px solid #fff;
-  border-radius: 3px;
-  font-size: 10px;
+  border-radius: 10px;
+  font-size: 8px;
   cursor: pointer;
-  width: 11%;
+  width: 8%;
+  border: 1px solid #dddddd;
 }
 
 .menu_tab:hover {
@@ -57,8 +57,8 @@ textarea::placeholder {
 }
 
 .menu_tab.selected {
-  background-color: #cecece;
-  transform: scale(1.02);
+  background-color: #e6e6e6;
+  transform: scale(1.01);
   font-size: 10px;
 }
 
@@ -240,4 +240,11 @@ textarea::placeholder {
     border-bottom: 1px solid #D3D3D3;
     padding-bottom: 5px;
   }
+}
+
+.modal.fade .modal-dialog {
+  transition: none !important;
+}
+.modal-backdrop.fade {
+  transition: none !important;
 }

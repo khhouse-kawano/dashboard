@@ -162,4 +162,5 @@ export type MasterDataSelected = {
   customer_desired_estate: boolean;
   call_status: boolean;
   interview_status: boolean;
+  desired_pref: boolean;
 }

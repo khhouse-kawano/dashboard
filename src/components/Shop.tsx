@@ -12,15 +12,6 @@ type Customer = Record<string, string>;
 type Budget = { id: number; medium: string; budget_period: string; shop: string; budget_value: number; note: string; company: string; response_medium: number; category: string; section: string; order_section: string }
 type Shop = { id: number; brand: string; shop: string; section: string; area: string; }
 type Medium = { id: number; medium: string }
-type PieDataType = {
-    labels: string[];
-    datasets: {
-        data: number[];
-        backgroundColor: string[];
-        borderColor: string[];
-        borderWidth: number;
-    }[];
-};
 type Section = { no: number, name: string };
 type Staff = { name: string; shop: string; rank: number };
 
@@ -83,7 +74,6 @@ const CustomersDev = () => {
     useEffect(() => {
         const fetchData = async () => {
             if (!originalList.length) return;
-            const areaValue = await shopArray.find(item => item.area === selectedArea);
 
             let startDate: Date | undefined;
             if (startMonth !== '') startDate = await new Date(`${startMonth}/01`);
@@ -95,7 +85,7 @@ const CustomersDev = () => {
             }
 
             const filtered = await originalList.filter(item => {
-                const targetDate = new Date(item.register);
+                const targetDate = new Date(item.register.replace(/\//g, '-'));
                 return (
                     (!startDate || targetDate >= startDate) &&
                     (!endDate || targetDate <= endDate) &&
@@ -147,7 +137,7 @@ const CustomersDev = () => {
 
     const changeSort = (order: string, key: string) => {
         setSortKey(key);
-        setSortOrder(order)
+        setSortOrder(order);
     };
 
     const filteredValue = (shopValue: string, category: string, rankValue: string) => {
@@ -156,6 +146,7 @@ const CustomersDev = () => {
             && (category ? c[category] !== '' : true)
             && (rankValue ? (c.rank === rankValue && c.contract === '') : true)).length
     };
+    
     return (
         <div className='outer-container' style={{ width: '100vw' }}>
             <div className="d-flex">

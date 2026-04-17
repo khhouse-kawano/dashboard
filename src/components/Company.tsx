@@ -6,13 +6,14 @@ import Table from "react-bootstrap/Table";
 import axios from "axios";
 import { getPeriod } from '../utils/getPeriod';
 import Modal from 'react-bootstrap/Modal';
+import InformationEdit from './InformationEdit';
 
 type Staff = { name: string, shop: string, section: string, report: number, sort: number, multi: number, status: string };
 type Shop = { brand: string, shop: string, section: string, area: string, division: string, multi: number };
 type Section = { no: number, name: string, division: string };
-type Customer = { name: string, contract: string, shop: string, staff: string, section: string, rank: string, status: string };
+type Customer = { id: string, name: string, contract: string, shop: string, staff: string, section: string, rank: string, status: string };
 type Achievement = { category: string, name: string, period: string, value: string }
- 
+
 const Company = () => {
   const { brand } = useContext(AuthContext);
   const { token } = useContext(AuthContext);
@@ -28,6 +29,7 @@ const Company = () => {
   const [contract, setContract] = useState<Customer[]>([]);
   const [achievement, setAchievement] = useState<Achievement[]>([]);
   const [targetDivision, setTargetDivision] = useState('');
+  const [editId, setEditId] = useState('');
 
   useEffect(() => {
     if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
@@ -82,6 +84,9 @@ const Company = () => {
   const modalClose = async () => {
     setShow(false);
   };
+
+  const informationEditClose = () => setEditId('');
+
   const changeAchievement = async (
     periodValue: string,
     categoryValue: string,
@@ -203,7 +208,7 @@ const Company = () => {
               <tr className='sticky-header next_top'>
                 <td colSpan={2} className='text-center text-primary table-primary sticky-column' style={{ letterSpacing: '1px' }}>グループ実績</td>
                 {monthPeriod.map(month => {
-                  const contractOrder = orderList.filter(o => o.contract.includes(month.replace(/-/g, '/')));
+                  const contractOrder = orderList.filter(o => o.contract.replace(/-/g, '/').includes(month.replace(/-/g, '/')));
                   const specContract = 0;
                   const contractValue = contractOrder.length + specContract;
                   return (
@@ -253,7 +258,7 @@ const Company = () => {
                       let target;
                       if (division === '注文事業') {
                         target = r === '契約済み' ?
-                          orderList.filter(o => o.contract.includes(`${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`)) :
+                          orderList.filter(o => o.contract.replace(/-/g, '/').includes(`${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`)) :
                           orderList.filter(o => o.rank.includes(r) && !o.contract && o.status !== '契約済み' && o.shop);
                       } else {
                         target = [];
@@ -273,7 +278,7 @@ const Company = () => {
                     {monthPeriod.map((month, monthIndex) => {
                       let contractList;
                       if (division === '注文事業') {
-                        contractList = orderList.filter(o => o.contract.includes(month.replace(/-/g, '/')));
+                        contractList = orderList.filter(o => o.contract.replace(/-/g, '/').includes(month.replace(/-/g, '/')));
                       } else {
                         contractList = [];
                       }
@@ -335,7 +340,7 @@ const Company = () => {
                           <td className='table-none-border'></td>
                           {rankArray.map(r => {
                             const target = r === '契約済み' ?
-                              orderList.filter(o => o.contract.includes(`${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`) && o.shop && o.section === section.name) :
+                              orderList.filter(o => o.contract.replace(/-/g, '/').includes(`${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`) && o.shop && o.section === section.name) :
                               orderList.filter(o => o.rank.includes(r) && !o.contract && o.status !== '契約済み' && o.shop && o.section === section.name);
                             return (
                               <td rowSpan={2} className={target.length > 0 ? 'text-primary company_contract text-center table-primary' : 'text-center'}
@@ -350,7 +355,7 @@ const Company = () => {
                         <tr className='target-bottom'>
                           <td className='table-primary text-primary sticky-column next'>実績</td>
                           {monthPeriod.map((month, monthIndex) => {
-                            const contractList = orderList.filter(o => o.contract.includes(month.replace(/-/g, '/')) && o.section === section.name);
+                            const contractList = orderList.filter(o => o.contract.replace(/-/g, '/').includes(month.replace(/-/g, '/')) && o.section === section.name);
                             return (
                               <td key={monthIndex} className={contractList.length > 0 ? 'text-primary company_contract text-center table-primary' : 'text-center'}
                                 onClick={contractList.length > 0 ? () => {
@@ -397,8 +402,8 @@ const Company = () => {
                                         const isTotal = monthIndex === monthPeriod.length;
                                         const isShopMulti = shop.multi === 1;
                                         const isStaffMulti = staff.multi === 1;
-                                        const shopPeriodContract = orderList.filter(o => o.contract.includes(month.replace(/-/g, '/')) && (staffIndex === staffLength - 1 ? o.shop === shop.shop : (o.staff === staff.name && o.shop === staff.shop)));
-                                        const multiPeriodContract = orderList.filter(o => o.contract.includes(month.replace(/-/g, '/')) && (staffIndex === staffLength - 1 ? o.shop.includes(shop.shop.replace(shop.brand, '')) : o.staff === staff.name));
+                                        const shopPeriodContract = orderList.filter(o => o.contract.replace(/-/g, '/').includes(month.replace(/-/g, '/')) && (staffIndex === staffLength - 1 ? o.shop === shop.shop : (o.staff === staff.name && o.shop === staff.shop)));
+                                        const multiPeriodContract = orderList.filter(o => o.contract.replace(/-/g, '/').includes(month.replace(/-/g, '/')) && (staffIndex === staffLength - 1 ? o.shop.includes(shop.shop.replace(shop.brand, '')) : o.staff === staff.name));
                                         const targetShop = achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value ? achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value : '';
                                         const achievementLength = achievement.filter(a => a.category === 'shop' && a.name === shop.shop).reduce((cur, acc) => cur + Number(acc.value), 0);
                                         return (
@@ -441,7 +446,7 @@ const Company = () => {
                                       <td className='table-none-border'></td>
                                       {rankArray.map(r => {
                                         const target = r === '契約済み' ?
-                                          orderList.filter(o => o.contract.includes(`${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`) && ((staffIndex !== staffLength - 2 && staffIndex !== staffLength - 1) ? o.staff === staff.name : o.shop === shop.shop)) :
+                                          orderList.filter(o => o.contract.replace(/-/g, '/').includes(`${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`) && ((staffIndex !== staffLength - 2 && staffIndex !== staffLength - 1) ? o.staff === staff.name : o.shop === shop.shop)) :
                                           orderList.filter(o => o.rank.includes(r) && !o.contract && o.status !== '契約済み' && ((staffIndex !== staffLength - 2 && staffIndex !== staffLength - 1) ? o.staff === staff.name : o.shop === shop.shop));
                                         return (
                                           staffIndex !== staffLength - 1 &&
@@ -472,7 +477,7 @@ const Company = () => {
       </div>
       <Modal show={show} onHide={modalClose} size='xl'>
         <Modal.Header closeButton>
-          <Modal.Title style={{ fontSize: '12px' }}>契約者詳細</Modal.Title>
+          <Modal.Title style={{ fontSize: '12px' }}>顧客詳細</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Table bordered striped>
@@ -486,7 +491,7 @@ const Company = () => {
               {contract.map((c, index) =>
                 <tr key={index}>
                   <td>{c.contract}</td>
-                  <td>{c.name} 様</td>
+                  <td><span onClick={() => setEditId(c.id)} style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{c.name} 様</span></td>
                   <td>{c.shop}</td>
                   <td>{c.staff}</td>
                 </tr>)}
@@ -494,6 +499,7 @@ const Company = () => {
           </Table>
         </Modal.Body>
       </Modal>
+      <InformationEdit id={editId} token={token} onClose={informationEditClose} brand={brand} />
     </>
   )
 }

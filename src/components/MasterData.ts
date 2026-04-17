@@ -159,4 +159,5 @@ export type MasterData = {
   customer_desired_period: string;
   customer_desired_estate: string;
   call_status: string;
+  desired_pref: string;
 }

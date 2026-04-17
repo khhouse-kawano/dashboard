@@ -5,7 +5,7 @@ export const mediumFormate = (medium: string) =>{
     } else if (medium.includes('、')){
         value = medium.split('、')[0];
     } else{
-        value = medium.replace('ALLGRIT', '公式LINE').replace('ホームページ反響', 'インターネット検索');
+        value = medium.replace('ALLGRIT', '公式LINE');
     }
     return value;
 };

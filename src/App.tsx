@@ -38,12 +38,13 @@ import ResaleManual from "./components/ResaleManual";
 import Login from "./components/Login";
 import KengakuCloud from "./components/KengakuCloud";
 import Dev from "./components/Dev";
+import ActiveUser from "./components/ActiveUser";
 
 function App() {
-  return (
+  return (<>
     <Router basename="/dashboard">
-
       <AuthProvider>
+        <ActiveUser/>
         <Routes>
           <Route path="/" element={<Category />} />
           <Route path="/home" element={<Category />} />
@@ -77,10 +78,11 @@ function App() {
           <Route path="/registered_estate" element={<RegisteredEstate />} />
           <Route path="/resale_manual" element={<ResaleManual />} />
           <Route path="/kengakuCloud" element={<KengakuCloud />} />
+          <Route path="/dev" element={<Dev />} />
           <Route path="*" element={<Category />} />
         </Routes>
       </AuthProvider>
-    </Router>
+    </Router></>
 
     // <AuthProvider>
     //   <Router basename="/home/">
