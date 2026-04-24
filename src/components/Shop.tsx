@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
 import Table from "react-bootstrap/Table";
 import axios from "axios";
@@ -22,10 +22,8 @@ const CustomersDev = () => {
     const [shopArray, setShopArray] = useState<Shop[]>([]);
     const [originalShopArray, setOriginalShopArray] = useState<Shop[]>([]);
     const [mediumArray, setMediumArray] = useState<Medium[]>([]);
-    const [customerList, setCustomerList] = useState<Customer[]>([]);
     const [originalList, setOriginalList] = useState<Customer[]>([]);
     const [staff, setStaff] = useState<Staff[]>([]);
-    const [budgetList, setBudgetList] = useState<Budget[]>([]);
     const [originalBudgetList, setOriginalBudgetList] = useState<Budget[]>([]);
     const [startMonth, setStartMonth] = useState<string>('');
     const [endMonth, setEndMonth] = useState<string>('');
@@ -39,6 +37,7 @@ const CustomersDev = () => {
     const [sectionList, setSectionList] = useState<Section[]>([]);
     const { token } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
+
     useEffect(() => {
         if (!brand || !token || !category) navigate("/login");
         setMonthArray(getYearMonthArray(2025, 1));
@@ -46,24 +45,13 @@ const CustomersDev = () => {
         const fetchData = async () => {
             try {
                 const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-                const [customerResponse, shopResponse, mediumResponse, budgetResponse, sectionResponse, staffResponse] = await Promise.all([
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "medium_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_budget" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "section_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "staff_list" }, { headers })
-
-                ]);
-                await setCustomerList(customerResponse.data);
-                await setOriginalList(customerResponse.data);
-                await setShopArray(shopResponse.data);
-                await setOriginalShopArray(shopResponse.data);
-                await setMediumArray(mediumResponse.data.filter(m => m.list_medium === 1));
-                await setBudgetList(budgetResponse.data);
-                await setOriginalBudgetList(budgetResponse.data);
-                await setSectionList(sectionResponse.data);
-                await setStaff(staffResponse.data.filter(s => s.rank === 1));
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shop' }, { headers });
+                await setOriginalList(response.data.customer);
+                await setOriginalShopArray(response.data.shop.filter(s => !s.shop.includes('未設定') && !s.shop.includes('全店舗')));
+                await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
+                await setOriginalBudgetList(response.data.budget);
+                await setSectionList(response.data.section);
+                await setStaff(response.data.staff.filter(s => s.rank === 1));
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -71,46 +59,61 @@ const CustomersDev = () => {
         fetchData();
     }, []);
 
+    const filteredCustomers = useMemo(() => {
+        if (!originalList.length) return [];
+        const areaValue = shopArray.filter(s => s.area === selectedArea).map(s => s.shop);
+
+        let startDate: Date | undefined;
+        if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
+
+        let endDate: Date | undefined;
+        if (endMonth !== '') {
+            const [year, month] = endMonth.split('/').map(Number);
+            endDate = new Date(year, month, 0);
+        }
+
+        return originalList.filter(item => {
+            const targetDate = new Date(item.register.replace(/\//g, '-'));
+            const sectionShops = shopArray.filter(s => s.section === selectedSection).map(s => s.shop);
+            return (
+                (!startDate || targetDate >= startDate) &&
+                (!endDate || targetDate <= endDate) &&
+                (!selectedShop || item.shop?.includes(selectedShop)) &&
+                (!selectedSection || sectionShops.includes(item.shop)) &&
+                (!selectedArea || areaValue.includes(item.shop)) &&
+                (!selectedMedium || item.medium === selectedMedium)
+            );
+        });
+    }, [originalList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea, selectedMedium]);
+
+    const filteredBudgets = useMemo(() => {
+        if (!originalBudgetList.length) return [];
+        const areaValue = shopArray.filter(s => s.area === selectedArea).map(s => s.shop);
+
+        let startDate: Date | undefined;
+        if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
+
+        let endDate: Date | undefined;
+        if (endMonth !== '') {
+            const [year, month] = endMonth.split('/').map(Number);
+            endDate = new Date(year, month, 0);
+        }
+
+        return originalBudgetList.filter(item => {
+            const targetDate = new Date(item.budget_period);
+            return (
+                (!startDate || targetDate >= startDate) &&
+                (!endDate || targetDate <= endDate) &&
+                (!selectedShop || item.shop.includes(selectedShop)) &&
+                (!selectedSection || item.order_section.includes(selectedSection)) &&
+                (!selectedArea || areaValue.includes(item.shop))
+            );
+        });
+    }, [originalBudgetList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
+
     useEffect(() => {
-        const fetchData = async () => {
-            if (!originalList.length) return;
-
-            let startDate: Date | undefined;
-            if (startMonth !== '') startDate = await new Date(`${startMonth}/01`);
-
-            let endDate: Date | undefined;
-            if (endMonth !== '') {
-                const [year, month] = await endMonth.split('/').map(Number);
-                endDate = await new Date(year, month, 0);
-            }
-
-            const filtered = await originalList.filter(item => {
-                const targetDate = new Date(item.register.replace(/\//g, '-'));
-                return (
-                    (!startDate || targetDate >= startDate) &&
-                    (!endDate || targetDate <= endDate) &&
-                    (!selectedMedium || item.medium === selectedMedium) &&
-                    (!selectedShop || item.shop.includes(selectedShop)) &&
-                    (!selectedSection || item.section.includes(selectedSection))
-                );
-            });
-
-            await setCustomerList(filtered);
-
-            const filteredBudget = await originalBudgetList.filter(item => {
-                const targetDate = new Date(item.budget_period);
-                return (
-                    (!startDate || targetDate >= startDate) &&
-                    (!endDate || targetDate <= endDate) &&
-                    (!selectedMedium || item.medium === selectedMedium) &&
-                    (!selectedShop || item.shop.includes(selectedShop)) &&
-                    (!selectedSection || item.order_section.includes(selectedSection))
-                );
-            });
-
-            await setBudgetList(filteredBudget);
-
-            const filteredShop = await [...(!selectedShop && !selectedSection && !selectedArea
+        const fetchData = () => {
+            const filteredShop = [...(!selectedShop && !selectedSection && !selectedArea
                 ? [...originalShopArray, { id: 0, brand: '', shop: 'グループ全体', section: '', area: '' }]
                 : originalShopArray
             )]
@@ -120,11 +123,93 @@ const CustomersDev = () => {
                     (!selectedArea || item.area === selectedArea)
                 );
 
-            await setShopArray(filteredShop);
+            setShopArray(filteredShop);
         };
 
         fetchData();
     }, [originalList, startMonth, endMonth, selectedMedium, selectedShop, selectedSection, selectedArea]);
+
+    const filteredValue = (shopValue: string, category: string, rankValue: string) => {
+        const base = filteredCustomers.filter(c => shopValue !== 'グループ全体' ? c.shop === shopValue : true);
+        if (category === 'reserve') {
+            return base.filter(b => b.interview || b.appointment || b.screening || b.contract).length;
+        }
+        if (category === 'contract') {
+            return base.filter(b => b.contract && b.status === '契約済み').length;
+        }
+        if (rankValue) {
+            return base.filter(b => b.rank === rankValue && b.status === '見込み').length;
+        }
+        return filteredCustomers.filter(c => (
+            shopValue !== 'グループ全体' ? c.shop === shopValue : true)
+            && (category ? c[category] !== '' : true)
+            && (rankValue ? (c.rank === rankValue && c.contract === '') : true)).length
+    };
+
+    const aggregated = useMemo(() => {
+        return shopArray.map(value => {
+            const totalValue = filteredValue(value.shop, '', '');
+            const reserveValue = filteredValue(value.shop, 'reserve', '');
+            const contractValue = filteredValue(value.shop, 'contract', '');
+            const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
+            const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
+            const totalBudget = filteredBudgets.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop)).reduce((acc, cur) => acc + cur.budget_value, 0);
+            const staffValue = staff.filter(s => (value.shop !== 'グループ全体' ? s.shop === value.shop : true)).length;
+            const rankAValue = filteredValue(value.shop, '', 'Aランク').toLocaleString();
+            const rankBValue = filteredValue(value.shop, '', 'Bランク').toLocaleString();
+            const rankCValue = filteredValue(value.shop, '', 'Cランク').toLocaleString();
+            const rankDValue = filteredValue(value.shop, '', 'Dランク').toLocaleString();
+            const rankEValue = filteredValue(value.shop, '', 'Eランク').toLocaleString();
+
+            return {
+                value,
+                totalValue,
+                reserveValue,
+                contractValue,
+                perReserve,
+                perContract,
+                staffValue,
+                rankAValue,
+                rankBValue,
+                rankCValue,
+                rankDValue,
+                rankEValue,
+                totalBudget,
+            };
+        });
+    }, [shopArray, filteredCustomers, filteredBudgets]);
+
+
+    const sorted = useMemo(() => {
+        const arr = [...aggregated];
+        arr.sort((a, b) => {
+            const getKey = (x) => {
+                switch (sortKey) {
+                    case 'total': default: return x.totalValue;
+                    case 'perReserve': return x.perReserve;
+                    case 'reserve': return x.reserveValue;
+                    case 'perContract': return x.perContract;
+                    case 'contract': return x.contractValue;
+                    case 'A': return x.rankAValue;
+                    case 'B': return x.rankBValue;
+                    case 'C': return x.rankCValue;
+                    case 'D': return x.rankDValue;
+                    case 'E': return x.rankEValue;
+                    case 'totalBudget': return x.totalBudget;
+                    case 'registerBudget':
+                        return isFinite(x.totalBudget / x.totalValue) ? Math.round(x.totalBudget / x.totalValue) : 0;
+                    case 'reserveBudget':
+                        return isFinite(x.totalBudget / x.reserveValue) ? Math.round(x.totalBudget / x.reserveValue) : 0;
+                    case 'contractBudget':
+                        return isFinite(x.totalBudget / x.contractValue) ? Math.round(x.totalBudget / x.contractValue) : 0;
+                }
+            };
+            const aVal = getKey(a);
+            const bVal = getKey(b);
+            return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+        return arr;
+    }, [aggregated, sortKey, sortOrder]);
 
     const handleSort = async (start: string, end: string, medium: string, shop: string, section: string, area: string) => {
         await setStartMonth(start);
@@ -140,13 +225,8 @@ const CustomersDev = () => {
         setSortOrder(order);
     };
 
-    const filteredValue = (shopValue: string, category: string, rankValue: string) => {
-        return customerList.filter(c => (
-            shopValue !== 'グループ全体' ? c.shop === shopValue : true)
-            && (category ? c[category] !== '' : true)
-            && (rankValue ? (c.rank === rankValue && c.contract === '') : true)).length
-    };
-    
+
+
     return (
         <div className='outer-container' style={{ width: '100vw' }}>
             <div className="d-flex">
@@ -357,86 +437,50 @@ const CustomersDev = () => {
                                             <span style={{ position: 'absolute', top: '14px', right: '4px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'contractBudget')}>▼</span>
                                         </td>
                                     </tr>
-                                    {shopArray
-                                        .sort((a, b) => {
-                                            const getKey = (value: typeof a) => {
-                                                const totalValue = filteredValue(value.shop, '', '');
-                                                const reserveValue = filteredValue(value.shop, 'reserve', '');
-                                                const contractValue = filteredValue(value.shop, 'contract', '');
-                                                const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
-                                                const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
-                                                const rankAValue = filteredValue(value.shop, '', 'Aランク');
-                                                const rankBValue = filteredValue(value.shop, '', 'Bランク');
-                                                const rankCValue = filteredValue(value.shop, '', 'Cランク');
-                                                const rankDValue = filteredValue(value.shop, '', 'Eランク');
-                                                const rankEValue = filteredValue(value.shop, '', 'Dランク');
-                                                const totalBudget = budgetList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop)).reduce((acc, cur) => acc + cur.budget_value, 0);
-                                                switch (sortKey) {
-                                                    case 'total':
-                                                    default:
-                                                        return totalValue;
-                                                    case 'perReserve':
-                                                        return perReserve;
-                                                    case 'reserve':
-                                                        return reserveValue;
-                                                    case 'perContract':
-                                                        return perContract;
-                                                    case 'contract':
-                                                        return contractValue;
-                                                    case 'A':
-                                                        return rankAValue;
-                                                    case 'B':
-                                                        return rankBValue;
-                                                    case 'C': return rankCValue;
-                                                    case 'D':
-                                                        return rankDValue;
-                                                    case 'E':
-                                                        return rankEValue;
-                                                    case 'totalBudget':
-                                                        return totalBudget;
-                                                    case 'registerBudget':
-                                                        return isFinite(totalBudget / totalValue) ? Math.round(totalBudget / totalValue) : 0;
-                                                    case 'reserveBudget':
-                                                        return isFinite(totalBudget / reserveValue) ? Math.round(totalBudget / reserveValue) : 0;
-                                                    case 'contractBudget':
-                                                        return isFinite(totalBudget / contractValue) ? Math.round(totalBudget / contractValue) : 0;
-                                                }
-                                            };
+                                    {sorted.map((item, index) => {
+                                        const {
+                                            value,
+                                            totalValue,
+                                            reserveValue,
+                                            contractValue,
+                                            perReserve,
+                                            perContract,
+                                            staffValue,
+                                            rankAValue,
+                                            rankBValue,
+                                            rankCValue,
+                                            rankDValue,
+                                            rankEValue,
+                                            totalBudget,
+                                        } = item;
 
-                                            const aVal = getKey(a);
-                                            const bVal = getKey(b);
-                                            return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
-                                        })
-                                        .filter(item => !item.shop.includes('未設定'))
-                                        .map((value, index) => {
-                                            const totalValue = filteredValue(value.shop, '', '');
-                                            const reserveValue = filteredValue(value.shop, 'reserve', '');
-                                            const contractValue = filteredValue(value.shop, 'contract', '');
-                                            const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
-                                            const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
-                                            const totalBudget = budgetList.filter(item => (value.shop === 'グループ全体' || item.shop === value.shop)).reduce((acc, cur) => acc + cur.budget_value, 0);
-                                            const staffValue = staff.filter(s => (value.shop !== 'グループ全体' ? s.shop === value.shop: true)).length;
-                                            return (
-                                                <tr key={index} style={{ textAlign: 'center' }}>
-                                                    <td>{value.shop}</td>
-                                                    <td>{staffValue}</td>
-                                                    <td>{totalValue.toLocaleString()}</td>
-                                                    <td>{perReserve}%</td>
-                                                    <td>{reserveValue.toLocaleString()}</td>
-                                                    <td>{perContract}%</td>
-                                                    <td>{contractValue.toLocaleString()}</td>
-                                                    <td>{filteredValue(value.shop, '', 'Aランク').toLocaleString()}</td>
-                                                    <td>{filteredValue(value.shop, '', 'Bランク').toLocaleString()}</td>
-                                                    <td>{filteredValue(value.shop, '', 'Cランク').toLocaleString()}</td>
-                                                    <td>{filteredValue(value.shop, '', 'Dランク').toLocaleString()}</td>
-                                                    <td>{filteredValue(value.shop, '', 'Eランク').toLocaleString()}</td>
-                                                    <td>{`¥${totalBudget.toLocaleString()}`}</td>
-                                                    <td>{isFinite(totalBudget / totalValue) ? `¥${Math.round(totalBudget / totalValue).toLocaleString()}` : '-'}</td>
-                                                    <td>{isFinite(totalBudget / reserveValue) ? `¥${Math.round(totalBudget / reserveValue).toLocaleString()}` : '-'}</td>
-                                                    <td>{isFinite(totalBudget / contractValue) ? `¥${Math.round(totalBudget / contractValue).toLocaleString()}` : '-'}</td>
-                                                </tr>
-                                            )
-                                        })}
+                                        return (
+                                            <tr key={value.id ?? `medium-${index}`}>
+                                                <td className='sticky-column' style={{ textAlign: 'center' }}>{value.shop}</td>
+                                                <td style={{ textAlign: 'center' }}>{staffValue}</td>
+                                                <td style={{ textAlign: 'center' }}>{totalValue.toLocaleString()}</td>
+                                                <td style={{ textAlign: 'center' }}>{perReserve}%</td>
+                                                <td style={{ textAlign: 'center' }}>{reserveValue.toLocaleString()}</td>
+                                                <td style={{ textAlign: 'center' }}>{perContract}%</td>
+                                                <td style={{ textAlign: 'center' }}>{contractValue.toLocaleString()}</td>
+                                                <td style={{ textAlign: 'center' }}>{rankAValue.toLocaleString()}</td>
+                                                <td style={{ textAlign: 'center' }}>{rankBValue.toLocaleString()}</td>
+                                                <td style={{ textAlign: 'center' }}>{rankCValue.toLocaleString()}</td>
+                                                <td style={{ textAlign: 'center' }}>{rankDValue.toLocaleString()}</td>
+                                                <td style={{ textAlign: 'center' }}>{rankEValue.toLocaleString()}</td>
+                                                <td style={{ textAlign: 'center' }}>{`¥${totalBudget.toLocaleString()}`}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {isFinite(totalBudget / totalValue) ? `¥${Math.round(totalBudget / totalValue).toLocaleString()}` : '-'}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {isFinite(totalBudget / reserveValue) ? `¥${Math.round(totalBudget / reserveValue).toLocaleString()}` : '-'}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {isFinite(totalBudget / contractValue) ? `¥${Math.round(totalBudget / contractValue).toLocaleString()}` : '-'}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </Table>
                         </div>

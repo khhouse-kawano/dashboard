@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import AuthContext from '../context/AuthContext';
@@ -25,9 +25,10 @@ import { get11MonthsAgoString } from '../utils/get11MonthsAgoString';
 import { isLastYear } from '../utils/isLastYear';
 import { ModalBody } from 'react-bootstrap';
 import InformationEdit from './InformationEdit';
+import InterviewLog from './InterviewLog';
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
-type Customer = { id: string; shop: string; name: string; staff: string; status: string; contract: string; rank: string; medium: string; reserve: string; register: string; before_survey: number; before_interview: number; after_interview: number; call_status: string, reserved_status: string, appointment: string, second_reserve: string, section: string };
+type Customer = { id: string, shop: string, customer: string, staff: string, status: string, contract: string, rank: string, medium: string, interview: string, register: string, reserved_interview: string, appointment: string, screening: string };
 type Medium = { id: number; medium: string, list_medium: number };
 type Staff = { name: string; shop: string; rank: number, section: string };
 type ResponseData = { period: string, register: number, reserve: number, interview: number, appointment: number, cancel: number, contract: number };
@@ -77,7 +78,6 @@ const ShopTrendDev = () => {
     const [modalTitle, setModalTitle] = useState<string>('');
     const [geminiApi, setGeminiApi] = useState(false);
     const { token } = useContext(AuthContext);
-    const { category } = useContext(AuthContext);
     const [budgetList, setBudget] = useState<Budget[]>([]);
     const [checked, setChecked] = useState<CheckedState>({
         register: { name: '総反響数', show: true },
@@ -94,47 +94,21 @@ const ShopTrendDev = () => {
     const [modalList, setModalList] = useState<Customer[]>([]);
     const [listPage, setListPage] = useState(1);
     const [interviewId, setInterviewId] = useState('');
-    const [interviewLog, setInterviewLog] = useState<InterviewLog>({
-        id: '',
-        shop: '',
-        name: '',
-        interview_log: [],
-        add: false
-    });
-    const [interview, setInterview] = useState<InterviewAction>({
-        day: '',
-        action: '',
-        note: ''
-    });
-    const dayRef = useRef<HTMLInputElement | null>(null);
-    const actionRef = useRef<HTMLSelectElement | null>(null);
-    const textRef = useRef<HTMLTextAreaElement | null>(null);
+
     const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
     const [editId, setEditId] = useState('');
 
     useEffect(() => {
-        console.log(interviewId)
-    }, [interviewId]);
-
-    useEffect(() => {
-        if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
         const fetchData = async () => {
             try {
-                const [customerRes, shopRes, mediumResponse, staffResponse, budgetResponse] = await Promise.all([
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "trend_customer" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "medium_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "staff_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "budget_accounting" }, { headers }),
-                ]);
-                await setOriginalCustomerList(customerRes.data.filter(c => c.trash === 1));
-                await setOriginalShopArray(shopRes.data);
-                await setMediumArray(mediumResponse.data);
-                await setShopArray(shopRes.data);
-                await setMediumArray(mediumResponse.data.filter(m => m.list_medium === 1));
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend' }, { headers });
+                await setOriginalCustomerList(response.data.customer);
+                await setOriginalShopArray(response.data.shop.filter(s => !s.shop.includes('全店舗')));
+                await setShopArray(response.data.shop);
+                await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
                 await setOriginalMonthArray(getYearMonthArray(2025, 1));
-                await setStaff(staffResponse.data.filter(s => s.rank === 1));
-                await setBudget(budgetResponse.data);
+                await setStaff(response.data.staff.filter(s => s.rank === 1));
+                await setBudget(response.data.budget);
             } catch (error) {
                 console.error("データ取得エラー:", error);
             }
@@ -147,11 +121,12 @@ const ShopTrendDev = () => {
     useEffect(() => {
         const filtered = originalCustomerList.filter(item => {
             const brand = item.shop.slice(0, 2);
+            const sectionShops = originalShopArray.filter(s => s.section === targetSection).map(s => s.shop);
             return ((targetMedium && targetMedium !== 'all') ? item.medium === targetMedium : true) &&
                 ((targetMedium === 'all' && !Object.values(mediumChecked).every(v => v))
                     ? (mediumChecked[item.medium] !== false)
                     : true)
-                && (targetSection && targetSection !== 'all' ? item.section === targetSection : true)
+                && (targetSection && targetSection !== 'all' ? sectionShops.includes(item.shop) : true)
                 && (targetBrand ? brand === targetBrand.slice(0, 2) : true)
         });
         setCustomerList(filtered);
@@ -180,16 +155,17 @@ const ShopTrendDev = () => {
     useEffect(() => {
         if (!geminiApi) return;
         setGemini('');
+        const sectionShops = shopArray.filter(s => s.section === targetSection).map(s => s.shop);
         const data = monthArray.map(month => {
             const formattedMedium = mediumArray.filter(m => m.list_medium === 1 && (targetMedium ? m.medium === targetMedium : true)).map(m => m.medium);
             formattedMedium.push('合計');
             const periodSummary = formattedMedium.map(medium => {
-                const totalValue = customerList.filter(item => (targetSection ? item.section === modalTitle : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && item.register.includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const interviewValue = customerList.filter(item => (targetSection ? item.section === modalTitle : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && item.reserve?.includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const cancelValue = customerList.filter(item => (targetSection ? item.section === modalTitle : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && !item.reserve && item.reserved_status?.includes(month.replace(/\//g, '-')) && (medium !== '合計' ? item.medium === medium : true)).length;
+                const totalValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.register).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
+                const interviewValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
+                const cancelValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && !item.interview && formate(item.reserved_interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
                 const reserveValue = cancelValue + interviewValue;
-                const appointmentValue = customerList.filter(item => (targetSection ? item.section === modalTitle : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && item.second_reserve && item.reserve?.includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const contractValue = customerList.filter(item => (targetSection ? item.section === modalTitle : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && item.contract?.includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
+                const appointmentValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && (item.appointment || item.screening || item.contract) && formate(item.interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
+                const contractValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.contract).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
                 return {
                     medium: medium,
                     total: totalValue,
@@ -243,24 +219,25 @@ const ShopTrendDev = () => {
         setMediumChecked(checkedObject);
     }, [targetMedium]);
 
-    const modalShow = (title: string) => {
+    const showSummary = (title: string) => {
         setShow(true);
+        const sectionShops = originalShopArray.filter(o => o.section === title).map(o => o.shop);
         const filtered: ResponseData[] = monthArray.map(m => {
             const matchTarget = (c: Customer) =>
                 title === 'グループ全体'
                     ? true
                     : targetSection === 'all'
-                        ? c.section === title
+                        ? sectionShops.includes(c.shop)
                         : sectionArray.includes(title)
-                            ? c.section === title
+                            ? sectionShops.includes(c.shop)
                             : c.shop === title;
 
-            const registerValue = customerList.filter(c => c.register.includes(m) && matchTarget(c)).length;
-            const reserveValue = customerList.filter(c => (c.reserve.includes(m) || c.reserved_status?.replace(/-/g, '/').includes(m)) && matchTarget(c)).length;
-            const interviewValue = customerList.filter(c => c.reserve.includes(m) && matchTarget(c)).length;
-            const appointmentValue = customerList.filter(c => c.reserve.includes(m) && c.second_reserve && matchTarget(c)).length;
-            const cancelValue = customerList.filter(c => c.reserved_status?.replace(/-/g, '/').includes(m) && matchTarget(c)).length;
-            const contractValue = customerList.filter(c => c.contract.includes(m) && matchTarget(c)).length;
+            const registerValue = originalCustomerList.filter(c => formate(c.register).includes(m) && matchTarget(c)).length;
+            const reserveValue = originalCustomerList.filter(c => (c.interview.includes(m) || c.reserved_interview?.replace(/-/g, '/').includes(m)) && matchTarget(c)).length;
+            const interviewValue = originalCustomerList.filter(c => (formate(c.interview).includes(m) || formate(c.appointment).includes(m) || formate(c.screening).includes(m) || formate(c.contract).includes(m)) && matchTarget(c)).length;
+            const appointmentValue = originalCustomerList.filter(c => (formate(c.appointment).includes(m) || formate(c.screening).includes(m) || formate(c.contract).includes(m)) && matchTarget(c)).length;
+            const cancelValue = originalCustomerList.filter(c => c.reserved_interview?.replace(/-/g, '/').includes(m) && matchTarget(c)).length;
+            const contractValue = originalCustomerList.filter(c => formate(c.contract).includes(m) && c.status === '契約済み' && matchTarget(c)).length;
             return {
                 period: m,
                 register: registerValue,
@@ -313,9 +290,52 @@ const ShopTrendDev = () => {
 
     const formate = (value: string) => {
         return value ? value.replace(/-/g, '/') : '';
-    }
+    };
 
     const getValue = (base: Customer[], monthIndex: number, month: string, target: string, period: string[] = monthArray) => {
+        if (target === 'appointment') {
+            return base.filter(b => {
+                if (b.interview) {
+                    return monthIndex >= 1 ? formate(b.interview).includes(month) && (b.appointment || b.screening || b.contract)
+                        : period.includes(formate(b.interview).slice(0, 7)) && (b.appointment || b.screening || b.contract);
+                }
+                return (monthIndex >= 1 ? (formate(b.appointment).includes(month) || formate(b.screening).includes(month) || formate(b.contract).includes(month))
+                    : (period.includes(formate(b.appointment).slice(0, 7)) || period.includes(formate(b.screening).slice(0, 7)) || period.includes(formate(b.contract).slice(0, 7))))
+            })
+        }
+        if (target === 'interview') {
+            if (monthIndex >= 1) {
+                const interviewBase = base.filter(b =>
+                    formate(b.interview).includes(month)
+                );
+                const appointmentBase = base.filter(b =>
+                    !b.interview &&
+                    (
+                        formate(b.appointment).includes(month) ||
+                        formate(b.screening).includes(month) ||
+                        formate(b.contract).includes(month)
+                    )
+                );
+                return [...interviewBase, ...appointmentBase];
+            } else {
+                const interviewBase = base.filter(b =>
+                    period.includes(formate(b.interview).slice(0, 7))
+                );
+                const appointmentBase = base.filter(b =>
+                    !b.interview &&
+                    (
+                        period.includes(formate(b.appointment).slice(0, 7)) ||
+                        period.includes(formate(b.screening).slice(0, 7)) ||
+                        period.includes(formate(b.contract).slice(0, 7))
+                    )
+                );
+                return [...interviewBase, ...appointmentBase];
+            }
+        }
+
+        if (target === 'contract') {
+            return base.filter(b => (monthIndex >= 1 ? formate(b.contract).includes(month) && b.status === '契約済み' : period.includes(formate(b.contract).slice(0, 7)) && b.status === '契約済み'))
+        }
         return base.filter(b => (monthIndex >= 1 ? formate(b[target]).includes(month) : period.includes(formate(b[target]).slice(0, 7))))
     };
 
@@ -331,106 +351,19 @@ const ShopTrendDev = () => {
         setListShow({ show: true, label: labelValue });
     };
 
-    useEffect(() => {
-        if (!interviewId) return;
-        const postData = {
-            id: interviewId,
-            demand: 'show_customer_interview_log'
-        };
-        const fetchData = async () => {
-            const InterviewRes = await axios.post('https://khg-marketing.info/dashboard/api/', postData, { headers });
-            const interviewResData: InterviewLog = {
-                id: InterviewRes.data.id ?? '',
-                shop: InterviewRes.data.shop ?? '',
-                name: InterviewRes.data.name ?? '',
-                interview_log: typeof InterviewRes.data.interview_log === 'string' && InterviewRes.data.interview_log.trim() !== ''
-                    ? JSON.parse(InterviewRes.data.interview_log)
-                    : InterviewRes.data.interview_log ?? [],
-                add: false
-            };
-            setInterviewLog(interviewResData);
-        };
-
-        fetchData();
-    }, [interviewId]);
-
-    const listClose = () => {
-        setInterviewId('');
-        setInterviewLog({
-            id: '',
-            shop: '',
-            name: '',
-            interview_log: [],
-            add: false
-        });
-    };
-
-    const handleSave = async () => {
-        if (!interview.day || !interview.action) {
-            alert('未入力の項目があります');
-            return;
-        };
-
-        const newInterviewLog = {
-            ...interviewLog,
-            id: interviewId,
-            interview_log: [
-                ...interviewLog.interview_log,
-                { day: interview.day, action: interview.action, note: interview.note }
-            ],
-            demand: 'update_interview_log'
-        };
-
-        setInterviewLog(prev => ({
-            ...prev,
-            interview_log: [
-                ...prev.interview_log,
-                { day: interview.day, action: interview.action, note: interview.note }
-            ]
-        }));
-
+    const closeInformationEdit = () => {
+        setEditId('');
         const fetchData = async () => {
             try {
-                await axios.post("https://khg-marketing.info/dashboard/api/", newInterviewLog, { headers });
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend' }, { headers });
+                await setOriginalCustomerList(response.data.customer);
             } catch (error) {
                 console.error("データ取得エラー:", error);
             }
-        }
-
-        fetchData();
-        setInterview({
-            day: '', action: '', note: ''
-        });
-        [dayRef, actionRef, textRef].forEach(ref => {
-            if (ref.current) ref.current.value = '';
-        });
-    };
-
-    useEffect(() => {
-        if (!interviewLog.add) return;
-
-        const newInterviewLog = {
-            ...interviewLog,
-            demand: 'update_interview_log'
         };
 
-        setInterviewLog(prev => ({
-            ...prev,
-            add: false,
-        }));
-
-        const fetchData = async () => {
-            try {
-                await axios.post("https://khg-marketing.info/dashboard/api/", newInterviewLog, { headers });
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        }
-
         fetchData();
-    }, [interviewLog]);
-
-    const closeInformationEdit = () => setEditId('');
+    };
 
     return (
         <>
@@ -524,7 +457,7 @@ const ShopTrendDev = () => {
                         </div>
                         <div className="d-flex flex-wrap mb-1 search_condition">
                             {Object.entries(checked).map(([key, value], index) => {
-                                if((value.name === '広告費' || value.name === '昨年実績') && targetShop) return;
+                                if ((value.name === '広告費' || value.name === '昨年実績') && targetShop) return;
                                 return <div className="m-1" key={index}>
                                     <label className="target checkbox d-flex align-items-center">
                                         <input type="checkbox" checked={value.show} name={key} className='me-1' onChange={checkedChange} />{value.name}を表示
@@ -549,7 +482,7 @@ const ShopTrendDev = () => {
                         <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                         <div className="table-wrapper">
                             <div className="list_table">
-                                <div style={{ width: `${(monthArray.length + 1) * 170 + 120}px` }}>
+                                <div style={{ width: `${(monthArray.length + 1) * 190 + 120}px` }}>
                                     {targetShop ?
                                         <Table striped bordered>
                                             <tbody style={{ fontSize: '12px', letterSpacing: '.5px' }}>
@@ -563,34 +496,34 @@ const ShopTrendDev = () => {
                                                         {['全期間', ...monthArray].map((month, monthIndex) => {
                                                             const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name : c.shop === targetShop));
                                                             const total = getValue(base, monthIndex, month, 'register');
-                                                            const interview = getValue(base, monthIndex, month, 'reserve');
+                                                            const interview = getValue(base, monthIndex, month, 'interview');
                                                             const contract = getValue(base, monthIndex, month, 'contract');
-                                                            const cancel = base.filter(c => (!c.reserve && (monthIndex >= 1 ? formate(c.reserved_status).includes(month) : monthArray.includes(formate(c.reserved_status).slice(0, 7)))));
-                                                            const appointment = base.filter(c => (c.second_reserve && (monthIndex >= 1 ? formate(c.reserve).includes(month) : monthArray.includes(formate(c.reserve).slice(0, 7)))));
+                                                            const cancel = base.filter(c => (!c.interview && (monthIndex >= 1 ? formate(c.reserved_interview).includes(month) : monthArray.includes(formate(c.reserved_interview).slice(0, 7)))));
+                                                            const appointment = getValue(base, monthIndex, month, 'appointment');
                                                             const reserve = [...cancel, ...interview];
                                                             return (
                                                                 <td style={{ fontSize: '10px' }}>
                                                                     <div className={checked.register.show ? "text-white p-2 rounded" : 'text-white rounded'} style={{ backgroundColor: '#6baed6' }}>
                                                                         {checked.register.show && <div onClick={() => total.length ? handleShow(total, '総反響') : null}>総反響:<span style={clickable(total.length)}>{total.length.toLocaleString()}</span>
-                                                                            </div>}
-                                                                        <div className={checked.reserve.show ? "rounded p-1 my-1" : "my-1 rounded"} style={{ backgroundColor: '#4292c6' }}>
+                                                                        </div>}
+                                                                        <div className={checked.reserve.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#4292c6' }}>
                                                                             {checked.reserve.show && <div>来場予約:<span style={clickable(reserve.length)} onClick={() => reserve.length ? handleShow(reserve, '来場予約者') : null}>{reserve.length}</span>({isNaN(reserve.length / total.length) ? 0 : Math.floor(reserve.length / total.length * 100)}%)
-                                                                                </div>}
-                                                                            <div className={checked.interview.show ? "rounded p-1 my-1" : "my-1 rounded"} style={{ backgroundColor: '#2171b5' }}>
+                                                                            </div>}
+                                                                            <div className={checked.interview.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#2171b5' }}>
                                                                                 {checked.interview.show && <div>実来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '実来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / reserve.length) ? 0 : Math.floor(interview.length / reserve.length * 100)}%)
-                                                                                    </div>}
-                                                                                <div className={checked.appointment.show ? "rounded p-1 my-1" : "my-1 rounded"} style={{ backgroundColor: '#08519c' }}>
+                                                                                </div>}
+                                                                                <div className={checked.appointment.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
                                                                                     {checked.appointment.show && <div>次アポ:<span style={clickable(appointment.length)} onClick={() => appointment.length ? handleShow(appointment, '次アポ者') : null}>{appointment.length.toLocaleString()}</span>({isNaN(appointment.length / interview.length) ? 0 : Math.floor(appointment.length / interview.length * 100)}%)
-                                                                                        </div>}
+                                                                                    </div>}
                                                                                 </div>
-                                                                                <div className={checked.contract.show ? "rounded p-1 my-1" : "my-1 rounded"} style={{ backgroundColor: '#08306b' }}>
+                                                                                <div className={checked.contract.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
                                                                                     {checked.contract.show && <div>契約:<span style={clickable(contract.length)} onClick={() => contract.length ? handleShow(contract, '契約者') : null}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
-                                                                                        </div>}
+                                                                                    </div>}
                                                                                 </div>
                                                                             </div>
-                                                                            <div className={checked.cancel.show ? "rounded p-1 my-1 text-dark" : "my-1 rounded text-dark"} style={{ backgroundColor: '#9ecae1' }}>
+                                                                            <div className={checked.cancel.show ? "rounded px-2 py-1 my-2 text-dark" : "my-2 rounded text-dark"} style={{ backgroundColor: '#9ecae1' }}>
                                                                                 {checked.cancel.show && <div>キャンセル:<span style={clickable(cancel.length)} onClick={() => cancel.length ? handleShow(cancel, 'キャンセル') : null}>{cancel.length.toLocaleString()}</span>({isNaN(cancel.length / reserve.length) ? 0 : Math.floor(cancel.length / reserve.length * 100)}%)
-                                                                                    </div>}
+                                                                                </div>}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -598,32 +531,6 @@ const ShopTrendDev = () => {
                                                             )
                                                         })}
                                                     </tr>
-                                                )}
-                                                {mediumArray.filter(item => item.list_medium === 1).map(item => <tr>
-                                                    <td className='align-middle  sticky-column text-center'>{item.medium}</td>
-                                                    {['全期間', ...monthArray].map((month, monthIndex) => {
-                                                        const base = customerList.filter(c => c.shop === targetShop && c.medium === item.medium);
-                                                        const total = getValue(base, monthIndex, month, 'register').length;
-                                                        const interview = getValue(base, monthIndex, month, 'reserve').length;
-                                                        const contract = getValue(base, monthIndex, month, 'contract').length;
-                                                        const cancel = base.filter(c => !c.reserve && (monthIndex >= 1 ? formate(c.reserved_status).includes(month) : monthArray.includes(formate(c.reserved_status).slice(0, 7)))).length;
-                                                        const appointment = base.filter(c => (c.second_reserve && (monthIndex >= 1 ? formate(c.reserve).includes(month) : monthArray.includes(formate(c.reserve).slice(0, 7))))).length;
-                                                        const reserve = cancel + interview;
-                                                        return (
-                                                            <td style={{ fontSize: '10px' }} className='pointerZoom'>
-                                                                <div className="text-white p-2 rounded" style={{ backgroundColor: '#6baed6' }}>総反響:<span style={{ fontSize: '12px', fontWeight: '700' }}>{total.toLocaleString()}</span>
-                                                                    <div className="rounded p-1 my-1" style={{ backgroundColor: '#4292c6' }}>来場予約:<span style={{ fontSize: '12px', fontWeight: '700' }}>{reserve}</span>({isNaN(reserve / total) ? 0 : Math.floor(reserve / total * 100)}%)
-                                                                        <div className="rounded p-1 my-1" style={{ backgroundColor: '#2171b5' }}>実来場:<span style={{ fontSize: '12px', fontWeight: '700' }}>{interview.toLocaleString()}</span>({isNaN(interview / reserve) ? 0 : Math.floor(interview / reserve * 100)}%)
-                                                                            <div className="p-1 text-white rounded my-1" style={{ backgroundColor: '#08519c' }}>次アポ:<span style={{ fontSize: '12px', fontWeight: '700' }}>{appointment.toLocaleString()}</span>({isNaN(appointment / interview) ? 0 : Math.floor(appointment / interview * 100)}%)</div>
-                                                                            <div className="rounded py-1 px-2 my-1 text-white" style={{ backgroundColor: '#08306b' }}>契約:<span style={{ fontSize: '12px', fontWeight: '700' }}>{contract.toLocaleString()}</span>({isNaN(contract / interview) ? 0 : Math.floor(contract / interview * 100)}%)</div>
-                                                                        </div>
-                                                                        <div className="p-1 text-dark rounded my-1" style={{ backgroundColor: '#9ecae1' }}>キャンセル:<span style={{ fontSize: '12px', fontWeight: '700' }}>{cancel.toLocaleString()}</span>({isNaN(cancel / reserve) ? 0 : Math.floor(cancel / reserve * 100)}%)</div>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        )
-                                                    })}
-                                                </tr>
                                                 )}
                                             </tbody>
                                         </Table> : <Table striped bordered>
@@ -642,7 +549,9 @@ const ShopTrendDev = () => {
                                                             ? targetSection
                                                             : targetBrand
                                                                 ? `${targetBrand}全体`
-                                                                : 'グループ全体', section: '', area: ''
+                                                                : 'グループ全体',
+                                                        section: '',
+                                                        area: ''
                                                     },
                                                     ...(targetSection !== 'all' ? shopArray : sections)
                                                 ].filter(shop => !shop.shop.includes('店舗未設定') && !shop.shop.includes('FH')).map((target, targetIndex) => {
@@ -654,15 +563,17 @@ const ShopTrendDev = () => {
                                                                 <div>{target.shop}</div>
                                                                 <div className='text-primary fw-bold'>({staffLength}名)</div>
                                                                 <div className="bg-primary btn text-white rounded-pill py-0 mt-2" style={{ fontSize: '11px', cursor: 'pointer' }}
-                                                                    onClick={() => modalShow(target.shop)}>サマリ</div>
+                                                                    onClick={() => showSummary(target.shop)}
+                                                                >サマリ</div>
                                                             </td>
                                                             {['全期間', ...monthArray].map((month, monthIndex) => {
-                                                                const base = setSection(customerList, targetSection, target.section, target.shop, targetIndex);
+                                                                const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
+                                                                const base = setSection(customerList, targetSection, target.section, target.shop, targetIndex, sectionShops);
                                                                 const total = getValue(base, monthIndex, month, 'register');
-                                                                const interview = getValue(base, monthIndex, month, 'reserve');
+                                                                const interview = getValue(base, monthIndex, month, 'interview');
                                                                 const contract = getValue(base, monthIndex, month, 'contract');
-                                                                const cancel = base.filter(c => !c.reserve && (monthIndex >= 1 ? formate(c.reserved_status).includes(month) : monthArray.includes(formate(c.reserved_status).slice(0, 7))));
-                                                                const appointment = interview.filter(c => c.second_reserve);
+                                                                const cancel = base.filter(c => !c.interview && (monthIndex >= 1 ? formate(c.reserved_interview).includes(month) : monthArray.includes(formate(c.reserved_interview).slice(0, 7))));
+                                                                const appointment = getValue(base, monthIndex, month, 'appointment');
                                                                 const reserve = [...cancel, ...interview];
                                                                 const lastYear = `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`
                                                                 const lastYearMonthArray = monthArray.map(month => `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`);
@@ -670,10 +581,10 @@ const ShopTrendDev = () => {
                                                                 if (monthIndex === 0 || isLastYear(month)) {
                                                                     lastYearValue = {
                                                                         total: getValue(base, monthIndex, lastYear, 'register', lastYearMonthArray).length,
-                                                                        interview: getValue(base, monthIndex, lastYear, 'reserve', lastYearMonthArray).length,
-                                                                        cancel: getValue(base, monthIndex, lastYear, 'reserved_status', lastYearMonthArray).filter(item => !item.reserve).length,
-                                                                        appointment: getValue(base, monthIndex, lastYear, 'reserve', lastYearMonthArray).filter(item => item.second_reserve).length,
-                                                                        reserve: getValue(base, monthIndex, lastYear, 'reserve', lastYearMonthArray).filter(item => !item.reserve).length + getValue(base, monthIndex, lastYear, 'reserve', lastYearMonthArray).filter(item => item.second_reserve).length,
+                                                                        interview: getValue(base, monthIndex, lastYear, 'interview', lastYearMonthArray).length,
+                                                                        cancel: getValue(base, monthIndex, lastYear, 'reserved_interview', lastYearMonthArray).filter(item => !item.interview).length,
+                                                                        appointment: getValue(base, monthIndex, lastYear, 'appointment', lastYearMonthArray).length,
+                                                                        reserve: getValue(base, monthIndex, lastYear, 'reserved_interview', lastYearMonthArray).filter(item => !item.interview).length + getValue(base, monthIndex, lastYear, 'interview', lastYearMonthArray).length,
                                                                         contract: getValue(base, monthIndex, lastYear, 'contract', lastYearMonthArray),
                                                                     };
                                                                 }
@@ -685,22 +596,22 @@ const ShopTrendDev = () => {
                                                                         <div className={checked.register.show ? "text-white p-2 rounded" : 'text-white rounded'} style={{ backgroundColor: '#6baed6' }}>
                                                                             {checked.register.show && <div onClick={() => total.length ? handleShow(total, '総反響') : null}>総反響:<span style={clickable(total.length)}>{total.length.toLocaleString()}</span>
                                                                                 {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.total.toLocaleString()}</span>}</div>}
-                                                                            <div className={checked.reserve.show ? "rounded p-1 my-1" : "my-1 rounded"} style={{ backgroundColor: '#4292c6' }}>
+                                                                            <div className={checked.reserve.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#4292c6' }}>
                                                                                 {checked.reserve.show && <div>来場予約:<span style={clickable(reserve.length)} onClick={() => reserve.length ? handleShow(reserve, '来場予約者') : null}>{reserve.length}</span>({isNaN(reserve.length / total.length) ? 0 : Math.floor(reserve.length / total.length * 100)}%)
                                                                                     {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.reserve.toLocaleString()}</span>}</div>}
-                                                                                <div className={checked.interview.show ? "rounded p-1 my-1" : "my-1 rounded"} style={{ backgroundColor: '#2171b5' }}>
+                                                                                <div className={checked.interview.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#2171b5' }}>
                                                                                     {checked.interview.show && <div>実来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '実来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / reserve.length) ? 0 : Math.floor(interview.length / reserve.length * 100)}%)
                                                                                         {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.interview.toLocaleString()}</span>}</div>}
-                                                                                    <div className={checked.appointment.show ? "rounded p-1 my-1" : "my-1 rounded"} style={{ backgroundColor: '#08519c' }}>
+                                                                                    <div className={checked.appointment.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
                                                                                         {checked.appointment.show && <div>次アポ:<span style={clickable(appointment.length)} onClick={() => appointment.length ? handleShow(appointment, '次アポ者') : null}>{appointment.length.toLocaleString()}</span>({isNaN(appointment.length / interview.length) ? 0 : Math.floor(appointment.length / interview.length * 100)}%)
                                                                                             {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.appointment.toLocaleString()}</span>}</div>}
                                                                                     </div>
-                                                                                    <div className={checked.contract.show ? "rounded p-1 my-1" : "my-1 rounded"} style={{ backgroundColor: '#08306b' }}>
+                                                                                    <div className={checked.contract.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
                                                                                         {checked.contract.show && <div>契約:<span style={clickable(contract.length)} onClick={() => contract.length ? handleShow(contract, '契約者') : null}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
                                                                                             {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.contract.length.toLocaleString()}</span>}</div>}
                                                                                     </div>
                                                                                 </div>
-                                                                                <div className={checked.cancel.show ? "rounded p-1 my-1 text-dark" : "my-1 rounded text-dark"} style={{ backgroundColor: '#9ecae1' }}>
+                                                                                <div className={checked.cancel.show ? "rounded px-2 py-1 my-2 text-dark" : "my-2 rounded text-dark"} style={{ backgroundColor: '#9ecae1' }}>
                                                                                     {checked.cancel.show && <div>キャンセル:<span style={clickable(cancel.length)} onClick={() => cancel.length ? handleShow(cancel, 'キャンセル') : null}>{cancel.length.toLocaleString()}</span>({isNaN(cancel.length / reserve.length) ? 0 : Math.floor(cancel.length / reserve.length * 100)}%)
                                                                                         {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.cancel.toLocaleString()}</span>}</div>}
                                                                                 </div>
@@ -722,7 +633,8 @@ const ShopTrendDev = () => {
                                                                 const base = customerList.filter(item => (monthIndex >= 1 ? item.register.includes(month) : monthArray.includes(item.register.slice(0, 7))));
                                                                 const lastYear = `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`
                                                                 const lastYearMonthArray = monthArray.map(month => `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`);
-                                                                const total = setSection(base, targetSection, target.section, target.shop, targetIndex);
+                                                                const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
+                                                                const total = setSection(base, targetSection, target.section, target.shop, targetIndex, sectionShops);
                                                                 const baseLastYear = customerList.filter(item => (monthIndex >= 1 ? item.register.includes(lastYear) : monthArray.includes(item.register.slice(0, 7))));
                                                                 const totalLastYear = setSection(baseLastYear, targetSection, target.section, target.shop, targetIndex);
                                                                 let formattedLastYearValue;
@@ -737,9 +649,9 @@ const ShopTrendDev = () => {
                                                                 return <td key={monthIndex} style={{ fontSize: '11px' }}>
                                                                     {[{ label: '総額', color: '#c03442' }, { label: '反響単価', color: '#b02a37' }, { label: '来場単価', color: '#8a1e28' }, { label: '契約単価', color: '#64151c' }]
                                                                         .map((item, index) => {
-                                                                            const filteredLength = total.filter(t => index === 1 ? true : index === 2 ? t.reserve : t.contract).length;
+                                                                            const filteredLength = total.filter(t => index === 1 ? true : index === 2 ? (t.interview || t.appointment || t.screening || t.contract) : t.contract).length;
                                                                             const formattedBudget = Number.isFinite(Math.ceil(formattedValue / filteredLength)) ? Math.ceil(formattedValue / filteredLength) : 0;
-                                                                            const lastYearFilteredLength = totalLastYear.filter(t => index === 1 ? true : index === 2 ? t.reserve : t.contract).length;
+                                                                            const lastYearFilteredLength = totalLastYear.filter(t => index === 1 ? true : index === 2 ? (t.interview || t.appointment || t.screening || t.contract) : t.contract).length;
                                                                             const lastYearFormattedBudget = Number.isFinite(Math.ceil(formattedLastYearValue / lastYearFilteredLength)) ? Math.ceil(formattedLastYearValue / lastYearFilteredLength) : 0;
                                                                             return <div className="text-white rounded pe-2 py-1 mb-1" style={{ backgroundColor: item.color, textAlign: 'right' }} key={index}>{item.label}:￥{index === 0 ? formattedValue.toLocaleString() : formattedBudget.toLocaleString()}
                                                                                 {isDisplayLastYear && <span className='bg-white text-danger rounded px-1 ms-1 fw-bold'>￥{index === 0 ? formattedLastYearValue.toLocaleString() : lastYearFormattedBudget.toLocaleString()}</span>}</div>
@@ -870,7 +782,7 @@ const ShopTrendDev = () => {
                             {modalList.slice(listPage * 10 - 10, listPage * 10).map((item, index) =>
                                 <tr key={index}>
                                     <td>{index + 1}</td>
-                                    <td><span onClick={() => setEditId(item.id)} style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{item.name}</span></td>
+                                    <td><span onClick={() => setEditId(item.id)} style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{item.customer}</span></td>
                                     <td>{item.shop}</td>
                                     <td>{item.staff}</td>
                                     <td>{item.status}</td>
@@ -900,135 +812,7 @@ const ShopTrendDev = () => {
                     </div>
                 </ModalBody>
             </Modal>
-            <Modal show={interviewId !== ''} onHide={listClose}>
-                <Modal.Header closeButton>{customerList.find(c => c.id === interviewId)?.name}様 商談ステップ</Modal.Header>
-                <Modal.Body>
-                    <Table>
-                        <tbody style={{ fontSize: '12px', border: 'transparent' }} className='align-middle'>
-                            <tr>
-                                <td style={{ width: '20%' }}>日付</td>
-                                <td style={{ width: '30%' }}>アクション内容</td>
-                                <td>備考</td>
-                            </tr>
-                            <tr className='table-light'>
-                                <td>{customerList.find(c => c.id === interviewId)?.register}</td>
-                                <td>反響取得</td>
-                                <td>{customerList.find(c => c.id === interviewId)?.medium}</td>
-                            </tr>
-                            {interviewLog.interview_log.length > 0 && <tr>
-                                <td colSpan={4} className='text-center'>↓</td>
-                            </tr>}
-                            {interviewLog.interview_log
-                                .sort((a, b) => {
-                                    return new Date(a.day.replace(/\//g, '-')).getTime() - new Date(b.day.replace(/\//g, '-')).getTime()
-                                })
-                                .map((item, index) =>
-                                    <>
-                                        <tr className='table-light'>
-                                            <td>
-                                                <input type="date" value={item.day} style={{ height: '24px', border: '1px solid #D3D3D3', borderRadius: '3px', width: '80px', paddingLeft: '2px' }}
-                                                    onChange={(e) => {
-                                                        setInterviewLog(prev => ({
-                                                            ...prev,
-                                                            add: true,
-                                                            interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                                { ...log, day: e.target.value } : log)
-                                                        }));
-                                                    }} />
-                                            </td>
-                                            <td>
-                                                <select style={{ height: '24px', border: '1px solid #D3D3D3', borderRadius: '3px', width: '95%' }} value={item.action}
-                                                    onChange={(e) => setInterviewLog(prev => ({
-                                                        ...prev,
-                                                        add: true,
-                                                        interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                            { ...log, action: e.target.value } : log)
-                                                    }))}>
-                                                    <option value="">アクション内容</option>
-                                                    <option value="初回面談">初回面談</option>
-                                                    <option value="2回目以降面談">2回目以降面談</option>
-                                                    <option value="オンライン面談">オンライン面談</option>
-                                                    <option value="LINEグループ作成">LINEグループ作成</option>
-                                                    <option value="事前審査">事前審査</option>
-                                                    <option value="契約">契約</option>
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <div className="d-flex align-items-center ">
-                                                    <textarea style={{ border: '1px solid #D3D3D3', borderRadius: '3px', marginLeft: '5px', width: '75%' }} placeholder='面談内容を記載' value={item.note} rows={item.note.length / 13 + 1}
-                                                        onChange={(e) => setInterviewLog(prev => ({
-                                                            ...prev,
-                                                            add: true,
-                                                            interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                                { ...log, note: e.target.value } : log)
-                                                        }))}></textarea>
-                                                    <div className="text-danger" style={{ backgroundColor: '#D3D3D3', padding: '6px', marginLeft: '5px', borderRadius: '3px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.39)', width: '20%', maxWidth: '38px' }}
-                                                        onClick={() => {
-                                                            if (window.confirm('商談ステップを削除しますか?')) {
-                                                                setInterviewLog(prev => ({
-                                                                    ...prev,
-                                                                    add: true,
-                                                                    interview_log: prev.interview_log.filter((_, i) => i !== index)
-                                                                }));
-                                                            }
-                                                        }}>削除</div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {interviewLog.interview_log.length > index + 1 && <tr>
-                                            <td colSpan={4} className='text-center'>↓</td>
-                                        </tr>}
-                                    </>
-                                )}
-                            <tr>
-                                <td colSpan={4} className='text-center'>↓</td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <input type="date" style={{ height: '24px', border: '1px solid #D3D3D3', borderRadius: '3px', width: '80px', paddingLeft: '2px' }}
-                                        ref={dayRef}
-                                        onChange={(e) => setInterview(prev => ({
-                                            ...prev,
-                                            day: e.target.value
-                                        }))} />
-                                </td>
-                                <td>
-                                    <select style={{ height: '24px', border: '1px solid #D3D3D3', borderRadius: '3px', width: '98%' }}
-                                        ref={actionRef}
-                                        onChange={(e) => setInterview(prev => ({
-                                            ...prev,
-                                            action: e.target.value,
-                                        }))}
-                                        value={interview.action}>
-                                        <option value="">アクション内容</option>
-                                        <option value="初回面談">初回面談</option>
-                                        <option value="2回目以降面談">2回目以降面談</option>
-                                        <option value="オンライン面談">オンライン面談</option>
-                                        <option value="LINEグループ作成">LINEグループ作成</option>
-                                        <option value="事前審査">事前審査</option>
-                                        <option value="契約">契約</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <div className="d-flex align-items-center">
-                                        <textarea style={{ border: '1px solid #D3D3D3', borderRadius: '3px', marginLeft: '5px', width: '75%' }} placeholder='面談内容を記載'
-                                            ref={textRef}
-                                            onBlur={(e) => setInterview(prev => ({
-                                                ...prev,
-                                                id: interviewId,
-                                                note: e.target.value
-                                            }))}
-                                        ></textarea>
-                                        <div className="text-primary" style={{ backgroundColor: '#D3D3D3', padding: '6px', marginLeft: '5px', borderRadius: '3px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.39)', width: '20%', maxWidth: '38px' }}
-                                            onClick={() => handleSave()
-                                            }>追加</div>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </Table>
-                </Modal.Body>
-            </Modal>
+            <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
         </>
     )

@@ -222,14 +222,15 @@ const ListDev = () => {
                 sales_promotion_name: filteredCustomer.response_medium,
                 remarks: targetData ? `反響経路:${filteredCustomer.hp_campaign}／検討時期:${targetData?.considerationStart}\n入居希望時期:${targetData?.desiredMoveIn}／新築検討理由:${targetData?.reasonForConsidering} ${targetData?.reasonOther}\n今後の予定:${targetData?.futurePlan} ${targetData?.futureOther}／希望の広さ:${targetData?.desiredSize}／希望の間取り:${targetData?.desiredLayout}\n重視項目:${targetData?.priorityItem}／入居予定人数:${targetData?.expectedResidents}\n総予算:${targetData?.totalBudget}／返済額:${targetData?.monthlyRepayment}\n前年度の年収:${targetData?.annualIncome}／勤続年数:${targetData?.yearsOfService}\n年収がある方：${targetData?.otherIncomePerson}／年収がある方の年収:${targetData?.otherAnnualIncome}\n自己資金:${targetData?.ownFunds}／その他ローン:${targetData?.otherLoans}\n当日したいこと:${targetData?.thingsToDo} ${targetData?.thingsToDoOther}／新居の希望:${targetData?.housingType} ${targetData?.housingTypeOther}\n希望の土地エリア:${targetData?.landArea}／紹介者:${targetData?.referrerName}`
                     : '',
-                reserved_status: filteredCustomer.reserved_date,
+                reserved_interview: filteredCustomer.reserved_date,
                 response_status: filteredMedium,
-                campaign: filteredCustomer.hp_campaign,
+                hp_campaign: filteredCustomer.hp_campaign,
                 status: '見込み',
                 planned_construction_site: filteredCustomer.area,
                 request: 'insert_customer',
                 section: shopArray.find(s => s.shop === filteredShop)?.section ?? '',
-                brand: brandValue
+                brand: brandValue,
+
             };
 
             console.log(postData);

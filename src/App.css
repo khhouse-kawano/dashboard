@@ -248,3 +248,11 @@ textarea::placeholder {
 .modal-backdrop.fade {
   transition: none !important;
 }
+.table-white {
+  background-color: #fff !important;
+}
+
+.table-white td,
+.table-white th {
+  background-color: #fff !important;
+}

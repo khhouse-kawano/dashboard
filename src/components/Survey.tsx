@@ -1,28 +1,26 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, SetStateAction } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Table from "react-bootstrap/Table";
 import { headers } from '../utils/headers';
 import axios from 'axios';
 import Form from 'react-bootstrap/Form';
+import Modal from 'react-bootstrap/Modal';
 
-type FormList = { brand: string, shop: string, age: string, mobile: string ,medium: string};
+type FormList = { brand: string, shop: string, age: string, mobile: string, medium: string };
 type Survey = { brand: string, annualIncome: string, emailAddress: string, totalBudget: string, expectedResidents: string, priorityItem: string, futurePlan: string, thingsToDo: string, housingType: string };
-type MasterDataList = { brand: string, mail: string, reserve: string, contract: string, second_reserve: string, appoint: string, shop: string };
-type customerList = { id: string; shop: string; name: string; staff: string; status: string; rank: string; medium: string; reserve: string; register: string; before_survey: number; before_interview: number; after_interview: number; call_status: string, reserved_status: string, full_address: string; phone_number: string; trash: number, section: string, cancel_status: string, second_reserve: string };
+type MasterDataList = { mail: string, interview: string, contract: string, screening: string, appointment: string, shop: string, register: string, medium: string, phone_number: string };
 type Props = {
-    originalDatabase: customerList[];
-    form: FormList[];
-    surveyList: Survey[];
-    masterDataList: MasterDataList[]
+    surveyShow: boolean,
+    setSurveyShow: React.Dispatch<React.SetStateAction<boolean>>
 };
 type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number };
 
-const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Props) => {
-    const [startMonth, setStartMonth] = useState('');
-    const [endMonth, setEndMonth] = useState('');
+const SurveyList = ({ surveyShow, setSurveyShow }: Props) => {
     const [dimension, setDimension] = useState('年代');
+    const [masterDataList, setMasterDataList] = useState<MasterDataList[]>([]);
+    const [form, setForm] = useState<FormList[]>([]);
     const [medium, setMedium] = useState(false);
-    const [targetList, setTargetList] = useState({ label: false });
+    const [surveyList, setSurveyList] = useState<Survey[]>([]);
     const [surveyBrand, setSurveyBrand] = useState<Record<string, boolean>>({
         kh: true,
         'なごみ': true,
@@ -44,31 +42,32 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
     const [surveyMedium, setSurveyMedium] = useState({});
 
     useEffect(() => {
+        if (!surveyShow) return;
         const fetchData = async () => {
             try {
-                const [mediumResponse, shopResponse] = await Promise.all([
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "medium_list" }, { headers }),
-                    axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers }),
-                ]);
-                const filteredShop = shopResponse.data.filter(s => !s.shop.includes('未設定'));
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'survey' }, { headers });
+                const filteredShop = response.data.shop.filter(s => !s.shop.includes('未設定'));
                 const checkedShop = {};
                 filteredShop.forEach(s => {
                     checkedShop[s.shop] = true
                 });
                 setSurveyShop(checkedShop);
-                const filteredMedium = mediumResponse.data.filter(item => item.list_medium === 1).map((item: MediumType) => item.medium);
+                const filteredMedium = response.data.medium.filter(item => item.list_medium === 1).map((item: MediumType) => item.medium);
                 const checkedMedium = {};
                 filteredMedium.forEach(m => {
                     checkedMedium[m] = true
                 });
                 setSurveyMedium(checkedMedium);
+                setMasterDataList(response.data.customer);
+                setForm(response.data.form);
+                setSurveyList(response.data.survey);
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
         };
 
         fetchData();
-    }, []);
+    }, [surveyShow]);
 
     const brandMapping = {
         '国分ハウジング': 'kh',
@@ -93,7 +92,7 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
         })
     };
 
-    const ageResult = (object: customerList[], list: FormList[], basicAge: number, key: string) => {
+    const ageResult = (object: MasterDataList[], list: FormList[], basicAge: number, key: string) => {
         const filteredBrand = Object.keys(surveyBrand).filter(key => surveyBrand[key]);
         const filteredShop = Object.keys(surveyShop).filter(key => surveyShop[key]).map(shop => shop.includes('2L') ? '2L' : shop);
         const filteredMedium = Object.keys(surveyMedium).filter(key => surveyMedium[key]);
@@ -104,13 +103,16 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
                 && filteredBrand.includes(l.brand.toLowerCase()) && filteredShop.includes(shopValue) && filteredMedium.includes(l.medium)
         })
             .map(l => l.mobile.replace('-', '').replace('ー', '').trim());
+        if (key === 'second_reserve') {
+            return object.filter(o => (o.appointment || o.screening || o.contract) && phoneList.includes(o.phone_number.replace('-', '').replace('ー', '').trim()));
+        }
         return object.filter(o => o[key] && phoneList.includes(o.phone_number.replace('-', '').replace('ー', '').trim()));
     };
 
     const surveyRegister = (object: MasterDataList[], list: Survey[], dimension: string, targetValue: string) => {
         const filteredShop = Object.keys(surveyShop).filter(key => surveyShop[key]).map(shop => shop.includes('2L') ? '2L' : shop);
         const filteredList = list.filter(l => {
-        const filteredMedium = Object.keys(surveyMedium).filter(key => surveyMedium[key]);
+            const filteredMedium = Object.keys(surveyMedium).filter(key => surveyMedium[key]);
             const filteredBrand = Object.keys(surveyBrand).filter(key => surveyBrand[key]);
             return filteredBrand.includes(l.brand.toLowerCase())
                 && l[dimension].includes(targetValue);
@@ -180,7 +182,7 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
     };
 
     const getValue = (labelIndex: number, dimension: string, itemValue: any) => {
-        const keyMap = ['register', 'reserve', 'appoint', 'contract'];
+        const keyMap = ['register', 'interview', 'appoint', 'contract'];
         const key = keyMap[labelIndex];
         const filteredBrand = Object.keys(surveyBrand).filter(k => surveyBrand[k]);
         const filteredShop = Object.keys(surveyShop).filter(k => surveyShop[k]).map(shop => shop.includes('2L') ? '2L' : shop);
@@ -191,9 +193,9 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
                     return ageRegister(form, age).length;
                 }
                 if (key === 'appoint') {
-                    return ageResult(originalDatabase, form, age, 'second_reserve').length;
+                    return ageResult(masterDataList, form, age, 'second_reserve').length;
                 }
-                return ageResult(originalDatabase, form, age, key).length;
+                return ageResult(masterDataList, form, age, key).length;
             }
             if (key === 'register') {
                 const total = form.filter(o => {
@@ -209,19 +211,18 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
                     const shopValue = `${o.brand.replace('PGH', 'PG HOUSE')}${o.brand === '2L' ? '' : o.shop}`;
                     return o.age && filteredBrand.includes(o.brand.toLowerCase()) && filteredShop.includes(shopValue);
                 }).map(o => o.mobile);
-                const total = originalDatabase.filter(o =>
-                    o.second_reserve && targetList.includes(o.phone_number)
-                ).length;
-                return Math.ceil(ageResult(originalDatabase, form, age, 'second_reserve').length / total * 100);
+                const secondReserve = masterDataList.filter(m => m.appointment || m.screening || m.contract);
+                const total = secondReserve.filter(o => targetList.includes(o.phone_number)).length;
+                return Math.ceil(ageResult(masterDataList, form, age, 'second_reserve').length / total * 100);
             }
             const targetList = form.filter(o => {
                 const shopValue = `${o.brand.replace('PGH', 'PG HOUSE')}${o.brand === '2L' ? '' : o.shop}`;
                 return o.age && filteredBrand.includes(o.brand.toLowerCase()) && filteredShop.includes(shopValue);
             }).map(o => o.mobile);
-            const total = originalDatabase.filter(o =>
+            const total = masterDataList.filter(o =>
                 o[key] && targetList.includes(o.phone_number)
             ).length;
-            return Math.ceil(ageResult(originalDatabase, form, age, key).length / total * 100);
+            return Math.ceil(ageResult(masterDataList, form, age, key).length / total * 100);
         }
         const valueStr = String(itemValue);
         if (!per) {
@@ -229,7 +230,7 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
                 return surveyRegister(masterDataList, surveyList, dimension, valueStr).length;
             }
             if (key === 'appoint') {
-                return surveyResult(masterDataList, surveyList, ['appoint', 'second_reserve', 'contract'], dimension, valueStr).length;
+                return surveyResult(masterDataList, surveyList, ['appointment', 'screening', 'contract'], dimension, valueStr).length;
             }
             return surveyResult(masterDataList, surveyList, key, dimension, valueStr).length;
         }
@@ -243,14 +244,12 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
         }
         if (key === 'appoint') {
             const mailList = surveyList.map(o => o.emailAddress);
-
-            const total = masterDataList.filter(m =>
-                (m.appoint || m.second_reserve || m.contract) &&
-                mailList.includes(m.mail)
+            const secondReserve = masterDataList.filter(m => m.appointment || m.screening || m.contract);
+            const total = secondReserve.filter(m => mailList.includes(m.mail)
             ).length;
 
             return Math.ceil(
-                surveyResult(masterDataList, surveyList, ['appoint', 'second_reserve', 'contract'], dimension, valueStr).length / total * 100
+                surveyResult(masterDataList, surveyList, ['appointment', 'screening', 'contract'], dimension, valueStr).length / total * 100
             );
         }
         const mailList = surveyList.map(o => o.emailAddress);
@@ -269,9 +268,9 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
                 if (key === 'register') {
                     return ageRegister(form, Number(value)).length;
                 } else if (key === 'appoint') {
-                    return ageResult(originalDatabase, form, Number(value), 'second_reserve').length
+                    return ageResult(masterDataList, form, Number(value), 'second_reserve').length
                 } else {
-                    return ageResult(originalDatabase, form, Number(value), key).length
+                    return ageResult(masterDataList, form, Number(value), key).length
                 }
             } else {
                 if (key === 'register') {
@@ -286,15 +285,17 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
                         const shopValue = `${o.brand.replace('PGH', 'PG HOUSE')}${o.brand === '2L' ? '' : o.shop}`;
                         return o.age && filteredBrand.includes(o.brand.toLowerCase()) && filteredShop.includes(shopValue)
                     }).map(o => o.mobile);
-                    const total = originalDatabase.filter(o => o.second_reserve && targetList.includes(o.phone_number)).length;
-                    return Math.ceil(ageResult(originalDatabase, form, Number(value), 'second_reserve').length / total * 100);
+                    const secondReserve = masterDataList.filter(m => m.appointment || m.screening || m.contract);
+
+                    const total = secondReserve.filter(o => targetList.includes(o.phone_number)).length;
+                    return Math.ceil(ageResult(masterDataList, form, Number(value), 'second_reserve').length / total * 100);
                 } else {
                     const targetList = form.filter(o => {
                         const shopValue = `${o.brand.replace('PGH', 'PG HOUSE')}${o.brand === '2L' ? '' : o.shop}`;
                         return o.age && filteredBrand.includes(o.brand.toLowerCase()) && filteredShop.includes(shopValue)
                     }).map(o => o.mobile);
-                    const total = originalDatabase.filter(o => o[key] && targetList.includes(o.phone_number)).length;
-                    return Math.ceil(ageResult(originalDatabase, form, Number(value), key).length / total * 100);
+                    const total = masterDataList.filter(o => o[key] && targetList.includes(o.phone_number)).length;
+                    return Math.ceil(ageResult(masterDataList, form, Number(value), key).length / total * 100);
                 }
             }
         } else {
@@ -312,7 +313,8 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
                     return Math.ceil(surveyRegister(masterDataList, surveyList, dimensionValue, String(value)).length / total * 100);
                 } else if (key === 'appoint') {
                     const mailList = surveyList.map(o => o.emailAddress);
-                    const total = masterDataList.filter(m => (m.appoint || m.second_reserve || m.contract) && mailList.includes(m.mail)).length;
+                    const secondReserve = masterDataList.filter(m => m.appointment || m.screening || m.contract);
+                    const total = secondReserve.filter(m => mailList.includes(m.mail)).length;
                     return Math.ceil(surveyResult(masterDataList, surveyList, ['appoint', 'second_reserve', 'contract'], dimensionValue, String(value)).length / total * 100);
                 } else {
                     const mailList = surveyList.map(o => o.emailAddress);
@@ -433,233 +435,238 @@ const SurveyList = ({ originalDatabase, form, surveyList, masterDataList }: Prop
 
     return (
         <>
-            <div className="d-flex bg-white align-items-center" style={{ width: 'fit-content' }}>
-                <div className="me-4">
-                    <select className='target' onChange={(e) => setDimension(e.target.value)}>
-                        {['年代', '年収', '予算', '入居者数', '重視項目', '行動予定', '相談希望', '希望住居'].map((item, index) =>
-                            <option key={index} value={item}>{item}</option>
-                        )}
-                    </select>
-                </div>
-                <div className="me-4" style={{ width: 'fit-content', fontSize: '12px' }}>
-                    <Form>
-                        <Form.Check
-                            type="switch"
-                            id="brand-switch"
-                            label="ブランド設定"
-                            checked={brand}
-                            onChange={() => setBrand(prev => (!prev))}
-                        />
-                    </Form>
-                </div>
-                <div className="me-4" style={{ width: 'fit-content', fontSize: '12px' }}>
-                    <Form>
-                        <Form.Check
-                            type="switch"
-                            id="shop-switch"
-                            label="店舗設定"
-                            checked={shop}
-                            onChange={() => setShop(prev => (!prev))}
-                        />
-                    </Form>
-                </div>
-                <div className="me-4" style={{ width: 'fit-content', fontSize: '12px' }}>
-                    <Form>
-                        <Form.Check
-                            type="switch"
-                            id="medium-switch"
-                            label="販促媒体設定"
-                            checked={medium}
-                            onChange={() => setMedium(prev => (!prev))}
-                        />
-                    </Form>
-                </div>
-            </div>
-            <div className="d-flex my-1 bg-white" style={{ width: 'fit-content', fontSize: '12px' }}>
-                <div className="m-1">
-                    <Form>
-                        <Form.Check
-                            type="switch"
-                            id="per-switch"
-                            label="割合表示"
-                            checked={per}
-                            onChange={() => setPer(prev => (!prev))}
-                        />
-                    </Form>
-                </div>
-                {Object.entries(display).map(([key, _], index) =>
-                    <div className="m-1" key={index}>
-                        <div className='d-flex align-items-center justify-content-around'>
-                            <div className='d-flex align-items-center me-2'>
-                                <input
-                                    type='checkbox'
-                                    id={`show-${index}`}
-                                    checked={display[key]}
-                                    onChange={() =>
-                                        setDisplay(prev => ({ ...prev, [key]: !prev[key] }))
-                                    }
-                                    className='me-1'
+            <Modal show={surveyShow} onHide={() => setSurveyShow(false)} size='xl'>
+                <Modal.Header closeButton>アンケート集計</Modal.Header>
+                <Modal.Body>
+                    <div className="d-flex bg-white align-items-center" style={{ width: 'fit-content' }}>
+                        <div className="me-4">
+                            <select className='target' onChange={(e) => setDimension(e.target.value)}>
+                                {['年代', '年収', '予算', '入居者数', '重視項目', '行動予定', '相談希望', '希望住居'].map((item, index) =>
+                                    <option key={index} value={item}>{item}</option>
+                                )}
+                            </select>
+                        </div>
+                        <div className="me-4" style={{ width: 'fit-content', fontSize: '12px' }}>
+                            <Form>
+                                <Form.Check
+                                    type="switch"
+                                    id="brand-switch"
+                                    label="ブランド設定"
+                                    checked={brand}
+                                    onChange={() => setBrand(prev => (!prev))}
                                 />
-                                <label htmlFor={`show-${index}`}>{key}を表示</label>
-                            </div>
+                            </Form>
+                        </div>
+                        <div className="me-4" style={{ width: 'fit-content', fontSize: '12px' }}>
+                            <Form>
+                                <Form.Check
+                                    type="switch"
+                                    id="shop-switch"
+                                    label="店舗設定"
+                                    checked={shop}
+                                    onChange={() => setShop(prev => (!prev))}
+                                />
+                            </Form>
+                        </div>
+                        <div className="me-4" style={{ width: 'fit-content', fontSize: '12px' }}>
+                            <Form>
+                                <Form.Check
+                                    type="switch"
+                                    id="medium-switch"
+                                    label="販促媒体設定"
+                                    checked={medium}
+                                    onChange={() => setMedium(prev => (!prev))}
+                                />
+                            </Form>
                         </div>
                     </div>
-                )}
-            </div>
-            {brand &&
-                <div style={{ backgroundColor: '#e2e2e2' }} className='p-2 rounded mb-3'>
-                    <div className="d-flex">
-                        <div style={{ fontSize: '12px' }}>ブランドを設定</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
-                            onClick={() => setSurveyBrand(prev => Object.fromEntries(Object.keys(prev).map(key => [key, true])))}>すべて選択</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
-                            onClick={() => setSurveyBrand(prev => Object.fromEntries(Object.keys(prev).map(key => [key, false])))}>クリア</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-danger'
-                            onClick={() => setBrand(false)}>とじる</div>
-                    </div>
-                    <div className="d-flex my-1" style={{ width: 'fit-content', fontSize: '12px' }}>
-                        {Object.entries(brandMapping).map(([key, _], index) => {
-                            const brandValue = brandMapping[key];
-                            return <div className="m-1" key={index}>
-                                <div className='d-flex align-items-center justify-content-around'>
-                                    <div className='d-flex align-items-center me-2'>
-                                        <input
-                                            type='checkbox'
-                                            id={`brand-${index}`}
-                                            checked={surveyBrand[brandValue]}
-                                            onChange={() =>
-                                                setSurveyBrand(prev => ({ ...prev, [brandValue]: !prev[brandValue] }))
-                                            }
-                                            className='me-1'
-                                        />
-                                        <label htmlFor={`brand-${index}`}>{key}</label>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                        )}
-                    </div>
-                </div>}
-            {shop &&
-                <div style={{ backgroundColor: '#e2e2e2' }} className='p-2 rounded mb-3'>
-                    <div className="d-flex">
-                        <div style={{ fontSize: '12px' }}>店舗を設定</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
-                            onClick={() => setSurveyShop(prev => Object.fromEntries(Object.keys(prev).map(key => [key, true])))}>すべて選択</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
-                            onClick={() => setSurveyShop(prev => Object.fromEntries(Object.keys(prev).map(key => [key, false])))}>クリア</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-danger'
-                            onClick={() => setShop(false)}>とじる</div>
-                    </div>
-                    <div className="d-flex my-1 flex-wrap" style={{ width: 'fit-content', fontSize: '12px' }}>
-                        {Object.entries(surveyShop).map(([key, _], index) =>
+                    <div className="d-flex my-1 bg-white" style={{ width: 'fit-content', fontSize: '12px' }}>
+                        <div className="m-1">
+                            <Form>
+                                <Form.Check
+                                    type="switch"
+                                    id="per-switch"
+                                    label="割合表示"
+                                    checked={per}
+                                    onChange={() => setPer(prev => (!prev))}
+                                />
+                            </Form>
+                        </div>
+                        {Object.entries(display).map(([key, _], index) =>
                             <div className="m-1" key={index}>
                                 <div className='d-flex align-items-center justify-content-around'>
                                     <div className='d-flex align-items-center me-2'>
                                         <input
                                             type='checkbox'
-                                            id={`shop-${index}`}
-                                            checked={surveyShop[key]}
+                                            id={`show-${index}`}
+                                            checked={display[key]}
                                             onChange={() =>
-                                                setSurveyShop(prev => ({ ...prev, [key]: !prev[key] }))
+                                                setDisplay(prev => ({ ...prev, [key]: !prev[key] }))
                                             }
                                             className='me-1'
                                         />
-                                        <label htmlFor={`shop-${index}`}>{key}</label>
+                                        <label htmlFor={`show-${index}`}>{key}を表示</label>
                                     </div>
                                 </div>
                             </div>
                         )}
                     </div>
-                </div>}
-            {medium &&
-                <div style={{ backgroundColor: '#e2e2e2' }} className='p-2 rounded mb-3'>
-                    <div className="d-flex">
-                        <div style={{ fontSize: '12px' }}>販促媒体を設定</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
-                            onClick={() => setSurveyMedium(prev => Object.fromEntries(Object.keys(prev).map(key => [key, true])))}>すべて選択</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
-                            onClick={() => setSurveyMedium(prev => Object.fromEntries(Object.keys(prev).map(key => [key, false])))}>クリア</div>
-                        <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-danger'
-                            onClick={() => setMedium(false)}>とじる</div>
-                    </div>
-                    <div className="d-flex my-1 flex-wrap" style={{ width: 'fit-content', fontSize: '12px' }}>
-                        {Object.entries(surveyMedium).map(([key, _], index) =>
-                            <div className="m-1" key={index}>
-                                <div className='d-flex align-items-center justify-content-around'>
-                                    <div className='d-flex align-items-center me-2'>
-                                        <input
-                                            type='checkbox'
-                                            id={`medium-${index}`}
-                                            checked={surveyMedium[key]}
-                                            onChange={() =>
-                                                setSurveyMedium(prev => ({ ...prev, [key]: !prev[key] }))
-                                            }
-                                            className='me-1'
-                                        />
-                                        <label htmlFor={`medium-${index}`}>{key}</label>
-                                    </div>
-                                </div>
+                    {brand &&
+                        <div style={{ backgroundColor: '#e2e2e2' }} className='p-2 rounded mb-3'>
+                            <div className="d-flex">
+                                <div style={{ fontSize: '12px' }}>ブランドを設定</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
+                                    onClick={() => setSurveyBrand(prev => Object.fromEntries(Object.keys(prev).map(key => [key, true])))}>すべて選択</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
+                                    onClick={() => setSurveyBrand(prev => Object.fromEntries(Object.keys(prev).map(key => [key, false])))}>クリア</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-danger'
+                                    onClick={() => setBrand(false)}>とじる</div>
                             </div>
-                        )}
-                    </div>
-                </div>}
-            <div>
-                {[...dataList].filter(d => d.title === dimension).map((dataValue, dataIndex) => <React.Fragment key={dataIndex}><div style={{ width: "100%", height: 300 }}>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={dataValue.list.map(item => {
-                            return ({
-                                name: item.label,
-                                register: getGraphData(dataValue.dimension, 'register', item.value),
-                                reserve: getGraphData(dataValue.dimension, 'reserve', item.value),
-                                appoint: getGraphData(dataValue.dimension, 'appoint', item.value),
-                                contract: getGraphData(dataValue.dimension, 'contract', item.value),
-                            })
-                        }
-                        )}>  <text
-                            x="50%"
-                            y={20}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            style={{ fontSize: 12, fontWeight: "bold" }}
-                        >
-                                {dataValue.title}別 反響{per ? '割合' : '数'}
-                            </text>
-                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Legend content={CustomLegend} />
-                            <Bar dataKey="register" name="反響" fill="#8884d8" hide={!display['反響']} />
-                            <Bar dataKey="reserve" name="来場" fill="#82ca9d" hide={!display['来場']} />
-                            <Bar dataKey="appoint" name="次アポ" fill="#6EC6FF" hide={!display['次アポ']} />
-                            <Bar dataKey="contract" name="契約" fill="#ffc658" hide={!display['契約']} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-                    <Table bordered striped>
-                        <tbody style={{ fontSize: '12px', textAlign: 'center' }}>
-                            <tr>
-                                <td style={{ width: '10%' }}>{dataValue.title}別</td>
-                                {dataValue.list.map((item, index) => {
-                                    const dataLength = dataValue.list.length;
-                                    return <td key={index} style={{ width: `calc( 90% / ${dataLength})` }}>{item.label}</td>
+                            <div className="d-flex my-1" style={{ width: 'fit-content', fontSize: '12px' }}>
+                                {Object.entries(brandMapping).map(([key, _], index) => {
+                                    const brandValue = brandMapping[key];
+                                    return <div className="m-1" key={index}>
+                                        <div className='d-flex align-items-center justify-content-around'>
+                                            <div className='d-flex align-items-center me-2'>
+                                                <input
+                                                    type='checkbox'
+                                                    id={`brand-${index}`}
+                                                    checked={surveyBrand[brandValue]}
+                                                    onChange={() =>
+                                                        setSurveyBrand(prev => ({ ...prev, [brandValue]: !prev[brandValue] }))
+                                                    }
+                                                    className='me-1'
+                                                />
+                                                <label htmlFor={`brand-${index}`}>{key}</label>
+                                            </div>
+                                        </div>
+                                    </div>
                                 }
                                 )}
-                            </tr>
-                            {Object.entries(display).map(([key, value], index) =>
-                                <>{value && <tr key={index}>
-                                    <td>{key}</td>
-                                    {dataValue.list.map((item, itemIndex) =>
-                                        <td key={itemIndex} style={{ textAlign: 'right' }}>
-                                            {getValue(index, dataValue.dimension, item.value).toLocaleString()}{per && '%'}
-                                        </td>
+                            </div>
+                        </div>}
+                    {shop &&
+                        <div style={{ backgroundColor: '#e2e2e2' }} className='p-2 rounded mb-3'>
+                            <div className="d-flex">
+                                <div style={{ fontSize: '12px' }}>店舗を設定</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
+                                    onClick={() => setSurveyShop(prev => Object.fromEntries(Object.keys(prev).map(key => [key, true])))}>すべて選択</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
+                                    onClick={() => setSurveyShop(prev => Object.fromEntries(Object.keys(prev).map(key => [key, false])))}>クリア</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-danger'
+                                    onClick={() => setShop(false)}>とじる</div>
+                            </div>
+                            <div className="d-flex my-1 flex-wrap" style={{ width: 'fit-content', fontSize: '12px' }}>
+                                {Object.entries(surveyShop).map(([key, _], index) =>
+                                    <div className="m-1" key={index}>
+                                        <div className='d-flex align-items-center justify-content-around'>
+                                            <div className='d-flex align-items-center me-2'>
+                                                <input
+                                                    type='checkbox'
+                                                    id={`shop-${index}`}
+                                                    checked={surveyShop[key]}
+                                                    onChange={() =>
+                                                        setSurveyShop(prev => ({ ...prev, [key]: !prev[key] }))
+                                                    }
+                                                    className='me-1'
+                                                />
+                                                <label htmlFor={`shop-${index}`}>{key}</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>}
+                    {medium &&
+                        <div style={{ backgroundColor: '#e2e2e2' }} className='p-2 rounded mb-3'>
+                            <div className="d-flex">
+                                <div style={{ fontSize: '12px' }}>販促媒体を設定</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
+                                    onClick={() => setSurveyMedium(prev => Object.fromEntries(Object.keys(prev).map(key => [key, true])))}>すべて選択</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-primary'
+                                    onClick={() => setSurveyMedium(prev => Object.fromEntries(Object.keys(prev).map(key => [key, false])))}>クリア</div>
+                                <div style={{ fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' }} className='ms-3 text-danger'
+                                    onClick={() => setMedium(false)}>とじる</div>
+                            </div>
+                            <div className="d-flex my-1 flex-wrap" style={{ width: 'fit-content', fontSize: '12px' }}>
+                                {Object.entries(surveyMedium).map(([key, _], index) =>
+                                    <div className="m-1" key={index}>
+                                        <div className='d-flex align-items-center justify-content-around'>
+                                            <div className='d-flex align-items-center me-2'>
+                                                <input
+                                                    type='checkbox'
+                                                    id={`medium-${index}`}
+                                                    checked={surveyMedium[key]}
+                                                    onChange={() =>
+                                                        setSurveyMedium(prev => ({ ...prev, [key]: !prev[key] }))
+                                                    }
+                                                    className='me-1'
+                                                />
+                                                <label htmlFor={`medium-${index}`}>{key}</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>}
+                    <div>
+                        {[...dataList].filter(d => d.title === dimension).map((dataValue, dataIndex) => <React.Fragment key={dataIndex}><div style={{ width: "100%", height: 300 }}>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <BarChart data={dataValue.list.map(item => {
+                                    return ({
+                                        name: item.label,
+                                        register: getGraphData(dataValue.dimension, 'register', item.value),
+                                        reserve: getGraphData(dataValue.dimension, 'interview', item.value),
+                                        appoint: getGraphData(dataValue.dimension, 'appoint', item.value),
+                                        contract: getGraphData(dataValue.dimension, 'contract', item.value),
+                                    })
+                                }
+                                )}>  <text
+                                    x="50%"
+                                    y={20}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    style={{ fontSize: 12, fontWeight: "bold" }}
+                                >
+                                        {dataValue.title}別 反響{per ? '割合' : '数'}
+                                    </text>
+                                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                                    <YAxis tick={{ fontSize: 12 }} />
+                                    <Tooltip />
+                                    <Legend content={CustomLegend} />
+                                    <Bar dataKey="register" name="反響" fill="#8884d8" hide={!display['反響']} />
+                                    <Bar dataKey="reserve" name="来場" fill="#82ca9d" hide={!display['来場']} />
+                                    <Bar dataKey="appoint" name="次アポ" fill="#6EC6FF" hide={!display['次アポ']} />
+                                    <Bar dataKey="contract" name="契約" fill="#ffc658" hide={!display['契約']} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                            <Table bordered striped>
+                                <tbody style={{ fontSize: '12px', textAlign: 'center' }}>
+                                    <tr>
+                                        <td style={{ width: '10%' }}>{dataValue.title}別</td>
+                                        {dataValue.list.map((item, index) => {
+                                            const dataLength = dataValue.list.length;
+                                            return <td key={index} style={{ width: `calc( 90% / ${dataLength})` }}>{item.label}</td>
+                                        }
+                                        )}
+                                    </tr>
+                                    {Object.entries(display).map(([key, value], index) =>
+                                        <>{value && <tr key={index}>
+                                            <td>{key}</td>
+                                            {dataValue.list.map((item, itemIndex) =>
+                                                <td key={itemIndex} style={{ textAlign: 'right' }}>
+                                                    {getValue(index, dataValue.dimension, item.value).toLocaleString()}{per && '%'}
+                                                </td>
+                                            )}
+                                        </tr>}
+                                        </>
                                     )}
-                                </tr>}
-                                </>
-                            )}
-                        </tbody>
-                    </Table></React.Fragment>)}
-            </div>
+                                </tbody>
+                            </Table></React.Fragment>)}
+                    </div>
+                </Modal.Body>
+            </Modal>
         </>
 
     )

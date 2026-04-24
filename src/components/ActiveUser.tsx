@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import { useLocation } from "react-router-dom";
@@ -14,8 +14,25 @@ const ActiveUser: React.FC = () => {
     const location = useLocation();
     const [activeUsers, setActiveUsers] = useState<User[]>([]);
     const [isInactive, setIsInactive] = useState(false);
-    // 初期は折りたたみ（閉じた状態）
     const [collapsed, setCollapsed] = useState(true);
+
+    // --- ドラッグ用 refs / state ---
+    const wrapperRef = useRef<HTMLDivElement | null>(null);
+    const draggingRef = useRef(false);
+    const startRef = useRef({ x: 0, y: 0 }); // pointer start
+    // posRef を number で初期化（TS エラー回避）
+    const posRef = useRef({ x: 0, y: 0 }); // 初期は (0,0) にしておく
+
+    const [width, setWidth] = useState(window.innerWidth);
+
+    useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener("resize", onResize);
+        return () => window.removeEventListener("resize", onResize);
+    }, []);
+
+
+    const [_, forceRerender] = useState(0); // 最小限の再描画用
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.innerWidth < 600) {
@@ -80,7 +97,6 @@ const ActiveUser: React.FC = () => {
 
     const opacityByStatus = (status: string) => status === 'online' ? 1 : status === 'idle' ? 0.85 : 0.6;
 
-    // オフラインを除き、自分を除外したアクティブユーザー一覧（展開時は全件、折りたたみ時は数だけ使用）
     const activeList = useMemo(() => {
         return activeUsers
             .filter(u => u.name !== userName)
@@ -90,15 +106,19 @@ const ActiveUser: React.FC = () => {
 
     const activeCount = activeList.length;
 
-    const fixedWrapper: React.CSSProperties = {
+    // --- 初期スタイル（固定表示） ---
+    // fixedWrapperBase は右上に合わせるため alignItems を調整しておく（任意）
+    const fixedWrapperBase: React.CSSProperties = {
         position: 'fixed',
-        bottom: 5,
-        right: 20,
+        // bottom を使わない（top を使う）
+        top: 20, // ここは初期表示の目安。実際の left/top は initPos で上書きします
+        right: 20, // 初期スタイルとして右上に見せるため
         zIndex: 1200,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
-        pointerEvents: 'auto'
+        pointerEvents: 'auto',
+        touchAction: 'none'
     };
 
     const containerStyle: React.CSSProperties = {
@@ -107,12 +127,14 @@ const ActiveUser: React.FC = () => {
         borderRadius: 10,
         boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
         fontSize: 13,
-        minWidth: 180,
-        maxWidth: 320,
+        minWidth: 130,
+        maxWidth: 220,
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
-        alignItems: 'flex-start'
+        alignItems: 'flex-start',
+        cursor: 'grab',
+        userSelect: 'none'
     };
 
     const headerStyle: React.CSSProperties = {
@@ -132,9 +154,115 @@ const ActiveUser: React.FC = () => {
         }
     };
 
+    // --- ドラッグ処理 ---
+    useEffect(() => {
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+
+        // 初期位置を posRef にセット（右/bottom を left/top に変換）
+        const initPos = () => {
+            const rect = wrapper.getBoundingClientRect();
+
+            // posRef がまだ初期値のままなら右上に配置する
+            // （ユーザーが既に移動して posRef に値が入っていればそれを優先）
+            if (posRef.current.x === 0 && posRef.current.y === 0) {
+                const left = Math.max(0, window.innerWidth - rect.width - 20); // right:20 相当
+                const top = 0; // 上から20px
+                posRef.current.x = left;
+                posRef.current.y = top;
+                wrapper.style.left = `${left}px`;
+                wrapper.style.top = `${top}px`;
+                wrapper.style.right = 'auto';
+                wrapper.style.bottom = 'auto';
+            } else {
+                wrapper.style.left = `${posRef.current.x}px`;
+                wrapper.style.top = `${posRef.current.y}px`;
+                wrapper.style.right = 'auto';
+                wrapper.style.bottom = 'auto';
+            }
+        };
+
+
+        initPos();
+
+        const onPointerDown = (e: PointerEvent) => {
+            // 折りたたみボタンなどのクリックを妨げないように、左ボタンのみで開始
+            if (e.button !== undefined && e.button !== 0) return;
+            draggingRef.current = true;
+            (e.target as Element).setPointerCapture?.(e.pointerId);
+            startRef.current = { x: e.clientX, y: e.clientY };
+            // 現在の位置を取得
+            const left = posRef.current.x ?? wrapper.getBoundingClientRect().left;
+            const top = posRef.current.y ?? wrapper.getBoundingClientRect().top;
+            startRef.current = { x: e.clientX - left, y: e.clientY - top };
+            wrapper.style.cursor = 'grabbing';
+        };
+
+        const onPointerMove = (e: PointerEvent) => {
+            if (!draggingRef.current) return;
+            e.preventDefault();
+            const newLeft = e.clientX - startRef.current.x;
+            const newTop = e.clientY - startRef.current.y;
+
+            // 画面外に出さない簡易制限
+            const clampedLeft = Math.max(0, Math.min(window.innerWidth - wrapper.offsetWidth, newLeft));
+            const clampedTop = Math.max(0, Math.min(window.innerHeight - wrapper.offsetHeight, newTop));
+
+            posRef.current.x = clampedLeft;
+            posRef.current.y = clampedTop;
+
+            wrapper.style.left = `${clampedLeft}px`;
+            wrapper.style.top = `${clampedTop}px`;
+        };
+
+        const onPointerUp = (e: PointerEvent) => {
+            if (!draggingRef.current) return;
+            draggingRef.current = false;
+            try { (e.target as Element).releasePointerCapture?.(e.pointerId); } catch { }
+            wrapper.style.cursor = 'grab';
+            // 最小限の再描画（必要なら UI を更新）
+            forceRerender(n => n + 1);
+        };
+
+        // pointer events を使う（マウス・タッチ両対応）
+        wrapper.addEventListener('pointerdown', onPointerDown);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
+
+        // ウィンドウリサイズ時に位置を補正
+        const onResize = () => {
+            const w = wrapper.offsetWidth;
+            const h = wrapper.offsetHeight;
+            if (posRef.current.x !== undefined) {
+                posRef.current.x = Math.min(posRef.current.x, window.innerWidth - w);
+                posRef.current.y = Math.min(posRef.current.y, window.innerHeight - h);
+                wrapper.style.left = `${posRef.current.x}px`;
+                wrapper.style.top = `${posRef.current.y}px`;
+            }
+        };
+        window.addEventListener('resize', onResize);
+
+        return () => {
+            wrapper.removeEventListener('pointerdown', onPointerDown);
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+            window.removeEventListener('pointercancel', onPointerUp);
+            window.removeEventListener('resize', onResize);
+        };
+    }, []);
+
     return (
-        <> {location.pathname !== '/login' &&
-            <div style={fixedWrapper} aria-label="Active users fixed">
+        <> {location.pathname !== '/login' && width >= 768 &&
+            <div
+                ref={wrapperRef}
+                style={{
+                    ...fixedWrapperBase,
+                    left: undefined as any,
+                    top: undefined as any,
+                }}
+                aria-label="Active users fixed"
+            >
                 <div style={containerStyle} aria-label="Active users">
                     <div style={headerStyle}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -161,7 +289,6 @@ const ActiveUser: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* 折りたたみ時: userName とアクティブユーザー数のみ表示 */}
                     {collapsed && (
                         <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{ color: '#6c757d', fontSize: 13 }}>
@@ -170,7 +297,6 @@ const ActiveUser: React.FC = () => {
                         </div>
                     )}
 
-                    {/* 展開時: 全アクティブユーザーを一覧表示 */}
                     {!collapsed && (
                         <div style={{ width: '100%' }}>
                             {activeList.length === 0 ? (

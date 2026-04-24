@@ -1,1267 +1,501 @@
-import React, { useEffect, useState, useContext } from 'react';
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import Table from "react-bootstrap/Table";
 import axios from "axios";
 import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../context/AuthContext';
-import type { MasterData } from "./MasterData";
-import type { MasterDataSelected } from "./MasterDataSelected";
 import MenuDev from "./MenuDev";
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import { headers } from '../utils/headers';
-import { baseURL } from '../utils/baseURL';
-import { CloseButton, ModalBody, ModalHeader } from 'react-bootstrap';
-import { databaseList } from '../utils/databaseList';
 import SurveyList from './Survey';
 import CancelList from './CancelList';
-import CustomerEdit from './CustomerEdit';
-import CallStatus from './CallStatus';
+import CallStatusList from './CallStatusList';
 import InformationEdit from './InformationEdit';
 import Estate from './Estate';
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
-type customerList = { id: string; shop: string; name: string; staff: string; status: string; rank: string; medium: string; reserve: string; register: string; before_survey: number; before_interview: number; after_interview: number; call_status: string, reserved_status: string, full_address: string; phone_number: string; trash: number, section: string, cancel_status: string, campaign: string, second_reserve: string, note: string, survey: string, gift: string, rank_period: string };
+type CustomerList = { id: string; shop: string; customer: string; staff: string; status: string; rank: string; medium: string; interview: string; register: string; call_status: string, reserved_interview: string, full_address: string; phone_number: string; trash: number, cancel_status: string, rank_period: string };
 type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number }
 type CallAction = {
-  day: string;
-  time: string;
-  action: string;
-  note: string;
-  staff: string
+    day: string;
+    time: string;
+    action: string;
+    note: string;
+    staff: string
 };
 type CallLog = {
-  id: string;
-  shop: string;
-  staff: string;
-  name: string;
-  status: string;
-  reserved_status: string;
-  call_log: CallAction[];
-  add: Boolean;
+    id: string;
+    shop: string;
+    staff: string;
+    name: string;
+    status: string;
+    reserved_interview: string;
+    call_log: CallAction[];
+    add: Boolean;
 };
-type CallLogList = {
-  id: string;
-  shop: string;
-  name: string;
-  staff: string;
-  status: string;
-  reserved_status: string;
-  call_log: string;
-  add: Boolean;
-};
-type InterviewAction = {
-  day: string;
-  action: string;
-  note: string;
-};
-type InterviewLog = {
-  id: string,
-  shop: string,
-  name: string,
-  interview_log: InterviewAction[],
-  add: Boolean
-};
-type Form = { brand: string, shop: string, age: string, mobile: string, medium: string };
-type Survey = { brand: string, annualIncome: string, emailAddress: string, totalBudget: string, expectedResidents: string, priorityItem: string, futurePlan: string, thingsToDo: string, housingType: string, second_reserve: string };
-type MasterDataList = { brand: string, mail: string, reserve: string, contract: string, second_reserve: string, appoint: string, shop: string };
-type UpdatedData = { id: string, shop: string, remarks: string };
 
 const Database = () => {
-  const navigate = useNavigate();
-  const { brand, userName } = useContext(AuthContext);
-  const [shopArray, setShopArray] = useState<shopList[]>([]);
-  const [mediumArray, setMediumArray] = useState<string[]>([]);
-  const [staffArray, setStaffArray] = useState<staffList[]>([]);
-  const [monthArray, setMonthArray] = useState<string[]>([]);
-  const [originalDatabase, setOriginalDatabase] = useState<customerList[]>([]);
-  const [filteredDatabase, setFilteredDatabase] = useState<customerList[]>([]);
-  const [selectedShop, setSelectedShop] = useState<string>('')
-  const [selectedRegister, setSelectedRegister] = useState<string>('')
-  const [selectedReserve, setSelectedReserve] = useState<string>('')
-  const [selectedRank, setSelectedRank] = useState<string>('')
-  const [selectedMedium, setSelectedMedium] = useState<string>('')
-  const [selectedStatus, setSelectedStatus] = useState<string>('')
-  const [searchedName, setSearchedName] = useState<string>('')
-  const [searchedStaff, setSearchedStaff] = useState<string>('');
-  const [searchedPhone, setSearchedPhone] = useState<string>('')
-  const [searchedAddress, setSearchedAddress] = useState<string>('')
-  const [displayLength, setDisplayLength] = useState<number>(20);
-  const [beforeSurvey, setBeforeSurvey] = useState<number | null>(null);
-  const [beforeInterview, setBeforeInterview] = useState<number | null>(null);
-  const [afterInterview, setAfterInterview] = useState<number | null>(null);
-  const [callStatus, setCallStatus] = useState<string>('');
-  const [activePage, setActivePage] = useState<number>(1);
-  const [sliceStart, setSliceStart] = useState<number>(0);
-  const [modalShow, setModalShow] = useState(false);
-  const [basicLength, setBasicLength] = useState<number>(20);
-  const [question, setQuestion] = useState<string[]>([]);
-  const [answer, setAnswer] = useState<string[]>([]);
-  const [iceWorld, setIceWorld] = useState('');
-  const createEmptyMasterData = (): MasterData => {
-    const keys = Object.keys({} as MasterData) as (keyof MasterData)[];
-    return keys.reduce((acc, key) => {
-      acc[key] = '';
-      return acc;
-    }, {} as MasterData);
-  };
+    const { brand } = useContext(AuthContext);
+    const [shopArray, setShopArray] = useState<shopList[]>([]);
+    const [mediumArray, setMediumArray] = useState<string[]>([]);
+    const [staffArray, setStaffArray] = useState<staffList[]>([]);
+    const [monthArray, setMonthArray] = useState<string[]>([]);
+    const [originalDatabase, setOriginalDatabase] = useState<CustomerList[]>([]);
+    const [selectedShop, setSelectedShop] = useState<string>('')
+    const [selectedRegister, setSelectedRegister] = useState<string>('')
+    const [selectedReserve, setSelectedReserve] = useState<string>('')
+    const [selectedRank, setSelectedRank] = useState<string>('')
+    const [selectedMedium, setSelectedMedium] = useState<string>('')
+    const [selectedStatus, setSelectedStatus] = useState<string>('')
+    const [searchedName, setSearchedName] = useState<string>('')
+    const [searchedStaff, setSearchedStaff] = useState<string>('');
+    const [searchedPhone, setSearchedPhone] = useState<string>('')
+    const [searchedAddress, setSearchedAddress] = useState<string>('')
+    const [displayLength, setDisplayLength] = useState<number>(20);
+    const [callStatus, setCallStatus] = useState<string>('');
+    const [activePage, setActivePage] = useState<number>(1);
+    const [sliceStart, setSliceStart] = useState<number>(0);
+    const [basicLength, setBasicLength] = useState<number>(20);
+    const [trash, setTrash] = useState<number>(1);
+    const { token } = useContext(AuthContext);
+    const [open, setOpen] = useState(false);
+    const [familyList, setFamilyList] = useState<string[]>([]);
+    const [familyStatus, setFamilyStatus] = useState<boolean>(false);
+    const [firstCallDate, setFirstCallDate] = useState<CallLog[]>([]);
+    const [callStatusShow, setCallStatusShow] = useState(false);
+    const [surveyShow, setSurveyShow] = useState(false);
+    const [cancelListShow, setCancelListShow] = useState(false);
 
-  const createEmptyMasterDataSelected = (): MasterDataSelected => {
-    const keys = Object.keys({} as MasterData) as (keyof MasterData)[];
-    return keys.reduce((acc, key) => {
-      acc[key] = false;
-      return acc;
-    }, {} as MasterDataSelected);
-  };
-
-  const [masterData, setMasterData] = useState<MasterData>(createEmptyMasterData());
-
-  const [updatedData, setUpdatedData] = useState<UpdatedData>({
-    id: '',
-    shop: '',
-    remarks: ''
-  });
-  const [selected, setSelected] = useState<MasterDataSelected>(createEmptyMasterDataSelected);
-  const [trash, setTrash] = useState<number>(1);
-  const { token } = useContext(AuthContext);
-  const { category } = useContext(AuthContext);
-  const [open, setOpen] = useState(false);
-  const [modalCategory, setModalCategory] = useState('database');
-  const [familyList, setFamilyList] = useState<string[]>([]);
-  const [familyStatus, setFamilyStatus] = useState<boolean>(false);
-  const [giftStatus, setGiftStatus] = useState<boolean>(false);
-  const [giftDate, setGiftDate] = useState('');
-  const [rankPeriod, setRankPeriod] = useState('');
-  const [firstCallDate, setFirstCallDate] = useState<CallLog[]>([]);
-  const [estateShow, setEstateShow] = useState(false);
-  const [estateId, setEstateId] = useState('');
-
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-
-  const actionMap = {
-    '初回面談': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
-    '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
-    '事前審査': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
-    'LINEグループ作成': 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
-    '契約': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'
-  };
-
-  useEffect(() => {
-    if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
-    setMonthArray(getYearMonthArray(2025, 1));
-
-    const fetchData = async () => {
-      try {
-        const [customerResponse, shopResponse, mediumResponse, staffResponse, familyResponse, callResponse] = await Promise.all([
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_database" }, { headers }),
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers }),
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "medium_list" }, { headers }),
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "staff_list" }, { headers }),
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "show_family_list" }, { headers }),
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "call_log_list" }, { headers }),
-        ]);
-        await setOriginalDatabase(customerResponse.data);
-        await setShopArray(shopResponse.data.filter((item: shopList) => !item.shop.includes('店舗未設定')));
-        await setMediumArray(mediumResponse.data.filter(item => item.list_medium === 1).map((item: MediumType) => item.medium));
-        await setDisplayLength(customerResponse.data.length);
-        await setStaffArray(staffResponse.data);
-        const familyId = familyResponse.data.map(f => f.id);
-        await setFamilyList(familyId);
-        const filteredCallResponse = callResponse.data.map(item => ({
-          ...item,
-          call_log: item.call_log ? JSON.parse(item.call_log) : []
-        }))
-        await setFirstCallDate(filteredCallResponse);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      }
+    const formate = (value: string) => {
+        return (value ?? '').replace(/-/g, '/');
     };
 
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const filtered = originalDatabase.filter(item => {
-        if (trash === 1 && item.trash === 0) return false;
-        if (trash === 0 && item.trash === 1) return false;
-        if (selectedShop && !item.shop.includes(selectedShop)) return false;
-        if (selectedRegister && !item.register.includes(selectedRegister)) return false;
-
-        if (selectedReserve === 'notVisited') {
-          if (!(item.reserved_status !== '' && item.reserve === '')) return false;
-        } else if (selectedReserve && !item.reserve.replace(/-/g, '/').includes(selectedReserve)) {
-          return false;
-        }
-
-        if (selectedRank && !item.rank.includes(selectedRank)) return false;
-        if (selectedMedium && !item.medium.includes(selectedMedium)) return false;
-        if (selectedStatus && !item.status.includes(selectedStatus)) return false;
-        let formattedName;
-        if (searchedName.includes('&')) {
-          formattedName = searchedName.split('&')[0];
-        } else if (searchedName.includes('+')) {
-          formattedName = searchedName.split('+')[0];
-        } else {
-          formattedName = searchedName
-        }
-        if (searchedName && !item.name.includes(formattedName)) return false;
-        if (searchedStaff && !item.staff.includes(searchedStaff.split(' ')[0])) return false;
-        const formattedNumber = searchedName.includes('&') ? searchedName.split('&')[1] : searchedPhone;
-        if ((searchedPhone || searchedName) && !item.phone_number.includes(formattedNumber)) return false;
-        const formattedAddress = searchedName.includes('+') ? searchedName.split('+')[1] : '';
-        if ((formattedAddress) && !item.full_address.includes(formattedAddress)) return false;
-        if (searchedAddress && !item.full_address.replace(/[\s　]+/g, "").includes(searchedAddress)) return false;
-        if (beforeSurvey !== null && item.before_survey !== beforeSurvey) return false;
-        if (beforeInterview !== null && item.before_interview !== beforeInterview) return false;
-        if (afterInterview !== null && item.after_interview !== afterInterview) return false;
-        if (callStatus && item.call_status !== callStatus) return false;
-        if (familyStatus && !familyList.includes(item.id)) return false;
-        if (giftStatus && !item.gift) return false;
-        return true;
-      });
-
-      await setFilteredDatabase(filtered);
-      await setDisplayLength(filtered.length);
-    };
-
-    setActivePage(1);
-    setSliceStart(0);
-    fetchData();
-  }, [
-    originalDatabase,
-    selectedShop,
-    selectedRegister,
-    selectedReserve,
-    selectedRank,
-    selectedMedium,
-    selectedStatus,
-    searchedName,
-    searchedStaff,
-    searchedAddress,
-    beforeSurvey,
-    beforeInterview,
-    afterInterview,
-    callStatus,
-    searchedPhone,
-    trash,
-    familyList,
-    familyStatus,
-    giftStatus
-  ]);
-
-
-  // ページングリンク
-  const pages = {
-    page1: null,
-    page2: null,
-    page3: null,
-    page4: null,
-    page5: null
-  };
-
-  Object.entries(pages).map(([key, _], index) => {
-    if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) === activePage) {
-      pages[key] = activePage + index - 4;
-    } else if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) - activePage === 1) {
-      pages[key] = activePage + index - 3;
-    } else if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) - activePage === 2) {
-      pages[key] = activePage + index - 2;
-    } else if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6) {
-      pages[key] = activePage + index - 2;
-    } else if (index > 0 && (Math.ceil(displayLength / basicLength) < index + 1)) {
-      pages[key] = null;
-    } else {
-      pages[key] = index + 1;
-    }
-  })
-
-  const handlePageClick = async (page: number) => {
-    setActivePage(page);
-    setSliceStart((page - 1) * basicLength);
-  };
-
-  const [interviewLog, setInterviewLog] = useState<InterviewLog>({
-    id: '',
-    shop: '',
-    name: '',
-    interview_log: [],
-    add: false
-  });
-
-  const [callLog, setCallLog] = useState<CallLog>({
-    id: '',
-    shop: '',
-    staff: '',
-    name: '',
-    status: '',
-    reserved_status: '',
-    call_log: [],
-    add: false
-  });
-
-  const [callLogList, setCallLogList] = useState<CallLogList[]>([]);
-
-  const [editId, setEditId] = useState('')
-
-  const showModal = async (idValue: string, request: string, name: string, shop: string) => {
-    if (request === 'before_visit') {
-      const nameValue = name.replace(/　| /g, "");
-      const brandValue = shop.slice(0, 2);
-      const postData = {
-        name: nameValue,
-        brand: brandValue,
-        demand: 'show_before_survey'
-      };
-      const fetchData = async () => {
-        try {
-          const response = await axios.post('https://khg-marketing.info/dashboard/api/', postData, { headers });
-          const filtered: string[] = Object.values(response.data);
-          setAnswer(filtered.slice(4));
-          setQuestion(['来場前アンケート', '氏名', 'いつから検討を始めたか', '入居希望時期', '何社の住宅会社へ訪問したか', '検討し始めた理由', 'その他検討理由', '今後の予定'
-            , 'その他行動予定', '希望する家の広さ', '希望の間取り', '重視項目', '入居予定人数', '総予算', '月々の希望返済額', '前年度年収', '勤続年数', '年収のある家族', '年収のある家族の年収'
-            , '自己資金での支払い予定', 'その他ローン', '来場日に希望すること', 'その他希望', 'どのような住まいが希望か', 'その他希望', '希望エリア', '紹介者様', 'メールアドレス'
-          ]);
-        } catch (error) {
-          alert('アンケートデータの取得に失敗');
-          console.log(error);
-        }
-      };
-      await fetchData();
-      await setModalCategory('database');
-    } else if (request === 'before_interview') {
-      const nameValue = name.replace(/　| /g, "");
-      const brandValue = shop.slice(0, 2);
-      const postData = {
-        id: idValue,
-        name: nameValue,
-        brand: brandValue,
-        demand: 'show_before_interview'
-      };
-      const fetchData = async () => {
-        try {
-          const response = await axios.post('https://khg-marketing.info/dashboard/api/', postData, { headers });
-          const filtered: string[] = Object.values(response.data);
-          setAnswer(filtered.slice(2, 15))
-          setQuestion(['面談前アンケート', '氏名', '来場店舗', 'お問合せのきっかけ', 'おうちづくりを検討したきっかけ', '注文住宅に興味を持った理由', '新築の計画', '希望入居時期', '土地の状況'
-            , '建築予定地', 'こだわりたいポイント', '総予算', '要望', 'その他意見等']);
-        } catch (error) {
-          alert('アンケートデータの取得に失敗');
-          console.log(error);
-        }
-      };
-      await fetchData();
-      await setModalCategory('database');
-    } else if (request === 'after_interview') {
-      const nameValue = name.replace(/　| /g, "");
-      const brandValue = shop.slice(0, 2);
-      const postData = {
-        id: idValue,
-        name: nameValue,
-        brand: brandValue,
-        demand: 'show_after_interview'
-      };
-      const fetchData = async () => {
-        try {
-          const response = await axios.post('https://khg-marketing.info/dashboard/api/', postData, { headers });
-          const filtered: string[] = Object.values(response.data);
-          const sliced1 = filtered.slice(4);
-          const result = sliced1.slice(0, 1).concat(sliced1.slice(2));
-
-          setAnswer(result);
-          setQuestion(['面談後アンケート', '氏名', '面談で伝えた内容', '持ち家が欲しいと思えたか', '条件さえ整えば今すぐ家を建てようと思えたか', '最も重視したい項目', '弊社は家づくりの第一候補となれたか', 'ほかで気になるメーカー', '接客担当'
-            , '接客の満足度', '提案の満足度', 'もっと知りたかった点、改善してほしい点', '担当変更について', '次回相談したい内容や要望、質問など']);
-        } catch (error) {
-          alert('アンケートデータの取得に失敗');
-          console.log(error);
-        }
-      };
-      await fetchData();
-      await setModalCategory('database');
-    } else if (request === 'information_edit') {
-      const targetDate = originalDatabase.find(o => o.id === idValue)?.gift ?? '';
-      setGiftDate(targetDate);
-
-      const targetPeriod = originalDatabase.find(o => o.id === idValue)?.rank_period ?? '';
-      setRankPeriod(targetPeriod);
-
-      const postData = {
-        id: idValue,
-        demand: 'show_customer_interview'
-      };
-      const postData2 = {
-        id: idValue,
-        demand: 'show_customer_call_log'
-      };
-      const postData3 = {
-        id: idValue,
-        demand: 'show_customer_interview_log'
-      };
-      const fetchData = async () => {
-        try {
-          const response = await axios.post('https://khg-marketing.info/dashboard/api/', postData, { headers });
-          const callRes = await axios.post('https://khg-marketing.info/dashboard/api/', postData2, { headers });
-          const InterviewRes = await axios.post('https://khg-marketing.info/dashboard/api/', postData3, { headers });
-          setMasterData(response.data);
-          const callResData = {
-            id: callRes.data.id ?? response.data.id,
-            shop: callRes.data.shop ?? response.data.in_charge_store,
-            staff: callRes.data.staff,
-            name: callRes.data.name ?? response.data.customer_contacts_name,
-            status: callRes.data.status === 'not_found' ? '' : callRes.data.status,
-            reserved_status: callRes.data.reserved_status ?? '',
-            call_log: typeof callRes.data.call_log === 'string' && callRes.data.call_log.trim() !== ''
-              ? JSON.parse(callRes.data.call_log)
-              : callRes.data.call_log ?? [],
-
-            add: false
-          };
-          setCallLog(callResData);
-          const interviewResData: InterviewLog = {
-            id: InterviewRes.data.id ?? response.data.id,
-            shop: InterviewRes.data.shop ?? response.data.in_charge_store,
-            name: InterviewRes.data.name ?? response.data.customer_contacts_name,
-            interview_log: typeof InterviewRes.data.interview_log === 'string' && InterviewRes.data.interview_log.trim() !== ''
-              ? JSON.parse(InterviewRes.data.interview_log)
-              : InterviewRes.data.interview_log ?? [],
-            add: false
-          };
-          setInterviewLog(interviewResData);
-          const prevInterview = interviewResData.interview_log.length > 0 ? interviewResData.interview_log.map(i => {
-            const info = `${i.day} \n${i.action} \n${i.note} \n\n`;
-            return info
-          }).join('') : ''
-          setOriginalInterviewLog(prevInterview);
-          setQuestion(['顧客情報修正']);
-        } catch (error) {
-          alert('アンケートデータの取得に失敗');
-          console.log(error);
-        };
-      };
-      await fetchData();
-    }
-    setIceWorld(idValue);
-    setModalShow(true);
-  };
-
-  const modalClose = () => {
-    setAnswer([]);
-    setQuestion([]);
-    setModalShow(false);
-    setSelected(createEmptyMasterDataSelected);
-    setMasterData(createEmptyMasterData);
-    setUpdatedData({
-      id: '',
-      shop: '',
-      remarks: ''
-    });
-    setReasons({
-      id: '', value: ''
-    })
-    setInterview({
-      day: '', action: '', note: ''
-    });
-    setCall({
-      status: '', day: '', time: '', action: '', note: '', staff: ''
-    });
-    setModalCategory('');
-  };
-
-  const handleSetSelected = async (target: string, block: string) => {
-    setSelected(createEmptyMasterDataSelected);
-    setSelected(prev => ({
-      ...prev,
-      [target]: true
-    }));
-    if (block === 'header') document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-
-  const [sending, setSending] = useState<boolean>(true);
-
-  const [interview, setInterview] = useState<InterviewAction>({
-    day: '',
-    action: '',
-    note: '',
-  });
-
-  const [call, setCall] = useState({
-    status: '',
-    day: '',
-    time: '',
-    action: '',
-    note: '',
-    staff: ''
-  });
-
-  const handleSave = async (isNavigate: boolean) => {
-    await setSending(false);
-    let interviewData;
-    const isAddInterview = interview.day && interview.action && interview.note;
-
-    let newMasterData = {
-      ...masterData,
-      request: 'before_interview_zero'
-    };
-
-    if (isAddInterview) {
-      updatedData.id = interviewLog.id;
-      const key = actionMap[interview.action];
-      updatedData[key] = interview.day;
-      newMasterData = {
-        ...masterData,
-        request: 'before_interview_zero',
-        [key]: interview.day
-      };
-      const shopValue = originalDatabase.find(o => o.id === interviewLog.id)?.shop ?? '';
-      updatedData.shop = shopValue;
-      const newInterviewLog = {
-        ...interviewLog,
-        interview_log: [
-          ...interviewLog.interview_log,
-          { day: interview.day, action: interview.action, note: interview.note }
-        ]
-      };
-      interviewData = {
-        ...newInterviewLog,
-        demand: 'update_interview_log'
-      }
-    } else {
-      interviewData = {
-        ...interviewLog,
-        demand: 'update_interview_log'
-      }
+    const dateFormate = (value: string) => {
+        return (value ?? '').replace(/\//g, '-');
     }
 
-
-
-    if (isAddInterview || interviewLog.add) {
-      try {
-        await axios.post("https://khg-marketing.info/dashboard/api/", interviewData, { headers });
-      } catch (error) {
-        console.error("データ取得エラー:", error);
-      }
-    }
-
-    let postData;
-    let calendarAdd;
-    if (call.day && call.action) {
-      const newCallLog = {
-        ...callLog,
-        call_log: [
-          ...callLog.call_log,
-          { day: call.day, time: call.time ?? '', action: call.action, note: call.note ?? '', staff: userName ?? '' }
-        ]
-      };
-      postData = {
-        ...newCallLog,
-        demand: 'update_call_log'
-      };
-      calendarAdd = true;
-    } else {
-      postData = {
-        ...callLog,
-        demand: 'update_call_log'
-      };
-      calendarAdd = callLog.add;
-    }
-
-    if (callLog.status || (call.day && call.action && call.note) || callLog.add) {
-      try {
-        await axios.post("https://khg-marketing.info/dashboard/api/", postData, { headers });
-      } catch (error) {
-        console.error("データ取得エラー:", error);
-      }
-    }
-
-    try {
-      await axios.post("https://khg-marketing.info/survey/api/", newMasterData, { headers });
-    } catch (error) {
-      console.error("データ取得エラー:", error);
-    }
-
-    if (updatedData.id) {
-      try {
-        await axios.post(`${baseURL}/api/update`, updatedData, { headers });
-      } catch (error) {
-        console.error("データ取得エラー:", error);
-      }
-    }
-
-    if (brand === 'insideSales' && calendarAdd && postData.call_log[postData.call_log.length - 1]['time']) {
-      const pad = (num: number): string => String(num).padStart(2, '0');
-
-      const parseDateAndTime = (dateStr: string, timeStr: string): Date => {
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        return new Date(year, month - 1, day, hours, minutes, 0);
-      };
-
-      const formatLocalISO = (d: Date): string => {
-        const year = d.getFullYear();
-        const month = pad(d.getMonth() + 1);
-        const day = pad(d.getDate());
-        const hours = pad(d.getHours());
-        const minutes = pad(d.getMinutes());
-        const seconds = pad(d.getSeconds());
-        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-      };
-
-      const lastLog = postData.call_log[postData.call_log.length - 1];
-      const startDate = parseDateAndTime(lastLog.day, lastLog.time);
-      const endDate = new Date(startDate.getTime() + 10 * 60000); // 10分後
-
-      const data = {
-        name: callLog.name,
-        detail: `${lastLog.action}\n${lastLog.note}`,
-        startTime: formatLocalISO(startDate),
-        endTime: formatLocalISO(endDate)
-      };
-
-      const fetchCallData = async () => {
-        try {
-
-          await axios.post(`${baseURL}/api/add_event`, data, { headers });
-        } catch (error) {
-          console.error("データ取得エラー:", error);
-        }
-      };
-      await fetchCallData();
-    }
-
-    const fetchData = async () => {
-      try {
-        const customerResponse = await axios.post('https://khg-marketing.info/dashboard/api/', { demand: 'customer_database' }, { headers });
-        await setOriginalDatabase(customerResponse.data);
-      } catch (error) {
-        console.error("データ取得エラー:", error);
-      }
-    };
-
-    await fetchData();
-    await setSending(true);
-    await setInterview({
-      day: '',
-      action: '',
-      note: ''
-    });
-    await setCall({
-      status: '',
-      day: '',
-      time: '',
-      action: '',
-      note: '',
-      staff: ''
-    });
-    if (isNavigate) {
-      navigate('/rank');
-    } else {
-      await modalClose();
-    }
-  };
-
-  const goToGarbage = async (id: string, name: string) => {
-    if (!id) return;
-    const result = window.confirm(`${name}様を削除しますか？`);
-    if (result) {
-      const fetchData = async () => {
-        try {
-          const data = {
-            demand: 'delete_customer_database',
-            id: id
-          };
-          const deleteResponse = await axios.post("https://khg-marketing.info/dashboard/api/", data, { headers });
-          const customerResponse = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_database" }, { headers });
-          console.log(deleteResponse.data);
-          await setOriginalDatabase(customerResponse.data);
-        } catch (error) {
-          console.error("Error fetching data:", error);
-        }
-      };
-      await fetchData();
-    } else {
-      return;
-    }
-  };
-
-  const backFromGarbage = async (id: string, name: string) => {
-    if (!id) return;
-    const result = window.confirm(`${name}様を元に戻しますか？`);
-    if (result) {
-      const fetchData = async () => {
-        try {
-          const data = {
-            demand: 'return_customer_database',
-            id: id
-          };
-          const deleteResponse = await axios.post("https://khg-marketing.info/dashboard/api/", data, { headers });
-          const customerResponse = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_database" }, { headers });
-          console.log(deleteResponse.data);
-          await setOriginalDatabase(customerResponse.data);
-        } catch (error) {
-          console.error("Error fetching data:", error);
-        }
-      };
-      await fetchData();
-    } else {
-      return;
-    }
-  };
-
-  const showCallStatus = async () => {
-    try {
-      const callRes = await axios.post('https://khg-marketing.info/dashboard/api/', { demand: 'call_log_list' }, { headers });
-      setCallLogList(callRes.data);
-    } catch (error) {
-      alert('架電状況の取得に失敗');
-      console.log(error);
-      return;
-    };
-    setModalCategory('inside');
-    setModalShow(true);
-  };
-
-  const [miniModalShow, setMiniModalShow] = useState(false);
-  const [miniModalList, setMiniModalList] = useState<customerList[]>([]);
-
-  const miniModalClose = async () => {
-    setMiniModalList([]);
-    setMiniModalShow(false);
-  };
-
-  const miniModalOpen = async (list: any) => {
-    const ids = list.map(l => l.id);
-    const filtered = originalDatabase.filter(o => ids.includes(o.id));
-    setMiniModalList(filtered);
-    setMiniModalShow(true);
-  };
-
-  const showCancelStatus = async () => {
-    setModalCategory('cancel');
-    setModalShow(true);
-  };
-
-  const [reasons, setReasons] = useState({ id: '', value: '' });
-  const [originalInterviewLog, setOriginalInterviewLog] = useState('');
-
-  const saveReason = async (idValue: string) => {
-    if (!idValue) return;
-
-    const reason = reasons[idValue];
-    if (!reason) {
-      alert('キャンセル理由を選択してください');
-      return;
-    }
-
-    const postData = {
-      id: idValue,
-      cancel_status: reason,
-      demand: 'update_cancel_reason'
-    }
-
-    try {
-      const response = axios.post('https://khg-marketing.info/dashboard/api/', postData, { headers });
-      console.log((await response).data.status);
-    } catch (e) {
-      console.log(e);
-    }
-
-    try {
-      const response = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_database" }, { headers });
-      await setOriginalDatabase(response.data);
-    } catch (e) {
-      console.log(e);
-    }
-    setReasons({ id: '', value: '' });
-  };
-
-  const idMapping = (text: string) => {
-    const targetId = databaseList.find(d => d.value === text)?.id ?? '';
-    return targetId;
-  };
-
-  const [insideSalesCategory, setInsideSalesCategory] = useState('kumamoto');
-
-  const [form, setForm] = useState<Form[]>([]);
-  const [surveyList, setSurveyList] = useState<Survey[]>([]);
-
-  const [masterDataList, setMasterDataList] = useState<MasterDataList[]>([]);
-
-  const showSurvey = async () => {
-    const fetchData = async () => {
-      try {
-        const [registerRes, surveyRes, masterRes] = await Promise.all([
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "register_form" }, { headers }),
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "show_survey_list" }, { headers }),
-          axios.post("https://khg-marketing.info/dashboard/api/", { demand: "master_data_list" }, { headers }),
-        ]);
-
-        setForm(registerRes.data);
-        setSurveyList(surveyRes.data);
-        setMasterDataList(masterRes.data);
-      } catch (e) {
-
-      }
-    };
-
-    await fetchData();
-    await setModalCategory('survey_database');
-    await setModalShow(true);
-  };
-
-  const navigateIceWorld = (id: string) => {
-    if (!id) {
-      alert('顧客情報取得に失敗');
-      return;
-    }
-    window.open(`./calendar?id=${id}`, '_blank');
-  };
-
-  const formate = (value: string) => {
-    return value ? value.replace(/-/g, '/') : '';
-  };
-
-  const closeInformationEdit = () => setEditId('');
-
-  return (
-    <div className='outer-container'>
-      <div className="d-flex">
-        <div className='modal_menu' style={{ width: '20%' }}>
-          <MenuDev brand={brand} />
-        </div>
-        <div className="header_sp">
-          <i className="fa-solid fa-bars hamburger"
-            onClick={() => setOpen(true)} />
-        </div>
-        <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-          <i className="fa-solid fa-xmark hamburger position-absolute"
-            onClick={() => setOpen(false)} />
-          <MenuDev brand={brand} />
-        </div>
-        <div className='content database bg-white p-2'>
-          <div className='p-3 d-flex flex-wrap'>
-            <div className="m-1">
-              <select className="target" onChange={(e) => setSelectedShop(e.target.value)}>
-                <option value="">店舗を選択</option>
-                {shopArray.map((item, index) => <option key={index} value={item.shop}>{item.shop}</option>)}
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>
-                <option value="">反響月を選択</option>
-                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => setSelectedReserve(e.target.value)}>
-                <option value="">初回来場月を選択</option>
-                <option value="notVisited">未来場・来場キャンセル</option>
-                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => setSelectedRank(e.target.value)}>
-                <option value="">ランクを選択</option>
-                <option value="Aランク">Aランク</option>
-                <option value="Bランク">Bランク</option>
-                <option value="Cランク">Cランク</option>
-                <option value="Dランク">Dランク</option>
-                <option value="Eランク">Eランク</option>
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => setSelectedMedium(e.target.value)}>
-                <option value="">販促媒体を選択</option>
-                {mediumArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => setSelectedStatus(e.target.value)}>
-                <option value="">ステータスを選択</option>
-                <option value="見込み">見込み</option>
-                <option value="契約済み">契約済み</option>
-                <option value="失注">失注</option>
-                <option value="会社管理">会社管理</option>
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => {
-                const value = e.target.value;
-                setBeforeSurvey(value === "" ? null : Number(value));
-              }}
-              >
-                <option value="">来場前アンケート</option>
-                <option value="1">回答済み</option>
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => {
-                const value = e.target.value;
-                setBeforeInterview(value === "" ? null : Number(value));
-              }}>
-                <option value="">面談前アンケート</option>
-                <option value="1">回答済み</option>
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => {
-                const value = e.target.value;
-                setAfterInterview(value === "" ? null : Number(value));
-              }}>
-                <option value="">面談後アンケート</option>
-                <option value="1">回答済み</option>
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => {
-                setCallStatus(e.target.value);
-              }}>
-                <option value="">架電状況</option>
-                <option value="未通電">未通電</option>
-                <option value="継続">継続</option>
-                <option value="来場アポ">来場アポ</option>
-                <option value="来場済み">来場済み</option>
-                <option value="架電停止">架電停止</option>
-              </select>
-            </div>
-            <div className="m-1">
-              <select className="target" onChange={(e) => {
-                if (e.target.value) {
-                  setFamilyStatus(true);
-                } else {
-                  setFamilyStatus(false);
-                }
-              }}>
-                <option value="">家族情報</option>
-                <option value="入力済み">入力済み</option>
-              </select>
-            </div>
-            {/* <div className="m-1">
-              <select className="target" onChange={(e) => {
-                if (e.target.value) {
-                  setGiftStatus(true);
-                } else {
-                  setGiftStatus(false);
-                }
-              }}>
-                <option value="">ギフト情報</option>
-                <option value="進呈済み">進呈済み</option>
-              </select>
-            </div> */}
-            <div className="m-1">
-              <input className="target" placeholder='顧客名で検索(&電話番号+住所)' onChange={(e) => setSearchedName(e.target.value)} />
-            </div>
-            <div className="m-1">
-              <input className="target" placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} />
-            </div>
-            <div className="m-1">
-              <input className="target" placeholder='電話番号で検索' onChange={(e) => setSearchedPhone(e.target.value)} />
-            </div>
-            <div className="m-1">
-              <input className="target" placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
-            </div>
-            <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-              onClick={() => setEditId('new')}>新規登録</div>
-          </div>
-          <div className="d-md-flex">
-            <div className="d-flex flex-wrap align-items-center">
-              <div className="">{filteredDatabase.length}<span style={{ fontSize: '12px' }}> 件中 {sliceStart + 1}件~{filteredDatabase.length > activePage * basicLength ? activePage * basicLength : filteredDatabase.length}件</span></div>
-              <div className="ms-1" style={{ fontSize: '11px' }}>
-                表示件数
-                <select style={{ fontSize: '11px', borderRadius: '5px', width: '70px' }} onChange={(e) => setBasicLength(Number(e.target.value))}>
-                  <option value='20'>20件</option>
-                  <option value='50'>50件</option>
-                  <option value='100'>100件</option>
-                  <option value='500'>500件</option>
-                </select>
-              </div>
-            </div>
-            <div className="d-flex flex-wrap align-items-center">
-              <div className="m-1 pt-3">
-                <ul className="custom-pagination">
-                  <li>
-                    <button onClick={() => handlePageClick(1)}>«</button>
-                  </li>
-                  <li>
-                    <button onClick={() => handlePageClick(Math.max(activePage - 1, 1))}>‹</button>
-                  </li>
-                  {Object.entries(pages).map(([key, value]) => {
-                    if (value === null) return null;
-                    return (
-                      <li key={key} className={activePage === value ? 'active' : ''}>
-                        <button onClick={() => handlePageClick(value)}>
-                          {value}
-                        </button>
-                      </li>
-                    );
-                  })}
-                  <li>
-                    <button onClick={() => handlePageClick(activePage + 1 < Math.ceil(displayLength / basicLength) ? activePage + 1 : Math.ceil(displayLength / basicLength))}>›</button>
-                  </li>
-                  <li>
-                    <button onClick={() => handlePageClick(Math.ceil(displayLength / basicLength))}>»</button>
-                  </li>
-                </ul>
-              </div>
-              {trash === 1 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                onClick={() => setTrash(0)}>ゴミ箱へ移動</div>}
-              {trash === 0 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                onClick={() => setTrash(1)}>一覧へ戻る</div>}
-              <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                onClick={() => showCallStatus()}>架電状況集計</div>
-              <div className="bg-danger text-white ms-1 rounded position-relative" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                onClick={() => showCancelStatus()}>キャンセル集計
-                <div className="position-absolute bg-danger text-white d-flex align-items-center justify-content-center"
-                  style={{ top: '-28px', width: '90px', height: '20px', borderRadius: '10px', left: 'calc( 50% - 45px)', letterSpacing: '1px' }}>要対応{originalDatabase.filter(item => {
-                    const now = new Date();
-                    const today = now.getTime();
-                    const target = new Date(item.reserved_status).getTime();
-                    const start = new Date('2026-01-01');
-                    const base = start.getTime();
-                    return target < today && base < target && (!item.reserve && !item.cancel_status)
-                  }).length}件</div>
-                <div className="position-absolute triangle"></div>
-              </div>
-              <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                onClick={() => showSurvey()}>アンケート集計</div>
-            </div>
-          </div>
-          <div className='table-wrapper'>
-            <Table responsive style={{ fontSize: '11px', textAlign: 'center' }} bordered striped className='list_table database_list'>
-              <thead>
-                <tr className='align-middle'>
-                  <td>顧客情報編集</td>
-                  <td>店舗</td>
-                  <td>顧客名</td>
-                  <td>担当営業</td>
-                  <td>ステータス</td>
-                  <td>反響日</td>
-                  <td>初回通電日</td>
-                  <td>初回来場日<br /><span style={{ fontSize: '9px' }}>(来場予約日)</span></td>
-                  <td>ランク</td>
-                  <td>販促媒体</td>
-                  <td>住所</td>
-                  <td>架電状況</td>
-                  <td>架電件数</td>
-                  <td>来場前<br />アンケート</td>
-                  <td>面談前<br />アンケート</td>
-                  <td>面談後<br />アンケート</td>
-                  <td>{trash === 1 ? 'ゴミ箱' : '元に戻す'}</td>
-                </tr>
-              </thead>
-              <tbody className='align-middle'>
-                {filteredDatabase
-                  .sort((a, b) => {
-                    const dayA = new Date(a.register).getTime();
-                    const dayB = new Date(b.register).getTime();
-                    return dayB - dayA
-                  })
-                  .slice(sliceStart, sliceStart + basicLength).map((item, index) => {
-                    const callLog = firstCallDate.find(f => f.id === item.id)?.call_log;
-                    const firstDate = callLog ?
-                      callLog.filter(c => c.action === '架電').sort((a, b) => {
-                        const dateA = new Date(a.day);
-                        const dateB = new Date(b.day);
-                        return dateA.getTime() - dateB.getTime()
-                      })[0]?.day ?? ''
-                      : '';
-                    const callLength = callLog ? callLog.filter(c => c.action === '架電').length : 0;
-                    return <tr key={index}>
-                      <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
-                        onClick={() => {
-                          setModalCategory('database');
-                          showModal(item.id, 'information_edit', '', '');
-                        }}>編集</div></td>
-                      <td>{item.shop}</td>
-                      <td><div className='position-relative'>{item.name}
-                        {/* {((item.survey || item.note) && item.reserve && familyList.includes(item.id) && !item.gift) && <div className="bg-primary d-flex align-items-center justify-content-center rounded-pill position-absolute" style={{ width: "13px", height: "13px", fontSize: '6px', top: '0', right: '-5px', opacity: '.4' }}><i className="fa-solid fa-g text-white"></i></div>}
-                      {item.gift && <div className="bg-primary d-flex align-items-center justify-content-center rounded-pill position-absolute" style={{ width: "13px", height: "13px", fontSize: '6px', top: '0', right: '-5px', opacity: '.9' }}><i className="fa-solid fa-g text-white"></i></div>} */}
-                      </div>
-                      </td>
-                      <td>{item.staff}</td>
-                      <td>{item.status}</td>
-                      <td>{formate(item.register)}</td>
-                      <td>{formate(firstDate)}</td>
-                      <td>{formate(item.reserve)}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_status ? <>({formate(item.reserved_status)})</> : ''}</span></td>
-                      <td>{item.rank.replace('ランク', '')}</td>
-                      <td>{item.medium}</td>
-                      <td style={{ textAlign: 'left' }}>{item.full_address}</td>
-                      <td>{item.call_status}</td>
-                      <td>{callLength}</td>
-                      <td>{item.before_survey !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'before_visit', item.name, item.shop)}>詳細</div>}</td>
-                      <td>{item.before_interview !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'before_interview', item.name, item.shop)}>詳細</div>}</td>
-                      <td>{item.after_interview !== 1 || <div className='hover bg-primary text-white' style={{ fontSize: "11px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }} onClick={() => showModal(item.id, 'after_interview', item.name, item.shop)}>詳細</div>}</td>
-                      {trash === 1 && <td style={{ cursor: 'pointer' }} onClick={() => goToGarbage(item.id, item.name)}><i className="fa-solid fa-trash"></i></td>}
-                      {trash === 0 && <td style={{ cursor: 'pointer' }} onClick={() => backFromGarbage(item.id, item.name)}><i className="fa-solid fa-trash-can-arrow-up"></i></td>}
-                    </tr>
-                  })}
-              </tbody>
-            </Table>
-          </div>
-        </div>
-        <Modal show={modalShow} onHide={modalClose} size='xl' style={{ overflowY: 'hidden', padding: '1rem' }} dialogClassName="fixed-header-modal">
-          <div className="modal-header-sticky">
-            <Modal.Header >
-              <div>
-                {modalCategory === 'inside' && `${insideSalesCategory === 'kumamoto' ? '熊本エリア インサイドセールス' : '土地新着ネット反響'} 架電状況`}
-                {modalCategory === 'survey_database' && 'アンケート集計'}
-              </div>
-              {modalCategory !== 'database' && <CloseButton onClick={() => setModalShow(false)} />}
-              {modalCategory === 'database' && <Modal.Title style={{ fontSize: '13px' }}>
-                {question[0]} {question[0] === '顧客情報修正' && <><span style={{ fontSize: '10px', fontWeight: '500', color: 'red' }}>※要入力項目</span></>}
-                <div className="position-absolute" style={{ top: '10px', right: '10px', cursor: 'pointer', fontSize: '17px' }} onClick={() => setModalShow(false)}>×</div>
-                {question[0] === '顧客情報修正' &&
-                  <div className="d-md-flex flex-wrap d-none" style={{ width: '100%', marginTop: '10px' }}>
-                    {databaseList.map(d => <div className={selected[d.id] ? 'menu_tab selected' : 'menu_tab'} style={{ margin: '1px' }}
-                      onClick={() => {
-                        handleSetSelected(d.id, 'header');
-                      }}>{d.status && <span style={{ fontSize: '10px', fontWeight: '500', color: 'red' }}>※</span>}{d.value}</div>)}
-                  </div>
-                }
-
-              </Modal.Title>}
-            </Modal.Header></div>
-          <Modal.Body style={{ height: '80vh', overflowY: 'auto' }} className='modal_body'>
-            {modalCategory === 'database' && <>
-              {question[0] === '来場前アンケート' || question[0] === '面談前アンケート' || question[0] === '面談後アンケート' ? (
-                <Table bordered striped>
-                  <tbody style={{ fontSize: '12px' }}>
-                    <tr>
-                      <td>No</td>
-                      <td>質問事項</td>
-                      <td>回答</td>
-                    </tr>
-                    {answer.map((item, index) => (
-                      <tr key={index}>
-                        <td>{index + 1}</td>
-                        <td>{question[index + 1]}</td>
-                        <td>{item}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              ) : (
-                <>
-                  <CustomerEdit
-                    name={userName}
-                    selected={selected}
-                    staffArray={staffArray}
-                    mediumArray={mediumArray}
-                    interviewLog={interviewLog}
-                    interview={interview}
-                    callLog={callLog}
-                    setInterview={setInterview}
-                    setInterviewLog={setInterviewLog}
-                    handleSetSelected={handleSetSelected}
-                    setMasterData={setMasterData}
-                    setUpdatedData={setUpdatedData}
-                    setOriginalDatabase={setOriginalDatabase}
-                    setCall={setCall}
-                    setCallLog={setCallLog}
-                    masterData={masterData}
-                    call={call}
-                    actionMap={actionMap}
-                    giftDate={giftDate}
-                    rankPeriod={rankPeriod}
-                    shopArray={shopArray}/>
-                </>
-              )}</>}
-            {modalCategory === 'inside' && <>
-              <CallStatus
-                shopArray={shopArray}
-                monthArray={monthArray}
-                staffArray={staffArray}
-                callLogList={callLogList}
-                originalDatabase={originalDatabase}
-                insideSalesCategory={insideSalesCategory}
-                miniModalOpen={miniModalOpen}
-                setInsideSalesCategory={setInsideSalesCategory} />
-            </>}
-            {modalCategory === 'cancel' &&
-              <CancelList
-                originalDatabase={originalDatabase}
-                saveReason={saveReason}
-                reasons={reasons}
-                setReasons={setReasons}
-                setModalCategory={setModalCategory}
-                showModal={showModal} />
+    useEffect(() => {
+        setMonthArray(getYearMonthArray(2025, 1));
+        const fetchData = async () => {
+            try {
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database' }, { headers });
+                await setOriginalDatabase(response.data.customer);
+                await setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
+                await setMediumArray(response.data.medium.filter(item => item.list_medium === 1).map((item: MediumType) => item.medium));
+                await setDisplayLength(response.data.customer.length);
+                await setStaffArray(response.data.staff);
+                const familyId = response.data.family.map(f => f.id);
+                await setFamilyList(familyId);
+                const filteredCallResponse = response.data.call.map(item => ({
+                    ...item,
+                    call_log: item.call_log ? JSON.parse(item.call_log) : []
+                }))
+                await setFirstCallDate(filteredCallResponse);
+            } catch (error) {
+                console.error("Error fetching data:", error);
             }
-            {modalCategory === 'survey_database' &&
-              <SurveyList
-                originalDatabase={originalDatabase}
-                form={form}
-                surveyList={surveyList}
-                masterDataList={masterDataList}
-              />}
-          </Modal.Body>
-          {question[0] === '顧客情報修正' && <Modal.Footer>
-            <div className="d-flex handle_button">
-              {sending === true ? <div className="button bg-primary text-white" onClick={() => {
-                handleSave(false);
-              }}>保存</div> : <div className="button bg-secondary text-white" style={{ cursor: 'text' }}>保存中</div>}
-              <div className="button" onClick={() => setModalShow(false)}>閉じる</div>
-              <div className="button bg-info text-white" onClick={() => {
-                navigateIceWorld(iceWorld);
-              }}>アイスワールド利用予約</div>
-              {/* <div className="button bg-success text-white"
-                style={{ fontSize: '11px' }}
-                onClick={() => { 
-                  setEstateShow(true);
-                  setEstateId(masterData.id)
-                   }}>土地検索</div> */}
-            </div>
+        };
 
-          </Modal.Footer>}
-        </Modal>
-        <Modal show={miniModalShow} onHide={miniModalClose} size='lg'>
-          <ModalHeader closeButton></ModalHeader>
-          <ModalBody>
-            <Table bordered striped>
-              <tbody style={{ fontSize: '12px' }}>
-                <tr>
-                  <td>No</td>
-                  <td>店舗</td>
-                  <td>顧客名</td>
-                  <td>担当営業</td>
-                  <td>反響取得日</td>
-                  <td>来場日</td>
-                  <td>ステータス</td>
-                  <td>編集</td>
-                </tr>
-                {miniModalList.map((item, index) =>
-                  <tr key={index} className={`${item.status === '契約済み' ? 'table-primary' : ''}`}>
-                    <td>{index + 1}</td>
-                    <td>{item.shop}</td>
-                    <td>{item.name}</td>
-                    <td>{item.staff}</td>
-                    <td>{item.register}</td>
-                    <td>{item.reserve}</td>
-                    <td>{item.status}</td>
-                    <td><div className="text-white bg-danger rounded py-1 px-2 text-center" style={{ fontSize: '12px', cursor: 'pointer' }}
-                      onClick={() => {
-                        setModalCategory('database');
-                        showModal(item.id, 'information_edit', '', '');
-                        setMiniModalShow(false);
-                      }}>編集</div></td>
-                  </tr>
-                )}
-              </tbody>
-            </Table>
-          </ModalBody>
-        </Modal>
-        <InformationEdit id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
-        <Modal show={estateShow} onHide={() => {
-          setEstateShow(false);
-        }} size='xl'>
-          <Modal.Header closeButton></Modal.Header>
-          <Modal.Body>
-            <Estate estateId={estateId} />
-          </Modal.Body>
-        </Modal>
-      </div>
-    </div >
-  )
+        fetchData();
+    }, []);
+
+    const filteredDatabase = useMemo(() => {
+        return originalDatabase.filter(item => {
+            const sName = searchedName ?? '';
+
+            const formattedName = sName.includes('&')
+                ? sName.split('&')[0]
+                : sName.includes('+')
+                    ? sName.split('+')[0]
+                    : sName;
+
+            const formattedNumber = sName.includes('&')
+                ? sName.split('&')[1]
+                : searchedPhone ?? '';
+
+            const formattedAddress = sName.includes('+')
+                ? sName.split('+')[1]
+                : '';
+
+            // 安全に includes を呼ぶためのヘルパー
+            const strIncludes = (val: any, sub: string) => (sub ? String(val ?? '').includes(sub) : true);
+            const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
+
+            // ここで各プロパティが undefined のときでも安全に評価される
+            return (trash === 1 ? (item.trash ?? 0) !== 0 : true)
+                && (trash === 0 ? (item.trash ?? 0) !== 1 : true)
+                && (selectedShop ? arrIncludes(item.shop, selectedShop) : true)
+                && (selectedRegister ? strIncludes(item.register, dateFormate(selectedRegister)) : true)
+                && (selectedReserve === 'notVisited'
+                    ? ((item.reserved_interview ?? '') !== '' && (item.interview ?? '') === '')
+                    : (selectedReserve ? strIncludes(item.interview, dateFormate(selectedReserve)) : true))
+                && (selectedRank ? arrIncludes(item.rank, selectedRank) : true)
+                && (selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
+                && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
+                && (searchedName ? strIncludes(item.customer, formattedName) : true)
+                && (searchedStaff ? strIncludes(item.staff, searchedStaff.split(' ')[0]) : true)
+                && ((searchedPhone || searchedName) ? strIncludes(item.phone_number, formattedNumber) : true)
+                && (formattedAddress ? strIncludes(item.full_address, formattedAddress) : true)
+                && (searchedAddress ? String((item.full_address ?? '').replace(/[\s　]+/g, "")).includes(searchedAddress) : true)
+                && (callStatus ? (item.call_status ?? '') === callStatus : true)
+                && (familyStatus ? familyList.includes(item.id) : true);
+        });
+    }, [
+        originalDatabase,
+        selectedShop,
+        selectedRegister,
+        selectedReserve,
+        selectedRank,
+        selectedMedium,
+        selectedStatus,
+        searchedName,
+        searchedStaff,
+        searchedAddress,
+        callStatus,
+        searchedPhone,
+        trash,
+        familyList,
+        familyStatus,
+    ]);
+
+
+    useEffect(() => {
+        setActivePage(1);
+        setSliceStart(0);
+    }, [
+        originalDatabase,
+        selectedShop,
+        selectedRegister,
+        selectedReserve,
+        selectedRank,
+        selectedMedium,
+        selectedStatus,
+        searchedName,
+        searchedStaff,
+        searchedAddress,
+        callStatus,
+        searchedPhone,
+        trash,
+        familyList,
+        familyStatus,
+    ]);
+
+    // ページングリンク
+    const pages = {
+        page1: null,
+        page2: null,
+        page3: null,
+        page4: null,
+        page5: null
+    };
+
+    Object.entries(pages).map(([key, _], index) => {
+        if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) === activePage) {
+            pages[key] = activePage + index - 4;
+        } else if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) - activePage === 1) {
+            pages[key] = activePage + index - 3;
+        } else if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) - activePage === 2) {
+            pages[key] = activePage + index - 2;
+        } else if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6) {
+            pages[key] = activePage + index - 2;
+        } else if (index > 0 && (Math.ceil(displayLength / basicLength) < index + 1)) {
+            pages[key] = null;
+        } else {
+            pages[key] = index + 1;
+        }
+    })
+
+    const handlePageClick = async (page: number) => {
+        setActivePage(page);
+        setSliceStart((page - 1) * basicLength);
+    };
+
+    const [editId, setEditId] = useState('')
+
+    const handleGarbage = async (id: string, name: string) => {
+        if (!id) return;
+        const result = window.confirm(`${name}様を${trash === 1 ? '削除しますか？' : '元に戻しますか？'}`);
+        if (result) {
+            const fetchData = async () => {
+                try {
+                    const postData = {
+                        request: 'database_trash',
+                        show_dashboard: trash === 1 ? 0 : 1,
+                        id: id
+                    };
+                    const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", postData, { headers });
+                    await setOriginalDatabase(response.data.customer);
+                } catch (error) {
+                    console.error("Error fetching data:", error);
+                }
+            };
+            await fetchData();
+        } else {
+            return;
+        }
+    };
+
+    const [insideSalesCategory, setInsideSalesCategory] = useState('kumamoto');
+
+    const closeInformationEdit = async () => {
+        setEditId('');
+        const fetchData = async () => {
+            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_reload' }, { headers });
+            await setOriginalDatabase(response.data.customer);
+        }
+        fetchData();
+    };
+
+    return (
+        <div className='outer-container'>
+            <div className="d-flex">
+                <div className='modal_menu' style={{ width: '20%' }}>
+                    <MenuDev brand={brand} />
+                </div>
+                <div className="header_sp">
+                    <i className="fa-solid fa-bars hamburger"
+                        onClick={() => setOpen(true)} />
+                </div>
+                <div className={`modal_menu_sp ${open ? "open" : ""}`}>
+                    <i className="fa-solid fa-xmark hamburger position-absolute"
+                        onClick={() => setOpen(false)} />
+                    <MenuDev brand={brand} />
+                </div>
+                <div className='content database bg-white p-2'>
+                    <div className='p-3 d-flex flex-wrap'>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedShop(e.target.value)}>
+                                <option value="">店舗を選択</option>
+                                {shopArray.map((item, index) => <option key={index} value={item.shop}>{item.shop}</option>)}
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>
+                                <option value="">反響月を選択</option>
+                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedReserve(e.target.value)}>
+                                <option value="">初回来場月を選択</option>
+                                <option value="notVisited">未来場・来場キャンセル</option>
+                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedRank(e.target.value)}>
+                                <option value="">ランクを選択</option>
+                                <option value="Aランク">Aランク</option>
+                                <option value="Bランク">Bランク</option>
+                                <option value="Cランク">Cランク</option>
+                                <option value="Dランク">Dランク</option>
+                                <option value="Eランク">Eランク</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedMedium(e.target.value)}>
+                                <option value="">販促媒体を選択</option>
+                                {mediumArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedStatus(e.target.value)}>
+                                <option value="">ステータスを選択</option>
+                                <option value="見込み">見込み</option>
+                                <option value="契約済み">契約済み</option>
+                                <option value="失注">失注</option>
+                                <option value="会社管理">会社管理</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                setCallStatus(e.target.value);
+                            }}>
+                                <option value="">架電状況</option>
+                                <option value="未通電">未通電</option>
+                                <option value="継続">継続</option>
+                                <option value="来場アポ">来場アポ</option>
+                                <option value="来場済み">来場済み</option>
+                                <option value="架電停止">架電停止</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                if (e.target.value) {
+                                    setFamilyStatus(true);
+                                } else {
+                                    setFamilyStatus(false);
+                                }
+                            }}>
+                                <option value="">家族情報</option>
+                                <option value="入力済み">入力済み</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <input className="target" placeholder='顧客名で検索(&電話番号+住所)' onChange={(e) => setSearchedName(e.target.value)} />
+                        </div>
+                        <div className="m-1">
+                            <input className="target" placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} />
+                        </div>
+                        <div className="m-1">
+                            <input className="target" placeholder='電話番号で検索' onChange={(e) => setSearchedPhone(e.target.value)} />
+                        </div>
+                        <div className="m-1">
+                            <input className="target" placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
+                        </div>
+                        <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+                            onClick={() => setEditId('new')}>新規登録</div>
+                    </div>
+                    <div className="d-md-flex">
+                        <div className="d-flex flex-wrap align-items-center">
+                            <div className="">{filteredDatabase.length}<span style={{ fontSize: '12px' }}> 件中 {sliceStart + 1}件~{filteredDatabase.length > activePage * basicLength ? activePage * basicLength : filteredDatabase.length}件</span></div>
+                            <div className="ms-1" style={{ fontSize: '11px' }}>
+                                表示件数
+                                <select style={{ fontSize: '11px', borderRadius: '5px', width: '70px' }} onChange={(e) => setBasicLength(Number(e.target.value))}>
+                                    <option value='20'>20件</option>
+                                    <option value='50'>50件</option>
+                                    <option value='100'>100件</option>
+                                    <option value='500'>500件</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="d-flex flex-wrap align-items-center">
+                            <div className="m-1 pt-3">
+                                <ul className="custom-pagination">
+                                    <li>
+                                        <button onClick={() => handlePageClick(1)}>«</button>
+                                    </li>
+                                    <li>
+                                        <button onClick={() => handlePageClick(Math.max(activePage - 1, 1))}>‹</button>
+                                    </li>
+                                    {Object.entries(pages).map(([key, value]) => {
+                                        if (value === null) return null;
+                                        return (
+                                            <li key={key} className={activePage === value ? 'active' : ''}>
+                                                <button onClick={() => handlePageClick(value)}>
+                                                    {value}
+                                                </button>
+                                            </li>
+                                        );
+                                    })}
+                                    <li>
+                                        <button onClick={() => handlePageClick(activePage + 1 < Math.ceil(displayLength / basicLength) ? activePage + 1 : Math.ceil(displayLength / basicLength))}>›</button>
+                                    </li>
+                                    <li>
+                                        <button onClick={() => handlePageClick(Math.ceil(displayLength / basicLength))}>»</button>
+                                    </li>
+                                </ul>
+                            </div>
+                            {trash === 1 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setTrash(0)}>ゴミ箱へ移動</div>}
+                            {trash === 0 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setTrash(1)}>一覧へ戻る</div>}
+                            <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setCallStatusShow(true)}>架電状況集計</div>
+                            <div className="bg-danger text-white ms-1 rounded position-relative" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setCancelListShow(true)}>キャンセル集計
+                                <div className="position-absolute bg-danger text-white d-flex align-items-center justify-content-center"
+                                    style={{ top: '-28px', width: '90px', height: '20px', borderRadius: '10px', left: 'calc( 50% - 45px)', letterSpacing: '1px' }}>要対応{originalDatabase.filter(item => {
+                                        const now = new Date();
+                                        const today = now.getTime();
+                                        const target = new Date(dateFormate(item.reserved_interview)).getTime();
+                                        const start = new Date('2026-01-01');
+                                        const base = start.getTime();
+
+                                        return target < today && base < target && (!item.interview && !item.cancel_status) && trash === 1
+                                    }).length}件</div>
+                                <div className="position-absolute triangle"></div>
+                            </div>
+                            <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setSurveyShow(true)}>アンケート集計</div>
+                        </div>
+                    </div>
+                    <div className='table-wrapper'>
+                        <Table responsive style={{ fontSize: '11px', textAlign: 'center' }} bordered striped className='list_table database_list'>
+                            <thead>
+                                <tr className='align-middle'>
+                                    <td>顧客情報編集</td>
+                                    <td>店舗</td>
+                                    <td>顧客名</td>
+                                    <td>担当営業</td>
+                                    <td>ステータス</td>
+                                    <td>反響日</td>
+                                    <td>初回通電日</td>
+                                    <td>初回来場日<br /><span style={{ fontSize: '9px' }}>(来場予約日)</span></td>
+                                    <td>ランク</td>
+                                    <td>販促媒体</td>
+                                    <td>住所</td>
+                                    <td>架電状況</td>
+                                    <td>架電件数</td>
+                                    <td>{trash === 1 ? 'ゴミ箱' : '元に戻す'}</td>
+                                </tr>
+                            </thead>
+                            <tbody className='align-middle'>
+                                {filteredDatabase
+                                    .sort((a, b) => {
+                                        const tA = a.register ? Date.parse(a.register) : Number.NEGATIVE_INFINITY;
+                                        const tB = b.register ? Date.parse(b.register) : Number.NEGATIVE_INFINITY;
+                                        const timeA = Number.isNaN(tA) ? Number.NEGATIVE_INFINITY : tA;
+                                        const timeB = Number.isNaN(tB) ? Number.NEGATIVE_INFINITY : tB;
+                                        return timeB - timeA;
+                                    })
+                                    .slice(sliceStart, sliceStart + basicLength).map((item, index) => {
+                                        const callLog = firstCallDate.find(f => f.id === item.id)?.call_log;
+                                        const firstDate = callLog ?
+                                            callLog.filter(c => c.action === '架電').sort((a, b) => {
+                                                const dateA = new Date(a.day);
+                                                const dateB = new Date(b.day);
+                                                return dateA.getTime() - dateB.getTime()
+                                            })[0]?.day ?? ''
+                                            : '';
+                                        const callLength = callLog ? callLog.filter(c => c.action === '架電').length : 0;
+                                        return <tr key={index}>
+                                            <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
+                                                onClick={() => {
+                                                    setEditId(item.id);
+                                                }}>編集</div></td>
+                                            <td>{item.shop}</td>
+                                            <td>
+                                                <div className='position-relative'>{item.customer ?? ''}</div>
+                                            </td>
+                                            <td>{item.staff ?? ''}</td>
+                                            <td>{item.status ?? ''}</td>
+                                            <td>{formate(item.register)}</td>
+                                            <td>{formate(firstDate)}</td>
+                                            <td>{formate(item.interview)}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
+                                            <td>{(item.rank ?? '').replace('ランク', '')}</td>
+                                            <td>{item.medium}</td>
+                                            <td style={{ textAlign: 'left' }}>{item.full_address}</td>
+                                            <td>{item.call_status}</td>
+                                            <td>{callLength}</td>
+                                            <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-trash"></i> : <i className="fa-solid fa-trash-can-arrow-up"></i>}</td>
+                                        </tr>
+                                    })}
+                            </tbody>
+                        </Table>
+                    </div>
+                </div>
+                <InformationEdit id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
+                <CallStatusList
+                    callStatusShow={callStatusShow}
+                    setCallStatusShow={setCallStatusShow}
+                    shopArray={shopArray}
+                    monthArray={monthArray}
+                    staffArray={staffArray}
+                    originalDatabase={originalDatabase}
+                    insideSalesCategory={insideSalesCategory}
+                    setInsideSalesCategory={setInsideSalesCategory} />
+                <SurveyList
+                    surveyShow={surveyShow}
+                    setSurveyShow={setSurveyShow}
+                />
+                <CancelList
+                    cancelListShow={cancelListShow}
+                    setCancelListShow={setCancelListShow}
+                />
+            </div>
+        </div >
+    )
 }
 
 export default Database
