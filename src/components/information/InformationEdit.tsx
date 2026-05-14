@@ -1,16 +1,16 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
 import axios from 'axios';
-import { headers } from '../utils/headers';
+import { headers } from '../../utils/headers';
 import Table from "react-bootstrap/Table";
-import { databaseList } from '../utils/databaseList';
-import { baseURL } from '../utils/baseURL';
-import FamilyInfo from './FamilyInfo';
-import { generateULID } from '../utils/createULID';
-import type { MasterData } from "./MasterData";
-import AuthContext from '../context/AuthContext';
-import Estate from './Estate';
+import { databaseList } from '../../utils/databaseList';
+import { baseURL } from '../../utils/baseURL';
+import FamilyInfo from '../FamilyInfo';
+import { generateULID } from '../../utils/createULID';
+import AuthContext from '../../context/AuthContext';
+import Estate from '../Estate';
+import KSnap from '../KSnap';
 
 type Staff = { name: string; shop: string; category: number, section: string };
 type Customer = Record<string, string>;
@@ -61,7 +61,12 @@ type Props = {
     token: string,
     onClose: () => void,
     brand: string
-}
+};
+
+type Maker = {
+    label: string,
+    letter: string
+};
 
 const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     const { userName } = useContext(AuthContext);
@@ -110,14 +115,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         trigger: false
     });
     const [estateId, setEstateId] = useState('');
-
-    const createEmptyMasterData = (): MasterData => {
-        const keys = Object.keys({} as MasterData) as (keyof MasterData)[];
-        return keys.reduce((acc, key) => {
-            acc[key] = '';
-            return acc;
-        }, {} as MasterData);
-    };
+    const competitorsRef = useRef<HTMLInputElement>(null);
 
     const now = new Date();
     const year = now.getFullYear();
@@ -126,6 +124,19 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     const today = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const thisMonth = `${year}-${String(month).padStart(2, '0')}`;
     const navigate = useNavigate();
+    const [competitorsInput, setCompetitorsInput] = useState('');
+    const [originalMakerList, setOriginalMakerList] = useState<Maker[]>([]);
+    const [makerList, setMakerList] = useState<Maker[]>([]);
+    const safeParse = (data: any) => {
+        if (typeof data !== 'string' || data.trim() === '') return data ?? [];
+        try {
+            return JSON.parse(data);
+        } catch (e) {
+            console.error("JSONの解析に失敗しました。不正なデータです:", data);
+            return [];
+        }
+    };
+    const [kSnap, setKSnap] = useState('');
 
     useEffect(() => {
         if (!id) return;
@@ -133,7 +144,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         setInterviewer(userName);
         if (id === 'new') {
             setInformation(prev => ({
-                ...createEmptyMasterData(),
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: today,
                 id: generateULID()
             }));
@@ -144,6 +154,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 setShopArray(response.data.shop.filter(s => s.division === '注文事業' && !s.shop.includes('未設定') && !s.shop.includes('全店舗')));
                 setStaffArray(response.data.staff.filter(s => s.category === 1));
                 setMediumArray(response.data.medium);
+                setOriginalMakerList(response.data.maker);
             };
             fetchData();
         } else {
@@ -154,6 +165,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 setStaffArray(response.data.staff.filter(s => s.category === 1));
                 setMediumArray(response.data.medium);
                 setInformation(response.data.customer);
+                setOriginalMakerList(response.data.maker);
 
                 const callResData = {
                     id: response.data.call.id ?? response.data.customer.id,
@@ -162,10 +174,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                     name: response.data.call.name ?? response.data.customer.customer_contacts_name,
                     status: response.data.call.status ?? '',
                     reserved_status: response.data.call.reserved_status ?? '',
-                    call_log: typeof response.data.call.call_log === 'string' && response.data.call.call_log.trim() !== ''
-                        ? JSON.parse(response.data.call.call_log)
-                        : response.data.call.call_log ?? [],
-
+                    call_log: safeParse(response.data.call.call_log),
                     add: false
                 };
                 setCallLog(callResData);
@@ -329,7 +338,10 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             console.error("データ取得エラー:", error);
         }
 
-        if (brand === 'insideSales' && calendarAdd && updatedCallData.call_log[updatedCallData.call_log.length - 1]['time']) {
+        const callLogs = updatedCallData.call_log;
+        const lastLog = callLogs && callLogs.length > 0 ? callLogs[callLogs.length - 1] : null;
+
+        if (brand === 'insideSales' && calendarAdd && lastLog && lastLog.day && lastLog.time) {
             const pad = (num: number): string => String(num).padStart(2, '0');
 
             const parseDateAndTime = (dateStr: string, timeStr: string): Date => {
@@ -462,9 +474,85 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             trigger: false
         });
 
-        setInformation(createEmptyMasterData());
+        setInformation({});
     };
 
+    const competitorsStyle = {
+        border: 'transparent',
+        minWidth: '60px',
+        maxWidth: '100%',
+        flex: '1',
+        outline: 'none',
+        boxShadow: 'none'
+    };
+
+    const handleCompetitors = (maker?: string) => {
+        if (maker) {
+            setInformation(prev => {
+                const existing = (prev.competitors_text ?? '')
+                    .split(',')
+                    .map(s => s.trim())
+                    .filter(s => s !== '' && s !== 'null');
+                const newArr = existing.concat(maker);
+                return {
+                    ...prev,
+                    competitors_text: newArr.length ? newArr.join(',') : ''
+                }
+            });
+            if (competitorsRef.current) competitorsRef.current.value = '';
+            setCompetitorsInput('');
+            return;
+        }
+        const value = competitorsRef.current?.value?.trim();
+        if (!value) return;
+        setInformation(prev => {
+            const existing = (prev.competitors_text ?? '')
+                .split(',')
+                .map(s => s.trim())
+                .filter(s => s !== '' && s !== 'null');
+            const newArr = existing.concat(value);
+            return {
+                ...prev,
+                competitors_text: newArr.length ? newArr.join(',') : ''
+            }
+        });
+        setCompetitorsInput('');
+        if (competitorsRef.current) competitorsRef.current.value = '';
+    };
+
+    const handleCompetitorsDelete = () => {
+        if (competitorsRef.current && competitorsRef.current.value.length > 0) return;
+        if (!information.competitors_text) return;
+        setInformation(prev => {
+            const existing = (prev.competitors_text ?? '')
+                .split(',')
+                .map(s => s.trim())
+                .filter(s => s !== '' && s !== 'null');
+            existing.pop();
+            return {
+                ...prev,
+                competitors_text: existing.length ? existing.join(',') : ''
+            }
+        });
+    };
+
+    useEffect(() => {
+        const filtered = originalMakerList.filter(o => o.letter.includes(competitorsInput) || o.label.includes(competitorsInput));
+        setMakerList(filtered);
+    }, [originalMakerList, competitorsInput]);
+
+
+    const safeFormate = (value: string) => {
+        return value ?? '';
+    };
+
+    const dateFormate = (value: string) => {
+        return value ? value.replace(/\//g, '-') : '';
+    };
+
+    useEffect(() => {
+        console.log(information)
+    }, [information])
     return (
         <>
             <Modal
@@ -484,7 +572,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                     <tr>
                                         <td style={{ ...labelStyle, width: '10%' }}>お客様名<span className={requiredStyle}>必須</span></td>
                                         <td style={{ ...valueStyle, width: '40%' }}>
-                                            <input type='text' placeholder='漢字' style={inputStyle} value={information[idMapping('お客様名')]}
+                                            <input type='text' placeholder='漢字' style={inputStyle} value={safeFormate(information[idMapping('お客様名')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -493,7 +581,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         }
                                                     ));
                                                 }} />
-                                            <input type='text' placeholder='ふりがな' style={inputStyle} value={information[idMapping('名前（かな）')]}
+                                            <input type='text' placeholder='ふりがな' style={inputStyle} value={safeFormate(information[idMapping('名前（かな）')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -505,7 +593,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={{ ...labelStyle, width: '10%' }}>連絡先</td>
                                         <td style={{ ...valueStyle, width: '40%' }}>
-                                            <input type='text' placeholder='固定電話' style={{ ...inputStyle, width: '100px' }} value={information.customer_contacts_phone_number}
+                                            <input type='text' placeholder='固定電話' style={{ ...inputStyle, width: '100px' }} value={safeFormate(information.customer_contacts_phone_number)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -524,7 +612,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         }
                                                     ));
                                                 }} />
-                                            <input type='text' placeholder='携帯電話' style={{ ...inputStyle, width: '100px' }} value={information.customer_contacts_mobile_phone_number}
+                                            <input type='text' placeholder='携帯電話' style={{ ...inputStyle, width: '100px' }} value={safeFormate(information.customer_contacts_mobile_phone_number)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -543,7 +631,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         }
                                                     ));
                                                 }} />
-                                            <input type='text' placeholder='メールアドレス' style={inputStyle} value={information.customer_contacts_email}
+                                            <input type='text' placeholder='メールアドレス' style={inputStyle} value={safeFormate(information.customer_contacts_email)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -554,10 +642,10 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 }} />
                                         </td>
                                     </tr>
-                                    <tr id='address'>
+                                    <tr>
                                         <td style={labelStyle}>住所</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='郵便番号' style={{ ...inputStyle, width: '80px' }} value={information.postal_code}
+                                            <input type='text' placeholder='郵便番号' style={{ ...inputStyle, width: '80px' }} value={safeFormate(information.postal_code)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -576,7 +664,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         }
                                                     ));
                                                 }} />
-                                            <input type='text' placeholder='住所' style={{ ...inputStyle, width: '300px' }} value={information.full_address}
+                                            <input type='text' placeholder='住所' style={{ ...inputStyle, width: '300px' }} value={safeFormate(information.full_address)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -590,7 +678,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         <td style={valueStyle}>
                                             <select
                                                 style={selectStyle}
-                                                value={information[idMapping('担当店舗')] || ""}
+                                                value={safeFormate(information[idMapping('担当店舗')])}
                                                 onChange={(e) => {
                                                     const selected = staffArray.find(item => item.shop === e.target.value);
                                                     setInformation(prev => ({
@@ -610,12 +698,12 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </select>
                                         </td>
                                     </tr>
-                                    <tr id={idMapping('担当営業')}>
+                                    <tr>
                                         <td style={labelStyle}>担当営業<span className={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>
                                             <select
                                                 style={selectStyle}
-                                                value={information[idMapping('担当営業')] || ""}
+                                                value={safeFormate(information[idMapping('担当営業')])}
                                                 onChange={(e) => {
                                                     const selected = staffArray.find(item => item.name === e.target.value);
                                                     setInformation(prev => ({
@@ -635,7 +723,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>ステータス</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={information[idMapping('ステータス')]}
+                                            <select style={inputStyle} value={safeFormate(information[idMapping('ステータス')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -644,19 +732,20 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         }
                                                     ));
                                                 }}>
-                                                <option value='見込み' selected={information[idMapping('ステータス')] === ''}>見込み</option>
+                                                <option value='見込み'>見込み</option>
                                                 <option value='会社管理'>会社管理</option>
                                                 <option value='失注'>失注</option>
                                                 <option value='重複'>重複</option>
                                                 <option value='契約済み'>契約済み</option>
+                                                <option value="失注">失注</option>
                                             </select>
                                         </td>
                                     </tr>
-                                    <tr id={idMapping('顧客ランク')}>
+                                    <tr>
                                         <td style={labelStyle}>顧客ランク<br />(契約見込み月)</td>
                                         <td style={valueStyle}>
                                             <div className="d-flex">
-                                                <select style={inputStyle} value={information[idMapping('顧客ランク')]}
+                                                <select style={inputStyle} value={safeFormate(information[idMapping('顧客ランク')])}
                                                     onChange={(e) => {
                                                         setInformation(prev => (
                                                             {
@@ -687,7 +776,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>反響媒体<span className={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={information[idMapping('反響媒体')]}
+                                            <select style={inputStyle} value={safeFormate(information[idMapping('反響媒体')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -703,7 +792,77 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </select>
                                         </td>
                                     </tr>
-                                    <tr id='interview_status'>
+                                    <tr>
+                                        <td style={labelStyle}>家族情報</td>
+                                        <td style={valueStyle}><div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
+                                            onClick={() => setFamilyMShow(true)}>入力・確認</div></td>
+                                        <td style={labelStyle}>競合情報</td>
+                                        <td style={valueStyle}>
+                                            <div className="text-secondary" style={{ fontSize: '10px' }}>※予測変換リストを追加したい場合は広報・マーケティング課まで</div>
+                                            <div className="d-flex align-items-center">
+                                                <div className="d-flex flex-wrap align-items-center position-relative" style={{ ...inputStyle, width: '80%', height: 'auto', minHeight: '25px' }}>
+                                                    {information.competitors_text &&
+                                                        information.competitors_text.split(',')
+                                                            .filter(c => c !== 'null')
+                                                            .map((c, cIndex) =>
+                                                                <div className='me-1 bg-warning rounded ps-2 pe-1 d-flex align-items-center' key={cIndex}>{c}
+                                                                    <span className='ms-1'
+                                                                        style={{ fontSize: '8px', cursor: 'pointer' }}
+                                                                        onClick={() => {
+                                                                            setInformation(prev => {
+                                                                                const arr = (prev.competitors_text ?? '')
+                                                                                    .split(',')
+                                                                                    .map(s => s.trim())
+                                                                                    .filter(s => s !== '' && s !== 'null');
+
+                                                                                arr.splice(cIndex, 1);
+                                                                                if (!arr[0]) {
+                                                                                    arr.slice(1);
+                                                                                }
+
+                                                                                return {
+                                                                                    ...prev,
+                                                                                    competitors_text: arr.length ? arr.join(',') : ''
+                                                                                }
+                                                                            }
+                                                                            )
+                                                                        }}>
+                                                                        ×
+                                                                    </span></div>)}
+                                                    <input type='text' style={competitorsStyle} ref={competitorsRef}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Backspace') {
+                                                                handleCompetitorsDelete();
+                                                            }
+                                                            if (e.key === 'Enter') {
+                                                                handleCompetitors();
+                                                            }
+                                                        }}
+                                                        onChange={(e) => setCompetitorsInput(e.target.value)} />
+                                                    <div className="position-absolute bg-white"
+                                                        style={{ top: '25px', zIndex: '1000' }}>
+                                                        {competitorsInput &&
+                                                            makerList
+                                                                .map((m, mIndex) =>
+                                                                    <div key={mIndex}
+                                                                        style={{ cursor: 'pointer', width: 'fit-content' }}
+                                                                        className='bg-warning px-2 rounded mb-1'
+                                                                        onClick={() => handleCompetitors(m.label)}
+                                                                    >{m.label}</div>)}
+                                                    </div>
+                                                </div>
+                                                <div className="bg-primary text-white py-1 px-2 rounded"
+                                                    style={{
+                                                        ...labelStyle,
+                                                        width: 'fit-content',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                    onClick={() => handleCompetitors()} >追加</div>
+                                            </div>
+
+                                        </td>
+                                    </tr>
+                                    <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
                                                 商談ステップ
@@ -722,8 +881,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         <td colSpan={3}>
                                             <div style={expandStyle('interview')}>
                                                 <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                    <div className="">
-                                                        <input type="date" value={(information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 ?? '').replace(/\//g, '-')}
+                                                    <div>
+                                                        <input type="date" value={dateFormate(information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99)}
                                                             style={inputStyle}
                                                             onChange={(e) => {
                                                                 setInformation(prev => (
@@ -741,6 +900,21 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     </div>
                                                     <div className="ms-2">
                                                         {information.sales_promotion_name}からの反響取得</div>
+                                                    {information.reserved_interview && <div className="ms-3 d-flex align-items-center">
+                                                        <div>来場予約日</div>
+                                                        <div>
+                                                            <input type="date" value={dateFormate(information.reserved_interview)}
+                                                                style={inputStyle}
+                                                                onChange={(e) => {
+                                                                    setInformation(prev => (
+                                                                        {
+                                                                            ...prev,
+                                                                            reserved_interview: e.target.value
+                                                                        }
+                                                                    ));
+                                                                }} />
+                                                        </div>
+                                                    </div>}
                                                 </div>
                                                 <div style={{ color: '#868686ff', marginBottom: '7px' }}>
                                                     <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
@@ -757,8 +931,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             return dayA - dayB;
                                                         })
                                                         .map((item, index) => <><div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                            <div className="">
-                                                                <input type="date" value={item.day} style={inputStyle}
+                                                            <div>
+                                                                <input type="date" value={dateFormate(item.day)} style={inputStyle}
                                                                     onChange={(e) => {
                                                                         setInterviewLog(prev => ({
                                                                             ...prev,
@@ -768,24 +942,32 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                         }));
                                                                         const key = actionMap[item.action];
                                                                         if (key) {
-                                                                            console.log(key)
-                                                                            const value = e.target.value;
                                                                             setInformation(prev => ({
                                                                                 ...prev,
-                                                                                [key]: value
+                                                                                [key]: e.target.value
                                                                             }));
                                                                         }
-
                                                                     }} />
                                                             </div>
                                                             <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                                                <select style={inputStyle} value={item.action}
-                                                                    onChange={(e) => setInterviewLog(prev => ({
-                                                                        ...prev,
-                                                                        add: true,
-                                                                        interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                                            { ...log, action: e.target.value } : log)
-                                                                    }))}>
+                                                                <select style={inputStyle} value={safeFormate(item.action)}
+                                                                    onChange={(e) => {
+                                                                        setInterviewLog(prev => ({
+                                                                            ...prev,
+                                                                            add: true,
+                                                                            interview_log: prev.interview_log.map((log, i) => i === index ?
+                                                                                { ...log, action: e.target.value } : log)
+                                                                        }));
+                                                                        const key = actionMap[e.target.value];
+                                                                        const prevKey = actionMap[item.action];
+                                                                        if (key) {
+                                                                            setInformation(prev => ({
+                                                                                ...prev,
+                                                                                [prevKey]: '',
+                                                                                [key]: item.day
+                                                                            }));
+                                                                        }
+                                                                    }}>
                                                                     <option value="">アクション内容</option>
                                                                     <option value="資料送付">資料送付</option>
                                                                     <option value="初回面談">初回面談</option>
@@ -794,10 +976,12 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                     <option value="LINEグループ作成">LINEグループ作成</option>
                                                                     <option value="事前審査">事前審査</option>
                                                                     <option value="契約">契約</option>
+                                                                    <option value="失注">失注</option>
                                                                 </select>
                                                             </div>
-                                                            <div className="">
-                                                                <textarea style={{ ...inputStyle, width: '550px', height: 'auto' }} placeholder='面談内容を記載' value={item.note} rows={Math.max(item.note.length / 50)}
+                                                            <div>
+                                                                <textarea style={{ ...inputStyle, width: '550px', height: 'auto' }} placeholder='面談内容を記載' value={safeFormate(item.note)}
+                                                                    rows={Math.max(1, Math.ceil((item.note?.length || 0) / 50))}
                                                                     onChange={(e) => setInterviewLog(prev => ({
                                                                         ...prev,
                                                                         add: true,
@@ -807,46 +991,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             </div>
                                                             <div className="text-danger" style={actionButton}
                                                                 onClick={() => {
-                                                                    item.action === '資料送付' && setInformation(prev => (
-                                                                        {
-                                                                            ...prev,
-                                                                            step_migration_item_catalog: ''
-                                                                        }
-                                                                    ));
-                                                                    item.action === '初回面談' && setInformation(prev => (
-                                                                        {
-                                                                            ...prev,
-                                                                            step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7: ''
-                                                                        }
-                                                                    ));
-                                                                    item.action === '2回目以降面談' && setInformation(prev => (
-                                                                        {
-                                                                            ...prev,
-                                                                            step_migration_item_01JSENACS2FC422ZHEZWNSXNYA: '',
-                                                                            second_reserve: '次回来場'
-                                                                        }
-                                                                    ));
-
-                                                                    item.action === '事前審査' && setInformation(prev => (
-                                                                        {
-                                                                            ...prev,
-                                                                            step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR: '',
-                                                                            second_reserve: '次回来場'
-                                                                        }
-                                                                    ));
-                                                                    item.action === 'LINEグループ作成' && setInformation(prev => (
-                                                                        {
-                                                                            ...prev,
-                                                                            step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN: ''
-                                                                        }
-                                                                    ));
-                                                                    item.action === '契約' && setInformation(prev => (
-                                                                        {
-                                                                            ...prev,
-                                                                            step_migration_item_01J82Z5F1RR18Z792C7KZS88QG: '',
-                                                                            second_reserve: '次回来場'
-                                                                        }
-                                                                    ));
+                                                                    const key = actionMap[item.action];
+                                                                    setInformation(prev => ({
+                                                                        ...prev,
+                                                                        [key]: ''
+                                                                    }));
                                                                     setInterviewLog(prev => ({
                                                                         ...prev,
                                                                         add: true,
@@ -863,22 +1012,40 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             </div>
                                                         </>)}
                                                 <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                    <div className="">
-                                                        <input type="date" style={inputStyle} value={interview.day}
-                                                            onChange={(e) => setInterview(prev => ({
-                                                                ...prev,
-                                                                day: e.target.value
-                                                            }))} />
+                                                    <div>
+                                                        <input type="date" style={inputStyle} value={dateFormate(interview.day)}
+                                                            onChange={(e) => {
+                                                                setInterview(prev => ({
+                                                                    ...prev,
+                                                                    day: e.target.value
+                                                                }));
+                                                                if (interview.action) {
+                                                                    const key = actionMap[interview.action];
+                                                                    setInformation(prev => ({
+                                                                        ...prev,
+                                                                        [key]: e.target.value
+                                                                    }));
+                                                                }
+                                                            }} />
                                                     </div>
                                                     <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
                                                         <select style={inputStyle}
-                                                            onChange={(e) => setInterview(prev => ({
-                                                                ...prev,
-                                                                action: e.target.value,
-                                                                note: e.target.value === 'LINEグループ作成' ? 'LINEグループ作成' :
-                                                                    e.target.value === '契約' ? '契約' : prev.note
-                                                            }))}
-                                                            value={interview.action}>
+                                                            onChange={(e) => {
+                                                                setInterview(prev => ({
+                                                                    ...prev,
+                                                                    action: e.target.value,
+                                                                    note: e.target.value === 'LINEグループ作成' ? 'LINEグループ作成' :
+                                                                        e.target.value === '契約' ? '契約' : prev.note
+                                                                }));
+                                                                const key = actionMap[e.target.value];
+                                                                if (key && interview.day) {
+                                                                    setInformation(prev => ({
+                                                                        ...prev,
+                                                                        [key]: interview.day,
+                                                                    }))
+                                                                }
+                                                            }}
+                                                            value={safeFormate(interview.action)}>
                                                             <option value="">アクション内容</option>
                                                             <option value="資料送付">資料送付</option>
                                                             <option value="初回面談">初回面談</option>
@@ -887,10 +1054,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             <option value="LINEグループ作成">LINEグループ作成</option>
                                                             <option value="事前審査">事前審査</option>
                                                             <option value="契約">契約</option>
+                                                            <option value="失注">失注</option>
                                                         </select>
                                                     </div>
-                                                    <div className="">
-                                                        <textarea value={interview.note} style={{ ...inputStyle, width: '550px', height: 'auto' }} placeholder='面談内容を記載'
+                                                    <div>
+                                                        <textarea value={safeFormate(interview.note)} style={{ ...inputStyle, width: '550px', height: 'auto' }} placeholder='面談内容を記載'
                                                             onChange={(e) => setInterview(prev => ({
                                                                 ...prev,
                                                                 note: e.target.value
@@ -914,19 +1082,12 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             }));
 
                                                             const key = actionMap[interview.action];
-                                                            const reserveActions = ['2回目以降面談', '事前審査', '契約'];
-
                                                             if (key) {
                                                                 setInformation(prev => ({
                                                                     ...prev,
                                                                     [key]: interview.day,
-                                                                    ...(reserveActions.includes(interview.action)
-                                                                        ? { second_reserve: '次回来場' }
-                                                                        : {})
                                                                 }));
                                                             }
-
-
                                                             setInterview({
                                                                 day: '', action: '', note: ''
                                                             });
@@ -936,7 +1097,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr id='call_status'>
+                                    <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
                                                 架電状況
@@ -970,7 +1131,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                     status: e.target.value
                                                                 }));
                                                             }}
-                                                            value={information.call_status}>
+                                                            value={safeFormate(information.call_status)}>
                                                             <option value="">架電ステータスを選択</option>
                                                             <option value="未通電">未通電</option>
                                                             <option value="継続">継続</option>
@@ -981,7 +1142,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     </div>
                                                     <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '10px' }}>来場予定日</div>
                                                     <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '10px' }}>
-                                                        <input type="date" style={inputStyle} value={callLog.reserved_status ? callLog.reserved_status : ''}
+                                                        <input type="date" style={inputStyle} value={safeFormate(callLog.reserved_status)}
                                                             onChange={(e) => setCallLog(prev => ({
                                                                 ...prev,
                                                                 reserved_status: e.target.value
@@ -991,16 +1152,16 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 <div style={{ padding: '15px', border: '1px solid #dddddda9', borderRadius: '7px' }}>
                                                     {callLog.call_log &&
                                                         callLog.call_log.map((item, index) => <><div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                            <div className="">
-                                                                <input type="date" value={item.day} style={inputStyle}
+                                                            <div>
+                                                                <input type="date" value={dateFormate(item.day)} style={inputStyle}
                                                                     onChange={(e) => setCallLog(prev => ({
                                                                         ...prev,
                                                                         call_log: prev.call_log.map((log, i) => i === index ?
                                                                             { ...log, day: e.target.value, staff: interviewer } : log)
                                                                     }))} />
                                                             </div>
-                                                            <div className="">
-                                                                <input type="time" value={item.time} style={inputStyle}
+                                                            <div>
+                                                                <input type="time" value={safeFormate(item.time)} style={inputStyle}
                                                                     onChange={(e) => setCallLog(prev => ({
                                                                         ...prev,
                                                                         call_log: prev.call_log.map((log, i) => i === index ?
@@ -1008,7 +1169,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                     }))} />
                                                             </div>
                                                             <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                                                <select style={inputStyle} value={item.action}
+                                                                <select style={inputStyle} value={safeFormate(item.action)}
                                                                     onChange={(e) => setCallLog(prev => ({
                                                                         ...prev,
                                                                         call_log: prev.call_log.map((log, i) => i === index ?
@@ -1021,8 +1182,9 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                     <option value="資料郵送">資料郵送</option>
                                                                 </select>
                                                             </div>
-                                                            <div className="">
-                                                                <textarea style={{ ...inputStyle, width: '360px', height: 'auto' }} placeholder='アクション内容・ヒアリング内容を記載' value={item.note} rows={Math.max(item.note.length / 50)}
+                                                            <div>
+                                                                <textarea style={{ ...inputStyle, width: '360px', height: 'auto' }} placeholder='アクション内容・ヒアリング内容を記載' value={item.note}
+                                                                    rows={Math.max(1, Math.ceil((item.note?.length || 0) / 50))}
                                                                     onChange={(e) => setCallLog(prev => ({
                                                                         ...prev,
                                                                         call_log: prev.call_log.map((log, i) => i === index ?
@@ -1050,15 +1212,15 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             </div>
                                                         </>)}
                                                     <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                        <div className="">
-                                                            <input type="date" style={inputStyle} value={call.day}
+                                                        <div>
+                                                            <input type="date" style={inputStyle} value={dateFormate(call.day)}
                                                                 onChange={(e) => setCall(prev => ({
                                                                     ...prev,
                                                                     day: e.target.value, staff: interviewer
                                                                 }))} />
                                                         </div>
-                                                        <div className="">
-                                                            <input type="time" step="60" style={inputStyle} value={call.time}
+                                                        <div>
+                                                            <input type="time" step="60" style={inputStyle} value={safeFormate(call.time)}
                                                                 onChange={(e) => setCall(prev => ({
                                                                     ...prev,
                                                                     time: e.target.value, staff: interviewer
@@ -1070,7 +1232,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                     ...prev,
                                                                     action: e.target.value, staff: interviewer
                                                                 }))}
-                                                                value={call.action}>
+                                                                value={safeFormate(call.action)}>
                                                                 <option value="">アクション内容</option>
                                                                 <option value="架電">架電</option>
                                                                 <option value="SMS送信">SMS送信</option>
@@ -1078,8 +1240,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                 <option value="資料郵送">資料郵送</option>
                                                             </select>
                                                         </div>
-                                                        <div className="">
-                                                            <textarea value={call.note} style={{ ...inputStyle, width: '360px' }} placeholder='アクション内容・ヒアリング内容を記載'
+                                                        <div>
+                                                            <textarea value={safeFormate(call.note)} style={{ ...inputStyle, width: '360px' }} placeholder='アクション内容・ヒアリング内容を記載'
                                                                 onChange={(e) => setCall(prev => ({
                                                                     ...prev,
                                                                     note: e.target.value, staff: interviewer
@@ -1112,7 +1274,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr id='customized_input_01J95TC6KEES87F0YXH29AJP7K' >
+                                    <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
                                                 面談時アンケート
@@ -1129,7 +1291,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </div></td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('remarks')}>
-                                                <textarea placeholder='面談時アンケート' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={information.customized_input_01J95TC6KEES87F0YXH29AJP7K}
+                                                <textarea placeholder='面談時アンケート' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={safeFormate(information.customized_input_01J95TC6KEES87F0YXH29AJP7K)}
                                                     rows={information.customized_input_01J95TC6KEES87F0YXH29AJP7K ? Math.max(information.customized_input_01J95TC6KEES87F0YXH29AJP7K.length / 53) + 2 : 2}
                                                     onChange={(e) => {
                                                         setInformation(prev => (
@@ -1144,8 +1306,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>備考</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('remarks')}>
-                                                <textarea placeholder='次回アポまでの対応内容・担当者の感覚' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={information.remarks}
-                                                    rows={information.remarks ? Math.max(information.remarks.length / 53) + 2 : 2}
+                                                <textarea placeholder='次回アポまでの対応内容・担当者の感覚' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={safeFormate(information.remarks)}
+                                                    rows={information.remarks ? Math.ceil(information.remarks.length / 53) + 2 : 2}
                                                     onChange={(e) => {
                                                         setInformation(prev => (
                                                             {
@@ -1158,7 +1320,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
 
-                                    <tr id={idMapping('問い合せのきっかけ')}>
+                                    <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
                                                 問い合わせのきっかけ
@@ -1221,7 +1383,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr id={idMapping('建築動機')}>
+                                    <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
                                                 注文住宅に興味をもった動機
@@ -1260,18 +1422,27 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 )}</div>
                                             </div>
                                         </td>
-                                        <td style={labelStyle}>家族情報</td>
-                                        <td style={valueStyle}><div className="bg-primary px-3 text-white py-1 rounded" style={{ width: 'fit-content', fontWeight: '500', letterSpacing: '1px', cursor: 'pointer' }}
-                                            onClick={() => setFamilyMShow(true)}>入力・確認</div></td>Z
+                                        <td style={labelStyle}>建設予定地</td>
+                                        <td style={valueStyle}>
+                                            <input type='text' placeholder='建設予定地' style={{ ...inputStyle, width: '240px' }} value={safeFormate(information.planned_construction_site)}
+                                                onChange={(e) => {
+                                                    setInformation(prev => (
+                                                        {
+                                                            ...prev,
+                                                            planned_construction_site: e.target.value
+                                                        }
+                                                    ));
+                                                }} />
+                                        </td>
                                     </tr>
                                 </tbody>
                             </Table>
                             <Table>
                                 <tbody>
-                                    <tr id={idMapping('入居時期')}>
+                                    <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>新築計画</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <select style={inputStyle} value={information[idMapping('新築計画')]}
+                                            <select style={inputStyle} value={safeFormate(information[idMapping('新築計画')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1290,7 +1461,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>入居時期</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={information[idMapping('入居時期')]}
+                                            <select style={inputStyle} value={safeFormate(information[idMapping('入居時期')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1309,7 +1480,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>土地の状況</td>
                                         <td style={valueStyle}>
-                                            <select style={{ ...inputStyle, width: '220px' }} value={information[idMapping('土地の状況')]}
+                                            <select style={{ ...inputStyle, width: '220px' }} value={safeFormate(information[idMapping('土地の状況')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1328,7 +1499,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                     <tr >
                                         <td style={labelStyle}>土地の有無</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={information.has_owned_land}
+                                            <select style={inputStyle} value={safeFormate(information.has_owned_land)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1342,7 +1513,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>重視項目</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={information.customized_input_01JSE7DKY5RYY3T8T8NVR1AJMN}
+                                            <select style={inputStyle} value={safeFormate(information.customized_input_01JSE7DKY5RYY3T8T8NVR1AJMN)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1360,7 +1531,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>契約スケジュール</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={information.customized_input_01JSE7RNV3VK78YC2GYAG0554D}
+                                            <select style={inputStyle} value={safeFormate(information.customized_input_01JSE7RNV3VK78YC2GYAG0554D)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1379,11 +1550,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </select>
                                         </td>
                                     </tr>
-                                    <tr id='monthly_repayment_amount'>
+                                    <tr>
                                         <td style={labelStyle}>予算総額</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='予算総額' style={inputStyle}
-                                                value={(information.budget ?? '').replace('万円', '')}
+                                                value={safeFormate(information.budget).replace('万円', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1406,7 +1577,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         <td style={labelStyle}>月々支払予算</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='月々支払予算' style={inputStyle}
-                                                value={(information.monthly_repayment_amount ?? '').replace('0000', '')}
+                                                value={safeFormate(information.monthly_repayment_amount).replace('0000', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1429,7 +1600,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         <td style={labelStyle}>返済希望年数</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='返済希望年数' style={inputStyle}
-                                                value={(information.repayment_years ?? '').replace(/[年\/]/g, '')}
+                                                value={safeFormate(information.repayment_years).replace(/[年\/]/g, '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1450,11 +1621,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 }} />年
                                         </td>
                                     </tr>
-                                    <tr id='current_rent'>
+                                    <tr>
                                         <td style={labelStyle}>現居家賃</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='現居家賃' style={inputStyle}
-                                                value={(information.current_rent ?? '').replace('万円', '')}
+                                                value={safeFormate(information.current_rent).replace('万円', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1476,7 +1647,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>自己資金</td>
                                         <td style={valueStyle}>
-                                            <input type="text" placeholder="自己資金" style={inputStyle} value={(information.self_budget ?? '').replace('0000', '')}
+                                            <input type="text" placeholder="自己資金" style={inputStyle} value={safeFormate(information.self_budget).replace('0000', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1498,7 +1669,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>現居光熱費</td>
                                         <td style={valueStyle}>
-                                            <input type="text" placeholder="現居光熱費" style={inputStyle} value={(information.current_utility_costs ?? '').replace('万円', '')}
+                                            <input type="text" placeholder="現居光熱費" style={inputStyle} value={safeFormate(information.current_utility_costs).replace('万円', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1519,11 +1690,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 }} />万円
                                         </td>
                                     </tr>
-                                    <tr id='current_contract_type'>
+                                    <tr>
                                         <td style={labelStyle}>負債総額</td>
                                         <td style={valueStyle}>
                                             <input type="text" placeholder="自己資金" style={inputStyle}
-                                                value={(information.current_loan_balance ?? '').replace('0000', '')}
+                                                value={safeFormate(information.current_loan_balance).replace('0000', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1545,7 +1716,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>現居契約形態</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={information.current_contract_type}
+                                            <select style={inputStyle} value={safeFormate(information.current_contract_type)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1564,7 +1735,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>雇用形態</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={information.customer_contacts_employment_type}
+                                            <select style={inputStyle} value={safeFormate(information.customer_contacts_employment_type)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1583,10 +1754,10 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </select>
                                         </td>
                                     </tr>
-                                    <tr id='customer_contacts_employer_name' >
+                                    <tr>
                                         <td style={labelStyle}>勤務先名</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='勤務先名' style={inputStyle} value={information.customer_contacts_employer_name}
+                                            <input type='text' placeholder='勤務先名' style={inputStyle} value={safeFormate(information.customer_contacts_employer_name)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1598,7 +1769,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>勤務先住所</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='勤務先名' style={inputStyle} value={information.customer_contacts_employer_address}
+                                            <input type='text' placeholder='勤務先名' style={inputStyle} value={safeFormate(information.customer_contacts_employer_address)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1610,7 +1781,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>勤続年数</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='勤続年数' style={inputStyle} value={information.customer_contacts_years_of_service}
+                                            <input type='text' placeholder='勤続年数' style={inputStyle} value={safeFormate(information.customer_contacts_years_of_service)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1631,11 +1802,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 }} />年
                                         </td>
                                     </tr>
-                                    <tr id='desired_land_area'>
+                                    <tr>
                                         <td style={labelStyle}>年収</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='勤務先名' style={inputStyle}
-                                                value={(information.customer_contacts_annual_income ?? '').replace('万円', '')}
+                                                value={safeFormate(information.customer_contacts_annual_income).replace('万円', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1657,7 +1828,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>希望土地面積</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='希望土地面積' style={inputStyle} value={information.desired_land_area}
+                                            <input type='text' placeholder='希望土地面積' style={inputStyle} value={safeFormate(information.desired_land_area)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1680,7 +1851,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         <td style={labelStyle}>土地の予算</td>
                                         <td style={valueStyle}>
                                             <input type='text' pattern="[A-Za-z0-9]*" placeholder='予算総額' style={inputStyle}
-                                                value={(information.land_budget ?? '').replace('万円', '')}
+                                                value={safeFormate(information.land_budget).replace('万円', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1702,26 +1873,15 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 }} />万円
                                         </td>
                                     </tr>
-                                    <tr id='planned_construction_site'>
-                                        <td style={labelStyle}>建設予定地</td>
-                                        <td style={valueStyle}>
-                                            <input type='text' placeholder='建設予定地' style={{ ...inputStyle, width: '240px' }} value={information.planned_construction_site}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            planned_construction_site: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
-                                        </td>
-
-                                    </tr>
                                 </tbody>
                             </Table>
                         </div>
                     </div>
                     <Modal.Footer>
+                        {information.k_snap && <div className='bg-warning text-dark px-4 py-1 rounded-pill' style={{ fontSize: '12px', letterSpacing: '1px', cursor: 'pointer' }}
+                            onClick={() => {
+                                setKSnap(information.id);
+                            }}>K-Snap閲覧ログ</div>}
                         <div className='bg-info text-white px-4 py-1 rounded-pill' style={{ fontSize: '12px', letterSpacing: '1px', cursor: 'pointer' }}
                             onClick={() => {
                                 navigate(`/calendar?id=${information.id}`)
@@ -1739,6 +1899,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 <FamilyInfo idValue={information.id} shopValue={information.in_charge_store} nameValue={information.customer_contacts_name} modalClose={familyModalClose} />
             </Modal>
             <Estate estateId={estateId} setEstateId={setEstateId} />
+            <KSnap id={kSnap} setKSnap={setKSnap}/>
         </>
     );
 };

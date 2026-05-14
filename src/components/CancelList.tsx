@@ -3,27 +3,31 @@ import Table from "react-bootstrap/Table";
 import axios from 'axios';
 import { headers } from '../utils/headers';
 import Modal from 'react-bootstrap/Modal';
-import InformationEdit from './InformationEdit';
+import InformationEdit from './information/InformationEdit';
 import AuthContext from '../context/AuthContext';
 
-type Reasons = { id: string, value: string };
+type shopList = { brand: string, shop: string, section: string };
 type Props = {
     cancelListShow: boolean,
     setCancelListShow: React.Dispatch<React.SetStateAction<boolean>>,
+    onReload: () => void,
+    shopArray: shopList[]
 };
 type Form = { brand: string, shop: string, age: string, mobile: string };
 type Survey = { brand: string, annualIncome: string, emailAddress: string, totalBudget: string, expectedResidents: string, priorityItem: string, futurePlan: string, thingsToDo: string, housingType: string };
 type MasterDataList = { id: string, customer: string, interview: string, mail: string, phone_number: string, reserved_interview: string, shop: string, staff: string, hp_campaign: string, medium: string, cancel_status: string, register: string };
 
-const CancelList = ({ cancelListShow, setCancelListShow }: Props) => {
+const CancelList = ({ cancelListShow, setCancelListShow, onReload, shopArray }: Props) => {
     const [total, setTotal] = useState(false);
     const [form, setForm] = useState<Form[]>([]);
     const [surveyList, setSurveyList] = useState<Survey[]>([]);
+    const [originalMasterDataList, setOriginalMasterDataList] = useState<MasterDataList[]>([]);
     const [masterDataList, setMasterDataList] = useState<MasterDataList[]>([]);
     const [reasons, setReasons] = useState({ id: '', value: '' });
     const [editId, setEditId] = useState('');
     const { token } = useContext(AuthContext);
     const { brand } = useContext(AuthContext);
+    const [targetShop, setTargetShop] = useState('');
 
     useEffect(() => {
         if (!cancelListShow) return;
@@ -32,7 +36,7 @@ const CancelList = ({ cancelListShow, setCancelListShow }: Props) => {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'cancelList' }, { headers });
                 setForm(response.data.form);
                 setSurveyList(response.data.survey);
-                setMasterDataList(response.data.customer);
+                setOriginalMasterDataList(response.data.customer);
             } catch (e) {
                 console.error(e);
                 alert('データの取得に失敗');
@@ -41,6 +45,13 @@ const CancelList = ({ cancelListShow, setCancelListShow }: Props) => {
 
         fetchData();
     }, [cancelListShow]);
+
+    useEffect(() => {
+        const filtered = originalMasterDataList.filter(o =>
+            targetShop ? o.shop === targetShop : true
+        );
+        setMasterDataList(filtered);
+    }, [targetShop, originalMasterDataList]);
 
     const formate = (value: string) => {
         return value ? value.replace(/-/g, '/') : '';
@@ -73,15 +84,12 @@ const CancelList = ({ cancelListShow, setCancelListShow }: Props) => {
         }
 
         setReasons({ id: '', value: '' });
+
+        onReload();
     };
 
     const closeInformationEdit = async () => {
         setEditId('');
-        const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_reload' }, { headers });
-            await setMasterDataList(response.data.customer);
-        }
-        fetchData();
     };
 
     return (
@@ -96,6 +104,14 @@ const CancelList = ({ cancelListShow, setCancelListShow }: Props) => {
                         <div className="bg-info text-white px-3 py-1 rounded mx-2"
                             style={{ cursor: total ? 'text' : 'pointer', opacity: total ? '1' : '.5', transform: total ? 'scale(1.1)' : 'scale(1)' }}
                             onClick={() => setTotal(true)}>来場キャンセル顧客一覧</div>
+                        <div className="mx-2">
+                            <select className='target'
+                                onChange={(e) => setTargetShop(e.target.value)}>
+                                <option value="">店舗を選択</option>
+                                {shopArray.filter(s => !s.shop.includes('全店舗')).map((shop, index) =>
+                                    <option value={shop.shop} key={index}>{shop.shop}</option>)}
+                            </select>
+                        </div>
                     </div>
                     {total ?
                         <Table bordered striped>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react'
-import MenuDev from "./MenuDev";
 import AuthContext from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import Table from "react-bootstrap/Table";
@@ -43,7 +42,6 @@ type Customer = { register: string, reserve: string, shop: string, contract: str
 const Company = () => {
     const { brand, token, category } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [open, setOpen] = useState(false);
     const [targetMonth, setTargetMonth] = useState('');
     const [targetShop, setTargetShop] = useState('');
     const [display, setDisplay] = useState('shop');
@@ -518,201 +516,188 @@ const Company = () => {
 
     return (
         <>
-            <div className="d-flex">
-                <div className='modal_menu' style={{ width: '20%' }}>
-                    <MenuDev brand={brand} />
-                </div>
-                <div className="header_sp">
-                    <i className="fa-solid fa-bars hamburger" onClick={() => setOpen(true)} />
-                </div>
-                <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                    <i className="fa-solid fa-xmark hamburger position-absolute" onClick={() => setOpen(false)} />
-                    <MenuDev brand={brand} />
-                </div>
-                <div className='bg-white p-0 w-100'>
-                    <div className="event_calender">
-                        <div className="d-flex justify-content-between global_bar my-3 align-items-center calendar_menu">
-                            <div onClick={beforeMonth} className='bg-primary text-white py-2 px-3 rounded-pill' style={{ cursor: 'pointer' }}>前の月</div>
-                            <div className="d-flex align-items-center position-relative">
-                                <div className="me-2">{targetMonth.replace('/', '年')}月</div>
-                                <div className="me-2">
-                                    <div onClick={() => {
-                                        setShow(true);
-                                        setSummary(true);
-                                    }} className='bg-light text-dark border py-2 px-4 rounded-pill' style={{ cursor: 'pointer' }}>
-                                        反響集計
-                                    </div>
+            <div className='bg-white p-0 w-100'>
+                <div className="event_calender">
+                    <div className="d-flex justify-content-between global_bar my-3 align-items-center calendar_menu">
+                        <div onClick={beforeMonth} className='bg-primary text-white py-2 px-3 rounded-pill' style={{ cursor: 'pointer' }}>前の月</div>
+                        <div className="d-flex align-items-center position-relative">
+                            <div className="me-2">{targetMonth.replace('/', '年')}月</div>
+                            <div className="me-2">
+                                <div onClick={() => {
+                                    setShow(true);
+                                    setSummary(true);
+                                }} className='bg-light text-dark border py-2 px-4 rounded-pill' style={{ cursor: 'pointer' }}>
+                                    反響集計
                                 </div>
-                                <div className="me-2">
-                                    <div onClick={() => setTargetMonth(`${year}/${String(month).padStart(2, '0')}`)}
-                                        className='bg-light text-dark border py-2 px-4 rounded-pill'
-                                        style={{ cursor: 'pointer' }}>
-                                        今月
-                                    </div>
-                                </div>
-                                <div className="me-2">
-                                    <div onClick={() => {
-                                        setListShop('');
-                                        setDisplay(display === 'list' ? 'shop' : 'list');
-                                    }} className='bg-light text-dark border py-2 px-4 rounded-pill' style={{ cursor: 'pointer' }}>
-                                        {display === 'list' && '店舗表示'}{display === 'shop' && '全体表示'}
-                                    </div>
-                                </div>
-                                <div className='me-2'>
-                                    <select className='target' onChange={(e) => setTargetShop(e.target.value)} disabled={display === 'list'}>
-                                        <option value="" selected={targetShop === ''}>店舗を選択</option>
-                                        <option value="iceWorld">アイスワールド</option>
-                                        {shopList.map((shop, index) => <option value={shop.shop} key={index} selected={targetShop === shop.shop}>{shop.shop}</option>)}
-                                    </select>
-                                </div>
-                                {display === 'shop' && <div className="calendarResponse menu">
-                                    <div className="d-flex">
-                                        <div className="response sample register px-2">新規来場者:{response.filter(r => r.category === 'reserved').reduce((acc, cur) => acc + cur.count, 0)}名</div>
-                                        <div className="response sample new px-2">有効新規数:{response.filter(r => r.category === 'new').reduce((acc, cur) => acc + cur.count, 0)}名</div>
-                                        <div className="response sample appointment px-2">次アポ数:{response.filter(r => r.category === 'next').reduce((acc, cur) => acc + cur.count, 0)}名</div>
-                                        <div className="response sample listed px-2">管理客:{response.filter(r => r.category === 'registered').reduce((acc, cur) => acc + cur.count, 0)}名</div>
-                                    </div>
-                                </div>}
                             </div>
-                            <div onClick={nextMonth} className='bg-primary text-white py-2 px-3 rounded-pill' style={{ cursor: 'pointer' }}>次の月</div>
+                            <div className="me-2">
+                                <div onClick={() => setTargetMonth(`${year}/${String(month).padStart(2, '0')}`)}
+                                    className='bg-light text-dark border py-2 px-4 rounded-pill'
+                                    style={{ cursor: 'pointer' }}>
+                                    今月
+                                </div>
+                            </div>
+                            <div className="me-2">
+                                <div onClick={() => {
+                                    setListShop('');
+                                    setDisplay(display === 'list' ? 'shop' : 'list');
+                                }} className='bg-light text-dark border py-2 px-4 rounded-pill' style={{ cursor: 'pointer' }}>
+                                    {display === 'list' && '店舗表示'}{display === 'shop' && '全体表示'}
+                                </div>
+                            </div>
+                            <div className='me-2'>
+                                <select className='target' onChange={(e) => setTargetShop(e.target.value)} disabled={display === 'list'}>
+                                    <option value="" selected={targetShop === ''}>店舗を選択</option>
+                                    <option value="iceWorld">アイスワールド</option>
+                                    {shopList.map((shop, index) => <option value={shop.shop} key={index} selected={targetShop === shop.shop}>{shop.shop}</option>)}
+                                </select>
+                            </div>
+                            {display === 'shop' && <div className="calendarResponse menu">
+                                <div className="d-flex">
+                                    <div className="response sample register px-2">新規来場者:{response.filter(r => r.category === 'reserved').reduce((acc, cur) => acc + cur.count, 0)}名</div>
+                                    <div className="response sample new px-2">有効新規数:{response.filter(r => r.category === 'new').reduce((acc, cur) => acc + cur.count, 0)}名</div>
+                                    <div className="response sample appointment px-2">次アポ数:{response.filter(r => r.category === 'next').reduce((acc, cur) => acc + cur.count, 0)}名</div>
+                                    <div className="response sample listed px-2">管理客:{response.filter(r => r.category === 'registered').reduce((acc, cur) => acc + cur.count, 0)}名</div>
+                                </div>
+                            </div>}
                         </div>
-                        <div className="calendar_area">
-                            {display === 'shop' ? <Table striped>
-                                <tbody className='shop_calendar'>
-                                    <tr>
-                                        {youbi.map((item, i) => (
-                                            <td key={i}>{item}曜日</td>
+                        <div onClick={nextMonth} className='bg-primary text-white py-2 px-3 rounded-pill' style={{ cursor: 'pointer' }}>次の月</div>
+                    </div>
+                    <div className="calendar_area">
+                        {display === 'shop' ? <Table striped>
+                            <tbody className='shop_calendar'>
+                                <tr>
+                                    {youbi.map((item, i) => (
+                                        <td key={i}>{item}曜日</td>
+                                    ))}
+                                </tr>
+                                {weeks.map((week, weekIndex) => (
+                                    <tr key={weekIndex}>
+                                        {week.map((cell, youbiIndex) => {
+                                            const dateValue = `${targetMonth.replace('/', '-')}-${String(cell.date).padStart(2, '0')}`;
+                                            const base = response.filter(r => r.date === dateValue);
+                                            const reservedLength = base.filter(b => b.category === 'reserved').reduce((acc, cur) => acc + cur.count, 0);
+                                            const newLength = base.filter(b => b.category === 'new').reduce((acc, cur) => acc + cur.count, 0);
+                                            const nextLength = base.filter(b => b.category === 'next').reduce((acc, cur) => acc + cur.count, 0);
+                                            const registeredLength = base.filter(b => b.category === 'registered').reduce((acc, cur) => acc + cur.count, 0);
+                                            return (
+                                                <td key={youbiIndex} className="shop_calendar_cell" onClick={() => modalOpen(cell.date - 1)}>
+                                                    <div className={`dateArea ${cell.date === todayDate ? "bg-secondary text-white rounded-pill px-1 py-1" : ""}`}>
+                                                        {cell.isCurrentMonth ? String(cell.date) : ""}
+                                                    </div>
+                                                    <div className="eventArea">
+                                                        {eventShopList[weekIndex]?.[youbiIndex]?.slice(0, 5).map((e, idx, dayEvents) => {
+                                                            const lane = dayEvents.findIndex(ev => ev.id === e.id);
+                                                            const top = 10 + lane * 20;
+                                                            return (
+                                                                <div
+                                                                    key={e.id}
+                                                                    className="eventBar"
+                                                                    style={{
+                                                                        backgroundColor: idx < 4 ? e.color : '',
+                                                                        top: `${top}px`,
+                                                                        width: "100%",
+                                                                        color: idx === 4 ? e.color : '',
+                                                                    }}
+                                                                >
+                                                                    {idx < 4 ? `${e.title.slice(0, 7)}${e.title.length > 7 ? '...' : ''}` : ':'}
+
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {cell.isCurrentMonth &&
+                                                            <div className="calendarResponse">
+                                                                <div className="d-flex">
+                                                                    <div className="response register">{reservedLength}</div>
+                                                                    <div className="response new">{newLength}</div>
+                                                                    <div className="response appointment">{nextLength}</div>
+                                                                    <div className="response listed">{registeredLength}</div>
+                                                                </div>
+                                                            </div>}
+                                                    </div>
+                                                </td>
+                                            )
+                                        })}
+                                    </tr>
+                                ))}
+
+                            </tbody>
+                        </Table>
+                            : <Table striped bordered>
+                                <tbody className='monthCalender'>
+                                    <tr className='sticky-header eventCalendar'>
+                                        <td rowSpan={2} className="align-middle">店舗名</td>
+                                        {[...Array(lastDay)].map((_, i) => (
+                                            <td key={i}>{i + 1}</td>
                                         ))}
                                     </tr>
-                                    {weeks.map((week, weekIndex) => (
-                                        <tr key={weekIndex}>
-                                            {week.map((cell, youbiIndex) => {
-                                                const dateValue = `${targetMonth.replace('/', '-')}-${String(cell.date).padStart(2, '0')}`;
-                                                const base = response.filter(r => r.date === dateValue);
-                                                const reservedLength = base.filter(b => b.category === 'reserved').reduce((acc, cur) => acc + cur.count, 0);
-                                                const newLength = base.filter(b => b.category === 'new').reduce((acc, cur) => acc + cur.count, 0);
-                                                const nextLength = base.filter(b => b.category === 'next').reduce((acc, cur) => acc + cur.count, 0);
-                                                const registeredLength = base.filter(b => b.category === 'registered').reduce((acc, cur) => acc + cur.count, 0);
-                                                return (
-                                                    <td key={youbiIndex} className="shop_calendar_cell" onClick={() => modalOpen(cell.date - 1)}>
-                                                        <div className={`dateArea ${cell.date === todayDate ? "bg-secondary text-white rounded-pill px-1 py-1" : ""}`}>
-                                                            {cell.isCurrentMonth ? String(cell.date) : ""}
-                                                        </div>
-                                                        <div className="eventArea">
-                                                            {eventShopList[weekIndex]?.[youbiIndex]?.slice(0, 5).map((e, idx, dayEvents) => {
-                                                                const lane = dayEvents.findIndex(ev => ev.id === e.id);
-                                                                const top = 10 + lane * 20;
-                                                                return (
-                                                                    <div
-                                                                        key={e.id}
-                                                                        className="eventBar"
-                                                                        style={{
-                                                                            backgroundColor: idx < 4 ? e.color : '',
-                                                                            top: `${top}px`,
-                                                                            width: "100%",
-                                                                            color: idx === 4 ? e.color : '',
-                                                                        }}
-                                                                    >
-                                                                        {idx < 4 ? `${e.title.slice(0, 7)}${e.title.length > 7 ? '...' : ''}` : ':'}
+                                    <tr className='sticky-header eventCalendar bottom bg-white'>
+                                        {[...Array(lastDay)].map((_, i) => (
+                                            <td key={i}>{youbi[(firstDay + i) % 7]}</td>
+                                        ))}
+                                    </tr>
+                                    {shopList.filter(s => !s.shop.includes('未設定')).map((s, sIndex) => {
+                                        const list = eventList[sIndex];
+                                        const targetEvent = Array.isArray(list) ? list.filter(e => e.shop === s.shop) : [];
 
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                            {cell.isCurrentMonth &&
-                                                                <div className="calendarResponse">
-                                                                    <div className="d-flex">
-                                                                        <div className="response register">{reservedLength}</div>
-                                                                        <div className="response new">{newLength}</div>
-                                                                        <div className="response appointment">{nextLength}</div>
-                                                                        <div className="response listed">{registeredLength}</div>
-                                                                    </div>
-                                                                </div>}
-                                                        </div>
-                                                    </td>
-                                                )
-                                            })}
-                                        </tr>
-                                    ))}
+                                        const firstAppear: Record<number, number> = {};
+                                        const thisMonthEvent: number[] = [];
 
-                                </tbody>
-                            </Table>
-                                : <Table striped bordered>
-                                    <tbody className='monthCalender'>
-                                        <tr className='sticky-header eventCalendar'>
-                                            <td rowSpan={2} className="align-middle">店舗名</td>
-                                            {[...Array(lastDay)].map((_, i) => (
-                                                <td key={i}>{i + 1}</td>
-                                            ))}
-                                        </tr>
-                                        <tr className='sticky-header eventCalendar bottom bg-white'>
-                                            {[...Array(lastDay)].map((_, i) => (
-                                                <td key={i}>{youbi[(firstDay + i) % 7]}</td>
-                                            ))}
-                                        </tr>
-                                        {shopList.filter(s => !s.shop.includes('未設定')).map((s, sIndex) => {
-                                            const list = eventList[sIndex];
-                                            const targetEvent = Array.isArray(list) ? list.filter(e => e.shop === s.shop) : [];
-
-                                            const firstAppear: Record<number, number> = {};
-                                            const thisMonthEvent: number[] = [];
-
-                                            for (let i = 0; i < lastDay; i++) {
-                                                const ev = targetEvent.find(t => t.date === i + 1);
-                                                if (!ev) continue;
-                                                for (const e of ev.event) {
-                                                    if (firstAppear[e.id] === undefined) {
-                                                        firstAppear[e.id] = i;
-                                                    }
-                                                    if (!thisMonthEvent.includes(e.id)) {
-                                                        thisMonthEvent.push(e.id);
-                                                    }
+                                        for (let i = 0; i < lastDay; i++) {
+                                            const ev = targetEvent.find(t => t.date === i + 1);
+                                            if (!ev) continue;
+                                            for (const e of ev.event) {
+                                                if (firstAppear[e.id] === undefined) {
+                                                    firstAppear[e.id] = i;
+                                                }
+                                                if (!thisMonthEvent.includes(e.id)) {
+                                                    thisMonthEvent.push(e.id);
                                                 }
                                             }
+                                        }
 
-                                            return (
-                                                <tr key={sIndex}>
-                                                    <td>{s.shop}</td>
-                                                    {[...Array(lastDay)].map((_, i) => {
-                                                        const ev = targetEvent.find(t => t.date === i + 1);
-                                                        const eventsForDay = ev ? ev.event : [];
-                                                        return (
-                                                            <td key={i} style={{ padding: '0', height: (thisMonthEvent.length + 1) * 30 }}
-                                                                className="position-relative shop_calendar_cell" onClick={() => {
-                                                                    setListShop(s.shop);
-                                                                    setTargetShop(s.shop);
-                                                                    modalOpen(i);
-                                                                }}>
-                                                                {eventsForDay.map((e, eIndex) => {
-                                                                    const top = thisMonthEvent.indexOf(e.id) * 30 + 20;
-                                                                    const showTitle = firstAppear[e.id] === i;
-                                                                    return (
-                                                                        <div key={e.id} style={{
-                                                                            backgroundColor: '#b3d6f4',
-                                                                            top,
-                                                                            height: '22px',
-                                                                            width: '105%',
-                                                                            whiteSpace: 'nowrap',
-                                                                            position: 'absolute',
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            paddingLeft: '0.25rem',
-                                                                            cursor: 'pointer',
-                                                                            color: '#222222',
-                                                                            zIndex: showTitle ? 10 : 1
-                                                                        }}>{showTitle ? e.title : ''}</div>
-                                                                    );
-                                                                })}
-                                                            </td>
-                                                        );
-                                                    })}
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </Table>
-                            }
-                        </div>
-
+                                        return (
+                                            <tr key={sIndex}>
+                                                <td>{s.shop}</td>
+                                                {[...Array(lastDay)].map((_, i) => {
+                                                    const ev = targetEvent.find(t => t.date === i + 1);
+                                                    const eventsForDay = ev ? ev.event : [];
+                                                    return (
+                                                        <td key={i} style={{ padding: '0', height: (thisMonthEvent.length + 1) * 30 }}
+                                                            className="position-relative shop_calendar_cell" onClick={() => {
+                                                                setListShop(s.shop);
+                                                                setTargetShop(s.shop);
+                                                                modalOpen(i);
+                                                            }}>
+                                                            {eventsForDay.map((e, eIndex) => {
+                                                                const top = thisMonthEvent.indexOf(e.id) * 30 + 20;
+                                                                const showTitle = firstAppear[e.id] === i;
+                                                                return (
+                                                                    <div key={e.id} style={{
+                                                                        backgroundColor: '#b3d6f4',
+                                                                        top,
+                                                                        height: '22px',
+                                                                        width: '105%',
+                                                                        whiteSpace: 'nowrap',
+                                                                        position: 'absolute',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        paddingLeft: '0.25rem',
+                                                                        cursor: 'pointer',
+                                                                        color: '#222222',
+                                                                        zIndex: showTitle ? 10 : 1
+                                                                    }}>{showTitle ? e.title : ''}</div>
+                                                                );
+                                                            })}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </Table>
+                        }
                     </div>
                 </div>
             </div>

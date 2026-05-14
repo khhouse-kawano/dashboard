@@ -7,19 +7,15 @@ import { useNavigate } from "react-router-dom";
 import Table from "react-bootstrap/Table";
 import Blue from "../assets/images/blue_ping.png";
 import Red from "../assets/images/red_ping.png";
-import MenuDev from "./MenuDev";
-import { getYearMonthArray } from '../utils/getYearMonthArray';
+import { getYearMonthArray } from "../utils/getYearMonthArray";
+import { GoogleMapContext } from "../context/GoogleMapContext";
 
 const libraries = ["marker"];
 
 const Map = () => {
   const navigate = useNavigate();
   const { brand } = useContext(AuthContext);
-
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: "AIzaSyAJfDaeKmyprID8wKVgPCv_9ph_-y_wSbg",
-    libraries,
-  });
+  const { isLoaded } = useContext(GoogleMapContext);
 
   const [originalMarkers, setOriginalMarkers] = useState([]);
   const [filteredMarkers, setFilteredMarkers] = useState([]);
@@ -37,11 +33,10 @@ const Map = () => {
   const [targetShop, setTargetShop] = useState("");
   const [areaList, setAreaList] = useState([]);
   const [slice, setSlice] = useState(20);
-    const { token } = useContext(AuthContext);
-    const { category } = useContext(AuthContext);
+  const { token } = useContext(AuthContext);
+  const { category } = useContext(AuthContext);
   const mapRef = useRef(null);
   const initialCenter = { lat: 31.584172816548488, lng: 130.7938207962173 };
-
 
   /** エリアリストを生成 */
   const buildAreaList = (filtered) => {
@@ -63,9 +58,8 @@ const Map = () => {
 
   /** AdvancedMarkerElement を生成 */
   const createMarkers = async (filtered) => {
-    const { AdvancedMarkerElement } = await window.google.maps.importLibrary(
-      "marker"
-    );
+    const { AdvancedMarkerElement } =
+      await window.google.maps.importLibrary("marker");
 
     // 既存マーカーをクリア
     advMarkers.forEach((m) => (m.map = null));
@@ -93,7 +87,15 @@ const Map = () => {
 
   /** 初期データ取得 */
   useEffect(() => {
-    if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
+    if (
+      !brand ||
+      brand.trim() === "" ||
+      !token ||
+      token.trim() === "" ||
+      !category ||
+      category.trim() === ""
+    )
+      navigate("/login");
     if (!isLoaded) return;
 
     setMonthArray(getYearMonthArray(2025, 1));
@@ -109,17 +111,17 @@ const Map = () => {
             axios.post(
               "https://khg-marketing.info/dashboard/api/",
               { demand: "customer_map" },
-              { headers }
+              { headers },
             ),
             axios.post(
               "https://khg-marketing.info/dashboard/api/",
               { demand: "medium_list" },
-              { headers }
+              { headers },
             ),
             axios.post(
               "https://khg-marketing.info/dashboard/api/",
               { demand: "shop_list" },
-              { headers }
+              { headers },
             ),
           ]);
         const filtered = customerResponse.data.filter((item) => item.lat_lng);
@@ -193,185 +195,176 @@ const Map = () => {
   if (!isLoaded) return <div>Loading...</div>;
 
   return (
-    <div className="outer-container" style={{ width: "100vw" }}>
-      <div className="d-flex">
-        <div className="modal_menu" style={{ width: "20%" }}>
-          <MenuDev brand={brand}/>
-        </div>
-        <div className="content customer p-2">
-          <div className="d-flex flex-wrap align-items-center">
-            <div className="m-1">
-              <select
-                className="target"
-                onChange={(e) => setStartMonth(e.target.value)}
-              >
-                <option value="" selected>
-                  開始月
+    <>
+      <div className="content customer p-2">
+        <div className="d-flex flex-wrap align-items-center">
+          <div className="m-1">
+            <select
+              className="target"
+              onChange={(e) => setStartMonth(e.target.value)}
+            >
+              <option value="" selected>
+                開始月
+              </option>
+              {monthArray.map((month, index) => (
+                <option key={index} value={month}>
+                  {month}
                 </option>
-                {monthArray.map((month, index) => (
-                  <option key={index} value={month}>
-                    {month}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <span style={{ marginLeft: "3px" }}>～</span>
-            <div className="m-1">
-              <select
-                className="target"
-                onChange={(e) => setEndMonth(e.target.value)}
-              >
-                <option value="" selected>
-                  終了月
-                </option>
-                {monthArray.map((month, index) => (
-                  <option key={index} value={month}>
-                    {month}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="m-1">
-              <select
-                className="target"
-                onChange={(e) => setTargetMedium(e.target.value)}
-              >
-                <option value="">販促媒体を選択</option>
-                {medium.map((item, index) => (
-                  <option key={index} value={item.medium}>
-                    {item.medium}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="m-1">
-              <select
-                className="target"
-                onChange={(e) => setTargetStatus(e.target.value)}
-              >
-                <option value="">ステータスを選択</option>
-                <option value="見込み">見込み</option>
-                <option value="契約済み">契約済み</option>
-                <option value="会社管理">会社管理</option>
-                <option value="失注">失注</option>
-              </select>
-            </div>
-            <div className="m-1">
-              <select
-                className="target"
-                onChange={(e) => setTargetBrand(e.target.value)}
-              >
-                <option value="">ブランドを選択</option>
-                <option value="KH">KH</option>
-                <option value="DJ">DJH</option>
-                <option value="なご">なごみ</option>
-                <option value="2L">2L</option>
-                <option value="PG">PG HOUSE</option>
-                <option value="JH">JH</option>
-              </select>
-            </div>
-            <div className="m-1">
-              <select
-                className="target"
-                onChange={(e) => setTargetShop(e.target.value)}
-              >
-                <option value="">店舗を選択</option>
-                {shop
-                  .filter((item) => !item.shop.includes("未設定"))
-                  .map((item) => (
-                    <option value={item.shop}>{item.shop}</option>
-                  ))}
-              </select>
-            </div>
+              ))}
+            </select>
           </div>
-          <div className="table-wrapper">
-            <div className="list_table">
-              <div className="d-flex">
-                <div style={{ width: "70%" }}>
-                  <div
-                    className="d-flex"
-                    style={{ fontSize: "12px", marginBottom: "10px" }}
-                  >
-                    <div style={{ width: "14px" }}>
-                      <img src={Blue} className="w-100" />
-                    </div>
-                    <div style={{ marginLeft: "4px" }}>
-                      来場済み（未契約者）
-                    </div>
-                    <div style={{ width: "14px", marginLeft: "20px" }}>
-                      <img src={Red} className="w-100" />
-                    </div>
-                    <div style={{ marginLeft: "4px" }}>契約者</div>
-                  </div>
-                  <GoogleMap
-                    mapContainerStyle={containerStyle}
-                    zoom={zoom}
-                    onLoad={(map) => {
-                      mapRef.current = map;
-                      map.setCenter(initialCenter); // 初期表示だけ中心を設定
-                    }}
-                    onZoomChanged={() => {
-                      if (mapRef.current) {
-                        const currentZoom = mapRef.current.getZoom();
-                        if (currentZoom !== undefined) {
-                          setZoom(currentZoom);
-                        }
-                      }
-                    }}
-                    options={{
-                      gestureHandling: "greedy",
-                      scrollwheel: true,
-                      mapId: "4b6e2e3028fa3ddba1806a73", // ★ AdvancedMarkerElement を使う場合は必須
-                    }}
-                  >
-                    {/* Marker はここでは描画しない */}
-                  </GoogleMap>
-                </div>
+          <span style={{ marginLeft: "3px" }}>～</span>
+          <div className="m-1">
+            <select
+              className="target"
+              onChange={(e) => setEndMonth(e.target.value)}
+            >
+              <option value="" selected>
+                終了月
+              </option>
+              {monthArray.map((month, index) => (
+                <option key={index} value={month}>
+                  {month}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="m-1">
+            <select
+              className="target"
+              onChange={(e) => setTargetMedium(e.target.value)}
+            >
+              <option value="">販促媒体を選択</option>
+              {medium.map((item, index) => (
+                <option key={index} value={item.medium}>
+                  {item.medium}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="m-1">
+            <select
+              className="target"
+              onChange={(e) => setTargetStatus(e.target.value)}
+            >
+              <option value="">ステータスを選択</option>
+              <option value="見込み">見込み</option>
+              <option value="契約済み">契約済み</option>
+              <option value="会社管理">会社管理</option>
+              <option value="失注">失注</option>
+            </select>
+          </div>
+          <div className="m-1">
+            <select
+              className="target"
+              onChange={(e) => setTargetBrand(e.target.value)}
+            >
+              <option value="">ブランドを選択</option>
+              <option value="KH">KH</option>
+              <option value="DJ">DJH</option>
+              <option value="なご">なごみ</option>
+              <option value="2L">2L</option>
+              <option value="PG">PG HOUSE</option>
+              <option value="JH">JH</option>
+            </select>
+          </div>
+          <div className="m-1">
+            <select
+              className="target"
+              onChange={(e) => setTargetShop(e.target.value)}
+            >
+              <option value="">店舗を選択</option>
+              {shop
+                .filter((item) => !item.shop.includes("未設定"))
+                .map((item) => (
+                  <option value={item.shop}>{item.shop}</option>
+                ))}
+            </select>
+          </div>
+        </div>
+          <div className="list_table">
+            <div className="d-flex">
+              <div style={{ width: "80%" }}>
                 <div
-                  style={{
-                    paddingLeft: "10px",
-                    fontSize: "13px",
-                    width: "20%",
+                  className="d-flex"
+                  style={{ fontSize: "12px", marginBottom: "10px" }}
+                >
+                  <div style={{ width: "14px" }}>
+                    <img src={Blue} className="w-100" />
+                  </div>
+                  <div style={{ marginLeft: "4px" }}>来場済み（未契約者）</div>
+                  <div style={{ width: "14px", marginLeft: "20px" }}>
+                    <img src={Red} className="w-100" />
+                  </div>
+                  <div style={{ marginLeft: "4px" }}>契約者</div>
+                </div>
+                <GoogleMap
+                  mapContainerStyle={containerStyle}
+                  zoom={zoom}
+                  onLoad={(map) => {
+                    mapRef.current = map;
+                    map.setCenter(initialCenter); // 初期表示だけ中心を設定
+                  }}
+                  onZoomChanged={() => {
+                    if (mapRef.current) {
+                      const currentZoom = mapRef.current.getZoom();
+                      if (currentZoom !== undefined) {
+                        setZoom(currentZoom);
+                      }
+                    }
+                  }}
+                  options={{
+                    gestureHandling: "greedy",
+                    scrollwheel: true,
+                    mapId: "4b6e2e3028fa3ddba1806a73", // ★ AdvancedMarkerElement を使う場合は必須
                   }}
                 >
-                  <Table>
-                    <tbody>
-                      {areaList.slice(slice - 20, slice).map((item) => (
-                        <tr>
-                          <td>{item.name}</td>
-                          <td>{item.count}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                  <div className="d-flex justify-content-around">
-                    <div
-                      onClick={() => {
-                        if (slice === 20) return;
-                        setSlice(slice - 20);
-                      }}
-                      className={slice === 20 ? "transparent" : "hover"}
-                    >
-                      前へ
-                    </div>
-                    <div
-                      onClick={() => {
-                        setSlice(slice + 20);
-                      }}
-                      className={
-                        slice >= areaList.length ? "transparent" : "hover"
-                      }
-                    >
-                      次へ
-                    </div>
+                  {/* Marker はここでは描画しない */}
+                </GoogleMap>
+              </div>
+              <div
+                style={{
+                  paddingLeft: "10px",
+                  fontSize: "13px",
+                  width: "20%",
+                }}
+              >
+                <Table>
+                  <tbody>
+                    {areaList.slice(slice - 20, slice).map((item) => (
+                      <tr>
+                        <td>{item.name}</td>
+                        <td>{item.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+                <div className="d-flex justify-content-around">
+                  <div
+                    onClick={() => {
+                      if (slice === 20) return;
+                      setSlice(slice - 20);
+                    }}
+                    className={slice === 20 ? "transparent" : "hover"}
+                  >
+                    前へ
+                  </div>
+                  <div
+                    onClick={() => {
+                      setSlice(slice + 20);
+                    }}
+                    className={
+                      slice >= areaList.length ? "transparent" : "hover"
+                    }
+                  >
+                    次へ
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </>
   );
 };
 

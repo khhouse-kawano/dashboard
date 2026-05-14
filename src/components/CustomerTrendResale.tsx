@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
 import Table from 'react-bootstrap/esm/Table';
-import MenuDev from "./MenuDev";
 import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import Modal from 'react-bootstrap/Modal';
@@ -200,236 +199,61 @@ const Dev = () => {
 
     return (
         <>
-            <div className="d-flex">
-                <div className='modal_menu' style={{ width: '20%' }}><MenuDev brand={brand} />
-                </div>
-                <div className="header_sp">
-                    <i className="fa-solid fa-bars hamburger"
-                        onClick={() => setOpen(true)} />
-                </div>
-                <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                    <i className="fa-solid fa-xmark hamburger position-absolute"
-                        onClick={() => setOpen(false)} />
-                    <MenuDev brand={brand} />
-                </div>
-                <div className='content calendar bg-white p-2'>
-                    <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-                    <div className="d-flex flex-wrap mb-3 align-items-center">
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                                <option value="" selected>開始月を選択</option>
-                                {monthArray.sort((a, b) => {
-                                    const monthA = new Date(a + '/01').getTime();
-                                    const monthB = new Date(b + '/01').getTime();
-                                    return monthA - monthB;
-                                }).map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                                <option value="" selected>終了月を選択</option>
-                                {monthArray.sort((a, b) => {
-                                    const monthA = new Date(a + '/01').getTime();
-                                    const monthB = new Date(b + '/01').getTime();
-                                    return monthA - monthB;
-                                }).map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setTargetStaff(e.target.value)}>
-                                <option value="" selected>担当を選択</option>
-                                {staff.map((staff, index) => (<option key={index} value={staff.name}>{staff.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <div className="resale_customer_button" onClick={() => setModalShow(true)}>行動量目標設定</div>
-                        </div>
+            <div className='content calendar bg-white p-2'>
+                <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
+                <div className="d-flex flex-wrap mb-3 align-items-center">
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
+                            <option value="" selected>開始月を選択</option>
+                            {monthArray.sort((a, b) => {
+                                const monthA = new Date(a + '/01').getTime();
+                                const monthB = new Date(b + '/01').getTime();
+                                return monthA - monthB;
+                            }).map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
-                        <div className="table-wrapper mt-3">
-                            <div className="list_table kaeru">
-                                <div className="mb-3">
-                                    {(targetStaff === '' || staff.find(s => s.name === targetStaff)?.shop === '中専鹿児島店') &&
-                                        <Table bordered style={{ fontSize: '12px' }}>
-                                            <tbody>
-                                                <tr className='table-light'>
-                                                    <td style={{ width: '15%' }}>{targetStaff ? targetStaff : 'リフォームチーム'} 実績</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>総反響</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>通電数</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>アポイント数</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>来店数</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>物件案内数</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>契約数</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>通電率</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>通電アポ率</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>来店率</td>
-                                                    <td style={{ width: 'calc( 85% / 10)' }}>契約率</td>
-                                                </tr>
-                                                {monthArray.slice(startMonth === '' ? 0 : monthArray.indexOf(startMonth),
-                                                    endMonth === '' ? monthArray.length : monthArray.indexOf(endMonth) + 1).sort((a, b) => {
-                                                        const monthA = new Date(a + '/01').getTime();
-                                                        const monthB = new Date(b + '/01').getTime();
-                                                        return monthB - monthA;
-                                                    }).map(month =>
-                                                        <tr style={{ textAlign: 'right' }}>
-                                                            <td style={{ textAlign: 'left' }} className='table-light'>{month.replace('/', '年')}月実績<span onClick={() => setPersonalData(true)}>表示</span></td>
-                                                            {(() => {
-                                                                const registeredLength = registeredCustomer.filter(r => r.case.includes('買') && r.registered.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const callLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('通電') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const appointmentLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('アポイント') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const reservedLength = reservedCustomer.filter(r => r.case?.includes('買') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const introduceLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('物件案内') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const contractLength = contractCustomer.filter(r => r.case?.includes('買') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const callPer = isNaN(callLength / registeredLength) ? '0' : Math.floor(callLength / registeredLength * 1000) / 10;
-                                                                const appointmentPer = isNaN(appointmentLength / callLength) ? '0' : Math.floor(appointmentLength / callLength * 1000) / 10;
-                                                                const reservePer = isNaN(reservedLength / registeredLength) ? '0' : Math.floor(reservedLength / registeredLength * 1000) / 10;
-                                                                const contractPer = isNaN(contractLength / reservedLength) ? '0' : Math.floor(contractLength / reservedLength * 1000) / 10;
-                                                                return (<>
-                                                                    <td>{registeredLength}</td>
-                                                                    <td>{callLength}</td>
-                                                                    <td>{appointmentLength}</td>
-                                                                    <td>{reservedLength}</td>
-                                                                    <td>{introduceLength}</td>
-                                                                    <td>{contractLength}</td>
-                                                                    <td>{callPer}%</td>
-                                                                    <td>{appointmentPer}%</td>
-                                                                    <td>{reservePer}%</td>
-                                                                    <td>{contractPer}%</td>
-                                                                </>);
-                                                            })()}
-                                                        </tr>
-                                                    )}
-                                                {(() => {
-                                                    const registeredLength = registeredCustomer.filter(r => r.case?.includes('買') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const callLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('通電') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const appointmentLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('アポイント') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const reservedLength = reservedCustomer.filter(r => r.case?.includes('買') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const introduceLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('物件案内') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const contractLength = contractCustomer.filter(r => r.case?.includes('買') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const callPer = isNaN(callLength / registeredLength) ? '0' : Math.floor(callLength / registeredLength * 1000) / 10;
-                                                    const appointmentPer = isNaN(appointmentLength / callLength) ? '0' : Math.floor(appointmentLength / callLength * 1000) / 10;
-                                                    const reservePer = isNaN(reservedLength / registeredLength) ? '0' : Math.floor(reservedLength / registeredLength * 1000) / 10;
-                                                    const contractPer = isNaN(contractLength / reservedLength) ? '0' : Math.floor(contractLength / reservedLength * 1000) / 10;
-                                                    return (
-                                                        <tr className='table-primary fw-bold' style={{ textAlign: 'right' }}>
-                                                            <td style={{ textAlign: 'left' }}>{targetStaff ? targetStaff : 'リフォームチーム'} 合計</td>
-                                                            <td>{registeredLength}</td>
-                                                            <td>{callLength}</td>
-                                                            <td>{appointmentLength}</td>
-                                                            <td>{reservedLength}</td>
-                                                            <td>{introduceLength}</td>
-                                                            <td>{contractLength}</td>
-                                                            <td>{callPer}%</td>
-                                                            <td>{appointmentPer}%</td>
-                                                            <td>{reservePer}%</td>
-                                                            <td>{contractPer}%</td>
-                                                        </tr>)
-                                                        ;
-                                                })()}
-                                            </tbody>
-                                        </Table>}
-                                </div>
-                                <div className="mb-3">
-                                    {(targetStaff === '' || staff.find(s => s.name === targetStaff)?.shop === '中専鹿児島店(買)') &&
-                                        <Table bordered style={{ fontSize: '12px' }}>
-                                            <tbody>
-                                                <tr className='table-light' >
-                                                    <td style={{ width: '15%' }}>{targetStaff ? targetStaff : '買取チーム'} 実績</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>総反響</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>通電数</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>アポイント数</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>訪問査定数</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>媒介取得数</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>契約数</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>通電率</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>通電アポ率</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>査定率</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>媒介取得率</td>
-                                                    <td style={{ width: 'calc( 85% / 11)' }}>契約率</td>
-                                                </tr>
-                                                {monthArray.slice(startMonth === '' ? 0 : monthArray.indexOf(startMonth),
-                                                    endMonth === '' ? monthArray.length : monthArray.indexOf(endMonth) + 1).sort((a, b) => {
-                                                        const monthA = new Date(a + '/01').getTime();
-                                                        const monthB = new Date(b + '/01').getTime();
-                                                        return monthB - monthA;
-                                                    }).map(month =>
-                                                        <tr style={{ textAlign: 'right' }}>
-                                                            <td style={{ textAlign: 'left' }} className='table-light'>{month.replace('/', '年')}月実績</td>
-                                                            {(() => {
-                                                                const registeredLength = registeredCustomer.filter(r => r.case?.includes('売') && r.registered.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const callLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('通電') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const appointmentLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('アポイント') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const introduceLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('訪問査定') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const brokerLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('媒介契約') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                                const contractLength = contractCustomer.filter(r => r.case?.includes('売') && r.registered?.includes(month)).length;
-                                                                const callPer = isNaN(callLength / registeredLength) ? '0' : Math.floor(callLength / registeredLength * 1000) / 10;
-                                                                const appointmentPer = isNaN(appointmentLength / callLength) ? '0' : Math.floor(appointmentLength / callLength * 1000) / 10;
-                                                                const reservePer = isNaN(introduceLength / registeredLength) ? '0' : Math.floor(introduceLength / registeredLength * 1000) / 10;
-                                                                const brokerPer = isNaN(brokerLength / introduceLength) ? '0' : Math.floor(brokerLength / introduceLength * 1000) / 10;
-                                                                const contractPer = isNaN(contractLength / brokerLength) ? '0' : Math.floor(contractLength / brokerLength * 1000) / 10;
-                                                                return (<>
-                                                                    <td>{registeredLength}</td>
-                                                                    <td>{callLength}</td>
-                                                                    <td>{appointmentLength}</td>
-                                                                    <td>{introduceLength}</td>
-                                                                    <td>{brokerLength}</td>
-                                                                    <td>{contractLength}</td>
-                                                                    <td>{callPer}%</td>
-                                                                    <td>{appointmentPer}%</td>
-                                                                    <td>{reservePer}%</td>
-                                                                    <td>{brokerPer}%</td>
-                                                                    <td>{contractPer}%</td>
-                                                                </>);
-                                                            })()}
-                                                        </tr>)}
-                                                {(() => {
-                                                    const registeredLength = registeredCustomer.filter(r => r.case?.includes('売') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const callLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('通電') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const appointmentLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('アポイント') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const introduceLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('訪問査定') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const brokerLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('媒介契約') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const contractLength = contractCustomer.filter(r => r.case?.includes('売') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
-                                                    const callPer = isNaN(callLength / registeredLength) ? '0' : Math.floor(callLength / registeredLength * 1000) / 10;
-                                                    const appointmentPer = isNaN(appointmentLength / callLength) ? '0' : Math.floor(appointmentLength / callLength * 1000) / 10;
-                                                    const reservePer = isNaN(introduceLength / registeredLength) ? '0' : Math.floor(introduceLength / registeredLength * 1000) / 10;
-                                                    const brokerPer = isNaN(brokerLength / introduceLength) ? '0' : Math.floor(brokerLength / introduceLength * 1000) / 10;
-                                                    const contractPer = isNaN(contractLength / brokerLength) ? '0' : Math.floor(contractLength / brokerLength * 1000) / 10;
-                                                    return (
-                                                        <tr className='table-primary fw-bold' style={{ textAlign: 'right' }}>
-                                                            <td style={{ textAlign: 'left' }}>{targetStaff ? targetStaff : '買取チーム'} 合計</td>
-                                                            <td>{registeredLength}</td>
-                                                            <td>{callLength}</td>
-                                                            <td>{appointmentLength}</td>
-                                                            <td>{introduceLength}</td>
-                                                            <td>{brokerLength}</td>
-                                                            <td>{contractLength}</td>
-                                                            <td>{callPer}%</td>
-                                                            <td>{appointmentPer}%</td>
-                                                            <td>{reservePer}%</td>
-                                                            <td>{brokerPer}%</td>
-                                                            <td>{contractPer}%</td>
-                                                        </tr>)
-                                                        ;
-                                                })()}
-                                            </tbody>
-                                        </Table>}
-                                </div>
-                                <div className="mb-3">
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
+                            <option value="" selected>終了月を選択</option>
+                            {monthArray.sort((a, b) => {
+                                const monthA = new Date(a + '/01').getTime();
+                                const monthB = new Date(b + '/01').getTime();
+                                return monthA - monthB;
+                            }).map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setTargetStaff(e.target.value)}>
+                            <option value="" selected>担当を選択</option>
+                            {staff.map((staff, index) => (<option key={index} value={staff.name}>{staff.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="m-1">
+                        <div className="resale_customer_button" onClick={() => setModalShow(true)}>行動量目標設定</div>
+                    </div>
+                </div>
+                {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
+                    <div className="table-wrapper mt-3">
+                        <div className="list_table kaeru">
+                            <div className="mb-3">
+                                {(targetStaff === '' || staff.find(s => s.name === targetStaff)?.shop === '中専鹿児島店') &&
                                     <Table bordered style={{ fontSize: '12px' }}>
                                         <tbody>
                                             <tr className='table-light'>
-                                                <td style={{ width: '15%' }}>{targetStaff ? targetStaff : 'チーム'} 行動量</td>
-                                                <td style={{ width: 'calc( 85% / 8)' }}>架電目標</td>
-                                                <td style={{ width: 'calc( 85% / 8)' }}>架電合計</td>
-                                                <td style={{ width: 'calc( 85% / 8)' }}>通電合計</td>
-                                                <td style={{ width: 'calc( 85% / 8)' }}>通電アポ合計</td>
-                                                <td style={{ width: 'calc( 85% / 8)' }}>アポ目標</td>
-                                                <td style={{ width: 'calc( 85% / 8)' }}>架電達成率</td>
-                                                <td style={{ width: 'calc( 85% / 8)' }}>通電率</td>
-                                                <td style={{ width: 'calc( 85% / 8)' }}>アポ達成率</td>
+                                                <td style={{ width: '15%' }}>{targetStaff ? targetStaff : 'リフォームチーム'} 実績</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>総反響</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>通電数</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>アポイント数</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>来店数</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>物件案内数</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>契約数</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>通電率</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>通電アポ率</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>来店率</td>
+                                                <td style={{ width: 'calc( 85% / 10)' }}>契約率</td>
                                             </tr>
                                             {monthArray.slice(startMonth === '' ? 0 : monthArray.indexOf(startMonth),
                                                 endMonth === '' ? monthArray.length : monthArray.indexOf(endMonth) + 1).sort((a, b) => {
@@ -437,73 +261,235 @@ const Dev = () => {
                                                     const monthB = new Date(b + '/01').getTime();
                                                     return monthB - monthA;
                                                 }).map(month =>
-                                                    <tr>
+                                                    <tr style={{ textAlign: 'right' }}>
+                                                        <td style={{ textAlign: 'left' }} className='table-light'>{month.replace('/', '年')}月実績<span onClick={() => setPersonalData(true)}>表示</span></td>
+                                                        {(() => {
+                                                            const registeredLength = registeredCustomer.filter(r => r.case.includes('買') && r.registered.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const callLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('通電') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const appointmentLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('アポイント') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const reservedLength = reservedCustomer.filter(r => r.case?.includes('買') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const introduceLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('物件案内') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const contractLength = contractCustomer.filter(r => r.case?.includes('買') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const callPer = isNaN(callLength / registeredLength) ? '0' : Math.floor(callLength / registeredLength * 1000) / 10;
+                                                            const appointmentPer = isNaN(appointmentLength / callLength) ? '0' : Math.floor(appointmentLength / callLength * 1000) / 10;
+                                                            const reservePer = isNaN(reservedLength / registeredLength) ? '0' : Math.floor(reservedLength / registeredLength * 1000) / 10;
+                                                            const contractPer = isNaN(contractLength / reservedLength) ? '0' : Math.floor(contractLength / reservedLength * 1000) / 10;
+                                                            return (<>
+                                                                <td>{registeredLength}</td>
+                                                                <td>{callLength}</td>
+                                                                <td>{appointmentLength}</td>
+                                                                <td>{reservedLength}</td>
+                                                                <td>{introduceLength}</td>
+                                                                <td>{contractLength}</td>
+                                                                <td>{callPer}%</td>
+                                                                <td>{appointmentPer}%</td>
+                                                                <td>{reservePer}%</td>
+                                                                <td>{contractPer}%</td>
+                                                            </>);
+                                                        })()}
+                                                    </tr>
+                                                )}
+                                            {(() => {
+                                                const registeredLength = registeredCustomer.filter(r => r.case?.includes('買') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const callLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('通電') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const appointmentLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('アポイント') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const reservedLength = reservedCustomer.filter(r => r.case?.includes('買') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const introduceLength = registeredCustomer.filter(r => r.case?.includes('買') && r.action?.includes('物件案内') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const contractLength = contractCustomer.filter(r => r.case?.includes('買') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const callPer = isNaN(callLength / registeredLength) ? '0' : Math.floor(callLength / registeredLength * 1000) / 10;
+                                                const appointmentPer = isNaN(appointmentLength / callLength) ? '0' : Math.floor(appointmentLength / callLength * 1000) / 10;
+                                                const reservePer = isNaN(reservedLength / registeredLength) ? '0' : Math.floor(reservedLength / registeredLength * 1000) / 10;
+                                                const contractPer = isNaN(contractLength / reservedLength) ? '0' : Math.floor(contractLength / reservedLength * 1000) / 10;
+                                                return (
+                                                    <tr className='table-primary fw-bold' style={{ textAlign: 'right' }}>
+                                                        <td style={{ textAlign: 'left' }}>{targetStaff ? targetStaff : 'リフォームチーム'} 合計</td>
+                                                        <td>{registeredLength}</td>
+                                                        <td>{callLength}</td>
+                                                        <td>{appointmentLength}</td>
+                                                        <td>{reservedLength}</td>
+                                                        <td>{introduceLength}</td>
+                                                        <td>{contractLength}</td>
+                                                        <td>{callPer}%</td>
+                                                        <td>{appointmentPer}%</td>
+                                                        <td>{reservePer}%</td>
+                                                        <td>{contractPer}%</td>
+                                                    </tr>)
+                                                    ;
+                                            })()}
+                                        </tbody>
+                                    </Table>}
+                            </div>
+                            <div className="mb-3">
+                                {(targetStaff === '' || staff.find(s => s.name === targetStaff)?.shop === '中専鹿児島店(買)') &&
+                                    <Table bordered style={{ fontSize: '12px' }}>
+                                        <tbody>
+                                            <tr className='table-light' >
+                                                <td style={{ width: '15%' }}>{targetStaff ? targetStaff : '買取チーム'} 実績</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>総反響</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>通電数</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>アポイント数</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>訪問査定数</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>媒介取得数</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>契約数</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>通電率</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>通電アポ率</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>査定率</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>媒介取得率</td>
+                                                <td style={{ width: 'calc( 85% / 11)' }}>契約率</td>
+                                            </tr>
+                                            {monthArray.slice(startMonth === '' ? 0 : monthArray.indexOf(startMonth),
+                                                endMonth === '' ? monthArray.length : monthArray.indexOf(endMonth) + 1).sort((a, b) => {
+                                                    const monthA = new Date(a + '/01').getTime();
+                                                    const monthB = new Date(b + '/01').getTime();
+                                                    return monthB - monthA;
+                                                }).map(month =>
+                                                    <tr style={{ textAlign: 'right' }}>
                                                         <td style={{ textAlign: 'left' }} className='table-light'>{month.replace('/', '年')}月実績</td>
                                                         {(() => {
-                                                            const filteredAchievement: Achievement[] = achievement.filter(item => {
-                                                                const period = new Date(item.period);
-                                                                return (
-                                                                    (startMonth ? period >= new Date(startMonth) : true) &&
-                                                                    (endMonth ? period <= new Date(endMonth) : true) &&
-                                                                    (targetStaff ? item.name === targetStaff : true)
-                                                                )
-                                                            });
-                                                            const totalValue = filteredAchievement.filter(f => f.period?.includes(month)).reduce((acc, cur) => acc + Number(cur.total), 0);
-                                                            const appointmentValue = filteredAchievement.filter(f => f.period?.includes(month)).reduce((acc, cur) => acc + Number(cur.appointment), 0);
-                                                            const callTotal = callDetail.filter(c => c.method === "電話(掛)" && c.date?.includes(month) && (targetStaff ? c.staff === targetStaff : true)).length;
-                                                            const talkTotal = callDetail.filter(c => c.method === "電話(掛)" && c.status?.includes('通電') && c.date?.includes(month) && (targetStaff ? c.staff === targetStaff : true)).length;
-                                                            const appointmentTotal = callDetail.filter(c => c.method === "電話(掛)" && c.status?.includes('アポイント') && c.date?.includes(month) && (targetStaff ? c.staff === targetStaff : true)).length;
-                                                            const totalAchievement = isNaN(callTotal / totalValue) ? '0' : Math.floor(callTotal / totalValue * 1000) / 10;
-                                                            const talkTotalAchievement = isNaN(talkTotal / callTotal) ? '0' : Math.floor(talkTotal / callTotal * 1000) / 10;
-                                                            const appointmentTotalAchievement = isNaN(appointmentTotal / callTotal) ? '0' : Math.floor(appointmentTotal / callTotal * 1000) / 10;
+                                                            const registeredLength = registeredCustomer.filter(r => r.case?.includes('売') && r.registered.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const callLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('通電') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const appointmentLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('アポイント') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const introduceLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('訪問査定') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const brokerLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('媒介契約') && r.registered?.includes(month) && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                            const contractLength = contractCustomer.filter(r => r.case?.includes('売') && r.registered?.includes(month)).length;
+                                                            const callPer = isNaN(callLength / registeredLength) ? '0' : Math.floor(callLength / registeredLength * 1000) / 10;
+                                                            const appointmentPer = isNaN(appointmentLength / callLength) ? '0' : Math.floor(appointmentLength / callLength * 1000) / 10;
+                                                            const reservePer = isNaN(introduceLength / registeredLength) ? '0' : Math.floor(introduceLength / registeredLength * 1000) / 10;
+                                                            const brokerPer = isNaN(brokerLength / introduceLength) ? '0' : Math.floor(brokerLength / introduceLength * 1000) / 10;
+                                                            const contractPer = isNaN(contractLength / brokerLength) ? '0' : Math.floor(contractLength / brokerLength * 1000) / 10;
                                                             return (<>
-                                                                <td style={{ textAlign: 'right' }}>{totalValue}</td>
-                                                                <td style={{ textAlign: 'right' }}>{callTotal}</td>
-                                                                <td style={{ textAlign: 'right' }}>{talkTotal}</td>
-                                                                <td style={{ textAlign: 'right' }}>{appointmentTotal}</td>
-                                                                <td style={{ textAlign: 'right' }}>{appointmentValue}</td>
-                                                                <td style={{ textAlign: 'right' }}>{totalAchievement}%</td>
-                                                                <td style={{ textAlign: 'right' }}>{talkTotalAchievement}%</td>
-                                                                <td style={{ textAlign: 'right' }}>{appointmentTotalAchievement}%</td>
+                                                                <td>{registeredLength}</td>
+                                                                <td>{callLength}</td>
+                                                                <td>{appointmentLength}</td>
+                                                                <td>{introduceLength}</td>
+                                                                <td>{brokerLength}</td>
+                                                                <td>{contractLength}</td>
+                                                                <td>{callPer}%</td>
+                                                                <td>{appointmentPer}%</td>
+                                                                <td>{reservePer}%</td>
+                                                                <td>{brokerPer}%</td>
+                                                                <td>{contractPer}%</td>
                                                             </>);
                                                         })()}
                                                     </tr>)}
                                             {(() => {
-                                                const filteredAchievement: Achievement[] = achievement.filter(item => {
-                                                    const period = new Date(item.period);
-                                                    return (
-                                                        (startMonth ? period >= new Date(startMonth) : true) &&
-                                                        (endMonth ? period <= new Date(endMonth) : true) &&
-                                                        (targetStaff ? item.name === targetStaff : true)
-                                                    )
-                                                });
-                                                const totalValue = filteredAchievement.reduce((acc, cur) => acc + Number(cur.total), 0);
-                                                const appointmentValue = filteredAchievement.reduce((acc, cur) => acc + Number(cur.appointment), 0);
-                                                const callTotal = callDetail.filter(c => c.method === "電話(掛)" && (targetStaff ? c.staff === targetStaff : true)).length;
-                                                const talkTotal = callDetail.filter(c => c.method === "電話(掛)" && c.status?.includes('通電') && (targetStaff ? c.staff === targetStaff : true)).length;
-                                                const appointmentTotal = callDetail.filter(c => c.method === "電話(掛)" && c.status?.includes('アポイント') && (targetStaff ? c.staff === targetStaff : true)).length;
-                                                const totalAchievement = isNaN(callTotal / totalValue) ? '0' : Math.floor(callTotal / totalValue * 1000) / 10;
-                                                const talkTotalAchievement = isNaN(talkTotal / callTotal) ? '0' : Math.floor(talkTotal / callTotal * 1000) / 10;
-                                                const appointmentTotalAchievement = isNaN(appointmentTotal / callTotal) ? '0' : Math.floor(appointmentTotal / callTotal * 1000) / 10;
-                                                return (<tr className='table-primary fw-bold'>
-                                                    <td>行動量合計</td>
-                                                    <td style={{ textAlign: 'right' }}>{totalValue}</td>
-                                                    <td style={{ textAlign: 'right' }}>{callTotal}</td>
-                                                    <td style={{ textAlign: 'right' }}>{talkTotal}</td>
-                                                    <td style={{ textAlign: 'right' }}>{appointmentTotal}</td>
-                                                    <td style={{ textAlign: 'right' }}>{appointmentValue}</td>
-                                                    <td style={{ textAlign: 'right' }}>{totalAchievement}%</td>
-                                                    <td style={{ textAlign: 'right' }}>{talkTotalAchievement}%</td>
-                                                    <td style={{ textAlign: 'right' }}>{appointmentTotalAchievement}%</td>
-                                                </tr>);
+                                                const registeredLength = registeredCustomer.filter(r => r.case?.includes('売') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const callLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('通電') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const appointmentLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('アポイント') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const introduceLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('訪問査定') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const brokerLength = registeredCustomer.filter(r => r.case?.includes('売') && r.action?.includes('媒介契約') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const contractLength = contractCustomer.filter(r => r.case?.includes('売') && (targetStaff === '' ? true : r.staff === targetStaff)).length;
+                                                const callPer = isNaN(callLength / registeredLength) ? '0' : Math.floor(callLength / registeredLength * 1000) / 10;
+                                                const appointmentPer = isNaN(appointmentLength / callLength) ? '0' : Math.floor(appointmentLength / callLength * 1000) / 10;
+                                                const reservePer = isNaN(introduceLength / registeredLength) ? '0' : Math.floor(introduceLength / registeredLength * 1000) / 10;
+                                                const brokerPer = isNaN(brokerLength / introduceLength) ? '0' : Math.floor(brokerLength / introduceLength * 1000) / 10;
+                                                const contractPer = isNaN(contractLength / brokerLength) ? '0' : Math.floor(contractLength / brokerLength * 1000) / 10;
+                                                return (
+                                                    <tr className='table-primary fw-bold' style={{ textAlign: 'right' }}>
+                                                        <td style={{ textAlign: 'left' }}>{targetStaff ? targetStaff : '買取チーム'} 合計</td>
+                                                        <td>{registeredLength}</td>
+                                                        <td>{callLength}</td>
+                                                        <td>{appointmentLength}</td>
+                                                        <td>{introduceLength}</td>
+                                                        <td>{brokerLength}</td>
+                                                        <td>{contractLength}</td>
+                                                        <td>{callPer}%</td>
+                                                        <td>{appointmentPer}%</td>
+                                                        <td>{reservePer}%</td>
+                                                        <td>{brokerPer}%</td>
+                                                        <td>{contractPer}%</td>
+                                                    </tr>)
+                                                    ;
                                             })()}
-
                                         </tbody>
-                                    </Table>
-                                </div>
+                                    </Table>}
                             </div>
-                        </div>}
-                </div>
+                            <div className="mb-3">
+                                <Table bordered style={{ fontSize: '12px' }}>
+                                    <tbody>
+                                        <tr className='table-light'>
+                                            <td style={{ width: '15%' }}>{targetStaff ? targetStaff : 'チーム'} 行動量</td>
+                                            <td style={{ width: 'calc( 85% / 8)' }}>架電目標</td>
+                                            <td style={{ width: 'calc( 85% / 8)' }}>架電合計</td>
+                                            <td style={{ width: 'calc( 85% / 8)' }}>通電合計</td>
+                                            <td style={{ width: 'calc( 85% / 8)' }}>通電アポ合計</td>
+                                            <td style={{ width: 'calc( 85% / 8)' }}>アポ目標</td>
+                                            <td style={{ width: 'calc( 85% / 8)' }}>架電達成率</td>
+                                            <td style={{ width: 'calc( 85% / 8)' }}>通電率</td>
+                                            <td style={{ width: 'calc( 85% / 8)' }}>アポ達成率</td>
+                                        </tr>
+                                        {monthArray.slice(startMonth === '' ? 0 : monthArray.indexOf(startMonth),
+                                            endMonth === '' ? monthArray.length : monthArray.indexOf(endMonth) + 1).sort((a, b) => {
+                                                const monthA = new Date(a + '/01').getTime();
+                                                const monthB = new Date(b + '/01').getTime();
+                                                return monthB - monthA;
+                                            }).map(month =>
+                                                <tr>
+                                                    <td style={{ textAlign: 'left' }} className='table-light'>{month.replace('/', '年')}月実績</td>
+                                                    {(() => {
+                                                        const filteredAchievement: Achievement[] = achievement.filter(item => {
+                                                            const period = new Date(item.period);
+                                                            return (
+                                                                (startMonth ? period >= new Date(startMonth) : true) &&
+                                                                (endMonth ? period <= new Date(endMonth) : true) &&
+                                                                (targetStaff ? item.name === targetStaff : true)
+                                                            )
+                                                        });
+                                                        const totalValue = filteredAchievement.filter(f => f.period?.includes(month)).reduce((acc, cur) => acc + Number(cur.total), 0);
+                                                        const appointmentValue = filteredAchievement.filter(f => f.period?.includes(month)).reduce((acc, cur) => acc + Number(cur.appointment), 0);
+                                                        const callTotal = callDetail.filter(c => c.method === "電話(掛)" && c.date?.includes(month) && (targetStaff ? c.staff === targetStaff : true)).length;
+                                                        const talkTotal = callDetail.filter(c => c.method === "電話(掛)" && c.status?.includes('通電') && c.date?.includes(month) && (targetStaff ? c.staff === targetStaff : true)).length;
+                                                        const appointmentTotal = callDetail.filter(c => c.method === "電話(掛)" && c.status?.includes('アポイント') && c.date?.includes(month) && (targetStaff ? c.staff === targetStaff : true)).length;
+                                                        const totalAchievement = isNaN(callTotal / totalValue) ? '0' : Math.floor(callTotal / totalValue * 1000) / 10;
+                                                        const talkTotalAchievement = isNaN(talkTotal / callTotal) ? '0' : Math.floor(talkTotal / callTotal * 1000) / 10;
+                                                        const appointmentTotalAchievement = isNaN(appointmentTotal / callTotal) ? '0' : Math.floor(appointmentTotal / callTotal * 1000) / 10;
+                                                        return (<>
+                                                            <td style={{ textAlign: 'right' }}>{totalValue}</td>
+                                                            <td style={{ textAlign: 'right' }}>{callTotal}</td>
+                                                            <td style={{ textAlign: 'right' }}>{talkTotal}</td>
+                                                            <td style={{ textAlign: 'right' }}>{appointmentTotal}</td>
+                                                            <td style={{ textAlign: 'right' }}>{appointmentValue}</td>
+                                                            <td style={{ textAlign: 'right' }}>{totalAchievement}%</td>
+                                                            <td style={{ textAlign: 'right' }}>{talkTotalAchievement}%</td>
+                                                            <td style={{ textAlign: 'right' }}>{appointmentTotalAchievement}%</td>
+                                                        </>);
+                                                    })()}
+                                                </tr>)}
+                                        {(() => {
+                                            const filteredAchievement: Achievement[] = achievement.filter(item => {
+                                                const period = new Date(item.period);
+                                                return (
+                                                    (startMonth ? period >= new Date(startMonth) : true) &&
+                                                    (endMonth ? period <= new Date(endMonth) : true) &&
+                                                    (targetStaff ? item.name === targetStaff : true)
+                                                )
+                                            });
+                                            const totalValue = filteredAchievement.reduce((acc, cur) => acc + Number(cur.total), 0);
+                                            const appointmentValue = filteredAchievement.reduce((acc, cur) => acc + Number(cur.appointment), 0);
+                                            const callTotal = callDetail.filter(c => c.method === "電話(掛)" && (targetStaff ? c.staff === targetStaff : true)).length;
+                                            const talkTotal = callDetail.filter(c => c.method === "電話(掛)" && c.status?.includes('通電') && (targetStaff ? c.staff === targetStaff : true)).length;
+                                            const appointmentTotal = callDetail.filter(c => c.method === "電話(掛)" && c.status?.includes('アポイント') && (targetStaff ? c.staff === targetStaff : true)).length;
+                                            const totalAchievement = isNaN(callTotal / totalValue) ? '0' : Math.floor(callTotal / totalValue * 1000) / 10;
+                                            const talkTotalAchievement = isNaN(talkTotal / callTotal) ? '0' : Math.floor(talkTotal / callTotal * 1000) / 10;
+                                            const appointmentTotalAchievement = isNaN(appointmentTotal / callTotal) ? '0' : Math.floor(appointmentTotal / callTotal * 1000) / 10;
+                                            return (<tr className='table-primary fw-bold'>
+                                                <td>行動量合計</td>
+                                                <td style={{ textAlign: 'right' }}>{totalValue}</td>
+                                                <td style={{ textAlign: 'right' }}>{callTotal}</td>
+                                                <td style={{ textAlign: 'right' }}>{talkTotal}</td>
+                                                <td style={{ textAlign: 'right' }}>{appointmentTotal}</td>
+                                                <td style={{ textAlign: 'right' }}>{appointmentValue}</td>
+                                                <td style={{ textAlign: 'right' }}>{totalAchievement}%</td>
+                                                <td style={{ textAlign: 'right' }}>{talkTotalAchievement}%</td>
+                                                <td style={{ textAlign: 'right' }}>{appointmentTotalAchievement}%</td>
+                                            </tr>);
+                                        })()}
+
+                                    </tbody>
+                                </Table>
+                            </div>
+                        </div>
+                    </div>}
             </div>
             <Modal show={modalShow} onHide={modalClose} size='lg'>
                 <div className="modal-header-sticky">

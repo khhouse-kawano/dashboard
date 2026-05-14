@@ -7,11 +7,10 @@ import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
-import MenuDev from "./MenuDev";
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import { headers } from '../utils/headers';
 import { getFiscalYearMonthsFromJune } from '../utils/getFiscalYearMonthsFromJune';
-import InformationEdit from './InformationEdit';
+import InformationEdit from './information/InformationEdit';
 import InterviewLog from './InterviewLog';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
@@ -25,7 +24,6 @@ type Staff = { id: number, name: string, pg_id: string, shop: string, mail: stri
 const Rank = () => {
     const { token } = useContext(AuthContext);
     const { brand } = useContext(AuthContext);
-    const [open, setOpen] = useState(false);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMonth, setTargetMonth] = useState('');
     const [customerList, setCustomerList] = useState<Customer[]>([]);
@@ -308,173 +306,158 @@ const Rank = () => {
 
     return (
         <>
-            <div className='outer-container'>
-                <div className="d-flex">
-                    <div className='modal_menu' style={{ width: '20%' }}>
-                        <MenuDev brand={brand} />
+            <div className='content database bg-white p-2'>
+                <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
+                <div className="row mt-3 mb-4" >
+                    <div className="col d-flex">
+                        <select className="target" name="startMonth" onChange={(e) => setTargetMonth(e.target.value)}>
+                            <option value={thisYear - 1}>{thisYear - 1}年度</option>
+                            <option value={thisYear}>{thisYear}年度</option>
+                            {monthArray.map((month, index) => (
+                                <option key={index} value={month} selected={targetMonth === month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    <div className="header_sp">
-                        <i className="fa-solid fa-bars hamburger"
-                            onClick={() => setOpen(true)} />
-                    </div>
-                    <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                        <i className="fa-solid fa-xmark hamburger position-absolute"
-                            onClick={() => setOpen(false)} />
-                        <MenuDev brand={brand} />
-                    </div>
-                    <div className='content database bg-white p-2'>
-                        <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-                        <div className="row mt-3 mb-4" >
-                            <div className="col d-flex">
-                                <select className="target" name="startMonth" onChange={(e) => setTargetMonth(e.target.value)}>
-                                    <option value={thisYear - 1}>{thisYear - 1}年度</option>
-                                    <option value={thisYear}>{thisYear}年度</option>
-                                    {monthArray.map((month, index) => (
-                                        <option key={index} value={month} selected={targetMonth === month}>{month}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        <div className="">
-                            <Table bordered>
-                                <tbody style={{ fontSize: '12px' }} className='align-middle'>
-                                    <tr className="text-center">
-                                        <td rowSpan={2}>店舗</td>
-                                        {tooltipItems
-                                            .filter(t => {
-                                                const isPeriod = targetMonth.length === 4;
-                                                return isPeriod ? t.label !== '当月契約確約数' : true
-                                            })
-                                            .map((item, i) => {
-                                                const isRank = rankLabels.includes(item.label);
-                                                const isPeriod = targetMonth.length === 4;
-                                                return (
-                                                    <td
-                                                        key={`head-${i}`}
-                                                        colSpan={(isRank && !isPeriod) ? 3 : 1}
-                                                        rowSpan={isRank ? 1 : 2}
-                                                        className="align-middle"
-                                                    >
-                                                        <OverlayTriggerComponent label={item.label} desc={item.desc} />
-                                                    </td>
-                                                );
-                                            })}
-                                    </tr>
-                                    <tr className="text-center">
-                                        {tooltipItems
-                                            .map((item, i) => {
-                                                const isRank = rankLabels.includes(item.label);
-                                                const isPeriod = targetMonth.length === 4;
-                                                if (!isRank) {
-                                                    return null;
-                                                }
-                                                return (
-                                                    <>{!isPeriod &&
-                                                        <React.Fragment key={`sub-${i}`}>
-                                                            <td>{targetMonth}</td>
-                                                            <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 1).padStart(2, '0')}</td>
-                                                            <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 2).padStart(2, '0')}</td>
-                                                        </React.Fragment>
-                                                    }</>
-                                                );
-                                            })}
-                                    </tr>
-                                    {[{ label: '注文営業全体', category: 'all', show: true }, ...labelList].map((target, targetIndex) => {
-                                        let bgKey;
-                                        if (target.category === 'section' || target.category === 'all') {
-                                            bgKey = target.label;
-                                        } else if (target.category === 'shop') {
-                                            bgKey = shopList.find(s => s.shop === target.label)?.section;
-                                        }
+                </div>
+                <div className="">
+                    <Table bordered>
+                        <tbody style={{ fontSize: '12px' }} className='align-middle'>
+                            <tr className="text-center">
+                                <td rowSpan={2}>店舗</td>
+                                {tooltipItems
+                                    .filter(t => {
                                         const isPeriod = targetMonth.length === 4;
-                                        const register = getFiltered('register', target.category, target.label, targetIndex, '', 0);
-                                        const interview = getFiltered('interview', target.category, target.label, targetIndex, '', 0);
-                                        const contract = getFiltered('contract', target.category, target.label, targetIndex, '', 0);
-                                        const rankA = getFiltered('', target.category, target.label, targetIndex, 'Aランク', 0);
-                                        const goal = achievement.filter(a => {
-                                            const yearPeriod = isPeriod ? getFiscalYearMonthsFromJune(targetMonth) : [];
-                                            return (target.category === 'all' ? a.name === '注文事業' : a.name === target.label) &&
-                                                (isPeriod ? yearPeriod.includes(a.period.replace(/-/g, '/')) : a.period.replace(/-/g, '/') === targetMonth)
-                                        }).reduce((acc, cur) => acc + Number(cur.value), 0);
-                                        const expectedList = expectedContract.filter(item => item.date === targetMonth
-                                            && ((targetIndex > 0) ? item[target.category] === target.label : true));
-                                        const expected = expectedList.reduce((acc, cur) => acc + cur.count, 0);
+                                        return isPeriod ? t.label !== '当月契約確約数' : true
+                                    })
+                                    .map((item, i) => {
+                                        const isRank = rankLabels.includes(item.label);
+                                        const isPeriod = targetMonth.length === 4;
                                         return (
-                                            <tr key={targetIndex} className={`${background[bgKey]} align-middle`} style={{ textAlign: 'center' }}>
-                                                <td style={{ cursor: 'pointer', textAlign: 'left', paddingLeft: (targetIndex === 0 || target.category === 'staff') ? '34px' : '' }}
-                                                    onClick={() => expandTarget(target)}>
-                                                    {(targetIndex > 0 && target.category !== 'staff') && <i className={`fa-solid ${showTarget[target.label] ? 'fa-minus' : 'fa-plus'} me-2 p-1 pointer-icon rounded`} ></i>}
-                                                    {target.label}</td>
-                                                <td>{register.length}</td>
-                                                {/* <td>{perFormate(interview.length / register.length)}%</td> */}
-                                                <td>{interview.length}</td>
-                                                <td>{perFormate(contract.length / interview.length)}%</td>
-                                                <td>{target.category === 'staff' ? '-' : goal}</td>
-                                                <td onClick={() => contract.length > 0 ? setModalList(contract) : null}
-                                                    className={contract.length === 0 ? 'table-white' : ''}
-                                                    style={{ textDecoration: contract.length > 0 ? 'underline' : '', cursor: contract.length > 0 ? 'pointer' : '' }}>{contract.length}(<span className='text-primary'>{contract.length + (thisMonth ? rankA.length : 0)}</span>)</td>
-                                                <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%(<span className='text-primary'>{goal ? perFormate((contract.length + rankA.length) / Number(goal)) : 0}%</span>)</td>
-                                                {!isPeriod && <td>
-                                                    {(targetIndex === 0 || target.category === 'section') && expected}
-                                                    {(target.category === 'shop') && <input type='number' className='target text-center' value={expected}
-                                                        style={{ width: '60px', height: '25px', margin: '0 auto' }}
-                                                        onChange={(e) => {
-                                                            const sectionValue = shopList.find(s => s.shop === target.label)?.section;
-                                                            setNewExpected({
-                                                                date: targetMonth,
-                                                                shop: target.label,
-                                                                section: sectionValue ?? '',
-                                                                count: Number(e.target.value)
-                                                            });
-                                                            setExpectedContract(
-                                                                prev => expectedList.length > 0 ?
-                                                                    prev.map(item =>
-                                                                        item.shop === target.label
-                                                                            ? {
-                                                                                ...item,
-                                                                                count: Number(e.target.value)
-                                                                            }
-                                                                            : item) : [...prev,
-                                                                            {
-                                                                                date: targetMonth,
-                                                                                shop: target.label,
-                                                                                section: sectionValue ?? '',
-                                                                                count: Number(e.target.value)
-                                                                            }]
-                                                            );
-                                                        }}
-                                                    />}</td>}
-                                                {['A', 'B', 'C', 'D'].map((rank, rankIndex) => {
-                                                    const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}ランク`, 0);
-                                                    return <>
-                                                        <td onClick={() => targetList.length > 0 ? setModalList(targetList) : null} style={{
+                                            <td
+                                                key={`head-${i}`}
+                                                colSpan={(isRank && !isPeriod) ? 3 : 1}
+                                                rowSpan={isRank ? 1 : 2}
+                                                className="align-middle"
+                                            >
+                                                <OverlayTriggerComponent label={item.label} desc={item.desc} />
+                                            </td>
+                                        );
+                                    })}
+                            </tr>
+                            <tr className="text-center">
+                                {tooltipItems
+                                    .map((item, i) => {
+                                        const isRank = rankLabels.includes(item.label);
+                                        const isPeriod = targetMonth.length === 4;
+                                        if (!isRank) {
+                                            return null;
+                                        }
+                                        return (
+                                            <>{!isPeriod &&
+                                                <React.Fragment key={`sub-${i}`}>
+                                                    <td>{targetMonth}</td>
+                                                    <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 1).padStart(2, '0')}</td>
+                                                    <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 2).padStart(2, '0')}</td>
+                                                </React.Fragment>
+                                            }</>
+                                        );
+                                    })}
+                            </tr>
+                            {[{ label: '注文営業全体', category: 'all', show: true }, ...labelList].map((target, targetIndex) => {
+                                let bgKey;
+                                if (target.category === 'section' || target.category === 'all') {
+                                    bgKey = target.label;
+                                } else if (target.category === 'shop') {
+                                    bgKey = shopList.find(s => s.shop === target.label)?.section;
+                                }
+                                const isPeriod = targetMonth.length === 4;
+                                const register = getFiltered('register', target.category, target.label, targetIndex, '', 0);
+                                const interview = getFiltered('interview', target.category, target.label, targetIndex, '', 0);
+                                const contract = getFiltered('contract', target.category, target.label, targetIndex, '', 0);
+                                const rankA = getFiltered('', target.category, target.label, targetIndex, 'Aランク', 0);
+                                const goal = achievement.filter(a => {
+                                    const yearPeriod = isPeriod ? getFiscalYearMonthsFromJune(targetMonth) : [];
+                                    return (target.category === 'all' ? a.name === '注文事業' : a.name === target.label) &&
+                                        (isPeriod ? yearPeriod.includes(a.period.replace(/-/g, '/')) : a.period.replace(/-/g, '/') === targetMonth)
+                                }).reduce((acc, cur) => acc + Number(cur.value), 0);
+                                const expectedList = expectedContract.filter(item => item.date === targetMonth
+                                    && ((targetIndex > 0) ? item[target.category] === target.label : true));
+                                const expected = expectedList.reduce((acc, cur) => acc + cur.count, 0);
+                                return (
+                                    <tr key={targetIndex} className={`${background[bgKey]} align-middle`} style={{ textAlign: 'center' }}>
+                                        <td style={{ cursor: 'pointer', textAlign: 'left', paddingLeft: (targetIndex === 0 || target.category === 'staff') ? '34px' : '' }}
+                                            onClick={() => expandTarget(target)}>
+                                            {(targetIndex > 0 && target.category !== 'staff') && <i className={`fa-solid ${showTarget[target.label] ? 'fa-minus' : 'fa-plus'} me-2 p-1 pointer-icon rounded`} ></i>}
+                                            {target.label}</td>
+                                        <td>{register.length}</td>
+                                        {/* <td>{perFormate(interview.length / register.length)}%</td> */}
+                                        <td>{interview.length}</td>
+                                        <td>{perFormate(contract.length / interview.length)}%</td>
+                                        <td>{target.category === 'staff' ? '-' : goal}</td>
+                                        <td onClick={() => contract.length > 0 ? setModalList(contract) : null}
+                                            className={contract.length === 0 ? 'table-white' : ''}
+                                            style={{ textDecoration: contract.length > 0 ? 'underline' : '', cursor: contract.length > 0 ? 'pointer' : '' }}
+                                        >{contract.length}(<span className='text-primary'>{contract.length + (thisMonth ? rankA.length : 0)}</span>)</td>
+                                        <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%(<span className='text-primary'>{goal ? perFormate((contract.length + rankA.length) / Number(goal)) : 0}%</span>)</td>
+                                        {!isPeriod && <td>
+                                            {(targetIndex === 0 || target.category === 'section') && expected}
+                                            {(target.category === 'shop') && <input type='number' className='target text-center' value={expected}
+                                                style={{ width: '60px', height: '25px', margin: '0 auto' }}
+                                                onChange={(e) => {
+                                                    const sectionValue = shopList.find(s => s.shop === target.label)?.section;
+                                                    setNewExpected({
+                                                        date: targetMonth,
+                                                        shop: target.label,
+                                                        section: sectionValue ?? '',
+                                                        count: Number(e.target.value)
+                                                    });
+                                                    setExpectedContract(
+                                                        prev => expectedList.length > 0 ?
+                                                            prev.map(item =>
+                                                                item.shop === target.label
+                                                                    ? {
+                                                                        ...item,
+                                                                        count: Number(e.target.value)
+                                                                    }
+                                                                    : item) : [...prev,
+                                                                    {
+                                                                        date: targetMonth,
+                                                                        shop: target.label,
+                                                                        section: sectionValue ?? '',
+                                                                        count: Number(e.target.value)
+                                                                    }]
+                                                    );
+                                                }}
+                                            />}</td>}
+                                        {['A', 'B', 'C', 'D'].map((rank, rankIndex) => {
+                                            const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}ランク`, 0);
+                                            return <>
+                                                <td onClick={() => targetList.length > 0 ? setModalList(targetList) : null} style={{
+                                                    textDecoration: targetList.length > 0 ? 'underline' : ''
+                                                    , cursor: targetList.length > 0 ? 'pointer' : ''
+                                                }}
+                                                    className={targetList.length === 0 ? 'table-white' : ''}
+                                                    key={rankIndex}>{targetList.length}</td>
+                                                {(rankIndex < 3 && !isPeriod) && <>
+                                                    {[1, 2].map(num => {
+                                                        const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}ランク`, num);
+                                                        return <td onClick={() => targetList.length > 0 ? setModalList(targetList) : null} style={{
                                                             textDecoration: targetList.length > 0 ? 'underline' : ''
                                                             , cursor: targetList.length > 0 ? 'pointer' : ''
                                                         }}
                                                             className={targetList.length === 0 ? 'table-white' : ''}
-                                                            key={rankIndex}>{targetList.length}</td>
-                                                        {(rankIndex < 3 && !isPeriod) && <>
-                                                            {[1, 2].map(num => {
-                                                                const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}ランク`, num);
-                                                                return <td onClick={() => targetList.length > 0 ? setModalList(targetList) : null} style={{
-                                                                    textDecoration: targetList.length > 0 ? 'underline' : ''
-                                                                    , cursor: targetList.length > 0 ? 'pointer' : ''
-                                                                }}
-                                                                    className={targetList.length === 0 ? 'table-white' : ''}
-                                                                    key={num}>{targetList.length}</td>
-                                                            }
-                                                            )}
-                                                        </>}
-                                                    </>
-                                                }
-                                                )}
-                                            </tr>)
-                                    }
-                                    )}
-                                </tbody>
-                            </Table>
-                        </div>
-                    </div>
+                                                            key={num}>{targetList.length}</td>
+                                                    }
+                                                    )}
+                                                </>}
+                                            </>
+                                        }
+                                        )}
+                                    </tr>)
+                            }
+                            )}
+                        </tbody>
+                    </Table>
                 </div>
             </div>
             <Modal show={modalList.length > 0} onHide={modalClose} size='xl'>

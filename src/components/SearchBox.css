@@ -273,6 +273,11 @@ a img:hover {
     font-size: .875rem;
 }
 
+.inquiry_table.spec {
+    width: 1600px !important;
+    font-size: .875rem;
+}
+
 .budget_table {
     width: 3200px;
     font-size: .875rem;
@@ -790,7 +795,7 @@ thead tr:nth-of-type(even) th {
     height: 30px;
 }
 
-input[type=date]::-webkit-calendar-picker-indicator {
+/* input[type=date]::-webkit-calendar-picker-indicator {
     position: absolute;
     width: 90%;
     opacity: 0;
@@ -800,7 +805,7 @@ input[type=month]::-webkit-calendar-picker-indicator {
     position: absolute;
     width: 90%;
     opacity: 0;
-}
+} */
 
 .month_guide {
     position: fixed;
@@ -863,15 +868,17 @@ th {
 
 /* 一括査定 */
 .category_menu {
-    font-size: 11px;
+    font-size: 10px;
     background-color: #ffffff;
-    font-weight: 500;
+    font-weight: 400;
     cursor: pointer;
-    border-radius: 10px;
-    text-align: center;
-    padding: 7px;
-    border: 1px solid #dddddd;
-    box-shadow: 1px 1px 4px 0px #0000002c;
+    border-radius: 20px;
+    text-align: left;
+    padding: 7px 0 7px 10px;
+    border: 1px solid #f3f3f3;
+    box-shadow: 0px 4px 10px 0px #00000033;
+    letter-spacing: .5px;
+    margin-bottom: 10px;
 }
 
 .category_menu.selected {
@@ -1521,10 +1528,10 @@ td.sticky-column.budget {
     background-color: #cd3c33;
     width: fit-content;
     padding: 3px 7px;
-    border-radius: 15px;
-    font-size: 9px;
+    border-radius: 8px;
+    font-size: 8px;
     color: #fff;
-    top: -5px;
+    top: -10px;
     right: -22px;
     z-index: 200;
 }
@@ -1721,3 +1728,4 @@ td.sticky-column.budget {
 .clickAble:hover {
     opacity: .7;
 }
+

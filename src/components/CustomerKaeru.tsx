@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
 import Table from 'react-bootstrap/esm/Table';
-import MenuDev from "./MenuDev";
 import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -232,186 +231,172 @@ const Dev = () => {
 
     return (
         <>
-            <div className="d-flex">
-                <div className='modal_menu' style={{ width: '20%' }}><MenuDev brand={brand} />
-                </div>
-                <div className="header_sp">
-                    <i className="fa-solid fa-bars hamburger"
-                        onClick={() => setOpen(true)} />
-                </div>
-                <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                    <i className="fa-solid fa-xmark hamburger position-absolute"
-                        onClick={() => setOpen(false)} />
-                    <MenuDev brand={brand} />
-                </div>
-                <div className='content calendar bg-white p-2'>
-                    <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-                    <div className="d-flex flex-wrap mb-3">
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                                <option value="" selected>開始月を選択</option>
-                                {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                                <option value="" selected>終了月を選択</option>
-                                {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
+            <div className='content calendar bg-white p-2'>
+                <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
+                <div className="d-flex flex-wrap mb-3">
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
+                            <option value="" selected>開始月を選択</option>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
-                        <div className="table-wrapper mt-3">
-                            <div className="list_table kaeru">
-                                <div className="mb-3">
-                                    <Table bordered style={{ fontSize: '12px' }}>
-                                        <tbody>
-                                            <tr>
-                                                <td style={{ width: '20%' }}>チーム別反響</td>
-                                                <td>総反響</td>
-                                                <td>来場数</td>
-                                                <td>契約数</td>
-                                                <td>Aランク</td>
-                                                <td>Bランク</td>
-                                                <td>Cランク</td>
-                                                <td>Dランク</td>
-                                                <td>Eランク</td>
-                                            </tr>
-                                            <tr>
-                                                <td>かえるホーム合計</td>
-                                                <td>{registeredCustomer.length}</td>
-                                                <td>{reservedCustomer.length}</td>
-                                                <td>{contractCustomer.length}</td>
-                                                <td>{originalCustomers.filter(item => item.rank === 'A').length}</td>
-                                                <td>{originalCustomers.filter(item => item.rank === 'B').length}</td>
-                                                <td>{originalCustomers.filter(item => item.rank === 'C').length}</td>
-                                                <td>{originalCustomers.filter(item => item.rank === 'D').length}</td>
-                                                <td>{originalCustomers.filter(item => item.rank === 'E').length}</td>
-                                            </tr>
-                                            {areaArray.filter(area => area !== '').map((area, index) => {
-                                                const staffArray = staffMapping.filter(staff => staff.area === area).map(staff => staff.name);
-                                                let allCustomersInAreaRegister;
-                                                let customersInAreaRegister;
-                                                let customersInAreaReserve;
-                                                let customersInAreaContract;
-                                                if (areas.includes(area)) {
-                                                    allCustomersInAreaRegister = originalCustomers.filter(c => staffArray.includes(c.staff));
-                                                    customersInAreaRegister = registeredCustomer.filter(c => staffArray.includes(c.staff));
-                                                    customersInAreaReserve = reservedCustomer.filter(c => staffArray.includes(c.staff));
-                                                    customersInAreaContract = contractCustomer.filter(c => staffArray.includes(c.staff));
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
+                            <option value="" selected>終了月を選択</option>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+                {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
+                    <div className="table-wrapper mt-3">
+                        <div className="list_table kaeru">
+                            <div className="mb-3">
+                                <Table bordered style={{ fontSize: '12px' }}>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ width: '20%' }}>チーム別反響</td>
+                                            <td>総反響</td>
+                                            <td>来場数</td>
+                                            <td>契約数</td>
+                                            <td>Aランク</td>
+                                            <td>Bランク</td>
+                                            <td>Cランク</td>
+                                            <td>Dランク</td>
+                                            <td>Eランク</td>
+                                        </tr>
+                                        <tr>
+                                            <td>かえるホーム合計</td>
+                                            <td>{registeredCustomer.length}</td>
+                                            <td>{reservedCustomer.length}</td>
+                                            <td>{contractCustomer.length}</td>
+                                            <td>{originalCustomers.filter(item => item.rank === 'A').length}</td>
+                                            <td>{originalCustomers.filter(item => item.rank === 'B').length}</td>
+                                            <td>{originalCustomers.filter(item => item.rank === 'C').length}</td>
+                                            <td>{originalCustomers.filter(item => item.rank === 'D').length}</td>
+                                            <td>{originalCustomers.filter(item => item.rank === 'E').length}</td>
+                                        </tr>
+                                        {areaArray.filter(area => area !== '').map((area, index) => {
+                                            const staffArray = staffMapping.filter(staff => staff.area === area).map(staff => staff.name);
+                                            let allCustomersInAreaRegister;
+                                            let customersInAreaRegister;
+                                            let customersInAreaReserve;
+                                            let customersInAreaContract;
+                                            if (areas.includes(area)) {
+                                                allCustomersInAreaRegister = originalCustomers.filter(c => staffArray.includes(c.staff));
+                                                customersInAreaRegister = registeredCustomer.filter(c => staffArray.includes(c.staff));
+                                                customersInAreaReserve = reservedCustomer.filter(c => staffArray.includes(c.staff));
+                                                customersInAreaContract = contractCustomer.filter(c => staffArray.includes(c.staff));
+                                            } else {
+                                                allCustomersInAreaRegister = originalCustomers.filter(c => c.staff === area);
+                                                customersInAreaRegister = registeredCustomer.filter(c => c.staff === area);
+                                                customersInAreaReserve = reservedCustomer.filter(c => c.staff === area);
+                                                customersInAreaContract = contractCustomer.filter(c => c.staff === area);
+                                            }
+
+
+                                            let tableClass;
+                                            if (areas.includes(area)) {
+                                                tableClass = tables[areas.indexOf(area)];
+                                            }
+                                            return (
+                                                <tr key={index} onClick={() => expand(area)} className={tableClass} style={{ cursor: 'pointer' }}>
+                                                    <td><div className={`${areas.includes(area) ? 'kaeru_icon' : ''} ${expandShop[areas.indexOf(area)] ? ' minus' : ''}`}>{area}</div></td>
+                                                    <td>{customersInAreaRegister.length}</td>
+                                                    <td>{customersInAreaReserve.length}</td>
+                                                    <td>{customersInAreaContract.length}</td>
+                                                    <td>{allCustomersInAreaRegister.filter(item => item.rank === 'A').length}</td>
+                                                    <td>{allCustomersInAreaRegister.filter(item => item.rank === 'B').length}</td>
+                                                    <td>{allCustomersInAreaRegister.filter(item => item.rank === 'C').length}</td>
+                                                    <td>{allCustomersInAreaRegister.filter(item => item.rank === 'D').length}</td>
+                                                    <td>{allCustomersInAreaRegister.filter(item => item.rank === 'E').length}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </Table>
+                            </div>
+                            <div className="">
+                                <Table bordered striped style={{ fontSize: '12px' }}>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ width: '20%' }}>反響経路別反響</td>
+                                            <td style={{ position: 'relative' }}>総反響
+                                                <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'registered')}>▲</span>
+                                                <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'registered')}>▼</span>
+                                            </td>
+                                            <td style={{ position: 'relative' }}>来場数
+                                                <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'reserve')}>▲</span>
+                                                <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'reserve')}>▼</span>
+                                            </td>
+                                            <td style={{ position: 'relative' }}>契約数
+                                                <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'contract')}>▲</span>
+                                                <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'contract')}>▼</span>
+                                            </td>
+                                            <td>Aランク</td>
+                                            <td>Bランク</td>
+                                            <td>Cランク</td>
+                                            <td>Dランク</td>
+                                            <td>Eランク</td>
+                                        </tr>
+                                        {[...mediumList].sort((a, b) => {
+                                            let countA;
+                                            let countB;
+                                            if (sortKey === 'registered') {
+                                                countA = a === '不明' ?
+                                                    registeredCustomer.filter(item => item.medium === '').length : registeredCustomer.filter(item => item.medium === a).length;
+                                                countB = b === '不明' ?
+                                                    registeredCustomer.filter(item => item.medium === '').length : registeredCustomer.filter(item => item.medium === b).length;
+                                            } else if (sortKey === 'reserve') {
+                                                countA = a === '不明' ?
+                                                    reservedCustomer.filter(item => item.medium === '').length : reservedCustomer.filter(item => item.medium === a).length;
+                                                countB = b === '不明' ?
+                                                    reservedCustomer.filter(item => item.medium === '').length : reservedCustomer.filter(item => item.medium === b).length;
+                                            } else if (sortKey === 'contract') {
+                                                countA = a === '不明' ?
+                                                    contractCustomer.filter(item => item.medium === '').length : contractCustomer.filter(item => item.medium === a).length;
+                                                countB = b === '不明' ?
+                                                    contractCustomer.filter(item => item.medium === '').length : contractCustomer.filter(item => item.medium === b).length;
+                                            }
+                                            return (sortOrder === 'desc' ? countB - countA : countA - countB)
+                                        })
+                                            .map((medium, index) => {
+                                                let customersInMediumRegister;;
+                                                let customersInMediumReserve;
+                                                let customersInMediumContract;
+                                                let allCustomersInMediumRegister;
+                                                if (medium === '不明') {
+                                                    customersInMediumRegister = registeredCustomer.filter(item => item.medium === "");
+                                                    customersInMediumReserve = reservedCustomer.filter(item => item.medium === "");
+                                                    customersInMediumContract = contractCustomer.filter(item => item.medium === "");
+                                                    allCustomersInMediumRegister = originalCustomers.filter(item => item.medium === "");
                                                 } else {
-                                                    allCustomersInAreaRegister = originalCustomers.filter(c => c.staff === area);
-                                                    customersInAreaRegister = registeredCustomer.filter(c => c.staff === area);
-                                                    customersInAreaReserve = reservedCustomer.filter(c => c.staff === area);
-                                                    customersInAreaContract = contractCustomer.filter(c => c.staff === area);
-                                                }
-
-
-                                                let tableClass;
-                                                if (areas.includes(area)) {
-                                                    tableClass = tables[areas.indexOf(area)];
+                                                    customersInMediumRegister = registeredCustomer.filter(item => item.medium === medium);
+                                                    customersInMediumReserve = reservedCustomer.filter(item => item.medium === medium);
+                                                    customersInMediumContract = contractCustomer.filter(item => item.medium === medium);
+                                                    allCustomersInMediumRegister = originalCustomers.filter(item => item.medium === medium);
                                                 }
                                                 return (
-                                                    <tr key={index} onClick={() => expand(area)} className={tableClass} style={{ cursor: 'pointer' }}>
-                                                        <td><div className={`${areas.includes(area) ? 'kaeru_icon' : ''} ${expandShop[areas.indexOf(area)] ? ' minus' : ''}`}>{area}</div></td>
-                                                        <td>{customersInAreaRegister.length}</td>
-                                                        <td>{customersInAreaReserve.length}</td>
-                                                        <td>{customersInAreaContract.length}</td>
-                                                        <td>{allCustomersInAreaRegister.filter(item => item.rank === 'A').length}</td>
-                                                        <td>{allCustomersInAreaRegister.filter(item => item.rank === 'B').length}</td>
-                                                        <td>{allCustomersInAreaRegister.filter(item => item.rank === 'C').length}</td>
-                                                        <td>{allCustomersInAreaRegister.filter(item => item.rank === 'D').length}</td>
-                                                        <td>{allCustomersInAreaRegister.filter(item => item.rank === 'E').length}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </Table>
-                                </div>
-                                <div className="">
-                                    <Table bordered striped style={{ fontSize: '12px' }}>
-                                        <tbody>
-                                            <tr>
-                                                <td style={{ width: '20%' }}>反響経路別反響</td>
-                                                <td style={{ position: 'relative' }}>総反響
-                                                    <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'registered')}>▲</span>
-                                                    <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'registered')}>▼</span>
-                                                </td>
-                                                <td style={{ position: 'relative' }}>来場数
-                                                    <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'reserve')}>▲</span>
-                                                    <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'reserve')}>▼</span>
-                                                </td>
-                                                <td style={{ position: 'relative' }}>契約数
-                                                    <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'contract')}>▲</span>
-                                                    <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'contract')}>▼</span>
-                                                </td>
-                                                <td>Aランク</td>
-                                                <td>Bランク</td>
-                                                <td>Cランク</td>
-                                                <td>Dランク</td>
-                                                <td>Eランク</td>
-                                            </tr>
-                                            {[...mediumList].sort((a, b) => {
-                                                let countA;
-                                                let countB;
-                                                if (sortKey === 'registered') {
-                                                    countA = a === '不明' ?
-                                                        registeredCustomer.filter(item => item.medium === '').length : registeredCustomer.filter(item => item.medium === a).length;
-                                                    countB = b === '不明' ?
-                                                        registeredCustomer.filter(item => item.medium === '').length : registeredCustomer.filter(item => item.medium === b).length;
-                                                } else if(sortKey === 'reserve') {
-                                                    countA = a === '不明' ?
-                                                        reservedCustomer.filter(item => item.medium === '').length : reservedCustomer.filter(item => item.medium === a).length;
-                                                    countB = b === '不明' ?
-                                                        reservedCustomer.filter(item => item.medium === '').length : reservedCustomer.filter(item => item.medium === b).length;
-                                                }  else if(sortKey === 'contract') {
-                                                    countA = a === '不明' ?
-                                                        contractCustomer.filter(item => item.medium === '').length : contractCustomer.filter(item => item.medium === a).length;
-                                                    countB = b === '不明' ?
-                                                        contractCustomer.filter(item => item.medium === '').length : contractCustomer.filter(item => item.medium === b).length;
-                                                } 
-                                                return (sortOrder === 'desc' ? countB - countA : countA - countB)
-                                            })
-                                                .map((medium, index) => {
-                                                    let customersInMediumRegister;;
-                                                    let customersInMediumReserve;
-                                                    let customersInMediumContract;
-                                                    let allCustomersInMediumRegister;
-                                                    if (medium === '不明') {
-                                                        customersInMediumRegister = registeredCustomer.filter(item => item.medium === "");
-                                                        customersInMediumReserve = reservedCustomer.filter(item => item.medium === "");
-                                                        customersInMediumContract = contractCustomer.filter(item => item.medium === "");
-                                                        allCustomersInMediumRegister = originalCustomers.filter(item => item.medium === "");
-                                                    } else {
-                                                        customersInMediumRegister = registeredCustomer.filter(item => item.medium === medium);
-                                                        customersInMediumReserve = reservedCustomer.filter(item => item.medium === medium);
-                                                        customersInMediumContract = contractCustomer.filter(item => item.medium === medium);
-                                                        allCustomersInMediumRegister = originalCustomers.filter(item => item.medium === medium);
-                                                    }
-                                                    return (
-                                                        <tr key={index}>
-                                                            <td>{medium}</td>
-                                                            <td>{customersInMediumRegister.length}</td>
-                                                            <td>{customersInMediumReserve.length}</td>
-                                                            <td>{customersInMediumContract.length}</td>
-                                                            <td>{allCustomersInMediumRegister.filter(item => item.rank === 'A').length}</td>
-                                                            <td>{allCustomersInMediumRegister.filter(item => item.rank === 'B').length}</td>
-                                                            <td>{allCustomersInMediumRegister.filter(item => item.rank === 'C').length}</td>
-                                                            <td>{allCustomersInMediumRegister.filter(item => item.rank === 'D').length}</td>
-                                                            <td>{allCustomersInMediumRegister.filter(item => item.rank === 'E').length}</td>
-                                                        </tr>)
-                                                }
-                                                )}
-                                        </tbody>
-                                    </Table>
-                                </div>
+                                                    <tr key={index}>
+                                                        <td>{medium}</td>
+                                                        <td>{customersInMediumRegister.length}</td>
+                                                        <td>{customersInMediumReserve.length}</td>
+                                                        <td>{customersInMediumContract.length}</td>
+                                                        <td>{allCustomersInMediumRegister.filter(item => item.rank === 'A').length}</td>
+                                                        <td>{allCustomersInMediumRegister.filter(item => item.rank === 'B').length}</td>
+                                                        <td>{allCustomersInMediumRegister.filter(item => item.rank === 'C').length}</td>
+                                                        <td>{allCustomersInMediumRegister.filter(item => item.rank === 'D').length}</td>
+                                                        <td>{allCustomersInMediumRegister.filter(item => item.rank === 'E').length}</td>
+                                                    </tr>)
+                                            }
+                                            )}
+                                    </tbody>
+                                </Table>
                             </div>
-                        </div>}
-                </div>
+                        </div>
+                    </div>}
             </div>
-
         </>
     )
 }

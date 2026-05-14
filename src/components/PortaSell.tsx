@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, useContext } from 'react';
-import MenuDev from "./MenuDev";
 import AuthContext from '../context/AuthContext';
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import { useNavigate } from "react-router-dom";
@@ -166,294 +165,274 @@ const PortalSell = () => {
 
     return (
         <>
-            <div className='outer-container'>
-                <div className="d-flex">
-                    <div className="modal_menu">
-                        <MenuDev brand={brand} />
+            <div className='content bg-white p-2'>
+                <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
+                <div className="d-flex flex-wrap mb-3 align-items-center">
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
+                            <option value="" selected>開始月を選択</option>
+                            {originalMonthArray.sort((a, b) => {
+                                const monthA = new Date(a + '/01').getTime();
+                                const monthB = new Date(b + '/01').getTime();
+                                return monthA - monthB;
+                            }).map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    <div className="header_sp">
-                        <i
-                            className="fa-solid fa-bars hamburger"
-                            onClick={() => setOpen(true)}
-                        />
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
+                            <option value="" selected>終了月を選択</option>
+                            {originalMonthArray.sort((a, b) => {
+                                const monthA = new Date(a + '/01').getTime();
+                                const monthB = new Date(b + '/01').getTime();
+                                return monthA - monthB;
+                            }).map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                        <i
-                            className="fa-solid fa-xmark hamburger position-absolute"
-                            onClick={() => setOpen(false)}
-                        />
-                        <MenuDev brand={brand} />
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setTargetMedium(e.target.value)}>
+                            <option value="" selected>販促媒体を選択</option>
+                            {mediumArray.map((m, index) => (<option key={index} value={m.medium}>{m.medium}</option>
+                            ))}
+                            <option></option>
+                        </select>
                     </div>
-                    <div className='content bg-white p-2'>
-                        <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-                        <div className="d-flex flex-wrap mb-3 align-items-center">
-                            <div className="m-1">
-                                <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                                    <option value="" selected>開始月を選択</option>
-                                    {originalMonthArray.sort((a, b) => {
-                                        const monthA = new Date(a + '/01').getTime();
-                                        const monthB = new Date(b + '/01').getTime();
-                                        return monthA - monthB;
-                                    }).map((month, index) => (<option key={index} value={month}>{month}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="m-1">
-                                <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                                    <option value="" selected>終了月を選択</option>
-                                    {originalMonthArray.sort((a, b) => {
-                                        const monthA = new Date(a + '/01').getTime();
-                                        const monthB = new Date(b + '/01').getTime();
-                                        return monthA - monthB;
-                                    }).map((month, index) => (<option key={index} value={month}>{month}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="m-1">
-                                <select className="target" onChange={(e) => setTargetMedium(e.target.value)}>
-                                    <option value="" selected>販促媒体を選択</option>
-                                    {mediumArray.map((m, index) => (<option key={index} value={m.medium}>{m.medium}</option>
-                                    ))}
-                                    <option></option>
-                                </select>
-                            </div>
-                            <div className="m-1">
-                                <select className="target" onChange={(e) => setSortKey(e.target.value)}>
-                                    <option value="" selected>項目で並び替え</option>
-                                    {Object.entries(display).map(([key, value]) =>
-                                        <option value={key}>{value.label}数</option>)}
-                                </select>
-                            </div>
-                        </div>
-                        <div className="d-flex flex-wrap mb-3 align-items-center">
-                            <div className="m-1">
-                                <label className="target checkbox d-flex align-items-center">
-                                    <input type="checkbox" checked={showGraph} className='me-1' onChange={() => setShowGraph(prev => !prev)} />グラフを表示
-                                </label>
-                            </div>
-                            {Object.entries(display).map(([key, value]) => {
-                                return <div className="m-1">
-                                    <label className="target checkbox d-flex align-items-center">
-                                        <input type="checkbox" checked={value.show} name={key} className='me-1' onChange={checkedChange} />{value.label}を表示
-                                    </label>
-                                </div>
-                            })}
-                        </div>
-                        {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
-                            <>
-                                <div className="table-wrapper mt-3">
-                                    {showGraph && <div className="mt-3"
-                                        style={{ width: '80%', height: '300px' }}>
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart
-                                                data={responseLineData}
-                                            >
-                                                <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis
-                                                    dataKey="period"
-                                                    tick={{ fontSize: 11, fontFamily: "Verdana", fill: "#555" }}
-                                                />
-                                                <YAxis
-                                                    tick={{ fontSize: 11, fontFamily: "Verdana", fill: "#555" }}
-                                                />
-                                                <Tooltip />
-                                                <Legend
-                                                    wrapperStyle={{
-                                                        fontSize: "12px",
-                                                        fontFamily: "Arial, sans-serif",
-                                                        color: "#333",
-                                                    }}
-                                                    content={({ payload }) => (
-                                                        <div className='d-flex justify-content-center mt-3'>
-                                                            {["registered", "reserved", "contract"].map(key => {
-                                                                const entry = payload?.find(p => p.dataKey === key);
-                                                                return (
-                                                                    <div className='m-1 px-2 py-1 rounded' key={key} style={{ backgroundColor: entry?.color, color: '#fff' }}>
-                                                                        {entry?.value}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                />
-                                                <Line type="monotone" dataKey="registered" stroke="#0d6efd" name="総反響" />
-                                                <Line type="monotone" dataKey="reserved" stroke="#fd7e14" name="面談案内" />
-                                                <Line type="monotone" dataKey="contract" stroke="#dc3545" name="契約" />
-                                            </LineChart>
-                                        </ResponsiveContainer>
-                                    </div>}
-                                    {/* 以下店舗 */}
-                                    <div style={{ overflowX: 'auto' }}>
-                                        <div style={{ minWidth: `${(monthArray.length + 1) * 60 + 200}px`, fontSize: '12px' }}>
-                                            <Table bordered striped style={{ tableLayout: 'fixed', width: 'auto' }}>
-                                                <tbody className='align-middle'>
-                                                    <tr>
-                                                        <td colSpan={2} style={{ width: '200px' }}>スタッフ</td>
-                                                        {['全期間', ...monthArray, 'A', 'B', 'C'].map(month =>
-                                                            <td key={month} style={{ width: '60px', textAlign: 'center' }}>{month}</td>
-                                                        )}
-                                                    </tr>
-                                                    {[{ id: 0, medium: '全媒体', resale_medium: 1 }, ...mediumArray, { id: null, medium: '不明', resale_medium: null }]
-                                                        .sort((a, b) => {
-                                                            const targetList =
-                                                                sortKey === 'registered'
-                                                                    ? registeredCustomers
-                                                                    : sortKey === 'reserved'
-                                                                        ? reservedCustomers
-                                                                        : contractCustomers;
-                                                            const countA = targetList.filter(r => a.id === 0 ? true : a.id === null ? r.medium === '' : r.medium === a.medium).length;
-                                                            const countB = targetList.filter(r => b.id === 0 ? true : b.id === null ? r.medium === '' : r.medium === b.medium).length;
-                                                            return countB - countA;
-                                                        })
-                                                        .map((m, mIndex) => Object.entries(display).map(([key, value], rIndex) => {
-                                                            const filtered =
-                                                                rIndex === 0 ? registeredCustomers.filter(r => (mIndex > 0 ? r.medium === m.medium : true)) :
-                                                                    rIndex === 1 ? reservedCustomers.filter(r => (mIndex > 0 ? r.medium === m.medium : true)) :
-                                                                        contractCustomers.filter(r => (mIndex > 0 ? r.medium === m.medium : true));
-                                                            const visibleKeys = Object.keys(display).filter(k => display[k].show);
-                                                            const isFirstVisible = visibleKeys[0] === key;
-                                                            return (
-                                                                (display[key].show && (targetMedium ? targetMedium === m.medium : true)) && (
-                                                                    <tr key={key}>
-                                                                        {isFirstVisible && (
-                                                                            <td rowSpan={visibleKeys.length}>{m.medium}</td>
-                                                                        )}
-                                                                        <td style={{ width: '80px' }}>{value.label}</td>
-                                                                        {['期間計', ...monthArray, 'A', 'B', 'C'].map((month, monthIndex) => {
-                                                                            let targetList: Customer[] = [];
-                                                                            if (monthIndex <= monthArray.length) {
-                                                                                targetList = filtered.filter(f => {
-                                                                                    let targetDate = "";
-                                                                                    if (rIndex === 0) {
-                                                                                        targetDate = formate(f.registered);
-                                                                                    } else if (rIndex >= 1) {
-                                                                                        const action: Action[] = f.action ? JSON.parse(f.action) : [];
-                                                                                        const actionDate = action.find(a => a.method === value.label)?.date ?? '';
-                                                                                        targetDate = formate(actionDate);
-                                                                                    }
-                                                                                    return monthIndex > 0 ? targetDate.includes(formate(month)) : true;
-                                                                                });
-                                                                            } else {
-                                                                                targetList = registeredCustomers.filter(r => r.rank === month && (mIndex > 0 ? r.medium === m.medium : true));
-                                                                            }
-                                                                            return (
-                                                                                <>{!(rIndex > 0 && monthIndex > monthArray.length) && (
-                                                                                    <td key={month} style={{ textAlign: 'right' }} rowSpan={monthIndex > monthArray.length ? 3 : 1}>
-                                                                                        <div
-                                                                                            style={{
-                                                                                                cursor: targetList.length > 0 ? 'pointer' : '',
-                                                                                                textDecoration: targetList.length > 0 ? 'underline' : '',
-                                                                                                color: targetList.length > 0 ? '#007bff' : '',
-                                                                                            }}
-                                                                                            onClick={() => targetList.length > 0 && setCustomerList(targetList)}
-                                                                                        >
-                                                                                            {targetList.length}
-                                                                                        </div>
-                                                                                    </td>
-                                                                                )}
-                                                                                </>
-                                                                            );
-                                                                        })}
-                                                                    </tr>
-                                                                )
-                                                            );
-                                                        }))}
-                                                </tbody>
-                                            </Table>
-                                        </div>
-                                    </div>
-                                    {/* 以下スタッフ */}
-                                    <div style={{ overflowX: 'auto' }}>
-                                        <div style={{ minWidth: `${(monthArray.length + 1) * 60 + 200}px`, fontSize: '12px' }}>
-                                            <Table bordered striped style={{ tableLayout: 'fixed', width: 'auto' }}>
-                                                <tbody className='align-middle'>
-                                                    <tr>
-                                                        <td colSpan={2} style={{ width: '200px' }}>スタッフ</td>
-                                                        {['全期間', ...monthArray, 'A', 'B', 'C'].map(month =>
-                                                            <td key={month} style={{ width: '60px', textAlign: 'center' }}>{month}</td>
-                                                        )}
-                                                    </tr>
-                                                    {staff
-                                                        .sort((a, b) => {
-                                                            const countA =
-                                                                sortKey === 'registered'
-                                                                    ? registeredCustomers.filter(r => r.staff === a.name).length
-                                                                    : sortKey === 'reserved'
-                                                                        ? reservedCustomers.filter(r => r.staff === a.name).length
-                                                                        : contractCustomers.filter(r => r.staff === a.name).length;
-                                                            const countB =
-                                                                sortKey === 'registered'
-                                                                    ? registeredCustomers.filter(r => r.staff === b.name).length
-                                                                    : sortKey === 'reserved'
-                                                                        ? reservedCustomers.filter(r => r.staff === b.name).length
-                                                                        : contractCustomers.filter(r => r.staff === b.name).length;
-                                                            return countB - countA;
-                                                        })
-                                                        .map(s => {
-                                                            const visibleKeys = Object.keys(display).filter(k => display[k].show);
-                                                            return visibleKeys.map((key, rIndex) => {
-                                                                const value = display[key];
-                                                                const filtered =
-                                                                    key === 'registered'
-                                                                        ? registeredCustomers.filter(r => r.staff === s.name)
-                                                                        : key === 'reserved'
-                                                                            ? reservedCustomers.filter(r => r.staff === s.name && r.reserved)
-                                                                            : contractCustomers.filter(r => r.staff === s.name && r.contract);
-                                                                const isFirstVisible = rIndex === 0;
-                                                                return (
-                                                                    <tr key={`${s.name}-${key}`}>
-                                                                        {isFirstVisible && (
-                                                                            <td rowSpan={visibleKeys.length}>{s.name}</td>
-                                                                        )}
-                                                                        <td style={{ width: '80px' }}>{value.label}</td>
-                                                                        {['期間計', ...monthArray, 'A', 'B', 'C'].map((month, monthIndex) => {
-                                                                            let targetList: Customer[] = [];
-                                                                            if (monthIndex <= monthArray.length) {
-                                                                                targetList = filtered.filter(f => {
-                                                                                    let targetDate = "";
-                                                                                    if (rIndex === 0) {
-                                                                                        targetDate = formate(f.registered);
-                                                                                    } else if (rIndex >= 1) {
-                                                                                        const action: Action[] = f.action ? JSON.parse(f.action) : [];
-                                                                                        const actionDate = action.find(a => a.method === value.label)?.date ?? '';
-                                                                                        targetDate = formate(actionDate);
-                                                                                    }
-                                                                                    return monthIndex > 0 ? targetDate.includes(formate(month)) : true;
-                                                                                });
-                                                                            } else {
-                                                                                targetList = registeredCustomers.filter(r => r.staff === s.name && r.rank === month);
-                                                                            }
-                                                                            return (
-                                                                                <>{!(rIndex > 0 && monthIndex > monthArray.length) && (
-                                                                                    <td key={month} style={{ textAlign: 'right' }} rowSpan={monthIndex > monthArray.length ? 3 : 1}>
-                                                                                        <div
-                                                                                            style={{
-                                                                                                cursor: targetList.length > 0 ? 'pointer' : '',
-                                                                                                textDecoration: targetList.length > 0 ? 'underline' : '',
-                                                                                                color: targetList.length > 0 ? '#007bff' : '',
-                                                                                            }}
-                                                                                            onClick={() => targetList.length > 0 && setCustomerList(targetList)}
-                                                                                        >
-                                                                                            {targetList.length}
-                                                                                        </div>
-                                                                                    </td>
-                                                                                )}
-                                                                                </>
-                                                                            );
-                                                                        })}
-                                                                    </tr>
-                                                                );
-                                                            });
-                                                        })}
-                                                </tbody>
-                                            </Table>
-
-                                        </div>
-                                    </div>
-                                </div>
-                            </>}
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setSortKey(e.target.value)}>
+                            <option value="" selected>項目で並び替え</option>
+                            {Object.entries(display).map(([key, value]) =>
+                                <option value={key}>{value.label}数</option>)}
+                        </select>
                     </div>
                 </div>
+                <div className="d-flex flex-wrap mb-3 align-items-center">
+                    <div className="m-1">
+                        <label className="target checkbox d-flex align-items-center">
+                            <input type="checkbox" checked={showGraph} className='me-1' onChange={() => setShowGraph(prev => !prev)} />グラフを表示
+                        </label>
+                    </div>
+                    {Object.entries(display).map(([key, value]) => {
+                        return <div className="m-1">
+                            <label className="target checkbox d-flex align-items-center">
+                                <input type="checkbox" checked={value.show} name={key} className='me-1' onChange={checkedChange} />{value.label}を表示
+                            </label>
+                        </div>
+                    })}
+                </div>
+                {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
+                    <>
+                        <div className="table-wrapper mt-3">
+                            {showGraph && <div className="mt-3"
+                                style={{ width: '80%', height: '300px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart
+                                        data={responseLineData}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis
+                                            dataKey="period"
+                                            tick={{ fontSize: 11, fontFamily: "Verdana", fill: "#555" }}
+                                        />
+                                        <YAxis
+                                            tick={{ fontSize: 11, fontFamily: "Verdana", fill: "#555" }}
+                                        />
+                                        <Tooltip />
+                                        <Legend
+                                            wrapperStyle={{
+                                                fontSize: "12px",
+                                                fontFamily: "Arial, sans-serif",
+                                                color: "#333",
+                                            }}
+                                            content={({ payload }) => (
+                                                <div className='d-flex justify-content-center mt-3'>
+                                                    {["registered", "reserved", "contract"].map(key => {
+                                                        const entry = payload?.find(p => p.dataKey === key);
+                                                        return (
+                                                            <div className='m-1 px-2 py-1 rounded' key={key} style={{ backgroundColor: entry?.color, color: '#fff' }}>
+                                                                {entry?.value}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        />
+                                        <Line type="monotone" dataKey="registered" stroke="#0d6efd" name="総反響" />
+                                        <Line type="monotone" dataKey="reserved" stroke="#fd7e14" name="面談案内" />
+                                        <Line type="monotone" dataKey="contract" stroke="#dc3545" name="契約" />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>}
+                            {/* 以下店舗 */}
+                            <div style={{ overflowX: 'auto' }}>
+                                <div style={{ minWidth: `${(monthArray.length + 1) * 60 + 200}px`, fontSize: '12px' }}>
+                                    <Table bordered striped style={{ tableLayout: 'fixed', width: 'auto' }}>
+                                        <tbody className='align-middle'>
+                                            <tr>
+                                                <td colSpan={2} style={{ width: '200px' }}>スタッフ</td>
+                                                {['全期間', ...monthArray, 'A', 'B', 'C'].map(month =>
+                                                    <td key={month} style={{ width: '60px', textAlign: 'center' }}>{month}</td>
+                                                )}
+                                            </tr>
+                                            {[{ id: 0, medium: '全媒体', resale_medium: 1 }, ...mediumArray, { id: null, medium: '不明', resale_medium: null }]
+                                                .sort((a, b) => {
+                                                    const targetList =
+                                                        sortKey === 'registered'
+                                                            ? registeredCustomers
+                                                            : sortKey === 'reserved'
+                                                                ? reservedCustomers
+                                                                : contractCustomers;
+                                                    const countA = targetList.filter(r => a.id === 0 ? true : a.id === null ? r.medium === '' : r.medium === a.medium).length;
+                                                    const countB = targetList.filter(r => b.id === 0 ? true : b.id === null ? r.medium === '' : r.medium === b.medium).length;
+                                                    return countB - countA;
+                                                })
+                                                .map((m, mIndex) => Object.entries(display).map(([key, value], rIndex) => {
+                                                    const filtered =
+                                                        rIndex === 0 ? registeredCustomers.filter(r => (mIndex > 0 ? r.medium === m.medium : true)) :
+                                                            rIndex === 1 ? reservedCustomers.filter(r => (mIndex > 0 ? r.medium === m.medium : true)) :
+                                                                contractCustomers.filter(r => (mIndex > 0 ? r.medium === m.medium : true));
+                                                    const visibleKeys = Object.keys(display).filter(k => display[k].show);
+                                                    const isFirstVisible = visibleKeys[0] === key;
+                                                    return (
+                                                        (display[key].show && (targetMedium ? targetMedium === m.medium : true)) && (
+                                                            <tr key={key}>
+                                                                {isFirstVisible && (
+                                                                    <td rowSpan={visibleKeys.length}>{m.medium}</td>
+                                                                )}
+                                                                <td style={{ width: '80px' }}>{value.label}</td>
+                                                                {['期間計', ...monthArray, 'A', 'B', 'C'].map((month, monthIndex) => {
+                                                                    let targetList: Customer[] = [];
+                                                                    if (monthIndex <= monthArray.length) {
+                                                                        targetList = filtered.filter(f => {
+                                                                            let targetDate = "";
+                                                                            if (rIndex === 0) {
+                                                                                targetDate = formate(f.registered);
+                                                                            } else if (rIndex >= 1) {
+                                                                                const action: Action[] = f.action ? JSON.parse(f.action) : [];
+                                                                                const actionDate = action.find(a => a.method === value.label)?.date ?? '';
+                                                                                targetDate = formate(actionDate);
+                                                                            }
+                                                                            return monthIndex > 0 ? targetDate.includes(formate(month)) : true;
+                                                                        });
+                                                                    } else {
+                                                                        targetList = registeredCustomers.filter(r => r.rank === month && (mIndex > 0 ? r.medium === m.medium : true));
+                                                                    }
+                                                                    return (
+                                                                        <>{!(rIndex > 0 && monthIndex > monthArray.length) && (
+                                                                            <td key={month} style={{ textAlign: 'right' }} rowSpan={monthIndex > monthArray.length ? 3 : 1}>
+                                                                                <div
+                                                                                    style={{
+                                                                                        cursor: targetList.length > 0 ? 'pointer' : '',
+                                                                                        textDecoration: targetList.length > 0 ? 'underline' : '',
+                                                                                        color: targetList.length > 0 ? '#007bff' : '',
+                                                                                    }}
+                                                                                    onClick={() => targetList.length > 0 && setCustomerList(targetList)}
+                                                                                >
+                                                                                    {targetList.length}
+                                                                                </div>
+                                                                            </td>
+                                                                        )}
+                                                                        </>
+                                                                    );
+                                                                })}
+                                                            </tr>
+                                                        )
+                                                    );
+                                                }))}
+                                        </tbody>
+                                    </Table>
+                                </div>
+                            </div>
+                            {/* 以下スタッフ */}
+                            <div style={{ overflowX: 'auto' }}>
+                                <div style={{ minWidth: `${(monthArray.length + 1) * 60 + 200}px`, fontSize: '12px' }}>
+                                    <Table bordered striped style={{ tableLayout: 'fixed', width: 'auto' }}>
+                                        <tbody className='align-middle'>
+                                            <tr>
+                                                <td colSpan={2} style={{ width: '200px' }}>スタッフ</td>
+                                                {['全期間', ...monthArray, 'A', 'B', 'C'].map(month =>
+                                                    <td key={month} style={{ width: '60px', textAlign: 'center' }}>{month}</td>
+                                                )}
+                                            </tr>
+                                            {staff
+                                                .sort((a, b) => {
+                                                    const countA =
+                                                        sortKey === 'registered'
+                                                            ? registeredCustomers.filter(r => r.staff === a.name).length
+                                                            : sortKey === 'reserved'
+                                                                ? reservedCustomers.filter(r => r.staff === a.name).length
+                                                                : contractCustomers.filter(r => r.staff === a.name).length;
+                                                    const countB =
+                                                        sortKey === 'registered'
+                                                            ? registeredCustomers.filter(r => r.staff === b.name).length
+                                                            : sortKey === 'reserved'
+                                                                ? reservedCustomers.filter(r => r.staff === b.name).length
+                                                                : contractCustomers.filter(r => r.staff === b.name).length;
+                                                    return countB - countA;
+                                                })
+                                                .map(s => {
+                                                    const visibleKeys = Object.keys(display).filter(k => display[k].show);
+                                                    return visibleKeys.map((key, rIndex) => {
+                                                        const value = display[key];
+                                                        const filtered =
+                                                            key === 'registered'
+                                                                ? registeredCustomers.filter(r => r.staff === s.name)
+                                                                : key === 'reserved'
+                                                                    ? reservedCustomers.filter(r => r.staff === s.name && r.reserved)
+                                                                    : contractCustomers.filter(r => r.staff === s.name && r.contract);
+                                                        const isFirstVisible = rIndex === 0;
+                                                        return (
+                                                            <tr key={`${s.name}-${key}`}>
+                                                                {isFirstVisible && (
+                                                                    <td rowSpan={visibleKeys.length}>{s.name}</td>
+                                                                )}
+                                                                <td style={{ width: '80px' }}>{value.label}</td>
+                                                                {['期間計', ...monthArray, 'A', 'B', 'C'].map((month, monthIndex) => {
+                                                                    let targetList: Customer[] = [];
+                                                                    if (monthIndex <= monthArray.length) {
+                                                                        targetList = filtered.filter(f => {
+                                                                            let targetDate = "";
+                                                                            if (rIndex === 0) {
+                                                                                targetDate = formate(f.registered);
+                                                                            } else if (rIndex >= 1) {
+                                                                                const action: Action[] = f.action ? JSON.parse(f.action) : [];
+                                                                                const actionDate = action.find(a => a.method === value.label)?.date ?? '';
+                                                                                targetDate = formate(actionDate);
+                                                                            }
+                                                                            return monthIndex > 0 ? targetDate.includes(formate(month)) : true;
+                                                                        });
+                                                                    } else {
+                                                                        targetList = registeredCustomers.filter(r => r.staff === s.name && r.rank === month);
+                                                                    }
+                                                                    return (
+                                                                        <>{!(rIndex > 0 && monthIndex > monthArray.length) && (
+                                                                            <td key={month} style={{ textAlign: 'right' }} rowSpan={monthIndex > monthArray.length ? 3 : 1}>
+                                                                                <div
+                                                                                    style={{
+                                                                                        cursor: targetList.length > 0 ? 'pointer' : '',
+                                                                                        textDecoration: targetList.length > 0 ? 'underline' : '',
+                                                                                        color: targetList.length > 0 ? '#007bff' : '',
+                                                                                    }}
+                                                                                    onClick={() => targetList.length > 0 && setCustomerList(targetList)}
+                                                                                >
+                                                                                    {targetList.length}
+                                                                                </div>
+                                                                            </td>
+                                                                        )}
+                                                                        </>
+                                                                    );
+                                                                })}
+                                                            </tr>
+                                                        );
+                                                    });
+                                                })}
+                                        </tbody>
+                                    </Table>
+
+                                </div>
+                            </div>
+                        </div>
+                    </>}
             </div>
             <Modal show={modalShow} onHide={modalClose} size='lg'>
                 <ModalHeader closeButton></ModalHeader>

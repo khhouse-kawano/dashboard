@@ -9,6 +9,7 @@ export const setStyleClass = (shop: string): CSSProperties => {
         { category: 'JH', color: '#dc4235' },
         { category: 'FH', color: '#cd3c33' },
         { category: 'PG', color: '#000' },
+        { category: 'かえ', color: '#0d6d4b' },
     ];
 
     const backgroundValue = shop.includes('ホットリード') ? '#0f3675' :

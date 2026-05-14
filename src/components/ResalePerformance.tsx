@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, useContext } from 'react';
-import MenuDev from "./MenuDev";
 import AuthContext from '../context/AuthContext';
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import { useNavigate } from "react-router-dom";
@@ -208,277 +207,257 @@ const ResalePerformance = () => {
 
     return (
         <>
-            <div className='outer-container'>
-                <div className="d-flex">
-                    <div className="modal_menu">
-                        <MenuDev brand={brand} />
+            <div className='content bg-white p-2'>
+                <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
+                <div className="d-flex flex-wrap mb-3 align-items-center">
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
+                            <option value="" selected>開始月を選択</option>
+                            {originalMonthArray.sort((a, b) => {
+                                const monthA = new Date(a + '/01').getTime();
+                                const monthB = new Date(b + '/01').getTime();
+                                return monthA - monthB;
+                            }).map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    <div className="header_sp">
-                        <i
-                            className="fa-solid fa-bars hamburger"
-                            onClick={() => setOpen(true)}
-                        />
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
+                            <option value="" selected>終了月を選択</option>
+                            {originalMonthArray.sort((a, b) => {
+                                const monthA = new Date(a + '/01').getTime();
+                                const monthB = new Date(b + '/01').getTime();
+                                return monthA - monthB;
+                            }).map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                        <i
-                            className="fa-solid fa-xmark hamburger position-absolute"
-                            onClick={() => setOpen(false)}
-                        />
-                        <MenuDev brand={brand} />
+                    <div className="m-1">
+                        <label className="target checkbox d-flex align-items-center">
+                            <input type="checkbox" checked={showGraph} className='me-1' onChange={() => setShowGraph(prev => !prev)} />グラフを表示
+                        </label>
                     </div>
-                    <div className='content bg-white p-2'>
-                        <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-                        <div className="d-flex flex-wrap mb-3 align-items-center">
-                            <div className="m-1">
-                                <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                                    <option value="" selected>開始月を選択</option>
-                                    {originalMonthArray.sort((a, b) => {
-                                        const monthA = new Date(a + '/01').getTime();
-                                        const monthB = new Date(b + '/01').getTime();
-                                        return monthA - monthB;
-                                    }).map((month, index) => (<option key={index} value={month}>{month}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="m-1">
-                                <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                                    <option value="" selected>終了月を選択</option>
-                                    {originalMonthArray.sort((a, b) => {
-                                        const monthA = new Date(a + '/01').getTime();
-                                        const monthB = new Date(b + '/01').getTime();
-                                        return monthA - monthB;
-                                    }).map((month, index) => (<option key={index} value={month}>{month}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="m-1">
-                                <label className="target checkbox d-flex align-items-center">
-                                    <input type="checkbox" checked={showGraph} className='me-1' onChange={() => setShowGraph(prev => !prev)} />グラフを表示
-                                </label>
-                            </div>
+                </div>
+                <div className="d-flex flex-wrap mb-3 align-items-center">
+                    {Object.entries(display).map(([key, value]) => {
+                        return <div className="m-1">
+                            <label className="target checkbox d-flex align-items-center">
+                                <input type="checkbox" checked={value.show} name={key} className='me-1' onChange={checkedChange} />{value.label}を表示
+                            </label>
                         </div>
-                        <div className="d-flex flex-wrap mb-3 align-items-center">
-                            {Object.entries(display).map(([key, value]) => {
-                                return <div className="m-1">
-                                    <label className="target checkbox d-flex align-items-center">
-                                        <input type="checkbox" checked={value.show} name={key} className='me-1' onChange={checkedChange} />{value.label}を表示
-                                    </label>
-                                </div>
-                            })}
-                        </div>
-                        {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
-                            <>
-                                <div className="table-wrapper mt-3">
-                                    {showGraph && <div className="mt-3"
-                                        style={{ width: '80%', height: '300px' }}>
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart
-                                                data={responseLineData}
-                                            >
-                                                <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis
-                                                    dataKey="period"
-                                                    tick={{ fontSize: 11, fontFamily: "Verdana", fill: "#555" }}
-                                                />
-                                                <YAxis
-                                                    tick={{ fontSize: 11, fontFamily: "Verdana", fill: "#555" }}
-                                                />
-                                                <Tooltip />
-                                                <Legend
-                                                    wrapperStyle={{
-                                                        fontSize: "12px",
-                                                        fontFamily: "Arial, sans-serif",
-                                                        color: "#333",
-                                                    }}
-                                                    content={({ payload }) => (
-                                                        <div className='d-flex justify-content-center mt-3'>
-                                                            {["registered", "reserved", "contract"].map(key => {
-                                                                const entry = payload?.find(p => p.dataKey === key);
-                                                                return (
-                                                                    <div className='m-1 px-2 py-1 rounded' key={key} style={{ backgroundColor: entry?.color, color: '#fff' }}>
-                                                                        {entry?.value}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
+                    })}
+                </div>
+                {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
+                    <>
+                        <div className="table-wrapper mt-3">
+                            {showGraph && <div className="mt-3"
+                                style={{ width: '80%', height: '300px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart
+                                        data={responseLineData}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis
+                                            dataKey="period"
+                                            tick={{ fontSize: 11, fontFamily: "Verdana", fill: "#555" }}
+                                        />
+                                        <YAxis
+                                            tick={{ fontSize: 11, fontFamily: "Verdana", fill: "#555" }}
+                                        />
+                                        <Tooltip />
+                                        <Legend
+                                            wrapperStyle={{
+                                                fontSize: "12px",
+                                                fontFamily: "Arial, sans-serif",
+                                                color: "#333",
+                                            }}
+                                            content={({ payload }) => (
+                                                <div className='d-flex justify-content-center mt-3'>
+                                                    {["registered", "reserved", "contract"].map(key => {
+                                                        const entry = payload?.find(p => p.dataKey === key);
+                                                        return (
+                                                            <div className='m-1 px-2 py-1 rounded' key={key} style={{ backgroundColor: entry?.color, color: '#fff' }}>
+                                                                {entry?.value}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        />
+                                        <Line type="monotone" dataKey="registered" stroke="#0d6efd" name="総反響" />
+                                        <Line type="monotone" dataKey="reserved" stroke="#fd7e14" name="面談案内" />
+                                        <Line type="monotone" dataKey="contract" stroke="#dc3545" name="契約" />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>}
+                            {/* 以下店舗 */}
+                            <div style={{ overflowX: 'auto' }}>
+                                <div style={{ minWidth: `${(monthArray.length + 1) * 80 + 260}px`, fontSize: '12px' }}>
+                                    <Table bordered style={{ tableLayout: 'fixed', width: 'auto' }}>
+                                        <tbody className='align-middle'>
+                                            {['中専鹿児島店'].map(shop =>
+                                                <><tr>
+                                                    <td style={{ width: "200px" }} colSpan={2}>店舗</td>
+                                                    {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) =>
+                                                        <td className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`} key={mIndex} style={{ width: '80px' }}>{month}</td>
                                                     )}
-                                                />
-                                                <Line type="monotone" dataKey="registered" stroke="#0d6efd" name="総反響" />
-                                                <Line type="monotone" dataKey="reserved" stroke="#fd7e14" name="面談案内" />
-                                                <Line type="monotone" dataKey="contract" stroke="#dc3545" name="契約" />
-                                            </LineChart>
-                                        </ResponsiveContainer>
-                                    </div>}
-                                    {/* 以下店舗 */}
-                                    <div style={{ overflowX: 'auto' }}>
-                                        <div style={{ minWidth: `${(monthArray.length + 1) * 80 + 260}px`, fontSize: '12px' }}>
-                                            <Table bordered style={{ tableLayout: 'fixed', width: 'auto' }}>
-                                                <tbody className='align-middle'>
-                                                    {['中専鹿児島店'].map(shop =>
-                                                        <><tr>
-                                                            <td style={{ width: "200px" }} colSpan={2}>店舗</td>
-                                                            {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) =>
-                                                                <td className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`} key={mIndex} style={{ width: '80px' }}>{month}</td>
-                                                            )}
-                                                        </tr>
-                                                            <tr>
-                                                                <td rowSpan={3}>{shop}</td>
-                                                                <td className='text-dark table-light'>予算</td>
-                                                                {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
-                                                                    const base = achievement.filter(a => a.name === shop);
-                                                                    return <td key={mIndex} className={`text-center table-light ${mIndex === 0 ? 'fw-bold' : ''}`}>
-                                                                        {monthArray.includes(month)
-                                                                            ? <input type="text" className='resale_company_input text-secondary text-dark'
-                                                                                defaultValue={base.find(a => a.period === month)?.value}
-                                                                                onChange={(e) => setAchievementData(prev => ({
-                                                                                    ...prev,
-                                                                                    name: shop,
-                                                                                    value: e.target.value,
-                                                                                    period: month
-                                                                                }))}
-                                                                                onBlur={changeAchievement} />
-                                                                            : mIndex === 0
-                                                                            && <div className='text-dark'>
-                                                                                {base.filter(a => monthArray.includes(a.period.slice(0, 7))).reduce((acc, cur) => acc + Number(cur.value), 0)}
-                                                                            </div>}
-                                                                        {mIndex > monthArray.length && '-'}
-                                                                    </td>
-                                                                }
-                                                                )}
-                                                            </tr>
-                                                            <tr>
-                                                                <td>実績(差異)</td>
-                                                                {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
-                                                                    const contractList = contractCustomers.filter(c => (mIndex > 0 ? c.contract.includes(formate(month)) : true));
-                                                                    const performanceValue = contractList.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
-                                                                    const achievementValue = achievement.filter(a => mIndex === 0 ? monthArray.includes(a.period.slice(0, 7)) : a.period === month).reduce((acc, cur) => acc + Number(cur.value), 0);
-                                                                    const upperValue = upperCustomers.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
-                                                                    const lowerValue = lowerCustomers.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
-                                                                    return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
-                                                                        {mIndex <= monthArray.length && <>{performanceValue.toFixed(1)}<span className={`${performanceValue - achievementValue >= 0 ? 'text-primary' : 'text-danger'}`}>({performanceValue - achievementValue >= 0 && '+'}{(performanceValue - achievementValue).toFixed(1)})</span></>}
-                                                                        {mIndex === monthArray.length + 1 && upperValue}{mIndex === monthArray.length + 2 && lowerValue}
-                                                                    </td>
-                                                                }
-                                                                )}
-                                                            </tr>
-                                                            <tr>
-                                                                <td>件数</td>
-                                                                {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
-                                                                    let targetList: Customer[] = [];
-                                                                    if (mIndex === 0) {
-                                                                        targetList = contractCustomers;
-                                                                    } else if (mIndex > 0 && mIndex <= monthArray.length) {
-                                                                        targetList = contractCustomers.filter(c => c.contract.includes(formate(month)));
-                                                                    } else if (mIndex === monthArray.length + 1) {
-                                                                        targetList = upperCustomers;
-                                                                    } else if (mIndex === monthArray.length + 2) {
-                                                                        targetList = lowerCustomers;
-                                                                    }
-                                                                    return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
-                                                                        <div style={{
-                                                                            cursor: targetList.length > 0 ? 'pointer' : '',
-                                                                            textDecoration: targetList.length > 0 ? 'underline' : '',
-                                                                            color: targetList.length > 0 ? '#007bff' : '',
-                                                                        }}
-                                                                            onClick={() => targetList.length > 0 ? setCustomerList(targetList) : undefined}>
-                                                                            {targetList.length}
-                                                                        </div>
-                                                                    </td>
-                                                                }
-                                                                )}
-                                                            </tr>
-                                                        </>)}
-                                                </tbody>
-                                            </Table>
-                                        </div>
-                                    </div>
-                                    {/* 以下スタッフ */}
-                                    <div style={{ overflowX: 'auto' }}>
-                                        <div style={{ minWidth: `${(monthArray.length + 1) * 80 + 260}px`, fontSize: '12px' }}>
-                                            <Table bordered style={{ tableLayout: 'fixed', width: 'auto' }}>
-                                                <tbody className='align-middle'>
-                                                    {staff.map((staff, staffIndex) =>
-                                                        <>
-                                                            {staffIndex === 0 && <tr>
-                                                                <td style={{ width: "200px" }} colSpan={2}>スタッフ</td>
-                                                                {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) =>
-                                                                    <td className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`} key={mIndex} style={{ width: '80px' }}>{month}</td>
-                                                                )}
-                                                            </tr>}
-                                                            <tr>
-                                                                <td rowSpan={3}>{staff.name}</td>
-                                                                <td className='table-light text-dark'>予算</td>
-                                                                {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
-                                                                    const achievementValue = achievement.filter(a => a.name === staff.name && monthArray.includes(a.period.slice(0, 7))).reduce((acc, cur) => acc + Number(cur.value), 0);
-                                                                    return <td key={mIndex} className={`text-center table-light ${mIndex === 0 ? 'fw-bold' : ''}`}>{monthArray.includes(month) ? <input type="text" className='resale_company_input text-secondary text-dark'
-                                                                        defaultValue={achievement.find(a => a.name === staff.name && a.period === month)?.value}
+                                                </tr>
+                                                    <tr>
+                                                        <td rowSpan={3}>{shop}</td>
+                                                        <td className='text-dark table-light'>予算</td>
+                                                        {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
+                                                            const base = achievement.filter(a => a.name === shop);
+                                                            return <td key={mIndex} className={`text-center table-light ${mIndex === 0 ? 'fw-bold' : ''}`}>
+                                                                {monthArray.includes(month)
+                                                                    ? <input type="text" className='resale_company_input text-secondary text-dark'
+                                                                        defaultValue={base.find(a => a.period === month)?.value}
                                                                         onChange={(e) => setAchievementData(prev => ({
                                                                             ...prev,
-                                                                            name: staff.name,
+                                                                            name: shop,
                                                                             value: e.target.value,
                                                                             period: month
                                                                         }))}
                                                                         onBlur={changeAchievement} />
-                                                                        : mIndex === 0
-                                                                        && <div className='table-light text-dark'>
-                                                                            {achievementValue}
-                                                                        </div>}
-                                                                        {mIndex > monthArray.length && '-'}
-                                                                    </td>
-                                                                }
-                                                                )}
-                                                            </tr>
-                                                            <tr>
-                                                                <td>実績(差異)</td>
-                                                                {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
-                                                                    const contractList = contractCustomers.filter(c => c.staff === staff.name && (mIndex > 0 ? c.contract.includes(formate(month)) : true));
-                                                                    const performanceValue = contractList.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
-                                                                    const achievementValue = achievement.filter(a => a.name === staff.name && (mIndex === 0 ? monthArray.includes(a.period.slice(0, 7)) : a.period === month)).reduce((acc, cur) => acc + Number(cur.value), 0);
-                                                                    const upperValue = upperCustomers.filter(c => c.staff === staff.name).reduce((acc, cur) => Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
-                                                                    const lowerValue = lowerCustomers.filter(c => c.staff === staff.name).reduce((acc, cur) => Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
-                                                                    return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
-                                                                        {mIndex <= monthArray.length && <>{performanceValue.toFixed(1)}<span className={`${performanceValue - achievementValue >= 0 ? 'text-primary' : 'text-danger'}`}>({performanceValue - achievementValue >= 0 && '+'}{(performanceValue - achievementValue).toFixed(1)})</span></>}
-                                                                        {mIndex === monthArray.length + 1 && upperValue}{mIndex === monthArray.length + 2 && lowerValue}
-                                                                    </td>
-                                                                }
-                                                                )}
-                                                            </tr>
-                                                            <tr>
-                                                                <td>件数</td>
-                                                                {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
-                                                                    let targetList: Customer[] = []
-                                                                    const base = contractCustomers.filter(c => c.staff === staff.name);
-                                                                    if (mIndex === 0) {
-                                                                        targetList = base;
-                                                                    } else if (mIndex > 0 && mIndex <= monthArray.length) {
-                                                                        targetList = base.filter(c => c.contract.includes(formate(month)));
-                                                                    } else if (mIndex === monthArray.length + 1) {
-                                                                        targetList = upperCustomers.filter(c => c.staff === staff.name);
-                                                                    } else if (mIndex === monthArray.length + 2) {
-                                                                        targetList = lowerCustomers.filter(c => c.staff === staff.name);
-                                                                    }
-                                                                    return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
-                                                                        <div style={{
-                                                                            cursor: targetList.length > 0 ? 'pointer' : '',
-                                                                            textDecoration: targetList.length > 0 ? 'underline' : '',
-                                                                            color: targetList.length > 0 ? '#007bff' : '',
-                                                                        }}
-                                                                            onClick={() => targetList.length > 0 ? setCustomerList(targetList) : undefined}>
-                                                                            {targetList.length}
-                                                                        </div>
-                                                                    </td>
-                                                                }
-                                                                )}
-                                                            </tr>
-                                                        </>)}
-                                                </tbody>
-                                            </Table>
-                                        </div>
-                                    </div>
+                                                                    : mIndex === 0
+                                                                    && <div className='text-dark'>
+                                                                        {base.filter(a => monthArray.includes(a.period.slice(0, 7))).reduce((acc, cur) => acc + Number(cur.value), 0)}
+                                                                    </div>}
+                                                                {mIndex > monthArray.length && '-'}
+                                                            </td>
+                                                        }
+                                                        )}
+                                                    </tr>
+                                                    <tr>
+                                                        <td>実績(差異)</td>
+                                                        {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
+                                                            const contractList = contractCustomers.filter(c => (mIndex > 0 ? c.contract.includes(formate(month)) : true));
+                                                            const performanceValue = contractList.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
+                                                            const achievementValue = achievement.filter(a => mIndex === 0 ? monthArray.includes(a.period.slice(0, 7)) : a.period === month).reduce((acc, cur) => acc + Number(cur.value), 0);
+                                                            const upperValue = upperCustomers.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
+                                                            const lowerValue = lowerCustomers.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
+                                                            return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
+                                                                {mIndex <= monthArray.length && <>{performanceValue.toFixed(1)}<span className={`${performanceValue - achievementValue >= 0 ? 'text-primary' : 'text-danger'}`}>({performanceValue - achievementValue >= 0 && '+'}{(performanceValue - achievementValue).toFixed(1)})</span></>}
+                                                                {mIndex === monthArray.length + 1 && upperValue}{mIndex === monthArray.length + 2 && lowerValue}
+                                                            </td>
+                                                        }
+                                                        )}
+                                                    </tr>
+                                                    <tr>
+                                                        <td>件数</td>
+                                                        {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
+                                                            let targetList: Customer[] = [];
+                                                            if (mIndex === 0) {
+                                                                targetList = contractCustomers;
+                                                            } else if (mIndex > 0 && mIndex <= monthArray.length) {
+                                                                targetList = contractCustomers.filter(c => c.contract.includes(formate(month)));
+                                                            } else if (mIndex === monthArray.length + 1) {
+                                                                targetList = upperCustomers;
+                                                            } else if (mIndex === monthArray.length + 2) {
+                                                                targetList = lowerCustomers;
+                                                            }
+                                                            return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
+                                                                <div style={{
+                                                                    cursor: targetList.length > 0 ? 'pointer' : '',
+                                                                    textDecoration: targetList.length > 0 ? 'underline' : '',
+                                                                    color: targetList.length > 0 ? '#007bff' : '',
+                                                                }}
+                                                                    onClick={() => targetList.length > 0 ? setCustomerList(targetList) : undefined}>
+                                                                    {targetList.length}
+                                                                </div>
+                                                            </td>
+                                                        }
+                                                        )}
+                                                    </tr>
+                                                </>)}
+                                        </tbody>
+                                    </Table>
                                 </div>
-                            </>}
-                    </div>
-                </div>
+                            </div>
+                            {/* 以下スタッフ */}
+                            <div style={{ overflowX: 'auto' }}>
+                                <div style={{ minWidth: `${(monthArray.length + 1) * 80 + 260}px`, fontSize: '12px' }}>
+                                    <Table bordered style={{ tableLayout: 'fixed', width: 'auto' }}>
+                                        <tbody className='align-middle'>
+                                            {staff.map((staff, staffIndex) =>
+                                                <>
+                                                    {staffIndex === 0 && <tr>
+                                                        <td style={{ width: "200px" }} colSpan={2}>スタッフ</td>
+                                                        {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) =>
+                                                            <td className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`} key={mIndex} style={{ width: '80px' }}>{month}</td>
+                                                        )}
+                                                    </tr>}
+                                                    <tr>
+                                                        <td rowSpan={3}>{staff.name}</td>
+                                                        <td className='table-light text-dark'>予算</td>
+                                                        {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
+                                                            const achievementValue = achievement.filter(a => a.name === staff.name && monthArray.includes(a.period.slice(0, 7))).reduce((acc, cur) => acc + Number(cur.value), 0);
+                                                            return <td key={mIndex} className={`text-center table-light ${mIndex === 0 ? 'fw-bold' : ''}`}>{monthArray.includes(month) ? <input type="text" className='resale_company_input text-secondary text-dark'
+                                                                defaultValue={achievement.find(a => a.name === staff.name && a.period === month)?.value}
+                                                                onChange={(e) => setAchievementData(prev => ({
+                                                                    ...prev,
+                                                                    name: staff.name,
+                                                                    value: e.target.value,
+                                                                    period: month
+                                                                }))}
+                                                                onBlur={changeAchievement} />
+                                                                : mIndex === 0
+                                                                && <div className='table-light text-dark'>
+                                                                    {achievementValue}
+                                                                </div>}
+                                                                {mIndex > monthArray.length && '-'}
+                                                            </td>
+                                                        }
+                                                        )}
+                                                    </tr>
+                                                    <tr>
+                                                        <td>実績(差異)</td>
+                                                        {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
+                                                            const contractList = contractCustomers.filter(c => c.staff === staff.name && (mIndex > 0 ? c.contract.includes(formate(month)) : true));
+                                                            const performanceValue = contractList.reduce((acc, cur) => acc + Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
+                                                            const achievementValue = achievement.filter(a => a.name === staff.name && (mIndex === 0 ? monthArray.includes(a.period.slice(0, 7)) : a.period === month)).reduce((acc, cur) => acc + Number(cur.value), 0);
+                                                            const upperValue = upperCustomers.filter(c => c.staff === staff.name).reduce((acc, cur) => Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
+                                                            const lowerValue = lowerCustomers.filter(c => c.staff === staff.name).reduce((acc, cur) => Number(cur.broker) + Number(cur.profit) + Number(cur.other), 0);
+                                                            return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
+                                                                {mIndex <= monthArray.length && <>{performanceValue.toFixed(1)}<span className={`${performanceValue - achievementValue >= 0 ? 'text-primary' : 'text-danger'}`}>({performanceValue - achievementValue >= 0 && '+'}{(performanceValue - achievementValue).toFixed(1)})</span></>}
+                                                                {mIndex === monthArray.length + 1 && upperValue}{mIndex === monthArray.length + 2 && lowerValue}
+                                                            </td>
+                                                        }
+                                                        )}
+                                                    </tr>
+                                                    <tr>
+                                                        <td>件数</td>
+                                                        {['期間計', ...monthArray, '上限', '下限'].map((month, mIndex) => {
+                                                            let targetList: Customer[] = []
+                                                            const base = contractCustomers.filter(c => c.staff === staff.name);
+                                                            if (mIndex === 0) {
+                                                                targetList = base;
+                                                            } else if (mIndex > 0 && mIndex <= monthArray.length) {
+                                                                targetList = base.filter(c => c.contract.includes(formate(month)));
+                                                            } else if (mIndex === monthArray.length + 1) {
+                                                                targetList = upperCustomers.filter(c => c.staff === staff.name);
+                                                            } else if (mIndex === monthArray.length + 2) {
+                                                                targetList = lowerCustomers.filter(c => c.staff === staff.name);
+                                                            }
+                                                            return <td key={mIndex} className={`text-center ${mIndex === 0 ? 'fw-bold' : ''}`}>
+                                                                <div style={{
+                                                                    cursor: targetList.length > 0 ? 'pointer' : '',
+                                                                    textDecoration: targetList.length > 0 ? 'underline' : '',
+                                                                    color: targetList.length > 0 ? '#007bff' : '',
+                                                                }}
+                                                                    onClick={() => targetList.length > 0 ? setCustomerList(targetList) : undefined}>
+                                                                    {targetList.length}
+                                                                </div>
+                                                            </td>
+                                                        }
+                                                        )}
+                                                    </tr>
+                                                </>)}
+                                        </tbody>
+                                    </Table>
+                                </div>
+                            </div>
+                        </div>
+                    </>}
             </div>
             <Modal show={modalShow} onHide={modalClose} size='xl'>
                 <ModalHeader closeButton></ModalHeader>

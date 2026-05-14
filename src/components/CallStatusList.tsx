@@ -192,20 +192,20 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                                         let value;
                                                         let classValue;
                                                         if (category === '土地新着ネット反響数') {
-                                                            value = response.filter(r => mIndex > 0 ? r.register.replace(/-/g, '/').includes(month) : true).length;
+                                                            value = response.filter(r => mIndex > 0 ? dateFormate(r.register).includes(month) : true).length;
                                                             classValue = 'text-dark';
                                                         }
                                                         else if (category === '総架電数') {
-                                                            value = parsed.filter(p => (mIndex > 0 ? p.day.includes(month.replace(/\//g, '-')) : true) && p.action === '架電').length;
+                                                            value = parsed.filter(p => (mIndex > 0 ? dateFormate(p.day).includes(month) : true) && p.action === '架電').length;
                                                             classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 100 ? 'text-danger' : 'text-primary fw-bold'}` : '';
                                                         } else if (category === '通電数') {
-                                                            value = calledCustomer.filter(c => mIndex > 0 ? c.slice(0, 7) === month : true).length;
+                                                            value = calledCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
                                                             classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 15 ? 'text-danger' : 'text-primary fw-bold'}` : '';
                                                         } else if (category === 'アポ取得数') {
-                                                            value = appointCustomer.filter(c => mIndex > 0 ? c.slice(0, 7) === month : true).length;
+                                                            value = appointCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
                                                             classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 2 ? 'text-danger' : 'text-primary fw-bold'}` : '';
                                                         } else if (category === '架電からの来場数') {
-                                                            value = interviewCustomer.filter(c => mIndex > 0 ? c.slice(0, 7) === month : true).length;
+                                                            value = interviewCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
                                                             classValue = 'text-dark';
                                                         }
                                                         return <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }} className={classValue}>{value}</td>

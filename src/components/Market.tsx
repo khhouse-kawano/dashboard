@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import axios from 'axios';
 import Table from "react-bootstrap/Table";
-import MenuDev from "./MenuDev";
 import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -131,7 +130,7 @@ const Resale = () => {
     ];
 
     useEffect(() => {
-        if (!brand || !token || !category ) navigate("/login");
+        if (!brand || !token || !category) navigate("/login");
         setMonthArray(getYearMonthArray(2025, 1));
         const fetchData = async () => {
             const headers = {
@@ -640,243 +639,228 @@ const Resale = () => {
 
     return (
         <>
-            <div className='outer-container' style={{ width: '100vw' }}>
-                <div className="d-flex">
-                    <div className='modal_menu' style={{ width: '20%' }}><MenuDev brand={brand} />
-                    </div>
-                    <div className="header_sp">
-                        <i className="fa-solid fa-bars hamburger"
-                            onClick={() => setOpen(true)} />
-                    </div>
-                    <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                        <i className="fa-solid fa-xmark hamburger position-absolute"
-                            onClick={() => setOpen(false)} />
-                        <MenuDev brand={brand} />
-                    </div>
-                    <div className="content">
-                        <div className="top_content p-3">
-                            <div className="d-flex flex-wrap mb-3 align-items-center">
-                                <div className="m-1 m-md-2">
-                                    <select className='target' onChange={(e) => setTargetPref(e.target.value)}>
-                                        <option value="鹿児島県">鹿児島県</option>
-                                        <option value="宮崎県">宮崎県</option>
-                                        <option value="熊本県">熊本県</option>
-                                        <option value="大分県">大分県</option>
-                                        <option value="佐賀県">佐賀県</option>
-                                    </select>
-                                </div>
-                                <div className="m-1 m-md-2">
-                                    <input type="text" className='target'
-                                        placeholder='市町村名で検索' value={targetArea} onChange={(e) => setTargetArea(e.target.value)} />
-                                </div>
-                                <div className="m-1 m-md-2">
-                                    <select className='target' onChange={(e) => setTargetGender(e.target.value)}>
-                                        <option value="計">性別を選択</option>
-                                        <option value="男">男</option>
-                                        <option value="女">女</option>
-                                    </select>
-                                </div>
-                                <div className="m-1 m-md-2">
-                                    <select className='target' onChange={(e) => setStartAge(e.target.value)}>
-                                        <option value="">世代を選択</option>
-                                        <option value="0">0~4</option>
-                                        <option value="1">5~9</option>
-                                        <option value="2">10~14</option>
-                                        <option value="3">15~19</option>
-                                        <option value="4">20~24</option>
-                                        <option value="5">25~29</option>
-                                        <option value="6">30~34</option>
-                                        <option value="7">35~39</option>
-                                        <option value="8">40~44</option>
-                                        <option value="9">45~49</option>
-                                        <option value="10">50~54</option>
-                                        <option value="11">55~59</option>
-                                        <option value="12">60~64</option>
-                                        <option value="13">65~69</option>
-                                        <option value="14">70~74</option>
-                                        <option value="15">75~79</option>
-                                        <option value="16">80~84</option>
-                                        <option value="17">85~89</option>
-                                        <option value="18">90~94</option>
-                                        <option value="19">95~99</option>
-                                        <option value="20">100~</option>
-                                    </select>
-                                </div>
-                                ~
-                                <div className="m-1 m-md-2">
-                                    <select className='target' onChange={(e) => setEndAge(e.target.value)}>
-                                        <option value="">世代を選択</option>
-                                        <option value="0">0~4</option>
-                                        <option value="1">5~9</option>
-                                        <option value="2">10~14</option>
-                                        <option value="3">15~19</option>
-                                        <option value="4">20~24</option>
-                                        <option value="5">25~29</option>
-                                        <option value="6">30~34</option>
-                                        <option value="7">35~39</option>
-                                        <option value="8">40~44</option>
-                                        <option value="9">45~49</option>
-                                        <option value="10">50~54</option>
-                                        <option value="11">55~59</option>
-                                        <option value="12">60~64</option>
-                                        <option value="13">65~69</option>
-                                        <option value="14">70~74</option>
-                                        <option value="15">75~79</option>
-                                        <option value="16">80~84</option>
-                                        <option value="17">85~89</option>
-                                        <option value="18">90~94</option>
-                                        <option value="19">95~99</option>
-                                        <option value="20">100~</option>
-                                    </select>
-                                </div>
-                                <div className="m-1 m-md-2">
-                                    <select className='target' onChange={(e) => setStartMonth(e.target.value)}>
-                                        <option value="">期間を選択</option>
-                                        {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                                    </select>
-                                </div>
-                                ~
-                                <div className="m-1 m-md-2">
-                                    <select className='target' onChange={(e) => setEndMonth(e.target.value)}>
-                                        <option value="">期間を選択</option>
-                                        {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                                    </select>
-                                </div>
-                                <div className="m-1 m-md-2">
-                                    <select className='target' onChange={(e) => {
-                                        let sectionValue;
-                                        if (e.target.value.includes('かえる')) {
-                                            sectionValue = '分譲';
-                                        } else if (!e.target.value.includes('かえる') && e.target.value !== '') {
-                                            sectionValue = '注文';
-                                        } else {
-                                            sectionValue = '';
-                                        }
-                                        setTargetShop({ section: sectionValue, shop: e.target.value });
-                                    }}>
-                                        <option value="">店舗を選択</option>
-                                        {shop.map(item =>
-                                            <option value={item.shop}>{item.shop}</option>
-                                        )}
-                                    </select>
-                                </div>
-                                <div className="m-1 m-md-2">
-                                    <select className='target' onChange={(e) => setTargetMedium(e.target.value)}>
-                                        <option value="">販促媒体を選択</option>
-                                        {medium.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="mb-4" style={{ fontSize: '11px' }}>※反響数、来場数、契約数はPG CLOUD及びいえらぶCLOUDの数値より取得<br />
-                                ※KHGの着工棟数は注文住宅⇒「最新版★ハウジンググループ受注完工【KHG】」より、建売住宅⇒「かえるホーム工程表2024.06～」のスプレッドシートより取得<br />
-                                ※エリアごとの着工棟数、人口、世帯数はe-Statのデータベースより取得</div>
-                            <div style={{ overflowX: 'scroll' }}>
-                                <Table style={{ fontSize: '12px', textAlign: 'center' }} bordered striped className='list_table resale'>
-                                    <thead>
-                                        <tr className='align-middle'>
-                                            <td rowSpan={2}>No</td>
-                                            <td rowSpan={2}>都道府県</td>
-                                            <td rowSpan={2}>市町村</td>
-                                            <td colSpan={4} className='table-primary'>KHG注文営業</td>
-                                            <td colSpan={2} className='text-primary table-light'>エリア</td>
-                                            <td colSpan={4} className='table-success'>KHG建売営業</td>
-                                            <td colSpan={2} className='text-success table-light'>エリア</td>
-                                            <td rowSpan={2}>人口計</td>
-                                            <td rowSpan={2}>世帯数</td>
-                                        </tr>
-                                        <tr>
-                                            <td className='table-primary'>反響</td>
-                                            <td className='table-primary'>来場</td>
-                                            <td className='table-primary'>契約</td>
-                                            <td className='table-primary'>着工棟数</td>
-                                            <td className='table-light text-primary'>着工棟数</td>
-                                            <td className='table-primary'>KHGシェア</td>
-                                            <td className='table-success'>反響</td>
-                                            <td className='table-success'>来場</td>
-                                            <td className='table-success'>契約</td>
-                                            <td className='table-success'>着工棟数</td>
-                                            <td className='table-light text-success'>着工棟数</td>
-                                            <td className='table-success'>KHGシェア</td>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {population.sort((a, b) => {
-                                            const sortOrder = targetShop.shop ? 'amount' : 'area';
-                                            let amountA = 0;
-                                            let amountB = 0;
-                                            if (targetShop.section === '注文') {
-                                                amountA = customerList.filter(c => (a.area === '-' ? c.full_address.trim().includes(a.pref) : c.full_address.trim().includes(a.area))).length;
-                                                amountB = customerList.filter(c => (b.area === '-' ? c.full_address.trim().includes(b.pref) : c.full_address.trim().includes(b.area))).length;
-                                            } else if (targetShop.section === '分譲') {
-                                                amountA = khfCustomerList.filter(c => (a.area === '-' ? c.address.trim().includes(a.pref) : c.address.trim().includes(a.area))).length;
-                                                amountB = khfCustomerList.filter(c => (b.area === '-' ? c.address.trim().includes(b.pref) : c.address.trim().includes(b.area))).length;
-                                            }
-                                            return (
-                                                sortOrder === 'area' ? prefs.indexOf(a.pref) - prefs.indexOf(b.pref) : amountB - amountA
-                                            )
-                                        }).map((item, index) => {
-                                            const numbers: number[] = [];
-                                            Object.keys(item).forEach((key) => {
-                                                if (generation.includes(key)) {
-                                                    numbers.push((item as any)[key]);
-                                                }
-                                            });
-                                            const amount = numbers.reduce((acc, cur) => acc + cur, 0);
-                                            const allHouseholds = households.find(h => item.area === '-' ? h.pref === item.pref : h.area === item.area)?.amount;
-                                            const buildLength = item.area === '-' ? build.filter(b => b.pref === item.pref).reduce((acc, cur) => acc + cur.owner, 0) : build.filter(b => b.area === item.area).reduce((acc, cur) => acc + cur.owner, 0);
-                                            const registerLength = customerList.filter(c => targetMonth.includes(c.register.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.full_address.trim().includes(item.pref) : c.full_address.trim().includes(item.area))).length;
-                                            const reserveLength = customerList.filter(c => targetMonth.includes(c.reserve.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.full_address.trim().includes(item.pref) : c.full_address.trim().includes(item.area)) && c.reserve).length;
-                                            const contractLength = customerList.filter(c => targetMonth.includes(c.contract.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.full_address.trim().includes(item.pref) : c.full_address.trim().includes(item.area)) && c.contract).length;
-                                            const constructionLength = contract.filter(c => (item.area === '-' ? c.pref === targetPref : c.address.includes(item.area)) && c.category === '注文').length;
-                                            const registerKhfLength = khfCustomerList.filter(c => targetMonth.includes(c.registered.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.address.trim().includes(item.pref) : c.address.trim().includes(item.area))).length;
-                                            const reserveKhfLength = khfCustomerList.filter(c => targetMonth.includes(c.reserved.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.address.trim().includes(item.pref) : c.address.trim().includes(item.area)) && c.reserved).length;
-                                            const contractKhfLength = khfCustomerList.filter(c => targetMonth.includes(c.contract.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.address.trim().includes(item.pref) : c.address.trim().includes(item.area)) && c.contract).length;
-                                            const buildKhfLength = item.area === '-' ? build.filter(b => b.pref === item.pref).reduce((acc, cur) => acc + cur.condominiums, 0) : build.filter(b => b.area === item.area).reduce((acc, cur) => acc + cur.condominiums, 0);
-                                            const pref = targetShop.shop?.replace('かえる', '').replace('店', '県');
-                                            let khfAreas: string[] = [pref];
-                                            if (pref === '鹿児島県') {
-                                                khfAreas.push('都城');
-                                            }
-                                            const constructionKhfLength = khgConstruction.filter(c => (item.area === '-' ? c.address.includes(targetPref) : c.address.includes(item.area)) &&
-                                                (c.address.includes(pref) || (pref === '鹿児島県' ? c.address.includes('都城') : pref === '宮崎県' ? !c.address.includes('都城') : true))
-                                            ).length;
-                                            let show;
-                                            if (targetShop.shop === '') {
-                                                show = true;
-                                            } else if (targetShop.section === '注文' && registerLength > 0) {
-                                                show = true;
-                                            } else if (targetShop.section === '分譲' && registerKhfLength > 0) {
-                                                show = true;
-                                            }
-                                            return (
-                                                <>{show && <tr>
-                                                    <td>{index + 1}</td>
-                                                    <td>{item.pref}</td>
-                                                    <td style={{ textAlign: 'left' }}>{item.area === '-' ? '全域' : item.area}{expand[index] ? <i className="fa-solid fa-minus ms-2 medium_expand bg-secondary text-white p-1 rounded"
-                                                        onClick={() => mediumExpand(index, item.area)}></i> :
-                                                        <i className="fa-solid fa-plus ms-2 medium_expand bg-primary text-white p-1 rounded"
-                                                            onClick={() => mediumExpand(index, item.area)}></i>}</td>
-                                                    <td className='table-primary' style={{ textAlign: 'right' }}>{registerLength.toLocaleString()}</td>
-                                                    <td className='table-primary' style={{ textAlign: 'right' }}>{reserveLength.toLocaleString()}</td>
-                                                    <td className='table-primary' style={{ textAlign: 'right' }}>{contractLength.toLocaleString()}</td>
-                                                    <td className='table-primary' style={{ textAlign: 'right' }}>{constructionLength.toLocaleString()}</td>
-                                                    <td className='table-light text-primary' style={{ textAlign: 'right' }}>{buildLength ? buildLength.toLocaleString() : 0}</td>
-                                                    <td className='table-primary' style={{ textAlign: 'right' }}>{!isNaN(constructionLength / buildLength) && isFinite(constructionLength / buildLength) ? Math.ceil(constructionLength / buildLength * 1000) / 10 : 0}%</td>
-                                                    <td className='table-success' style={{ textAlign: 'right' }}>{registerKhfLength.toLocaleString()}</td>
-                                                    <td className='table-success' style={{ textAlign: 'right' }}>{reserveKhfLength.toLocaleString()}</td>
-                                                    <td className='table-success' style={{ textAlign: 'right' }}>{contractKhfLength.toLocaleString()}</td>
-                                                    <td className='table-success' style={{ textAlign: 'right' }}>{constructionKhfLength.toLocaleString()}</td>
-                                                    <td className='table-light text-success' style={{ textAlign: 'right' }}>{buildKhfLength ? buildKhfLength.toLocaleString() : 0}</td>
-                                                    <td className='table-success' style={{ textAlign: 'right' }}>{!isNaN(constructionKhfLength / buildKhfLength) && isFinite(constructionKhfLength / buildKhfLength) ? Math.ceil(constructionKhfLength / buildKhfLength * 1000) / 10 : 0}%</td>
-                                                    <td style={{ textAlign: 'right' }}>{amount.toLocaleString()}</td>
-                                                    <td style={{ textAlign: 'right' }}>{allHouseholds ? allHouseholds.toLocaleString() : '-'}</td>
-                                                </tr>}</>
-                                            )
-                                        })}
-                                    </tbody>
-                                </Table>
-                            </div>
+            <div className="content">
+                <div className="top_content p-3">
+                    <div className="d-flex flex-wrap mb-3 align-items-center">
+                        <div className="m-1 m-md-2">
+                            <select className='target' onChange={(e) => setTargetPref(e.target.value)}>
+                                <option value="鹿児島県">鹿児島県</option>
+                                <option value="宮崎県">宮崎県</option>
+                                <option value="熊本県">熊本県</option>
+                                <option value="大分県">大分県</option>
+                                <option value="佐賀県">佐賀県</option>
+                            </select>
                         </div>
+                        <div className="m-1 m-md-2">
+                            <input type="text" className='target'
+                                placeholder='市町村名で検索' value={targetArea} onChange={(e) => setTargetArea(e.target.value)} />
+                        </div>
+                        <div className="m-1 m-md-2">
+                            <select className='target' onChange={(e) => setTargetGender(e.target.value)}>
+                                <option value="計">性別を選択</option>
+                                <option value="男">男</option>
+                                <option value="女">女</option>
+                            </select>
+                        </div>
+                        <div className="m-1 m-md-2">
+                            <select className='target' onChange={(e) => setStartAge(e.target.value)}>
+                                <option value="">世代を選択</option>
+                                <option value="0">0~4</option>
+                                <option value="1">5~9</option>
+                                <option value="2">10~14</option>
+                                <option value="3">15~19</option>
+                                <option value="4">20~24</option>
+                                <option value="5">25~29</option>
+                                <option value="6">30~34</option>
+                                <option value="7">35~39</option>
+                                <option value="8">40~44</option>
+                                <option value="9">45~49</option>
+                                <option value="10">50~54</option>
+                                <option value="11">55~59</option>
+                                <option value="12">60~64</option>
+                                <option value="13">65~69</option>
+                                <option value="14">70~74</option>
+                                <option value="15">75~79</option>
+                                <option value="16">80~84</option>
+                                <option value="17">85~89</option>
+                                <option value="18">90~94</option>
+                                <option value="19">95~99</option>
+                                <option value="20">100~</option>
+                            </select>
+                        </div>
+                        ~
+                        <div className="m-1 m-md-2">
+                            <select className='target' onChange={(e) => setEndAge(e.target.value)}>
+                                <option value="">世代を選択</option>
+                                <option value="0">0~4</option>
+                                <option value="1">5~9</option>
+                                <option value="2">10~14</option>
+                                <option value="3">15~19</option>
+                                <option value="4">20~24</option>
+                                <option value="5">25~29</option>
+                                <option value="6">30~34</option>
+                                <option value="7">35~39</option>
+                                <option value="8">40~44</option>
+                                <option value="9">45~49</option>
+                                <option value="10">50~54</option>
+                                <option value="11">55~59</option>
+                                <option value="12">60~64</option>
+                                <option value="13">65~69</option>
+                                <option value="14">70~74</option>
+                                <option value="15">75~79</option>
+                                <option value="16">80~84</option>
+                                <option value="17">85~89</option>
+                                <option value="18">90~94</option>
+                                <option value="19">95~99</option>
+                                <option value="20">100~</option>
+                            </select>
+                        </div>
+                        <div className="m-1 m-md-2">
+                            <select className='target' onChange={(e) => setStartMonth(e.target.value)}>
+                                <option value="">期間を選択</option>
+                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>
+                        ~
+                        <div className="m-1 m-md-2">
+                            <select className='target' onChange={(e) => setEndMonth(e.target.value)}>
+                                <option value="">期間を選択</option>
+                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>
+                        <div className="m-1 m-md-2">
+                            <select className='target' onChange={(e) => {
+                                let sectionValue;
+                                if (e.target.value.includes('かえる')) {
+                                    sectionValue = '分譲';
+                                } else if (!e.target.value.includes('かえる') && e.target.value !== '') {
+                                    sectionValue = '注文';
+                                } else {
+                                    sectionValue = '';
+                                }
+                                setTargetShop({ section: sectionValue, shop: e.target.value });
+                            }}>
+                                <option value="">店舗を選択</option>
+                                {shop.map(item =>
+                                    <option value={item.shop}>{item.shop}</option>
+                                )}
+                            </select>
+                        </div>
+                        <div className="m-1 m-md-2">
+                            <select className='target' onChange={(e) => setTargetMedium(e.target.value)}>
+                                <option value="">販促媒体を選択</option>
+                                {medium.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="mb-4" style={{ fontSize: '11px' }}>※反響数、来場数、契約数はPG CLOUD及びいえらぶCLOUDの数値より取得<br />
+                        ※KHGの着工棟数は注文住宅⇒「最新版★ハウジンググループ受注完工【KHG】」より、建売住宅⇒「かえるホーム工程表2024.06～」のスプレッドシートより取得<br />
+                        ※エリアごとの着工棟数、人口、世帯数はe-Statのデータベースより取得</div>
+                    <div style={{ overflowX: 'scroll' }}>
+                        <Table style={{ fontSize: '12px', textAlign: 'center' }} bordered striped className='list_table resale'>
+                            <thead>
+                                <tr className='align-middle'>
+                                    <td rowSpan={2}>No</td>
+                                    <td rowSpan={2}>都道府県</td>
+                                    <td rowSpan={2}>市町村</td>
+                                    <td colSpan={4} className='table-primary'>KHG注文営業</td>
+                                    <td colSpan={2} className='text-primary table-light'>エリア</td>
+                                    <td colSpan={4} className='table-success'>KHG建売営業</td>
+                                    <td colSpan={2} className='text-success table-light'>エリア</td>
+                                    <td rowSpan={2}>人口計</td>
+                                    <td rowSpan={2}>世帯数</td>
+                                </tr>
+                                <tr>
+                                    <td className='table-primary'>反響</td>
+                                    <td className='table-primary'>来場</td>
+                                    <td className='table-primary'>契約</td>
+                                    <td className='table-primary'>着工棟数</td>
+                                    <td className='table-light text-primary'>着工棟数</td>
+                                    <td className='table-primary'>KHGシェア</td>
+                                    <td className='table-success'>反響</td>
+                                    <td className='table-success'>来場</td>
+                                    <td className='table-success'>契約</td>
+                                    <td className='table-success'>着工棟数</td>
+                                    <td className='table-light text-success'>着工棟数</td>
+                                    <td className='table-success'>KHGシェア</td>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {population.sort((a, b) => {
+                                    const sortOrder = targetShop.shop ? 'amount' : 'area';
+                                    let amountA = 0;
+                                    let amountB = 0;
+                                    if (targetShop.section === '注文') {
+                                        amountA = customerList.filter(c => (a.area === '-' ? c.full_address.trim().includes(a.pref) : c.full_address.trim().includes(a.area))).length;
+                                        amountB = customerList.filter(c => (b.area === '-' ? c.full_address.trim().includes(b.pref) : c.full_address.trim().includes(b.area))).length;
+                                    } else if (targetShop.section === '分譲') {
+                                        amountA = khfCustomerList.filter(c => (a.area === '-' ? c.address.trim().includes(a.pref) : c.address.trim().includes(a.area))).length;
+                                        amountB = khfCustomerList.filter(c => (b.area === '-' ? c.address.trim().includes(b.pref) : c.address.trim().includes(b.area))).length;
+                                    }
+                                    return (
+                                        sortOrder === 'area' ? prefs.indexOf(a.pref) - prefs.indexOf(b.pref) : amountB - amountA
+                                    )
+                                }).map((item, index) => {
+                                    const numbers: number[] = [];
+                                    Object.keys(item).forEach((key) => {
+                                        if (generation.includes(key)) {
+                                            numbers.push((item as any)[key]);
+                                        }
+                                    });
+                                    const amount = numbers.reduce((acc, cur) => acc + cur, 0);
+                                    const allHouseholds = households.find(h => item.area === '-' ? h.pref === item.pref : h.area === item.area)?.amount;
+                                    const buildLength = item.area === '-' ? build.filter(b => b.pref === item.pref).reduce((acc, cur) => acc + cur.owner, 0) : build.filter(b => b.area === item.area).reduce((acc, cur) => acc + cur.owner, 0);
+                                    const registerLength = customerList.filter(c => targetMonth.includes(c.register.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.full_address.trim().includes(item.pref) : c.full_address.trim().includes(item.area))).length;
+                                    const reserveLength = customerList.filter(c => targetMonth.includes(c.reserve.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.full_address.trim().includes(item.pref) : c.full_address.trim().includes(item.area)) && c.reserve).length;
+                                    const contractLength = customerList.filter(c => targetMonth.includes(c.contract.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.full_address.trim().includes(item.pref) : c.full_address.trim().includes(item.area)) && c.contract).length;
+                                    const constructionLength = contract.filter(c => (item.area === '-' ? c.pref === targetPref : c.address.includes(item.area)) && c.category === '注文').length;
+                                    const registerKhfLength = khfCustomerList.filter(c => targetMonth.includes(c.registered.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.address.trim().includes(item.pref) : c.address.trim().includes(item.area))).length;
+                                    const reserveKhfLength = khfCustomerList.filter(c => targetMonth.includes(c.reserved.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.address.trim().includes(item.pref) : c.address.trim().includes(item.area)) && c.reserved).length;
+                                    const contractKhfLength = khfCustomerList.filter(c => targetMonth.includes(c.contract.replace(/-/, '/').slice(0, 7)) && (item.area === '-' ? c.address.trim().includes(item.pref) : c.address.trim().includes(item.area)) && c.contract).length;
+                                    const buildKhfLength = item.area === '-' ? build.filter(b => b.pref === item.pref).reduce((acc, cur) => acc + cur.condominiums, 0) : build.filter(b => b.area === item.area).reduce((acc, cur) => acc + cur.condominiums, 0);
+                                    const pref = targetShop.shop?.replace('かえる', '').replace('店', '県');
+                                    let khfAreas: string[] = [pref];
+                                    if (pref === '鹿児島県') {
+                                        khfAreas.push('都城');
+                                    }
+                                    const constructionKhfLength = khgConstruction.filter(c => (item.area === '-' ? c.address.includes(targetPref) : c.address.includes(item.area)) &&
+                                        (c.address.includes(pref) || (pref === '鹿児島県' ? c.address.includes('都城') : pref === '宮崎県' ? !c.address.includes('都城') : true))
+                                    ).length;
+                                    let show;
+                                    if (targetShop.shop === '') {
+                                        show = true;
+                                    } else if (targetShop.section === '注文' && registerLength > 0) {
+                                        show = true;
+                                    } else if (targetShop.section === '分譲' && registerKhfLength > 0) {
+                                        show = true;
+                                    }
+                                    return (
+                                        <>{show && <tr>
+                                            <td>{index + 1}</td>
+                                            <td>{item.pref}</td>
+                                            <td style={{ textAlign: 'left' }}>{item.area === '-' ? '全域' : item.area}{expand[index] ? <i className="fa-solid fa-minus ms-2 medium_expand bg-secondary text-white p-1 rounded"
+                                                onClick={() => mediumExpand(index, item.area)}></i> :
+                                                <i className="fa-solid fa-plus ms-2 medium_expand bg-primary text-white p-1 rounded"
+                                                    onClick={() => mediumExpand(index, item.area)}></i>}</td>
+                                            <td className='table-primary' style={{ textAlign: 'right' }}>{registerLength.toLocaleString()}</td>
+                                            <td className='table-primary' style={{ textAlign: 'right' }}>{reserveLength.toLocaleString()}</td>
+                                            <td className='table-primary' style={{ textAlign: 'right' }}>{contractLength.toLocaleString()}</td>
+                                            <td className='table-primary' style={{ textAlign: 'right' }}>{constructionLength.toLocaleString()}</td>
+                                            <td className='table-light text-primary' style={{ textAlign: 'right' }}>{buildLength ? buildLength.toLocaleString() : 0}</td>
+                                            <td className='table-primary' style={{ textAlign: 'right' }}>{!isNaN(constructionLength / buildLength) && isFinite(constructionLength / buildLength) ? Math.ceil(constructionLength / buildLength * 1000) / 10 : 0}%</td>
+                                            <td className='table-success' style={{ textAlign: 'right' }}>{registerKhfLength.toLocaleString()}</td>
+                                            <td className='table-success' style={{ textAlign: 'right' }}>{reserveKhfLength.toLocaleString()}</td>
+                                            <td className='table-success' style={{ textAlign: 'right' }}>{contractKhfLength.toLocaleString()}</td>
+                                            <td className='table-success' style={{ textAlign: 'right' }}>{constructionKhfLength.toLocaleString()}</td>
+                                            <td className='table-light text-success' style={{ textAlign: 'right' }}>{buildKhfLength ? buildKhfLength.toLocaleString() : 0}</td>
+                                            <td className='table-success' style={{ textAlign: 'right' }}>{!isNaN(constructionKhfLength / buildKhfLength) && isFinite(constructionKhfLength / buildKhfLength) ? Math.ceil(constructionKhfLength / buildKhfLength * 1000) / 10 : 0}%</td>
+                                            <td style={{ textAlign: 'right' }}>{amount.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'right' }}>{allHouseholds ? allHouseholds.toLocaleString() : '-'}</td>
+                                        </tr>}</>
+                                    )
+                                })}
+                            </tbody>
+                        </Table>
                     </div>
                 </div>
             </div>

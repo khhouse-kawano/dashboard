@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
 import Table from 'react-bootstrap/esm/Table';
-import MenuDev from "./MenuDev";
 import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import Modal from 'react-bootstrap/Modal';
@@ -18,7 +17,6 @@ const Dev = () => {
     const [yearArray, setYearArray] = useState<string[]>([]);
     const [startMonth, setStartMonth] = useState<string>('');
     const [endMonth, setEndMonth] = useState<string>('');
-    const [open, setOpen] = useState(false);
     const { brand } = useContext(AuthContext);
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(true);
@@ -151,97 +149,85 @@ const Dev = () => {
 
     return (
         <>
-            <div className="d-flex">
-                <div className='modal_menu' style={{ width: '20%' }}><MenuDev brand={brand} />
-                </div>
-                <div className="header_sp">
-                    <i className="fa-solid fa-bars hamburger"
-                        onClick={() => setOpen(true)} />
-                </div>
-                <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                    <i className="fa-solid fa-xmark hamburger position-absolute"
-                        onClick={() => setOpen(false)} />
-                    <MenuDev brand={brand} />
-                </div>
-                <div className='content calendar bg-white p-2'>
-                    <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-                    <div className="d-flex flex-wrap mb-3 align-items-center">
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                                <option value="" selected>開始月を選択</option>
-                                {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                                <option value="" selected>終了月を選択</option>
-                                {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <div className="resale_customer_button" onClick={() => setModalShow(true)}>行動量目標設定</div>
-                        </div>
+            <div className='content calendar bg-white p-2'>
+                <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
+                <div className="d-flex flex-wrap mb-3 align-items-center">
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
+                            <option value="" selected>開始月を選択</option>
+                            {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
-                        <div className="table-wrapper mt-3">
-                            <div className="list_table kaeru">
-                                <div className="mb-3">
-                                    <Table bordered style={{ fontSize: '12px' }}>
-                                        <tbody className='align-middle'>
-                                            <tr className='table-light'>
-                                                <td style={{ width: '15%' }} colSpan={3}>チーム行動量</td>
-                                                {['合計', ...monthArray].map(m => <td>{m}</td>)}
-                                            </tr>
-                                            {staff.map((item, iIndex) => {
-                                                const total = callDetail.filter(c => c.staff === item.name && c.method === '電話(掛)');
-                                                const totalGoal = achievement.filter(a => a.name === item.name && monthArray.includes(a.period));
-                                                console.log(achievement)
-                                                console.log(totalGoal)
-                                                return (<React.Fragment key={iIndex}>
-                                                    {['架電', '', '通電', '', 'アポ', ''].map((action, index) =>
-                                                        <tr key={index}>
-                                                            {index === 0 && <td className='table-light' rowSpan={6}>{item.name}</td>}
-                                                            {index % 2 === 0 && <td rowSpan={2}>{action}</td>}
-                                                            <td>{index % 2 === 0 ? '目標' : '実績'}</td>
-                                                            {['', ...monthArray].map((m, mIndex) => {
-                                                                const filtered = total.filter(t =>
-                                                                    (mIndex === 0 ? true : t.date.includes(m)) &&
-                                                                    (index === 3 ? t.status?.includes('通電') : true) &&
-                                                                    (index === 5 ? t.status?.includes('アポイント') : true)
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
+                            <option value="" selected>終了月を選択</option>
+                            {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="m-1">
+                        <div className="resale_customer_button" onClick={() => setModalShow(true)}>行動量目標設定</div>
+                    </div>
+                </div>
+                {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
+                    <div className="table-wrapper mt-3">
+                        <div className="list_table kaeru">
+                            <div className="mb-3">
+                                <Table bordered style={{ fontSize: '12px' }}>
+                                    <tbody className='align-middle'>
+                                        <tr className='table-light'>
+                                            <td style={{ width: '15%' }} colSpan={3}>チーム行動量</td>
+                                            {['合計', ...monthArray].map(m => <td>{m}</td>)}
+                                        </tr>
+                                        {staff.map((item, iIndex) => {
+                                            const total = callDetail.filter(c => c.staff === item.name && c.method === '電話(掛)');
+                                            const totalGoal = achievement.filter(a => a.name === item.name && monthArray.includes(a.period));
+                                            console.log(achievement)
+                                            console.log(totalGoal)
+                                            return (<React.Fragment key={iIndex}>
+                                                {['架電', '', '通電', '', 'アポ', ''].map((action, index) =>
+                                                    <tr key={index}>
+                                                        {index === 0 && <td className='table-light' rowSpan={6}>{item.name}</td>}
+                                                        {index % 2 === 0 && <td rowSpan={2}>{action}</td>}
+                                                        <td>{index % 2 === 0 ? '目標' : '実績'}</td>
+                                                        {['', ...monthArray].map((m, mIndex) => {
+                                                            const filtered = total.filter(t =>
+                                                                (mIndex === 0 ? true : t.date.includes(m)) &&
+                                                                (index === 3 ? t.status?.includes('通電') : true) &&
+                                                                (index === 5 ? t.status?.includes('アポイント') : true)
+                                                            );
+                                                            let goalValue;
+                                                            if (mIndex > 0) {
+                                                                const filteredGoal = totalGoal.find(t =>
+                                                                    (mIndex === 0 ? true : t.period.includes(m))
                                                                 );
-                                                                let goalValue;
-                                                                if (mIndex > 0) {
-                                                                    const filteredGoal = totalGoal.find(t =>
-                                                                        (mIndex === 0 ? true : t.period.includes(m))
-                                                                    );
-                                                                    if (index === 0) {
-                                                                        goalValue = filteredGoal?.total ?? ''
-                                                                    } else if (index === 4) {
-                                                                        goalValue = filteredGoal?.appointment ?? '';
-                                                                    } else {
-                                                                        goalValue = Number(filteredGoal?.total) / 2;
-                                                                    }
+                                                                if (index === 0) {
+                                                                    goalValue = filteredGoal?.total ?? ''
+                                                                } else if (index === 4) {
+                                                                    goalValue = filteredGoal?.appointment ?? '';
                                                                 } else {
-                                                                    if (index === 0) {
-                                                                        goalValue = totalGoal.reduce((acc, cur) => acc + Number(cur.total), 0);
-                                                                    } else if (index === 4) {
-                                                                        goalValue = totalGoal.reduce((acc, cur) => acc + Number(cur.appointment), 0);
-                                                                    } else {
-                                                                        goalValue = totalGoal.reduce((acc, cur) => acc + Number(cur.total), 0) /2;
-                                                                    }
+                                                                    goalValue = Number(filteredGoal?.total) / 2;
                                                                 }
-
-                                                                return <td key={mIndex}>{index % 2 === 0 ? goalValue : filtered.length}</td>
+                                                            } else {
+                                                                if (index === 0) {
+                                                                    goalValue = totalGoal.reduce((acc, cur) => acc + Number(cur.total), 0);
+                                                                } else if (index === 4) {
+                                                                    goalValue = totalGoal.reduce((acc, cur) => acc + Number(cur.appointment), 0);
+                                                                } else {
+                                                                    goalValue = totalGoal.reduce((acc, cur) => acc + Number(cur.total), 0) / 2;
+                                                                }
                                                             }
-                                                            )}
-                                                        </tr>)}
-                                                </React.Fragment>
-                                                )
-                                            }
-                                            )}
-                                            {/* <tr className='table-primary fw-bold'>
+
+                                                            return <td key={mIndex}>{index % 2 === 0 ? goalValue : filtered.length}</td>
+                                                        }
+                                                        )}
+                                                    </tr>)}
+                                            </React.Fragment>
+                                            )
+                                        }
+                                        )}
+                                        {/* <tr className='table-primary fw-bold'>
                                                 <td>中古住宅専門店合計</td>
                                                 {(() => {
                                                     const filteredAchievement: Achievement[] = achievement.filter(item => {
@@ -271,12 +257,11 @@ const Dev = () => {
                                                     </>);
                                                 })()}
                                             </tr> */}
-                                        </tbody>
-                                    </Table>
-                                </div>
+                                    </tbody>
+                                </Table>
                             </div>
-                        </div>}
-                </div>
+                        </div>
+                    </div>}
             </div>
             <Modal show={modalShow} onHide={modalClose} size='lg'>
                 <div className="modal-header-sticky">

@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
 import Table from 'react-bootstrap/esm/Table';
-import MenuDev from "./MenuDev";
 import { Pie } from 'react-chartjs-2';
 import './chartConfig.js';
 import { colorCodes } from './ColorCodes.js';
@@ -74,7 +73,7 @@ const Dev = () => {
         ],
     });
     const { brand } = useContext(AuthContext);
-        const { token } = useContext(AuthContext);
+    const { token } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(true);
@@ -316,290 +315,276 @@ const Dev = () => {
     };
     return (
         <>
-            <div className="d-flex">
-                <div className='modal_menu' style={{ width: '20%' }}><MenuDev brand={brand} />
-                </div>
-                <div className="header_sp">
-                    <i className="fa-solid fa-bars hamburger"
-                        onClick={() => setOpen(true)} />
-                </div>
-                <div className={`modal_menu_sp ${open ? "open" : ""}`}>
-                    <i className="fa-solid fa-xmark hamburger position-absolute"
-                        onClick={() => setOpen(false)} />
-                    <MenuDev brand={brand} />
-                </div>
-                <div className='content calendar bg-white p-2'>
-                    <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"反響日"起算となります。</div>
-                    <div className="d-flex flex-wrap mb-3">
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                                <option value="" selected>開始月を選択</option>
-                                {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                                <option value="" selected>終了月を選択</option>
-                                {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setTargetMedium(e.target.value)}>
-                                <option value="" selected>販促媒体を選択</option>
-                                {mediumArray.filter(item => item !== '').map((month, index) => (<option key={index} value={month}>{month}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            {show === true ? <input type="button" className='target bg-danger text-white' value='グラフを非表示' onClick={() => setShow(false)} /> :
-                                <input type="button" className='target bg-primary text-white' value='グラフを表示' onClick={() => setShow(true)} />}
-                        </div>
+            <div className='content calendar bg-white p-2'>
+                <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"反響日"起算となります。</div>
+                <div className="d-flex flex-wrap mb-3">
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
+                            <option value="" selected>開始月を選択</option>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
                     </div>
-                    {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
-                        <div className="table-wrapper mt-3">
-                            <div className="list_table kaeru">
-                                <div className={`mt-3 graph_pc kaeru ${show === true ? 'show' : ''}`}>
-                                    <Tabs defaultActiveKey="home" id="justify-tab-example" className="mb-3 bg-white" justify style={{ fontSize: '12px', letterSpacing: '1px', width: '80vw' }}>
-                                        <Tab eventKey="home" title="総反響詳細">
-                                            <Pie data={dataRegisterPie} options={options} className='pie kaeru' />
-                                        </Tab>
-                                        <Tab eventKey="profile" title="来場者詳細">
-                                            <Pie data={dataReservePie} options={options} className='pie kaeru' />
-                                        </Tab>
-                                        <Tab eventKey="longer-tab" title="契約者詳細">
-                                            <Pie data={dataContractPie} options={options} className='pie kaeru' />
-                                        </Tab>
-                                    </Tabs>
-                                </div>
-                                <div className="mb-3">
-                                    <Table bordered style={{ fontSize: '12px' }}>
-                                        <tbody>
-                                            <tr>
-                                                <td style={{ width: '20%' }}>チーム</td>
-                                                <td>総反響</td>
-                                                <td>来場数</td>
-                                                <td>来場率</td>
-                                                <td>契約数</td>
-                                                <td>契約率</td>
-                                                <td>総予算</td>
-                                                <td>反響単価</td>
-                                                <td>来場単価</td>
-                                                <td>契約単価</td>
-                                            </tr>
-                                            <tr>
-                                                <td>かえるホーム合計</td>
-                                                <td>{customers.length}</td>
-                                                <td>{customers.filter(item => item.reserved != '').length ?? false}</td>
-                                                <td>{Math.round(customers.filter(item => item.reserved != '').length / customers.length * 100)}%</td>
-                                                <td>{customers.filter(item => item.contract !== '').length ?? false}</td>
-                                                <td>{Math.round(customers.filter(item => item.contract !== '').length / customers.filter(item => item.reserved !== '').length * 100)}%</td>
-                                                <td>¥{budget.reduce((acc, cur) => acc + cur.budget_value, 0).toLocaleString()}</td>
-                                                <td>¥{Math.round(budget.reduce((acc, cur) => acc + cur.budget_value, 0) / customers.length).toLocaleString()}</td>
-                                                <td>
-                                                    {(() => {
-                                                        const filtered = customers.filter(c => ((c.status?.includes("来店") || c.status?.includes("契約")) ?? false));
-                                                        return `¥${Math.round(budget.reduce((acc, cur) => acc + cur.budget_value, 0) / filtered.length).toLocaleString()}`;
-                                                    })()}
-                                                </td>
-                                                <td>
-                                                    {(() => {
-                                                        const filtered = customers.filter(c => ((c.status?.includes("契約")) ?? false));
-                                                        return `¥${Math.round(budget.reduce((acc, cur) => acc + cur.budget_value, 0) / filtered.length).toLocaleString()}`;
-                                                    })()}
-                                                </td>
-                                            </tr>
-                                            {areaArray.filter(area => area !== '').map((area, index) => {
-                                                const staffArray = staffMapping.filter(staff => staff.area === area).map(staff => staff.name);
-
-                                                let customersInArea;
-                                                if (areas.includes(area)) {
-                                                    customersInArea = customers.filter(c => staffArray.includes(c.staff));
-                                                } else {
-                                                    customersInArea = customers.filter(c => c.staff === area);
-                                                }
-
-                                                const customersVisitOrContract = customersInArea.filter(
-                                                    c => c.reserved.includes('-')
-                                                );
-                                                const customersContract = customersInArea.filter(
-                                                    c => c.contract.includes('-')
-                                                );
-
-                                                const totalBudget = budget
-                                                    .filter(b => b.shop.includes(area))
-                                                    .reduce((acc, cur) => acc + cur.budget_value, 0);
-
-                                                const avg = (arr) =>
-                                                    arr.length > 0
-                                                        ? `¥${Math.round(totalBudget / arr.length).toLocaleString()}`
-                                                        : "¥0";
-
-                                                let tableClass;
-                                                if (areas.includes(area)) {
-                                                    tableClass = tables[areas.indexOf(area)];
-                                                }
-                                                return (
-                                                    <tr key={index} onClick={() => expand(area)} className={tableClass} style={{ cursor: 'pointer' }}>
-                                                        <td><div className={`${areas.includes(area) ? 'kaeru_icon' : ''} ${expandShop[areas.indexOf(area)] ? ' minus' : ''}`}>{area}</div></td>
-                                                        <td>{customersInArea.length}</td>
-                                                        <td>{customersVisitOrContract.length}</td>
-                                                        <td>{isNaN(Math.round(customersVisitOrContract.length / customersInArea.length * 100)) ? '0' : Math.round(customersVisitOrContract.length / customersInArea.length * 100)}%</td>
-                                                        <td>{customersContract.length}</td>
-                                                        <td>{isNaN(Math.round(customersContract.length / customersVisitOrContract.length * 100)) ? '0' : Math.round(customersContract.length / customersVisitOrContract.length * 100)}%</td>
-                                                        <td>{totalBudget.toLocaleString() !== '0' ? `¥${totalBudget.toLocaleString()}` : '-'}</td>
-                                                        <td>{avg(customersInArea) !== "¥0" ? avg(customersInArea) : '-'}</td>
-                                                        <td>{avg(customersVisitOrContract) !== "¥0" ? avg(customersVisitOrContract) : '-'}</td>
-                                                        <td>{avg(customersContract) !== "¥0" ? avg(customersContract) : '-'}</td>
-                                                    </tr>
-                                                );
-                                            })}
-
-                                        </tbody>
-                                    </Table>
-                                </div>
-                                <div className="">
-                                    <Table striped bordered style={{ fontSize: '12px' }}>
-                                        <tbody>
-                                            <tr>
-                                                <td style={{ width: '20%' }}>反響経路</td>
-                                                <td style={{ position: 'relative' }}>総反響
-                                                    <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'registered')}>▲</span>
-                                                    <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'registered')}>▼</span>
-                                                </td>
-                                                <td style={{ position: 'relative' }}>来場数
-                                                    <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'reserve')}>▲</span>
-                                                    <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'reserve')}>▼</span>
-                                                </td>
-                                                <td style={{ position: 'relative' }}>来場率
-                                                    <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'reserveAverage')}>▲</span>
-                                                    <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'reserveAverage')}>▼</span>
-                                                </td>
-                                                <td style={{ position: 'relative' }}>契約数
-                                                    <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'contract')}>▲</span>
-                                                    <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'contract')}>▼</span>
-                                                </td>
-                                                <td style={{ position: 'relative' }}>契約率
-                                                    <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'contractAverage')}>▲</span>
-                                                    <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'contractAverage')}>▼</span>
-                                                </td>
-                                                <td>総予算</td>
-                                                <td>反響単価</td>
-                                                <td>来場単価</td>
-                                                <td>契約単価</td>
-                                            </tr>
-                                            {mediumMapping.sort((a, b) => {
-                                                let countA = 0;
-                                                let countB = 0;
-
-                                                if (sortKey === 'registered') {
-                                                    countA = a.key === '不明'
-                                                        ? customers.filter(v => v.medium === '').length
-                                                        : customers.filter(v => v.medium === a.key).length;
-
-                                                    countB = b.key === '不明'
-                                                        ? customers.filter(v => v.medium === '').length
-                                                        : customers.filter(v => v.medium === b.key).length;
-
-                                                } else if (sortKey === 'reserve') {
-                                                    countA = a.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.reserved !== '').length
-                                                        : customers.filter(v => v.medium === a.key && v.reserved !== '').length;
-
-                                                    countB = b.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.reserved !== '').length
-                                                        : customers.filter(v => v.medium === b.key && v.reserved !== '').length;
-
-                                                } else if (sortKey === 'contract') {
-                                                    countA = a.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.contract !== '').length
-                                                        : customers.filter(v => v.medium === a.key && v.contract !== '').length;
-
-                                                    countB = b.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.contract !== '').length
-                                                        : customers.filter(v => v.medium === b.key && v.contract !== '').length;
-
-                                                } else if (sortKey === 'reserveAverage') {
-                                                    const totalA = a.key === '不明'
-                                                        ? customers.filter(v => v.medium === '').length
-                                                        : customers.filter(v => v.medium === a.key).length;
-
-                                                    const reservedA = a.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.reserved !== '').length
-                                                        : customers.filter(v => v.medium === a.key && v.reserved !== '').length;
-
-                                                    countA = totalA > 0 ? reservedA / totalA : 0;
-
-                                                    const totalB = b.key === '不明'
-                                                        ? customers.filter(v => v.medium === '').length
-                                                        : customers.filter(v => v.medium === b.key).length;
-
-                                                    const reservedB = b.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.reserved !== '').length
-                                                        : customers.filter(v => v.medium === b.key && v.reserved !== '').length;
-
-                                                    countB = totalB > 0 ? reservedB / totalB : 0;
-
-                                                } else if (sortKey === 'contractAverage') {
-                                                    const reservedA = a.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.reserved !== '').length
-                                                        : customers.filter(v => v.medium === a.key && v.reserved !== '').length;
-
-                                                    const contractA = a.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.contract !== '').length
-                                                        : customers.filter(v => v.medium === a.key && v.contract !== '').length;
-
-                                                    countA = reservedA > 0 ? contractA / reservedA : 0;
-
-                                                    const reservedB = b.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.reserved !== '').length
-                                                        : customers.filter(v => v.medium === b.key && v.reserved !== '').length;
-
-                                                    const contractB = b.key === '不明'
-                                                        ? customers.filter(v => v.medium === '' && v.contract !== '').length
-                                                        : customers.filter(v => v.medium === b.key && v.contract !== '').length;
-
-                                                    countB = reservedB > 0 ? contractB / reservedB : 0;
-                                                }
-
-                                                return sortOrder === 'desc' ? countB - countA : countA - countB;
-
-                                            }).map(item => {
-                                                const filteredRegister = item.key === '不明' ? customers.filter(value => value.medium === '') : customers.filter(value => value.medium === item.key);
-                                                const filteredReserve = item.key === '不明' ? customers.filter(value => value.medium === '' && value.reserved !== '') : customers.filter(value => value.medium === item.key && value.reserved !== '');
-                                                const filteredContract = item.key === '不明' ? customers.filter(value => value.medium === '' && value.contract !== '') : customers.filter(value => value.medium === item.key && value.contract !== '');
-                                                const unit = budget.filter(b => item.value.includes(b.medium)).reduce((acc, cur) => acc + cur.budget_value, 0) / customers.filter(c => {
-                                                    let mediumValue = mediumMapping.filter(m => m.value === item.value).map(m => m.key);
-                                                    return (
-                                                        mediumValue.includes(c.medium)
-                                                    )
-                                                }).length;
-                                                const total = unit * filteredRegister.length;
-                                                return (
-                                                    <tr className={filteredRegister.length === 0 ? 'd-none' : ''}>
-                                                        <td>{item.key}</td>
-                                                        <td>{filteredRegister.length}</td>
-                                                        <td>{filteredReserve.length}</td>
-                                                        <td>{isNaN(filteredReserve.length / filteredRegister.length) ? 0 : Math.round(filteredReserve.length / filteredRegister.length * 100)}%</td>
-                                                        <td>{filteredContract.length}</td>
-                                                        <td>{isNaN(filteredContract.length / filteredReserve.length) ? 0 : Math.round(filteredContract.length / filteredReserve.length * 100)}%</td>
-                                                        <td>¥{isNaN(Math.round(total)) ? 0 : Math.round(total).toLocaleString()}</td>
-                                                        <td>¥{isNaN(Math.round(total / filteredRegister.length)) || !isFinite(Math.round(total / filteredRegister.length)) ? 0 : Math.round(total / filteredRegister.length).toLocaleString()}</td>
-                                                        <td>¥{isNaN(Math.round(total / filteredReserve.length)) || !isFinite(Math.round(total / filteredReserve.length)) ? 0 : Math.round(total / filteredReserve.length).toLocaleString()}</td>
-                                                        <td>¥{isNaN(Math.round(total / filteredContract.length)) || !isFinite(Math.round(total / filteredContract.length)) ? 0 : Math.round(total / filteredContract.length).toLocaleString()}</td>
-                                                    </tr>
-                                                )
-                                            }
-                                            )}
-                                        </tbody>
-                                    </Table>
-                                </div>
-                            </div>
-                        </div>}
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
+                            <option value="" selected>終了月を選択</option>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setTargetMedium(e.target.value)}>
+                            <option value="" selected>販促媒体を選択</option>
+                            {mediumArray.filter(item => item !== '').map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="m-1">
+                        {show === true ? <input type="button" className='target bg-danger text-white' value='グラフを非表示' onClick={() => setShow(false)} /> :
+                            <input type="button" className='target bg-primary text-white' value='グラフを表示' onClick={() => setShow(true)} />}
+                    </div>
                 </div>
-            </div>
+                {isLoading ? (<p className="ms-3"><i className="fa-solid fa-spinner me-2 spinning"></i>Now Loading</p>) :
+                    <div className="table-wrapper mt-3">
+                        <div className="list_table kaeru">
+                            <div className={`mt-3 graph_pc kaeru ${show === true ? 'show' : ''}`}>
+                                <Tabs defaultActiveKey="home" id="justify-tab-example" className="mb-3 bg-white" justify style={{ fontSize: '12px', letterSpacing: '1px', width: '80vw' }}>
+                                    <Tab eventKey="home" title="総反響詳細">
+                                        <Pie data={dataRegisterPie} options={options} className='pie kaeru' />
+                                    </Tab>
+                                    <Tab eventKey="profile" title="来場者詳細">
+                                        <Pie data={dataReservePie} options={options} className='pie kaeru' />
+                                    </Tab>
+                                    <Tab eventKey="longer-tab" title="契約者詳細">
+                                        <Pie data={dataContractPie} options={options} className='pie kaeru' />
+                                    </Tab>
+                                </Tabs>
+                            </div>
+                            <div className="mb-3">
+                                <Table bordered style={{ fontSize: '12px' }}>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ width: '20%' }}>チーム</td>
+                                            <td>総反響</td>
+                                            <td>来場数</td>
+                                            <td>来場率</td>
+                                            <td>契約数</td>
+                                            <td>契約率</td>
+                                            <td>総予算</td>
+                                            <td>反響単価</td>
+                                            <td>来場単価</td>
+                                            <td>契約単価</td>
+                                        </tr>
+                                        <tr>
+                                            <td>かえるホーム合計</td>
+                                            <td>{customers.length}</td>
+                                            <td>{customers.filter(item => item.reserved != '').length ?? false}</td>
+                                            <td>{Math.round(customers.filter(item => item.reserved != '').length / customers.length * 100)}%</td>
+                                            <td>{customers.filter(item => item.contract !== '').length ?? false}</td>
+                                            <td>{Math.round(customers.filter(item => item.contract !== '').length / customers.filter(item => item.reserved !== '').length * 100)}%</td>
+                                            <td>¥{budget.reduce((acc, cur) => acc + cur.budget_value, 0).toLocaleString()}</td>
+                                            <td>¥{Math.round(budget.reduce((acc, cur) => acc + cur.budget_value, 0) / customers.length).toLocaleString()}</td>
+                                            <td>
+                                                {(() => {
+                                                    const filtered = customers.filter(c => ((c.status?.includes("来店") || c.status?.includes("契約")) ?? false));
+                                                    return `¥${Math.round(budget.reduce((acc, cur) => acc + cur.budget_value, 0) / filtered.length).toLocaleString()}`;
+                                                })()}
+                                            </td>
+                                            <td>
+                                                {(() => {
+                                                    const filtered = customers.filter(c => ((c.status?.includes("契約")) ?? false));
+                                                    return `¥${Math.round(budget.reduce((acc, cur) => acc + cur.budget_value, 0) / filtered.length).toLocaleString()}`;
+                                                })()}
+                                            </td>
+                                        </tr>
+                                        {areaArray.filter(area => area !== '').map((area, index) => {
+                                            const staffArray = staffMapping.filter(staff => staff.area === area).map(staff => staff.name);
 
+                                            let customersInArea;
+                                            if (areas.includes(area)) {
+                                                customersInArea = customers.filter(c => staffArray.includes(c.staff));
+                                            } else {
+                                                customersInArea = customers.filter(c => c.staff === area);
+                                            }
+
+                                            const customersVisitOrContract = customersInArea.filter(
+                                                c => c.reserved.includes('-')
+                                            );
+                                            const customersContract = customersInArea.filter(
+                                                c => c.contract.includes('-')
+                                            );
+
+                                            const totalBudget = budget
+                                                .filter(b => b.shop.includes(area))
+                                                .reduce((acc, cur) => acc + cur.budget_value, 0);
+
+                                            const avg = (arr) =>
+                                                arr.length > 0
+                                                    ? `¥${Math.round(totalBudget / arr.length).toLocaleString()}`
+                                                    : "¥0";
+
+                                            let tableClass;
+                                            if (areas.includes(area)) {
+                                                tableClass = tables[areas.indexOf(area)];
+                                            }
+                                            return (
+                                                <tr key={index} onClick={() => expand(area)} className={tableClass} style={{ cursor: 'pointer' }}>
+                                                    <td><div className={`${areas.includes(area) ? 'kaeru_icon' : ''} ${expandShop[areas.indexOf(area)] ? ' minus' : ''}`}>{area}</div></td>
+                                                    <td>{customersInArea.length}</td>
+                                                    <td>{customersVisitOrContract.length}</td>
+                                                    <td>{isNaN(Math.round(customersVisitOrContract.length / customersInArea.length * 100)) ? '0' : Math.round(customersVisitOrContract.length / customersInArea.length * 100)}%</td>
+                                                    <td>{customersContract.length}</td>
+                                                    <td>{isNaN(Math.round(customersContract.length / customersVisitOrContract.length * 100)) ? '0' : Math.round(customersContract.length / customersVisitOrContract.length * 100)}%</td>
+                                                    <td>{totalBudget.toLocaleString() !== '0' ? `¥${totalBudget.toLocaleString()}` : '-'}</td>
+                                                    <td>{avg(customersInArea) !== "¥0" ? avg(customersInArea) : '-'}</td>
+                                                    <td>{avg(customersVisitOrContract) !== "¥0" ? avg(customersVisitOrContract) : '-'}</td>
+                                                    <td>{avg(customersContract) !== "¥0" ? avg(customersContract) : '-'}</td>
+                                                </tr>
+                                            );
+                                        })}
+
+                                    </tbody>
+                                </Table>
+                            </div>
+                            <div className="">
+                                <Table striped bordered style={{ fontSize: '12px' }}>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ width: '20%' }}>反響経路</td>
+                                            <td style={{ position: 'relative' }}>総反響
+                                                <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'registered')}>▲</span>
+                                                <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'registered')}>▼</span>
+                                            </td>
+                                            <td style={{ position: 'relative' }}>来場数
+                                                <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'reserve')}>▲</span>
+                                                <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'reserve')}>▼</span>
+                                            </td>
+                                            <td style={{ position: 'relative' }}>来場率
+                                                <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'reserveAverage')}>▲</span>
+                                                <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'reserveAverage')}>▼</span>
+                                            </td>
+                                            <td style={{ position: 'relative' }}>契約数
+                                                <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'contract')}>▲</span>
+                                                <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'contract')}>▼</span>
+                                            </td>
+                                            <td style={{ position: 'relative' }}>契約率
+                                                <span style={{ position: 'absolute', top: '4px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('desc', 'contractAverage')}>▲</span>
+                                                <span style={{ position: 'absolute', top: '14px', left: '55px', cursor: 'pointer', fontSize: '10px' }} onClick={() => changeSort('asc', 'contractAverage')}>▼</span>
+                                            </td>
+                                            <td>総予算</td>
+                                            <td>反響単価</td>
+                                            <td>来場単価</td>
+                                            <td>契約単価</td>
+                                        </tr>
+                                        {mediumMapping.sort((a, b) => {
+                                            let countA = 0;
+                                            let countB = 0;
+
+                                            if (sortKey === 'registered') {
+                                                countA = a.key === '不明'
+                                                    ? customers.filter(v => v.medium === '').length
+                                                    : customers.filter(v => v.medium === a.key).length;
+
+                                                countB = b.key === '不明'
+                                                    ? customers.filter(v => v.medium === '').length
+                                                    : customers.filter(v => v.medium === b.key).length;
+
+                                            } else if (sortKey === 'reserve') {
+                                                countA = a.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.reserved !== '').length
+                                                    : customers.filter(v => v.medium === a.key && v.reserved !== '').length;
+
+                                                countB = b.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.reserved !== '').length
+                                                    : customers.filter(v => v.medium === b.key && v.reserved !== '').length;
+
+                                            } else if (sortKey === 'contract') {
+                                                countA = a.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.contract !== '').length
+                                                    : customers.filter(v => v.medium === a.key && v.contract !== '').length;
+
+                                                countB = b.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.contract !== '').length
+                                                    : customers.filter(v => v.medium === b.key && v.contract !== '').length;
+
+                                            } else if (sortKey === 'reserveAverage') {
+                                                const totalA = a.key === '不明'
+                                                    ? customers.filter(v => v.medium === '').length
+                                                    : customers.filter(v => v.medium === a.key).length;
+
+                                                const reservedA = a.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.reserved !== '').length
+                                                    : customers.filter(v => v.medium === a.key && v.reserved !== '').length;
+
+                                                countA = totalA > 0 ? reservedA / totalA : 0;
+
+                                                const totalB = b.key === '不明'
+                                                    ? customers.filter(v => v.medium === '').length
+                                                    : customers.filter(v => v.medium === b.key).length;
+
+                                                const reservedB = b.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.reserved !== '').length
+                                                    : customers.filter(v => v.medium === b.key && v.reserved !== '').length;
+
+                                                countB = totalB > 0 ? reservedB / totalB : 0;
+
+                                            } else if (sortKey === 'contractAverage') {
+                                                const reservedA = a.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.reserved !== '').length
+                                                    : customers.filter(v => v.medium === a.key && v.reserved !== '').length;
+
+                                                const contractA = a.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.contract !== '').length
+                                                    : customers.filter(v => v.medium === a.key && v.contract !== '').length;
+
+                                                countA = reservedA > 0 ? contractA / reservedA : 0;
+
+                                                const reservedB = b.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.reserved !== '').length
+                                                    : customers.filter(v => v.medium === b.key && v.reserved !== '').length;
+
+                                                const contractB = b.key === '不明'
+                                                    ? customers.filter(v => v.medium === '' && v.contract !== '').length
+                                                    : customers.filter(v => v.medium === b.key && v.contract !== '').length;
+
+                                                countB = reservedB > 0 ? contractB / reservedB : 0;
+                                            }
+
+                                            return sortOrder === 'desc' ? countB - countA : countA - countB;
+
+                                        }).map(item => {
+                                            const filteredRegister = item.key === '不明' ? customers.filter(value => value.medium === '') : customers.filter(value => value.medium === item.key);
+                                            const filteredReserve = item.key === '不明' ? customers.filter(value => value.medium === '' && value.reserved !== '') : customers.filter(value => value.medium === item.key && value.reserved !== '');
+                                            const filteredContract = item.key === '不明' ? customers.filter(value => value.medium === '' && value.contract !== '') : customers.filter(value => value.medium === item.key && value.contract !== '');
+                                            const unit = budget.filter(b => item.value.includes(b.medium)).reduce((acc, cur) => acc + cur.budget_value, 0) / customers.filter(c => {
+                                                let mediumValue = mediumMapping.filter(m => m.value === item.value).map(m => m.key);
+                                                return (
+                                                    mediumValue.includes(c.medium)
+                                                )
+                                            }).length;
+                                            const total = unit * filteredRegister.length;
+                                            return (
+                                                <tr className={filteredRegister.length === 0 ? 'd-none' : ''}>
+                                                    <td>{item.key}</td>
+                                                    <td>{filteredRegister.length}</td>
+                                                    <td>{filteredReserve.length}</td>
+                                                    <td>{isNaN(filteredReserve.length / filteredRegister.length) ? 0 : Math.round(filteredReserve.length / filteredRegister.length * 100)}%</td>
+                                                    <td>{filteredContract.length}</td>
+                                                    <td>{isNaN(filteredContract.length / filteredReserve.length) ? 0 : Math.round(filteredContract.length / filteredReserve.length * 100)}%</td>
+                                                    <td>¥{isNaN(Math.round(total)) ? 0 : Math.round(total).toLocaleString()}</td>
+                                                    <td>¥{isNaN(Math.round(total / filteredRegister.length)) || !isFinite(Math.round(total / filteredRegister.length)) ? 0 : Math.round(total / filteredRegister.length).toLocaleString()}</td>
+                                                    <td>¥{isNaN(Math.round(total / filteredReserve.length)) || !isFinite(Math.round(total / filteredReserve.length)) ? 0 : Math.round(total / filteredReserve.length).toLocaleString()}</td>
+                                                    <td>¥{isNaN(Math.round(total / filteredContract.length)) || !isFinite(Math.round(total / filteredContract.length)) ? 0 : Math.round(total / filteredContract.length).toLocaleString()}</td>
+                                                </tr>
+                                            )
+                                        }
+                                        )}
+                                    </tbody>
+                                </Table>
+                            </div>
+                        </div>
+                    </div>}
+            </div>
         </>
     )
 }
