@@ -4,10 +4,8 @@ import axios from "axios";
 import AuthContext from '../../context/AuthContext';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { headers } from '../../utils/headers';
-import CallStatusList from '../CallStatusList';
-import InformationEditKaeru from '../information/InformationEditKaeru';
+import InformationEditResale from '../information/InformationEditResale';
 
-type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
 type CustomerList = { id: string; shop: string; customer: string; staff: string; status: string; rank: string; medium: string; interview: string; register: string; call_status: string, reserved_interview: string, full_address: string; phone_number: string; trash: number, cancel_status: string, rank_period: string, hp_campaign: string };
 type CallAction = {
@@ -33,9 +31,9 @@ type Props = {
     key: number
 };
 
-const DatabaseKaeru = ({ onReload, key }: Props) => {
+const DatabaseResale = ({ onReload, key }: Props) => {
     const { brand } = useContext(AuthContext);
-    const [shopArray, setShopArray] = useState<shopList[]>([]);
+    const [shopArray, setShopArray] = useState<string[]>([]);
     const [mediumArray, setMediumArray] = useState<string[]>([]);
     const [staffArray, setStaffArray] = useState<staffList[]>([]);
     const [monthArray, setMonthArray] = useState<string[]>([]);
@@ -61,6 +59,8 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
     const [familyStatus, setFamilyStatus] = useState<boolean>(false);
     const [firstCallDate, setFirstCallDate] = useState<CallLog[]>([]);
     const [callStatusShow, setCallStatusShow] = useState(false);
+    const categoryList = ['買い:ポータル', '売り:ポータル', '買い:中古リノベ'];
+
 
     const formate = (value: string) => {
         return (value ?? '').replace(/-/g, '/');
@@ -74,9 +74,9 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
         setMonthArray(getYearMonthArray(2025, 1));
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_kaeru' }, { headers });
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_resale' }, { headers });
                 await setOriginalDatabase(response.data.customer);
-                await setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
+                await setShopArray(categoryList);
                 await setMediumArray(response.data.medium.map(item => item.medium));
                 await setDisplayLength(response.data.customer.length);
                 await setStaffArray(response.data.staff);
@@ -215,7 +215,7 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
             const fetchData = async () => {
                 try {
                     const postData = {
-                        request: 'database_kaeru_trash',
+                        request: 'database_resale_trash',
                         show_dashboard: trash === 1 ? 0 : 1,
                         id: id
                     };
@@ -236,7 +236,7 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
     const closeInformationEdit = async () => {
         setEditId('');
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_kaeru_reload' }, { headers });
+            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_resale_reload' }, { headers });
             await setOriginalDatabase(response.data.customer);
         }
         fetchData();
@@ -249,7 +249,7 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
                     <div className="m-1">
                         <select className="target" onChange={(e) => setSelectedShop(e.target.value)}>
                             <option value="">店舗を選択</option>
-                            {shopArray.map((item, index) => <option key={index} value={item.shop}>{item.shop}</option>)}
+                            {shopArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
                         </select>
                     </div>
                     <div className="m-1">
@@ -441,18 +441,9 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
                     </Table>
                 </div>
             </div>
-            <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
-            <CallStatusList
-                callStatusShow={callStatusShow}
-                setCallStatusShow={setCallStatusShow}
-                shopArray={shopArray}
-                monthArray={monthArray}
-                staffArray={staffArray}
-                originalDatabase={originalDatabase}
-                insideSalesCategory={insideSalesCategory}
-                setInsideSalesCategory={setInsideSalesCategory} />
+            <InformationEditResale id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
         </>
     )
 }
 
-export default DatabaseKaeru
+export default DatabaseResale

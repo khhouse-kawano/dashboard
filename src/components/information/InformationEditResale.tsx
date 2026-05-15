@@ -60,9 +60,9 @@ type Props = {
     brand: string
 };
 
-const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
+const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
     const { userName } = useContext(AuthContext);
-    const [shopArray, setShopArray] = useState<Shop[]>([]);
+    const [shopArray, setShopArray] = useState<string[]>([]);
     const [information, setInformation] = useState<Customer>({});
     const [staffArray, setStaffArray] = useState<Staff[]>([]);
     const [mediumArray, setMediumArray] = useState<Medium[]>([]);
@@ -117,6 +117,7 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
     const [propertyInput, setPropertyInput] = useState('');
     const [originalPropertyList, setOriginalPropertyList] = useState<string[]>([]);
     const [propertyList, setPropertyList] = useState<string[]>([]);
+    const categoryList = ['買い:ポータル', '売り:ポータル', '買い:中古リノベ'];
 
     const safeParse = (data: any) => {
         if (typeof data !== 'string' || data.trim() === '') return data ?? [];
@@ -141,22 +142,22 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
 
             setSending(true)
             const fetchData = async () => {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEditKaeru_add_customer" }, { headers });
-                setShopArray(response.data.shop);
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEditResale_add_customer" }, { headers });
+                setShopArray(categoryList);
                 setStaffArray(response.data.staff.filter(s => s.category === 1));
                 setMediumArray(response.data.medium);
-                setOriginalPropertyList(response.data.property.filter(p => p.in_charge_store = '株式会社　国分ハウジング不動産　本店').map(p => p.property_name));
+                setOriginalPropertyList(response.data.property.filter(p => p.in_charge_store = '国分ハウジンググループ中古住宅専門店').map(p => p.property_name));
             };
             fetchData();
         } else {
             setSending(true)
             const fetchData = async () => {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEditKaeru_edit_customer", id: id }, { headers });
-                setShopArray(response.data.shop);
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEditResale_edit_customer", id: id }, { headers });
+                setShopArray(categoryList);
                 setStaffArray(response.data.staff.filter(s => s.category === 1));
                 setMediumArray(response.data.medium);
                 setInformation(response.data.customer);
-                setOriginalPropertyList(response.data.property.filter(p => p.in_charge_store = '株式会社　国分ハウジング不動産　本店').map(p => p.property_name));
+                setOriginalPropertyList(response.data.property.filter(p => p.in_charge_store = '国分ハウジンググループ中古住宅専門店').map(p => p.property_name));
 
                 const callResData = {
                     id: response.data.call.id ?? response.data.customer.id,
@@ -228,7 +229,7 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
 
         let updatedMasterData: any = {
             ...information,
-            request: id === 'new' ? 'informationEditKaeru_add_new_customer' : 'informationEditKaeru_edit_registered_customer'
+            request: id === 'new' ? 'informationEditResale_add_new_customer' : 'informationEditResale_edit_registered_customer'
         };
 
         // 面談記録の保存
@@ -242,7 +243,7 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
             updatedMasterData = {
                 ...information,
                 [key]: interview.day,
-                request: id === 'new' ? 'informationEditKaeru_add_new_customer' : 'informationEditKaeru_edit_registered_customer'
+                request: id === 'new' ? 'informationEditResale_add_new_customer' : 'informationEditResale_edit_registered_customer'
             };
             const newInterviewLog = {
                 ...interviewLog,
@@ -667,16 +668,15 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
                                                     const selected = staffArray.find(item => item.shop === e.target.value);
                                                     setInformation(prev => ({
                                                         ...prev,
-                                                        [idMapping('担当店舗')]: e.target.value,
-                                                        [idMapping('担当営業')]: selected?.name || "",
+                                                        [idMapping('担当店舗')]: e.target.value
                                                     }));
                                                 }}
                                             >
                                                 <option value=''>担当店舗を選択</option>
                                                 {shopArray
                                                     .map((item, index) => (
-                                                        <option key={index} value={item.shop}>
-                                                            {item.shop}
+                                                        <option key={index} value={item}>
+                                                            {item}
                                                         </option>
                                                     ))}
                                             </select>
@@ -689,17 +689,16 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
                                                 style={selectStyle}
                                                 value={safeFormate(information[idMapping('担当営業')])}
                                                 onChange={(e) => {
-                                                    const selected = staffArray.find(item => item.name === e.target.value);
                                                     setInformation(prev => ({
                                                         ...prev,
-                                                        [idMapping('担当営業')]: selected?.name || "",
+                                                        [idMapping('担当営業')]: e.target.value,
                                                     }));
                                                 }}
                                             >
                                                 <option value=''>担当営業を選択</option>
-                                                <option value={`${information.in_charge_store} 店舗管理`}>{information.in_charge_store} 店舗管理</option>
+                                                <option value='中専鹿児島店 店舗管理'>中専鹿児島店 店舗管理</option>
                                                 {staffArray
-                                                    .filter(item => item.shop === information.in_charge_store)
+                                                    .filter(item => item.shop === '中専鹿児島店')
                                                     .map((item, index) => (
                                                         <option key={index} value={item.name}>
                                                             {item.name}
@@ -1634,4 +1633,4 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
     );
 };
 
-export default InformationEditKaeru
+export default InformationEditResale

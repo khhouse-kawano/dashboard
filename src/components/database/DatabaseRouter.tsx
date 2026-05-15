@@ -3,6 +3,7 @@ import React, { useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DatabaseOrder from './DatabaseOrder';
 import DatabaseKaeru from './DatabaseKaeru';
+import DatabaseResale from './DatabaseResale';
 
 type Props = {
     onReload: () => void,
@@ -23,6 +24,7 @@ const DatabaseRouter = ({ onReload, key }: Props) => {
         <>
             {category === 'order' && <DatabaseOrder onReload={onReload} key={key} />}
             {category === 'spec' && <DatabaseKaeru onReload={onReload} key={key} />}
+            {category === 'used' && <DatabaseResale onReload={onReload} key={key} />}
         </>
     )
 }

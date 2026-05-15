@@ -192,17 +192,38 @@ const Rank = () => {
             const isPeriod = targetMonth.length === 4;
             const thisYearPeriod = getFiscalYearMonthsFromJune(targetMonth);
             if (period === 'contract') {
-                base = customerList.filter(c => c.status === '契約済み'
-                    && isPeriod ? thisYearPeriod.includes(dateFormate(c.contract.slice(0, 7))) : dateFormate(c.contract).includes(targetMonth));
+                base = customerList.filter(c =>
+                    c.status === '契約済み' &&
+                    // 【修正点1】 c.contract.slice ではなく dateFormate(c.contract).slice に変更（null回避）
+                    // 【修正点2】 三項演算子全体を () で囲むことで、&& 条件を正しく適用
+                    (isPeriod
+                        ? thisYearPeriod.includes(dateFormate(c.contract).slice(0, 7))
+                        : dateFormate(c.contract).includes(targetMonth))
+                );
             } else if (period === 'interview') {
-                const interviewCustomer = customerList.filter(c => isPeriod ? thisYearPeriod.includes(dateFormate(c.interview).slice(0, 7)) : dateFormate(c.interview).includes(targetMonth));
-                const appointmentCustomer = customerList.filter(c => !c.interview &&
-                    isPeriod ? (thisYearPeriod.includes(dateFormate(c.appointment).slice(0, 7)) || thisYearPeriod.includes(dateFormate(c.screening).slice(0, 7)) || thisYearPeriod.includes(dateFormate(c.contract).slice(0, 7))) :
+                const interviewCustomer = customerList.filter(c =>
+                    isPeriod
+                        ? thisYearPeriod.includes(dateFormate(c.interview).slice(0, 7))
+                        : dateFormate(c.interview).includes(targetMonth)
+                );
+                const appointmentCustomer = customerList.filter(c =>
                     !c.interview &&
-                    ((dateFormate(c.appointment).includes(targetMonth)) || (dateFormate(c.screening).includes(targetMonth)) || (dateFormate(c.contract).includes(targetMonth))));
+                    (isPeriod
+                        ? (thisYearPeriod.includes(dateFormate(c.appointment).slice(0, 7)) ||
+                            thisYearPeriod.includes(dateFormate(c.screening).slice(0, 7)) ||
+                            thisYearPeriod.includes(dateFormate(c.contract).slice(0, 7)))
+                        : (dateFormate(c.appointment).includes(targetMonth) ||
+                            dateFormate(c.screening).includes(targetMonth) ||
+                            dateFormate(c.contract).includes(targetMonth))
+                    )
+                );
                 base = [...interviewCustomer, ...appointmentCustomer];
             } else if (period === 'register') {
-                base = customerList.filter(c => isPeriod ? thisYearPeriod.includes(dateFormate(c.register).slice(0, 7)) : dateFormate(c.register).includes(targetMonth));
+                base = customerList.filter(c =>
+                    isPeriod
+                        ? thisYearPeriod.includes(dateFormate(c.register).slice(0, 7))
+                        : dateFormate(c.register).includes(targetMonth)
+                );
             } else {
                 base = customerList;
             }

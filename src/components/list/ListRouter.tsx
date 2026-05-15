@@ -2,6 +2,7 @@ import AuthContext from '../../context/AuthContext';
 import React, { useContext, useEffect } from 'react';
 import ListOrder from './ListOrder';
 import ListKaeru from './ListKaeru';
+import ListResale from './ListResale';
 import { useNavigate } from 'react-router-dom';
 
 type Props = {
@@ -21,6 +22,7 @@ const ListRouter = ({ onReload }: Props) => {
         <>
             {category === 'order' && <ListOrder onReload={onReload} />}
             {category === 'spec' && <ListKaeru onReload={onReload} />}
+            {category === 'used' && <ListResale onReload={onReload} />}
         </>
     )
 }

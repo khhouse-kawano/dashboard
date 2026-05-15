@@ -1,13 +1,23 @@
 import React from 'react'
-import { useState, useRef, useContext, useEffect } from "react";
+import { useState, useRef, useContext } from "react";
 import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
 import Logo from "../assets/images/logo.png";
+import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from "jwt-decode";
+import { headers } from '../utils/headers';
 
 type Value = { mail: string, password: string, error: string };
+
+type GoogleJwtPayload = {
+  email: string;
+  name: string;
+  picture: string;
+  sub: string;
+};
 
 const Login = () => {
   const [validationMessage, setValidationMessage] = useState<Value>({
@@ -16,40 +26,18 @@ const Login = () => {
     error: "",
   });
 
-
-  const mailRef = useRef<HTMLInputElement>(null);
-  const passwordRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { setBrand, setToken, setUserName } = useContext(AuthContext);
 
-  const handleLogin = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    let isValid = true;
+  const handleGoogleSuccess = (credentialResponse: any) => {
     const newValidationMessage: Value = { mail: "", password: "", error: "" };
+    const token = credentialResponse.credential;
 
-    const mailValue = mailRef.current?.value;
-    if (mailValue === "") {
-      newValidationMessage.mail = "メールアドレスが未入力です";
-      isValid = false;
-    }
+    const decodedData = jwtDecode<GoogleJwtPayload>(token);
 
-    const passwordValue = passwordRef.current?.value;
-    if (passwordValue === "") {
-      newValidationMessage.password = "パスワードが未入力です";
-      isValid = false;
-    }
-
-    setValidationMessage(newValidationMessage);
-
-    if (isValid) {
+    const fetchData = async () => {
       try {
-        const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-        const response = await axios.post("https://khg-marketing.info/dashboard/api/?action=login", {
-          mail: mailValue,
-          password: passwordValue,
-          demand: "login"
-        }, { headers });
-
+        const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'login', mail: decodedData.email }, { headers });
         if (response.data.message === "success") {
           setBrand(response.data.brand);
           setToken(response.data.token);
@@ -62,54 +50,62 @@ const Login = () => {
         } else {
           setValidationMessage({
             ...newValidationMessage,
-            error: response.data.details,
+            error: response.data.details || "ログイン権限がありません",
           });
         }
-      } catch (error) {
+      } catch (err) {
         setValidationMessage({
           ...newValidationMessage,
-          error: "サーバーエラーが発生",
+          error: 'システムエラーが発生しました',
         });
       }
-    }
+    };
+
+    fetchData();
   };
 
-
-  return (
-    <div className="home container">
-      <div className="box bg-white">
-        <div className="img mb-5 pt-5">
+return (
+    <div className="home container d-flex justify-content-center">
+      <div className="box bg-white shadow-lg rounded-4 p-5 text-center" style={{ maxWidth: '450px', width: '100%' }}>
+        {/* ロゴ部分 */}
+        <div className="mb-4">
           <img
             src={Logo}
             alt="国分ハウジンググループ"
+            style={{ maxWidth: '220px', height: 'auto' }}
           />
         </div>
-        <input
-          type="mail"
-          className="form-control mb-3"
-          id="mail"
-          ref={mailRef}
-          placeholder="name@kh-group.jp"
-        />
-        <div className="validation">{validationMessage.mail}</div>
-        <input
-          type="password"
-          className="form-control mb-3"
-          id="password"
-          ref={passwordRef}
-          placeholder="password"
-        />
-        <div className="validation">{validationMessage.password}</div>
-        <div className="validation">{validationMessage.error}</div>
-        <button
-          className="btn bg-primary text-white text-center px-5 rounded-pill"
-          onClick={(event) => handleLogin(event)}
-        >
-          ログイン
-        </button>
+        {/* 案内テキスト */}
+        <p className="text-muted mb-md-5 mb-3 small">
+          国分ハウジンググループの<br />
+          Workspaceアカウントでログインしてください。
+        </p>
+        {/* エラーアラート */}
+        {validationMessage.error && (
+          <div className="alert alert-danger p-2 mb-md-4 mb-3 small" role="alert">
+            {validationMessage.error}
+          </div>
+        )}
+        {/* Googleログインボタン */}
+        <div className="d-flex justify-content-center mb-2">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => {
+              setValidationMessage((prev) => ({
+                ...prev,
+                error: "認証がキャンセルされたか、エラーが発生しました",
+              }));
+            }}
+            useOneTap 
+          />
+        </div>
+        {/* フッター */}
+        <div className="mt-md-5 mt-4 pt-3 border-top text-muted" style={{ fontSize: '0.75rem' }}>
+          &copy; {new Date().getFullYear()} Kokubu Housing Group. All Rights Reserved.
+        </div>
       </div>
     </div>
   )
 }
 
-export default Login
+export default Login;

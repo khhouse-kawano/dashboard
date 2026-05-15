@@ -9,6 +9,7 @@ import { GoogleMap, LoadScript, MarkerF, InfoWindowF } from '@react-google-maps/
 import Blue from "../../assets/images/blue_ping.png";
 import Red from "../../assets/images/red_ping.png";
 import InformationEditKaeru from '../information/InformationEditKaeru';
+import InformationEditResale from '../information/InformationEditResale';
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
@@ -18,7 +19,8 @@ type Customer = Record<string, string>;
 const DatabaseProperty = () => {
     const { token } = useContext(AuthContext);
     const { brand } = useContext(AuthContext);
-    const [shopArray, setShopArray] = useState<shopList[]>([]);
+    const { category } = useContext(AuthContext);
+    const [shopArray, setShopArray] = useState<string[]>([]);
     const [staffArray, setStaffArray] = useState<staffList[]>([]);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [displayLength, setDisplayLength] = useState<number>(20);
@@ -38,13 +40,15 @@ const DatabaseProperty = () => {
     const [targetProperty, setTargetProperty] = useState<Property>({});
     const [customerList, setCustomerList] = useState<Customer[]>([]);
     const ranks = ['Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'];
+    const categoryList = ['買い:ポータル', '売り:ポータル', '買い:中古リノベ'];
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
         const fetchData = async () => {
             try {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'property' }, { headers });
-                await setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
+                const shopList = category === 'spec' ? response.data.shop.map(s => s.shop) : categoryList;
+                await setShopArray(shopList);
                 await setDisplayLength(response.data.property.length);
                 await setStaffArray(response.data.staff);
                 await setOriginalPropertyList(response.data.property);
@@ -64,6 +68,10 @@ const DatabaseProperty = () => {
     useEffect(() => {
         const clean = (str) => str ? String(str).replace(/[\s　]+/g, "") : "";
         const targetStaffs = staffArray.filter(s => s.shop === selectedShop).map(s => clean(s.name));
+        const categoryMapping = {
+            'spec': '株式会社　国分ハウジング不動産　本店',
+            'used': '国分ハウジンググループ中古住宅専門店'
+        };
 
         const filtered = originalPropertyList.filter(o => {
             const baseCustomers = filteredCustomer.filter(f =>
@@ -71,7 +79,8 @@ const DatabaseProperty = () => {
             );
             const hasSelectedRank = baseCustomers.some(f => f.rank === selectedRank);
             return (
-                (checkedCompanyProperty ? o.owner === '株式会社国分ハウジング' : true)
+                o.in_charge_store === categoryMapping[category]
+                && (checkedCompanyProperty ? o.handling_company === '株式会社国分ハウジング' : true)
                 && (selectedShop ? targetStaffs.includes(clean(o.property_staff)) : true)
                 && (searchedName ? o.property_name.includes(searchedName) : true)
                 && (searchedAddress ? o.address.includes(searchedAddress) : true)
@@ -143,7 +152,11 @@ const DatabaseProperty = () => {
     const closeInformationEdit = async () => {
         setEditId('');
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_kaeru_reload' }, { headers });
+            const requestMapping = {
+                'spec': 'database_kaeru_reload',
+                'used': 'database_resale_reload'
+            };
+            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: requestMapping[category] }, { headers });
             await setCustomerList(response.data.customer);
         }
         fetchData();
@@ -159,50 +172,50 @@ const DatabaseProperty = () => {
     return (
         <>
             <div className="content database bg-white p-2">
-                        <div className='px-3 d-flex flex-wrap align-items-center'>
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedShop(e.target.value)}>
-                                <option value="">店舗を選択</option>
-                                {shopArray.map((item, index) => <option key={index} value={item.shop}
-                                    selected={selectedShop === item.shop}>{item.shop}</option>)}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedRank(e.target.value)}
-                            >
-                                <option value="">ランクを選択</option>
-                                {['Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク',].map((rank, rIndex) =>
-                                    <option key={rIndex} value={rank} selected={rank === selectedRank}>{rank}</option>)}
-                            </select>
-                        </div>
-                        <div className="m-1">
-                            <input className="target" type='text' placeholder='物件名で検索' onChange={(e) => setSearchedName(e.target.value)} />
-                        </div>
-                        <div className="m-1">
-                            <input className="target" type='text' placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
-                        </div>
-                        <div className="m-1">
-                            <input className="target" type='text' placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} />
-                        </div>
+                <div className='px-3 d-flex flex-wrap align-items-center'>
+                    {category === 'spec' && <div className="m-1">
+                        <select className="target" onChange={(e) => setSelectedShop(e.target.value)}>
+                            <option value="">店舗を選択</option>
+                            {shopArray.map((item, index) => <option key={index} value={item}
+                                selected={selectedShop === item}>{item}</option>)}
+                        </select>
+                    </div>}
+                    <div className="m-1">
+                        <select className="target" onChange={(e) => setSelectedRank(e.target.value)}
+                        >
+                            <option value="">ランクを選択</option>
+                            {['Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク',].map((rank, rIndex) =>
+                                <option key={rIndex} value={rank} selected={rank === selectedRank}>{rank}</option>)}
+                        </select>
                     </div>
-                    <div className='px-3 d-flex flex-wrap align-items-center' style={{ fontSize: '11px' }}>
-                        <div className="m-1">
-                            <label className='d-flex align-items-center'><input type='checkbox' placeholder='営業名で検索'
-                                onChange={() => setCheckedCompanyProperty(!checkedCompanyProperty)} checked={checkedCompanyProperty} />自社物件のみ表示</label>
-                        </div>
-                        <div className="m-1">
-                            <label className='d-flex align-items-center'><input type='checkbox' placeholder='営業名で検索'
-                                onChange={() => setCheckedMap(!checkedMap)} checked={checkedMap} />MAPを表示</label>
-                        </div>
-                        {checkedMap && <><div style={{ width: "12px" }}>
-                            <img src={Blue} className="w-100" />
-                        </div>
-                            <div style={{ marginLeft: "4px" }}>自社物件</div>
-                            <div style={{ width: "12px", marginLeft: "20px" }}>
-                                <img src={Red} className="w-100" />
-                            </div>
-                            <div style={{ marginLeft: "4px" }}>仲介物件</div></>}
+                    <div className="m-1">
+                        <input className="target" type='text' placeholder='物件名で検索' onChange={(e) => setSearchedName(e.target.value)} />
                     </div>
+                    <div className="m-1">
+                        <input className="target" type='text' placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
+                    </div>
+                    <div className="m-1">
+                        <input className="target" type='text' placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} />
+                    </div>
+                </div>
+                <div className='px-3 d-flex flex-wrap align-items-center' style={{ fontSize: '11px' }}>
+                    <div className="m-1">
+                        <label className='d-flex align-items-center'><input type='checkbox' placeholder='営業名で検索'
+                            onChange={() => setCheckedCompanyProperty(!checkedCompanyProperty)} checked={checkedCompanyProperty} />自社物件のみ表示</label>
+                    </div>
+                    <div className="m-1">
+                        <label className='d-flex align-items-center'><input type='checkbox' placeholder='営業名で検索'
+                            onChange={() => setCheckedMap(!checkedMap)} checked={checkedMap} />MAPを表示</label>
+                    </div>
+                    {checkedMap && <><div style={{ width: "12px" }}>
+                        <img src={Blue} className="w-100" />
+                    </div>
+                        <div style={{ marginLeft: "4px" }}>自社物件</div>
+                        <div style={{ width: "12px", marginLeft: "20px" }}>
+                            <img src={Red} className="w-100" />
+                        </div>
+                        <div style={{ marginLeft: "4px" }}>仲介物件</div></>}
+                </div>
                 <div className="d-md-flex">
                     <div className="d-flex flex-wrap align-items-center">
                         <div className="">{propertyList.length}<span style={{ fontSize: '12px' }}> 件中 {sliceStart + 1}件~{propertyList.length > activePage * basicLength ? activePage * basicLength : propertyList.length}件</span></div>
@@ -350,13 +363,13 @@ const DatabaseProperty = () => {
                 <Modal.Header closeButton>物件一覧</Modal.Header>
                 <Modal.Body>
                     <div className='px-3 d-flex flex-wrap align-items-center'>
-                        <div className="m-1">
+                        {category === 'spec' && <div className="m-1">
                             <select className="target" onChange={(e) => setSelectedShop(e.target.value)}>
                                 <option value="">店舗を選択</option>
-                                {shopArray.map((item, index) => <option key={index} value={item.shop}
-                                    selected={selectedShop === item.shop}>{item.shop}</option>)}
+                                {shopArray.map((item, index) => <option key={index} value={item}
+                                    selected={selectedShop === item}>{item}</option>)}
                             </select>
-                        </div>
+                        </div>}
                         <div className="m-1">
                             <select className="target" onChange={(e) => setSelectedRank(e.target.value)}
                             >
@@ -420,7 +433,7 @@ const DatabaseProperty = () => {
                                             lat: Number(item.latitude),
                                             lng: Number(item.longitude),
                                         }}
-                                        icon={item.seller === '株式会社国分ハウジング' ? "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" :
+                                        icon={item.handling_company === '株式会社国分ハウジング' ? "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" :
                                             "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
                                         }
                                         onClick={() => setTargetId(item.property_number)}
@@ -431,7 +444,8 @@ const DatabaseProperty = () => {
                     </div>
                 </Modal.Body>
             </Modal>
-            <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
+            {category === 'spec' && <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} brand={brand} />}
+            {category === 'used' && <InformationEditResale id={editId} token={token} onClose={closeInformationEdit} brand={brand} />}
         </>
     )
 }

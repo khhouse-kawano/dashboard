@@ -7,8 +7,7 @@ import axios from "axios";
 import { headers } from '../utils/headers';
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import Logo from '../assets/images/logo.png';
-import { borderRadius, fontSize, letterSpacing, width } from "@mui/system";
-import { bottom } from "@popperjs/core";
+
 import Estate from './Estate';
 
 type UnSync = { inquiry_date: string, sync: number, black_list: string };
@@ -105,6 +104,8 @@ const MenuDev = ({ key, onReload }: Props) => {
                         onClick={() => navigate("/customer", { state: { brand: brand, }, })}><i className="fa-solid fa-mobile-screen me-1 text-secondary"></i>販促媒体別広告費</div>}
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/shop" ? "selected " : ""}`}
                         onClick={() => navigate("/shop", { state: { brand: brand, }, })}><i className="fa-solid fa-chart-pie me-1 text-secondary"></i>店舗別広告費</div>}
+                    {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/property") ? "selected" : ""}`}
+                        onClick={() => navigate("/property", { state: { brand: brand, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>物件データベース</div>}
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customerTrend" ? "selected " : ""}`}
                         onClick={() => navigate("/customerTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-chart-bar me-1 text-secondary"></i>販促媒体別反響推移</div>}
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/shopTrend" ? "selected " : ""}`}

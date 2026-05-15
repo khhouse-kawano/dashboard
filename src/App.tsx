@@ -1,6 +1,6 @@
 import React, { useContext, useState } from "react";
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import AuthContext from './context/AuthContext';
-import "./App.css";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import Calendar from "./components/Calendar";
 import Category from "./components/Category";
@@ -40,20 +40,26 @@ import ActiveUser from "./components/ActiveUser";
 import { GoogleMapContext } from "./context/GoogleMapContext";
 import { useJsApiLoader } from "@react-google-maps/api";
 import MenuD from "./components/Menu";
+import Dev from "./components/Dev";
 
 export default function App() {
+  const clientId = process.env.REACT_APP_CLIENT_ID;
   const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: "AIzaSyAJfDaeKmyprID8wKVgPCv_9ph_-y_wSbg",
+    googleMapsApiKey: process.env.REACT_APP_API_KEY || "",
     libraries: ['marker'],
   });
 
   return (
     <GoogleMapContext.Provider value={{ isLoaded }}>
-      <Router basename="/dashboard">
-        <AuthProvider>
-          <AppInner />
-        </AuthProvider>
-      </Router>
+      {/* ↓ ここに追加！ clientId を渡してルーター全体を囲みます */}
+      <GoogleOAuthProvider clientId={clientId ||""}>
+        <Router basename="/dashboard">
+          <AuthProvider>
+            <AppInner />
+          </AuthProvider>
+        </Router>
+      </GoogleOAuthProvider>
+      {/* ↑ ここまで */}
     </GoogleMapContext.Provider>
   );
 }
@@ -90,10 +96,11 @@ function AppInner() {
                 className="fa-solid fa-xmark hamburger position-absolute"
                 onClick={() => setOpen(false)}
               />
-              <MenuD key={menuKey} onReload={reload}/>
+              <MenuD key={menuKey} onReload={reload} />
             </div>
           </>}
           <Routes>
+            <Route path="/dev" element={<Dev />} />
             <Route path="/" element={<Category />} />
             <Route path="/home" element={<Category />} />
             <Route path="/login" element={<Login />} />
