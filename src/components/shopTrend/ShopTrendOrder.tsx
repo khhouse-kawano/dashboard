@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useContext } from 'react';
 import axios from "axios";
-import AuthContext from '../context/AuthContext';
+import AuthContext from '../../context/AuthContext';
 import Table from "react-bootstrap/Table";
-import "./SearchBox.css";
+import "../SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Modal from 'react-bootstrap/Modal';
 import {
@@ -15,15 +15,15 @@ import {
     Legend,
     ResponsiveContainer,
 } from "recharts";
-import { getYearMonthArray } from '../utils/getYearMonthArray';
-import { setSection } from '../utils/setSection';
-import { setStaffLength } from '../utils/setStaffLength';
-import { budgetFilter } from '../utils/budgetFilter';
-import { get11MonthsAgoString } from '../utils/get11MonthsAgoString';
-import { isLastYear } from '../utils/isLastYear';
+import { getYearMonthArray } from '../../utils/getYearMonthArray';
+import { setSection } from '../../utils/setSection';
+import { setStaffLength } from '../../utils/setStaffLength';
+import { budgetFilter } from '../../utils/budgetFilter';
+import { get11MonthsAgoString } from '../../utils/get11MonthsAgoString';
+import { isLastYear } from '../../utils/isLastYear';
 import { ModalBody } from 'react-bootstrap';
-import InformationEdit from './information/InformationEdit';
-import InterviewLog from './InterviewLog';
+import InformationEdit from '../information/InformationEdit';
+import InterviewLog from '../InterviewLog';
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
 type Customer = { id: string, shop: string, customer: string, staff: string, status: string, contract: string, rank: string, medium: string, interview: string, register: string, reserved_interview: string, appointment: string, screening: string };
@@ -50,7 +50,7 @@ type InterviewLog = {
     interview_log: InterviewAction[],
     add: boolean
 };
-const ShopTrendDev = () => {
+const ShopTrendOrder = () => {
     const { brand } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<Shop[]>([]);
     const [originalShopArray, setOriginalShopArray] = useState<Shop[]>([]);
@@ -181,7 +181,7 @@ const ShopTrendDev = () => {
             } else if (targetSection) {
                 shopValue = targetSection;
             } else {
-                shopValue = 'グループ全体';
+                shopValue = '注文営業';
             }
             return {
                 period: month,
@@ -220,7 +220,7 @@ const ShopTrendDev = () => {
         const sectionShops = originalShopArray.filter(o => o.section === title).map(o => o.shop);
         const filtered: ResponseData[] = monthArray.map(m => {
             const matchTarget = (c: Customer) =>
-                title === 'グループ全体'
+                title === '注文営業'
                     ? true
                     : targetSection === 'all'
                         ? sectionShops.includes(c.shop)
@@ -527,7 +527,7 @@ const ShopTrendDev = () => {
                                                     ? targetSection
                                                     : targetBrand
                                                         ? `${targetBrand}全体`
-                                                        : 'グループ全体',
+                                                        : '注文営業',
                                                 section: '',
                                                 area: ''
                                             },
@@ -794,4 +794,4 @@ const ShopTrendDev = () => {
     )
 }
 
-export default ShopTrendDev;
+export default ShopTrendOrder;

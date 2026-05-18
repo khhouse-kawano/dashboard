@@ -98,8 +98,8 @@ const MenuDev = ({ key, onReload }: Props) => {
                         onClick={() => navigate("/list", { state: { brand: brand, }, })}><i className="fa-solid fa-phone me-1 text-secondary"></i>反響一覧{sync > 0 && <div className="position-absolute menu_sync">未同期 {sync}件</div>}</div>
                     <div className={`position-relative category_menu  ps-3 ${currentPath === "/database" ? "selected " : ""}`}
                         onClick={() => navigate("/database", { state: { brand: brand, }, })}><i className="fa-solid fa-magnifying-glass me-1 text-secondary"></i>顧客データベース{(cancel > 0 && category === 'order') && <div className="position-absolute menu_sync">要回答 {cancel}件</div>}</div>
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/rank" ? "selected " : ""}`}
-                        onClick={() => navigate("/rank", { state: { brand: brand, }, })}><i className="fa-solid fa-person me-1 text-secondary"></i>店舗・担当別反響</div>}
+                    <div className={`category_menu  ps-3 ${currentPath === "/rank" ? "selected " : ""}`}
+                        onClick={() => navigate("/rank", { state: { brand: brand, }, })}><i className="fa-solid fa-person me-1 text-secondary"></i>店舗・担当別反響</div>
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customer" ? "selected " : ""}`}
                         onClick={() => navigate("/customer", { state: { brand: brand, }, })}><i className="fa-solid fa-mobile-screen me-1 text-secondary"></i>販促媒体別広告費</div>}
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/shop" ? "selected " : ""}`}
@@ -108,8 +108,8 @@ const MenuDev = ({ key, onReload }: Props) => {
                         onClick={() => navigate("/property", { state: { brand: brand, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>物件データベース</div>}
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customerTrend" ? "selected " : ""}`}
                         onClick={() => navigate("/customerTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-chart-bar me-1 text-secondary"></i>販促媒体別反響推移</div>}
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/shopTrend" ? "selected " : ""}`}
-                        onClick={() => navigate("/shopTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-shop me-1 text-secondary"></i>店舗別反響推移</div>}
+                    <div className={`category_menu  ps-3 ${currentPath === "/shopTrend" ? "selected " : ""}`}
+                        onClick={() => navigate("/shopTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-shop me-1 text-secondary"></i>店舗別反響推移</div>
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/calendar" ? "selected " : ""}`}
                         onClick={() => navigate("/calendar", { state: { brand: brand, }, })}><i className="fa-solid fa-calendar me-1 text-secondary"></i>カレンダー</div>}
                     {category === 'order' && <div className={`position-relative category_menu  ps-3`}

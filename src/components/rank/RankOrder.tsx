@@ -1,17 +1,17 @@
-import React, { useEffect, useMemo, useState, useContext, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useContext } from 'react';
 import axios from "axios";
 import Table from "react-bootstrap/Table";
-import "./SearchBox.css";
+import "../SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Modal from 'react-bootstrap/Modal';
-import AuthContext from '../context/AuthContext';
+import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
-import { getYearMonthArray } from '../utils/getYearMonthArray';
-import { headers } from '../utils/headers';
-import { getFiscalYearMonthsFromJune } from '../utils/getFiscalYearMonthsFromJune';
-import InformationEdit from './information/InformationEdit';
-import InterviewLog from './InterviewLog';
+import { getYearMonthArray } from '../../utils/getYearMonthArray';
+import { headers } from '../../utils/headers';
+import { getFiscalYearMonthsFromJune } from '../../utils/getFiscalYearMonthsFromJune';
+import InformationEdit from '../information/InformationEdit';
+import InterviewLog from '../InterviewLog';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -21,7 +21,7 @@ type Shop = { brand: string, shop: string, section: string, area: string, };
 type Label = { label: string, show: boolean, category: string };
 type Staff = { id: number, name: string, pg_id: string, shop: string, mail: string, status: string, category: number, rank: number, sort: number };
 
-const Rank = () => {
+const RankOrder = () => {
     const { token } = useContext(AuthContext);
     const { brand } = useContext(AuthContext);
     const [monthArray, setMonthArray] = useState<string[]>([]);
@@ -562,4 +562,4 @@ const Rank = () => {
     )
 }
 
-export default Rank;
+export default RankOrder;

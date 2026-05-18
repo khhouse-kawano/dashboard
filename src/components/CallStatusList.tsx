@@ -79,7 +79,7 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
         return isThisMonth(month) ? value * days / dayNumber : value;
     };
 
-    const dateFormate = (value: string) =>{
+    const dateFormate = (value: string) => {
         return (value ?? '').replace(/-/g, '/');
     }
 
@@ -123,100 +123,105 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                     <option value=''>店舗を選択</option>
                                     <option value='estate'>土地新着ネット</option>
                                     {shopArray
-                                    .filter(s =>!s.shop.includes('全店舗') || !s.shop.includes('未設定'))
-                                    .map((item, index) =>
-                                        <option key={index} value={item.shop}>{item.shop}</option>)}
+                                        .filter(s => !s.shop.includes('全店舗') || !s.shop.includes('未設定'))
+                                        .map((item, index) =>
+                                            <option key={index} value={item.shop}>{item.shop}</option>)}
                                 </select>
                             </div>
-                            <Table bordered striped>
-                                <tbody style={{ fontSize: '11px' }} className='align-middle'>
-                                    <tr>
-                                        <td>担当</td>
-                                        <td>種別</td>
-                                        <td>合計</td>
-                                        {[...monthArray.slice(12)].map(month =>
-                                            <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }}>{month}</td>
-                                        )}
-                                    </tr>
-                                    {[{ name: '合計', shop: '', pg_id: '', category: '', estate: 1 }, ...changed].map((staff, sIndex) => {
-                                        const targetStaff = staffArray.filter(s =>
-                                            targetShop === 'estate' ? s.estate === 1 :
-                                                targetShop ? s.shop === targetShop : true
-                                        ).map(s => s.name);
-                                        const customerFilter = callLogList.filter(c => {
-                                            const logs = parseLogs(c.call_log);
-                                            if (sIndex > 0) {
-                                                return (
-                                                    c.staff === staff.name ||
-                                                    logs.some(l => l.staff === staff.name)
-                                                );
-                                            }
-                                            return (
-                                                targetStaff.includes(c.staff) ||
-                                                logs.some(l => targetStaff.includes(l.staff))
-                                            );
-                                        });
-                                        const callFilter = customerFilter.filter(c => c.status && c.status !== '未通電').map(c => c.id);
-                                        const calledCustomer = originalDatabase.filter(o => callFilter.includes(o.id)).map(o => o.register);
-                                        const appointFilter = customerFilter.filter(c => c.status === '来場アポ').map(c => c.id);
-                                        const appointCustomer = originalDatabase.filter(o => appointFilter.includes(o.id)).map(o => o.register);
-                                        const interviewFilter = customerFilter.filter(c => c.status === '来場済み').map(c => c.id);
-                                        const interviewCustomer = originalDatabase.filter(o => interviewFilter.includes(o.id)).map(o => o.register);
-                                        const isEstate = targetShop === 'estate';
-                                        const parsed = customerFilter.map(c => {
-                                            const raw = c.call_log;
-                                            if (!raw || raw.trim() === "") return [];
-                                            try {
-                                                return JSON.parse(raw);
-                                            } catch (e) {
-                                                return [];
-                                            }
-                                        }).flat();
-                                        const response = originalDatabase.filter(o => o.medium === '土地新着ネット' &&
-                                            (staff.name === '合計' ? true : o.staff === staff.name)
-                                        );
-                                        const targetCategory = [
-                                            ...(targetShop === 'estate' ? ['土地新着ネット反響数'] : []),
-                                            '総架電数',
-                                            '通電数',
-                                            'アポ取得数',
-                                            '架電からの来場数',
-                                        ];
-
-                                        return targetCategory.map((category, cIndex) => {
-                                            return (
-                                                <tr key={`${sIndex}-${cIndex}`}>
-                                                    {cIndex === 0 && <td rowSpan={cIndex === 0 ? targetCategory.length : 1}>{sIndex === 0 ? `${targetShop.replace('estate', '土地新着ネット')}合計` : staff.name}</td>}
-                                                    <td>{category}{isEstate && cIndex === 1 && sIndex > 0 && '(月々目標100件)'}{isEstate && cIndex === 2 && sIndex > 0 && '(月々目標15件)'}{isEstate && cIndex === 3 && sIndex > 0 && '(月々目標2件)'}</td>
-                                                    {['total', ...monthArray.slice(12)].map((month, mIndex) => {
-                                                        let value;
-                                                        let classValue;
-                                                        if (category === '土地新着ネット反響数') {
-                                                            value = response.filter(r => mIndex > 0 ? dateFormate(r.register).includes(month) : true).length;
-                                                            classValue = 'text-dark';
-                                                        }
-                                                        else if (category === '総架電数') {
-                                                            value = parsed.filter(p => (mIndex > 0 ? dateFormate(p.day).includes(month) : true) && p.action === '架電').length;
-                                                            classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 100 ? 'text-danger' : 'text-primary fw-bold'}` : '';
-                                                        } else if (category === '通電数') {
-                                                            value = calledCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
-                                                            classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 15 ? 'text-danger' : 'text-primary fw-bold'}` : '';
-                                                        } else if (category === 'アポ取得数') {
-                                                            value = appointCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
-                                                            classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 2 ? 'text-danger' : 'text-primary fw-bold'}` : '';
-                                                        } else if (category === '架電からの来場数') {
-                                                            value = interviewCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
-                                                            classValue = 'text-dark';
-                                                        }
-                                                        return <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }} className={classValue}>{value}</td>
+                            <div style={{ overflowX: 'scroll' }}>
+                                <div style={{ width: `${monthArray.slice(8).length * 110}px` }}>
+                                    <Table bordered striped>
+                                        <tbody style={{ fontSize: '11px' }} className='align-middle'>
+                                            <tr>
+                                                <td style={{width: '170px'}}
+                                                className='sticky-column'>担当</td>
+                                                <td style={{width: '300px'}}>種別</td>
+                                                <td>合計</td>
+                                                {[...monthArray.slice(12)].map(month =>
+                                                    <td style={{ minWidth: '100px', maxWidth: '160px' }}>{month}</td>
+                                                )}
+                                            </tr>
+                                            {[{ name: '合計', shop: '', pg_id: '', category: '', estate: 1 }, ...changed].map((staff, sIndex) => {
+                                                const targetStaff = staffArray.filter(s =>
+                                                    targetShop === 'estate' ? s.estate === 1 :
+                                                        targetShop ? s.shop === targetShop : true
+                                                ).map(s => s.name);
+                                                const customerFilter = callLogList.filter(c => {
+                                                    const logs = parseLogs(c.call_log);
+                                                    if (sIndex > 0) {
+                                                        return (
+                                                            c.staff === staff.name ||
+                                                            logs.some(l => l.staff === staff.name)
+                                                        );
                                                     }
-                                                    )}
-                                                </tr>
-                                            )
-                                        });
-                                    })}
-                                </tbody>
-                            </Table>
+                                                    return (
+                                                        targetStaff.includes(c.staff) ||
+                                                        logs.some(l => targetStaff.includes(l.staff))
+                                                    );
+                                                });
+                                                const callFilter = customerFilter.filter(c => c.status && c.status !== '未通電').map(c => c.id);
+                                                const calledCustomer = originalDatabase.filter(o => callFilter.includes(o.id)).map(o => o.register);
+                                                const appointFilter = customerFilter.filter(c => c.status === '来場アポ').map(c => c.id);
+                                                const appointCustomer = originalDatabase.filter(o => appointFilter.includes(o.id)).map(o => o.register);
+                                                const interviewFilter = customerFilter.filter(c => c.status === '来場済み').map(c => c.id);
+                                                const interviewCustomer = originalDatabase.filter(o => interviewFilter.includes(o.id)).map(o => o.register);
+                                                const isEstate = targetShop === 'estate';
+                                                const parsed = customerFilter.map(c => {
+                                                    const raw = c.call_log;
+                                                    if (!raw || raw.trim() === "") return [];
+                                                    try {
+                                                        return JSON.parse(raw);
+                                                    } catch (e) {
+                                                        return [];
+                                                    }
+                                                }).flat();
+                                                const response = originalDatabase.filter(o => o.medium === '土地新着ネット' &&
+                                                    (staff.name === '合計' ? true : o.staff === staff.name)
+                                                );
+                                                const targetCategory = [
+                                                    ...(targetShop === 'estate' ? ['土地新着ネット反響数'] : []),
+                                                    '総架電数',
+                                                    '通電数',
+                                                    'アポ取得数',
+                                                    '架電からの来場数',
+                                                ];
+
+                                                return targetCategory.map((category, cIndex) => {
+                                                    return (
+                                                        <tr key={`${sIndex}-${cIndex}`}>
+                                                            {cIndex === 0 && <td rowSpan={cIndex === 0 ? targetCategory.length : 1} className='sticky-column'>{sIndex === 0 ? `${targetShop.replace('estate', '土地新着ネット')}合計` : staff.name}</td>}
+                                                            <td>{category}{isEstate && cIndex === 1 && sIndex > 0 && '(月々目標100件)'}{isEstate && cIndex === 2 && sIndex > 0 && '(月々目標15件)'}{isEstate && cIndex === 3 && sIndex > 0 && '(月々目標2件)'}</td>
+                                                            {['total', ...monthArray.slice(12)].map((month, mIndex) => {
+                                                                let value;
+                                                                let classValue;
+                                                                if (category === '土地新着ネット反響数') {
+                                                                    value = response.filter(r => mIndex > 0 ? dateFormate(r.register).includes(month) : true).length;
+                                                                    classValue = 'text-dark';
+                                                                }
+                                                                else if (category === '総架電数') {
+                                                                    value = parsed.filter(p => (mIndex > 0 ? dateFormate(p.day).includes(month) : true) && p.action === '架電').length;
+                                                                    classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 100 ? 'text-danger' : 'text-primary fw-bold'}` : '';
+                                                                } else if (category === '通電数') {
+                                                                    value = calledCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
+                                                                    classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 15 ? 'text-danger' : 'text-primary fw-bold'}` : '';
+                                                                } else if (category === 'アポ取得数') {
+                                                                    value = appointCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
+                                                                    classValue = isEstate && mIndex > 0 && sIndex > 0 ? `${formate(value, month) < 2 ? 'text-danger' : 'text-primary fw-bold'}` : '';
+                                                                } else if (category === '架電からの来場数') {
+                                                                    value = interviewCustomer.filter(c => mIndex > 0 ? dateFormate(c.slice(0, 7)) === month : true).length;
+                                                                    classValue = 'text-dark';
+                                                                }
+                                                                return <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }} className={classValue}>{value}</td>
+                                                            }
+                                                            )}
+                                                        </tr>
+                                                    )
+                                                });
+                                            })}
+                                        </tbody>
+                                    </Table>
+                                </div>                            </div>
+
                         </>
                         :
                         <div style={{ overflowX: 'scroll' }}>
@@ -224,7 +229,7 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                 <Table bordered striped>
                                     <tbody style={{ fontSize: '11px' }}>
                                         <tr>
-                                            <td>店舗</td>
+                                            <td style={{ width: '100px' }} className='sticky-column'>店舗</td>
                                             {['種別', '合計', ...monthArray.slice(8)].map(month => <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }}>{month}</td>
                                             )}
                                         </tr>
@@ -251,7 +256,7 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                             const appointFilter = customerFilter.filter(c => c.status === '来場アポ');
                                             const interviewFilter = customerFilter.filter(c => c.status === '来場済み');
                                             return ['総反響数', '対応反響数', '対応中', 'アポ取得数', '対応反響数からの来場数', '総架電数', '資料郵送数', 'SMS送信数', 'メール送信数'].map((item, index) => <tr>
-                                                {index === 0 && <td rowSpan={9} className='align-middle'>{s.shop}</td>}
+                                                {index === 0 && <td rowSpan={9} className='align-middle sticky-column'>{s.shop}</td>}
                                                 <td className={`${index === 4 ? 'fw-bold text-primary table-primary' : index === 3 ? 'fw-bold text-danger table-danger' : (index === 2 || index === 1) ? 'fw-bold' : ''}`}>{item}</td>
                                                 {['total', ...monthArray.slice(8)].map((month, mIndex) => {
                                                     const formattedRegisterFilter = registerFilter.filter(r => mIndex === 0 ? true : dateFormate(r.register).includes(month));

@@ -6,17 +6,16 @@ import Calendar from "./components/Calendar";
 import Category from "./components/Category";
 import Shop from "./components/Shop";
 import CustomerTrend from "./components/CustomerTrend";
-import Campaign from "./components/Campaign";
 import BudgetAccounting from "./components/BudgetAccounting";
 import DatabaseRouter from "./components/database/DatabaseRouter";
 import DatabaseProperty from "./components/database/DatabaseProperty";
+import RankRouter from "./components/rank/RankRouter";
 import AuthProvider from "./context/AuthProvider";
 import Customer from "./components/Customers";
-import ShopTrend from "./components/ShopTrend";
+import { ShopTrendRouter } from "./components/shopTrend/ShopTrendRouter";
 import CampaignHome from "./components/CampaignHome";
 import Company from "./components/Company";
 import NewCampaign from "./components/NewCampaign";
-import Rank from "./components/Rank";
 import ListRouter from "./components/list/ListRouter";
 import Khf from "./components/KhfDatabase";
 import Map from "./components/Map";
@@ -107,12 +106,12 @@ function AppInner() {
             <Route path="/company" element={<Company />} />
             <Route path="/customer" element={<Customer />} />
             <Route path="/shop" element={<Shop />} />
-            <Route path="/shopTrend" element={<ShopTrend />} />
+            <Route path="/shopTrend" element={<ShopTrendRouter />} />
             <Route path="/customerTrend" element={<CustomerTrend />} />
             <Route path="/list" element={<ListRouter onReload={reload} />} />
             <Route path="/database" element={<DatabaseRouter onReload={reload} key={menuKey} />} />
             <Route path="/budget" element={<BudgetAccounting />} />
-            <Route path="/rank" element={<Rank />} />
+            <Route path="/rank" element={<RankRouter />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/campaign" element={<CampaignHome />} />
             <Route path="/editcampaign" element={<NewCampaign />} />
