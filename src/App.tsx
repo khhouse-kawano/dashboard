@@ -27,7 +27,7 @@ import CustomerKaeru from "./components/CustomerKaeru";
 import CustomerResale from "./components/CustomerResale";
 import CustomerTrendResale from "./components/CustomerTrendResale";
 import Market from "./components/Market";
-import ResalePerformance from "./components/ResalePerformance";
+import ResalePerformance from "./components/ResalePerformance"; 
 import PortalBuy from "./components/PortalBuy";
 import PortalSell from "./components/PortaSell";
 import UsedBuy from "./components/UsedBuy";

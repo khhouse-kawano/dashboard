@@ -11,7 +11,7 @@ import InformationEdit from '../information/InformationEdit';
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
-type CustomerList = { id: string; shop: string; customer: string; staff: string; status: string; rank: string; medium: string; interview: string; register: string; call_status: string, reserved_interview: string, full_address: string; phone_number: string; trash: number, cancel_status: string, rank_period: string, hp_campaign: string };
+type CustomerList = { id: string; shop: string; customer: string; staff: string; status: string; rank: string; medium: string; interview: string; register: string; call_status: string, reserved_interview: string, full_address: string; phone_number: string; trash: number, cancel_status: string, rank_period: string, hp_campaign: string, k_snap: string };
 type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number }
 type CallAction = {
     day: string;
@@ -93,7 +93,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                     call_log: item.call_log ? JSON.parse(item.call_log) : []
                 }))
                 await setFirstCallDate(filteredCallResponse);
-                                const filteredLength = response.data.customer.filter(item => {
+                const filteredLength = response.data.customer.filter(item => {
                     const now = new Date();
                     const today = now.getTime();
                     const target = new Date(dateFormate(item.reserved_interview)).getTime();
@@ -164,7 +164,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                     ? ((item.reserved_interview ?? '') !== '' && (item.interview ?? '') === '')
                     : (selectedReserve ? strIncludes(item.interview, dateFormate(selectedReserve)) : true))
                 && (selectedRank ? arrIncludes(item.rank, selectedRank) : true)
-                && (selectedMedium === 'SUUMO(ポータル反響)' ? (item.medium === 'SUUMO' && !item.hp_campaign) : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
+                && (selectedMedium === 'SUUMO(ポータル反響)' ? (item.medium === 'SUUMO' && !item.reserved_interview) : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
                 && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
                 && (searchedName ? strIncludes(item.customer, formattedName) : true)
                 && (searchedStaff ? strIncludes(item.staff, searchedStaff.split(' ')[0]) : true)
@@ -317,7 +317,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                         <select className="target" onChange={(e) => setSelectedMedium(e.target.value)}>
                             <option value="">販促媒体を選択</option>
                             {mediumArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                            {brand !== 'ordinary' &&<option value='SUUMO(ポータル反響)'>SUUMO(ポータル反響)</option>}
+                            {brand !== 'ordinary' && <option value='SUUMO(ポータル反響)'>SUUMO(ポータル反響)</option>}
                         </select>
                     </div>
                     <div className="m-1">
@@ -467,15 +467,13 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                                                 setEditId(item.id);
                                             }}>編集</div></td>
                                         <td>{item.shop}</td>
-                                        <td>
-                                            <div className='position-relative'>{item.customer ?? ''}</div>
-                                        </td>
+                                        <td>{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{item.customer ?? ''}</td>
                                         <td>{item.staff ?? ''}</td>
                                         <td>{item.status ?? ''}</td>
                                         <td>{formate(item.register)}</td>
                                         <td>{formate(firstDate)}</td>
                                         <td>{item.interview && formate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
-                                        style={{fontSize: '8px'}}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
+                                            style={{ fontSize: '8px' }}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
                                         <td>{(item.rank ?? '').replace('ランク', '')}</td>
                                         <td>{item.medium}</td>
                                         <td style={{ textAlign: 'left' }}>{item.full_address}</td>

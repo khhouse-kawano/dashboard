@@ -113,7 +113,6 @@ const ListOrder = ({ onReload }: Props) => {
     }, [startMonth, endMonth]);
 
     const mediumValue = targetMedium === '公式LINE' ? 'ALLGRIT' : targetMedium;
-    const formattedShop = targetShop.includes('2L') ? '2L' : targetShop;
 
     const isSync = (list: InquiryCustomer, value: string) => {
         return list.black_list.split(value).length % 2 !== 0
@@ -124,7 +123,7 @@ const ListOrder = ({ onReload }: Props) => {
         const fullAddress = `${item.pref || ""}${item.city || ""}${item.town || ""}${item.street || ""}${item.building || ""}`;
         return (
             selectedMonth.includes(formate(item.inquiry_date)) &&
-            (targetShop === '' || item.shop.includes(formattedShop)) &&
+            (targetShop === '' || item.shop.includes(targetShop)) &&
             (mediumValue === '' || item.response_medium === mediumValue) &&
             (targetSync === null || (targetSync === 0 ?
                 (item.sync === targetSync && (isSync(item, 'duplicate') && isSync(item, 'support') && isSync(item, 'black')))

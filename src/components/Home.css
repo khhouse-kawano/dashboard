@@ -16,7 +16,7 @@ body {
 
 .home .box {
     max-width: 500px;
-    height: 400px;
+    height: 500px;
     margin: calc(50vh - 200px) auto 0;
 }
 

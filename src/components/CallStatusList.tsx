@@ -133,9 +133,9 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                     <Table bordered striped>
                                         <tbody style={{ fontSize: '11px' }} className='align-middle'>
                                             <tr>
-                                                <td style={{width: '170px'}}
-                                                className='sticky-column'>担当</td>
-                                                <td style={{width: '300px'}}>種別</td>
+                                                <td style={{ width: '170px' }}
+                                                    className='sticky-column'>担当</td>
+                                                <td style={{ width: '300px' }}>種別</td>
                                                 <td>合計</td>
                                                 {[...monthArray.slice(12)].map(month =>
                                                     <td style={{ minWidth: '100px', maxWidth: '160px' }}>{month}</td>
@@ -230,7 +230,8 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                     <tbody style={{ fontSize: '11px' }}>
                                         <tr>
                                             <td style={{ width: '100px' }} className='sticky-column'>店舗</td>
-                                            {['種別', '合計', ...monthArray.slice(8)].map(month => <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }}>{month}</td>
+                                            {['種別', '合計', ...monthArray.slice(8)].map((month, mIndex) => <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }} key={mIndex}
+                                            className={`${mIndex === 0 ? 'sticky-column call_status' : ''}`}>{month}</td>
                                             )}
                                         </tr>
                                         {[{ brand: '', shop: '熊本営業課', section: '熊本営業課' }, ...shopArray].sort().filter(s => s.section === '熊本営業課').map((s, sIndex) => {
@@ -257,7 +258,7 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                             const interviewFilter = customerFilter.filter(c => c.status === '来場済み');
                                             return ['総反響数', '対応反響数', '対応中', 'アポ取得数', '対応反響数からの来場数', '総架電数', '資料郵送数', 'SMS送信数', 'メール送信数'].map((item, index) => <tr>
                                                 {index === 0 && <td rowSpan={9} className='align-middle sticky-column'>{s.shop}</td>}
-                                                <td className={`${index === 4 ? 'fw-bold text-primary table-primary' : index === 3 ? 'fw-bold text-danger table-danger' : (index === 2 || index === 1) ? 'fw-bold' : ''}`}>{item}</td>
+                                                <td className={`sticky-column call_status ${index === 4 ? 'fw-bold text-primary table-primary' : index === 3 ? 'fw-bold text-danger table-danger' : (index === 2 || index === 1) ? 'fw-bold' : ''}`}>{item}</td>
                                                 {['total', ...monthArray.slice(8)].map((month, mIndex) => {
                                                     const formattedRegisterFilter = registerFilter.filter(r => mIndex === 0 ? true : dateFormate(r.register).includes(month));
                                                     const formattedCalledCustomer = calledCustomer.filter(c => mIndex === 0 ? true : dateFormate(c.register).includes(month));

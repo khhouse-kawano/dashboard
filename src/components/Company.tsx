@@ -368,7 +368,7 @@ const Company = () => {
                                                             const shopContract = sectionContractList.filter(o => {
                                                                 return isShop ? o.shop === shop.shop : (o.staff === staff.name && o.shop === staff.shop)
                                                             });
-                                                            const multiContract = sectionContractList.filter(o => {
+                                                            const multiContract = orderContractList.filter(o => {
                                                                 return isShop ? o.shop.includes(shop.shop.replace(shop.brand, '')) : o.staff === staff.name
                                                             });
                                                             const isStaff = staffIndex < staffLength - 2;

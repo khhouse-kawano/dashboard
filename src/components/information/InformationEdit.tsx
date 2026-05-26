@@ -137,6 +137,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         }
     };
     const [kSnap, setKSnap] = useState('');
+    const [reason, setReason] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -550,9 +551,24 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         return value ? value.replace(/\//g, '-') : '';
     };
 
-    useEffect(() => {
-        console.log(information)
-    }, [information])
+
+    const calculateAge = (birthDateString: string) => {
+        if (!birthDateString) return "";
+
+        const today = new Date();
+        const birthDate = new Date(birthDateString);
+
+        let age = today.getFullYear() - birthDate.getFullYear();
+
+        const monthDifference = today.getMonth() - birthDate.getMonth();
+
+        if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+
+        return age;
+    };
+
     return (
         <>
             <Modal
@@ -563,15 +579,17 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                     handleClose();
                 }}
             >
-                <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{id === 'new' ? <div>新規顧客登録 <span className='text-danger'>※は入力必須</span></div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div></Modal.Header>
+                <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
+                <div style={{ background: '#cfe2ff', fontSize: '11px'}} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
+                </Modal.Header>
                 <Modal.Body>
                     <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll' }}>
                         <div style={{ minWidth: '1000px' }}>
                             <Table responsive style={{ fontSize: '11px', textAlign: 'left' }} className='list_table database'>
                                 <tbody>
                                     <tr>
-                                        <td style={{ ...labelStyle, width: '10%' }}>お客様名<span className={requiredStyle}>必須</span></td>
-                                        <td style={{ ...valueStyle, width: '40%' }}>
+                                        <td style={{ ...labelStyle, width: '10%' }} className='table-primary'>お客様名<span className={requiredStyle}>必須</span></td>
+                                        <td style={{ ...valueStyle, width: '40%' }} className='table-primary'>
                                             <input type='text' placeholder='漢字' style={inputStyle} value={safeFormate(information[idMapping('お客様名')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
@@ -581,7 +599,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         }
                                                     ));
                                                 }} />
-                                            <input type='text' placeholder='ふりがな' style={inputStyle} value={safeFormate(information[idMapping('名前（かな）')])}
+                                            <input type='text' placeholder='フリガナ' style={inputStyle} value={safeFormate(information[idMapping('名前（かな）')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -591,8 +609,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />
                                         </td>
-                                        <td style={{ ...labelStyle, width: '10%' }}>連絡先</td>
-                                        <td style={{ ...valueStyle, width: '40%' }}>
+                                        <td style={{ ...labelStyle, width: '10%' }} className='table-primary'>連絡先</td>
+                                        <td style={{ ...valueStyle, width: '40%' }} className='table-primary'>
                                             <input type='text' placeholder='固定電話' style={{ ...inputStyle, width: '100px' }} value={safeFormate(information.customer_contacts_phone_number)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
@@ -643,8 +661,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>住所</td>
-                                        <td style={valueStyle}>
+                                        <td style={labelStyle} className='table-primary'>住所</td>
+                                        <td style={valueStyle} className='table-primary'>
                                             <input type='text' placeholder='郵便番号' style={{ ...inputStyle, width: '80px' }} value={safeFormate(information.postal_code)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
@@ -674,8 +692,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />
                                         </td>
-                                        <td style={labelStyle}>担当店舗<span className={requiredStyle}>必須</span></td>
-                                        <td style={valueStyle}>
+                                        <td style={labelStyle} className='table-primary'>担当店舗<span className={requiredStyle}>必須</span></td>
+                                        <td style={valueStyle} className='table-primary'>
                                             <select
                                                 style={selectStyle}
                                                 value={safeFormate(information[idMapping('担当店舗')])}
@@ -699,27 +717,42 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>担当営業<span className={requiredStyle}>必須</span></td>
-                                        <td style={valueStyle}>
-                                            <select
-                                                style={selectStyle}
-                                                value={safeFormate(information[idMapping('担当営業')])}
-                                                onChange={(e) => {
-                                                    const selected = staffArray.find(item => item.name === e.target.value);
-                                                    setInformation(prev => ({
-                                                        ...prev,
-                                                        [idMapping('担当営業')]: selected?.name || "",
-                                                    }));
-                                                }}
-                                            >
-                                                {staffArray
-                                                    .filter(item => item.shop === information.in_charge_store)
-                                                    .map((item, index) => (
-                                                        <option key={index} value={item.name}>
-                                                            {item.name}
-                                                        </option>
-                                                    ))}
-                                            </select>
+                                        <td style={labelStyle} className='table-primary'>担当営業<span className={requiredStyle}>必須</span></td>
+                                        <td style={valueStyle} className='table-primary'>
+                                            <div className="d-flex align-items-center">
+                                                <select
+                                                    style={selectStyle}
+                                                    value={safeFormate(information[idMapping('担当営業')])}
+                                                    onChange={(e) => {
+                                                        const newStaff = e.target.value;
+                                                        const listedCustomer = `${information.in_charge_store} 管理`;
+
+                                                        const selected = staffArray.find(item => item.name === newStaff);
+                                                        const nextStaffName = selected?.name || newStaff;
+
+                                                        setInformation(prev => ({
+                                                            ...prev,
+                                                            [idMapping('担当営業')]: nextStaffName,
+                                                            first_interviewed_user: safeFormate(prev[idMapping('担当営業')])
+                                                        }));
+
+                                                        if (newStaff === listedCustomer) {
+                                                            setReason(true);
+                                                        }
+                                                    }}
+                                                >
+                                                    {staffArray
+                                                        .filter(item => item.shop === information.in_charge_store)
+                                                        .map((item, index) => (
+                                                            <option key={index} value={item.name}>
+                                                                {item.name}
+                                                            </option>
+                                                        ))}
+                                                </select>
+
+                                                {(information[idMapping('担当営業')] === `${information.in_charge_store} 管理` && information.first_interviewed_user)
+                                                    && <div className="ms-2">変更前:{safeFormate(information.first_interviewed_user)}({safeFormate(information.last_action_step_migration_item_name)})</div>}
+                                            </div>
                                         </td>
                                         <td style={labelStyle}>ステータス</td>
                                         <td style={valueStyle}>
@@ -737,7 +770,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 <option value='失注'>失注</option>
                                                 <option value='重複'>重複</option>
                                                 <option value='契約済み'>契約済み</option>
-                                                <option value="失注">失注</option>
+                                                <option value="解約">解約</option>
                                             </select>
                                         </td>
                                     </tr>
@@ -793,9 +826,29 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>家族情報</td>
-                                        <td style={valueStyle}><div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
+                                        <td style={labelStyle}>生年月日</td>
+                                        <td style={valueStyle}>
+                                            <div className="d-flex align-items-center">
+                                                <input type='date' style={inputStyle}
+                                                    value={dateFormate(information.customer_contacts_birth_date)}
+                                                    onChange={(e) => {
+                                                        setInformation(prev => (
+                                                            {
+                                                                ...prev,
+                                                                customer_contacts_birth_date: e.target.value
+                                                            }
+                                                        ));
+                                                    }}
+                                                />
+                                                {information.customer_contacts_birth_date && <div className="ms-2">({calculateAge(information.customer_contacts_birth_date)}歳)</div>}
+                                            </div>
+                                        </td>
+                                        <td style={labelStyle} className='table-primary'>家族情報</td>
+                                        <td style={valueStyle} className='table-primary'><div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
                                             onClick={() => setFamilyMShow(true)}>入力・確認</div></td>
+
+                                    </tr>
+                                    <tr>
                                         <td style={labelStyle}>競合情報</td>
                                         <td style={valueStyle}>
                                             <div className="text-secondary" style={{ fontSize: '10px' }}>※予測変換リストを追加したい場合は広報・マーケティング課まで</div>
@@ -859,11 +912,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     }}
                                                     onClick={() => handleCompetitors()} >追加</div>
                                             </div>
-
                                         </td>
+                                        <td></td><td></td>
                                     </tr>
                                     <tr>
-                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
+                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }} className='table-primary'>
                                             <div className="position-relative">
                                                 商談ステップ
                                                 <div className='position-absolute'
@@ -878,7 +931,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     }}>{expand.interview ? '×閉じる' : '編集'}</div>
                                             </div>
                                         </td>
-                                        <td colSpan={3}>
+                                        <td colSpan={3} className='table-primary'>
                                             <div style={expandStyle('interview')}>
                                                 <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
                                                     <div>
@@ -899,7 +952,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         </select>
                                                     </div>
                                                     <div className="ms-2">
-                                                        {information.sales_promotion_name}からの反響取得</div>
+                                                        {information.sales_promotion_name && `${information.sales_promotion_name}からの反響取得`}</div>
                                                     {information.reserved_interview && <div className="ms-3 d-flex align-items-center">
                                                         <div>来場予約日</div>
                                                         <div>
@@ -976,7 +1029,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                     <option value="LINEグループ作成">LINEグループ作成</option>
                                                                     <option value="事前審査">事前審査</option>
                                                                     <option value="契約">契約</option>
-                                                                    <option value="失注">失注</option>
+                                                                    <option value="解約">解約</option>
                                                                 </select>
                                                             </div>
                                                             <div>
@@ -1054,7 +1107,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             <option value="LINEグループ作成">LINEグループ作成</option>
                                                             <option value="事前審査">事前審査</option>
                                                             <option value="契約">契約</option>
-                                                            <option value="失注">失注</option>
+                                                            <option value="解約">解約</option>
                                                         </select>
                                                     </div>
                                                     <div>
@@ -1277,7 +1330,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
-                                                面談時アンケート
+                                                面談前アンケート
                                                 <div className='position-absolute'
                                                     style={{ ...expandButton('remarks'), top: '39px' }}
                                                     onClick={() => {
@@ -1291,7 +1344,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </div></td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('remarks')}>
-                                                <textarea placeholder='面談時アンケート' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={safeFormate(information.customized_input_01J95TC6KEES87F0YXH29AJP7K)}
+                                                <textarea placeholder='面談前アンケート' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={safeFormate(information.customized_input_01J95TC6KEES87F0YXH29AJP7K)}
                                                     rows={information.customized_input_01J95TC6KEES87F0YXH29AJP7K ? Math.max(information.customized_input_01J95TC6KEES87F0YXH29AJP7K.length / 53) + 2 : 2}
                                                     onChange={(e) => {
                                                         setInformation(prev => (
@@ -1303,10 +1356,10 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     }} />
                                             </div>
                                         </td>
-                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>備考</td>
+                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>面談後アンケート</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('remarks')}>
-                                                <textarea placeholder='次回アポまでの対応内容・担当者の感覚' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={safeFormate(information.remarks)}
+                                                <textarea placeholder='面談後アンケート' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={safeFormate(information.remarks)}
                                                     rows={information.remarks ? Math.ceil(information.remarks.length / 53) + 2 : 2}
                                                     onChange={(e) => {
                                                         setInformation(prev => (
@@ -1422,9 +1475,16 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 )}</div>
                                             </div>
                                         </td>
-                                        <td style={labelStyle}>建設予定地</td>
+                                        <td></td><td></td>
+                                    </tr>
+                                </tbody>
+                            </Table>
+                            <Table>
+                                <tbody>
+                                    <tr>
+                                        <td style={{ ...labelStyle, width: '60px' }}>建設<br />予定地</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='建設予定地' style={{ ...inputStyle, width: '240px' }} value={safeFormate(information.planned_construction_site)}
+                                            <input type='text' placeholder='建設予定地' style={inputStyle} value={safeFormate(information.planned_construction_site)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1434,14 +1494,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />
                                         </td>
-                                    </tr>
-                                </tbody>
-                            </Table>
-                            <Table>
-                                <tbody>
-                                    <tr>
-                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>新築計画</td>
-                                        <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
+                                        <td style={{ ...labelStyle, width: '60px' }}>新築<br />計画</td>
+                                        <td style={valueStyle}>
                                             <select style={inputStyle} value={safeFormate(information[idMapping('新築計画')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
@@ -1459,7 +1513,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 <option value="その他">その他</option>
                                             </select>
                                         </td>
-                                        <td style={labelStyle}>入居時期</td>
+                                        <td style={{ ...labelStyle, width: '60px' }}>入居<br />時期</td>
                                         <td style={valueStyle}>
                                             <select style={inputStyle} value={safeFormate(information[idMapping('入居時期')])}
                                                 onChange={(e) => {
@@ -1478,9 +1532,9 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 <option value="その他">その他</option>
                                             </select>
                                         </td>
-                                        <td style={labelStyle}>土地の状況</td>
+                                        <td style={{ ...labelStyle, width: '60px' }}>土地の<br />状況</td>
                                         <td style={valueStyle}>
-                                            <select style={{ ...inputStyle, width: '220px' }} value={safeFormate(information[idMapping('土地の状況')])}
+                                            <select style={inputStyle} value={safeFormate(information[idMapping('土地の状況')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1497,7 +1551,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
                                     <tr >
-                                        <td style={labelStyle}>土地の有無</td>
+                                        <td style={labelStyle}>土地の<br />有無</td>
                                         <td style={valueStyle}>
                                             <select style={inputStyle} value={safeFormate(information.has_owned_land)}
                                                 onChange={(e) => {
@@ -1511,7 +1565,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 <option value="無">無</option><option value="有">有</option>
                                             </select>
                                         </td>
-                                        <td style={labelStyle}>重視項目</td>
+                                        <td style={labelStyle}>重視<br />項目</td>
                                         <td style={valueStyle}>
                                             <select style={inputStyle} value={safeFormate(information.customized_input_01JSE7DKY5RYY3T8T8NVR1AJMN)}
                                                 onChange={(e) => {
@@ -1529,29 +1583,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 <option value="アフターサービス">アフターサービス</option>
                                             </select>
                                         </td>
-                                        <td style={labelStyle}>契約スケジュール</td>
-                                        <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information.customized_input_01JSE7RNV3VK78YC2GYAG0554D)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customized_input_01JSE7RNV3VK78YC2GYAG0554D: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value="">選択してください</option>
-                                                <option value="半月内">半月内</option>
-                                                <option value="月内">月内</option>
-                                                <option value="1か月後">1か月後</option>
-                                                <option value="3か月後">3か月後</option>
-                                                <option value="9か月後">9か月後</option>
-                                                <option value="1年以上後">1年以上後</option>
-                                            </select>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={labelStyle}>予算総額</td>
+                                        <td style={labelStyle}>予算<br />総額</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='予算総額' style={inputStyle}
                                                 value={safeFormate(information.budget).replace('万円', '')}
@@ -1574,7 +1606,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />万円
                                         </td>
-                                        <td style={labelStyle}>月々支払予算</td>
+                                        <td style={labelStyle}>月々支<br />払予算</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='月々支払予算' style={inputStyle}
                                                 value={safeFormate(information.monthly_repayment_amount).replace('0000', '')}
@@ -1597,7 +1629,9 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />万円
                                         </td>
-                                        <td style={labelStyle}>返済希望年数</td>
+                                    </tr>
+                                    <tr>
+                                        <td style={labelStyle}>返済希<br />望年数</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='返済希望年数' style={inputStyle}
                                                 value={safeFormate(information.repayment_years).replace(/[年\/]/g, '')}
@@ -1620,8 +1654,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />年
                                         </td>
-                                    </tr>
-                                    <tr>
                                         <td style={labelStyle}>現居家賃</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='現居家賃' style={inputStyle}
@@ -1645,7 +1677,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />万円
                                         </td>
-                                        <td style={labelStyle}>自己資金</td>
+                                        <td style={labelStyle}>自己<br />資金</td>
                                         <td style={valueStyle}>
                                             <input type="text" placeholder="自己資金" style={inputStyle} value={safeFormate(information.self_budget).replace('0000', '')}
                                                 onChange={(e) => {
@@ -1667,7 +1699,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />万円
                                         </td>
-                                        <td style={labelStyle}>現居光熱費</td>
+                                        <td style={labelStyle}>現居<br />光熱費</td>
                                         <td style={valueStyle}>
                                             <input type="text" placeholder="現居光熱費" style={inputStyle} value={safeFormate(information.current_utility_costs).replace('万円', '')}
                                                 onChange={(e) => {
@@ -1691,7 +1723,10 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>負債総額</td>
+
+                                    </tr>
+                                    <tr>
+                                        <td style={labelStyle}>負債<br />総額</td>
                                         <td style={valueStyle}>
                                             <input type="text" placeholder="自己資金" style={inputStyle}
                                                 value={safeFormate(information.current_loan_balance).replace('0000', '')}
@@ -1714,7 +1749,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />万円
                                         </td>
-                                        <td style={labelStyle}>現居契約形態</td>
+                                        <td style={labelStyle}>現居契<br />約形態</td>
                                         <td style={valueStyle}>
                                             <select style={inputStyle} value={safeFormate(information.current_contract_type)}
                                                 onChange={(e) => {
@@ -1733,7 +1768,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 <option value="賃貸(アパート)">賃貸(アパート)</option>
                                             </select>
                                         </td>
-                                        <td style={labelStyle}>雇用形態</td>
+                                        <td style={labelStyle}>雇用<br />形態</td>
                                         <td style={valueStyle}>
                                             <select style={inputStyle} value={safeFormate(information.customer_contacts_employment_type)}
                                                 onChange={(e) => {
@@ -1753,9 +1788,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 <option value="専業主婦">専業主婦</option>
                                             </select>
                                         </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={labelStyle}>勤務先名</td>
+                                        <td style={labelStyle}>勤務<br />先名</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='勤務先名' style={inputStyle} value={safeFormate(information.customer_contacts_employer_name)}
                                                 onChange={(e) => {
@@ -1767,7 +1800,9 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />
                                         </td>
-                                        <td style={labelStyle}>勤務先住所</td>
+                                    </tr>
+                                    <tr>
+                                        <td style={labelStyle}>勤務先<br />住所</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='勤務先名' style={inputStyle} value={safeFormate(information.customer_contacts_employer_address)}
                                                 onChange={(e) => {
@@ -1779,7 +1814,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />
                                         </td>
-                                        <td style={labelStyle}>勤続年数</td>
+                                        <td style={labelStyle}>勤続<br />年数</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='勤続年数' style={inputStyle} value={safeFormate(information.customer_contacts_years_of_service)}
                                                 onChange={(e) => {
@@ -1801,8 +1836,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />年
                                         </td>
-                                    </tr>
-                                    <tr>
                                         <td style={labelStyle}>年収</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='勤務先名' style={inputStyle}
@@ -1826,7 +1859,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />万円
                                         </td>
-                                        <td style={labelStyle}>希望土地面積</td>
+                                        <td style={labelStyle}>希望土<br />地面積</td>
                                         <td style={valueStyle}>
                                             <input type='text' placeholder='希望土地面積' style={inputStyle} value={safeFormate(information.desired_land_area)}
                                                 onChange={(e) => {
@@ -1848,6 +1881,9 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />坪
                                         </td>
+                                    </tr>
+                                    <tr>
+
                                         <td style={labelStyle}>土地の予算</td>
                                         <td style={valueStyle}>
                                             <input type='text' pattern="[A-Za-z0-9]*" placeholder='予算総額' style={inputStyle}
@@ -1872,6 +1908,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />万円
                                         </td>
+                                        {[...Array(6)].map((_, index) => <td key={index}></td>
+                                        )}
                                     </tr>
                                 </tbody>
                             </Table>
@@ -1898,8 +1936,40 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             <Modal show={familyModalShow} onHide={familyModalClose} size='lg'>
                 <FamilyInfo idValue={information.id} shopValue={information.in_charge_store} nameValue={information.customer_contacts_name} modalClose={familyModalClose} />
             </Modal>
+            <Modal show={reason} centered>
+                <Modal.Body>
+                    <div className="fw-bold text-center mb-3">店舗管理への変更理由</div>
+                    <div className="d-flex align-items-center justify-content-around pb-2">
+                        <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information.last_action_step_migration_item_name)}
+                            onChange={(e) => {
+                                setInformation(prev => (
+                                    {
+                                        ...prev,
+                                        last_action_step_migration_item_name: e.target.value
+                                    }
+                                ));
+                            }}>
+                            <option value="">選択してください</option>
+                            <option value="失注">失注</option>
+                            <option value="計画中止">計画中止</option>
+                            <option value="計画延期">計画延期</option>
+                            <option value="その他">その他</option>
+                        </select>
+                        <div className="bg-danger text-white px-4 py-1 rounded-pill" style={{ fontSize: '12px', cursor: 'pointer' }} onClick={() => {
+                            if (information.last_action_step_migration_item_name) {
+                                setReason(false);
+                            } else {
+                                alert('理由を選択してください');
+                            }
+
+                        }}>
+                            閉じる
+                        </div>
+                    </div>
+                </Modal.Body>
+            </Modal >
             <Estate estateId={estateId} setEstateId={setEstateId} />
-            <KSnap id={kSnap} setKSnap={setKSnap}/>
+            <KSnap id={kSnap} setKSnap={setKSnap} />
         </>
     );
 };

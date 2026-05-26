@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useContext } from 'react';
+import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
 import axios from "axios";
 import Table from "react-bootstrap/Table";
 import "../SearchBox.css";
@@ -12,6 +12,7 @@ import { headers } from '../../utils/headers';
 import { getFiscalYearMonthsFromJune } from '../../utils/getFiscalYearMonthsFromJune';
 import InformationEdit from '../information/InformationEdit';
 import InterviewLog from '../InterviewLog';
+import StaffMemo from './StaffMemo';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -20,6 +21,7 @@ type Target = { [key: string]: boolean };
 type Shop = { brand: string, shop: string, section: string, area: string, };
 type Label = { label: string, show: boolean, category: string };
 type Staff = { id: number, name: string, pg_id: string, shop: string, mail: string, status: string, category: number, rank: number, sort: number };
+type Memo = Record<string, string>;
 
 const RankOrder = () => {
     const { token } = useContext(AuthContext);
@@ -48,8 +50,8 @@ const RankOrder = () => {
     const thisMonth = targetMonth === `${year}/${month}`;
     const [editId, setEditId] = useState('');
     const [interviewId, setInterviewId] = useState('');
-
     const thisYear = now.getMonth() <= 4 ? year : year + 1;
+    const [memoList, setMemoList] = useState<Memo[]>([]);
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
@@ -69,6 +71,14 @@ const RankOrder = () => {
                 await setLabelList(sectionList);
                 await setStaffList(response.data.staff);
                 await setAchievement(response.data.achievement);
+                setMemoList(
+                    response.data.staff.map(s => ({
+                        staff: s.name,
+                        shop: s.shop,
+                        memo: s.memo,
+                    }))
+                );
+
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -176,70 +186,77 @@ const RankOrder = () => {
         }
     };
 
-    const getFiltered = useMemo(() => {
-        return (
-            period: string,
-            category: string,
-            target: string,
-            index: number,
-            rank: string,
-            rank_period: number
-        ) => {
-            const targetPeriod = rank_period
-                ? `${targetMonth.split('/')[0]}/${String(Number(targetMonth.split('/')[1]) + rank_period).padStart(2, '0')}`
-                : '';
-            let base: Customer[] = [];
-            const isPeriod = targetMonth.length === 4;
-            const thisYearPeriod = getFiscalYearMonthsFromJune(targetMonth);
-            if (period === 'contract') {
-                base = customerList.filter(c =>
-                    c.status === '契約済み' &&
-                    // 【修正点1】 c.contract.slice ではなく dateFormate(c.contract).slice に変更（null回避）
-                    // 【修正点2】 三項演算子全体を () で囲むことで、&& 条件を正しく適用
-                    (isPeriod
-                        ? thisYearPeriod.includes(dateFormate(c.contract).slice(0, 7))
-                        : dateFormate(c.contract).includes(targetMonth))
-                );
-            } else if (period === 'interview') {
-                const interviewCustomer = customerList.filter(c =>
-                    isPeriod
-                        ? thisYearPeriod.includes(dateFormate(c.interview).slice(0, 7))
-                        : dateFormate(c.interview).includes(targetMonth)
-                );
-                const appointmentCustomer = customerList.filter(c =>
-                    !c.interview &&
-                    (isPeriod
-                        ? (thisYearPeriod.includes(dateFormate(c.appointment).slice(0, 7)) ||
-                            thisYearPeriod.includes(dateFormate(c.screening).slice(0, 7)) ||
-                            thisYearPeriod.includes(dateFormate(c.contract).slice(0, 7)))
-                        : (dateFormate(c.appointment).includes(targetMonth) ||
-                            dateFormate(c.screening).includes(targetMonth) ||
-                            dateFormate(c.contract).includes(targetMonth))
-                    )
-                );
-                base = [...interviewCustomer, ...appointmentCustomer];
-            } else if (period === 'register') {
-                base = customerList.filter(c =>
-                    isPeriod
-                        ? thisYearPeriod.includes(dateFormate(c.register).slice(0, 7))
-                        : dateFormate(c.register).includes(targetMonth)
-                );
-            } else {
-                base = customerList;
-            }
+    const baseData = useMemo(() => {
+        const isPeriod = targetMonth.length === 4;
+        const thisYearPeriod = isPeriod ? getFiscalYearMonthsFromJune(targetMonth) : [];
 
-            return base.filter(item => {
-                const targetShops = category === 'section' ? shopList.filter(s => s.section === target).map(s => s.shop) : [];
-                if (isPeriod) {
-                    return (index > 0 && category === 'section' ? targetShops.includes(item.shop) : index > 0 ? item[category] === target : true)
-                        && (rank ? item.rank === rank && item.status === '見込み' : true)
-                }
-                return (index > 0 && category === 'section' ? targetShops.includes(item.shop) : index > 0 ? item[category] === target : true)
-                    && (rank ? item.rank === rank && item.status === '見込み' : true)
-                    && (!rank ? true : (rank_period > 0 ? item.rank_period === targetPeriod : (!item.rank_period || item.rank_period <= targetMonth)))
-            });
+        const checkDate = (dateStr: string) => {
+            if (!dateStr) return false;
+            const fmt = dateFormate(dateStr).slice(0, 7);
+            return isPeriod ? thisYearPeriod.includes(fmt) : fmt === targetMonth;
         };
-    }, [customerList, targetMonth, labelList, showTarget]);
+
+        const register = customerList.filter(c => checkDate(c.register));
+        const contract = customerList.filter(c => c.status === '契約済み' && checkDate(c.contract));
+        const interviewBase = customerList.filter(c => checkDate(c.interview));
+        const appointmentBase = customerList.filter(c =>
+            !c.interview && (checkDate(c.appointment) || checkDate(c.screening) || checkDate(c.contract))
+        );
+        const interview = [...interviewBase, ...appointmentBase];
+
+        return { register, contract, interview, all: customerList };
+    }, [customerList, targetMonth]);
+
+    const getFiltered = useCallback((
+        period: string,
+        category: string,
+        target: string,
+        index: number,
+        rank: string,
+        rank_period: number
+    ) => {
+        const isPeriod = targetMonth.length === 4;
+
+        let targetPeriod = '';
+        if (rank_period > 0 && !isPeriod) {
+            const [yStr, mStr] = targetMonth.split('/');
+            const d = new Date(Number(yStr), Number(mStr) - 1 + rank_period, 1);
+            targetPeriod = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        let base: Customer[] = [];
+        if (period === 'contract') base = baseData.contract;
+        else if (period === 'interview') base = baseData.interview;
+        else if (period === 'register') base = baseData.register;
+        else base = baseData.all;
+
+        const targetShops = category === 'section' ? shopList.filter(s => s.section === target).map(s => s.shop) : [];
+
+        return base.filter(item => {
+            let matchCategory = true;
+            if (index > 0) {
+                if (category === 'section') {
+                    matchCategory = targetShops.includes(item.shop);
+                } else {
+                    matchCategory = (item as any)[category] === target;
+                }
+            }
+            if (!matchCategory) return false;
+            if (isPeriod) {
+                return rank ? (item.rank === rank && item.status === '見込み') : true;
+            } else {
+                if (rank) {
+                    if (item.rank !== rank || item.status !== '見込み') return false;
+                    if (rank_period > 0) {
+                        if (item.rank_period !== targetPeriod) return false;
+                    } else {
+                        if (item.rank_period && item.rank_period > targetMonth) return false;
+                    }
+                }
+                return true;
+            }
+        });
+    }, [baseData, shopList, targetMonth]);
 
 
 
@@ -325,6 +342,31 @@ const RankOrder = () => {
         setEditId('');
     };
 
+    const handleMemoChange = (text: string, staff: string, shop: string) => {
+        setMemoList(prev => {
+            const exists = prev.some(item => item.staff === staff);
+            if (exists) {
+                return prev.map(item =>
+                    (item.staff === staff && item.shop === shop)
+                        ? { ...item, memo: text }
+                        : item
+                );
+            }
+            return [...prev, { staff, shop, memo: text }];
+        });
+
+        const fetchData = async () => {
+            try {
+                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_memo",  staff, memo: text, shop }, { headers });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        fetchData();
+    };
+
+
     return (
         <>
             <div className='content database bg-white p-2'>
@@ -406,10 +448,22 @@ const RankOrder = () => {
                                 const expected = expectedList.reduce((acc, cur) => acc + cur.count, 0);
                                 return (
                                     <tr key={targetIndex} className={`${background[bgKey]} align-middle`} style={{ textAlign: 'center' }}>
-                                        <td style={{ cursor: 'pointer', textAlign: 'left', paddingLeft: (targetIndex === 0 || target.category === 'staff') ? '34px' : '' }}
-                                            onClick={() => expandTarget(target)}>
-                                            {(targetIndex > 0 && target.category !== 'staff') && <i className={`fa-solid ${showTarget[target.label] ? 'fa-minus' : 'fa-plus'} me-2 p-1 pointer-icon rounded`} ></i>}
-                                            {target.label}</td>
+                                        <td style={{ cursor: target.category === 'staff' ? 'text' : 'pointer', textAlign: 'left', paddingLeft: (targetIndex === 0 || target.category === 'staff') ? '34px' : '' }}
+                                            onClick={() => expandTarget(target)}
+                                        >
+                                            <div className="d-flex align-items-center">
+                                                {(targetIndex > 0 && target.category !== 'staff') && <i className={`fa-solid ${showTarget[target.label] ? 'fa-minus' : 'fa-plus'} me-2 p-1 pointer-icon rounded`} ></i>}
+                                                {target.label}
+                                                {target.category === 'staff' && (
+                                                    <StaffMemo
+                                                        staffName={target.label}
+                                                        staffShop={memoList.find(m => m.staff === target.label)?.shop ?? ''}
+                                                        initialMemo={memoList.find(m => m.staff === target.label)?.memo ?? ''}
+                                                        onSave={handleMemoChange}
+                                                    />
+                                                )}
+                                            </div>
+                                        </td>
                                         <td>{register.length}</td>
                                         {/* <td>{perFormate(interview.length / register.length)}%</td> */}
                                         <td>{interview.length}</td>
@@ -483,7 +537,7 @@ const RankOrder = () => {
             </div>
             <Modal show={modalList.length > 0} onHide={modalClose} size='xl'>
                 <Modal.Header closeButton>
-                    <Modal.Title style={{ fontSize: '15px' }}>顧客情報詳細</Modal.Title>
+                    <Modal.Title style={{ fontSize: '15px' }}>案件詳細</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     {modalList.length === 0
