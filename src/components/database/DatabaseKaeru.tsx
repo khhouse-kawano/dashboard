@@ -8,8 +8,8 @@ import CallStatusList from '../CallStatusList';
 import InformationEditKaeru from '../information/InformationEditKaeru';
 
 type shopList = { brand: string, shop: string, section: string };
-type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
-type CustomerList = { id: string; shop: string; customer: string; staff: string; status: string; rank: string; medium: string; interview: string; register: string; call_status: string, reserved_interview: string, full_address: string; phone_number: string; trash: number, cancel_status: string, rank_period: string, hp_campaign: string };
+type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string };
+type CustomerList = Record<string, string>;
 type CallAction = {
     day: string;
     time: string;
@@ -118,8 +118,8 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
             const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
 
             // ここで各プロパティが undefined のときでも安全に評価される
-            return (trash === 1 ? (item.trash ?? 0) !== 0 : true)
-                && (trash === 0 ? (item.trash ?? 0) !== 1 : true)
+            return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
+                && (trash === 0 ? (Number(item.trash) ?? 0) !== 1 : true)
                 && (selectedShop ? arrIncludes(item.shop, selectedShop) : true)
                 && (selectedRegister ? strIncludes(item.register, dateFormate(selectedRegister)) : true)
                 && (selectedReserve === 'notVisited'
@@ -236,7 +236,7 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
     const closeInformationEdit = async () => {
         setEditId('');
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_kaeru_reload' }, { headers });
+            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_kaeru' }, { headers });
             await setOriginalDatabase(response.data.customer);
         }
         fetchData();

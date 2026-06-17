@@ -3,6 +3,7 @@ import React, { useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RankOrder from './RankOrder';
 import RankKaeru from './RankKaeru';
+import RankResale from './RankResale';
 
 const RankRouter = () => {
   const { category } = useContext(AuthContext);
@@ -17,6 +18,7 @@ const RankRouter = () => {
     <>
       {category === 'order' && <RankOrder />}
       {category === 'spec' && <RankKaeru />}
+      {category === 'used' && <RankResale />}
     </>
   )
 }

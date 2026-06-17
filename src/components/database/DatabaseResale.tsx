@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useMemo } from 'react';
+import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
 import Table from "react-bootstrap/Table";
 import axios from "axios";
 import AuthContext from '../../context/AuthContext';
@@ -7,7 +7,7 @@ import { headers } from '../../utils/headers';
 import InformationEditResale from '../information/InformationEditResale';
 
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
-type CustomerList = { id: string; shop: string; customer: string; staff: string; status: string; rank: string; medium: string; interview: string; register: string; call_status: string, reserved_interview: string, full_address: string; phone_number: string; trash: number, cancel_status: string, rank_period: string, hp_campaign: string };
+type CustomerList = Record<string, string>;
 type CallAction = {
     day: string;
     time: string;
@@ -118,8 +118,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
             const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
 
             // ここで各プロパティが undefined のときでも安全に評価される
-            return (trash === 1 ? (item.trash ?? 0) !== 0 : true)
-                && (trash === 0 ? (item.trash ?? 0) !== 1 : true)
+            return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
+                && (trash === 0 ? (Number(item.trash) ?? 0) !== 1 : true)
                 && (selectedShop ? arrIncludes(item.shop, selectedShop) : true)
                 && (selectedRegister ? strIncludes(item.register, dateFormate(selectedRegister)) : true)
                 && (selectedReserve === 'notVisited'
@@ -156,6 +156,10 @@ const DatabaseResale = ({ onReload, key }: Props) => {
 
 
     useEffect(() => {
+        if (skipPageReset.current) {
+            skipPageReset.current = false;
+            return;
+        }
         setActivePage(1);
         setSliceStart(0);
     }, [
@@ -184,6 +188,9 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         page4: null,
         page5: null
     };
+
+    const skipPageReset = useRef(false);
+
 
     Object.entries(pages).map(([key, _], index) => {
         if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) === activePage) {
@@ -231,15 +238,21 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         }
     };
 
-    const [insideSalesCategory, setInsideSalesCategory] = useState('kumamoto');
-
     const closeInformationEdit = async () => {
         setEditId('');
+        const prevPage = activePage;
+
+        skipPageReset.current = true;
+
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_resale_reload' }, { headers });
-            await setOriginalDatabase(response.data.customer);
+            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_resale' }, { headers });
+            // setOriginalDatabase は await しても意味がないので外してOKです
+            setOriginalDatabase(response.data.customer);
         }
-        fetchData();
+
+        await fetchData();
+
+        setActivePage(prevPage);
     };
 
     return (
@@ -268,6 +281,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                     <div className="m-1">
                         <select className="target" onChange={(e) => setSelectedRank(e.target.value)}>
                             <option value="">ランクを選択</option>
+                            <option value="Sランク">Sランク</option>
                             <option value="Aランク">Aランク</option>
                             <option value="Bランク">Bランク</option>
                             <option value="Cランク">Cランク</option>
@@ -326,7 +340,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                     <div className="m-1">
                         <input className="target" placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
                     </div>
-                    <div className="bg-success text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+                    <div className="bg-warning text-dark px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
                         onClick={() => setEditId('new')}>新規登録</div>
                 </div>
                 <div className="d-md-flex">
@@ -373,8 +387,6 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                             onClick={() => setTrash(0)}>非表示リストへ移動</div>}
                         {trash === 0 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
                             onClick={() => setTrash(1)}>一覧へ戻る</div>}
-                        <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                            onClick={() => setCallStatusShow(true)}>架電状況集計</div>
                     </div>
                 </div>
                 <div className='table-wrapper'>
@@ -428,7 +440,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                         <td>{formate(item.register)}</td>
                                         <td>{formate(firstDate)}</td>
                                         <td>{item.interview && formate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
-                                        style={{fontSize: '8px'}}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
+                                            style={{ fontSize: '8px' }}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
                                         <td>{(item.rank ?? '').replace('ランク', '')}</td>
                                         <td>{item.medium}</td>
                                         <td style={{ textAlign: 'left' }}>{item.full_address}</td>

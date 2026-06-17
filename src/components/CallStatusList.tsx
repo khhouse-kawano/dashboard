@@ -3,9 +3,10 @@ import Table from "react-bootstrap/Table";
 import Modal from 'react-bootstrap/Modal';
 import axios from "axios";
 import { headers } from '../utils/headers';
+import { staffSorter } from '../utils/staffSorter';
 
 type shopList = { brand: string, shop: string, section: string };
-type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
+type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string };
 type CallLogList = {
     id: string;
     shop: string;
@@ -16,7 +17,7 @@ type CallLogList = {
     call_log: string;
     add: Boolean;
 };
-type CustomerList = { id: string; shop: string; customer: string; staff: string; status: string; rank: string; medium: string; interview: string; register: string; call_status: string, reserved_interview: string, full_address: string; phone_number: string; trash: number, cancel_status: string, rank_period: string };
+type CustomerList = Record<string, string>;
 type CallAction = {
     day: string;
     time: string;
@@ -43,7 +44,6 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
     const yearValue = now.getFullYear();
     const monthValue = now.getMonth() + 1;
     const [callLogList, setCallLogList] = useState<CallLogList[]>([]);
-
     useEffect(() => {
         if (!callStatusShow) return;
         const fetchData = async () => {
@@ -61,7 +61,7 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
     }, [callStatusShow]);
 
     useEffect(() => {
-        const filtered = staffArray.filter(s => s.rank === 1 &&
+        const filtered = staffArray.sort(staffSorter()).filter(s => s.rank === 1 &&
             (targetShop === 'estate' ? s.estate === 1 : targetShop ? s.shop === targetShop : false)
         );
         setChanged(filtered);
@@ -105,16 +105,37 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
 
     return (
         <>
-            <Modal show={callStatusShow} onHide={() => setCallStatusShow(false)} size='lg'>
+            <Modal show={callStatusShow} onHide={() => setCallStatusShow(false)} size='xl'>
                 <Modal.Header closeButton>架電状況詳細</Modal.Header>
                 <Modal.Body>
-                    <div className="d-flex justify-content-center mb-3" style={{ fontSize: '13px' }}>
-                        <div className="bg-primary text-white px-3 py-1 rounded mx-2"
-                            style={{ cursor: insideSalesCategory === 'kumamoto' ? 'text' : 'pointer', opacity: insideSalesCategory === 'kumamoto' ? '1' : '.5', transform: insideSalesCategory === 'kumamoto' ? 'scale(1.1)' : 'scale(1)' }}
-                            onClick={() => setInsideSalesCategory('kumamoto')}>インサイドセールス</div>
-                        <div className="bg-info text-white px-3 py-1 rounded mx-2"
-                            style={{ cursor: insideSalesCategory === 'inside' ? 'text' : 'pointer', opacity: insideSalesCategory === 'shopStaff' ? '1' : '.5', transform: insideSalesCategory === 'shopStaff' ? 'scale(1.1)' : 'scale(1)' }}
-                            onClick={() => setInsideSalesCategory('shopStaff')}>営業架電</div>
+                    <div className="d-flex justify-content-center mb-4" style={{ fontSize: '14px', gap: '15px' }}>
+                        <div
+                            className="bg-primary text-white px-4 py-2 rounded-pill shadow-sm text-center"
+                            style={{
+                                cursor: insideSalesCategory === 'kumamoto' ? 'default' : 'pointer',
+                                opacity: insideSalesCategory === 'kumamoto' ? 1 : 0.5,
+                                transform: insideSalesCategory === 'kumamoto' ? 'scale(1.05)' : 'scale(1)',
+                                transition: 'all 0.2s ease-in-out',
+                                minWidth: '160px'
+                            }}
+                            onClick={() => setInsideSalesCategory('kumamoto')}
+                        >
+                            インサイドセールス
+                        </div>
+
+                        <div
+                            className="bg-info text-white px-4 py-2 rounded-pill shadow-sm text-center"
+                            style={{
+                                cursor: insideSalesCategory === 'shopStaff' ? 'default' : 'pointer',
+                                opacity: insideSalesCategory === 'shopStaff' ? 1 : 0.5,
+                                transform: insideSalesCategory === 'shopStaff' ? 'scale(1.05)' : 'scale(1)',
+                                transition: 'all 0.2s ease-in-out',
+                                minWidth: '160px'
+                            }}
+                            onClick={() => setInsideSalesCategory('shopStaff')}
+                        >
+                            営業架電
+                        </div>
                     </div>
                     {insideSalesCategory === 'shopStaff' ?
                         <>
@@ -129,7 +150,7 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                 </select>
                             </div>
                             <div style={{ overflowX: 'scroll' }}>
-                                <div style={{ width: `${monthArray.slice(8).length * 110}px` }}>
+                                <div style={{ width: `${monthArray.slice(8).length * 100}px` }}>
                                     <Table bordered striped>
                                         <tbody style={{ fontSize: '11px' }} className='align-middle'>
                                             <tr>
@@ -142,21 +163,26 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                                 )}
                                             </tr>
                                             {[{ name: '合計', shop: '', pg_id: '', category: '', estate: 1 }, ...changed].map((staff, sIndex) => {
+                                                const filteredStaffName = (value: string) => {
+                                                    if (!value) return;
+                                                    return value.includes('牟田') ? '牟田' : value;
+                                                }
                                                 const targetStaff = staffArray.filter(s =>
                                                     targetShop === 'estate' ? s.estate === 1 :
                                                         targetShop ? s.shop === targetShop : true
-                                                ).map(s => s.name);
+                                                ).map(s => filteredStaffName(s.name));
                                                 const customerFilter = callLogList.filter(c => {
                                                     const logs = parseLogs(c.call_log);
                                                     if (sIndex > 0) {
                                                         return (
-                                                            c.staff === staff.name ||
-                                                            logs.some(l => l.staff === staff.name)
+                                                            filteredStaffName(c.staff) === filteredStaffName(staff.name) ||
+                                                            logs.some(l => filteredStaffName(l.staff) === filteredStaffName(staff.name))
                                                         );
                                                     }
+
                                                     return (
-                                                        targetStaff.includes(c.staff) ||
-                                                        logs.some(l => targetStaff.includes(l.staff))
+                                                        targetStaff.includes(filteredStaffName(c.staff)) ||
+                                                        logs.some(l => targetStaff.includes(filteredStaffName(l.staff)))
                                                     );
                                                 });
                                                 const callFilter = customerFilter.filter(c => c.status && c.status !== '未通電').map(c => c.id);
@@ -220,18 +246,18 @@ const CallStatus = ({ callStatusShow, setCallStatusShow, shopArray, monthArray, 
                                             })}
                                         </tbody>
                                     </Table>
-                                </div>                            </div>
-
+                                </div>
+                            </div>
                         </>
                         :
                         <div style={{ overflowX: 'scroll' }}>
-                            <div style={{ width: `${monthArray.slice(8).length * 170}px` }}>
+                            <div style={{ width: `${monthArray.slice(8).length * 110}px` }}>
                                 <Table bordered striped>
                                     <tbody style={{ fontSize: '11px' }}>
                                         <tr>
                                             <td style={{ width: '100px' }} className='sticky-column'>店舗</td>
                                             {['種別', '合計', ...monthArray.slice(8)].map((month, mIndex) => <td style={{ width: '120px', minWidth: '100px', maxWidth: '160px' }} key={mIndex}
-                                            className={`${mIndex === 0 ? 'sticky-column call_status' : ''}`}>{month}</td>
+                                                className={`text-center ${mIndex === 0 ? 'sticky-column call_status' : ''}`}>{month}</td>
                                             )}
                                         </tr>
                                         {[{ brand: '', shop: '熊本営業課', section: '熊本営業課' }, ...shopArray].sort().filter(s => s.section === '熊本営業課').map((s, sIndex) => {

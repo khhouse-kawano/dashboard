@@ -13,14 +13,17 @@ import { getFiscalYearMonthsFromJune } from '../../utils/getFiscalYearMonthsFrom
 import InformationEdit from '../information/InformationEdit';
 import InterviewLog from '../InterviewLog';
 import StaffMemo from './StaffMemo';
+import { getYears } from '../../utils/getYears';
+import { staffSorter } from '../../utils/staffSorter';
+import Category from '../Category';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
 type Achievement = { category: string, name: string, period: string, value: string }
 type Expect = { date: string, shop: string, section: string, count: number };
 type Target = { [key: string]: boolean };
-type Shop = { brand: string, shop: string, section: string, area: string, };
+type Shop = { brand: string, shop: string, section: string, division: string, };
 type Label = { label: string, show: boolean, category: string };
-type Staff = { id: number, name: string, pg_id: string, shop: string, mail: string, status: string, category: number, rank: number, sort: number };
+type Staff = { id: number, name: string, pg_id: string, shop: string, mail: string, status: string, category: number, rank: number, sort: number, period: string, position: string };
 type Memo = Record<string, string>;
 
 const RankOrder = () => {
@@ -29,10 +32,11 @@ const RankOrder = () => {
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMonth, setTargetMonth] = useState('');
     const [customerList, setCustomerList] = useState<Customer[]>([]);
-    const [labelList, setLabelList] = useState<Label[]>([]);
+    const [sections, setSections] = useState<string[]>([]);
     const [expectedContract, setExpectedContract] = useState<Expect[]>([]);
     const [showTarget, setShowTarget] = useState<Target>({});
     const [shopList, setShopList] = useState<Shop[]>([]);
+    const [originalStaffList, setOriginalStaffList] = useState<Staff[]>([]);
     const [staffList, setStaffList] = useState<Staff[]>([]);
     const [newExpected, setNewExpected] = useState<Expect>({
         date: '',
@@ -47,10 +51,11 @@ const RankOrder = () => {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    const thisMonth = targetMonth === `${year}/${month}`;
     const [editId, setEditId] = useState('');
     const [interviewId, setInterviewId] = useState('');
-    const thisYear = now.getMonth() <= 4 ? year : year + 1;
+    const yearSetting = (year: number, month: number) => {
+        return Number(month) <= 4 ? String(year) : String(year + 1)
+    };
     const [memoList, setMemoList] = useState<Memo[]>([]);
 
     useEffect(() => {
@@ -63,13 +68,9 @@ const RankOrder = () => {
                 await setCustomerList(response.data.customer);
                 await setExpectedContract(response.data.expected);
                 await setShopList(response.data.shop);
-                const sectionList = response.data.section.map(s => s.name).map(sectionValue => ({
-                    category: 'section',
-                    label: sectionValue,
-                    show: false,
-                }));
-                await setLabelList(sectionList);
-                await setStaffList(response.data.staff);
+                const sectionNames = response.data.section.map((s: any) => s.name);
+                setSections(sectionNames);
+                await setOriginalStaffList(response.data.staff);
                 await setAchievement(response.data.achievement);
                 setMemoList(
                     response.data.staff.map(s => ({
@@ -88,6 +89,13 @@ const RankOrder = () => {
 
     }, []);
 
+    useEffect(() => {
+        const [yearValue, monthValue] = targetMonth.split('/');
+        const formattedYearValue = monthValue ? yearSetting(Number(yearValue), Number(monthValue)) : yearValue;
+        const filtered = originalStaffList.filter(o => o.period === String(formattedYearValue));
+        setStaffList(filtered);
+    }, [originalStaffList, targetMonth]);
+
     const OverlayTriggerComponent = ({ label, desc }) => {
         return (
             <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{desc}</Tooltip>}>
@@ -96,23 +104,24 @@ const RankOrder = () => {
     };
 
     const tooltipItems = [
-        { label: '総反響', desc: `${targetMonth}の総反響数` },
+        { label: '総反響', desc: (<>{targetMonth}の総反響数</>) },
         // { label: '来場率', desc: '来場者数/総反響' },
-        { label: '来場数', desc: `${targetMonth}の来場者数` },
-        { label: '契約率', desc: '契約者数/来場者数' },
-        { label: '目標数', desc: `${targetMonth}の目標数` },
-        { label: '契約数', desc: `${targetMonth}の契約者数 ()内はAランクも含めた数` },
-        { label: '達成率', desc: '契約者数/予算 ()内は見込み達成率' },
-        { label: '当月契約確約数', desc: `${targetMonth}の契約が見込める数` },
-        { label: 'Aランク', desc: '今月契約予定(契約日確定)' },
-        { label: 'Bランク', desc: '今月見込み(確度高い)' },
-        { label: 'Cランク', desc: '今月見込み(勝負案件)' },
-        { label: 'Dランク', desc: '継続顧客' },
+        { label: '来場数', desc: (<>{targetMonth}の来場者数</>) },
+        { label: '次アポ数', desc: (<>{targetMonth}の次アポ数</>) },
+        { label: '契約数(率)', desc: (<>契約者数/来場者数</>) },
+        { label: '当月確約数', desc: (<>{targetMonth}の契約が確実な数</>) },
+        { label: '見込数', desc: (<>{targetMonth}の見込数</>) },
+        { label: '目標数', desc: (<>{targetMonth}の目標数</>) },
+        { label: '達成率', desc: (<>契約者数/予算 ()内は見込み達成率</>) },
+        { label: 'Sランク', desc: (<>契約確定(95%)<br />土地内諾<br />契約日決定<br />入金済み</>) },
+        { label: 'Aランク', desc: (<>契約確度高い(90%)<br />土地買付受領<br />建築申込</>) },
+        { label: 'Bランク', desc: (<>勝算あり(60%)<br />建築意思がある(自社他社問わず)<br />事前審査承諾<br />候補地有(プラン提案中)</>) },
+        { label: 'Cランク', desc: (<>見込み案件(40%)<br />次回アポ済み<br />LINE等で連絡可<br />事前審査提出</>) },
         // { label: 'Eランク', desc: '中長期管理' },
         // { label: 'ランクダウン', desc: 'A~CランクからD~Eランクにダウンした数' },
     ];
 
-    const rankLabels = ['Aランク', 'Bランク', 'Cランク'];
+    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク'];
 
     const background = {
         '注文営業全体': 'table-secondary ',
@@ -129,61 +138,13 @@ const RankOrder = () => {
     };
     const ym = (value: any) => dateFormate(value).slice(0, 7);
 
-    const expandTarget = async (target: Label) => {
-        const targetIndex = labelList.findIndex(l => l.label === target.label);
-        if (targetIndex === -1) return;
+    const expandTarget = (target: Label) => {
+        if (target.category === 'staff') return; // スタッフ行はクリックしても何もしない
 
-        const isSection = target.category === 'section';
-        const targetShops = isSection
-            ? shopList.filter(s => s.section === target.label).map(s => ({ label: s.shop, category: 'shop', show: false }))
-            : [];
-
-        const targetStaff = target.category === 'shop'
-            ? staffList
-                .filter(s => s.shop === target.label)
-                .sort((a, b) => b.sort - a.sort)
-                .map(s => ({ label: s.name, category: 'staff', show: false }))
-            : [];
-
-        if (isSection) {
-            if (!showTarget[target.label]) {
-                const newList = [
-                    ...labelList.slice(0, targetIndex + 1),
-                    ...targetShops,
-                    ...labelList.slice(targetIndex + 1)
-                ];
-                setLabelList(newList);
-                setShowTarget(prev => ({ ...prev, [target.label]: true }));
-            } else {
-                const sectionLabels = labelList.filter(l => l.category === 'section').map(l => l.label);
-                const nextSection = sectionLabels[sectionLabels.indexOf(target.label) + 1];
-                const removeIndex = nextSection ? labelList.findIndex(l => l.label === nextSection) : labelList.length;
-                const newList = [...labelList.slice(0, targetIndex + 1), ...labelList.slice(removeIndex)];
-
-                setLabelList(newList);
-                setShowTarget(prev => {
-                    const updates = Object.fromEntries(targetShops.map(s => [s.label, false]));
-                    return { ...prev, [target.label]: false, ...updates };
-                });
-            }
-        } else if (target.category === 'shop') {
-            if (!showTarget[target.label]) {
-                const newList = [
-                    ...labelList.slice(0, targetIndex + 1),
-                    ...targetStaff,
-                    ...labelList.slice(targetIndex + 1)
-                ];
-                setLabelList(newList);
-                setShowTarget(prev => ({ ...prev, [target.label]: true }));
-            } else {
-                const newList = [
-                    ...labelList.slice(0, targetIndex + 1),
-                    ...labelList.slice(targetIndex + 1 + targetStaff.length)
-                ];
-                setLabelList(newList);
-                setShowTarget(prev => ({ ...prev, [target.label]: false }));
-            }
-        }
+        setShowTarget(prev => ({
+            ...prev,
+            [target.label]: !prev[target.label] // true と false を反転
+        }));
     };
 
     const baseData = useMemo(() => {
@@ -192,20 +153,52 @@ const RankOrder = () => {
 
         const checkDate = (dateStr: string) => {
             if (!dateStr) return false;
-            const fmt = dateFormate(dateStr).slice(0, 7);
+            const fmt = dateFormate(dateStr.replace(/-/g, '/')).slice(0, 7);
             return isPeriod ? thisYearPeriod.includes(fmt) : fmt === targetMonth;
         };
 
         const register = customerList.filter(c => checkDate(c.register));
         const contract = customerList.filter(c => c.status === '契約済み' && checkDate(c.contract));
         const interviewBase = customerList.filter(c => checkDate(c.interview));
-        const appointmentBase = customerList.filter(c =>
+        const appointmentOther = customerList.filter(c =>
             !c.interview && (checkDate(c.appointment) || checkDate(c.screening) || checkDate(c.contract))
         );
-        const interview = [...interviewBase, ...appointmentBase];
+        const appointmentBase = customerList.filter(c =>
+            checkDate(c.interview) && (c.appointment || c.screening || c.contract)
+        );
+        const interview = [...interviewBase, ...appointmentOther];
+        const appointment = [...appointmentBase, ...appointmentOther];
 
-        return { register, contract, interview, all: customerList };
-    }, [customerList, targetMonth]);
+        return { register, contract, interview, appointment, all: customerList };
+    }, [customerList, targetMonth, staffList]);
+
+    const displayLabelList = useMemo<Label[]>(() => {
+        const list: Label[] = [];
+
+        sections.forEach(sectionName => {
+            list.push({ category: 'section', label: sectionName, show: false });
+
+            if (showTarget[sectionName]) {
+                const shops = shopList.filter(s => s.section === sectionName);
+
+                shops.forEach(shop => {
+                    list.push({ category: 'shop', label: shop.shop, show: false });
+
+                    if (showTarget[shop.shop]) {
+                        const staffs = staffList
+                            .filter(s => s.shop === shop.shop)
+                            .sort(staffSorter());
+
+                        staffs.forEach(staff => {
+                            list.push({ category: 'staff', label: staff.name, show: false });
+                        });
+                    }
+                });
+            }
+        });
+
+        return list;
+    }, [sections, shopList, staffList, showTarget]);
 
     const getFiltered = useCallback((
         period: string,
@@ -228,6 +221,7 @@ const RankOrder = () => {
         if (period === 'contract') base = baseData.contract;
         else if (period === 'interview') base = baseData.interview;
         else if (period === 'register') base = baseData.register;
+        else if (period === 'appointment') base = baseData.appointment;
         else base = baseData.all;
 
         const targetShops = category === 'section' ? shopList.filter(s => s.section === target).map(s => s.shop) : [];
@@ -357,7 +351,7 @@ const RankOrder = () => {
 
         const fetchData = async () => {
             try {
-                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_memo",  staff, memo: text, shop }, { headers });
+                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_memo", staff, memo: text, shop }, { headers });
             } catch (err) {
                 console.error(err);
             }
@@ -366,31 +360,60 @@ const RankOrder = () => {
         fetchData();
     };
 
+    const TableParts = ({ list, setModalList }: { list: Customer[], setModalList: React.Dispatch<React.SetStateAction<Customer[]>> }) => {
+        const hasList = list.length > 0;
+        return (
+            <td
+                onClick={() => hasList ? setModalList(list) : null}
+                style={{
+                    textDecoration: hasList ? 'underline' : '',
+                    cursor: hasList ? 'pointer' : ''
+                }}
+                className={list.length === 0 ? 'table-white' : ''}
+            >
+                {list.length}
+            </td>
+        );
+    };
+
+    const calculateGoal = (category: string, label?: string) => {
+        const isPeriod = targetMonth.length === 4;
+        const yearPeriod = isPeriod ? getFiscalYearMonthsFromJune(targetMonth) : [];
+        const targetShopArray = category === 'all' ? shopList.filter(s => s.division === '注文事業').map(s => s.shop)
+            : category === 'section' ? shopList.filter(s => s.section === label).map(s => s.shop)
+                : shopList.filter(s => s.shop === label).map(s => s.shop);
+        if (isPeriod) {
+            const goal = achievement.filter(a => targetShopArray.includes(a.name) && yearPeriod.includes(dateFormate(a.period))).reduce((acc, cur) => acc + Number(cur.value), 0);
+            return goal;
+        } else {
+            const goal = achievement.filter(a => targetShopArray.includes(a.name) && dateFormate(a.period) === dateFormate(targetMonth)).reduce((acc, cur) => acc + Number(cur.value), 0);
+            return goal;
+        }
+    };
 
     return (
-        <>
-            <div className='content database bg-white p-2'>
+        <div style={{ overflowX: 'scroll' }}>
+            <div className='bg-white p-2' style={{ width: '1600px' }}>
                 <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                 <div className="row mt-3 mb-4" >
                     <div className="col d-flex">
                         <select className="target" name="startMonth" onChange={(e) => setTargetMonth(e.target.value)}>
-                            <option value={thisYear - 1}>{thisYear - 1}年度</option>
-                            <option value={thisYear}>{thisYear}年度</option>
+                            {getYears().map(year => <option key={year} value={year}>{year}年度</option>)}
                             {monthArray.map((month, index) => (
                                 <option key={index} value={month} selected={targetMonth === month}>{month}</option>
                             ))}
                         </select>
                     </div>
                 </div>
-                <div className="">
+                <div>
                     <Table bordered>
                         <tbody style={{ fontSize: '12px' }} className='align-middle'>
                             <tr className="text-center">
-                                <td rowSpan={2}>店舗</td>
+                                <td rowSpan={2} className='sticky-column-rank'>店舗</td>
                                 {tooltipItems
                                     .filter(t => {
                                         const isPeriod = targetMonth.length === 4;
-                                        return isPeriod ? t.label !== '当月契約確約数' : true
+                                        return isPeriod ? t.label !== '当月確約数' : true
                                     })
                                     .map((item, i) => {
                                         const isRank = rankLabels.includes(item.label);
@@ -426,7 +449,7 @@ const RankOrder = () => {
                                         );
                                     })}
                             </tr>
-                            {[{ label: '注文営業全体', category: 'all', show: true }, ...labelList].map((target, targetIndex) => {
+                            {[{ label: '注文営業全体', category: 'all', show: true }, ...displayLabelList].map((target, targetIndex) => {
                                 let bgKey;
                                 if (target.category === 'section' || target.category === 'all') {
                                     bgKey = target.label;
@@ -436,20 +459,22 @@ const RankOrder = () => {
                                 const isPeriod = targetMonth.length === 4;
                                 const register = getFiltered('register', target.category, target.label, targetIndex, '', 0);
                                 const interview = getFiltered('interview', target.category, target.label, targetIndex, '', 0);
+                                const appointment = getFiltered('appointment', target.category, target.label, targetIndex, '', 0);
                                 const contract = getFiltered('contract', target.category, target.label, targetIndex, '', 0);
-                                const rankA = getFiltered('', target.category, target.label, targetIndex, 'Aランク', 0);
-                                const goal = achievement.filter(a => {
-                                    const yearPeriod = isPeriod ? getFiscalYearMonthsFromJune(targetMonth) : [];
-                                    return (target.category === 'all' ? a.name === '注文事業' : a.name === target.label) &&
-                                        (isPeriod ? yearPeriod.includes(a.period.replace(/-/g, '/')) : a.period.replace(/-/g, '/') === targetMonth)
-                                }).reduce((acc, cur) => acc + Number(cur.value), 0);
+                                const rankS = getFiltered('', target.category, target.label, targetIndex, 'Sランク', 0);
+                                const goal = calculateGoal(target.category, target.label);
                                 const expectedList = expectedContract.filter(item => item.date === targetMonth
                                     && ((targetIndex > 0) ? item[target.category] === target.label : true));
                                 const expected = expectedList.reduce((acc, cur) => acc + cur.count, 0);
                                 return (
                                     <tr key={targetIndex} className={`${background[bgKey]} align-middle`} style={{ textAlign: 'center' }}>
-                                        <td style={{ cursor: target.category === 'staff' ? 'text' : 'pointer', textAlign: 'left', paddingLeft: (targetIndex === 0 || target.category === 'staff') ? '34px' : '' }}
+                                        <td style={{
+                                            cursor: target.category === 'staff' ? 'text' : 'pointer',
+                                            textAlign: 'left',
+                                            paddingLeft: (targetIndex === 0 || target.category === 'staff') ? '34px' : '',
+                                        }}
                                             onClick={() => expandTarget(target)}
+                                            className='sticky-column-rank'
                                         >
                                             <div className="d-flex align-items-center">
                                                 {(targetIndex > 0 && target.category !== 'staff') && <i className={`fa-solid ${showTarget[target.label] ? 'fa-minus' : 'fa-plus'} me-2 p-1 pointer-icon rounded`} ></i>}
@@ -464,20 +489,20 @@ const RankOrder = () => {
                                                 )}
                                             </div>
                                         </td>
-                                        <td>{register.length}</td>
-                                        {/* <td>{perFormate(interview.length / register.length)}%</td> */}
-                                        <td>{interview.length}</td>
-                                        <td>{perFormate(contract.length / interview.length)}%</td>
-                                        <td>{target.category === 'staff' ? '-' : goal}</td>
-                                        <td onClick={() => contract.length > 0 ? setModalList(contract) : null}
+                                        <TableParts key={targetIndex} list={register} setModalList={setModalList} />
+                                        <TableParts key={targetIndex} list={interview} setModalList={setModalList} />
+                                        <TableParts key={targetIndex} list={appointment} setModalList={setModalList} />
+                                        <td onClick={() => contract.length > 0 ? setModalList(contract) : null} style={{
+                                            textDecoration: contract.length > 0 ? 'underline' : ''
+                                            , cursor: contract.length > 0 ? 'pointer' : ''
+                                        }}
                                             className={contract.length === 0 ? 'table-white' : ''}
-                                            style={{ textDecoration: contract.length > 0 ? 'underline' : '', cursor: contract.length > 0 ? 'pointer' : '' }}
-                                        >{contract.length}(<span className='text-primary'>{contract.length + (thisMonth ? rankA.length : 0)}</span>)</td>
-                                        <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%(<span className='text-primary'>{goal ? perFormate((contract.length + rankA.length) / Number(goal)) : 0}%</span>)</td>
+                                            key={targetIndex}>{contract.length}({perFormate(contract.length / interview.length)}%)</td>
+                                        <TableParts key={targetIndex} list={[...contract, ...rankS]} setModalList={setModalList} />
                                         {!isPeriod && <td>
                                             {(targetIndex === 0 || target.category === 'section') && expected}
                                             {(target.category === 'shop') && <input type='number' className='target text-center' value={expected}
-                                                style={{ width: '60px', height: '25px', margin: '0 auto' }}
+                                                style={{ width: '40px', height: '25px', margin: '0 auto' }}
                                                 onChange={(e) => {
                                                     const sectionValue = shopList.find(s => s.shop === target.label)?.section;
                                                     setNewExpected({
@@ -504,27 +529,20 @@ const RankOrder = () => {
                                                     );
                                                 }}
                                             />}</td>}
-                                        {['A', 'B', 'C', 'D'].map((rank, rankIndex) => {
-                                            const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}ランク`, 0);
+                                        <td>{target.category === 'staff' ? '-' : goal}</td>
+                                        <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%
+                                            (<span className='text-primary'>{goal ? perFormate((contract.length + rankS.length) / Number(goal)) : 0}%</span>)</td>
+                                        {rankLabels.map((rank, rankIndex) => {
+                                            const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, 0);
                                             return <>
-                                                <td onClick={() => targetList.length > 0 ? setModalList(targetList) : null} style={{
-                                                    textDecoration: targetList.length > 0 ? 'underline' : ''
-                                                    , cursor: targetList.length > 0 ? 'pointer' : ''
-                                                }}
-                                                    className={targetList.length === 0 ? 'table-white' : ''}
-                                                    key={rankIndex}>{targetList.length}</td>
-                                                {(rankIndex < 3 && !isPeriod) && <>
-                                                    {[1, 2].map(num => {
-                                                        const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}ランク`, num);
-                                                        return <td onClick={() => targetList.length > 0 ? setModalList(targetList) : null} style={{
-                                                            textDecoration: targetList.length > 0 ? 'underline' : ''
-                                                            , cursor: targetList.length > 0 ? 'pointer' : ''
-                                                        }}
-                                                            className={targetList.length === 0 ? 'table-white' : ''}
-                                                            key={num}>{targetList.length}</td>
-                                                    }
-                                                    )}
-                                                </>}
+                                                <TableParts key={rankIndex} list={targetList} setModalList={setModalList} />
+                                                {!isPeriod && [1, 2].map(num => {
+                                                    const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, num);
+                                                    return <>
+                                                        <TableParts key={num} list={targetList} setModalList={setModalList} />
+                                                    </>
+                                                }
+                                                )}
                                             </>
                                         }
                                         )}
@@ -575,7 +593,7 @@ const RankOrder = () => {
                                                     onChange={(e) => {
                                                         setNewRank(item.id, e.target.value, '');
                                                     }}>
-                                                    {['Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'].map(rank => {
+                                                    {['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'].map(rank => {
                                                         return <option value={rank} key={rank} selected={rank === item.rank}>{rank}</option>
                                                     }
                                                     )}
@@ -612,7 +630,7 @@ const RankOrder = () => {
             </Modal>
             <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
-        </>
+        </div>
     )
 }
 

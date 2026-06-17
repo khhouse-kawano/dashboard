@@ -20,7 +20,6 @@ const ActiveUser: React.FC = () => {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const draggingRef = useRef(false);
     const startRef = useRef({ x: 0, y: 0 }); // pointer start
-    // posRef を number で初期化（TS エラー回避）
     const posRef = useRef({ x: 0, y: 0 }); // 初期は (0,0) にしておく
 
     const [width, setWidth] = useState(window.innerWidth);
@@ -106,14 +105,11 @@ const ActiveUser: React.FC = () => {
 
     const activeCount = activeList.length;
 
-    // --- 初期スタイル（固定表示） ---
-    // fixedWrapperBase は右上に合わせるため alignItems を調整しておく（任意）
     const fixedWrapperBase: React.CSSProperties = {
         position: 'fixed',
-        // bottom を使わない（top を使う）
         top: 20, // ここは初期表示の目安。実際の left/top は initPos で上書きします
         right: 20, // 初期スタイルとして右上に見せるため
-        zIndex: 1200,
+        zIndex: 11000,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
@@ -154,12 +150,10 @@ const ActiveUser: React.FC = () => {
         }
     };
 
-    // --- ドラッグ処理 ---
     useEffect(() => {
         const wrapper = wrapperRef.current;
         if (!wrapper) return;
 
-        // 初期位置を posRef にセット（右/bottom を left/top に変換）
         const initPos = () => {
             const rect = wrapper.getBoundingClientRect();
 

@@ -11,7 +11,7 @@ import Logo from '../assets/images/logo.png';
 import Estate from './Estate';
 
 type UnSync = { inquiry_date: string, sync: number, black_list: string };
-type Cancel = { interview: string, reserved_interview: string, cancel_status: string };
+type Cancel = Record<string, string>;;
 type Props = {
     key: number,
     onReload: () => void
@@ -29,6 +29,7 @@ const MenuDev = ({ key, onReload }: Props) => {
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [estateId, setEstateId] = useState('');
     const [newEstate, setNewEstate] = useState<number | null>(0);
+    const [lost, setLost] = useState(0);
 
     const dateFormate = (value: string) => {
         return (value ?? '').replace(/\//g, '-');
@@ -54,16 +55,34 @@ const MenuDev = ({ key, onReload }: Props) => {
     }, [unSyncList]);
 
     useEffect(() => {
-        const total = cancelList.filter(item => {
+        const cancelLength = cancelList.filter(item => {
             const now = new Date();
             const today = now.getTime();
             const target = new Date(dateFormate(item.reserved_interview)).getTime();
             const start = new Date('2026-01-01');
             const base = start.getTime();
-            return target < today && base < target && (!item.interview && !item.cancel_status)
+            return target < today && base < target && (!item.interview && !item.cancel_status) && item.status !== '重複'
         }).length;
-        setCancel(total);
-    }, [cancelList])
+        setCancel(cancelLength);
+
+        const lostLength = cancelList.filter(item => {
+            const now = new Date();
+            const today = now.getTime();
+            const target = new Date(dateFormate(item.register)).getTime();
+            const start = new Date('2026-01-01');
+            const base = start.getTime();
+            const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
+            const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
+            const isDetailMissing = item.competitor_lost_contract_reason === '競合負け' &&
+                (
+                    !item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
+                    !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
+                );
+
+            return target < today && base < target && item.status === '失注' && (isReasonMissing || isCompetitorMissing || isDetailMissing) && Number(item.trash) === 1;
+        }).length
+        setLost(lostLength);
+    }, [cancelList]);
 
     const navigate = useNavigate();
 
@@ -95,9 +114,11 @@ const MenuDev = ({ key, onReload }: Props) => {
                     <div className={`category_menu  ps-3 ${currentPath === "/company" ? "selected " : ""}`}
                         onClick={() => navigate("/company", { state: { brand: brand, }, })}><i className="fa-solid fa-rainbow me-1 text-secondary"></i>全社報告用フォーマット</div>
                     <div className={`position-relative category_menu  ps-3 ${currentPath === "/list" ? "selected " : ""}`}
-                        onClick={() => navigate("/list", { state: { brand: brand, }, })}><i className="fa-solid fa-phone me-1 text-secondary"></i>反響一覧{sync > 0 && <div className="position-absolute menu_sync">未同期 {sync}件</div>}</div>
+                        onClick={() => navigate("/list", { state: { brand: brand, }, })}><i className="fa-solid fa-phone me-1 text-secondary"></i>反響一覧{sync > 0 && <div className="position-absolute menu_sync" style={{ top: '8px', right: '10px' }}>未同期 {sync}件</div>}</div>
                     <div className={`position-relative category_menu  ps-3 ${currentPath === "/database" ? "selected " : ""}`}
-                        onClick={() => navigate("/database", { state: { brand: brand, }, })}><i className="fa-solid fa-magnifying-glass me-1 text-secondary"></i>顧客データベース{(cancel > 0 && category === 'order') && <div className="position-absolute menu_sync">要回答 {cancel}件</div>}</div>
+                        onClick={() => navigate("/database", { state: { brand: brand, }, })}><i className="fa-solid fa-magnifying-glass me-1 text-secondary"></i>顧客DB
+                        {(cancel > 0 && category === 'order') && <div className="position-absolute menu_sync" style={{ top: '2px', right: '10px' }}>来場未入力 {cancel}件</div>}
+                        {(lost > 0 && category === 'order') && <div className="position-absolute menu_sync" style={{ top: '16px', right: '10px' }}>失注未入力 {lost}件</div>}</div>
                     <div className={`category_menu  ps-3 ${currentPath === "/rank" ? "selected " : ""}`}
                         onClick={() => navigate("/rank", { state: { brand: brand, }, })}><i className="fa-solid fa-person me-1 text-secondary"></i>店舗・担当別反響</div>
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customer" ? "selected " : ""}`}
@@ -113,15 +134,13 @@ const MenuDev = ({ key, onReload }: Props) => {
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/calendar" ? "selected " : ""}`}
                         onClick={() => navigate("/calendar", { state: { brand: brand, }, })}><i className="fa-solid fa-calendar me-1 text-secondary"></i>カレンダー</div>}
                     {category === 'order' && <div className={`position-relative category_menu  ps-3`}
-                        onClick={() => setEstateId('search')}><i className="fa-solid fa-map me-1 text-secondary"></i>土地情報{sync > 0 && <div className="position-absolute menu_sync">新着 {newEstate}件</div>}</div>}
+                        onClick={() => setEstateId('search')}><i className="fa-solid fa-map me-1 text-secondary"></i>土地情報{sync > 0 && <div className="position-absolute menu_sync" style={{ top: '8px', right: '10px' }}>新着 {newEstate}件</div>}</div>}
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/map" ? "selected " : ""}`}
-                        onClick={() => navigate("/map", { state: { brand: brand, }, })}><i className="fa-solid fa-map me-1 text-secondary"></i>エリア別反響MAP</div>}
+                        onClick={() => navigate("/map", { state: { brand: brand, }, })}><i className="fa-solid fa-map me-1 text-secondary"></i>反響MAP</div>}
                     {/* {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/market" ? "selected " : ""}`}
                     onClick={() => navigate("/market", { state: { brand: brand, }, })}>マーケット情報</div>} */}
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/kengakuCloud" ? "selected " : ""}`}
-                        onClick={() => navigate("/kengakuCloud", { state: { brand: brand, }, })}><i className="fa-solid fa-book-open me-1 text-secondary"></i>KengakuCloudマニュアル</div>}
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/registered_estate" ? "selected " : ""}`}
-                        onClick={() => navigate("/registered_estate", { state: { brand: brand, }, })}><i className="fa-solid fa-clipboard-user me-1 text-secondary"></i>土地情報登録状況</div>}
+                    {/* {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/kengakuCloud" ? "selected " : ""}`}
+                        onClick={() => navigate("/kengakuCloud", { state: { brand: brand, }, })}><i className="fa-solid fa-book-open me-1 text-secondary"></i>KengakuCloudマニュアル</div>} */}
                     {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/resale_performance") ? "selected" : ""}`}
                         onClick={() => navigate("/resale_performance", { state: { brand: brand, }, })}>予実サマリー</div>}
                     {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/portal_buy") ? "selected" : ""}`}
@@ -152,6 +171,10 @@ const MenuDev = ({ key, onReload }: Props) => {
                             <i className="fa-solid fa-money-check me-1 text-secondary"></i>予算詳細<span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>管理者専用</span>
                         </div>
                     ) : null}
+                    <div className={`category_menu  ps-3  ${currentPath.includes("/photo") ? "selected" : ""}`}
+                        onClick={() => navigate("/photo", { state: { brand: brand, }, })}>
+                        <i className="fa-solid fa-camera me-1 text-secondary"></i>K-snap登録
+                    </div>
                 </div>
             </>}
             <Estate estateId={estateId} setEstateId={setEstateId} />

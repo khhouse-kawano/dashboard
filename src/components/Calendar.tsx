@@ -137,7 +137,8 @@ const Company = () => {
             ]);
             setCalendar(calendarRes.data);
             setModalOriginalList(calendarRes.data);
-            setShopList(shopRes.data);
+            const newShopList = [{ shop: 'khg', brand: '' }, ...shopRes.data]
+            setShopList(newShopList);
             setOriginalResponse(calenderRegisterRes.data);
         };
 
@@ -549,7 +550,7 @@ const Company = () => {
                                 <select className='target' onChange={(e) => setTargetShop(e.target.value)} disabled={display === 'list'}>
                                     <option value="" selected={targetShop === ''}>店舗を選択</option>
                                     <option value="iceWorld">アイスワールド</option>
-                                    {shopList.map((shop, index) => <option value={shop.shop} key={index} selected={targetShop === shop.shop}>{shop.shop}</option>)}
+                                    {shopList.map((shop, index) => <option value={shop.shop} key={index} selected={targetShop === shop.shop}>{shop.shop.replace('khg', 'KHG')}</option>)}
                                 </select>
                             </div>
                             {display === 'shop' && <div className="calendarResponse menu">
@@ -658,7 +659,7 @@ const Company = () => {
 
                                         return (
                                             <tr key={sIndex}>
-                                                <td>{s.shop}</td>
+                                                <td>{s.shop === 'khg' ? '探客イベント' : s.shop}</td>
                                                 {[...Array(lastDay)].map((_, i) => {
                                                     const ev = targetEvent.find(t => t.date === i + 1);
                                                     const eventsForDay = ev ? ev.event : [];

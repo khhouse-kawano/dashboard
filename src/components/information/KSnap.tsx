@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import axios from 'axios';
-import { headers } from '../utils/headers';
+import { headers } from '../../utils/headers';
 import Table from 'react-bootstrap/Table';
 
 type Customer = Record<string, string>;
@@ -15,7 +15,6 @@ const KSnap = ({ id, setKSnap }: Props) => {
     const [customerData, setCustomerData] = useState<Customer>({});
     const [snaps, setSnaps] = useState<Snap[]>([]);
 
-    // ▼ 追加: 拡大表示する画像を保持するステート
     const [zoomedImg, setZoomedImg] = useState<string | null>(null);
 
     const safeFormate = (value: string) => {
@@ -54,22 +53,59 @@ const KSnap = ({ id, setKSnap }: Props) => {
         width: '100%',
         height: '100%',
         objectFit: 'cover' as const,
-        cursor: 'pointer' // ▼ 追加: クリックできることがわかるようにカーソルを変更
+        cursor: 'pointer'
     };
+
+    type PagingProps = {
+        pages: number,
+        pageLength: number,
+        targetPage: number,
+        setTargetPage: React.Dispatch<React.SetStateAction<number>>
+    };
+
+    const [logPage, setLogPage] = useState(1);
+    const [favPage, setFavPage] = useState(1);
+    const [focusPage, setFocusPage] = useState(1);
+
+    const Paging = ({ pages, pageLength, targetPage, setTargetPage }: PagingProps) => {
+        const total = Math.ceil(pages / pageLength);
+        return <div className='d-flex align-items-center mb-3 flex-wrap'
+        style={{fontSize: '16px'}}>
+            {[...Array(total)].map((_, index) => <div className='me-2'
+                style={{
+                    textDecoration: index + 1 === targetPage ? '' : 'underline',
+                    cursor: index + 1 === targetPage ? '' : 'pointer'
+                }}
+                onClick={() => setTargetPage(index + 1)}
+            >{index + 1}
+            </div>)}</div>
+    };
+
+    const handleSlice = (list: Record<string, string>[] | string[], page: number, targetLength: number) => {
+        return list.slice(page * targetLength - targetLength, page * targetLength)
+    };
+
+    const [showPass, setShowPass] = useState(false);
 
     return (
         <>
-            {/* メインの顧客情報モーダル */}
             <Modal show={!!id} onHide={() => setKSnap('')} size='lg'>
                 <Modal.Header closeButton></Modal.Header>
                 <Modal.Body>
                     <Table>
                         <tbody style={{ fontSize: '12px' }}>
                             <tr>
-                                <td style={{ width: '150px' }}>閲覧ログ</td>
+                                <td style={{ width: '150px' }}>パスワード</td>
                                 <td>
+                                    <input value={customerData.pass ?? ''} type={showPass ? 'text' : 'password'}
+                                        style={{ width: '90px', fontSize: '20px', border: 'none', height: '20px', letterSpacing: '8px' }} /><i className="fa-solid fa-eye ms-2" onClick={() => setShowPass(!showPass)} style={{ cursor: 'pointer' }}></i></td>
+                            </tr>
+                            <tr>
+                                <td>閲覧ログ</td>
+                                <td>
+                                    <Paging pages={safeParseArray(customerData.log).length} pageLength={20} targetPage={logPage} setTargetPage={setLogPage} />
                                     <div className="d-flex align-items-center flex-wrap">
-                                        {safeParseArray(customerData.log)
+                                        {handleSlice(safeParseArray(customerData.log), logPage, 10)
                                             .sort((a, b) => {
                                                 const timeA = new Date(a.time).getTime();
                                                 const timeB = new Date(b.time).getTime();
@@ -79,7 +115,7 @@ const KSnap = ({ id, setKSnap }: Props) => {
                                                 const imgValue = snaps.find(s => String(s.id) === item.img)?.image;
                                                 return (
                                                     <div key={index}>
-                                                        <div style={{ fontSize: '8px' }}>{item.time}</div>
+                                                        <div style={{ fontSize: '10px' }}>{item.time}</div>
                                                         <div className='me-1 mb-1' style={{ height: '100px', width: '100px' }}>
                                                             {imgValue && (
                                                                 <img
@@ -99,8 +135,9 @@ const KSnap = ({ id, setKSnap }: Props) => {
                             <tr>
                                 <td>お気に入り登録</td>
                                 <td>
+                                    <Paging pages={safeFormate(customerData.bookmark).length} pageLength={10} targetPage={favPage} setTargetPage={setFavPage} />
                                     <div className="d-flex flex-wrap">
-                                        {safeFormate(customerData.bookmark).map((item, index) => {
+                                        {handleSlice(safeFormate(customerData.bookmark), favPage, 10).map((item, index) => {
                                             const imgValue = snaps.find(s => String(s.id) === item)?.image;
                                             return (
                                                 <div key={index} className='me-1 mb-1' style={{ height: '100px', width: '100px' }}>
@@ -122,17 +159,25 @@ const KSnap = ({ id, setKSnap }: Props) => {
                                 <td>検索タグ</td>
                                 <td>
                                     <div className="d-flex flex-wrap">
-                                        {safeFormate(customerData.tag).map((item, index) => {
-                                            return <div key={index} className='me-2 bg-warning px-2 rounded py-1 mb-1'>{item}</div>
-                                        })}
+                                        {[...new Set(safeFormate(customerData.tag))]
+                                            .sort((a, b) => {
+                                                const tagLengthA = safeFormate(customerData.tag).filter(c => c === a).length
+                                                const tagLengthB = safeFormate(customerData.tag).filter(c => c === b).length
+                                                return tagLengthB - tagLengthA
+                                            })
+                                            .map((item, index) => {
+                                                const tagLength = safeFormate(customerData.tag).filter(c => c === item).length
+                                                return <div key={index} className='me-2 bg-warning px-2 rounded py-1 mb-1'>{item}× {tagLength}</div>
+                                            })}
                                     </div>
                                 </td>
                             </tr>
                             <tr>
                                 <td>拡大表示</td>
                                 <td>
+                                    <Paging pages={safeFormate(customerData.path).length} pageLength={10} targetPage={focusPage} setTargetPage={setFocusPage} />
                                     <div className="d-flex flex-wrap">
-                                        {safeFormate(customerData.path).map((item, index) => {
+                                        {handleSlice(safeFormate(customerData.path), focusPage, 10).map((item, index) => {
                                             const imgValue = snaps.find(s => String(s.id) === item)?.image;
                                             return (
                                                 <div key={index} className='me-1 mb-1' style={{ height: '100px', width: '100px' }}>

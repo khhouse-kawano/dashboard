@@ -23,6 +23,7 @@ type InterviewAction = {
     day: string;
     action: string;
     note: string;
+    staff: string;
 };
 type CallAction = {
     day: string;
@@ -77,6 +78,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
         day: '',
         action: '',
         note: '',
+        staff: ''
     });
     const [call, setCall] = useState({
         status: '',
@@ -114,6 +116,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
     const day = now.getDate();
     const today = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const thisMonth = `${year}-${String(month).padStart(2, '0')}`;
+    const thisYear = now.getMonth() <= 4 ? year : year + 1;
     const [propertyInput, setPropertyInput] = useState('');
     const [originalPropertyList, setOriginalPropertyList] = useState<string[]>([]);
     const [propertyList, setPropertyList] = useState<string[]>([]);
@@ -144,7 +147,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
             const fetchData = async () => {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEditResale_add_customer" }, { headers });
                 setShopArray(categoryList);
-                setStaffArray(response.data.staff.filter(s => s.category === 1));
+                await setStaffArray(response.data.staff.filter(s => s.category === 1 && s.period === String(thisYear)));
                 setMediumArray(response.data.medium);
                 setOriginalPropertyList(response.data.property.filter(p => p.in_charge_store = '国分ハウジンググループ中古住宅専門店').map(p => p.property_name));
             };
@@ -154,7 +157,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
             const fetchData = async () => {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEditResale_edit_customer", id: id }, { headers });
                 setShopArray(categoryList);
-                setStaffArray(response.data.staff.filter(s => s.category === 1));
+                await setStaffArray(response.data.staff.filter(s => s.category === 1 && s.period === String(thisYear)));
                 setMediumArray(response.data.medium);
                 setInformation(response.data.customer);
                 setOriginalPropertyList(response.data.property.filter(p => p.in_charge_store = '国分ハウジンググループ中古住宅専門店').map(p => p.property_name));
@@ -198,13 +201,21 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
     };
 
     const actionMap = {
-        '資料送付': 'step_migration_item_catalog',
-        '初回面談': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+        '初回来場': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
         '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
         '事前審査': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
         '物件案内': 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
-        '契約': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'
+        'リフォーム契約': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+        '売買契約': 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
+        '訪問査定': 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
+        '媒介取得': 'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0',
     };
+
+    const optionMapping = {
+        '買い:中古リノベ': ['初回来場', '2回目以降面談', '物件案内', '事前審査', 'リフォーム契約', '売買契約'],
+        '買い:ポータル': ['初回来場', '2回目以降面談', '物件案内', '事前審査', '売買契約'],
+        '売り:ポータル': ['査定アポ', '査定書提出', '訪問査定', '媒介取得'],
+    }
 
     const modalClose = () => onClose();
 
@@ -216,6 +227,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
         const requiredList = ['customer_contacts_name', 'in_charge_store', 'in_charge_user', 'status', 'sales_promotion_name'];
 
         if (!information.status) information.status = '見込み';
+        if (!information.category) information.category = information.in_charge_store;
         if (!information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99) information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 = today;
         for (const key of requiredList) {
             if (!information[key]) {
@@ -252,7 +264,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                 shop: information.in_charge_store,
                 interview_log: [
                     ...interviewLog.interview_log,
-                    { day: interview.day, action: interview.action, note: interview.note }
+                    { day: interview.day, action: interview.action, note: interview.note, staff: userName }
                 ]
             };
             updatedInterviewData = {
@@ -379,7 +391,8 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
         await setInterview({
             day: '',
             action: '',
-            note: ''
+            note: '', 
+            staff: ''
         });
         await setCall({
             status: '',
@@ -392,11 +405,30 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
         modalClose();
     };
 
-    const labelStyle = { fontSize: '11px', fontWeight: '700', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' };
+    const baseStyle = { border: '1px solid #D3D3D3', borderRadius: '4px', height: '35px', width: '150px', paddingLeft: '10px', color: '#303030' };
+    const labelStyle = { color: '#303030', fontSize: '11px', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' };
+    const buttonStyle = {
+        color: '#495057',                  // 入力欄の文字色(#303030)より少しだけ柔らかい色に
+        backgroundColor: '#f8f9fa',        // 真っ白ではなく、ごく薄いグレーにして入力欄と区別
+        border: '1px solid #d2d6da',       // 枠線も少しだけトーンを変える
+        borderRadius: '6px',               // 入力欄(4px)より少しだけ丸くする
+        padding: '0 16px',                 // 左右の余白を少し広めに
+        fontSize: '11px',
+        fontWeight: '600',                 // ほんの少し太字にしてボタンらしさを強調
+        letterSpacing: '0.6px',
+        marginBottom: '4px',
+        cursor: 'pointer',
+        height: '35px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)', // 影をほんの少しだけ濃くして立体感を出す
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',          // 文字を左右中央に
+        width: 'fit-content'
+    };
     const valueStyle = { fontSize: '12px', letterSpacing: '.6px', verticalAlign: 'middle' };
-    const inputStyle = { border: '1px solid #D3D3D3', borderRadius: '7px', height: '25px', width: '150px', paddingLeft: '10px', margin: '5px' };
-    const selectStyle = { border: '1px solid #D3D3D3', borderRadius: '7px', height: '25px', width: '150px', paddingLeft: '10px' };
-    const requiredStyle = 'text-white bg-danger p-1 rounded ms-1';
+    const inputStyle = { ...baseStyle, margin: '5px', color: '#303030' };
+    const selectStyle = { ...baseStyle };
+    const requiredStyle = { border: '1px solid #9b9b9b', borderRadius: '4px', color: '#303030', padding: '3px 5px', marginLeft: '5px' };
     const expandStyle = (key: string) => {
         return {
             padding: key === 'interview' || key === 'call' ? '15px' : '0',
@@ -407,21 +439,28 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
             overflowY: 'hidden' as const
         }
     };
-    const expandButton = (key: string) => {
-        return {
-            width: '60px',
-            zIndex: '1000',
-            cursor: 'pointer',
-            left: '0px',
-            top: '26px',
-            color: '#fff',
-            textAlign: 'center' as const,
-            borderRadius: '14px',
-            padding: '4px 0',
-            backgroundColor: expand[key] ? '#0dcaf0' : '#198754'
-        }
+    const expandButton = {
+        ...buttonStyle,
+        padding: '2px 10px'
     };
-    const actionButton = { backgroundColor: '#D3D3D3', padding: '6px', marginLeft: '5px', borderRadius: '3px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.39)' };
+    const actionButton = { ...buttonStyle, padding: '6px', marginLeft: '5px' };
+
+    const calculateAge = (birthDateString: string) => {
+        if (!birthDateString) return "";
+
+        const today = new Date();
+        const birthDate = new Date(birthDateString);
+
+        let age = today.getFullYear() - birthDate.getFullYear();
+
+        const monthDifference = today.getMonth() - birthDate.getMonth();
+
+        if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+
+        return age;
+    };
     const handleClose = () => {
         setInterviewLog({
             id: '',
@@ -434,6 +473,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
             day: '',
             action: '',
             note: '',
+            staff: ''
         });
         setCall({
             status: '',
@@ -555,7 +595,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                             <Table responsive style={{ fontSize: '11px', textAlign: 'left' }} className='list_table database'>
                                 <tbody>
                                     <tr>
-                                        <td style={{ ...labelStyle, width: '10%' }}>お客様名<span className={requiredStyle}>必須</span></td>
+                                        <td style={{ ...labelStyle, width: '10%' }}>お客様名<span style={requiredStyle}>必須</span></td>
                                         <td style={{ ...valueStyle, width: '40%' }}>
                                             <input type='text' placeholder='漢字' style={inputStyle} value={safeFormate(information[idMapping('お客様名')])}
                                                 onChange={(e) => {
@@ -659,7 +699,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />
                                         </td>
-                                        <td style={labelStyle}>担当店舗<span className={requiredStyle}>必須</span></td>
+                                        <td style={labelStyle}>担当店舗<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>
                                             <select
                                                 style={selectStyle}
@@ -683,7 +723,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>担当営業<span className={requiredStyle}>必須</span></td>
+                                        <td style={labelStyle}>担当営業<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>
                                             <select
                                                 style={selectStyle}
@@ -722,6 +762,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                 <option value='失注'>失注</option>
                                                 <option value='重複'>重複</option>
                                                 <option value='契約済み'>契約済み</option>
+                                                <option value='解約'>解約</option>
                                             </select>
                                         </td>
                                     </tr>
@@ -739,6 +780,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                         ));
                                                     }}>
                                                     <option value="">選択してください</option>
+                                                    <option value='Sランク'>Sランク</option>
                                                     <option value='Aランク'>Aランク</option>
                                                     <option value='Bランク'>Bランク</option>
                                                     <option value='Cランク'>Cランク</option>
@@ -758,7 +800,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                     }} />
                                             </div>
                                         </td>
-                                        <td style={labelStyle}>反響媒体<span className={requiredStyle}>必須</span></td>
+                                        <td style={labelStyle}>反響媒体<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>
                                             <select style={inputStyle} value={safeFormate(information[idMapping('反響媒体')])}
                                                 onChange={(e) => {
@@ -778,13 +820,32 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                     </tr>
                                     <tr>
                                         <td style={labelStyle}>家族情報</td>
-                                        <td style={valueStyle}><div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
+                                        <td style={valueStyle}><div style={buttonStyle}
                                             onClick={() => setFamilyMShow(true)}>入力・確認</div></td>
+                                        <td style={labelStyle}>生年月日</td>
+                                        <td style={valueStyle}>
+                                            <div className="d-flex align-items-center">
+                                                <input type='date' style={inputStyle}
+                                                    value={dateFormate(information.customer_contacts_birth_date)}
+                                                    onChange={(e) => {
+                                                        setInformation(prev => (
+                                                            {
+                                                                ...prev,
+                                                                customer_contacts_birth_date: e.target.value
+                                                            }
+                                                        ));
+                                                    }}
+                                                />
+                                                {information.customer_contacts_birth_date && <div className="ms-2">({calculateAge(information.customer_contacts_birth_date)}歳)</div>}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
                                         <td style={labelStyle}>物件連携</td>
                                         <td style={valueStyle}>
                                             <div className="text-secondary" style={{ fontSize: '10px' }}>※リストをクリックして選択</div>
                                             <div className="d-flex align-items-center">
-                                                <div className="d-flex flex-wrap align-items-center position-relative" style={{ ...inputStyle, width: '80%', height: 'auto', minHeight: '25px' }}>
+                                                <div className="d-flex flex-wrap align-items-center position-relative" style={{ ...inputStyle, width: '80%', }}>
                                                     {information.property_name &&
                                                         information.property_name.split(',')
                                                             .filter(c => c !== 'null')
@@ -834,13 +895,25 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                 </div>
                                             </div>
                                         </td>
+                                        <td style={{ ...labelStyle, width: '60px' }}>予定地</td>
+                                        <td style={valueStyle}>
+                                            <input type='text' placeholder='予定地' style={inputStyle} value={safeFormate(information.planned_construction_site)}
+                                                onChange={(e) => {
+                                                    setInformation(prev => (
+                                                        {
+                                                            ...prev,
+                                                            planned_construction_site: e.target.value
+                                                        }
+                                                    ));
+                                                }} />
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
                                                 商談ステップ
                                                 <div className='position-absolute'
-                                                    style={expandButton('interview')}
+                                                    style={expandButton}
                                                     onClick={() => {
                                                         setExpand(prev =>
                                                         ({
@@ -950,15 +1023,11 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                                         }}
                                                                         value={item.action.includes('物件案内') ? '物件案内' : safeFormate(item.action)}>
                                                                         <option value="">アクション内容</option>
-                                                                        <option value="資料送付">資料送付</option>
-                                                                        <option value="初回面談">初回面談</option>
-                                                                        <option value='物件案内'>物件案内</option>
+                                                                        {(optionMapping[information.in_charge_store] || []).map(item =>
+                                                                            <option value={item} key={item}>{item}</option>
+                                                                        )}
                                                                         {information.property_name && information.property_name.split(',').map((property, pIndex) =>
                                                                             <option value={`物件案内,${property}`} key={pIndex}>物件案内({property})</option>)}
-                                                                        <option value="2回目以降面談">2回目以降面談</option>
-                                                                        <option value="オンライン面談">オンライン面談</option>
-                                                                        <option value="事前審査">事前審査</option>
-                                                                        <option value="契約">契約</option>
                                                                     </select>
                                                                 </div>
                                                                 {item.action.includes('物件案内') && <div className="bg-warning fw-normal px-2 rounded ms-1"
@@ -1029,14 +1098,11 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                                 }
                                                             }}>
                                                             <option value="">アクション内容</option>
-                                                            <option value="資料送付">資料送付</option>
-                                                            <option value="初回面談">初回面談</option>
+                                                            {(optionMapping[information.in_charge_store] || []).map(item =>
+                                                                <option value={item} key={item}>{item}</option>
+                                                            )}
                                                             {information.property_name && information.property_name.split(',').map((property, pIndex) =>
                                                                 <option value={`物件案内,${property}`} key={pIndex}>物件案内({property})</option>)}
-                                                            <option value="2回目以降面談">2回目以降面談</option>
-                                                            <option value="オンライン面談">オンライン面談</option>
-                                                            <option value="事前審査">事前審査</option>
-                                                            <option value="契約">契約</option>
                                                         </select>
                                                     </div>
                                                     <div className="">
@@ -1058,7 +1124,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                                 status: information.call_status,
                                                                 interview_log: [
                                                                     ...prev.interview_log,
-                                                                    { day: interview.day, action: interview.action, note: interview.note }
+                                                                    { day: interview.day, action: interview.action, note: interview.note, staff: userName }
                                                                 ],
                                                                 add: true
                                                             }));
@@ -1070,7 +1136,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                                 }));
                                                             }
                                                             setInterview({
-                                                                day: '', action: '', note: ''
+                                                                day: '', action: '', note: '', staff: ''
                                                             });
                                                         }
                                                         }>追加</div>
@@ -1083,7 +1149,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                             <div className="position-relative">
                                                 架電状況
                                                 <div className='position-absolute'
-                                                    style={expandButton('call')}
+                                                    style={expandButton}
                                                     onClick={() => {
                                                         setExpand(prev =>
                                                         ({
@@ -1132,65 +1198,71 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                 </div>
                                                 <div style={{ padding: '15px', border: '1px solid #dddddda9', borderRadius: '7px' }}>
                                                     {callLog.call_log &&
-                                                        callLog.call_log.map((item, index) => <><div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                            <div className="">
-                                                                <input type="date" value={item.day} style={inputStyle}
-                                                                    onChange={(e) => setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.map((log, i) => i === index ?
-                                                                            { ...log, day: e.target.value, staff: interviewer } : log)
-                                                                    }))} />
-                                                            </div>
-                                                            <div className="">
-                                                                <input type="time" value={item.time} style={inputStyle}
-                                                                    onChange={(e) => setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.map((log, i) => i === index ?
-                                                                            { ...log, time: e.target.value, staff: interviewer } : log)
-                                                                    }))} />
-                                                            </div>
-                                                            <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                                                <select style={inputStyle} value={item.action}
-                                                                    onChange={(e) => setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.map((log, i) => i === index ?
-                                                                            { ...log, action: e.target.value, staff: interviewer } : log)
-                                                                    }))}>
-                                                                    <option value="">アクション内容</option>
-                                                                    <option value="架電">架電</option>
-                                                                    <option value="SMS送信">SMS送信</option>
-                                                                    <option value="メール送信">メール送信</option>
-                                                                    <option value="資料郵送">資料郵送</option>
-                                                                </select>
-                                                            </div>
-                                                            <div className="">
-                                                                <textarea style={{ ...inputStyle, width: '360px', height: 'auto' }} placeholder='アクション内容・ヒアリング内容を記載' value={item.note} rows={Math.max(2, item.note.length / 50)}
-                                                                    onChange={(e) => setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.map((log, i) => i === index ?
-                                                                            { ...log, note: e.target.value, staff: interviewer } : log)
-                                                                    }))}></textarea>
-                                                            </div>
-                                                            <div className="text-danger" style={actionButton}
-                                                                onClick={() => {
-                                                                    setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.filter((_, i) => i !== index),
-                                                                        add: true
-                                                                    }));
-                                                                }}>削除</div>
-                                                        </div>
-                                                            <div style={{ color: '#868686ff', marginBottom: '7px' }}>
-                                                                <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
-                                                                <div style={{ textAlign: 'center' }}>
-                                                                    {callLog.call_log[index]['action'] === '架電' && <i className="fa-solid fa-phone-volume"></i>}
-                                                                    {callLog.call_log[index]['action'] === 'SMS送信' && <i className="fa-solid fa-message"></i>}
-                                                                    {callLog.call_log[index]['action'] === 'メール送信' && <i className="fa-solid fa-envelope"></i>}
-                                                                    {callLog.call_log[index]['action'] === '資料郵送' && <i className="fa-solid fa-truck"></i>}
+                                                        callLog.call_log
+                                                            .sort((a, b) => {
+                                                                const dayA = new Date(a.day).getTime();
+                                                                const dayB = new Date(b.day).getTime();
+                                                                return dayA - dayB
+                                                            })
+                                                            .map((item, index) => <><div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
+                                                                <div className="">
+                                                                    <input type="date" value={item.day} style={inputStyle}
+                                                                        onChange={(e) => setCallLog(prev => ({
+                                                                            ...prev,
+                                                                            call_log: prev.call_log.map((log, i) => i === index ?
+                                                                                { ...log, day: e.target.value, staff: interviewer } : log)
+                                                                        }))} />
                                                                 </div>
-                                                                <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
+                                                                <div className="">
+                                                                    <input type="time" value={item.time} style={inputStyle}
+                                                                        onChange={(e) => setCallLog(prev => ({
+                                                                            ...prev,
+                                                                            call_log: prev.call_log.map((log, i) => i === index ?
+                                                                                { ...log, time: e.target.value, staff: interviewer } : log)
+                                                                        }))} />
+                                                                </div>
+                                                                <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
+                                                                    <select style={inputStyle} value={item.action}
+                                                                        onChange={(e) => setCallLog(prev => ({
+                                                                            ...prev,
+                                                                            call_log: prev.call_log.map((log, i) => i === index ?
+                                                                                { ...log, action: e.target.value, staff: interviewer } : log)
+                                                                        }))}>
+                                                                        <option value="">アクション内容</option>
+                                                                        <option value="架電">架電</option>
+                                                                        <option value="SMS送信">SMS送信</option>
+                                                                        <option value="メール送信">メール送信</option>
+                                                                        <option value="資料郵送">資料郵送</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="">
+                                                                    <textarea style={{ ...inputStyle, width: '360px', height: 'auto' }} placeholder='アクション内容・ヒアリング内容を記載' value={item.note} rows={Math.max(2, item.note.length / 50)}
+                                                                        onChange={(e) => setCallLog(prev => ({
+                                                                            ...prev,
+                                                                            call_log: prev.call_log.map((log, i) => i === index ?
+                                                                                { ...log, note: e.target.value, staff: interviewer } : log)
+                                                                        }))}></textarea>
+                                                                </div>
+                                                                <div className="text-danger" style={actionButton}
+                                                                    onClick={() => {
+                                                                        setCallLog(prev => ({
+                                                                            ...prev,
+                                                                            call_log: prev.call_log.filter((_, i) => i !== index),
+                                                                            add: true
+                                                                        }));
+                                                                    }}>削除</div>
                                                             </div>
-                                                        </>)}
+                                                                <div style={{ color: '#868686ff', marginBottom: '7px' }}>
+                                                                    <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
+                                                                    <div style={{ textAlign: 'center' }}>
+                                                                        {callLog.call_log[index]['action'] === '架電' && <i className="fa-solid fa-phone-volume"></i>}
+                                                                        {callLog.call_log[index]['action'] === 'SMS送信' && <i className="fa-solid fa-message"></i>}
+                                                                        {callLog.call_log[index]['action'] === 'メール送信' && <i className="fa-solid fa-envelope"></i>}
+                                                                        {callLog.call_log[index]['action'] === '資料郵送' && <i className="fa-solid fa-truck"></i>}
+                                                                    </div>
+                                                                    <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
+                                                                </div>
+                                                            </>)}
                                                     <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
                                                         <div className="">
                                                             <input type="date" style={inputStyle} value={call.day}
@@ -1259,7 +1331,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                             <div className="position-relative">
                                                 備考
                                                 <div className='position-absolute'
-                                                    style={{ ...expandButton('remarks'), top: '39px' }}
+                                                    style={{ ...expandButton, top: '30px' }}
                                                     onClick={() => {
                                                         setExpand(prev =>
                                                         ({
@@ -1283,18 +1355,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                     }} />
                                             </div>
                                         </td>
-                                        <td style={labelStyle}>建設予定地</td>
-                                        <td style={valueStyle}>
-                                            <input type='text' placeholder='建設予定地' style={{ ...inputStyle, width: '240px' }} value={information.planned_construction_site}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            planned_construction_site: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
-                                        </td>
+                                        <td></td><td></td>
                                     </tr>
                                 </tbody>
                             </Table>
@@ -1620,9 +1681,16 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                             </Table>
                         </div>
                     </div>
-                    <Modal.Footer>
-                        <div className='bg-primary text-white px-4 py-1 rounded-pill' style={{ fontSize: '12px', letterSpacing: '1px', cursor: 'pointer', opacity: sending ? '1' : '.5' }}
-                            onClick={handleSave}>保存</div>
+                    <Modal.Footer className="bg-light border-top pb-3 pt-3">
+                        <div className="d-flex justify-content-end w-100 gap-2">
+                            <button
+                                className="btn btn-primary btn-sm rounded-pill px-5 shadow-sm d-flex align-items-center"
+                                style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
+                                onClick={handleSave}
+                            >
+                                <i className="fa-solid fa-check me-2"></i>保存
+                            </button>
+                        </div>
                     </Modal.Footer>
                 </Modal.Body>
             </Modal >

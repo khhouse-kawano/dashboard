@@ -30,7 +30,7 @@ type Customer = {
     appointment: string, line_group: string, screening: string, rival: string, period: string, survey: string, budget: string, importance: string, note: string, staff: string, section: string, contract: string, sales_meeting: string, latest_date: string, last_meeting: string,
 };
 
-type Staff = { name: string, pg_id: string, shop: string, category: number, robo_id: string };
+type Staff = { name: string, pg_id: string, shop: string, category: number, robo_id: string, period: string };
 
 type Survey = { id: number, sync: number, brand: string, dateStr: string, name: string, considerationStart: string, desiredMoveIn: string, visitedCompanies: string, reasonForConsidering: string, reasonOther: string, futurePlan: string, futureOther: string, desiredSize: string, desiredLayout: string, priorityItem: string, expectedResidents: string, totalBudget: string, monthlyRepayment: string, annualIncome: string, yearsOfService: string, otherIncomePerson: string, otherAnnualIncome: string, ownFunds: string, otherLoans: string, thingsToDo: string, thingsToDoOther: string, housingType: string, housingTypeOther: string, landArea: string, referrerName: string, emailAddress: string, campaign: string };
 
@@ -41,7 +41,7 @@ type Props = {
 type Black = {
     mobile: string,
     mail: string
-}; 
+};
 
 const ListOrder = ({ onReload }: Props) => {
     const { brand } = useContext(AuthContext);
@@ -86,13 +86,14 @@ const ListOrder = ({ onReload }: Props) => {
         setStartMonth(`${year}/${month}`);
         setEndMonth(`${year}/${month}`);
         setSelectedMonth([`${year}/${month}`]);
+        const thisYear = now.getMonth() <= 4 ? year : year + 1;
 
         const fetchData = async () => {
             try {
                 const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: 'list' }, { headers });
                 await setCustomerList(response.data.summary);
                 await setShopArray(response.data.shop);
-                await setStaffList(response.data.staff);
+                await setStaffList(response.data.staff.filter(s => s.period === String(thisYear)));
                 await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
                 await setOriginalList(response.data.inquiry);
                 await setOriginalBeforeList(response.data.survey);
@@ -537,14 +538,14 @@ const ListOrder = ({ onReload }: Props) => {
                                     <tr key={index} style={{ textAlign: 'left' }}
                                         className={isBlack(item.mail, item.mobile, item.black_list) ? 'table-danger align-middle' : item.sync === 1 || item.black_list.split('duplicate').length % 2 === 0 || item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 ? 'table-primary align-middle' : 'align-middle'}>
                                         <td style={{ textAlign: 'center' }}>
-                                                <>{item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.shop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
-                                                    item.sync === 1 ? <span style={{ textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
-                                                        onClick={() => item.pg_id.length === 26 ? setEditId(item.pg_id) : null}><i className="fa-solid fa-up-right-from-square"></i></span> :
-                                                        <i className='fa-solid fa-arrows-rotate sticky-column pointer'
-                                                            onClick={() => handleSync(item.inquiry_id)}
-                                                        ></i>
-                                                }</>
-                                                {isBlack(item.mail, item.mobile, item.black_list) &&
+                                            <>{item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.shop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
+                                                item.sync === 1 ? <span style={{ textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
+                                                    onClick={() => item.pg_id.length === 26 ? setEditId(item.pg_id) : null}><i className="fa-solid fa-up-right-from-square"></i></span> :
+                                                    <i className='fa-solid fa-arrows-rotate sticky-column pointer'
+                                                        onClick={() => handleSync(item.inquiry_id)}
+                                                    ></i>
+                                            }</>
+                                            {isBlack(item.mail, item.mobile, item.black_list) &&
                                                 <div className='text-danger'><i className="fa-solid fa-triangle-exclamation"></i><span style={{ fontSize: '9px' }}>ブラックリスト</span></div>}
                                         </td>
                                         <td style={{ textAlign: 'center' }}>{surveyBeforeList.find(value => value.brand === item.brand && value.emailAddress === item.mail)?.id ? (
@@ -576,9 +577,11 @@ const ListOrder = ({ onReload }: Props) => {
                                             return (
                                                 <select style={styleClass} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'staff_change')}>
                                                     <option value=''>担当営業を選択</option>
-                                                    {staffList.filter(staffValue => staffValue.shop === formattedValue && staffValue.category === 1).map((staffValue, shopIndex) =>
-                                                        <option key={shopIndex} selected={staffValue.name === item.staff} style={{ backgroundColor: '#fff', color: '#000' }}>{staffValue.name}</option>
-                                                    )}
+                                                    {staffList.filter(staffValue =>
+                                                        (formattedValue.includes('全店舗管理') ? staffValue.shop.includes(item.brand) && staffValue.shop.includes('霧島店') : staffValue.shop === formattedValue) &&
+                                                        staffValue.category === 1).map((staffValue, shopIndex) =>
+                                                            <option key={shopIndex} selected={staffValue.name === item.staff} style={{ backgroundColor: '#fff', color: '#000' }}>{staffValue.name}</option>
+                                                        )}
                                                 </select>
                                             );
                                         })()}</td>

@@ -35,6 +35,11 @@ const CustomersDev = () => {
     const [sectionList, setSectionList] = useState<Section[]>([]);
     const { token } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const thisYear = now.getMonth() <= 4 ? year : year + 1;
 
     useEffect(() => {
         if (!brand || !token || !category) navigate("/login");
@@ -49,7 +54,7 @@ const CustomersDev = () => {
                 await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
                 await setOriginalBudgetList(response.data.budget);
                 await setSectionList(response.data.section);
-                await setStaff(response.data.staff.filter(s => s.rank === 1));
+                await setStaff(response.data.staff.filter(s => s.rank === 1 && s.period === String(thisYear)));
             } catch (error) {
                 console.error("Error fetching data:", error);
             }

@@ -215,6 +215,7 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
         const requiredList = ['customer_contacts_name', 'in_charge_store', 'in_charge_user', 'status', 'sales_promotion_name'];
 
         if (!information.status) information.status = '見込み';
+        if (!information.category) information.category = '建売';
         if (!information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99) information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 = today;
         for (const key of requiredList) {
             if (!information[key]) {

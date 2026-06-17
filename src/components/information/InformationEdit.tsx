@@ -10,9 +10,11 @@ import FamilyInfo from '../FamilyInfo';
 import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
 import Estate from '../Estate';
-import KSnap from '../KSnap';
+import KSnap from './KSnap';
+import { info } from 'node:console';
 
-type Staff = { name: string; shop: string; category: number, section: string };
+
+type Staff = { name: string; shop: string; category: number, section: string, period: string };
 type Customer = Record<string, string>;
 type Medium = { id: number; medium: string, list_medium: number };
 type InterviewLog = {
@@ -26,6 +28,7 @@ type InterviewAction = {
     day: string;
     action: string;
     note: string;
+    staff: string;
 };
 type CallAction = {
     day: string;
@@ -85,6 +88,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         day: '',
         action: '',
         note: '',
+        staff: ''
     });
     const [call, setCall] = useState({
         status: '',
@@ -123,6 +127,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     const day = now.getDate();
     const today = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const thisMonth = `${year}-${String(month).padStart(2, '0')}`;
+    const thisYear = now.getMonth() <= 4 ? year : year + 1;
     const navigate = useNavigate();
     const [competitorsInput, setCompetitorsInput] = useState('');
     const [originalMakerList, setOriginalMakerList] = useState<Maker[]>([]);
@@ -137,7 +142,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         }
     };
     const [kSnap, setKSnap] = useState('');
-    const [reason, setReason] = useState(false);
+    const [showDetail, setShowDetail] = useState('');
+    const [introductoryList, setIntroductoryList] = useState<string[]>([]);
+    const [rankSteps, setRankSteps] = useState<string[]>([]);
+    const [eventList, setEventList] = useState<Record<string, string>[]>([]);
+    const [showLostReason, setShowLostReason] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -152,22 +161,23 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             setSending(true)
             const fetchData = async () => {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEdit_add_customer" }, { headers });
-                setShopArray(response.data.shop.filter(s => s.division === '注文事業' && !s.shop.includes('未設定') && !s.shop.includes('全店舗')));
-                setStaffArray(response.data.staff.filter(s => s.category === 1));
-                setMediumArray(response.data.medium);
-                setOriginalMakerList(response.data.maker);
+                await setShopArray(response.data.shop.filter(s => s.division === '注文事業' && !s.shop.includes('未設定') && !s.shop.includes('全店舗')));
+                await setStaffArray(response.data.staff.filter(s => s.category === 1 && s.period === String(thisYear)));
+                await setMediumArray(response.data.medium);
+                await setOriginalMakerList(response.data.maker);
+                await setIntroductoryList(response.data.introductory.map(i => i.name));
             };
             fetchData();
         } else {
             setSending(true)
             const fetchData = async () => {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEdit_edit_customer", id: id }, { headers });
-                setShopArray(response.data.shop);
-                setStaffArray(response.data.staff.filter(s => s.category === 1));
-                setMediumArray(response.data.medium);
-                setInformation(response.data.customer);
-                setOriginalMakerList(response.data.maker);
-
+                await setShopArray(response.data.shop);
+                await setStaffArray(response.data.staff.filter(s => s.category === 1 && s.period === String(thisYear)));
+                await setMediumArray(response.data.medium);
+                await setInformation(response.data.customer);
+                await setOriginalMakerList(response.data.maker);
+                await setIntroductoryList(response.data.introductory.map(i => i.name));
                 const callResData = {
                     id: response.data.call.id ?? response.data.customer.id,
                     shop: response.data.call.shop ?? response.data.customer.in_charge_store,
@@ -195,14 +205,19 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         }
     }, [id]);
 
+    useEffect(() => {
+        const formattedArray = safeParse(information.rank_steps);
+        setRankSteps(formattedArray);
+    }, [information]);
+
     const idMapping = (text: string) => {
         const targetId = databaseList.find(d => d.value === text)?.id ?? '';
         return targetId;
     };
 
-    const inquiryReasons: string[] = ['友人・知人から聞いた', 'SNS(Instagram/Facebook/youtube/その他)', '看板を見た', '親・親戚から聞いた', 'インターネット検索', '新聞を見た', 'まとめサイトを見た', 'チラシを見た', 'その他'];
+    const inquiryReasons: string[] = ['オーナー様・知人から聞いた', 'SNS(Instagram/Facebook/youtube/その他)', '看板を見た', '親・親戚から聞いた', 'インターネット検索', '新聞を見た', 'まとめサイトを見た', 'チラシを見た', 'その他'];
 
-    const houseHuntingMotivation: string[] = ['家賃がもったいない', '子どもが進学する', '土地をもらった', '家族が増える（減る）', '友人・知人が家を建てた', '家づくりは特に考えていない', '土地が見つかった', '親から勧められた', '工事費用が高くなる前に', '年齢的にそろそろ', '賃貸だと老後（退職後）が心配', '今の住まいが狭い', '水回り（キッチン・風呂・トイレ・洗面）が不便', '騒音が気になる', '収納が足りない', 'その他', '気密・断熱性にこだわりたい', '間取りにこだわりたい', '他人とは違った家にしたい', '耐震性にこだわりたい', 'インテリアにこだわりたい', '外観デザインにこだわりたい', '建築予定地が既にある', '収納にこだわりたい', '注文住宅にこだわりはない'];
+    const houseHuntingMotivation: string[] = ['家賃がもったいない', '子どもが進学する', '土地をもらった', '家族が増える（減る）', 'オーナー様・知人が家を建てた', '家づくりは特に考えていない', '土地が見つかった', '親から勧められた', '工事費用が高くなる前に', '年齢的にそろそろ', '賃貸だと老後（退職後）が心配', '今の住まいが狭い', '水回り（キッチン・風呂・トイレ・洗面）が不便', '騒音が気になる', '収納が足りない', 'その他', '気密・断熱性にこだわりたい', '間取りにこだわりたい', '他人とは違った家にしたい', '耐震性にこだわりたい', 'インテリアにこだわりたい', '外観デザインにこだわりたい', '建築予定地が既にある', '収納にこだわりたい', '注文住宅にこだわりはない'];
 
     const toHalfWidth = (str: string) => {
         return str.replace(/[！-～]/g, (s) =>
@@ -229,6 +244,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         const requiredList = ['customer_contacts_name', 'in_charge_store', 'in_charge_user', 'status', 'sales_promotion_name'];
 
         if (!information.status) information.status = '見込み';
+        if (!information.category) information.category = '注文';
         if (!information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99) information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 = today;
         for (const key of requiredList) {
             if (!information[key]) {
@@ -265,7 +281,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 shop: information.in_charge_store,
                 interview_log: [
                     ...interviewLog.interview_log,
-                    { day: interview.day, action: interview.action, note: interview.note }
+                    { day: interview.day, action: interview.action, note: interview.note, staff: userName }
                 ]
             };
             updatedInterviewData = {
@@ -339,6 +355,22 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             console.error("データ取得エラー:", error);
         }
 
+        const logJson = JSON.stringify(information);
+
+        const logData = {
+            id: information.id,
+            customer: information.customer_contacts_name,
+            staff: userName,
+            log: logJson,
+            request: 'informationEdit_log'
+        };
+
+        try {
+            await axios.post("https://khg-marketing.info/dashboard/api/gateway/", logData, { headers });
+        } catch (err) {
+            console.error("データ取得エラー:", err);
+        }
+
         const callLogs = updatedCallData.call_log;
         const lastLog = callLogs && callLogs.length > 0 ? callLogs[callLogs.length - 1] : null;
 
@@ -391,7 +423,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         await setInterview({
             day: '',
             action: '',
-            note: ''
+            note: '',
+            staff: ''
         });
         await setCall({
             status: '',
@@ -404,11 +437,51 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         modalClose();
     };
 
-    const labelStyle = { fontSize: '11px', fontWeight: '700', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' };
+    const baseStyle = { border: '1px solid #D3D3D3', borderRadius: '4px', height: '35px', width: '150px', paddingLeft: '10px', color: '#303030' };
+    const labelStyle = { color: '#303030', fontSize: '11px', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' };
+    const buttonStyle = {
+        color: '#495057',                  // 入力欄の文字色(#303030)より少しだけ柔らかい色に
+        backgroundColor: '#f8f9fa',        // 真っ白ではなく、ごく薄いグレーにして入力欄と区別
+        border: '1px solid #d2d6da',       // 枠線も少しだけトーンを変える
+        borderRadius: '6px',               // 入力欄(4px)より少しだけ丸くする
+        padding: '0 16px',                 // 左右の余白を少し広めに
+        fontSize: '11px',
+        fontWeight: '600',                 // ほんの少し太字にしてボタンらしさを強調
+        letterSpacing: '0.6px',
+        marginBottom: '4px',
+        cursor: 'pointer',
+        height: '35px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)', // 影をほんの少しだけ濃くして立体感を出す
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',          // 文字を左右中央に
+        width: 'fit-content'
+    };
     const valueStyle = { fontSize: '12px', letterSpacing: '.6px', verticalAlign: 'middle' };
-    const inputStyle = { border: '1px solid #D3D3D3', borderRadius: '7px', height: '25px', width: '150px', paddingLeft: '10px', margin: '5px' };
-    const selectStyle = { border: '1px solid #D3D3D3', borderRadius: '7px', height: '25px', width: '150px', paddingLeft: '10px' };
-    const requiredStyle = 'text-white bg-danger p-1 rounded ms-1';
+    const inputStyle = { ...baseStyle, margin: '5px', color: '#303030' };
+    const selectStyle = { ...baseStyle };
+    const requiredStyle = { border: '1px solid #9b9b9b', borderRadius: '4px', color: '#303030', padding: '3px 5px', marginLeft: '5px' };
+    const competitorsStyle = {
+        ...baseStyle, border: 'transparent', minWidth: '60px', maxWidth: '100%', flex: '1', outline: 'none', boxShadow: 'none', paddingLeft: 'none'
+    };
+    const primaryButtonStyle = {
+        color: '#ffffff',
+        backgroundColor: '#6c757d',
+        border: 'none',
+        borderRadius: '6px',
+        padding: '0 20px',
+        fontSize: '12px',
+        fontWeight: 'bold',
+        letterSpacing: '0.6px',
+        cursor: 'pointer',
+        height: '35px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        width: 'fit-content'
+    };
     const expandStyle = (key: string) => {
         return {
             padding: key === 'interview' || key === 'call' ? '15px' : '0',
@@ -419,21 +492,12 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             overflowY: 'hidden' as const
         }
     };
-    const expandButton = (key: string) => {
-        return {
-            width: '60px',
-            zIndex: '1000',
-            cursor: 'pointer',
-            left: '0px',
-            top: '26px',
-            color: '#fff',
-            textAlign: 'center' as const,
-            borderRadius: '14px',
-            padding: '4px 0',
-            backgroundColor: expand[key] ? '#0dcaf0' : '#198754'
-        }
+    const expandButton = {
+        ...buttonStyle,
+        height: '28px',
+        padding: '2px 10px'
     };
-    const actionButton = { backgroundColor: '#D3D3D3', padding: '6px', marginLeft: '5px', borderRadius: '3px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.39)' };
+    const actionButton = { ...buttonStyle, padding: '6px', marginLeft: '5px' };
     const handleClose = () => {
         setInterviewLog({
             id: '',
@@ -446,6 +510,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             day: '',
             action: '',
             note: '',
+            staff: ''
         });
         setCall({
             status: '',
@@ -478,47 +543,32 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         setInformation({});
     };
 
-    const competitorsStyle = {
-        border: 'transparent',
-        minWidth: '60px',
-        maxWidth: '100%',
-        flex: '1',
-        outline: 'none',
-        boxShadow: 'none'
-    };
-
     const handleCompetitors = (maker?: string) => {
-        if (maker) {
-            setInformation(prev => {
-                const existing = (prev.competitors_text ?? '')
-                    .split(',')
-                    .map(s => s.trim())
-                    .filter(s => s !== '' && s !== 'null');
-                const newArr = existing.concat(maker);
-                return {
-                    ...prev,
-                    competitors_text: newArr.length ? newArr.join(',') : ''
-                }
-            });
-            if (competitorsRef.current) competitorsRef.current.value = '';
-            setCompetitorsInput('');
-            return;
-        }
-        const value = competitorsRef.current?.value?.trim();
+        // maker(サジェスト) があればそれ、無ければ入力欄のState(competitorsInput)を使う
+        const value = (maker || competitorsInput || '').trim();
         if (!value) return;
+
         setInformation(prev => {
             const existing = (prev.competitors_text ?? '')
                 .split(',')
                 .map(s => s.trim())
                 .filter(s => s !== '' && s !== 'null');
-            const newArr = existing.concat(value);
+
+            // 既に同じ名前がある場合は二重登録を防ぐ
+            if (existing.includes(value)) return prev;
+
+            const newArr = [...existing, value];
             return {
                 ...prev,
-                competitors_text: newArr.length ? newArr.join(',') : ''
-            }
+                competitors_text: newArr.join(',')
+            };
         });
+
+        // 🌟 ここで確実に入力欄のStateとRefをリセットする！
         setCompetitorsInput('');
-        if (competitorsRef.current) competitorsRef.current.value = '';
+        if (competitorsRef.current) {
+            competitorsRef.current.value = '';
+        }
     };
 
     const handleCompetitorsDelete = () => {
@@ -569,6 +619,78 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         return age;
     };
 
+    const steps = [
+        '事前審査提出',
+        'LINE等で連絡可',
+        '次回アポ済み',
+        '候補地有(プラン提案中)',
+        '事前審査承諾',
+        '建築意思がある(自社他社問わず)',
+        '土地買付受領',
+        '建築申込',
+        '土地内諾',
+        '契約日決定',
+        '入金済'
+    ];
+
+    const generateRandomId = (): string => {
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        let result = '';
+        for (let i = 0; i < 4; i++) {
+            const randomIndex = Math.floor(Math.random() * chars.length);
+            result += chars.charAt(randomIndex);
+        }
+        return result;
+    };
+
+    const [photoPass, setPhotoPass] = useState('');
+
+    const registerKSnap = (id: string) => {
+        const fetchData = async () => {
+            let isRegistered = false;
+            let attempts = 0;
+            const MAX_ATTEMPTS = 10;
+
+            while (!isRegistered && attempts < MAX_ATTEMPTS) {
+                attempts++;
+                const pass = generateRandomId();
+                try {
+                    const response = await axios.post(
+                        "https://khg-marketing.info/dashboard/api/gateway/",
+                        { request: "informationEdit_register_k-snap", id, pass },
+                        { headers }
+                    );
+                    if (response.data.status === 'success') {
+                        isRegistered = true;
+                        setShowDetail('k-snap');
+                        setPhotoPass(pass);
+                    }
+                    else if (response.data.status === 'duplicate') {
+                        console.warn(`重複が発生しました (${attempts}/${MAX_ATTEMPTS}回目)。パスワードを再生成してリトライします。`);
+                    }
+                    else {
+                        console.error("登録エラーが発生しました:", response.data);
+                        break;
+                    }
+                } catch (error) {
+                    console.error("通信エラーが発生しました:", error);
+                    break;
+                }
+            }
+        };
+
+        fetchData();
+    };
+
+    useEffect(() => {
+        if (showDetail !== 'event') return;
+        const fetchData = async () => {
+            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: 'event_list' }, { headers });
+            setEventList(response.data.event);
+        };
+        fetchData();
+    }, [showDetail]);
+
     return (
         <>
             <Modal
@@ -580,7 +702,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 }}
             >
                 <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
-                <div style={{ background: '#cfe2ff', fontSize: '11px'}} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
+                    <div style={{ background: 'rgb(233, 233, 233)', fontSize: '11px' }} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
                 </Modal.Header>
                 <Modal.Body>
                     <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll' }}>
@@ -588,8 +710,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                             <Table responsive style={{ fontSize: '11px', textAlign: 'left' }} className='list_table database'>
                                 <tbody>
                                     <tr>
-                                        <td style={{ ...labelStyle, width: '10%' }} className='table-primary'>お客様名<span className={requiredStyle}>必須</span></td>
-                                        <td style={{ ...valueStyle, width: '40%' }} className='table-primary'>
+                                        <td style={{ ...labelStyle, width: '10%' }} className='table-secondary'>お客様名<span style={requiredStyle}>必須</span></td>
+                                        <td style={{ ...valueStyle, width: '40%' }} className='table-secondary'>
                                             <input type='text' placeholder='漢字' style={inputStyle} value={safeFormate(information[idMapping('お客様名')])}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
@@ -609,8 +731,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />
                                         </td>
-                                        <td style={{ ...labelStyle, width: '10%' }} className='table-primary'>連絡先</td>
-                                        <td style={{ ...valueStyle, width: '40%' }} className='table-primary'>
+                                        <td style={{ ...labelStyle, width: '10%' }} className='table-secondary'>連絡先</td>
+                                        <td style={{ ...valueStyle, width: '40%' }} className='table-secondary'>
                                             <input type='text' placeholder='固定電話' style={{ ...inputStyle, width: '100px' }} value={safeFormate(information.customer_contacts_phone_number)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
@@ -661,8 +783,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle} className='table-primary'>住所</td>
-                                        <td style={valueStyle} className='table-primary'>
+                                        <td style={labelStyle} className='table-secondary'>住所</td>
+                                        <td style={valueStyle} className='table-secondary'>
                                             <input type='text' placeholder='郵便番号' style={{ ...inputStyle, width: '80px' }} value={safeFormate(information.postal_code)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
@@ -692,8 +814,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     ));
                                                 }} />
                                         </td>
-                                        <td style={labelStyle} className='table-primary'>担当店舗<span className={requiredStyle}>必須</span></td>
-                                        <td style={valueStyle} className='table-primary'>
+                                        <td style={labelStyle} className='table-secondary'>担当店舗<span style={requiredStyle}>必須</span></td>
+                                        <td style={valueStyle} className='table-secondary'>
                                             <select
                                                 style={selectStyle}
                                                 value={safeFormate(information[idMapping('担当店舗')])}
@@ -717,8 +839,8 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle} className='table-primary'>担当営業<span className={requiredStyle}>必須</span></td>
-                                        <td style={valueStyle} className='table-primary'>
+                                        <td style={labelStyle} className='table-secondary'>担当営業<span style={requiredStyle}>必須</span></td>
+                                        <td style={valueStyle} className='table-secondary'>
                                             <div className="d-flex align-items-center">
                                                 <select
                                                     style={selectStyle}
@@ -733,14 +855,15 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         setInformation(prev => ({
                                                             ...prev,
                                                             [idMapping('担当営業')]: nextStaffName,
-                                                            first_interviewed_user: safeFormate(prev[idMapping('担当営業')])
+                                                            first_interviewed_user: id !== 'new' ? safeFormate(prev[idMapping('担当営業')]) : ''
                                                         }));
 
-                                                        if (newStaff === listedCustomer) {
-                                                            setReason(true);
+                                                        if (newStaff === listedCustomer && id !== 'new') {
+                                                            setShowDetail('staff');
                                                         }
                                                     }}
                                                 >
+                                                    <option value=''>担当営業を選択</option>
                                                     {staffArray
                                                         .filter(item => item.shop === information.in_charge_store)
                                                         .map((item, index) => (
@@ -748,6 +871,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                 {item.name}
                                                             </option>
                                                         ))}
+                                                    <option value={`${information.in_charge_store} 管理`}>{information.in_charge_store} 管理</option>
                                                 </select>
 
                                                 {(information[idMapping('担当営業')] === `${information.in_charge_store} 管理` && information.first_interviewed_user)
@@ -756,29 +880,183 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>ステータス</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information[idMapping('ステータス')])}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            [idMapping('ステータス')]: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value='見込み'>見込み</option>
-                                                <option value='会社管理'>会社管理</option>
-                                                <option value='失注'>失注</option>
-                                                <option value='重複'>重複</option>
-                                                <option value='契約済み'>契約済み</option>
-                                                <option value="解約">解約</option>
-                                            </select>
+                                            {/* 1. ステータス選択エリア */}
+                                            <div className="d-flex align-items-center mb-2">
+                                                <select style={inputStyle} value={safeFormate(information[idMapping('ステータス')])}
+                                                    onChange={(e) => {
+                                                        setInformation(prev => (
+                                                            {
+                                                                ...prev,
+                                                                [idMapping('ステータス')]: e.target.value
+                                                            }
+                                                        ));
+                                                        if (e.target.value === '失注') setShowLostReason(true);
+                                                    }}>
+                                                    <option value='見込み'>見込み</option>
+                                                    <option value='会社管理'>会社管理</option>
+                                                    <option value='失注'>失注</option>
+                                                    <option value='重複'>重複</option>
+                                                    <option value='契約済み'>契約済み</option>
+                                                    <option value="解約">解約</option>
+                                                </select>
+                                            </div>
+
+                                            {information[idMapping('ステータス')] === '失注' && (
+                                                <div className="bg-light p-3 rounded border mt-2">
+
+                                                    <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                                                        <div className="fw-bold text-dark" style={{ fontSize: '13px' }}>失注情報の入力{!information.competitor_lost_contract_reason && <i className="fa-solid fa-triangle-exclamation text-danger me-1"></i>}</div>
+                                                    </div>
+
+                                                    <div className="mb-3 d-flex align-items-center">
+                                                        <span className="me-3 fw-bold text-secondary" style={{ fontSize: '12px' }}>失注理由:</span>
+                                                        <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information.competitor_lost_contract_reason)}
+                                                            onChange={(e) => {
+                                                                setInformation(prev => ({ ...prev, competitor_lost_contract_reason: e.target.value }));
+                                                            }}>
+                                                            <option value="">選択してください</option>
+                                                            {["競合負け", "計画中止", "身内の反対", "音信不通", "建築エリア外", "その他"].map(reason => (
+                                                                <option value={reason} key={reason}>{reason}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    {information.competitor_lost_contract_reason === '競合負け' && (
+                                                        <>
+                                                            <div className="d-flex flex-wrap align-items-center mb-3 p-2 bg-white rounded border" style={{ fontSize: '12px' }}>
+                                                                <span className="fw-bold me-3 text-secondary">失注先{information.competitor_name ? ':' : 'を選択'}</span>
+                                                                {information.competitors_text ? (
+                                                                    information.competitors_text.split(',')
+                                                                        .filter(c => c !== 'null' && c.trim() !== '')
+                                                                        .map((c, cIndex) => (
+                                                                            <div className={`me-2 mb-1 px-2 py-1 rounded border ${information.competitor_name === c ? 'bg-warning border-warning fw-bold text-dark' : 'bg-light text-secondary'}`}
+                                                                                key={cIndex}
+                                                                                style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                                                                                onClick={() => setInformation(prev => ({
+                                                                                    ...prev,
+                                                                                    competitor_name: c === information.competitor_name ? '' : c
+                                                                                }))}>
+                                                                                {c}
+                                                                            </div>
+                                                                        ))
+                                                                ) : (
+                                                                    <div className="d-flex align-items-center flex-grow-1 mt-1 mt-md-0">
+                                                                        <div className="position-relative flex-grow-1 me-2">
+                                                                            <input
+                                                                                type='text'
+                                                                                className="form-control form-control-sm border-0 shadow-none px-1"
+                                                                                style={{ backgroundColor: 'transparent', fontSize: '12px' }}
+                                                                                placeholder={!information.competitors_text ? '競合他社名を入力...' : ''}
+                                                                                ref={competitorsRef} // 👈 Backspaceの判定などで使うため残しておいてOKです
+
+                                                                                value={competitorsInput || ''} // 🌟 👈 ココを追加！！（ReactのStateと同期させる）
+
+                                                                                onKeyDown={(e) => {
+                                                                                    // 入力欄が空の状態でBackspaceを押した時の処理
+                                                                                    if (e.key === 'Backspace' && !competitorsInput) {
+                                                                                        handleCompetitorsDelete();
+                                                                                    }
+                                                                                    if (e.key === 'Enter') {
+                                                                                        e.preventDefault(); // Enterキーでの意図しない画面リロードを防止
+                                                                                        handleCompetitors();
+                                                                                    }
+                                                                                }}
+                                                                                onChange={(e) => setCompetitorsInput(e.target.value)}
+                                                                            />
+
+                                                                            {competitorsInput && (
+                                                                                <div className="position-absolute bg-white border rounded shadow-sm w-100 py-1"
+                                                                                    style={{ top: '100%', left: 0, marginTop: '2px', zIndex: 1000, maxHeight: '150px', overflowY: 'auto' }}>
+                                                                                    {makerList.map((m, mIndex) => (
+                                                                                        <div key={mIndex}
+                                                                                            className="px-2 py-1 text-dark"
+                                                                                            style={{ cursor: 'pointer', fontSize: '12px' }}
+                                                                                            onMouseEnter={(e) => e.currentTarget.classList.add('bg-light')}
+                                                                                            onMouseLeave={(e) => e.currentTarget.classList.remove('bg-light')}
+                                                                                            onClick={() => {
+                                                                                                handleCompetitors(m.label);
+                                                                                                setInformation(prev => ({
+                                                                                                    ...prev,
+                                                                                                    competitor_name: m.label
+                                                                                                }));
+                                                                                            }}
+                                                                                        >
+                                                                                            {m.label}
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <button
+                                                                            className="btn btn-primary btn-sm text-nowrap shadow-sm px-3"
+                                                                            onClick={() => handleCompetitors()}
+                                                                        >
+                                                                            追加
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="fw-bold mb-2 text-secondary mt-3" style={{ fontSize: '12px' }}>詳細な他決・失注理由（複数選択可）</div>
+                                                            <div className="d-flex flex-wrap gap-2 mb-3">
+                                                                {['価格・予算', '間取り・プラン提案', 'デザイン・外観', '性能', '土地・立地条件（他社物件）', '営業の対応（スピード・相性）', '保証・アフターサポート', '会社のブランド・信頼性', '縁戚・知人の紹介', 'その他'].map(reason => {
+                                                                    const currentReasons = information.customized_input_01JRF9CZSW65A151WR30NA4PB3
+                                                                        ? String(information.customized_input_01JRF9CZSW65A151WR30NA4PB3).split(',')
+                                                                        : [];
+                                                                    const isChecked = currentReasons.includes(reason);
+
+                                                                    return (
+                                                                        <div key={reason} className="form-check form-check-inline m-0">
+                                                                            <input
+                                                                                className="form-check-input shadow-sm"
+                                                                                type="checkbox"
+                                                                                id={`detail-reason-${reason}`}
+                                                                                checked={isChecked}
+                                                                                onChange={() => {
+                                                                                    let newArray = [...currentReasons];
+                                                                                    if (isChecked) {
+                                                                                        newArray = newArray.filter(r => r !== reason);
+                                                                                    } else {
+                                                                                        newArray.push(reason);
+                                                                                    }
+                                                                                    setInformation(prev => ({
+                                                                                        ...prev,
+                                                                                        customized_input_01JRF9CZSW65A151WR30NA4PB3: newArray.filter(Boolean).join(',')
+                                                                                    }));
+                                                                                }}
+                                                                                style={{ cursor: 'pointer' }}
+                                                                            />
+                                                                            <label
+                                                                                className="form-check-label text-dark"
+                                                                                htmlFor={`detail-reason-${reason}`}
+                                                                                style={{ fontSize: '12px', cursor: 'pointer' }}
+                                                                            >
+                                                                                {reason}
+                                                                            </label>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            <textarea
+                                                                placeholder='具体的な理由や詳細を入力してください（他社名、金額差など）'
+                                                                style={{ fontSize: '12px', borderRadius: '5px', border: '1px solid #cfcfcf', width: '100%', height: '60px', padding: '8px', resize: 'none' }}
+                                                                value={safeFormate(information.customized_input_01JSE7H4MQES619NBWX6PQDFRH)}
+                                                                onChange={(e) => setInformation(prev => ({
+                                                                    ...prev,
+                                                                    customized_input_01JSE7H4MQES619NBWX6PQDFRH: e.target.value
+                                                                }))}
+                                                            ></textarea>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                     <tr>
                                         <td style={labelStyle}>顧客ランク<br />(契約見込み月)</td>
                                         <td style={valueStyle}>
-                                            <div className="d-flex">
-                                                <select style={inputStyle} value={safeFormate(information[idMapping('顧客ランク')])}
+                                            <div className="d-flex align-items-center">
+                                                <select style={{ ...inputStyle, width: '130px' }} value={safeFormate(information[idMapping('顧客ランク')])}
                                                     onChange={(e) => {
                                                         setInformation(prev => (
                                                             {
@@ -788,6 +1066,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         ));
                                                     }}>
                                                     <option value="">選択してください</option>
+                                                    <option value='Sランク'>Sランク</option>
                                                     <option value='Aランク'>Aランク</option>
                                                     <option value='Bランク'>Bランク</option>
                                                     <option value='Cランク'>Cランク</option>
@@ -805,24 +1084,40 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             }
                                                         ));
                                                     }} />
+                                                <div style={buttonStyle}
+                                                    onClick={() => setShowDetail('rank')}>ランク設定</div>
                                             </div>
                                         </td>
-                                        <td style={labelStyle}>反響媒体<span className={requiredStyle}>必須</span></td>
+                                        <td style={labelStyle}>反響媒体<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information[idMapping('反響媒体')])}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            [idMapping('反響媒体')]: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value=''>反響媒体を選択</option>
-                                                {mediumArray.filter(item => item.list_medium === 1 && !/(Amazonギフトカード|HOTLEAD|アポラック|システム利用料)/.test(item.medium)).map((item, index) =>
-                                                    <option key={index} value={item.medium}>{item.medium}</option>
-                                                )}
-                                            </select>
+                                            <div className="d-flex align-items-center">
+                                                <select style={inputStyle} value={safeFormate(information[idMapping('反響媒体')])}
+                                                    onChange={(e) => {
+                                                        setInformation(prev => (
+                                                            {
+                                                                ...prev,
+                                                                [idMapping('反響媒体')]: e.target.value
+                                                            }
+                                                        ));
+                                                        if (e.target.value === '紹介') setShowDetail('medium');
+                                                        if (e.target.value === 'イベント') setShowDetail('event');
+                                                    }}>
+                                                    <option value=''>反響媒体を選択</option>
+                                                    {mediumArray.filter(item => item.list_medium === 1 && !/(Amazonギフトカード|HOTLEAD|アポラック|システム利用料)/.test(item.medium)).map((item, index) =>
+                                                        <option key={index} value={item.medium}>{item.medium}</option>
+                                                    )}
+                                                </select>
+                                                {(information[idMapping('反響媒体')] === '紹介' && information.introduction_person_category)
+                                                    ? <div className="ms-2">紹介者:{safeFormate(information.introduction_person_category)}</div> :
+                                                    (information[idMapping('反響媒体')] === '紹介' && !information.introduction_person_category) ?
+                                                        <div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
+                                                            onClick={() => setShowDetail('medium')}>紹介者を入力</div> : ''}
+                                                {(information[idMapping('反響媒体')] === 'イベント' && information.customized_input_01JRCT12N9X24PCQ5QZPAYKB93)
+                                                    ? <div className="ms-2">イベント名:{safeFormate(information.customized_input_01JRCT12N9X24PCQ5QZPAYKB93)}</div> :
+                                                    (information[idMapping('反響媒体')] === 'イベント' && !information.customized_input_01JRCT12N9X24PCQ5QZPAYKB93) ?
+                                                        <div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
+                                                            onClick={() => setShowDetail('event')}>イベント名を入力</div> : ''}
+                                            </div>
                                         </td>
                                     </tr>
                                     <tr>
@@ -843,84 +1138,103 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 {information.customer_contacts_birth_date && <div className="ms-2">({calculateAge(information.customer_contacts_birth_date)}歳)</div>}
                                             </div>
                                         </td>
-                                        <td style={labelStyle} className='table-primary'>家族情報</td>
-                                        <td style={valueStyle} className='table-primary'><div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
+                                        <td style={labelStyle} className='table-secondary'>家族情報</td>
+                                        <td style={valueStyle} className='table-secondary'><div style={buttonStyle}
                                             onClick={() => setFamilyMShow(true)}>入力・確認</div></td>
-
                                     </tr>
                                     <tr>
                                         <td style={labelStyle}>競合情報</td>
                                         <td style={valueStyle}>
                                             <div className="text-secondary" style={{ fontSize: '10px' }}>※予測変換リストを追加したい場合は広報・マーケティング課まで</div>
-                                            <div className="d-flex align-items-center">
-                                                <div className="d-flex flex-wrap align-items-center position-relative" style={{ ...inputStyle, width: '80%', height: 'auto', minHeight: '25px' }}>
-                                                    {information.competitors_text &&
-                                                        information.competitors_text.split(',')
-                                                            .filter(c => c !== 'null')
-                                                            .map((c, cIndex) =>
-                                                                <div className='me-1 bg-warning rounded ps-2 pe-1 d-flex align-items-center' key={cIndex}>{c}
-                                                                    <span className='ms-1'
-                                                                        style={{ fontSize: '8px', cursor: 'pointer' }}
-                                                                        onClick={() => {
-                                                                            setInformation(prev => {
-                                                                                const arr = (prev.competitors_text ?? '')
-                                                                                    .split(',')
-                                                                                    .map(s => s.trim())
-                                                                                    .filter(s => s !== '' && s !== 'null');
-
-                                                                                arr.splice(cIndex, 1);
-                                                                                if (!arr[0]) {
-                                                                                    arr.slice(1);
-                                                                                }
-
-                                                                                return {
-                                                                                    ...prev,
-                                                                                    competitors_text: arr.length ? arr.join(',') : ''
-                                                                                }
+                                            <div className="d-flex align-items-stretch w-100 gap-2 mb-3">
+                                                <div className="d-flex flex-wrap align-items-center flex-grow-1 p-1 bg-white border rounded shadow-sm" style={{ minHeight: '34px' }}>
+                                                    {information.competitors_text && information.competitors_text.split(',')
+                                                        .filter(c => c !== 'null' && c.trim() !== '')
+                                                        .map((c, cIndex) => (
+                                                            <div className={`badge border d-flex align-items-center me-1 my-1 px-2 py-1 shadow-sm bg-light text-secondary border-secondary`}
+                                                                key={cIndex} style={{ fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s' }}
+                                                                onClick={() => setInformation(prev => ({
+                                                                    ...prev,
+                                                                    competitor_name: c === information.competitor_name ? '' : c
+                                                                }))}>
+                                                                {c}
+                                                                <span className="ms-2 fw-bold"
+                                                                    style={{ cursor: 'pointer', fontSize: '10px', opacity: 0.5 }}
+                                                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.5'}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setInformation(prev => {
+                                                                            const arr = (prev.competitors_text ?? '').split(',').map(s => s.trim()).filter(s => s !== '' && s !== 'null');
+                                                                            arr.splice(cIndex, 1);
+                                                                            return {
+                                                                                ...prev,
+                                                                                competitors_text: arr.length ? arr.join(',') : '',
+                                                                                // もし削除したタグが現在選択中のタグだったら、選択状態も解除する
+                                                                                competitor_name: prev.competitor_name === c ? '' : prev.competitor_name
                                                                             }
-                                                                            )
-                                                                        }}>
-                                                                        ×
-                                                                    </span></div>)}
-                                                    <input type='text' style={competitorsStyle} ref={competitorsRef}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Backspace') {
-                                                                handleCompetitorsDelete();
-                                                            }
-                                                            if (e.key === 'Enter') {
-                                                                handleCompetitors();
-                                                            }
-                                                        }}
-                                                        onChange={(e) => setCompetitorsInput(e.target.value)} />
-                                                    <div className="position-absolute bg-white"
-                                                        style={{ top: '25px', zIndex: '1000' }}>
-                                                        {competitorsInput &&
-                                                            makerList
-                                                                .map((m, mIndex) =>
+                                                                        });
+                                                                    }}>
+                                                                    ✕
+                                                                </span>
+                                                            </div>
+                                                        ))}
+
+                                                    <div className="position-relative flex-grow-1" style={{ minWidth: '120px' }}>
+                                                        <input
+                                                            type='text'
+                                                            className="form-control form-control-sm border-0 shadow-none px-1"
+                                                            style={{ backgroundColor: 'transparent', fontSize: '12px' }}
+                                                            placeholder={!information.competitors_text ? '競合他社名を入力...' : ''}
+                                                            ref={competitorsRef}
+                                                            value={competitorsInput}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Backspace' && !competitorsInput) {
+                                                                    handleCompetitorsDelete();
+                                                                }
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    handleCompetitors();
+                                                                }
+                                                            }}
+                                                            onChange={(e) => setCompetitorsInput(e.target.value)}
+                                                        />
+
+                                                        {competitorsInput && (
+                                                            <div className="position-absolute bg-white border rounded shadow-sm w-100 py-1"
+                                                                style={{ top: '100%', left: 0, marginTop: '2px', zIndex: 1050, maxHeight: '200px', overflowY: 'auto' }}>
+                                                                {makerList.map((m, mIndex) => (
                                                                     <div key={mIndex}
-                                                                        style={{ cursor: 'pointer', width: 'fit-content' }}
-                                                                        className='bg-warning px-2 rounded mb-1'
+                                                                        className="px-2 py-1 text-dark"
+                                                                        style={{ cursor: 'pointer', fontSize: '12px' }}
+                                                                        onMouseEnter={(e) => e.currentTarget.classList.add('bg-light')}
+                                                                        onMouseLeave={(e) => e.currentTarget.classList.remove('bg-light')}
                                                                         onClick={() => handleCompetitors(m.label)}
-                                                                    >{m.label}</div>)}
+                                                                    >
+                                                                        {m.label}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="bg-primary text-white py-1 px-2 rounded"
-                                                    style={{
-                                                        ...labelStyle,
-                                                        width: 'fit-content',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                    onClick={() => handleCompetitors()} >追加</div>
+
+                                                <button
+                                                    className="btn btn-primary btn-sm shadow-sm px-3 text-nowrap"
+                                                    onClick={() => handleCompetitors()}
+                                                >
+                                                    追加
+                                                </button>
                                             </div>
                                         </td>
                                         <td></td><td></td>
                                     </tr>
                                     <tr>
-                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }} className='table-primary'>
+                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }} className='table-secondary'>
                                             <div className="position-relative">
                                                 商談ステップ
                                                 <div className='position-absolute'
-                                                    style={expandButton('interview')}
+                                                    style={expandButton}
                                                     onClick={() => {
                                                         setExpand(prev =>
                                                         ({
@@ -931,7 +1245,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                     }}>{expand.interview ? '×閉じる' : '編集'}</div>
                                             </div>
                                         </td>
-                                        <td colSpan={3} className='table-primary'>
+                                        <td colSpan={3} className='table-secondary'>
                                             <div style={expandStyle('interview')}>
                                                 <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
                                                     <div>
@@ -1033,7 +1347,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                 </select>
                                                             </div>
                                                             <div>
-                                                                <textarea style={{ ...inputStyle, width: '550px', height: 'auto' }} placeholder='面談内容を記載' value={safeFormate(item.note)}
+                                                                <textarea style={{ ...inputStyle, width: '550px' }} placeholder='面談内容を記載' value={safeFormate(item.note)}
                                                                     rows={Math.max(1, Math.ceil((item.note?.length || 0) / 50))}
                                                                     onChange={(e) => setInterviewLog(prev => ({
                                                                         ...prev,
@@ -1129,7 +1443,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                 status: information.call_status,
                                                                 interview_log: [
                                                                     ...prev.interview_log,
-                                                                    { day: interview.day, action: interview.action, note: interview.note }
+                                                                    { day: interview.day, action: interview.action, note: interview.note, staff: userName }
                                                                 ],
                                                                 add: true
                                                             }));
@@ -1142,7 +1456,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                 }));
                                                             }
                                                             setInterview({
-                                                                day: '', action: '', note: ''
+                                                                day: '', action: '', note: '', staff: ''
                                                             });
                                                         }
                                                         }>追加</div>
@@ -1155,7 +1469,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             <div className="position-relative">
                                                 架電状況
                                                 <div className='position-absolute'
-                                                    style={expandButton('call')}
+                                                    style={{ ...expandButton, top: '21px' }}
                                                     onClick={() => {
                                                         setExpand(prev =>
                                                         ({
@@ -1202,6 +1516,15 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                             }))} />
                                                     </div>
                                                 </div>
+                                                <div>
+                                                    <textarea style={{ ...inputStyle, width: '95%', height: 'auto' }} placeholder='架電者用メモ欄' value={safeFormate(information.memo_other_related_person)}
+                                                        rows={4}
+                                                        onChange={(e) => setInformation(prev => ({
+                                                            ...prev,
+                                                            memo_other_related_person: e.target.value
+                                                        }))}
+                                                    ></textarea>
+                                                </div>
                                                 <div style={{ padding: '15px', border: '1px solid #dddddda9', borderRadius: '7px' }}>
                                                     {callLog.call_log &&
                                                         callLog.call_log.map((item, index) => <><div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
@@ -1236,7 +1559,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                 </select>
                                                             </div>
                                                             <div>
-                                                                <textarea style={{ ...inputStyle, width: '360px', height: 'auto' }} placeholder='アクション内容・ヒアリング内容を記載' value={item.note}
+                                                                <textarea style={{ ...inputStyle, width: '360px' }} placeholder='アクション内容・ヒアリング内容を記載' value={item.note}
                                                                     rows={Math.max(1, Math.ceil((item.note?.length || 0) / 50))}
                                                                     onChange={(e) => setCallLog(prev => ({
                                                                         ...prev,
@@ -1332,7 +1655,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             <div className="position-relative">
                                                 面談前アンケート
                                                 <div className='position-absolute'
-                                                    style={{ ...expandButton('remarks'), top: '39px' }}
+                                                    style={{ ...expandButton, top: '23px' }}
                                                     onClick={() => {
                                                         setExpand(prev =>
                                                         ({
@@ -1378,7 +1701,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             <div className="position-relative">
                                                 問い合わせのきっかけ
                                                 <div className='position-absolute'
-                                                    style={{ ...expandButton('reason'), top: '39px' }}
+                                                    style={{ ...expandButton, top: '35px' }}
                                                     onClick={() => {
                                                         setExpand(prev =>
                                                         ({
@@ -1441,7 +1764,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             <div className="position-relative">
                                                 注文住宅に興味をもった動機
                                                 <div className='position-absolute'
-                                                    style={{ ...expandButton('trigger'), top: '40px' }}
+                                                    style={{ ...expandButton, top: '40px' }}
                                                     onClick={() => {
                                                         setExpand(prev =>
                                                         ({
@@ -1804,7 +2127,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                     <tr>
                                         <td style={labelStyle}>勤務先<br />住所</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='勤務先名' style={inputStyle} value={safeFormate(information.customer_contacts_employer_address)}
+                                            <input type='text' placeholder='勤務先住所' style={inputStyle} value={safeFormate(information.customer_contacts_employer_address)}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
                                                         {
@@ -1838,7 +2161,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={labelStyle}>年収</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='勤務先名' style={inputStyle}
+                                            <input type='text' placeholder='年収' style={inputStyle}
                                                 value={safeFormate(information.customer_contacts_annual_income).replace('万円', '')}
                                                 onChange={(e) => {
                                                     setInformation(prev => (
@@ -1915,57 +2238,180 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                             </Table>
                         </div>
                     </div>
-                    <Modal.Footer>
-                        {information.k_snap && <div className='bg-warning text-dark px-4 py-1 rounded-pill' style={{ fontSize: '12px', letterSpacing: '1px', cursor: 'pointer' }}
-                            onClick={() => {
-                                setKSnap(information.id);
-                            }}>K-Snap閲覧ログ</div>}
-                        <div className='bg-info text-white px-4 py-1 rounded-pill' style={{ fontSize: '12px', letterSpacing: '1px', cursor: 'pointer' }}
-                            onClick={() => {
-                                navigate(`/calendar?id=${information.id}`)
-                            }}>アイスワールド利用予約</div>
-                        <div className='bg-success text-white px-4 py-1 rounded-pill' style={{ fontSize: '12px', letterSpacing: '1px', cursor: 'pointer' }}
-                            onClick={() => {
-                                setEstateId(information.id)
-                            }}>土地コーディネート</div>
-                        <div className='bg-primary text-white px-4 py-1 rounded-pill' style={{ fontSize: '12px', letterSpacing: '1px', cursor: 'pointer', opacity: sending ? '1' : '.5' }}
-                            onClick={handleSave}>保存</div>
+                    <Modal.Footer className="bg-light border-top pb-3 pt-3">
+                        <div className="d-flex justify-content-end w-100 gap-2">
+                            {information.k_snap ? (
+                                <button
+                                    className="btn btn-outline-secondary btn-sm rounded-pill px-4 d-flex align-items-center"
+                                    style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                    onClick={() => setKSnap(information.id)}
+                                >
+                                    <i className="fa-solid fa-camera me-2"></i>K-Snap閲覧ログ
+                                </button>
+                            ) : (
+                                <button
+                                    className="btn btn-outline-secondary btn-sm rounded-pill px-4 d-flex align-items-center"
+                                    style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                    onClick={() => registerKSnap(information.id)}
+                                >
+                                    <i className="fa-solid fa-user-plus me-2"></i>K-Snapアカウント発行
+                                </button>
+                            )}
+
+                            <button
+                                className="btn btn-outline-info btn-sm rounded-pill px-4 d-flex align-items-center"
+                                style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                onClick={() => navigate(`/calendar?id=${information.id}`)}
+                            >
+                                <i className="fa-regular fa-calendar-check me-2"></i>アイスワールド利用予約
+                            </button>
+
+                            <button
+                                className="btn btn-outline-success btn-sm rounded-pill px-4 d-flex align-items-center"
+                                style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                onClick={() => setEstateId(information.id)}
+                            >
+                                <i className="fa-solid fa-map-location-dot me-2"></i>土地コーディネート
+                            </button>
+
+                            <button
+                                className="btn btn-primary btn-sm rounded-pill px-5 shadow-sm d-flex align-items-center"
+                                style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
+                                onClick={handleSave}
+                            >
+                                <i className="fa-solid fa-check me-2"></i>保存
+                            </button>
+                        </div>
                     </Modal.Footer>
                 </Modal.Body>
             </Modal >
             <Modal show={familyModalShow} onHide={familyModalClose} size='lg'>
                 <FamilyInfo idValue={information.id} shopValue={information.in_charge_store} nameValue={information.customer_contacts_name} modalClose={familyModalClose} />
             </Modal>
-            <Modal show={reason} centered>
+            <Modal show={!!showDetail} centered>
                 <Modal.Body>
-                    <div className="fw-bold text-center mb-3">店舗管理への変更理由</div>
-                    <div className="d-flex align-items-center justify-content-around pb-2">
-                        <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information.last_action_step_migration_item_name)}
-                            onChange={(e) => {
-                                setInformation(prev => (
-                                    {
-                                        ...prev,
-                                        last_action_step_migration_item_name: e.target.value
-                                    }
-                                ));
-                            }}>
-                            <option value="">選択してください</option>
-                            <option value="失注">失注</option>
-                            <option value="計画中止">計画中止</option>
-                            <option value="計画延期">計画延期</option>
-                            <option value="その他">その他</option>
-                        </select>
-                        <div className="bg-danger text-white px-4 py-1 rounded-pill" style={{ fontSize: '12px', cursor: 'pointer' }} onClick={() => {
-                            if (information.last_action_step_migration_item_name) {
-                                setReason(false);
-                            } else {
-                                alert('理由を選択してください');
-                            }
+                    {showDetail === 'staff' && <><div className="fw-bold text-center mb-3">店舗管理への変更理由</div>
+                        <div className="d-flex align-items-center justify-content-around pb-2">
+                            <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information.last_action_step_migration_item_name)}
+                                onChange={(e) => {
+                                    setInformation(prev => (
+                                        {
+                                            ...prev,
+                                            last_action_step_migration_item_name: e.target.value
+                                        }
+                                    ));
+                                }}>
+                                <option value="">選択してください</option>
+                                {["失注", "計画中止", "計画延期", "ブラックリスト", "建築エリア外", "物貰い", "その他"].map(reason => <option value={reason} key={reason}>{reason}</option>)}
+                            </select>
+                            <div className="bg-danger text-white px-4 py-1 rounded-pill" style={{ fontSize: '12px', cursor: 'pointer' }} onClick={() => {
+                                if (information.last_action_step_migration_item_name) {
+                                    setShowDetail('');
+                                } else {
+                                    alert('理由を選択してください');
+                                }
 
-                        }}>
-                            閉じる
+                            }}>
+                                保存
+                            </div>
+                        </div></>}
+                    {showDetail === 'medium' && <><div className="fw-bold text-center mb-3">紹介者を選択</div>
+                        <div className="d-flex align-items-center justify-content-around pb-2">
+                            <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information.introduction_person_category)}
+                                onChange={(e) => {
+                                    setInformation(prev => (
+                                        {
+                                            ...prev,
+                                            introduction_person_category: e.target.value
+                                        }
+                                    ));
+                                }}>
+                                <option value="">選択してください</option>
+                                {introductoryList.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                            <div className="bg-danger text-white px-4 py-1 rounded-pill" style={{ fontSize: '12px', cursor: 'pointer' }} onClick={() => {
+                                setShowDetail('');
+                            }}>
+                                保存
+                            </div>
+                        </div></>}
+                    {showDetail === 'rank' && <><div className="fw-bold text-center mb-3">ランク設定</div>
+                        <div className="d-flex align-items-center justify-content-between pb-2 flex-wrap">
+                            {steps.map((s, sIndex) =>
+                                <div style={{ width: '48%', margin: '1%' }} key={sIndex}>
+                                    <label style={{ fontSize: '11px', cursor: 'pointer' }} className='d-flex align-items-center'><input type="checkbox" value={s}
+                                        checked={rankSteps.includes(s)}
+                                        onChange={(e) => {
+                                            const newArray = rankSteps.includes(e.target.value) ? rankSteps.filter(r => r !== e.target.value) : [...rankSteps, e.target.value];
+                                            setRankSteps(newArray);
+                                            const newRank = () => {
+                                                const rankMap = {
+                                                    'Cランク': ['事前審査提出', 'LINE等で連絡可', '次回アポ済み'],
+                                                    'Bランク': ['候補地有(プラン提案中)', '事前審査承諾', '建築意思がある(自社他社問わず)'],
+                                                    'Aランク': ['建築申込', '土地買付受領'],
+                                                    'Sランク': ['土地内諾', '契約日決定', '入金済']
+                                                };
+                                                let currentRank = 'Dランク';
+                                                for (const [rank, requiredSteps] of Object.entries(rankMap)) {
+                                                    const isMatch = requiredSteps.every(step => newArray.includes(step));
+
+                                                    if (!isMatch) {
+                                                        break;
+                                                    }
+
+                                                    currentRank = rank;
+                                                }
+                                                return currentRank;
+                                            };
+                                            setInformation(prev => (
+                                                {
+                                                    ...prev,
+                                                    [idMapping('顧客ランク')]: newRank(),
+                                                    rank_steps: newArray.length > 0 ? JSON.stringify(newArray) : ''
+                                                }
+                                            ));
+                                        }} /><span className='ps-2'>{s}</span></label>
+                                </div>
+                            )}
                         </div>
-                    </div>
+                        <div className="bg-danger text-white px-4 py-1 rounded-pill text-center mx-auto" style={{ fontSize: '12px', cursor: 'pointer', width: '120px' }} onClick={() => {
+                            setShowDetail('');
+                        }}>
+                            保存
+                        </div></>}
+                    {showDetail === 'k-snap' &&
+                        <div>
+                            <div style={{ fontSize: '12px' }} className='mb-3'>K-Snapのアカウントを発行しました。以下の4文字をパスワードとしてお客様に共有してください。</div>
+                            <div className='justify-content-center text-danger d-flex' style={{ fontSize: '25px' }}>{photoPass.split('').map(w =>
+                                <div className='mx-2 text-center rounded'
+                                    style={{ backgroundColor: '#b1b1b163', width: '30px' }}>{w}</div>)}</div>
+                            <div className='text-center my-3'>https://k-snap.jp</div>
+                            <div className="bg-danger text-white px-4 py-1 rounded-pill text-center mx-auto" style={{ fontSize: '12px', cursor: 'pointer', width: '120px' }} onClick={() => {
+                                setShowDetail('');
+                            }}>
+                                閉じる
+                            </div>
+                        </div>}
+                    {showDetail === 'event' && <><div className="fw-bold text-center mb-3">イベント名を選択</div>
+                        <div className="d-flex align-items-center justify-content-around pb-2">
+                            <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information.customized_input_01JRCT12N9X24PCQ5QZPAYKB93)}
+                                onChange={(e) => {
+                                    setInformation(prev => (
+                                        {
+                                            ...prev,
+                                            customized_input_01JRCT12N9X24PCQ5QZPAYKB93: e.target.value
+                                        }
+                                    ));
+                                }}>
+                                <option value="">選択してください</option>
+                                {eventList.map((item, index) => <option key={index} value={`${item.startDate}_${item.title}`}>{item.startDate}_{item.title}</option>)}
+                            </select>
+                            <div className="bg-danger text-white px-4 py-1 rounded-pill" style={{ fontSize: '12px', cursor: 'pointer' }} onClick={() => {
+                                setShowDetail('');
+                            }}>
+                                保存
+                            </div>
+                        </div></>}
                 </Modal.Body>
             </Modal >
             <Estate estateId={estateId} setEstateId={setEstateId} />

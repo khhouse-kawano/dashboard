@@ -189,13 +189,13 @@ a img:hover {
 
 .sticky-header.next_top {
     position: sticky;
-    top: 38px;
+    top: 34.5px;
     z-index: 20;
 }
 
 .sticky-header.third_top {
     position: sticky;
-    top: 73.5px;
+    top: 69.5px;
     z-index: 20;
 }
 
@@ -223,6 +223,12 @@ a img:hover {
     z-index: 10;
 }
 
+.sticky-column-rank {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
 .sticky-column.next {
     position: sticky;
     left: 100px;
@@ -240,7 +246,7 @@ a img:hover {
 }
 
 .sticky-column.call_status {
-    left: 110px;
+    left: 70px;
     z-index: 10;
 }
 
@@ -1265,9 +1271,9 @@ th {
 }
 
 .company-table td {
-    min-width: 60px !important;
-    width: 60px !important;
-    max-width: 60px !important;
+    min-width: 70px !important;
+    width: 70px !important;
+    max-width: 70px !important;
 }
 
 td.table-none-border {
@@ -1445,7 +1451,7 @@ td.sticky-column.budget {
 .calendar_menu {
     width: 80%;
     position: fixed;
-    top: -20px;
+    top: 20px;
     left: 17%;
     background-color: #fff;
     z-index: 1006;
@@ -1453,7 +1459,7 @@ td.sticky-column.budget {
 }
 
 .calendar_area {
-    margin-top: 100px;
+    margin-top: 150px;
     height: 90vh;
 }
 
@@ -1531,13 +1537,12 @@ td.sticky-column.budget {
 .menu_sync {
     background-color: #cd3c33;
     width: fit-content;
-    padding: 3px 7px;
+    padding: 1px 7px;
     border-radius: 8px;
-    font-size: 8px;
+    font-size: 7px;
     color: #fff;
-    top: -10px;
-    right: -22px;
     z-index: 200;
+    font-weight: 400;
 }
 
 @media screen and (max-width: 768px) {
@@ -1733,3 +1738,8 @@ td.sticky-column.budget {
     opacity: .7;
 }
 
+/* Chrome、Safari、Edge 用：スピンボタンの不透明度を常に1（100%）にする */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1 !important;
+}

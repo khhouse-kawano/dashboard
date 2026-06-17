@@ -3,6 +3,7 @@ import React, { useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ShopTrendOrder from './ShopTrendOrder';
 import ShopTrendKaeru from './ShopTrendKaeru';
+import ShopTrendResale from './ShopTrendResale';
 
 export const ShopTrendRouter = () => {
     const { category } = useContext(AuthContext);
@@ -17,6 +18,7 @@ export const ShopTrendRouter = () => {
         <>
             {category === 'order' && <ShopTrendOrder />}
             {category === 'spec' && <ShopTrendKaeru />}
+            {category === 'used' && <ShopTrendResale />}
         </>
     )
 }

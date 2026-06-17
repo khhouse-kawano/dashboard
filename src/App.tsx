@@ -1,6 +1,5 @@
 import React, { useContext, useState } from "react";
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import AuthContext from './context/AuthContext';
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import Calendar from "./components/Calendar";
 import Category from "./components/Category";
@@ -17,6 +16,7 @@ import CampaignHome from "./components/CampaignHome";
 import Company from "./components/Company";
 import NewCampaign from "./components/NewCampaign";
 import ListRouter from "./components/list/ListRouter";
+import Photo from "./components/photo/Photo";
 import Khf from "./components/KhfDatabase";
 import Map from "./components/Map";
 import Resale from "./components/Resale";
@@ -27,7 +27,7 @@ import CustomerKaeru from "./components/CustomerKaeru";
 import CustomerResale from "./components/CustomerResale";
 import CustomerTrendResale from "./components/CustomerTrendResale";
 import Market from "./components/Market";
-import ResalePerformance from "./components/ResalePerformance"; 
+import ResalePerformance from "./components/ResalePerformance";
 import PortalBuy from "./components/PortalBuy";
 import PortalSell from "./components/PortaSell";
 import UsedBuy from "./components/UsedBuy";
@@ -40,6 +40,7 @@ import { GoogleMapContext } from "./context/GoogleMapContext";
 import { useJsApiLoader } from "@react-google-maps/api";
 import MenuD from "./components/Menu";
 import Dev from "./components/Dev";
+import Header from "./components/header/Header";
 
 export default function App() {
   const clientId = process.env.REACT_APP_CLIENT_ID;
@@ -51,7 +52,7 @@ export default function App() {
   return (
     <GoogleMapContext.Provider value={{ isLoaded }}>
       {/* ↓ ここに追加！ clientId を渡してルーター全体を囲みます */}
-      <GoogleOAuthProvider clientId={clientId ||""}>
+      <GoogleOAuthProvider clientId={clientId || ""}>
         <Router basename="/dashboard">
           <AuthProvider>
             <AppInner />
@@ -65,7 +66,6 @@ export default function App() {
 
 // Router の内側で useLocation を使う
 function AppInner() {
-  const { brand } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const location = useLocation(); // ← ここなら OK
   const currentPath = location.pathname;
@@ -75,11 +75,13 @@ function AppInner() {
   };
 
 
+
   return (
     <>
       <ActiveUser />
       <div className='outer-container'>
-        <div className="d-flex">
+        {currentPath !== '/login' && <Header />}
+        <div className="d-flex pt-4">
           {currentPath !== '/home' && currentPath !== '/login' && <>
             <div className="modal_menu">
               <MenuD key={menuKey} onReload={reload} />
@@ -129,6 +131,7 @@ function AppInner() {
             <Route path="/registered_estate" element={<RegisteredEstate />} />
             <Route path="/resale_manual" element={<ResaleManual />} />
             <Route path="/property" element={<DatabaseProperty />} />
+            <Route path="/photo" element={<Photo />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
             <Route path="*" element={<Category />} />
           </Routes>
