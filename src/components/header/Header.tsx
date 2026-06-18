@@ -5,28 +5,31 @@ import EditShop from './EditShop';
 import EditBlackList from './EditBlackList';
 import Modal from 'react-bootstrap/Modal';
 import Dropdown from 'react-bootstrap/Dropdown';
+import MetaAdsDashboard from './MetaAdsDashboard';
 
 // 型安全のための定義
-type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地管理';
+type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地管理' | '他社動向';
 
 const Header = () => {
     const [editMenu, setEditMenu] = useState<string>('');
     const [modal, setModal] = useState<boolean>(false);
 
-    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地管理'];
+    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地管理', '他社動向'];
 
     const menuMapping: Record<MenuKey, string[]> = {
         '店舗管理': ['店舗編集'],
         'スタッフ管理': ['スタッフ編集・追加', '権限編集'],
         '反響管理': ['販促媒体設定', 'ブラックリスト設定'],
-        '土地管理': ['土地情報同期']
+        '土地管理': ['土地情報同期'],
+        '他社動向': ['広告ライブラリ']
     };
 
     const editMapping: Record<string, React.ReactNode> = {
         'スタッフ編集・追加': <EditStaff />,
         '権限編集': <EditAuth />,
         '店舗編集': <EditShop />,
-        'ブラックリスト設定': <EditBlackList />
+        'ブラックリスト設定': <EditBlackList />,
+        '広告ライブラリ': <MetaAdsDashboard />
     };
 
     return (

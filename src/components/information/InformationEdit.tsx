@@ -147,6 +147,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     const [rankSteps, setRankSteps] = useState<string[]>([]);
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [showLostReason, setShowLostReason] = useState(false);
+    const [competitorPdfFile, setCompetitorPdfFile] = useState<{ name: string, file: File | null, path?: string }[]>([]);
 
     useEffect(() => {
         if (!id) return;
@@ -199,6 +200,9 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                     add: false
                 };
                 setInterviewLog(interviewResData);
+                const pdfList = safeParse(response.data.pdf.pdf_path);
+                console.log(response.data.pdf.pdf_path)
+                setCompetitorPdfFile(pdfList);
             };
 
             fetchData();
@@ -347,13 +351,60 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             }
         }
 
-        // 顧客情報の保存
-        console.log(updatedMasterData);
-        try {
-            await axios.post("https://khg-marketing.info/dashboard/api/gateway/", updatedMasterData, { headers });
-        } catch (error) {
-            console.error("データ取得エラー:", error);
+        // ==========================================
+        // ▼ 修正前：顧客情報の保存（JSONで送信していた部分）
+        // console.log(updatedMasterData);
+        // try {
+        //     await axios.post("https://khg-marketing.info/dashboard/api/gateway/", updatedMasterData, { headers });
+        // } catch (error) {
+        //     console.error("データ取得エラー:", error);
+        // }
+        // ==========================================
+
+        console.log("送信するマスタデータ:", updatedMasterData);
+
+        const masterFormData = new FormData();
+
+        Object.keys(updatedMasterData).forEach(key => {
+            const value = updatedMasterData[key];
+            masterFormData.append(key, value !== null && value !== undefined ? value : '');
+        });
+
+        // ▼ ここを改修：残っている既存ファイルと、新規ファイルを分けて送信 ▼
+        if (competitorPdfFile) {
+            // ① 削除されずに残った既存ファイル（fileがnullで、pathがあるもの）を抽出してJSON化
+            const existingFiles = competitorPdfFile
+                .filter(item => !item.file && item.path)
+                .map(item => ({ name: item.name, path: item.path }));
+
+            // 既存ファイルの配列を文字列として送信（全て削除された場合は "[]" が送られます）
+            masterFormData.append('existing_pdfs', JSON.stringify(existingFiles));
+
+            // ② 新規ファイル（fileオブジェクトが存在するもの）を送信
+            competitorPdfFile.forEach((item) => {
+                if (item.file) {
+                    masterFormData.append('competitor_pdf_files[]', item.file);
+                    masterFormData.append('competitor_pdf_names[]', item.name);
+                }
+            });
         }
+
+        // ▼ これで FormData の中身を可視化できます ▼
+        for (let [key, value] of (masterFormData as any).entries()) {
+            console.log(`FormDataの中身 - ${key}:`, value);
+        }
+
+        try {
+            await axios.post("https://khg-marketing.info/dashboard/api/gateway/", masterFormData, {
+                headers: {
+                    ...headers,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+        } catch (error) {
+            console.error("データ保存エラー:", error);
+        }
+        // ▲ 修正後ここまで ▲
 
         const logJson = JSON.stringify(information);
 
@@ -434,6 +485,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             note: '',
             staff: ''
         });
+        await setCompetitorPdfFile([]);
         modalClose();
     };
 
@@ -1170,7 +1222,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                                             return {
                                                                                 ...prev,
                                                                                 competitors_text: arr.length ? arr.join(',') : '',
-                                                                                // もし削除したタグが現在選択中のタグだったら、選択状態も解除する
                                                                                 competitor_name: prev.competitor_name === c ? '' : prev.competitor_name
                                                                             }
                                                                         });
@@ -1227,7 +1278,69 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                 </button>
                                             </div>
                                         </td>
-                                        <td></td><td></td>
+
+                                        <td style={labelStyle}>競合資料 (PDF)</td>
+                                        <td style={valueStyle}>
+                                            <div className="d-flex flex-column gap-2 py-1">
+                                                <input
+                                                    type="file"
+                                                    accept="application/pdf"
+                                                    multiple
+                                                    className="form-control form-control-sm border shadow-sm"
+                                                    onChange={(e) => {
+                                                        const files = Array.from(e.target.files || []);
+                                                        if (files.length > 0) {
+                                                            const newFiles = files.map(file => ({
+                                                                name: file.name,
+                                                                file: file
+                                                            }));
+                                                            setCompetitorPdfFile(prev => [...prev, ...newFiles]);
+                                                        }
+                                                        e.target.value = '';
+                                                    }}
+                                                />
+
+                                                {competitorPdfFile.length > 0 && (
+                                                    <div className="d-flex flex-column gap-2 mt-1">
+                                                        {competitorPdfFile.map((item, index) => (
+                                                            <div key={index} className="d-flex align-items-center gap-2">
+                                                                <a
+                                                                    href={`https://khg-marketing.info/dashboard/api/gateway/handlers${String(item.path)}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-primary text-decoration-none"
+                                                                    style={{ fontSize: '12px', transition: 'opacity 0.2s', cursor: 'pointer' }}
+                                                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+                                                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                                                >
+                                                                    <i className="fa-solid fa-file-pdf text-danger" style={{ fontSize: '1.2rem' }}></i>
+                                                                </a>
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control form-control-sm"
+                                                                    value={item.name}
+                                                                    placeholder="保存するファイル名"
+                                                                    onChange={(e) => {
+                                                                        const updatedFiles = [...competitorPdfFile];
+                                                                        updatedFiles[index].name = e.target.value;
+                                                                        setCompetitorPdfFile(updatedFiles);
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-sm btn-outline-danger py-0 px-2"
+                                                                    onClick={() => {
+                                                                        setCompetitorPdfFile(prev => prev.filter((_, i) => i !== index));
+                                                                    }}
+                                                                >
+                                                                    ×
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }} className='table-secondary'>

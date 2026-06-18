@@ -400,7 +400,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                 <td>ステータス</td>
                                 <td>反響日</td>
                                 <td>初回通電日</td>
-                                <td>初回来場日<br /><span style={{ fontSize: '9px' }}>(来場予約日)</span></td>
+                                <td>最終架電日</td>
+                                <td>次回架電日</td>
                                 <td>ランク</td>
                                 <td>販促媒体</td>
                                 <td>住所</td>
@@ -425,6 +426,20 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                             return dateA.getTime() - dateB.getTime()
                                         })[0]?.day ?? ''
                                         : '';
+                                    const lastDate = callLog ?
+                                        callLog.filter(c => c.action === '架電').sort((a, b) => {
+                                            const dateA = new Date(a.day);
+                                            const dateB = new Date(b.day);
+                                            return dateB.getTime() - dateA.getTime()
+                                        })[0]?.day ?? ''
+                                        : '';
+                                    const nextDate = callLog ?
+                                        callLog.filter(c => c.action === '次回架電日').sort((a, b) => {
+                                            const dateA = new Date(a.day);
+                                            const dateB = new Date(b.day);
+                                            return dateB.getTime() - dateA.getTime()
+                                        })[0]?.day ?? ''
+                                        : '';
                                     const callLength = callLog ? callLog.filter(c => c.action === '架電').length : 0;
                                     return <tr key={index}>
                                         <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
@@ -439,8 +454,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                         <td>{item.status ?? ''}</td>
                                         <td>{formate(item.register)}</td>
                                         <td>{formate(firstDate)}</td>
-                                        <td>{item.interview && formate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
-                                            style={{ fontSize: '8px' }}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
+                                        <td>{formate(lastDate)}</td>
+                                        <td>{formate(nextDate)}</td>
                                         <td>{(item.rank ?? '').replace('ランク', '')}</td>
                                         <td>{item.medium}</td>
                                         <td style={{ textAlign: 'left' }}>{item.full_address}</td>

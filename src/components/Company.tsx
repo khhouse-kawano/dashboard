@@ -34,7 +34,6 @@ const Company = () => {
         kaeru: '',
         resale: ''
     });
-    const [showLastYear, setLastYear] = useState(true);
     const now = new Date();
     const year = now.getFullYear();
     const thisYear = now.getMonth() <= 4 ? year : year + 1;
@@ -157,17 +156,8 @@ const Company = () => {
     const monthFormate = (date: string) => {
         return date ? date.replace(/\//g, '-').slice(0, 7) : ''
     };
-    const lastYearMonthFormate = (date: string) => {
-        if (!date) return '';
-
-        const [year, month] = date.slice(0, 7).replace('/', '-').split('-');
-        return `${Number(year) - 1}-${month}`;
-    };
-
     const today = new Date();
     const monthArray: string[] = getPeriod(Number(targetYear) - 1, 6);
-    const lastYearMonthArray: string[] = getPeriod(Number(targetYear) - 2, 6);
-
     const formattedThisMonth = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`;
     const rankArray = ['契約済み', 'Sランク', 'Aランク', 'Bランク', 'Cランク'];
     const divisionArray: string[] = ['注文事業', '建売分譲事業', '不動産企画室', '中古リノベ'];
@@ -179,10 +169,6 @@ const Company = () => {
     const achievementLength = (category: string, month?: string, division?: string, section?: string) => {
         if (category === 'all') {
             return achievement.filter(a => (month ? monthFormate(a.period) === monthFormate(month) : monthArray.includes(monthFormate(a.period)))
-                && a.category === 'shop').reduce((cur, acc) => cur + Number(acc.value), 0);
-        }
-        if (category === 'all_lastYear') {
-            return achievement.filter(a => (month ? monthFormate(a.period) === lastYearMonthFormate(month) : lastYearMonthArray.includes(monthFormate(a.period)))
                 && a.category === 'shop').reduce((cur, acc) => cur + Number(acc.value), 0);
         }
         if (category === 'division') {
@@ -197,7 +183,6 @@ const Company = () => {
         }
     };
     const cancelStyle = { background: 'red', color: 'white', padding: '0px 3px', fontSize: '8px', borderRadius: '50%', marginLeft: '3px' };
-    const lastYearStyle = { top: '10px', right: '-5px', fontSize: '8px', backgroundColor: '#fff', width: '15px', height: '15px', borderRadius: '50%', color: '#555555' };
 
     type TableProps = {
         list: Customer[],
@@ -207,11 +192,7 @@ const Company = () => {
     const TableTd = ({ list, row, col }: TableProps) => {
         const cancelList = list.filter(o => o.status === '解約');
         return <td rowSpan={row} colSpan={col} className={list.length > 0 ? 'text-primary company_contract text-center table-primary' : 'text-center'}
-            onClick={() => showCustomer(list)}>
-            <div className='position-relative'>{list.length}{cancelList.length > 0 && <span style={cancelStyle}>{cancelList.length}</span>}
-                {showLastYear && <div className='position-absolute'
-                    style={lastYearStyle}>{achievementLength('all_lastYear')}</div>}
-            </div></td>
+            onClick={() => showCustomer(list)}>{list.length}{cancelList.length > 0 && <span style={cancelStyle}>{cancelList.length}</span>}</td>
     };
     const showCustomer = (list: Customer[]) => {
         if (list.length === 0) return;
@@ -274,22 +255,10 @@ const Company = () => {
                         <tr className='target-top sticky-header next_top'>
                             <td colSpan={2} className='text-center table-danger text-danger sticky-column' style={{ letterSpacing: '1px' }}>グループ予算</td>
                             {monthArray.map(month => {
-                                const thisYearValue = achievementLength('all', month);
-                                const lastYearValue = achievementLength('all_lastYear', month);
-                                return <td className='text-center table-danger text-danger'>
-                                    <div className='position-relative'>{thisYearValue}
-                                        {showLastYear && <div className='position-absolute'
-                                            style={lastYearStyle}>{lastYearValue}</div>}
-                                    </div>
-                                </td>;
+                                return <td className='text-center table-danger text-danger'>{achievementLength('all', month)}</td>;
                             }
                             )}
-                            <td className='text-center table-danger text-danger' colSpan={2}>
-                                <div className='position-relative'>{achievementLength('all')}
-                                    {showLastYear && <div className='position-absolute'
-                                        style={{ ...lastYearStyle, right: '25px' }}>{achievementLength('all_lastYear')}</div>}
-                                </div>
-                            </td>
+                            <td className='text-center table-danger text-danger' colSpan={2}>{achievementLength('all')}</td>
                             <td className='table-none-border'></td>
                             {rankArray.map((r, index) => {
                                 const orderContractList = customerList.filter(o => o.contract && monthArray.includes(monthFormate(o.contract)) && o.status === '契約済み');
@@ -410,8 +379,7 @@ const Company = () => {
                                                                             const isTotal = monthIndex === monthArray.length;
                                                                             const shopPeriodContract = shopContract.filter(o => dateFormate(o.contract).includes(dateFormate(month)));
                                                                             const multiPeriodContract = multiContract.filter(o => dateFormate(o.contract).includes(dateFormate(month)));
-                                                                            const targetShop = achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value ?
-                                                                                achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value : '';
+                                                                            const targetShop = achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value ? achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value : '';
                                                                             const achievementLength = achievement.filter(a =>
                                                                                 a.category === 'shop' &&
                                                                                 a.name === shop.shop &&

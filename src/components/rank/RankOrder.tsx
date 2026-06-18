@@ -158,7 +158,7 @@ const RankOrder = () => {
         };
 
         const register = customerList.filter(c => checkDate(c.register));
-        const contract = customerList.filter(c => c.status === '契約済み' && checkDate(c.contract));
+        const contract = customerList.filter(c => (c.status === '契約済み' || c.status === '解約') && checkDate(c.contract));
         const interviewBase = customerList.filter(c => checkDate(c.interview));
         const appointmentOther = customerList.filter(c =>
             !c.interview && (checkDate(c.appointment) || checkDate(c.screening) || checkDate(c.contract))

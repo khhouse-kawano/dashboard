@@ -391,7 +391,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
         await setInterview({
             day: '',
             action: '',
-            note: '', 
+            note: '',
             staff: ''
         });
         await setCall({
@@ -1233,6 +1233,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                                         <option value="SMS送信">SMS送信</option>
                                                                         <option value="メール送信">メール送信</option>
                                                                         <option value="資料郵送">資料郵送</option>
+                                                                        <option value="次回架電日">次回架電日</option>
                                                                     </select>
                                                                 </div>
                                                                 <div className="">
@@ -1290,6 +1291,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                                                                 <option value="SMS送信">SMS送信</option>
                                                                 <option value="メール送信">メール送信</option>
                                                                 <option value="資料郵送">資料郵送</option>
+                                                                <option value="次回架電日">次回架電日</option>
                                                             </select>
                                                         </div>
                                                         <div className="">
