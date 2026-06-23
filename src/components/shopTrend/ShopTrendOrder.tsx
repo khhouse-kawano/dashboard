@@ -24,6 +24,7 @@ import { isLastYear } from '../../utils/isLastYear';
 import { ModalBody } from 'react-bootstrap';
 import InformationEdit from '../information/InformationEdit';
 import InterviewLog from '../InterviewLog';
+import { thisYear } from '../../utils/thisYear';
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
 type Customer = { id: string, shop: string, customer: string, staff: string, status: string, contract: string, rank: string, medium: string, interview: string, register: string, reserved_interview: string, appointment: string, screening: string };
@@ -103,7 +104,7 @@ const ShopTrendOrder = () => {
                 await setShopArray(response.data.shop);
                 await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
                 await setOriginalMonthArray(getYearMonthArray(2025, 1));
-                await setStaff(response.data.staff.filter(s => s.rank === 1));
+                await setStaff(response.data.staff.filter(s => s.rank === 1 && s.period === String(thisYear)));
                 await setBudget(response.data.budget);
             } catch (error) {
                 console.error("データ取得エラー:", error);

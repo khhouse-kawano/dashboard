@@ -5,6 +5,7 @@ import AuthContext from '../../context/AuthContext';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { headers } from '../../utils/headers';
 import InformationEditResale from '../information/InformationEditResale';
+import CallStatusList from '../CallStatusList';
 
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
 type CustomerList = Record<string, string>;
@@ -387,6 +388,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                             onClick={() => setTrash(0)}>非表示リストへ移動</div>}
                         {trash === 0 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
                             onClick={() => setTrash(1)}>一覧へ戻る</div>}
+                        <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                            onClick={() => setCallStatusShow(true)}>架電状況集計</div>
                     </div>
                 </div>
                 <div className='table-wrapper'>
@@ -469,6 +472,10 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                 </div>
             </div>
             <InformationEditResale id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
+            <CallStatusList
+                callStatusShow={callStatusShow}
+                setCallStatusShow={setCallStatusShow}
+            />
         </>
     )
 }

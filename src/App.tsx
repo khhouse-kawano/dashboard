@@ -80,7 +80,7 @@ function AppInner() {
     <>
       <ActiveUser />
       <div className='outer-container'>
-        {currentPath !== '/login' && <Header />}
+        {currentPath !== '/login' && <Header key={menuKey} />}
         <div className="d-flex pt-4">
           {currentPath !== '/home' && currentPath !== '/login' && <>
             <div className="modal_menu">

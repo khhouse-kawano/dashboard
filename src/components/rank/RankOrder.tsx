@@ -22,13 +22,14 @@ type Achievement = { category: string, name: string, period: string, value: stri
 type Expect = { date: string, shop: string, section: string, count: number };
 type Target = { [key: string]: boolean };
 type Shop = { brand: string, shop: string, section: string, division: string, };
-type Label = { label: string, show: boolean, category: string };
+type Label = { label: string, show: boolean, category: string, shop?: string };
 type Staff = { id: number, name: string, pg_id: string, shop: string, mail: string, status: string, category: number, rank: number, sort: number, period: string, position: string };
 type Memo = Record<string, string>;
 
 const RankOrder = () => {
     const { token } = useContext(AuthContext);
     const { brand } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMonth, setTargetMonth] = useState('');
     const [customerList, setCustomerList] = useState<Customer[]>([]);
@@ -58,13 +59,17 @@ const RankOrder = () => {
     };
     const [memoList, setMemoList] = useState<Memo[]>([]);
 
+    const fetchCustomerData = async () => {
+        return await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", category }, { headers });
+    };
+
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
         setTargetMonth(`${year}/${month}`);
 
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank" }, { headers });
+                const response = await fetchCustomerData();
                 await setCustomerList(response.data.customer);
                 await setExpectedContract(response.data.expected);
                 await setShopList(response.data.shop);
@@ -117,11 +122,11 @@ const RankOrder = () => {
         { label: 'Aランク', desc: (<>契約確度高い(90%)<br />土地買付受領<br />建築申込</>) },
         { label: 'Bランク', desc: (<>勝算あり(60%)<br />建築意思がある(自社他社問わず)<br />事前審査承諾<br />候補地有(プラン提案中)</>) },
         { label: 'Cランク', desc: (<>見込み案件(40%)<br />次回アポ済み<br />LINE等で連絡可<br />事前審査提出</>) },
-        // { label: 'Eランク', desc: '中長期管理' },
+        { label: 'Dランク', desc: '中長期管理' },
         // { label: 'ランクダウン', desc: 'A~CランクからD~Eランクにダウンした数' },
     ];
 
-    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク'];
+    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク'];
 
     const background = {
         '注文営業全体': 'table-secondary ',
@@ -139,7 +144,7 @@ const RankOrder = () => {
     const ym = (value: any) => dateFormate(value).slice(0, 7);
 
     const expandTarget = (target: Label) => {
-        if (target.category === 'staff') return; // スタッフ行はクリックしても何もしない
+        if (target.category === 'staff') return;
 
         setShowTarget(prev => ({
             ...prev,
@@ -190,13 +195,12 @@ const RankOrder = () => {
                             .sort(staffSorter());
 
                         staffs.forEach(staff => {
-                            list.push({ category: 'staff', label: staff.name, show: false });
+                            list.push({ category: 'staff', label: staff.name, show: false, shop: shop.shop });
                         });
                     }
                 });
             }
         });
-
         return list;
     }, [sections, shopList, staffList, showTarget]);
 
@@ -206,7 +210,8 @@ const RankOrder = () => {
         target: string,
         index: number,
         rank: string,
-        rank_period: number
+        rank_period: number,
+        shop?: string
     ) => {
         const isPeriod = targetMonth.length === 4;
 
@@ -231,6 +236,8 @@ const RankOrder = () => {
             if (index > 0) {
                 if (category === 'section') {
                     matchCategory = targetShops.includes(item.shop);
+                } else if (category === 'staff') {
+                    matchCategory = item.staff === target && item.shop === shop;
                 } else {
                     matchCategory = (item as any)[category] === target;
                 }
@@ -298,7 +305,7 @@ const RankOrder = () => {
             id: idValue,
             rank: newRank ?? '',
             rank_period: periodValue ?? '',
-            request: 'rank_update_rank'
+            request: 'rank'
         };
         try {
             const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
@@ -319,9 +326,8 @@ const RankOrder = () => {
 
     const closeInformationEdit = async () => {
         try {
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_customer_info" }, { headers });
-            console.log(response.data.status);
-            await setCustomerList(response.data.newCustomers);
+            const response = await fetchCustomerData();
+            await setCustomerList(response.data.customer);
         } catch (e) {
             console.error(e);
         }
@@ -351,7 +357,7 @@ const RankOrder = () => {
 
         const fetchData = async () => {
             try {
-                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_memo", staff, memo: text, shop }, { headers });
+                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", staff, memo: text, shop }, { headers });
             } catch (err) {
                 console.error(err);
             }
@@ -457,11 +463,11 @@ const RankOrder = () => {
                                     bgKey = shopList.find(s => s.shop === target.label)?.section;
                                 }
                                 const isPeriod = targetMonth.length === 4;
-                                const register = getFiltered('register', target.category, target.label, targetIndex, '', 0);
-                                const interview = getFiltered('interview', target.category, target.label, targetIndex, '', 0);
-                                const appointment = getFiltered('appointment', target.category, target.label, targetIndex, '', 0);
-                                const contract = getFiltered('contract', target.category, target.label, targetIndex, '', 0);
-                                const rankS = getFiltered('', target.category, target.label, targetIndex, 'Sランク', 0);
+                                const register = getFiltered('register', target.category, target.label, targetIndex, '', 0, target.shop ?? '');
+                                const interview = getFiltered('interview', target.category, target.label, targetIndex, '', 0, target.shop ?? '');
+                                const appointment = getFiltered('appointment', target.category, target.label, targetIndex, '', 0, target.shop ?? '');
+                                const contract = getFiltered('contract', target.category, target.label, targetIndex, '', 0, target.shop ?? '');
+                                const rankS = getFiltered('', target.category, target.label, targetIndex, 'Sランク', 0, target.shop ?? '');
                                 const goal = calculateGoal(target.category, target.label);
                                 const expectedList = expectedContract.filter(item => item.date === targetMonth
                                     && ((targetIndex > 0) ? item[target.category] === target.label : true));
@@ -533,11 +539,11 @@ const RankOrder = () => {
                                         <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%
                                             (<span className='text-primary'>{goal ? perFormate((contract.length + rankS.length) / Number(goal)) : 0}%</span>)</td>
                                         {rankLabels.map((rank, rankIndex) => {
-                                            const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, 0);
+                                            const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, 0, target.category === 'staff' ? target.shop : '');
                                             return <>
                                                 <TableParts key={rankIndex} list={targetList} setModalList={setModalList} />
                                                 {!isPeriod && [1, 2].map(num => {
-                                                    const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, num);
+                                                    const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, num, target.category === 'staff' ? target.shop : '');
                                                     return <>
                                                         <TableParts key={num} list={targetList} setModalList={setModalList} />
                                                     </>

@@ -35,7 +35,7 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
                     const now = new Date();
                     const today = now.getTime();
                     const target = new Date(dateFormate(item.register)).getTime();
-                    const start = new Date('2026-01-01');
+                    const start = new Date('2026-06-01');
                     const base = start.getTime();
                     return item.status === '失注' && target < today && base < target
                 });

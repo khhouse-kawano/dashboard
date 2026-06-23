@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import EditStaff from './EditStaff';
 import EditAuth from './EditAuth';
 import EditShop from './EditShop';
@@ -6,22 +6,31 @@ import EditBlackList from './EditBlackList';
 import Modal from 'react-bootstrap/Modal';
 import Dropdown from 'react-bootstrap/Dropdown';
 import MetaAdsDashboard from './MetaAdsDashboard';
+import SyncEstate from './SyncEstate';
+import CompetitorMaterials from './CompetitorMaterials';
+import Estate from '../Estate';
+import CallStatus from '../CallStatusList';
+import axios from "axios";
+import { headers } from '../../utils/headers';
 
 // 型安全のための定義
-type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地管理' | '他社動向';
+type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況';
 
-const Header = () => {
+const Header = ({ key }) => {
     const [editMenu, setEditMenu] = useState<string>('');
     const [modal, setModal] = useState<boolean>(false);
-
-    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地管理', '他社動向'];
+    const [estateId, setEstateId] = useState('search');
+    const [callStatusShow, setCallStatusShow] = useState(true);
+    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '架電状況'];
+    const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const menuMapping: Record<MenuKey, string[]> = {
         '店舗管理': ['店舗編集'],
         'スタッフ管理': ['スタッフ編集・追加', '権限編集'],
         '反響管理': ['販促媒体設定', 'ブラックリスト設定'],
-        '土地管理': ['土地情報同期'],
-        '他社動向': ['広告ライブラリ']
+        '土地・物件管理': ['土地情報同期', '土地情報一覧'],
+        '他社動向': ['他社広告ライブラリ', '他社資料'],
+        '架電状況': ['注文営業', '建売営業', '中古営業']
     };
 
     const editMapping: Record<string, React.ReactNode> = {
@@ -29,8 +38,27 @@ const Header = () => {
         '権限編集': <EditAuth />,
         '店舗編集': <EditShop />,
         'ブラックリスト設定': <EditBlackList />,
-        '広告ライブラリ': <MetaAdsDashboard />
+        '他社広告ライブラリ': <MetaAdsDashboard />,
+        '土地情報同期': <SyncEstate setModal={setModal} />,
+        '他社資料': <CompetitorMaterials />,
+        '土地情報一覧': <Estate estateId={estateId} setEstateId={setEstateId} source='header' />,
+        '注文営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='order' />,
+        '建売営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='spec' />,
+        '中古営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='used' />,
     };
+
+    useEffect(() => {
+        const fetchData = async () => {
+            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "header" }, { headers });
+            setNewEstate(response.data.estate);
+        };
+        fetchData();
+
+    }, [key]);
+
+    const isEstate = (value: string) => {
+        return newEstate && newEstate > 0 && value === '土地情報一覧'
+    }
 
     return (
         <>
@@ -62,20 +90,20 @@ const Header = () => {
                             {menuMapping[menu].map((item) => (
                                 <Dropdown.Item
                                     key={item}
-                                    className="py-2 px-3 text-dark"
+                                    className="py-2 px-3 text-dark position-relative"
                                     onClick={() => {
                                         setEditMenu(item);
                                         setModal(true);
                                     }}
                                 >
-                                    {item}
+                                    {item}{isEstate(item) && <div className="position-absolute menu_sync" style={{ top: '12px', right: '10px' }}>新着 {newEstate}件</div>}
                                 </Dropdown.Item>
                             ))}
                         </Dropdown.Menu>
                     </Dropdown>
                 ))}
             </div>
-            <Modal show={modal} onHide={() => setModal(false)} size='xl' centered backdrop="static">
+            <Modal show={modal} onHide={() => setModal(false)} size={editMenu === '土地情報同期' ? 'sm' : 'xl'} centered backdrop="static">
                 <Modal.Header closeButton className="border-bottom-0 pb-0 fw-bold text-secondary" style={{ fontSize: '15px' }}>
                     {editMenu}
                 </Modal.Header>

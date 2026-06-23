@@ -125,7 +125,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                     const target = new Date(dateFormate(item.reserved_interview)).getTime();
                     const start = new Date('2026-01-01');
                     const base = start.getTime();
-                    return item.trash === 1 && target < today && base < target && (!item.interview && !item.cancel_status) && item.status !== '重複';
+                    return Number(item.trash) === 1 && target < today && base < target && (!item.interview && !item.cancel_status) && item.status !== '重複';
                 }
                 ).length;
                 setCancelLength(filteredCancelLength);
@@ -133,7 +133,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                     const now = new Date();
                     const today = now.getTime();
                     const target = new Date(dateFormate(item.register)).getTime();
-                    const start = new Date('2026-01-01');
+                    const start = new Date('2026-06-01');
                     const base = start.getTime();
                     const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
                     const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
@@ -143,7 +143,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                             !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
                         );
 
-                    return target < today && base < target && item.status === '失注' && (isReasonMissing || isCompetitorMissing || isDetailMissing) && item.trash === 1;
+                    return target < today && base < target && item.status === '失注' && (isReasonMissing || isCompetitorMissing || isDetailMissing) && Number(item.trash) === 1;
                 }).length;
                 setLoseLength(filteredLoseLength);
             } catch (error) {
@@ -300,8 +300,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
             return;
         }
     };
-
-    const [insideSalesCategory, setInsideSalesCategory] = useState('kumamoto');
 
     const closeInformationEdit = async () => {
         setEditId('');
@@ -564,12 +562,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
             <CallStatusList
                 callStatusShow={callStatusShow}
                 setCallStatusShow={setCallStatusShow}
-                shopArray={shopArray}
-                monthArray={monthArray}
-                staffArray={staffArray}
-                originalDatabase={originalDatabase}
-                insideSalesCategory={insideSalesCategory}
-                setInsideSalesCategory={setInsideSalesCategory} />
+            />
             <SurveyList
                 surveyShow={surveyShow}
                 setSurveyShow={setSurveyShow}

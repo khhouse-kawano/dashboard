@@ -11,7 +11,6 @@ import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { headers } from '../../utils/headers';
 import { getFiscalYearMonthsFromJune } from '../../utils/getFiscalYearMonthsFromJune';
 import InformationEditResale from '../information/InformationEditResale';
-import InterviewLog from '../InterviewLog';
 import StaffMemo from './StaffMemo';
 import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
@@ -28,6 +27,7 @@ type Memo = Record<string, string>;
 const RankResale = () => {
     const { token } = useContext(AuthContext);
     const { brand } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMonth, setTargetMonth] = useState('');
     const [customerList, setCustomerList] = useState<Customer[]>([]);
@@ -61,11 +61,14 @@ const RankResale = () => {
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const [editId, setEditId] = useState('');
-    const [interviewId, setInterviewId] = useState('');
     const yearSetting = (year: number, month: number) => {
         return Number(month) <= 4 ? String(year) : String(year + 1)
     };
     const [memoList, setMemoList] = useState<Memo[]>([]);
+
+    const fetchCustomerData = async () => {
+        return await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", category }, { headers });
+    };
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
@@ -73,7 +76,7 @@ const RankResale = () => {
 
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_resale" }, { headers });
+                const response = await fetchCustomerData();
                 await setCustomerList(response.data.customer);
                 await setExpectedContract(response.data.expected);
                 await setOriginalStaffList(response.data.staff);
@@ -123,11 +126,12 @@ const RankResale = () => {
         { label: 'Aランク', desc: (<>契約確度高い(90%)</>) },
         { label: 'Bランク', desc: (<>勝算あり(60%)</>) },
         { label: 'Cランク', desc: (<>見込み案件(40%)</>) },
+        { label: 'Dランク', desc: (<>追客中</>) },
         // { label: 'Eランク', desc: '中長期管理' },
         // { label: 'ランクダウン', desc: 'A~CランクからD~Eランクにダウンした数' },
     ];
 
-    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク'];
+    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク'];
 
     const backgroundMapping = {
         '中古リノベ': 'table-secondary ',
@@ -298,11 +302,11 @@ const RankResale = () => {
             id: idValue,
             rank: newRank ?? '',
             rank_period: periodValue ?? '',
-            request: 'rank_resale_update_rank'
+            request: 'rank',
+            category
         };
         try {
             const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
-            console.log(response.data.status);
             await setCustomerList(response.data.newCustomers);
         } catch (e) {
             console.error(e);
@@ -319,9 +323,8 @@ const RankResale = () => {
 
     const closeInformationEdit = async () => {
         try {
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_resale_customer_info" }, { headers });
-            console.log(response.data.status);
-            await setCustomerList(response.data.newCustomers);
+            const response = await fetchCustomerData();
+            await setCustomerList(response.data.customer);
         } catch (e) {
             console.error(e);
         }
@@ -351,7 +354,7 @@ const RankResale = () => {
 
         const fetchData = async () => {
             try {
-                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_memo", staff, memo: text, shop }, { headers });
+                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", staff, memo: text, shop }, { headers });
             } catch (err) {
                 console.error(err);
             }
@@ -567,7 +570,6 @@ const RankResale = () => {
                                         <td>反響日</td>
                                         <td>初回来場日</td>
                                         <td>契約日</td>
-                                        <td>商談ステップ</td>
                                     </tr>
                                     {modalList.slice(page - 20, page).map((item, index) =>
                                         <tr key={index}>
@@ -585,7 +587,7 @@ const RankResale = () => {
                                                     onChange={(e) => {
                                                         setNewRank(item.id, e.target.value, '');
                                                     }}>
-                                                    {['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク',].map(rank => {
+                                                    {['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'].map(rank => {
                                                         return <option value={rank} key={rank} selected={rank === item.rank}>{rank}</option>
                                                     }
                                                     )}
@@ -606,8 +608,6 @@ const RankResale = () => {
                                             <td>{dateFormate(item.register)}</td>
                                             <td>{dateFormate(item.interview)}</td>
                                             <td>{dateFormate(item.contract)}</td>
-                                            <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
-                                                onClick={() => setInterviewId(item.id)}>表示</div></td>
                                         </tr>)}
                                 </tbody>
                             </Table>
@@ -620,7 +620,6 @@ const RankResale = () => {
                         </>}
                 </Modal.Body>
             </Modal>
-            <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
             <InformationEditResale id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
         </div>
     )

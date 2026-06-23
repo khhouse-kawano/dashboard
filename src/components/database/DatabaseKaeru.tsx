@@ -428,7 +428,7 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
                                         <td>{formate(item.register)}</td>
                                         <td>{formate(firstDate)}</td>
                                         <td>{item.interview && formate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
-                                        style={{fontSize: '8px'}}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
+                                            style={{ fontSize: '8px' }}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
                                         <td>{(item.rank ?? '').replace('ランク', '')}</td>
                                         <td>{item.medium}</td>
                                         <td style={{ textAlign: 'left' }}>{item.full_address}</td>
@@ -445,12 +445,7 @@ const DatabaseKaeru = ({ onReload, key }: Props) => {
             <CallStatusList
                 callStatusShow={callStatusShow}
                 setCallStatusShow={setCallStatusShow}
-                shopArray={shopArray}
-                monthArray={monthArray}
-                staffArray={staffArray}
-                originalDatabase={originalDatabase}
-                insideSalesCategory={insideSalesCategory}
-                setInsideSalesCategory={setInsideSalesCategory} />
+            />
         </>
     )
 }

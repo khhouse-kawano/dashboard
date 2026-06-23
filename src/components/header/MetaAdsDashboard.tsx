@@ -3,13 +3,17 @@ import { Card, Table, Button, Form, Badge, ButtonGroup, InputGroup, Row, Col, Sp
 import axios from 'axios';
 import { headers } from '../../utils/headers';
 
+// 💡 1. 型定義に新しいデータを追加
 type AdData = {
     id: string | number;
     advertiser_name: string;
+    advertiser_area: string;   // 追加
+    advertiser_period: string; // 追加
     ad_title: string;
     image_filename: string;
     scraped_date: string;
     lp_url: string;
+    bookmark?: number;
 };
 
 const MetaAdsDashboard = () => {
@@ -18,6 +22,10 @@ const MetaAdsDashboard = () => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [isLoading, setIsLoading] = useState(true);
     const [companyList, setCompanyList] = useState<string[]>([]);
+    
+    // 💡 2. エリアのセレクトボックス用Stateを追加
+    const [areaList, setAreaList] = useState<string[]>([]);
+    const [selectedArea, setSelectedArea] = useState('');
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 12;
@@ -25,16 +33,30 @@ const MetaAdsDashboard = () => {
     const [showBanner, setShowBanner] = useState('');
     const [imgHover, setImgHover] = useState('');
 
+    const [showOnlyBookmarked, setShowOnlyBookmarked] = useState(false);
+
     const IMAGE_BASE_URL = 'https://khg-marketing.info/api/meta/images/';
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "meta_ads" }, { headers });
-                setAds(response.data.ads);
+                const formattedAds = response.data.ads.map((ad: any) => ({
+                    ...ad,
+                    bookmark: Number(ad.bookmark) === 1 ? 1 : 0
+                }));
+                setAds(formattedAds);
                 setIsLoading(false);
-                const companyArray: string[] = response.data.ads.map(a => a.advertiser_name);
+                
+                const companyArray: string[] = formattedAds.map((a: AdData) => a.advertiser_name);
                 setCompanyList([...new Set(companyArray)]);
+
+                // 💡 3. DBから取得したデータから重複しない「エリア一覧」を抽出
+                const areas: string[] = formattedAds
+                    .map((a: AdData) => a.advertiser_area)
+                    .filter((area: string) => area && area !== "不明"); // 空白や不明を除外
+                setAreaList([...new Set(areas)]);
+
             } catch (err) {
                 console.error(err);
             }
@@ -42,13 +64,36 @@ const MetaAdsDashboard = () => {
         fetchData();
     }, []);
 
+    // 💡 エリア変更時もページを1に戻すように依存配列に追加
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, viewMode]);
+    }, [searchQuery, viewMode, showOnlyBookmarked, selectedArea]);
 
-    const filteredAds = ads.filter(ad =>
-        ad.advertiser_name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const toggleBookmark = async (id: string | number) => {
+        setAds(prevAds => prevAds.map(ad =>
+            ad.id === id ? { ...ad, bookmark: ad.bookmark === 1 ? 0 : 1 } : ad
+        ));
+
+        try {
+            const targetAd = ads.find(ad => ad.id === id);
+            const newBookmarkValue = targetAd?.bookmark === 1 ? 0 : 1;
+            await axios.post('https://khg-marketing.info/dashboard/api/gateway/', {
+                request: "meta_ads",
+                id: id,
+                bookmark: newBookmarkValue
+            }, { headers });
+        } catch (error) {
+            console.error("ブックマークの保存に失敗しました", error);
+        }
+    };
+
+    // 💡 4. エリアでの絞り込み処理を追加
+    const filteredAds = ads.filter(ad => {
+        const matchSearch = ad.advertiser_name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchBookmark = showOnlyBookmarked ? ad.bookmark === 1 : true;
+        const matchArea = selectedArea ? ad.advertiser_area === selectedArea : true;
+        return matchSearch && matchBookmark && matchArea;
+    });
 
     const totalPages = Math.ceil(filteredAds.length / itemsPerPage);
     const paginatedAds = filteredAds.slice(
@@ -92,30 +137,47 @@ const MetaAdsDashboard = () => {
                     {totalPages > 1 && (
                         <div className="d-flex justify-content-center">
                             <Pagination size="sm" className="mb-0 shadow-sm">
-                                <Pagination.First
-                                    onClick={() => setCurrentPage(1)}
-                                    disabled={currentPage === 1}
-                                />
-                                <Pagination.Prev
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                />
-
+                                <Pagination.First onClick={() => setCurrentPage(1)} disabled={currentPage === 1} />
+                                <Pagination.Prev onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} />
                                 {paginationItems}
-
-                                <Pagination.Next
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                />
-                                <Pagination.Last
-                                    onClick={() => setCurrentPage(totalPages)}
-                                    disabled={currentPage === totalPages}
-                                />
+                                <Pagination.Next onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} />
+                                <Pagination.Last onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} />
                             </Pagination>
                         </div>
                     )}
 
                     <div className="d-flex gap-3 align-items-center justify-content-center justify-content-lg-end flex-wrap">
+                        
+                        <Button
+                            variant={showOnlyBookmarked ? "warning" : "white"}
+                            size="sm"
+                            onClick={() => setShowOnlyBookmarked(!showOnlyBookmarked)}
+                            className={`shadow-sm border ${showOnlyBookmarked ? 'text-dark fw-bold border-warning' : 'text-secondary'}`}
+                            style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                        >
+                            <i 
+                                className={`fa-${showOnlyBookmarked ? 'solid' : 'regular'} fa-bookmark me-1`} 
+                                style={{ color: showOnlyBookmarked ? '#212529' : '#ffc107' }}
+                            ></i>
+                            保存済み
+                        </Button>
+
+                        {/* 💡 5. エリア絞り込み用のセレクトボックス */}
+                        <div style={{ width: '120px' }}>
+                            <Form.Select
+                                size="sm"
+                                value={selectedArea}
+                                onChange={(e) => setSelectedArea(e.target.value)}
+                                className="shadow-sm border-0 text-secondary"
+                                style={{ fontSize: '0.8rem', cursor: 'pointer' }}
+                            >
+                                <option value="">全エリア</option>
+                                {areaList.map((area, idx) => (
+                                    <option key={idx} value={area}>{area}</option>
+                                ))}
+                            </Form.Select>
+                        </div>
+
                         <div style={{ width: '220px', position: 'relative' }}>
                             <InputGroup size="sm" className="shadow-sm">
                                 <InputGroup.Text className="bg-white border-end-0">
@@ -140,15 +202,9 @@ const MetaAdsDashboard = () => {
                                 <div
                                     className="position-absolute w-100 bg-white shadow"
                                     style={{
-                                        top: '100%',
-                                        left: 0,
-                                        marginTop: '4px',
-                                        zIndex: 1050,
-                                        maxHeight: '200px',
-                                        overflowY: 'auto',
-                                        borderRadius: '6px',
-                                        border: '1px solid #dee2e6',
-                                        display: 'block'
+                                        top: '100%', left: 0, marginTop: '4px', zIndex: 1050,
+                                        maxHeight: '200px', overflowY: 'auto', borderRadius: '6px',
+                                        border: '1px solid #dee2e6', display: 'block'
                                     }}
                                 >
                                     {companyList
@@ -162,12 +218,7 @@ const MetaAdsDashboard = () => {
                                                     setShowSuggestions(false);
                                                 }}
                                                 className="text-truncate text-dark"
-                                                style={{
-                                                    padding: '8px 12px',
-                                                    fontSize: '0.8rem',
-                                                    cursor: 'pointer',
-                                                    borderBottom: '1px solid #f8f9fa'
-                                                }}
+                                                style={{ padding: '8px 12px', fontSize: '0.8rem', cursor: 'pointer', borderBottom: '1px solid #f8f9fa' }}
                                                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
                                                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                             >
@@ -176,10 +227,7 @@ const MetaAdsDashboard = () => {
                                         ))
                                     }
                                     {companyList.filter(c => c.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                                        <div
-                                            className="text-muted"
-                                            style={{ padding: '8px 12px', fontSize: '0.8rem' }}
-                                        >
+                                        <div className="text-muted" style={{ padding: '8px 12px', fontSize: '0.8rem' }}>
                                             該当する企業がありません
                                         </div>
                                     )}
@@ -193,7 +241,7 @@ const MetaAdsDashboard = () => {
                                 size="sm"
                                 onClick={() => setViewMode('grid')}
                                 className={viewMode === 'grid' ? "fw-bold" : "text-secondary border"}
-                                style={{ width: '100px', fontSize: '0.8rem' }}
+                                style={{ width: '80px', fontSize: '0.8rem' }}
                             >
                                 <i className="fa-solid fa-border-all me-1"></i>カード
                             </Button>
@@ -202,7 +250,7 @@ const MetaAdsDashboard = () => {
                                 size="sm"
                                 onClick={() => setViewMode('list')}
                                 className={viewMode === 'list' ? "fw-bold" : "text-secondary border"}
-                                style={{ width: '100px', fontSize: '0.8rem' }}
+                                style={{ width: '80px', fontSize: '0.8rem' }}
                             >
                                 <i className="fa-solid fa-list me-1"></i>リスト
                             </Button>
@@ -234,31 +282,61 @@ const MetaAdsDashboard = () => {
                                                 onMouseLeave={() => setImgHover('')}
                                             />
                                             <Card.Body className="d-flex flex-column p-3">
-                                                <div className="mb-2">
-                                                    <Badge bg="secondary" className="fw-normal mb-1">
-                                                        <i className="fa-regular fa-building me-1"></i>
-                                                        {ad.advertiser_name}
-                                                    </Badge>
-                                                    <Card.Text className="text-dark fw-bold mb-0" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                                        {ad.ad_title || 'テキストなし'}
-                                                    </Card.Text>
+
+                                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                                    {/* 💡 6. 企業名と並べてエリアもバッジで表示 */}
+                                                    <div className="d-flex flex-wrap gap-1">
+                                                        <Badge bg="secondary" className="fw-normal">
+                                                            <i className="fa-regular fa-building me-1"></i>
+                                                            {ad.advertiser_name}
+                                                        </Badge>
+                                                        {ad.advertiser_area && ad.advertiser_area !== "不明" && (
+                                                            <Badge bg="info" text="dark" className="fw-normal">
+                                                                <i className="fa-solid fa-location-dot me-1"></i>
+                                                                {ad.advertiser_area}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+
+                                                    <i
+                                                        className={`fa-${ad.bookmark === 1 ? 'solid text-warning' : 'regular text-muted'} fa-bookmark`}
+                                                        style={{ cursor: 'pointer', fontSize: '1.2rem', transition: '0.2s', marginLeft: '8px' }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleBookmark(ad.id);
+                                                        }}
+                                                        title={ad.bookmark === 1 ? 'ブックマーク解除' : 'ブックマークに追加'}
+                                                    ></i>
                                                 </div>
-                                                <div className="mt-auto d-flex justify-content-between align-items-center pt-2 border-top">
-                                                    <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                                        {formateDate(ad.scraped_date)}
-                                                    </span>
-                                                    <Button
-                                                        variant="outline-primary"
-                                                        size="sm"
-                                                        href={ad.lp_url}
-                                                        target="_blank"
-                                                        className="py-1 px-2"
-                                                        style={{ fontSize: '0.75rem' }}
-                                                    >
-                                                        遷移先 <i className="fa-solid fa-arrow-up-right-from-square ms-1"></i>
-                                                    </Button>
-                                                </div>
+
+                                                <Card.Text className="text-dark fw-bold mb-0" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                                    {ad.ad_title || 'テキストなし'}
+                                                </Card.Text>
                                             </Card.Body>
+
+                                            <div className="mt-auto d-flex justify-content-between align-items-end p-3 pt-2 border-top">
+                                                {/* 💡 7. 取得日の上に「掲載開始日」を追加 */}
+                                                <div className="d-flex flex-column">
+                                                    {ad.advertiser_period && (
+                                                        <span className="text-dark fw-bold mb-1" style={{ fontSize: '0.75rem' }}>
+                                                            開始: {ad.advertiser_period}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-muted" style={{ fontSize: '0.7rem' }}>
+                                                        取得: {formateDate(ad.scraped_date)}
+                                                    </span>
+                                                </div>
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    href={ad.lp_url}
+                                                    target="_blank"
+                                                    className="py-1 px-2"
+                                                    style={{ fontSize: '0.75rem' }}
+                                                >
+                                                    遷移先 <i className="fa-solid fa-arrow-up-right-from-square ms-1"></i>
+                                                </Button>
+                                            </div>
                                         </Card>
                                     </Col>
                                 ))}
@@ -270,12 +348,13 @@ const MetaAdsDashboard = () => {
                                 <Table hover className="align-middle mb-0" style={{ fontSize: '0.8rem' }}>
                                     <thead className="table-light text-secondary text-nowrap">
                                         <tr>
-                                            <th className="fw-normal py-2" style={{ width: '5%' }}>No</th>
-                                            <th className="fw-normal py-2" style={{ width: '10%' }}>画像</th>
-                                            <th className="fw-normal py-2" style={{ width: '20%' }}>広告主</th>
-                                            <th className="fw-normal py-2" style={{ width: '40%' }}>広告テキスト</th>
-                                            <th className="fw-normal py-2" style={{ width: '15%' }}>取得日</th>
-                                            <th className="fw-normal text-center py-2" style={{ width: '10%' }}>操作</th>
+                                            <th className="fw-normal py-2" style={{ width: '4%' }}>No</th>
+                                            <th className="fw-normal py-2 text-center" style={{ width: '5%' }}>保存</th>
+                                            <th className="fw-normal py-2" style={{ width: '8%' }}>画像</th>
+                                            <th className="fw-normal py-2" style={{ width: '16%' }}>広告主 / エリア</th>
+                                            <th className="fw-normal py-2" style={{ width: '35%' }}>広告テキスト</th>
+                                            <th className="fw-normal py-2" style={{ width: '17%' }}>掲載開始 / 取得日</th>
+                                            <th className="fw-normal text-center py-2" style={{ width: '15%' }}>操作</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -286,22 +365,48 @@ const MetaAdsDashboard = () => {
                                                         {(currentPage - 1) * itemsPerPage + index + 1}
                                                     </span>
                                                 </td>
+                                                <td className="py-2 text-center">
+                                                    <i
+                                                        className={`fa-${ad.bookmark === 1 ? 'solid text-warning' : 'regular text-muted'} fa-bookmark`}
+                                                        style={{ cursor: 'pointer', fontSize: '1.2rem', transition: '0.2s' }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleBookmark(ad.id);
+                                                        }}
+                                                    ></i>
+                                                </td>
                                                 <td className="py-2">
                                                     <img
                                                         src={`${IMAGE_BASE_URL}${ad.image_filename}`}
                                                         alt="Ad"
                                                         className="rounded border"
-                                                        style={{ width: '60px', aspectRatio: '1 / 1', objectFit: 'cover', opacity: imgHover === ad.image_filename ? '.8' : '1', cursor: 'pointer'  }}
+                                                        style={{ width: '60px', aspectRatio: '1 / 1', objectFit: 'cover', opacity: imgHover === ad.image_filename ? '.8' : '1', cursor: 'pointer' }}
                                                         onClick={() => setShowBanner(`${IMAGE_BASE_URL}${ad.image_filename}`)}
                                                         onMouseOver={() => setImgHover(ad.image_filename)}
                                                         onMouseLeave={() => setImgHover('')}
                                                     />
                                                 </td>
-                                                <td className="py-2 fw-bold text-dark">{ad.advertiser_name}</td>
+                                                {/* 💡 8. 広告主名とエリアを縦並びでスマートに */}
+                                                <td className="py-2">
+                                                    <div className="fw-bold text-dark mb-1">{ad.advertiser_name}</div>
+                                                    {ad.advertiser_area && ad.advertiser_area !== "不明" && (
+                                                        <Badge bg="info" text="dark" className="fw-normal" style={{ fontSize: '0.7rem' }}>
+                                                            <i className="fa-solid fa-location-dot me-1"></i>{ad.advertiser_area}
+                                                        </Badge>
+                                                    )}
+                                                </td>
                                                 <td className="py-2 text-truncate" style={{ maxWidth: '300px' }}>
                                                     {ad.ad_title || 'テキストなし'}
                                                 </td>
-                                                <td className="py-2">{formateDate(ad.scraped_date)}</td>
+                                                {/* 💡 9. 掲載開始と取得日を縦並びに */}
+                                                <td className="py-2">
+                                                    <div className="d-flex flex-column gap-1">
+                                                        {ad.advertiser_period && (
+                                                            <span className="fw-bold text-dark">開始: {ad.advertiser_period}</span>
+                                                        )}
+                                                        <span className="text-muted" style={{ fontSize: '0.7rem' }}>取得: {formateDate(ad.scraped_date)}</span>
+                                                    </div>
+                                                </td>
                                                 <td className="py-2 text-center">
                                                     <Button
                                                         variant="primary"
@@ -311,7 +416,7 @@ const MetaAdsDashboard = () => {
                                                         className="px-2 shadow-sm text-nowrap"
                                                         style={{ fontSize: '0.75rem' }}
                                                     >
-                                                        遷移先
+                                                        遷移先 <i className="fa-solid fa-arrow-up-right-from-square ms-1"></i>
                                                     </Button>
                                                 </td>
                                             </tr>
@@ -320,14 +425,13 @@ const MetaAdsDashboard = () => {
                                 </Table>
                             </div>
                         )}
-
                     </>
                 )}
             </div>
             <Modal show={!!showBanner} onHide={() => setShowBanner('')}>
                 <Modal.Header closeButton></Modal.Header>
                 <Modal.Body>
-                    <div onClick={() => setShowBanner('')}>
+                    <div onClick={() => setShowBanner('')} style={{ cursor: 'pointer' }}>
                         <img src={showBanner} alt="他社動向" className='w-100' />
                     </div>
                 </Modal.Body>

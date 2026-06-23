@@ -11,7 +11,6 @@ import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
 import Estate from '../Estate';
 import KSnap from './KSnap';
-import { info } from 'node:console';
 
 
 type Staff = { name: string; shop: string; category: number, section: string, period: string };
@@ -147,7 +146,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     const [rankSteps, setRankSteps] = useState<string[]>([]);
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [showLostReason, setShowLostReason] = useState(false);
-    const [competitorPdfFile, setCompetitorPdfFile] = useState<{ name: string, file: File | null, path?: string }[]>([]);
+    const [competitorPdfFile, setCompetitorPdfFile] = useState<{ name: string, file: File | null, path?: string, staff?: string }[]>([]);
 
     useEffect(() => {
         if (!id) return;
@@ -201,7 +200,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 };
                 setInterviewLog(interviewResData);
                 const pdfList = safeParse(response.data.pdf.pdf_path);
-                console.log(response.data.pdf.pdf_path)
                 setCompetitorPdfFile(pdfList);
             };
 
@@ -370,26 +368,22 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             masterFormData.append(key, value !== null && value !== undefined ? value : '');
         });
 
-        // ▼ ここを改修：残っている既存ファイルと、新規ファイルを分けて送信 ▼
         if (competitorPdfFile) {
-            // ① 削除されずに残った既存ファイル（fileがnullで、pathがあるもの）を抽出してJSON化
             const existingFiles = competitorPdfFile
                 .filter(item => !item.file && item.path)
-                .map(item => ({ name: item.name, path: item.path }));
+                .map(item => ({ name: item.name, path: item.path, staff: item.staff }));
 
-            // 既存ファイルの配列を文字列として送信（全て削除された場合は "[]" が送られます）
             masterFormData.append('existing_pdfs', JSON.stringify(existingFiles));
 
-            // ② 新規ファイル（fileオブジェクトが存在するもの）を送信
             competitorPdfFile.forEach((item) => {
                 if (item.file) {
                     masterFormData.append('competitor_pdf_files[]', item.file);
                     masterFormData.append('competitor_pdf_names[]', item.name);
+                    masterFormData.append('competitor_pdf_staff[]', item.staff ?? '');
                 }
             });
         }
 
-        // ▼ これで FormData の中身を可視化できます ▼
         for (let [key, value] of (masterFormData as any).entries()) {
             console.log(`FormDataの中身 - ${key}:`, value);
         }
@@ -596,7 +590,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     };
 
     const handleCompetitors = (maker?: string) => {
-        // maker(サジェスト) があればそれ、無ければ入力欄のState(competitorsInput)を使う
         const value = (maker || competitorsInput || '').trim();
         if (!value) return;
 
@@ -606,7 +599,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 .map(s => s.trim())
                 .filter(s => s !== '' && s !== 'null');
 
-            // 既に同じ名前がある場合は二重登録を防ぐ
             if (existing.includes(value)) return prev;
 
             const newArr = [...existing, value];
@@ -616,7 +608,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             };
         });
 
-        // 🌟 ここで確実に入力欄のStateとRefをリセットする！
         setCompetitorsInput('');
         if (competitorsRef.current) {
             competitorsRef.current.value = '';
@@ -1292,8 +1283,10 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                                         if (files.length > 0) {
                                                             const newFiles = files.map(file => ({
                                                                 name: file.name,
-                                                                file: file
+                                                                file: file,
+                                                                staff: userName
                                                             }));
+                                                            console.log(newFiles)
                                                             setCompetitorPdfFile(prev => [...prev, ...newFiles]);
                                                         }
                                                         e.target.value = '';

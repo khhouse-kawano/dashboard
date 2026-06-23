@@ -28,7 +28,6 @@ const MenuDev = ({ key, onReload }: Props) => {
     const [cancel, setCancel] = useState(0);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [estateId, setEstateId] = useState('');
-    const [newEstate, setNewEstate] = useState<number | null>(0);
     const [lost, setLost] = useState(0);
 
     const dateFormate = (value: string) => {
@@ -40,7 +39,6 @@ const MenuDev = ({ key, onReload }: Props) => {
             const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "menu" }, { headers });
             setUnSyncList(response.data.inquiry);
             setCancelList(response.data.customer);
-            setNewEstate(response.data.estate);
         };
         fetchData();
 
@@ -69,7 +67,7 @@ const MenuDev = ({ key, onReload }: Props) => {
             const now = new Date();
             const today = now.getTime();
             const target = new Date(dateFormate(item.register)).getTime();
-            const start = new Date('2026-01-01');
+            const start = new Date('2026-06-01');
             const base = start.getTime();
             const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
             const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
@@ -133,8 +131,6 @@ const MenuDev = ({ key, onReload }: Props) => {
                         onClick={() => navigate("/shopTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-shop me-1 text-secondary"></i>店舗別反響推移</div>
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/calendar" ? "selected " : ""}`}
                         onClick={() => navigate("/calendar", { state: { brand: brand, }, })}><i className="fa-solid fa-calendar me-1 text-secondary"></i>カレンダー</div>}
-                    {category === 'order' && <div className={`position-relative category_menu  ps-3`}
-                        onClick={() => setEstateId('search')}><i className="fa-solid fa-map me-1 text-secondary"></i>土地情報{sync > 0 && <div className="position-absolute menu_sync" style={{ top: '8px', right: '10px' }}>新着 {newEstate}件</div>}</div>}
                     {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/map" ? "selected " : ""}`}
                         onClick={() => navigate("/map", { state: { brand: brand, }, })}><i className="fa-solid fa-map me-1 text-secondary"></i>反響MAP</div>}
                     {/* {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/market" ? "selected " : ""}`}

@@ -15,6 +15,7 @@ import InterviewLog from '../InterviewLog';
 import StaffMemo from './StaffMemo';
 import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
+import Category from '../Category';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -28,6 +29,7 @@ type Memo = Record<string, string>;
 const RankOrder = () => {
     const { token } = useContext(AuthContext);
     const { brand } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMonth, setTargetMonth] = useState('');
     const [customerList, setCustomerList] = useState<Customer[]>([]);
@@ -57,13 +59,17 @@ const RankOrder = () => {
     };
     const [memoList, setMemoList] = useState<Memo[]>([]);
 
+    const fetchCustomerData = async () => {
+        return await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", category }, { headers });
+    };
+
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
         setTargetMonth(`${year}/${month}`);
 
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_kaeru" }, { headers });
+                const response = await fetchCustomerData();
                 await setCustomerList(response.data.customer);
                 await setExpectedContract(response.data.expected);
                 await setShopList(response.data.shop);
@@ -293,7 +299,8 @@ const RankOrder = () => {
             id: idValue,
             rank: newRank ?? '',
             rank_period: periodValue ?? '',
-            request: 'rank_update_rank'
+            request: 'rank',
+            category
         };
         try {
             const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
@@ -314,9 +321,8 @@ const RankOrder = () => {
 
     const closeInformationEdit = async () => {
         try {
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_customer_info" }, { headers });
-            console.log(response.data.status);
-            await setCustomerList(response.data.newCustomers);
+            const response = await fetchCustomerData();
+            await setCustomerList(response.data.customer);
         } catch (e) {
             console.error(e);
         }
@@ -346,7 +352,7 @@ const RankOrder = () => {
 
         const fetchData = async () => {
             try {
-                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank_memo", staff, memo: text, shop }, { headers });
+                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", staff, memo: text, shop }, { headers });
             } catch (err) {
                 console.error(err);
             }
