@@ -120,7 +120,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                 setIntroductoryList(response.data.introductory.map((i: any) => i.name));
                 setEventList(response.data.event);
 
-                // 2. 2つ目の useEffect にあった集計処理もここで一緒にやってしまう！
                 const nowTime = new Date().getTime();
                 const cancelBase = new Date('2026-01-01').getTime();
                 const loseBase = new Date('2026-06-01').getTime();
@@ -129,15 +128,13 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                 let lCount = 0;
 
                 customers.forEach((item: any) => {
-                    if (Number(item.trash) !== 1) return; // 共通条件
+                    if (Number(item.trash) !== 1) return;
 
-                    // キャンセル集計
                     const cTarget = new Date(dateFormate(item.reserved_interview)).getTime();
                     if (cTarget < nowTime && cancelBase < cTarget && !item.interview && !item.cancel_status && item.status !== '重複') {
                         cCount++;
                     }
 
-                    // 失注集計
                     const lTarget = new Date(dateFormate(item.register)).getTime();
                     if (lTarget < nowTime && loseBase < lTarget && item.status === '失注') {
                         const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
@@ -186,7 +183,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                 && (searchedStaff ? strIncludes(item.staff, searchedStaff.split(' ')[0]) : true)
                 && ((searchedPhone || searchedName) ? strIncludes(item.phone_number, formattedNumber) : true)
                 && (formattedAddress ? strIncludes(item.full_address, formattedAddress) : true)
-                // ★修正: 毎回 replace するのをやめ、API取得時に作った裏データを使う！
                 && (searchedAddress ? strIncludes(item.search_address, searchedAddress) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
                 && (familyStatus ? familyList.includes(item.id) : true)

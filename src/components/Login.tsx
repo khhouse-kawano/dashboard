@@ -64,7 +64,7 @@ const Login = () => {
     fetchData();
   };
 
-return (
+  return (
     <div className="home container d-flex justify-content-center">
       <div className="box bg-white shadow-lg rounded-4 p-5 text-center" style={{ maxWidth: '450px', width: '100%' }}>
         {/* ロゴ部分 */}
@@ -96,7 +96,8 @@ return (
                 error: "認証がキャンセルされたか、エラーが発生しました",
               }));
             }}
-            useOneTap 
+            ux_mode="redirect"
+            useOneTap
           />
         </div>
         {/* フッター */}
