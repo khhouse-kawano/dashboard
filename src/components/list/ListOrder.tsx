@@ -13,6 +13,8 @@ import { setStyleClass } from '../../utils/setStyleClass';
 import { mediumFormate } from '../../utils/mediumFormate';
 import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
+import { monthFormate } from './listUtils';
+import { useIsSp } from '../../utils/isSp';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -25,10 +27,7 @@ type InquiryCustomer = {
     duplicate: string, hotlead_url: string,
 };
 
-type Customer = {
-    id: string, name: string, status: string, medium: string, rank: string, register: string, reserve: string, shop: string, estate: string, meeting: string,
-    appointment: string, line_group: string, screening: string, rival: string, period: string, survey: string, budget: string, importance: string, note: string, staff: string, section: string, contract: string, sales_meeting: string, latest_date: string, last_meeting: string,
-};
+type Customer = { register: string, shop: string, interview: string, medium: string };
 
 type Staff = { name: string, pg_id: string, shop: string, category: number, robo_id: string, period: string };
 
@@ -43,10 +42,22 @@ type Black = {
     mail: string
 };
 
+const targetSection = ['鹿児島営業1課', '鹿児島営業2課', '鹿児島営業3課', '宮崎営業課', '熊本営業課', '大分・佐賀営業課',];
+
+const monthArray = getYearMonthArray(2025, 1);
+
+const isDup = (item: InquiryCustomer) => {
+    return item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.black_list.split('duplicate').length % 2 === 0;
+};
+
+const notNeedSync = (item: InquiryCustomer) => {
+    return item.sync === 1 || item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.black_list.split('duplicate').length % 2 === 0;
+};
+
+
 const ListOrder = ({ onReload }: Props) => {
     const { brand } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [monthArray, setMonthArray] = useState<string[]>([]);
     const [selectedMonth, setSelectedMonth] = useState<string[]>([]);
     const [startMonth, setStartMonth] = useState('');
     const [endMonth, setEndMonth] = useState('');
@@ -72,9 +83,7 @@ const ListOrder = ({ onReload }: Props) => {
     const [editId, setEditId] = useState('');
     const [blackList, setBlackList] = useState<Black[]>([]);
 
-    const formate = (date: string) => {
-        return date ? date.replace(/-/g, '/').slice(0, 7) : '';
-    }
+    const isSp = useIsSp();
 
     useEffect(() => {
         if (!brand || brand.trim() === "" || !token || token.trim() === "" || !category || category.trim() === "") navigate("/login");
@@ -82,7 +91,6 @@ const ListOrder = ({ onReload }: Props) => {
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
-        setMonthArray(getYearMonthArray(2025, 1));
         setStartMonth(`${year}/${month}`);
         setEndMonth(`${year}/${month}`);
         setSelectedMonth([`${year}/${month}`]);
@@ -93,7 +101,7 @@ const ListOrder = ({ onReload }: Props) => {
                 const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: 'list' }, { headers });
                 await setCustomerList(response.data.summary);
                 await setShopArray(response.data.shop);
-                await setStaffList(response.data.staff.filter(s => s.period === String(thisYear)));
+                await setStaffList(response.data.staff.filter(s => s.period === String(thisYear) && targetSection.includes(s.section)));
                 await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
                 await setOriginalList(response.data.inquiry);
                 await setOriginalBeforeList(response.data.survey);
@@ -113,6 +121,12 @@ const ListOrder = ({ onReload }: Props) => {
         setSelectedMonth(filteredMonth);
     }, [startMonth, endMonth]);
 
+    useEffect(() => {
+        if (isSp) {
+            setTargetSync(null);
+        }
+    }, [isSp]);
+
     const mediumValue = targetMedium === '公式LINE' ? 'ALLGRIT' : targetMedium;
 
     const isSync = (list: InquiryCustomer, value: string) => {
@@ -123,7 +137,7 @@ const ListOrder = ({ onReload }: Props) => {
         const fullName = `${item.first_name || ""}${item.last_name || ""}`;
         const fullAddress = `${item.pref || ""}${item.city || ""}${item.town || ""}${item.street || ""}${item.building || ""}`;
         return (
-            selectedMonth.includes(formate(item.inquiry_date)) &&
+            selectedMonth.includes(monthFormate(item.inquiry_date)) &&
             (targetShop === '' || item.shop.includes(targetShop)) &&
             (mediumValue === '' || item.response_medium === mediumValue) &&
             (targetSync === null || (targetSync === 0 ?
@@ -141,12 +155,20 @@ const ListOrder = ({ onReload }: Props) => {
 
     useEffect(() => {
         setSurveyBeforeList(filteredBeforeList);
-    }, [originalBeforeList, selectedMonth]);
+    }, [originalBeforeList, selectedMonth,]);
 
     const filteredBeforeList = useMemo(() => {
-        const filtered = originalBeforeList.filter(item => selectedMonth.includes(formate(item.dateStr)));
+        const filtered = originalBeforeList.filter(item => selectedMonth.includes(monthFormate(item.dateStr)));
         return filtered;
     }, [originalBeforeList, selectedMonth]);
+
+    const filteredInterview = useMemo(() => {
+        return customerList.filter(c => selectedMonth.includes(monthFormate(c.interview)));
+    }, [customerList, selectedMonth]);
+
+    const filteredInquiry = useMemo(() => {
+        return originalList.filter(c => selectedMonth.includes(monthFormate(c.inquiry_date)));
+    }, [originalList, selectedMonth]);
 
     const [progress, setProgress] = useState(0);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -412,15 +434,19 @@ const ListOrder = ({ onReload }: Props) => {
     };
 
     const inquiryFilter = (shopValue: string) => {
-        return inquiryList.filter(c => (shopValue ? c.shop === shopValue : true) && selectedMonth.includes(formate(c.inquiry_date))).length;
+        return filteredInquiry.filter(c => (shopValue ? c.shop === shopValue : true)).length;
     };
+
+    const unSyncFilter = (shopValue: string) => {
+        return filteredInquiry.filter(c => (shopValue ? c.shop === shopValue : true) && (c.sync === 0 && (c.black_list.split('duplicate').length % 2 !== 0 && c.black_list.split('support').length % 2 !== 0 && c.black_list.split('black').length % 2 !== 0))).length;
+    }
 
     const achievementFilter = (shopValue: string, value: number) => {
         return staffList.filter(s => s.category === 1 && (shopValue ? s.shop === shopValue : true)).length * value;
     };
 
     const reserveFilter = (shopValue: string) => {
-        return customerList.filter(c => (shopValue ? c.shop == shopValue : true) && selectedMonth.includes(formate(c.reserve))).length;
+        return filteredInterview.filter(c => (shopValue ? c.shop == shopValue : true)).length;
     };
 
     const isBlack = (mailValue: string, mobileValue: string, blackValue: string) => {
@@ -436,8 +462,8 @@ const ListOrder = ({ onReload }: Props) => {
             <span>同期処理中</span>
             <ProgressBar now={progress} label={`${Math.round(progress)}%`} />
         </div>}
-            <div className='content database bg-white p-2'>
-                <div className="d-flex flex-wrap mb-3 align-items-center">
+            <div className='inquiry_table spec bg-white p-2'>
+                <div className="d-flex flex-wrap mb-3 align-items-center" style={{ paddingTop: isSp ? '30px' : '' }}>
                     <div className="m-1">
                         <select className="target" onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
                             {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
@@ -459,63 +485,66 @@ const ListOrder = ({ onReload }: Props) => {
                             )}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => setTargetMedium(e.target.value)} style={{ fontSize: '13px' }}>
-                            <option value=''>全媒体表示</option>
-                            {mediumArray.map((item, index) =>
-                                <option key={index} value={item.medium}>{item.medium}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => {
-                            const value = e.target.value;
-                            setTargetSync(value === '' ? null : Number(value));
-                        }} style={{ fontSize: '13px' }}>
-                            <option value="">全て表示</option>
-                            <option value="1" selected={targetSync === 1}>取込済み</option>
-                            <option value="0" selected={targetSync === 0}>未取込</option>
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <input type="text" className='target' placeholder='氏名で検索' onChange={(e) => setTargetName(e.target.value)} style={{ fontSize: '13px' }} />
-                    </div>
-                    <div className="m-1">
-                        <input type="text" className='target' placeholder='住所で検索' onChange={(e) => setTargetAddress(e.target.value)} style={{ fontSize: '13px' }} />
-                    </div>
+                    {!isSp && <>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setTargetMedium(e.target.value)} style={{ fontSize: '13px' }}>
+                                <option value=''>全媒体表示</option>
+                                {mediumArray.map((item, index) =>
+                                    <option key={index} value={item.medium}>{item.medium}</option>
+                                )}
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                const value = e.target.value;
+                                setTargetSync(value === '' ? null : Number(value));
+                            }} style={{ fontSize: '13px' }}>
+                                <option value="">全て表示</option>
+                                <option value="1" selected={targetSync === 1}>取込済み</option>
+                                <option value="0" selected={targetSync === 0}>未取込</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <input type="text" className='target' placeholder='氏名で検索' onChange={(e) => setTargetName(e.target.value)} style={{ fontSize: '13px' }} />
+                        </div>
+                        <div className="m-1">
+                            <input type="text" className='target' placeholder='住所で検索' onChange={(e) => setTargetAddress(e.target.value)} style={{ fontSize: '13px' }} />
+                        </div>
+                    </>}
                     <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
                         onClick={() => setEditId('new')}>新規登録</div>
                 </div>
                 <div className='p-0 inquiry'>
-                    <Table striped bordered hover className='inquiry_table'>
-                        <thead className='sticky-header' style={{ fontSize: "10px" }}>
-                            <tr className='sticky-header' style={{ textAlign: 'center' }}>
-                                <td className="sticky-column" style={{ width: '100px' }}>店舗名</td>
-                                <td style={{ width: '100px' }}>グループ全体</td>
-                                {shopArray.filter(item => !item.shop.includes('未設定') && !item.shop.includes('FH') && !item.shop.includes('JH八代店')).map((value, index) => (<td key={index} className='text-center' style={{ width: '90px' }}>{value.shop.replace('店', '')}</td>))}
-                            </tr>
-                        </thead>
-                        <tbody style={{ fontSize: "12px" }}>
-                            {['反響合計', '反響目標', '来場合計', '来場目標'].map((category, cIndex) => <tr key={cIndex} className='text-center'>
-                                <td className="sticky-column">{category}</td>
-                                {[{ brand: '', shop: 'グループ全体', section: '', area: '' }, ...shopArray].filter(item => !item.shop.includes('未設定') && !item.shop.includes('FH') && !item.shop.includes('JH八代店'))
-                                    .map((value, sIndex) => {
-                                        let totalValue;
-                                        if (cIndex === 0) {
-                                            totalValue = inquiryFilter(sIndex === 0 ? '' : value.shop);
-                                        } else if (cIndex === 1 || cIndex === 3) {
-                                            totalValue = achievementFilter(sIndex === 0 ? '' : value.shop, cIndex === 1 ? 8 : 4);
-                                        } else {
-                                            totalValue = reserveFilter(sIndex === 0 ? '' : value.shop);
-                                        }
-                                        return <td key={sIndex} className='text-center' style={{ width: '90px' }}>{totalValue}</td>
-                                    })}
-                            </tr>
-                            )}
-                        </tbody>
-                    </Table>
-                    <Table striped bordered hover className='inquiry_table'>
-                        <thead className='sticky-header' style={{ fontSize: "12px" }}>
+                    {!isSp &&
+                        <Table striped bordered hover className='inquiry_table'>
+                            <thead className='sticky-header' style={{ fontSize: "10px" }}>
+                                <tr className='sticky-header' style={{ textAlign: 'center' }}>
+                                    <td className="sticky-column" style={{ width: '130px' }}>店舗名</td>
+                                    <td style={{ width: '70px' }}>グループ全体</td>
+                                    {shopArray.filter(item => !item.shop.includes('未設定') && !item.shop.includes('FH') && !item.shop.includes('JH八代店')).map((value, index) => (<td key={index} className='text-center' style={{ width: '90px' }}>{value.shop.replace('店', '')}</td>))}
+                                </tr>
+                            </thead>
+                            <tbody style={{ fontSize: "12px" }}>
+                                {['反響合計(未同期)', '反響目標(単月)', '来場合計', '来場目標(単月)'].map((category, cIndex) => <tr key={cIndex} className='text-center'>
+                                    <td className="sticky-column">{category}</td>
+                                    {[{ brand: '', shop: 'グループ全体', section: '', area: '' }, ...shopArray].filter(item => !item.shop.includes('未設定') && !item.shop.includes('FH') && !item.shop.includes('JH八代店'))
+                                        .map((value, sIndex) => {
+                                            let totalValue;
+                                            if (cIndex === 0) {
+                                                totalValue = (`${inquiryFilter(sIndex === 0 ? '' : value.shop)}(${unSyncFilter(sIndex === 0 ? '' : value.shop)})`);
+                                            } else if (cIndex === 1 || cIndex === 3) {
+                                                totalValue = achievementFilter(sIndex === 0 ? '' : value.shop, cIndex === 1 ? 8 : 4);
+                                            } else {
+                                                totalValue = reserveFilter(sIndex === 0 ? '' : value.shop);
+                                            }
+                                            return <td key={sIndex} className='text-center' style={{ width: '90px' }}>{totalValue}</td>
+                                        })}
+                                </tr>
+                                )}
+                            </tbody>
+                        </Table>}
+                    <Table striped bordered hover style={{ width: isSp ? '1200px' : '1500px', fontSize: isSp ? "8px" : "12px" }}>
+                        <thead className='sticky-header'>
                             <tr className='sticky-header'>
                                 <td style={{ width: '50px', textAlign: 'center' }}>顧客取込</td>
                                 <td style={{ width: '60px', textAlign: 'center' }}>事前アンケート</td>
@@ -527,18 +556,18 @@ const ListOrder = ({ onReload }: Props) => {
                                 <td style={{ width: '200px' }}>住所</td>
                                 <td style={{ width: '130px' }}>詳細</td>
                                 <td style={{ width: '120px' }}>予定地</td>
-                                <td style={{ width: '200px' }}>顧客タグ</td>
+                                <td style={{ width: '400px' }}>顧客タグ</td>
                             </tr>
                         </thead>
-                        <tbody style={{ fontSize: "12px" }}>
+                        <tbody>
                             {inquiryList.slice(0, displayLength).map((item, index) => {
                                 const formattedValue = shopFormate(item.shop, item.brand, shopArray) ?? '';
                                 const styleClass = setStyleClass(item.shop);
                                 return (
                                     <tr key={index} style={{ textAlign: 'left' }}
-                                        className={isBlack(item.mail, item.mobile, item.black_list) ? 'table-danger align-middle' : item.sync === 1 || item.black_list.split('duplicate').length % 2 === 0 || item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 ? 'table-primary align-middle' : 'align-middle'}>
+                                        className={isBlack(item.mail, item.mobile, item.black_list) ? 'table-danger align-middle' : notNeedSync(item) ? 'table-primary align-middle' : 'align-middle'}>
                                         <td style={{ textAlign: 'center' }}>
-                                            <>{item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.shop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
+                                            <>{isDup(item) ? <i className="fa-solid fa-xmark"></i> :
                                                 item.sync === 1 ? <span style={{ textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
                                                     onClick={() => item.pg_id.length === 26 ? setEditId(item.pg_id) : null}><i className="fa-solid fa-up-right-from-square"></i></span> :
                                                     <i className='fa-solid fa-arrows-rotate sticky-column pointer'
@@ -563,7 +592,7 @@ const ListOrder = ({ onReload }: Props) => {
                                             }))
                                             return (
                                                 <>{item.sync === 1 ? item.shop :
-                                                    <select style={styleClass} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'shop_change')}>
+                                                    <select style={{ ...styleClass, fontSize: isSp ? '8px' : '12px' }} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'shop_change')}>
                                                         {formattedShops.map((shopValue, shopIndex) => {
                                                             return (
                                                                 <option key={shopIndex} selected={shopValue.shop === formattedValue} style={{ backgroundColor: '#fff', color: '#000' }}>{shopValue.shop}</option>
@@ -575,7 +604,7 @@ const ListOrder = ({ onReload }: Props) => {
                                         })()}</td>
                                         <td style={{ textAlign: 'center' }}>{(() => {
                                             return (
-                                                <select style={styleClass} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'staff_change')}>
+                                                <select style={{ ...styleClass, fontSize: isSp ? '8px' : '12px' }} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'staff_change')}>
                                                     <option value=''>担当営業を選択</option>
                                                     {staffList.filter(staffValue =>
                                                         (formattedValue.includes('全店舗管理') ? staffValue.shop.includes(item.brand) && staffValue.shop.includes('霧島店') : staffValue.shop === formattedValue) &&

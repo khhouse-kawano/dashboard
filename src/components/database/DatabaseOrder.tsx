@@ -7,13 +7,14 @@ import { headers } from '../../utils/headers';
 import SurveyList from '../Survey';
 import CancelList from '../CancelList';
 import CallStatusList from '../CallStatusList';
-import InformationEdit from '../information/InformationEdit';
 import LostStatusList from '../LostStatusList';
+import InformationEdit from '../information/InformationEdit';
+import { useIsSp } from '../../utils/isSp';
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string };
 type CustomerList = Record<string, string>;
-type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number }
+type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number, list_medium: number }
 type CallAction = {
     day: string;
     time: string;
@@ -65,7 +66,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const { token } = useContext(AuthContext);
     const [familyList, setFamilyList] = useState<string[]>([]);
     const [familyStatus, setFamilyStatus] = useState<boolean>(false);
-    const [firstCallDate, setFirstCallDate] = useState<CallLog[]>([]);
+    const [callList, setCallList] = useState<CallLog[]>([]);
     const [callStatusShow, setCallStatusShow] = useState(false);
     const [surveyShow, setSurveyShow] = useState(false);
     const [cancelListShow, setCancelListShow] = useState(false);
@@ -76,6 +77,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [loseListShow, setLoseListShow] = useState(false);
 
+    const isSp = useIsSp();
 
     const now = new Date();
     const year = now.getFullYear();
@@ -88,25 +90,69 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         return (value ?? '').replace(/\//g, '-');
     };
 
+    // ▼ 2つあった useEffect をこれ 1つ にまとめます！ ▼
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
         const fetchData = async () => {
             try {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database' }, { headers });
-                await setOriginalDatabase(response.data.customer);
-                await setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
-                await setMediumArray(response.data.medium.filter(item => item.list_medium === 1).map((item: MediumType) => item.medium));
-                await setDisplayLength(response.data.customer.length);
-                await setStaffArray(response.data.staff.filter(s => s.period === String(thisYear)));
-                const familyId = response.data.family.map(f => f.id);
-                await setFamilyList(familyId);
-                const filteredCallResponse = response.data.call.map(item => ({
+
+                // 1. 激重だった住所の空白削除を、最初の1回だけ実行して裏データとして持たせる
+                const customers = response.data.customer.map((c: any) => ({
+                    ...c,
+                    search_address: (c.full_address ?? '').replace(/[\s ]+/g, "")
+                }));
+                setOriginalDatabase(customers);
+
+                setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
+                setMediumArray(response.data.medium.filter((item: MediumType) => item.list_medium === 1).map((item: MediumType) => item.medium));
+                setDisplayLength(customers.length);
+                setStaffArray(response.data.staff.filter((s: staffList) => s.period === String(thisYear)));
+
+                const familyId = response.data.family.map((f: any) => f.id);
+                setFamilyList(familyId);
+
+                const filteredCallResponse = response.data.call.map((item: any) => ({
                     ...item,
                     call_log: item.call_log ? JSON.parse(item.call_log) : []
-                }))
-                await setFirstCallDate(filteredCallResponse);
-                await setIntroductoryList(response.data.introductory.map(i => i.name));
+                }));
+                setCallList(filteredCallResponse);
+                setIntroductoryList(response.data.introductory.map((i: any) => i.name));
                 setEventList(response.data.event);
+
+                // 2. 2つ目の useEffect にあった集計処理もここで一緒にやってしまう！
+                const nowTime = new Date().getTime();
+                const cancelBase = new Date('2026-01-01').getTime();
+                const loseBase = new Date('2026-06-01').getTime();
+
+                let cCount = 0;
+                let lCount = 0;
+
+                customers.forEach((item: any) => {
+                    if (Number(item.trash) !== 1) return; // 共通条件
+
+                    // キャンセル集計
+                    const cTarget = new Date(dateFormate(item.reserved_interview)).getTime();
+                    if (cTarget < nowTime && cancelBase < cTarget && !item.interview && !item.cancel_status && item.status !== '重複') {
+                        cCount++;
+                    }
+
+                    // 失注集計
+                    const lTarget = new Date(dateFormate(item.register)).getTime();
+                    if (lTarget < nowTime && loseBase < lTarget && item.status === '失注') {
+                        const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
+                        const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
+                        const isDetailMissing = item.competitor_lost_contract_reason === '競合負け' &&
+                            (!item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
+                                !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === '');
+
+                        if (isReasonMissing || isCompetitorMissing || isDetailMissing) lCount++;
+                    }
+                });
+
+                setCancelLength(cCount);
+                setLoseLength(lCount);
+
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -115,67 +161,16 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         fetchData();
     }, []);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database' }, { headers });
-                const filteredCancelLength = response.data.customer.filter(item => {
-                    const now = new Date();
-                    const today = now.getTime();
-                    const target = new Date(dateFormate(item.reserved_interview)).getTime();
-                    const start = new Date('2026-01-01');
-                    const base = start.getTime();
-                    return Number(item.trash) === 1 && target < today && base < target && (!item.interview && !item.cancel_status) && item.status !== '重複';
-                }
-                ).length;
-                setCancelLength(filteredCancelLength);
-                const filteredLoseLength = response.data.customer.filter(item => {
-                    const now = new Date();
-                    const today = now.getTime();
-                    const target = new Date(dateFormate(item.register)).getTime();
-                    const start = new Date('2026-06-01');
-                    const base = start.getTime();
-                    const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
-                    const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
-                    const isDetailMissing = item.competitor_lost_contract_reason === '競合負け' &&
-                        (
-                            !item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
-                            !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
-                        );
-
-                    return target < today && base < target && item.status === '失注' && (isReasonMissing || isCompetitorMissing || isDetailMissing) && Number(item.trash) === 1;
-                }).length;
-                setLoseLength(filteredLoseLength);
-            } catch (error) {
-                console.error("Error fetching data:", error);
-            }
-        };
-        fetchData();
-    }, [key]);
+    const strIncludes = (val: any, sub: string) => (sub ? String(val ?? '').includes(sub) : true);
+    const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
 
     const filteredDatabase = useMemo(() => {
-        return originalDatabase.filter(item => {
-            const sName = searchedName ?? '';
+        const sName = searchedName ?? '';
+        const formattedName = sName.includes('&') ? sName.split('&')[0] : sName.includes('+') ? sName.split('+')[0] : sName;
+        const formattedNumber = sName.includes('&') ? sName.split('&')[1] : searchedPhone ?? '';
+        const formattedAddress = sName.includes('+') ? sName.split('+')[1] : '';
 
-            const formattedName = sName.includes('&')
-                ? sName.split('&')[0]
-                : sName.includes('+')
-                    ? sName.split('+')[0]
-                    : sName;
-
-            const formattedNumber = sName.includes('&')
-                ? sName.split('&')[1]
-                : searchedPhone ?? '';
-
-            const formattedAddress = sName.includes('+')
-                ? sName.split('+')[1]
-                : '';
-
-            // 安全に includes を呼ぶためのヘルパー
-            const strIncludes = (val: any, sub: string) => (sub ? String(val ?? '').includes(sub) : true);
-            const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
-
-            // ここで各プロパティが undefined のときでも安全に評価される
+        const result = originalDatabase.filter(item => {
             return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
                 && (trash === 0 ? (Number(item.trash) ?? 0) !== 1 : true)
                 && (selectedShop ? arrIncludes(item.shop, selectedShop) : true)
@@ -191,33 +186,26 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                 && (searchedStaff ? strIncludes(item.staff, searchedStaff.split(' ')[0]) : true)
                 && ((searchedPhone || searchedName) ? strIncludes(item.phone_number, formattedNumber) : true)
                 && (formattedAddress ? strIncludes(item.full_address, formattedAddress) : true)
-                && (searchedAddress ? String((item.full_address ?? '').replace(/[\s　]+/g, "")).includes(searchedAddress) : true)
+                // ★修正: 毎回 replace するのをやめ、API取得時に作った裏データを使う！
+                && (searchedAddress ? strIncludes(item.search_address, searchedAddress) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
                 && (familyStatus ? familyList.includes(item.id) : true)
                 && (searchedEvent ? (item.event === searchedEvent && item.medium === 'イベント') : true)
                 && (snapStatus ? item.k_snap : true);
         });
-    }, [
-        originalDatabase,
-        selectedShop,
-        selectedRegister,
-        selectedReserve,
-        selectedRank,
-        selectedMedium,
-        selectedStatus,
-        searchedName,
-        searchedStaff,
-        searchedAddress,
-        callStatus,
-        searchedPhone,
-        selectedIntroductory,
-        trash,
-        familyList,
-        familyStatus,
-        snapStatus,
-        searchedEvent
-    ]);
 
+        return result.sort((a, b) => {
+            const dateA = a.register || "";
+            const dateB = b.register || "";
+            return dateB.localeCompare(dateA);
+        });
+    }, [
+        originalDatabase, selectedShop, selectedRegister, selectedReserve,
+        selectedRank, selectedMedium, selectedStatus, searchedName,
+        searchedStaff, searchedAddress, callStatus, searchedPhone,
+        selectedIntroductory, trash, familyList, familyStatus,
+        snapStatus, searchedEvent
+    ]);
 
     useEffect(() => {
         if (skipPageReset.current) {
@@ -243,6 +231,18 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         familyList,
         familyStatus,
     ]);
+
+    const callLogDictionary = useMemo(() => {
+        const dict: Record<string, { log: CallAction[], length: number }> = {};
+
+        callList.forEach(call => {
+            const log = call.call_log || [];
+            const length = log.filter(c => c.action === '通電' || c.action === '未通電').length;
+            dict[call.id] = { log, length };
+        });
+
+        return dict;
+    }, [callList]);
 
     // ページングリンク
     const pages = {
@@ -320,26 +320,27 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     return (
         <>
             <div className='content database bg-white p-2'>
-                <div className='p-3 d-flex flex-wrap'>
+                <div className='p-1 p-md-3 d-flex flex-wrap'>
                     <div className="m-1">
                         <select className="target" onChange={(e) => setSelectedShop(e.target.value)}>
                             <option value="">店舗を選択</option>
                             {shopArray.map((item, index) => <option key={index} value={item.shop}>{item.shop}</option>)}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>
-                            <option value="">反響月を選択</option>
-                            {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedReserve(e.target.value)}>
-                            <option value="">初回来場月を選択</option>
-                            <option value="notVisited">未来場・来場キャンセル</option>
-                            {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                        </select>
-                    </div>
+                    {!isSp && <>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>
+                                <option value="">反響月を選択</option>
+                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedReserve(e.target.value)}>
+                                <option value="">初回来場月を選択</option>
+                                <option value="notVisited">未来場・来場キャンセル</option>
+                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div></>}
                     <div className="m-1">
                         <select className="target" onChange={(e) => setSelectedRank(e.target.value)}>
                             <option value="">ランクを選択</option>
@@ -351,86 +352,88 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                             <option value="Eランク">Eランク</option>
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedMedium(e.target.value)}>
-                            <option value="">販促媒体を選択</option>
-                            {mediumArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                            {brand !== 'ordinary' && <option value='SUUMO(ポータル反響)'>SUUMO(ポータル反響)</option>}
-                        </select>
-                    </div>
-                    {selectedMedium === '紹介' && <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedIntroductory(e.target.value)}>
-                            <option value="">紹介者を選択</option>
-                            {introductoryList.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                        </select>
-                    </div>}
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedStatus(e.target.value)}>
-                            <option value="">ステータスを選択</option>
-                            <option value="見込み">見込み</option>
-                            <option value="契約済み">契約済み</option>
-                            <option value="失注">失注</option>
-                            <option value="会社管理">会社管理</option>
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => {
-                            setCallStatus(e.target.value);
-                        }}>
-                            <option value="">架電状況</option>
-                            <option value="未通電">未通電</option>
-                            <option value="継続">継続</option>
-                            <option value="来場アポ">来場アポ</option>
-                            <option value="来場済み">来場済み</option>
-                            <option value="架電停止">架電停止</option>
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => {
-                            if (e.target.value) {
-                                setFamilyStatus(true);
-                            } else {
-                                setFamilyStatus(false);
-                            }
-                        }}>
-                            <option value="">家族情報</option>
-                            <option value="入力済み">入力済み</option>
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => {
-                            if (e.target.value) {
-                                setSnapStatus(true);
-                            } else {
-                                setSnapStatus(false);
-                            }
-                        }}>
-                            <option value="">K-Snap</option>
-                            <option value="登録済み">登録済み</option>
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => {
-                            setSearchedEvent(e.target.value);
-                        }}>
-                            <option value="">イベント名を選択</option>
-                            {eventList.map(event =>
-                                <option value={`${event.startDate}_${event.title}`} key={`${event.startDate}_${event.title}`}>{event.startDate}_{event.title}</option>
-                            )}
-                        </select>
-                    </div>
+                    {!isSp && <>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedMedium(e.target.value)}>
+                                <option value="">販促媒体を選択</option>
+                                {mediumArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                                {brand !== 'ordinary' && <option value='SUUMO(ポータル反響)'>SUUMO(ポータル反響)</option>}
+                            </select>
+                        </div>
+                        {selectedMedium === '紹介' && <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedIntroductory(e.target.value)}>
+                                <option value="">紹介者を選択</option>
+                                {introductoryList.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>}
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setSelectedStatus(e.target.value)}>
+                                <option value="">ステータスを選択</option>
+                                <option value="見込み">見込み</option>
+                                <option value="契約済み">契約済み</option>
+                                <option value="失注">失注</option>
+                                <option value="会社管理">会社管理</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                setCallStatus(e.target.value);
+                            }}>
+                                <option value="">架電状況</option>
+                                <option value="未通電">未通電</option>
+                                <option value="継続">継続</option>
+                                <option value="来場アポ">来場アポ</option>
+                                <option value="来場済み">来場済み</option>
+                                <option value="架電停止">架電停止</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                if (e.target.value) {
+                                    setFamilyStatus(true);
+                                } else {
+                                    setFamilyStatus(false);
+                                }
+                            }}>
+                                <option value="">家族情報</option>
+                                <option value="入力済み">入力済み</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                if (e.target.value) {
+                                    setSnapStatus(true);
+                                } else {
+                                    setSnapStatus(false);
+                                }
+                            }}>
+                                <option value="">K-Snap</option>
+                                <option value="登録済み">登録済み</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                setSearchedEvent(e.target.value);
+                            }}>
+                                <option value="">イベント名を選択</option>
+                                {eventList.map(event =>
+                                    <option value={`${event.startDate}_${event.title}`} key={`${event.startDate}_${event.title}`}>{event.startDate}_{event.title}</option>
+                                )}
+                            </select>
+                        </div></>}
                     <div className="m-1">
                         <input className="target" placeholder='顧客名で検索(&電話番号+住所)' onChange={(e) => setSearchedName(e.target.value)} />
                     </div>
-                    <div className="m-1">
-                        <input className="target" placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} />
-                    </div>
-                    <div className="m-1">
-                        <input className="target" placeholder='電話番号で検索' onChange={(e) => setSearchedPhone(e.target.value)} />
-                    </div>
-                    <div className="m-1">
-                        <input className="target" placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
-                    </div>
+                    {!isSp && <>
+                        <div className="m-1">
+                            <input className="target" placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} />
+                        </div>
+                        <div className="m-1">
+                            <input className="target" placeholder='電話番号で検索' onChange={(e) => setSearchedPhone(e.target.value)} />
+                        </div>
+                        <div className="m-1">
+                            <input className="target" placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
+                        </div></>}
                     <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
                         onClick={() => setEditId('new')}>新規登録</div>
                 </div>
@@ -474,89 +477,76 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                                 </li>
                             </ul>
                         </div>
-                        {trash === 1 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                            onClick={() => setTrash(0)}>非表示リストへ移動</div>}
-                        {trash === 0 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                            onClick={() => setTrash(1)}>一覧へ戻る</div>}
-                        <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                            onClick={() => setCallStatusShow(true)}>架電状況集計</div>
-                        <div className="bg-danger text-white ms-1 rounded position-relative" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                            onClick={() => setCancelListShow(true)}>キャンセル集計
-                            <div className="position-absolute bg-danger text-white d-flex align-items-center justify-content-center"
-                                style={{ top: '-28px', width: '60px', height: '20px', borderRadius: '10px', left: 'calc( 50% - 30px)', letterSpacing: '1px', fontSize: '8px' }}>要回答{cancelLength}件</div>
-                            <div className="position-absolute triangle"></div>
-                        </div>
-                        <div className="bg-danger text-white ms-1 rounded position-relative" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                            onClick={() => setLoseListShow(true)}>失注集計
-                            <div className="position-absolute bg-danger text-white d-flex align-items-center justify-content-center"
-                                style={{ top: '-28px', width: '60px', height: '20px', borderRadius: '10px', left: 'calc( 50% - 30px)', letterSpacing: '1px', fontSize: '8px' }}>要回答{loseLength}件</div>
-                            <div className="position-absolute triangle"></div>
-                        </div>
-                        <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                            onClick={() => setSurveyShow(true)}>アンケート集計</div>
+                        {!isSp && <>
+                            {trash === 1 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setTrash(0)}>非表示リストへ移動</div>}
+                            {trash === 0 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setTrash(1)}>一覧へ戻る</div>}
+                            <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setCallStatusShow(true)}>架電状況集計</div>
+                            <div className="bg-danger text-white ms-1 rounded position-relative" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setCancelListShow(true)}>キャンセル集計
+                                <div className="position-absolute bg-danger text-white d-flex align-items-center justify-content-center"
+                                    style={{ top: '-28px', width: '60px', height: '20px', borderRadius: '10px', left: 'calc( 50% - 30px)', letterSpacing: '1px', fontSize: '8px' }}>要回答{cancelLength}件</div>
+                                <div className="position-absolute triangle"></div>
+                            </div>
+                            <div className="bg-danger text-white ms-1 rounded position-relative" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setLoseListShow(true)}>失注集計
+                                <div className="position-absolute bg-danger text-white d-flex align-items-center justify-content-center"
+                                    style={{ top: '-28px', width: '60px', height: '20px', borderRadius: '10px', left: 'calc( 50% - 30px)', letterSpacing: '1px', fontSize: '8px' }}>要回答{loseLength}件</div>
+                                <div className="position-absolute triangle"></div>
+                            </div>
+                            <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                onClick={() => setSurveyShow(true)}>アンケート集計</div></>}
                     </div>
                 </div>
-                <div className='table-wrapper'>
-                    <Table style={{ fontSize: '11px', textAlign: 'center' }} bordered striped>
-                        <tbody className='align-middle'>
-                            <tr className='align-middle sticky-header'>
-                                <td>顧客情報編集</td>
-                                <td>店舗</td>
-                                <td>顧客名</td>
-                                <td>担当営業</td>
-                                <td>ステータス</td>
-                                <td>反響日</td>
-                                <td>初回通電日</td>
-                                <td>初回来場日<br /><span style={{ fontSize: '9px' }}>(来場予約日)</span></td>
-                                <td>ランク</td>
-                                <td>販促媒体</td>
-                                <td>住所</td>
-                                <td>架電状況</td>
-                                <td>架電件数</td>
-                                <td>{trash === 1 ? '非表示' : '元に戻す'}</td>
-                            </tr>
-                            {filteredDatabase
-                                .sort((a, b) => {
-                                    const tA = a.register ? Date.parse(a.register) : Number.NEGATIVE_INFINITY;
-                                    const tB = b.register ? Date.parse(b.register) : Number.NEGATIVE_INFINITY;
-                                    const timeA = Number.isNaN(tA) ? Number.NEGATIVE_INFINITY : tA;
-                                    const timeB = Number.isNaN(tB) ? Number.NEGATIVE_INFINITY : tB;
-                                    return timeB - timeA;
-                                })
-                                .slice(sliceStart, sliceStart + basicLength).map((item, index) => {
-                                    const callLog = firstCallDate.find(f => f.id === item.id)?.call_log;
-                                    const firstDate = callLog ?
-                                        callLog.filter(c => c.action === '架電').sort((a, b) => {
-                                            const dateA = new Date(a.day);
-                                            const dateB = new Date(b.day);
-                                            return dateA.getTime() - dateB.getTime()
-                                        })[0]?.day ?? ''
-                                        : '';
-                                    const callLength = callLog ? callLog.filter(c => c.action === '架電').length : 0;
-                                    return <tr key={index}>
-                                        <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
-                                            onClick={() => {
-                                                setEditId(item.id);
-                                            }}>編集</div></td>
-                                        <td>{safeFormate(item.shop)}</td>
-                                        <td>{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
-                                        <td>{safeFormate(item.staff)}</td>
-                                        <td>{safeFormate(item.status)}</td>
-                                        <td>{safeFormate(item.register)}</td>
-                                        <td>{safeFormate(firstDate)}</td>
-                                        <td>{item.interview && safeFormate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
-                                            style={{ fontSize: '8px' }}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({safeFormate(item.reserved_interview)})</> : ''}</span></td>
-                                        <td>{(item.rank ?? '').replace('ランク', '')}</td>
-                                        <td>{item.medium}{(item.medium === '紹介' && item.introduction_person_category) && <><br /><span className='bg-danger text-white px-1 rounded' style={{ fontSize: '8px', whiteSpace: 'nowrap' }}>{safeFormate(item.introduction_person_category)}</span></>}</td>
-                                        <td style={{ textAlign: 'left' }}>{item.full_address}</td>
-                                        <td>{item.call_status}</td>
-                                        <td>{callLength}</td>
-                                        <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>
-                                    </tr>
-                                })}
-                        </tbody>
-                    </Table>
-                </div>
+                <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ width: '1600px' }}>
+                        <Table style={{ fontSize: isSp ? '9px' : '11px', textAlign: 'center' }} bordered striped>
+                            <tbody className='align-middle'>
+                                <tr className='align-middle sticky-header'>
+                                    <td>顧客情報編集</td>
+                                    <td>店舗</td>
+                                    <td>顧客名</td>
+                                    <td>担当営業</td>
+                                    <td>ステータス</td>
+                                    <td>反響日</td>
+                                    <td>初回来場日<br /><span style={{ fontSize: '9px' }}>(来場予約日)</span></td>
+                                    <td>ランク</td>
+                                    <td>販促媒体</td>
+                                    <td>住所</td>
+                                    <td>架電状況</td>
+                                    <td>架電件数</td>
+                                    <td>{trash === 1 ? '非表示' : '元に戻す'}</td>
+                                </tr>
+                                {filteredDatabase
+                                    .slice(sliceStart, sliceStart + basicLength)
+                                    .map(item => {
+                                        const callData = callLogDictionary[item.id] || { log: [], length: 0 };
+                                        const callLength = callData.length;
+                                        return <tr key={item.id}>
+                                            <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
+                                                onClick={() => {
+                                                    setEditId(item.id);
+                                                }}>編集</div></td>
+                                            <td>{safeFormate(item.shop)}</td>
+                                            <td>{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
+                                            <td>{safeFormate(item.staff)}</td>
+                                            <td>{safeFormate(item.status)}</td>
+                                            <td>{safeFormate(item.register)}</td>
+                                            <td>{item.interview && safeFormate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
+                                                style={{ fontSize: '8px' }}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({safeFormate(item.reserved_interview)})</> : ''}</span></td>
+                                            <td>{(item.rank ?? '').replace('ランク', '')}</td>
+                                            <td>{item.medium}{(item.medium === '紹介' && item.introduction_person_category) && <><br /><span className='bg-danger text-white px-1 rounded' style={{ fontSize: '8px', whiteSpace: 'nowrap' }}>{safeFormate(item.introduction_person_category)}</span></>}</td>
+                                            <td style={{ textAlign: 'left' }}>{item.full_address}</td>
+                                            <td>{item.call_status}</td>
+                                            <td>{callLength}</td>
+                                            <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>
+                                        </tr>
+                                    })}
+                            </tbody>
+                        </Table>
+                    </div></div>
             </div>
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
             <CallStatusList

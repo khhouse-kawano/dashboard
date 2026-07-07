@@ -39,7 +39,7 @@ const DatabaseProperty = () => {
     const [checkedMap, setCheckedMap] = useState(false);
     const [targetProperty, setTargetProperty] = useState<Property>({});
     const [customerList, setCustomerList] = useState<Customer[]>([]);
-    const ranks = ['Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'];
+    const ranks = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'];
     const categoryList = ['買い:ポータル', '売り:ポータル', '買い:中古リノベ'];
 
     useEffect(() => {
@@ -48,11 +48,11 @@ const DatabaseProperty = () => {
             try {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'property' }, { headers });
                 const shopList = category === 'spec' ? response.data.shop.map(s => s.shop) : categoryList;
-                await setShopArray(shopList);
-                await setDisplayLength(response.data.property.length);
-                await setStaffArray(response.data.staff);
-                await setOriginalPropertyList(response.data.property);
-                await setCustomerList(response.data.customer);
+                setShopArray(shopList);
+                setDisplayLength(response.data.property.length);
+                setStaffArray(response.data.staff);
+                setOriginalPropertyList(response.data.property);
+                setCustomerList(response.data.customer);
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -79,8 +79,8 @@ const DatabaseProperty = () => {
             );
             const hasSelectedRank = baseCustomers.some(f => f.rank === selectedRank);
             return (
-                o.in_charge_store === categoryMapping[category]
-                && (checkedCompanyProperty ? o.handling_company === '株式会社国分ハウジング' : true)
+                o.store_name === categoryMapping[category]
+                && (checkedCompanyProperty ? o.agency === '株式会社国分ハウジング' : true)
                 && (selectedShop ? targetStaffs.includes(clean(o.property_staff)) : true)
                 && (searchedName ? o.property_name.includes(searchedName) : true)
                 && (searchedAddress ? o.address.includes(searchedAddress) : true)
@@ -133,7 +133,7 @@ const DatabaseProperty = () => {
 
     useEffect(() => {
         if (!targetId) return;
-        const target = originalPropertyList.find(o => o.property_number === targetId);
+        const target = originalPropertyList.find(o => o.property_id === targetId);
         if (target) {
             setTargetProperty(target);
         } else {
@@ -151,15 +151,15 @@ const DatabaseProperty = () => {
     const [editId, setEditId] = useState('');
     const closeInformationEdit = async () => {
         setEditId('');
-        const fetchData = async () => {
-            const requestMapping = {
-                'spec': 'database_kaeru_reload',
-                'used': 'database_resale_reload'
-            };
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: requestMapping[category] }, { headers });
-            await setCustomerList(response.data.customer);
-        }
-        fetchData();
+        // const fetchData = async () => {
+        //     const requestMapping = {
+        //         'spec': 'database_kaeru_reload',
+        //         'used': 'database_resale_reload'
+        //     };
+        //     const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: requestMapping[category] }, { headers });
+        //     await setCustomerList(response.data.customer);
+        // }
+        // fetchData();
     };
 
     const [targetSort, setTargetSort] = useState('register');
@@ -288,7 +288,7 @@ const DatabaseProperty = () => {
                                         <td>{index + 1}</td>
                                         <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
                                             onClick={() => {
-                                                setTargetId(item.property_number);
+                                                setTargetId(item.property_id);
                                             }}>詳細</div></td>
                                         <td>{item.property_name}</td>
                                         <td>{item.address}</td>
@@ -296,7 +296,7 @@ const DatabaseProperty = () => {
                                         <td>{tour.length}</td>
                                         <td>{item.building_age}</td>
                                         <td>{item.price}</td>
-                                        <td>{item.handling_company}</td>
+                                        <td>{item.agency}</td>
                                         <td>{item.property_staff}</td>
                                     </tr>
                                 })}
@@ -329,7 +329,7 @@ const DatabaseProperty = () => {
                             </tr>
                             <tr>
                                 <td>間取り</td>
-                                <td>{targetProperty.floor_plan}</td>
+                                <td>{targetProperty.layout}</td>
                                 <td>建築時期</td>
                                 <td>{targetProperty.building_age}</td>
                             </tr>
@@ -428,15 +428,15 @@ const DatabaseProperty = () => {
                                 if (!item.latitude || !item.longitude) return null;
                                 return (
                                     <MarkerF
-                                        key={item.property_number || item.id}
+                                        key={item.property_id || item.id}
                                         position={{
                                             lat: Number(item.latitude),
                                             lng: Number(item.longitude),
                                         }}
-                                        icon={item.handling_company === '株式会社国分ハウジング' ? "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" :
+                                        icon={item.agency === '株式会社国分ハウジング' ? "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" :
                                             "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
                                         }
-                                        onClick={() => setTargetId(item.property_number)}
+                                        onClick={() => setTargetId(item.property_id)}
                                     />
                                 );
                             })}

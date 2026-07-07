@@ -9,6 +9,7 @@ import { getYearMonthArray } from '../utils/getYearMonthArray';
 import Logo from '../assets/images/logo.png';
 
 import Estate from './Estate';
+import { useIsSp } from '../utils/isSp';
 
 type UnSync = { inquiry_date: string, sync: number, black_list: string };
 type Cancel = Record<string, string>;;
@@ -29,6 +30,7 @@ const MenuDev = ({ key, onReload }: Props) => {
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [estateId, setEstateId] = useState('');
     const [lost, setLost] = useState(0);
+    const isSp = useIsSp();
 
     const dateFormate = (value: string) => {
         return (value ?? '').replace(/\//g, '-');
@@ -112,65 +114,70 @@ const MenuDev = ({ key, onReload }: Props) => {
                     <div className={`category_menu  ps-3 ${currentPath === "/company" ? "selected " : ""}`}
                         onClick={() => navigate("/company", { state: { brand: brand, }, })}><i className="fa-solid fa-rainbow me-1 text-secondary"></i>全社報告用フォーマット</div>
                     <div className={`position-relative category_menu  ps-3 ${currentPath === "/list" ? "selected " : ""}`}
-                        onClick={() => navigate("/list", { state: { brand: brand, }, })}><i className="fa-solid fa-phone me-1 text-secondary"></i>反響一覧{sync > 0 && <div className="position-absolute menu_sync" style={{ top: '8px', right: '10px' }}>未同期 {sync}件</div>}</div>
+                        onClick={() => navigate("/list", { state: { brand: brand, }, })}><i className="fa-solid fa-phone me-1 text-secondary"></i>反響一覧{(sync > 0 && category === 'order') && <div className="position-absolute menu_sync" style={{ top: '8px', right: '10px' }}>未同期 {sync}件</div>}</div>
                     <div className={`position-relative category_menu  ps-3 ${currentPath === "/database" ? "selected " : ""}`}
                         onClick={() => navigate("/database", { state: { brand: brand, }, })}><i className="fa-solid fa-magnifying-glass me-1 text-secondary"></i>顧客DB
                         {(cancel > 0 && category === 'order') && <div className="position-absolute menu_sync" style={{ top: '2px', right: '10px' }}>来場未入力 {cancel}件</div>}
                         {(lost > 0 && category === 'order') && <div className="position-absolute menu_sync" style={{ top: '16px', right: '10px' }}>失注未入力 {lost}件</div>}</div>
                     <div className={`category_menu  ps-3 ${currentPath === "/rank" ? "selected " : ""}`}
                         onClick={() => navigate("/rank", { state: { brand: brand, }, })}><i className="fa-solid fa-person me-1 text-secondary"></i>店舗・担当別反響</div>
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customer" ? "selected " : ""}`}
-                        onClick={() => navigate("/customer", { state: { brand: brand, }, })}><i className="fa-solid fa-mobile-screen me-1 text-secondary"></i>販促媒体別広告費</div>}
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/shop" ? "selected " : ""}`}
-                        onClick={() => navigate("/shop", { state: { brand: brand, }, })}><i className="fa-solid fa-chart-pie me-1 text-secondary"></i>店舗別広告費</div>}
-                    {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/property") ? "selected" : ""}`}
-                        onClick={() => navigate("/property", { state: { brand: brand, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>物件データベース</div>}
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customerTrend" ? "selected " : ""}`}
-                        onClick={() => navigate("/customerTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-chart-bar me-1 text-secondary"></i>販促媒体別反響推移</div>}
-                    <div className={`category_menu  ps-3 ${currentPath === "/shopTrend" ? "selected " : ""}`}
-                        onClick={() => navigate("/shopTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-shop me-1 text-secondary"></i>店舗別反響推移</div>
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/calendar" ? "selected " : ""}`}
-                        onClick={() => navigate("/calendar", { state: { brand: brand, }, })}><i className="fa-solid fa-calendar me-1 text-secondary"></i>カレンダー</div>}
-                    {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/map" ? "selected " : ""}`}
-                        onClick={() => navigate("/map", { state: { brand: brand, }, })}><i className="fa-solid fa-map me-1 text-secondary"></i>反響MAP</div>}
-                    {/* {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/market" ? "selected " : ""}`}
+                    <div className={`category_menu  ps-3 ${currentPath === "/map" ? "selected " : ""}`}
+                        onClick={() => navigate("/map", { state: { brand: brand, }, })}><i className="fa-solid fa-map me-1 text-secondary"></i>反響MAP</div>
+                    {!isSp && <>
+                        {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customer" ? "selected " : ""}`}
+                            onClick={() => navigate("/customer", { state: { brand: brand, }, })}><i className="fa-solid fa-mobile-screen me-1 text-secondary"></i>販促媒体別広告費</div>}
+                        {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/shop" ? "selected " : ""}`}
+                            onClick={() => navigate("/shop", { state: { brand: brand, }, })}><i className="fa-solid fa-chart-pie me-1 text-secondary"></i>店舗別広告費</div>}
+                        {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/property") ? "selected" : ""}`}
+                            onClick={() => navigate("/property", { state: { brand: brand, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>物件データベース</div>}
+                        {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customerTrend" ? "selected " : ""}`}
+                            onClick={() => navigate("/customerTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-chart-bar me-1 text-secondary"></i>販促媒体別反響推移</div>}
+                        <div className={`category_menu  ps-3 ${currentPath === "/shopTrend" ? "selected " : ""}`}
+                            onClick={() => navigate("/shopTrend", { state: { brand: brand, }, })}><i className="fa-solid fa-shop me-1 text-secondary"></i>店舗別反響推移</div>
+                        {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/calendar" ? "selected " : ""}`}
+                            onClick={() => navigate("/calendar", { state: { brand: brand, }, })}><i className="fa-solid fa-calendar me-1 text-secondary"></i>カレンダー</div>}
+                        {/* {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/market" ? "selected " : ""}`}
                     onClick={() => navigate("/market", { state: { brand: brand, }, })}>マーケット情報</div>} */}
-                    {/* {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/kengakuCloud" ? "selected " : ""}`}
+                        {/* {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/kengakuCloud" ? "selected " : ""}`}
                         onClick={() => navigate("/kengakuCloud", { state: { brand: brand, }, })}><i className="fa-solid fa-book-open me-1 text-secondary"></i>KengakuCloudマニュアル</div>} */}
-                    {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/resale_performance") ? "selected" : ""}`}
-                        onClick={() => navigate("/resale_performance", { state: { brand: brand, }, })}>予実サマリー</div>}
-                    {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/portal_buy") ? "selected" : ""}`}
-                        onClick={() => navigate("/portal_buy", { state: { brand: brand, }, })}>売買買い媒体別KPI</div>}
-                    {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/portal_sell") ? "selected" : ""}`}
-                        onClick={() => navigate("/portal_sell", { state: { brand: brand, }, })}>売買売り媒体別KPI</div>}
-                    {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/used_buy") ? "selected" : ""}`}
-                        onClick={() => navigate("/used_buy", { state: { brand: brand, }, })}>中古リノベ媒体別KPI</div>}
-                    {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/customerResale") ? "selected" : ""}`}
-                        onClick={() => navigate("/customerResale", { state: { brand: brand, }, })}>架電KPI集計</div>}
-                    {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/resale_manual") ? "selected" : ""}`}
-                        onClick={() => navigate("/resale_manual", { state: { brand: brand, }, })}>いえらぶCLOUD入力マニュアル</div>}
-                    {category === 'spec' && <div className={`category_menu  ps-3  ${currentPath.includes("/property") ? "selected" : ""}`}
-                        onClick={() => navigate("/property", { state: { brand: brand, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>物件データベース</div>}
-                    {category === 'spec' && <div className={`category_menu  ps-3  ${currentPath.includes("/specBudget") ? "selected" : ""}`}
+                        {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/resale_performance") ? "selected" : ""}`}
+                            onClick={() => navigate("/resale_performance", { state: { brand: brand, }, })}>予実サマリー</div>}
+                        {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/portal_buy") ? "selected" : ""}`}
+                            onClick={() => navigate("/portal_buy", { state: { brand: brand, }, })}>売買買い媒体別KPI</div>}
+                        {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/portal_sell") ? "selected" : ""}`}
+                            onClick={() => navigate("/portal_sell", { state: { brand: brand, }, })}>売買売り媒体別KPI</div>}
+                        {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/used_buy") ? "selected" : ""}`}
+                            onClick={() => navigate("/used_buy", { state: { brand: brand, }, })}>中古リノベ媒体別KPI</div>}
+                        {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/customerResale") ? "selected" : ""}`}
+                            onClick={() => navigate("/customerResale", { state: { brand: brand, }, })}>架電KPI集計</div>}
+                        {/* {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/resale_manual") ? "selected" : ""}`}
+                        onClick={() => navigate("/resale_manual", { state: { brand: brand, }, })}>いえらぶCLOUD入力マニュアル</div>} */}
+                        {category === 'spec' && <div className={`category_menu  ps-3  ${currentPath.includes("/property") ? "selected" : ""}`}
+                            onClick={() => navigate("/property", { state: { brand: brand, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>物件データベース</div>}
+                        {/* {category === 'spec' && <div className={`category_menu  ps-3  ${currentPath.includes("/specBudget") ? "selected" : ""}`}
                         onClick={() => navigate("/specBudget", { state: { brand: brand, }, })}>広告費レポート</div>}
                     {category === 'spec' && <div className={`category_menu  ps-3  ${currentPath.includes("/specCustomer") ? "selected" : ""}`}
-                        onClick={() => navigate("/specCustomer", { state: { brand: brand, }, })}>反響レポート</div>}
-                    {(brand === "BrandAdmin" || brand === "Master") && category === 'order' ? (
-                        <div className={`category_menu  ps-3  ${currentPath.includes("/campaign") || currentPath.includes("/editcampaign") ? "selected" : ""}`}
-                            onClick={() => navigate("/campaign", { state: { brand: brand, }, })}>
-                            <i className="fa-solid fa-calendar-days me-1 text-secondary"></i>キャンペーン管理<span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>管理者専用</span>
-                        </div>
-                    ) : null}
-                    {brand === "BrandAdmin" || brand === "Master" ? (
-                        <div className={`category_menu  ps-3  ${currentPath.includes("/budget") ? "selected" : ""}`}
-                            onClick={() => navigate("/budget", { state: { brand: brand, }, })}>
-                            <i className="fa-solid fa-money-check me-1 text-secondary"></i>予算詳細<span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>管理者専用</span>
-                        </div>
-                    ) : null}
-                    <div className={`category_menu  ps-3  ${currentPath.includes("/photo") ? "selected" : ""}`}
-                        onClick={() => navigate("/photo", { state: { brand: brand, }, })}>
-                        <i className="fa-solid fa-camera me-1 text-secondary"></i>K-snap登録
-                    </div>
+                        onClick={() => navigate("/specCustomer", { state: { brand: brand, }, })}>反響レポート</div>} */}
+                        {(brand === "BrandAdmin" || brand === "Master") && category === 'order' ? (
+                            <div className={`category_menu  ps-3  ${currentPath.includes("/campaign") || currentPath.includes("/editcampaign") ? "selected" : ""}`}
+                                onClick={() => navigate("/campaign", { state: { brand: brand, }, })}>
+                                <i className="fa-solid fa-calendar-days me-1 text-secondary"></i>キャンペーン管理<span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>管理者専用</span>
+                            </div>
+                        ) : null}
+                        {brand === "BrandAdmin" || brand === "Master" ? (
+                            <div className={`category_menu  ps-3  ${currentPath.includes("/budget") ? "selected" : ""}`}
+                                onClick={() => navigate("/budget", { state: { brand: brand, }, })}>
+                                <i className="fa-solid fa-money-check me-1 text-secondary"></i>予算詳細<span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>管理者専用</span>
+                            </div>
+                        ) : null}
+                        {category === 'order' && <div className={`category_menu  ps-3  ${currentPath.includes("/photo") ? "selected" : ""}`}
+                            onClick={() => navigate("/photo", { state: { brand: brand, }, })}>
+                            <i className="fa-solid fa-camera me-1 text-secondary"></i>K-snap登録
+                        </div>}
+                    </>
+                    }
+
+
                 </div>
             </>}
             <Estate estateId={estateId} setEstateId={setEstateId} />

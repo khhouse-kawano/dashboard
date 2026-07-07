@@ -14,6 +14,7 @@ import InformationEditResale from '../information/InformationEditResale';
 import StaffMemo from './StaffMemo';
 import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
+import { useIsSp } from '../../utils/isSp';
 
 type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -36,6 +37,7 @@ const RankResale = () => {
     const [showTarget, setShowTarget] = useState<Target>({
         '中古住宅専門店': true
     });
+    const isSp = useIsSp();
 
     //　ココをtrueにすることで常時オープンに
     const [shopList, setShopList] = useState<Shop[]>([{
@@ -381,7 +383,7 @@ const RankResale = () => {
 
     return (
         <div style={{ overflowX: 'scroll' }}>
-            <div className='bg-white p-2' style={{ width: '1600px' }}>
+            <div className='bg-white p-2' style={{ width: isSp ? '1200px' : '1600px' }}>
                 <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                 <div className="row mt-3 mb-4" >
                     <div className="col d-flex">
@@ -395,7 +397,7 @@ const RankResale = () => {
                 </div>
                 <div>
                     <Table bordered>
-                        <tbody style={{ fontSize: '12px' }} className='align-middle'>
+                        <tbody style={{ fontSize:isSp ? '8px' : '12px' }} className='align-middle'>
                             <tr className="text-center">
                                 <td rowSpan={2} className='sticky-column-rank'>店舗</td>
                                 {tooltipItems
@@ -587,6 +589,7 @@ const RankResale = () => {
                                                     onChange={(e) => {
                                                         setNewRank(item.id, e.target.value, '');
                                                     }}>
+                                                    <option value=''>未設定</option>
                                                     {['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'].map(rank => {
                                                         return <option value={rank} key={rank} selected={rank === item.rank}>{rank}</option>
                                                     }

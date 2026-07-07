@@ -15,7 +15,7 @@ import InterviewLog from '../InterviewLog';
 import StaffMemo from './StaffMemo';
 import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
-import Category from '../Category';
+import { useIsSp } from '../../utils/isSp';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -58,6 +58,7 @@ const RankOrder = () => {
         return Number(month) <= 4 ? String(year) : String(year + 1)
     };
     const [memoList, setMemoList] = useState<Memo[]>([]);
+    const isSp = useIsSp();
 
     const fetchCustomerData = async () => {
         return await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", category }, { headers });
@@ -126,7 +127,7 @@ const RankOrder = () => {
         // { label: 'ランクダウン', desc: 'A~CランクからD~Eランクにダウンした数' },
     ];
 
-    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク'];
+    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク'];
 
     const background = {
         '建売分譲事業': 'table-secondary ',
@@ -379,7 +380,7 @@ const RankOrder = () => {
 
     return (
         <div style={{ overflowX: 'scroll' }}>
-            <div className='bg-white p-2' style={{ width: '1600px' }}>
+            <div className='bg-white p-2' style={{ width: isSp ? '1200px' : '1600px' }}>
                 <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                 <div className="row mt-3 mb-4" >
                     <div className="col d-flex">
@@ -393,7 +394,7 @@ const RankOrder = () => {
                 </div>
                 <div>
                     <Table bordered>
-                        <tbody style={{ fontSize: '12px' }} className='align-middle'>
+                        <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
                             <tr className="text-center">
                                 <td rowSpan={2} className='sticky-column-rank'>店舗</td>
                                 {tooltipItems
@@ -566,7 +567,6 @@ const RankOrder = () => {
                                         <td>反響日</td>
                                         <td>初回来場日</td>
                                         <td>契約日</td>
-                                        <td>商談ステップ</td>
                                     </tr>
                                     {modalList.slice(page - 20, page).map((item, index) =>
                                         <tr key={index}>
@@ -584,6 +584,7 @@ const RankOrder = () => {
                                                     onChange={(e) => {
                                                         setNewRank(item.id, e.target.value, '');
                                                     }}>
+                                                    <option value=''>未設定</option>
                                                     {['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク',].map(rank => {
                                                         return <option value={rank} key={rank} selected={rank === item.rank}>{rank}</option>
                                                     }
@@ -605,8 +606,6 @@ const RankOrder = () => {
                                             <td>{dateFormate(item.register)}</td>
                                             <td>{dateFormate(item.interview)}</td>
                                             <td>{dateFormate(item.contract)}</td>
-                                            <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
-                                                onClick={() => setInterviewId(item.id)}>表示</div></td>
                                         </tr>)}
                                 </tbody>
                             </Table>

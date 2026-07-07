@@ -9,8 +9,8 @@ import InformationEditResale from '../information/InformationEditResale';
 import { generateULID } from '../../utils/createULID';
 import Modal from 'react-bootstrap/Modal';
 import { setStyleClassUsed } from '../../utils/setStyleClassUsed';
-
-type Shop = { brand: string, shop: string, section: string, area: string };
+import { thisYear } from '../../utils/thisYear';
+import { useIsSp } from '../../utils/isSp';
 
 type InquiryCustomer = {
     id: number, inquiry_id: string, pg_id: string, inquiry_date: string, medium: string, response_medium: string, first_name: string, last_name: string, category: string,
@@ -59,6 +59,8 @@ const ListResale = ({ onReload }: Props) => {
     const [searchId, setSearchId] = useState('');
     const categoryList = ['買い:ポータル', '売り:ポータル', '買い:中古リノベ'];
 
+    const isSp = useIsSp();
+
     const monthFormate = (date: string) => {
         return date ? date.replace(/-/g, '/').slice(0, 7) : '';
     };
@@ -81,7 +83,7 @@ const ListResale = ({ onReload }: Props) => {
             try {
                 const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: 'list_resale' }, { headers });
                 await setCustomerList(response.data.summary);
-                await setStaffList(response.data.staff);
+                await setStaffList(response.data.staff.filter(s => s.period === String(thisYear)));
                 await setMediumArray(response.data.medium.map(m => m.medium));
                 await setOriginalList(response.data.inquiry);
                 await setBlackList(response.data.black);
@@ -99,6 +101,12 @@ const ListResale = ({ onReload }: Props) => {
         const filteredMonth = monthArray.slice(startIndex, endIndex + 1);
         setSelectedMonth(filteredMonth);
     }, [startMonth, endMonth]);
+
+    useEffect(() => {
+        if (isSp) {
+            setTargetSync(null);
+        }
+    }, [isSp]);
 
     const isSync = (list: InquiryCustomer, value: string) => {
         return list.black_list.split(value).length % 2 !== 0
@@ -321,8 +329,8 @@ const ListResale = ({ onReload }: Props) => {
             <span>同期処理中</span>
             <ProgressBar now={progress} label={`${Math.round(progress)}%`} />
         </div>}
-            <div className='content database bg-white p-2'>
-                <div className="d-flex flex-wrap mb-3 align-items-center">
+            <div className='inquiry_table spec bg-white p-2'>
+                <div className="d-flex flex-wrap mb-3 align-items-center" style={{ paddingTop: isSp ? '30px' : '' }}>
                     <div className="m-1">
                         <select className="target" onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
                             {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
@@ -344,64 +352,67 @@ const ListResale = ({ onReload }: Props) => {
                             )}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => setTargetMedium(e.target.value)} style={{ fontSize: '13px' }}>
-                            <option value=''>全媒体表示</option>
-                            {mediumArray.map((item, index) =>
-                                <option key={index} value={item}>{item}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(e) => {
-                            const value = e.target.value;
-                            setTargetSync(value === '' ? null : Number(value));
-                        }} style={{ fontSize: '13px' }}>
-                            <option value="">全て表示</option>
-                            <option value="1" selected={targetSync === 1}>取込済み</option>
-                            <option value="0" selected={targetSync === 0}>未取込</option>
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <input type="text" className='target' placeholder='氏名で検索' onChange={(e) => setTargetName(e.target.value)} style={{ fontSize: '13px' }} />
-                    </div>
-                    <div className="m-1">
-                        <input type="text" className='target' placeholder='住所で検索' onChange={(e) => setTargetAddress(e.target.value)} style={{ fontSize: '13px' }} />
-                    </div>
+                    {!isSp && <>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setTargetMedium(e.target.value)} style={{ fontSize: '13px' }}>
+                                <option value=''>全媒体表示</option>
+                                {mediumArray.map((item, index) =>
+                                    <option key={index} value={item}>{item}</option>
+                                )}
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                const value = e.target.value;
+                                setTargetSync(value === '' ? null : Number(value));
+                            }} style={{ fontSize: '13px' }}>
+                                <option value="">全て表示</option>
+                                <option value="1" selected={targetSync === 1}>取込済み</option>
+                                <option value="0" selected={targetSync === 0}>未取込</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <input type="text" className='target' placeholder='氏名で検索' onChange={(e) => setTargetName(e.target.value)} style={{ fontSize: '13px' }} />
+                        </div>
+                        <div className="m-1">
+                            <input type="text" className='target' placeholder='住所で検索' onChange={(e) => setTargetAddress(e.target.value)} style={{ fontSize: '13px' }} />
+                        </div>
+                    </>}
                     <div className="bg-warning text-dark px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
                         onClick={() => setEditId('new')}>新規登録</div>
                 </div>
                 <div className='p-0 inquiry'>
-                    <Table striped bordered hover style={{ width: '800px' }}>
-                        <thead className='sticky-header' style={{ fontSize: "10px" }}>
-                            <tr className='sticky-header' style={{ textAlign: 'center' }}>
-                                <td style={{ width: '100px' }}>店舗名</td>
-                                {['中専全体', ...categoryList].map((value, index) => (<td key={index} className='text-center' style={{ width: '90px' }}>{value}</td>))}
-                            </tr>
-                        </thead>
-                        <tbody style={{ fontSize: "12px" }}>
-                            {['反響合計', '反響目標', '来場合計', '来場目標'].map((category, cIndex) => <tr key={cIndex} className='text-center'>
-                                <td>{category}</td>
-                                {['中専全体', ...categoryList]
-                                    .map((value, sIndex) => {
-                                        let totalValue;
-                                        if (cIndex === 0) {
-                                            totalValue = inquiryFilter(sIndex === 0 ? '' : value);
-                                        } else if (cIndex === 1 || cIndex === 3) {
-                                            totalValue = achievementFilter(sIndex === 0 ? '' : value, cIndex === 1 ? 8 : 4);
-                                        } else {
-                                            totalValue = reserveFilter(sIndex === 0 ? '' : value);
-                                        }
-                                        return <td key={sIndex} className='text-center' style={{ width: '90px' }}>{totalValue}</td>
-                                    })}
-                            </tr>
-                            )}
-                        </tbody>
-                    </Table>
-                    <Table striped bordered hover style={{ width: '1500px' }}>
-                        <thead className='sticky-header' style={{ fontSize: "12px" }}>
+                    {!isSp &&
+                        <Table striped bordered hover style={{ width: '800px' }}>
+                            <thead className='sticky-header' style={{ fontSize: "10px" }}>
+                                <tr className='sticky-header' style={{ textAlign: 'center' }}>
+                                    <td style={{ width: '100px' }}>店舗名</td>
+                                    {['中専全体', ...categoryList].map((value, index) => (<td key={index} className='text-center' style={{ width: '90px' }}>{value}</td>))}
+                                </tr>
+                            </thead>
+                            <tbody style={{ fontSize: "12px" }}>
+                                {['反響合計', '反響目標', '来場合計', '来場目標'].map((category, cIndex) => <tr key={cIndex} className='text-center'>
+                                    <td>{category}</td>
+                                    {['中専全体', ...categoryList]
+                                        .map((value, sIndex) => {
+                                            let totalValue;
+                                            if (cIndex === 0) {
+                                                totalValue = inquiryFilter(sIndex === 0 ? '' : value);
+                                            } else if (cIndex === 1 || cIndex === 3) {
+                                                totalValue = achievementFilter(sIndex === 0 ? '' : value, cIndex === 1 ? 8 : 4);
+                                            } else {
+                                                totalValue = reserveFilter(sIndex === 0 ? '' : value);
+                                            }
+                                            return <td key={sIndex} className='text-center' style={{ width: '90px' }}>{totalValue}</td>
+                                        })}
+                                </tr>
+                                )}
+                            </tbody>
+                        </Table>}
+                    <Table striped bordered hover style={{ width: isSp ? '1200px' : '1500px', fontSize: isSp ? "8px" : "12px" }}>
+                        <thead className='sticky-header'>
                             <tr className='sticky-header align-middle'>
-                                <td style={{ width: '100px', textAlign: 'center' }} className='sticky-column'>顧客取込</td>
+                                <td style={{ width: '100px', textAlign: 'center' }} className={`${isSp ? '' : 'sticky-column'}`}>顧客取込</td>
                                 <td style={{ width: '100px', textAlign: 'center' }} >顧客詳細</td>
                                 <td style={{ width: '140px', textAlign: 'center' }}>カテゴリー</td>
                                 <td style={{ width: '100px', textAlign: 'center' }}>担当営業</td>
@@ -414,13 +425,13 @@ const ListResale = ({ onReload }: Props) => {
                                 <td style={{ width: '500px' }}>顧客タグ</td>
                             </tr>
                         </thead>
-                        <tbody style={{ fontSize: "12px" }} >
+                        <tbody>
                             {inquiryList.slice(0, displayLength).map((item, index) => {
                                 const styleClass = setStyleClassUsed(item.category);
                                 return (
                                     <tr key={index} style={{ textAlign: 'left' }}
                                         className={isBlack(item.mail, item.mobile, item.black_list) ? 'table-danger align-middle' : item.sync === 1 || item.black_list.split('duplicate').length % 2 === 0 || item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 ? 'table-primary align-middle' : 'align-middle'}>
-                                        <td style={{ textAlign: 'center' }} className='sticky-column'>
+                                        <td style={{ textAlign: 'center' }} className={`${isSp ? '' : 'sticky-column'}`}>
                                             <>{item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.shop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
                                                 item.sync === 1 ? <span style={{ textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
                                                     onClick={() => item.pg_id.length === 26 ? setEditId(item.pg_id) : null}><i className="fa-solid fa-up-right-from-square"></i></span> :
@@ -437,7 +448,7 @@ const ListResale = ({ onReload }: Props) => {
                                                 <i className="fa-solid fa-magnifying-glass" style={{ cursor: 'pointer' }}
                                                     onClick={() => setSearchId(item.inquiry_id)}></i> : '-'}</td>
                                         <td style={{ textAlign: 'center' }}>
-                                            <select style={styleClass} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'category_change')}
+                                            <select style={{...styleClass, fontSize: isSp ? '8px' : '12px'}} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'category_change')}
                                                 value={item.category}
                                             >
                                                 <option value='' className='bg-white text-dark'>カテゴリーを選択</option>
@@ -446,13 +457,12 @@ const ListResale = ({ onReload }: Props) => {
                                             </select>
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
-                                            <select style={styleClass} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'staff_change')}>
+                                            <select  style={{...styleClass, fontSize: isSp ? '8px' : '12px'}} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'staff_change')}>
                                                 <option value='' className='bg-white text-dark'>担当営業を選択</option>
                                                 {staffList.filter(staffValue => staffValue.shop === '中専鹿児島店').map((staffValue, shopIndex) =>
                                                     <option key={shopIndex} selected={staffValue.name === item.staff} className='bg-white text-dark'>{staffValue.name}</option>
                                                 )}
-                                                {item.shop && <option value={`${item.shop}`} className='bg-white text-dark'>{item.shop} 店舗管理</option>}
-                                            </select>
+                                                <option value='中古住宅専門店 店舗管理' className='bg-white text-dark'>店舗管理</option>                                            </select>
                                         </td>
                                         <td>{dateFormate(item.inquiry_date)}</td>
                                         <td>{item.response_medium}{item.medium !== 'ホームページ反響' || <><br /><span style={{ fontSize: '10px', fontWeight: 'bold' }}>（{item.hp_campaign}）</span></>}</td>

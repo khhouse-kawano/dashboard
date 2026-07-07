@@ -173,45 +173,68 @@ textarea::placeholder {
   max-width: 200px;
 }
 
-@media screen and (min-width:769px) {
+@media screen and (min-width: 769px) {
   .modal_menu_sp {
     display: none;
   }
 }
 
-@media screen and (max-width:768px) {
+@media screen and (max-width: 768px) {
+  /* ▼ 洗練されたモダンヘッダー ▼ */
   .header_sp {
-    display: block;
+    display: flex;
+    align-items: center;
     width: 100vw;
-    height: min(100px, 10vw);
+    height: 55px; /* min(100px, 10vw)をやめて固定値に */
     position: fixed;
-    background-color: #e9e9e9;
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); /* うっすら影をつける */
     top: 0;
+    left: 0;
     z-index: 100;
   }
 
+  /* ▼ アイコンの巨大化を防ぐ ▼ */
   .header_sp .hamburger,
   .modal_menu_sp .hamburger {
-    font-size: 8vw;
-    padding: 1vw;
+    font-size: 24px; /* 8vwをやめて固定サイズに */
+    color: #4a5568;
+    padding: 10px 15px;
     cursor: pointer;
     display: block;
   }
 
+  /* ▼ メニュー内のバツボタンの位置調整 ▼ */
   .modal_menu_sp .hamburger {
-    left: 70vw;
+    top: 10px;
+    right: 15px;
+    left: auto; /* 元の70vwのズレを解除 */
+    z-index: 1010;
+  }
+
+  /* ▼ 追加：背景の暗転オーバーレイ ▼ */
+  .overlay_sp {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 900;
   }
 
   .modal_menu {
     display: none;
   }
 
+  /* ▼ スライドメニュー本体 ▼ */
   .modal_menu_sp {
     position: fixed;
     top: 0;
     left: 0;
     height: 100vh;
-    width: 80vw;
+    width: 280px; /* 80vwより少しスッキリした幅に */
+    max-width: 80vw;
     background-color: #fff;
     z-index: 10000;
 
@@ -219,8 +242,7 @@ textarea::placeholder {
     opacity: 0;
     visibility: hidden;
     display: block;
-    /* ← ここで常に block にしておく */
-
+    
     transition: transform 0.3s ease-out, opacity 0.3s ease-out;
   }
 
@@ -230,6 +252,7 @@ textarea::placeholder {
     visibility: visible;
   }
 
+  /* ▼ 既存のクラス（そのまま引き継ぎ） ▼ */
   .handle_button .button {
     width: 30vw;
   }

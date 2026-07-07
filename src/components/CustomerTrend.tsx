@@ -6,6 +6,7 @@ import Table from "react-bootstrap/Table";
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import { isLastYear } from '../utils/isLastYear';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { get11MonthsAgoString } from "../utils/get11MonthsAgoString";
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
 type MediumType = { medium: string, category: string, sort_key: number, response_medium: number };
@@ -27,8 +28,9 @@ const CustomerTrend: React.FC = () => {
     const [mediumList, setMediumList] = useState<MediumType[]>([]);
     const [graphCategory, setGraphCategory] = useState('register');
     const [graphData, setGraphData] = useState<GraphData[]>([]);
-    const [startMonth, setStartMonth] = useState('');
-    const [endMonth, setEndMonth] = useState('');
+    const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
+    const [startMonth, setStartMonth] = useState(startMonthValue);
+        const [endMonth, setEndMonth] = useState('');
     const [originalMonthArray, setOriginalMonthArray] = useState<string[]>([]);
     const [targetShop, setTargetShop] = useState('');
     const [targetSection, setTargetSection] = useState('');
@@ -102,9 +104,6 @@ const CustomerTrend: React.FC = () => {
         };
         setOriginalMonthArray(getYearMonthArray(2025, 1));
         fetchData();
-        setEndMonth(`${String(year).padStart(2, '0')}/${String(month).padStart(2, '0')}`);
-        month <= 5 ? setStartMonth(`${thisYear - 1}/06`) : setStartMonth(`${thisYear}/06`);
-
     }, []);
 
     useEffect(() => {

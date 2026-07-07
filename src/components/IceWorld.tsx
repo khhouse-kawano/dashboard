@@ -8,11 +8,13 @@ import Badge from 'react-bootstrap/Badge';
 type Shop = { brand: string, shop: string };
 type Props = {
     shopList: Shop[],
-    editId: string | null
+    editId: string | null,
+    showIceWorld: boolean,
+    setShowIceWorld: React.Dispatch<React.SetStateAction<boolean>>
 }
 type Customer = Record<string, string>;
 
-const IceWorld = ({ shopList, editId }: Props) => {
+const IceWorld = ({ shopList, editId, showIceWorld, setShowIceWorld }: Props) => {
     const youbi = ['日', '月', '火', '水', '木', '金', '土'];
     const today = new Date();
     const time = ['9:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00']
@@ -37,7 +39,11 @@ const IceWorld = ({ shopList, editId }: Props) => {
 
     useEffect(() => {
         if (!reserve.id) return;
-        const targetCustomer = customerList.find(c => c.id === reserve.id);
+
+        if (customerList.length === 0) return;
+
+        const targetCustomer = customerList.find(c => String(c.id) === String(reserve.id));
+
         if (targetCustomer) {
             setReserve(prev => ({
                 ...prev,
@@ -50,11 +56,12 @@ const IceWorld = ({ shopList, editId }: Props) => {
                 rank: targetCustomer?.customized_input_01J82Z5F366ZQ897PXWF6H5ZAM ?? ''
             }))
         } else {
-            alert('顧客取得に失敗');
+            console.error(`ID: ${reserve.id} の顧客が見つかりません`);
+            alert('顧客の取得に失敗しました。');
             return;
         }
         setNameList(false);
-    }, [reserve.id]);
+    }, [reserve.id, customerList]);
 
     useEffect(() => {
         if (!reserve.shop || reserve.id) return;
@@ -130,12 +137,12 @@ const IceWorld = ({ shopList, editId }: Props) => {
         };
         try {
             await axios.post("https://khg-marketing.info/dashboard/api/", postData, { headers });
-            
-            setOriginalCustomerList(prev => 
+
+            setOriginalCustomerList(prev =>
                 prev.map(c => c.id === reserve.id ? { ...c, ice_world: newIceWorldValue } : c)
             );
-            
-            setCustomerList(prev => 
+
+            setCustomerList(prev =>
                 prev.map(c => c.id === reserve.id ? { ...c, ice_world: newIceWorldValue } : c)
             );
         } catch (e) {
@@ -146,101 +153,109 @@ const IceWorld = ({ shopList, editId }: Props) => {
     };
 
     return (
-        <div className="bg-white p-3 rounded shadow-sm border" style={{ fontSize: '12px' }}>
-            {/* カレンダーヘッダー */}
-            <div className="d-flex justify-content-between align-items-center mb-3 px-2">
-                <button className="btn btn-light rounded-circle shadow-sm d-flex justify-content-center align-items-center p-0" style={{ width: '28px', height: '28px' }} onClick={() => moveWeek(-7)}>
-                    <i className="fa-solid fa-angle-left text-secondary" style={{ fontSize: '12px' }}></i>
-                </button>
-                <h6 className="mb-0 fw-bold text-dark" style={{ letterSpacing: '1px' }}>
-                    {targetDate.getFullYear()}年 {targetDate.getMonth() + 1}月
-                </h6>
-                <button className="btn btn-light rounded-circle shadow-sm d-flex justify-content-center align-items-center p-0" style={{ width: '28px', height: '28px' }} onClick={() => moveWeek(7)}>
-                    <i className="fa-solid fa-angle-right text-secondary" style={{ fontSize: '12px' }}></i>
-                </button>
-            </div>
+        <>
+            <Modal show={showIceWorld} size='xl' onHide={()=>setShowIceWorld(false)}>
+                <Modal.Header closeButton>ぶるぶるアイスワールド利用予約</Modal.Header>
+                <Modal.Body>
+                    <div className="bg-white p-3 rounded shadow-sm border" style={{ fontSize: '12px' }}>
+                        {/* カレンダーヘッダー */}
+                        <div className="d-flex justify-content-between align-items-center mb-3 px-2">
+                            <button className="btn btn-light rounded-circle shadow-sm d-flex justify-content-center align-items-center p-0" style={{ width: '28px', height: '28px' }} onClick={() => moveWeek(-7)}>
+                                <i className="fa-solid fa-angle-left text-secondary" style={{ fontSize: '12px' }}></i>
+                            </button>
+                            <h6 className="mb-0 fw-bold text-dark" style={{ letterSpacing: '1px' }}>
+                                {targetDate.getFullYear()}年 {targetDate.getMonth() + 1}月
+                            </h6>
+                            <button className="btn btn-light rounded-circle shadow-sm d-flex justify-content-center align-items-center p-0" style={{ width: '28px', height: '28px' }} onClick={() => moveWeek(7)}>
+                                <i className="fa-solid fa-angle-right text-secondary" style={{ fontSize: '12px' }}></i>
+                            </button>
+                        </div>
 
-            {/* カレンダーテーブル */}
-            <div className="table-responsive rounded border overflow-hidden">
-                <Table className="mb-0 text-center align-middle" style={{ tableLayout: 'fixed', fontSize: '11px' }}>
-                    <thead className="bg-light">
-                        <tr>
-                            <th style={{ width: '55px', backgroundColor: '#f8f9fa' }} className="border-end border-bottom-0"></th>
-                            {youbi.map((day, index) => {
-                                const date = getDateByIndex(targetDate, index);
-                                const isToday = date.toDateString() === today.toDateString();
-                                const isSunday = index === 0;
-                                const isSaturday = index === 6;
+                        {/* カレンダーテーブル */}
+                        <div className="table-responsive rounded border overflow-hidden">
+                            <Table className="mb-0 text-center align-middle" style={{ tableLayout: 'fixed', fontSize: '11px' }}>
+                                <thead className="bg-light">
+                                    <tr>
+                                        <th style={{ width: '55px', backgroundColor: '#f8f9fa' }} className="border-end border-bottom-0"></th>
+                                        {youbi.map((day, index) => {
+                                            const date = getDateByIndex(targetDate, index);
+                                            const isToday = date.toDateString() === today.toDateString();
+                                            const isSunday = index === 0;
+                                            const isSaturday = index === 6;
 
-                                return (
-                                    <th
-                                        key={index}
-                                        className={`py-2 border-bottom-0 ${isSunday ? 'text-danger' : isSaturday ? 'text-primary' : 'text-secondary'}`}
-                                        style={{ backgroundColor: '#f8f9fa', minWidth: '85px' }}
-                                    >
-                                        <div className="fw-normal mb-1" style={{ fontSize: '10px' }}>{day}</div>
-                                        <div 
-                                            className={`d-inline-flex justify-content-center align-items-center rounded-circle ${isToday ? 'bg-primary text-white shadow-sm' : ''}`}
-                                            style={{ width: '24px', height: '24px', fontSize: '12px', fontWeight: isToday ? 'bold' : 'normal' }}
-                                        >
-                                            {date.getDate()}
-                                        </div>
-                                    </th>
-                                );
-                            })}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {time.map((t, rowIndex) => (
-                            <tr key={rowIndex}>
-                                {/* 時間の列（Y軸） */}
-                                <td className="bg-light text-muted fw-bold border-end p-1" style={{ width: '55px', fontSize: '10px' }}>
-                                    {t}
-                                </td>
-                                {youbi.map((_, colIndex) => {
-                                    const date = getDateByIndex(targetDate, colIndex);
-                                    const formattedDate = date.toLocaleDateString();
-                                    const reservedCustomer = originalCustomerList.find(o => o.ice_world === `${formattedDate} ${t}`);
-                                    const idValue = reservedCustomer ? reservedCustomer?.id : editId ? editId : '';
-                                    const isSunday = colIndex === 0;
-                                    const isSaturday = colIndex === 6;
+                                            return (
+                                                <th
+                                                    key={index}
+                                                    className={`py-2 border-bottom-0 ${isSunday ? 'text-danger' : isSaturday ? 'text-primary' : 'text-secondary'}`}
+                                                    style={{ backgroundColor: '#f8f9fa', minWidth: '85px' }}
+                                                >
+                                                    <div className="fw-normal mb-1" style={{ fontSize: '10px' }}>{day}</div>
+                                                    <div
+                                                        className={`d-inline-flex justify-content-center align-items-center rounded-circle ${isToday ? 'bg-primary text-white shadow-sm' : ''}`}
+                                                        style={{ width: '24px', height: '24px', fontSize: '12px', fontWeight: isToday ? 'bold' : 'normal' }}
+                                                    >
+                                                        {date.getDate()}
+                                                    </div>
+                                                </th>
+                                            );
+                                        })}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {time.map((t, rowIndex) => (
+                                        <tr key={rowIndex}>
+                                            {/* 時間の列（Y軸） */}
+                                            <td className="bg-light text-muted fw-bold border-end p-1" style={{ width: '55px', fontSize: '10px' }}>
+                                                {t}
+                                            </td>
+                                            {youbi.map((_, colIndex) => {
+                                                const date = getDateByIndex(targetDate, colIndex);
+                                                const formattedDate = date.toLocaleDateString();
+                                                const reservedCustomer = originalCustomerList.find(o => o.ice_world === `${formattedDate} ${t}`);
+                                                const idValue = reservedCustomer ? reservedCustomer?.id : editId ? editId : '';
+                                                const isSunday = colIndex === 0;
+                                                const isSaturday = colIndex === 6;
 
-                                    return (
-                                        <td
-                                            key={colIndex}
-                                            onClick={() => {
-                                                setReserve(prev => ({
-                                                    ...prev,
-                                                    date: formattedDate,
-                                                    time: t,
-                                                    id: idValue,
-                                                    reserved: reservedCustomer ? 'true' : ''
-                                                }));
-                                                setModalShow(true);
-                                            }}
-                                            className={`p-1 position-relative hover-bg-light ${isSunday ? 'bg-danger bg-opacity-10' : isSaturday ? 'bg-primary bg-opacity-10' : ''}`}
-                                            style={{ height: '50px', cursor: 'pointer', transition: 'background-color 0.2s' }}
-                                        >
-                                            {reservedCustomer && (
-                                                <div className="w-100 h-100 bg-primary text-white rounded d-flex flex-column justify-content-center align-items-start px-2 shadow-sm" style={{ overflow: 'hidden' }}>
-                                                    <span className="text-truncate w-100 opacity-75" style={{ fontSize: '9px' }}>{reservedCustomer.in_charge_store}</span>
-                                                    <span className="text-truncate w-100 fw-bold" style={{ fontSize: '11px' }}>{reservedCustomer.customer_contacts_name}</span>
-                                                </div>
-                                            )}
-                                            {!reservedCustomer && (
-                                                <div className="w-100 h-100 d-flex justify-content-center align-items-center opacity-0 hover-opacity-100 text-muted">
-                                                    <i className="fa-solid fa-plus" style={{ fontSize: '10px' }}></i>
-                                                </div>
-                                            )}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </Table>
-            </div>
+                                                return (
+                                                    <td
+                                                        key={colIndex}
+                                                        onClick={() => {
+                                                            setReserve(prev => ({
+                                                                ...prev,
+                                                                date: formattedDate,
+                                                                time: t,
+                                                                id: idValue,
+                                                                reserved: reservedCustomer ? 'true' : ''
+                                                            }));
+                                                            setModalShow(true);
+                                                        }}
+                                                        className={`p-1 position-relative hover-bg-light ${isSunday ? 'bg-danger bg-opacity-10' : isSaturday ? 'bg-primary bg-opacity-10' : ''}`}
+                                                        style={{ height: '50px', cursor: 'pointer', transition: 'background-color 0.2s' }}
+                                                    >
+                                                        {reservedCustomer && (
+                                                            <div className="w-100 h-100 bg-primary text-white rounded d-flex flex-column justify-content-center align-items-start px-2 shadow-sm" style={{ overflow: 'hidden' }}>
+                                                                <span className="text-truncate w-100 opacity-75" style={{ fontSize: '9px' }}>{reservedCustomer.in_charge_store}</span>
+                                                                <span className="text-truncate w-100 fw-bold" style={{ fontSize: '11px' }}>{reservedCustomer.customer_contacts_name}</span>
+                                                            </div>
+                                                        )}
+                                                        {!reservedCustomer && (
+                                                            <div className="w-100 h-100 d-flex justify-content-center align-items-center opacity-0 hover-opacity-100 text-muted">
+                                                                <i className="fa-solid fa-plus" style={{ fontSize: '10px' }}></i>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </Table>
+                        </div>
 
+
+                    </div>
+                </Modal.Body>
+            </Modal>
             {/* 予約用モーダル */}
             <Modal show={modalShow} onHide={modalClose} centered size="sm">
                 <Modal.Header closeButton className="border-bottom-0 pb-0">
@@ -352,7 +367,7 @@ const IceWorld = ({ shopList, editId }: Props) => {
                     )}
                 </Modal.Footer>
             </Modal>
-        </div>
+        </>
     )
 }
 

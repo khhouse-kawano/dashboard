@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useContext, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
 import axios from 'axios';
 import { headers } from '../../utils/headers';
@@ -11,7 +10,22 @@ import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
 import Estate from '../Estate';
 import KSnap from './KSnap';
-
+import IceWorld from '../IceWorld';
+import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate } from '../../utils/informationUtils';
+import TableInput from './TableInput';
+import TableSelect from './TableSelect';
+import TableInterview from './TableInterview';
+import TableCall from './TableCall';
+import TableStatus from './TableStatus';
+import TableMedium from './TableMedium';
+import TableRank from './TableRank';
+import TableStaff from './TableStaff';
+import TableCompetitor from './TableCompetitor';
+import TableCompetitorPdf from './TableCompetitorPdf';
+import TableShop from './TableShop';
+import TableTextarea from './TableTextarea';
+import TableCheckboxGroup from './TableCheckboxGroup';
+import { useIsSp } from '../../utils/isSp';
 
 type Staff = { name: string; shop: string; category: number, section: string, period: string };
 type Customer = Record<string, string>;
@@ -34,7 +48,8 @@ type CallAction = {
     time: string;
     action: string;
     note: string;
-    staff: string
+    staff: string;
+    status: string
 };
 type CallLog = {
     id: string;
@@ -70,8 +85,41 @@ type Maker = {
     letter: string
 };
 
+const idMapping = (text: string) => {
+    const targetId = databaseList.find(d => d.value === text)?.id ?? '';
+    return targetId;
+};
+
+const inquiryReasons: string[] = ['オーナー様・知人から聞いた', 'SNS(Instagram/Facebook/youtube/その他)', '看板を見た', '親・親戚から聞いた', 'インターネット検索', '新聞を見た', 'まとめサイトを見た', 'チラシを見た', 'その他'];
+
+const houseHuntingMotivation: string[] = ['家賃がもったいない', '子どもが進学する', '土地をもらった', '家族が増える（減る）', 'オーナー様・知人が家を建てた', '家づくりは特に考えていない', '土地が見つかった', '親から勧められた', '工事費用が高くなる前に', '年齢的にそろそろ', '賃貸だと老後（退職後）が心配', '今の住まいが狭い', '水回り（キッチン・風呂・トイレ・洗面）が不便', '騒音が気になる', '収納が足りない', 'その他', '気密・断熱性にこだわりたい', '間取りにこだわりたい', '他人とは違った家にしたい', '耐震性にこだわりたい', 'インテリアにこだわりたい', '外観デザインにこだわりたい', '建築予定地が既にある', '収納にこだわりたい', '注文住宅にこだわりはない'];
+
+const actionMap = {
+    '資料送付': 'step_migration_item_catalog',
+    '0次接客': 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
+    '初回面談': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+    '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+    '事前審査': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+    'LINEグループ作成': 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
+    '契約': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'
+};
+
+const steps = [
+    '事前審査提出',
+    'LINE等で連絡可',
+    '次回アポ済み',
+    '候補地有(プラン提案中)',
+    '事前審査承諾',
+    '建築意思がある(自社他社問わず)',
+    '土地買付受領',
+    '建築申込',
+    '土地内諾',
+    '契約日決定',
+    '入金済'
+];
 const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     const { userName } = useContext(AuthContext);
+    const { category } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<Shop[]>([]);
     const [information, setInformation] = useState<Customer>({});
     const [staffArray, setStaffArray] = useState<Staff[]>([]);
@@ -127,19 +175,11 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     const today = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const thisMonth = `${year}-${String(month).padStart(2, '0')}`;
     const thisYear = now.getMonth() <= 4 ? year : year + 1;
-    const navigate = useNavigate();
     const [competitorsInput, setCompetitorsInput] = useState('');
     const [originalMakerList, setOriginalMakerList] = useState<Maker[]>([]);
     const [makerList, setMakerList] = useState<Maker[]>([]);
-    const safeParse = (data: any) => {
-        if (typeof data !== 'string' || data.trim() === '') return data ?? [];
-        try {
-            return JSON.parse(data);
-        } catch (e) {
-            console.error("JSONの解析に失敗しました。不正なデータです:", data);
-            return [];
-        }
-    };
+
+
     const [kSnap, setKSnap] = useState('');
     const [showDetail, setShowDetail] = useState('');
     const [introductoryList, setIntroductoryList] = useState<string[]>([]);
@@ -147,64 +187,72 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [showLostReason, setShowLostReason] = useState(false);
     const [competitorPdfFile, setCompetitorPdfFile] = useState<{ name: string, file: File | null, path?: string, staff?: string }[]>([]);
+    const [showIceWorld, setShowIceWorld] = useState(false);
+    const [editId, setEditId] = useState('');
+    const isSp = useIsSp();
 
     useEffect(() => {
         if (!id) return;
 
         setInterviewer(userName);
+
         if (id === 'new') {
             setInformation(prev => ({
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: today,
                 id: generateULID()
             }));
-
-            setSending(true)
-            const fetchData = async () => {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEdit_add_customer" }, { headers });
-                await setShopArray(response.data.shop.filter(s => s.division === '注文事業' && !s.shop.includes('未設定') && !s.shop.includes('全店舗')));
-                await setStaffArray(response.data.staff.filter(s => s.category === 1 && s.period === String(thisYear)));
-                await setMediumArray(response.data.medium);
-                await setOriginalMakerList(response.data.maker);
-                await setIntroductoryList(response.data.introductory.map(i => i.name));
-            };
-            fetchData();
-        } else {
-            setSending(true)
-            const fetchData = async () => {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "informationEdit_edit_customer", id: id }, { headers });
-                await setShopArray(response.data.shop);
-                await setStaffArray(response.data.staff.filter(s => s.category === 1 && s.period === String(thisYear)));
-                await setMediumArray(response.data.medium);
-                await setInformation(response.data.customer);
-                await setOriginalMakerList(response.data.maker);
-                await setIntroductoryList(response.data.introductory.map(i => i.name));
-                const callResData = {
-                    id: response.data.call.id ?? response.data.customer.id,
-                    shop: response.data.call.shop ?? response.data.customer.in_charge_store,
-                    staff: userName,
-                    name: response.data.call.name ?? response.data.customer.customer_contacts_name,
-                    status: response.data.call.status ?? '',
-                    reserved_status: response.data.call.reserved_status ?? '',
-                    call_log: safeParse(response.data.call.call_log),
-                    add: false
-                };
-                setCallLog(callResData);
-                const interviewResData: InterviewLog = {
-                    id: response.data.interview.id ?? response.data.customer.id,
-                    shop: response.data.interview.shop ?? response.data.customer.in_charge_store,
-                    name: response.data.interview.name ?? response.data.customer.customer_contacts_name,
-                    interview_log: typeof response.data.interview.interview_log === 'string' && response.data.interview.interview_log.trim() !== ''
-                        ? JSON.parse(response.data.interview.interview_log)
-                        : response.data.interview.interview_log ?? [],
-                    add: false
-                };
-                setInterviewLog(interviewResData);
-                const pdfList = safeParse(response.data.pdf.pdf_path);
-                setCompetitorPdfFile(pdfList);
-            };
-
-            fetchData();
+            setSending(false);
         }
+
+        const fetchData = async () => {
+            try {
+
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "information", category, id }, { headers });
+
+                const shopData = response.data.shop.filter(s => s.division === '注文事業' && !s.shop.includes('未設定') && !s.shop.includes('全店舗'));
+                setShopArray(shopData);
+
+                setStaffArray(response.data.staff.filter(s => s.category === 1 && s.period === String(thisYear)));
+                setMediumArray(response.data.medium);
+                setOriginalMakerList(response.data.maker);
+                setIntroductoryList(response.data.introductory.map(i => i.name));
+
+                if (id !== 'new') {
+                    setInformation(response.data.customer);
+
+                    const callResData = {
+                        id: response.data.call.id ?? response.data.customer.id,
+                        shop: response.data.call.shop ?? response.data.customer.in_charge_store,
+                        staff: userName,
+                        name: response.data.call.name ?? response.data.customer.customer_contacts_name,
+                        status: response.data.call.status ?? '',
+                        reserved_status: response.data.call.reserved_status ?? '',
+                        call_log: safeParse(response.data.call.call_log),
+                        add: false
+                    };
+                    setCallLog(callResData);
+
+                    const interviewResData: InterviewLog = {
+                        id: response.data.interview.id ?? response.data.customer.id,
+                        shop: response.data.interview.shop ?? response.data.customer.in_charge_store,
+                        name: response.data.interview.name ?? response.data.customer.customer_contacts_name,
+                        interview_log: typeof response.data.interview.interview_log === 'string' && response.data.interview.interview_log.trim() !== ''
+                            ? JSON.parse(response.data.interview.interview_log)
+                            : response.data.interview.interview_log ?? [],
+                        add: false
+                    };
+                    setInterviewLog(interviewResData);
+
+                    setCompetitorPdfFile(safeParse(response.data.pdf.pdf_path));
+                }
+            } catch (error) {
+                console.error("データの取得に失敗しました", error);
+            } finally {
+                setSending(true);
+            }
+        };
+
+        fetchData();
     }, [id]);
 
     useEffect(() => {
@@ -212,29 +260,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         setRankSteps(formattedArray);
     }, [information]);
 
-    const idMapping = (text: string) => {
-        const targetId = databaseList.find(d => d.value === text)?.id ?? '';
-        return targetId;
-    };
 
-    const inquiryReasons: string[] = ['オーナー様・知人から聞いた', 'SNS(Instagram/Facebook/youtube/その他)', '看板を見た', '親・親戚から聞いた', 'インターネット検索', '新聞を見た', 'まとめサイトを見た', 'チラシを見た', 'その他'];
-
-    const houseHuntingMotivation: string[] = ['家賃がもったいない', '子どもが進学する', '土地をもらった', '家族が増える（減る）', 'オーナー様・知人が家を建てた', '家づくりは特に考えていない', '土地が見つかった', '親から勧められた', '工事費用が高くなる前に', '年齢的にそろそろ', '賃貸だと老後（退職後）が心配', '今の住まいが狭い', '水回り（キッチン・風呂・トイレ・洗面）が不便', '騒音が気になる', '収納が足りない', 'その他', '気密・断熱性にこだわりたい', '間取りにこだわりたい', '他人とは違った家にしたい', '耐震性にこだわりたい', 'インテリアにこだわりたい', '外観デザインにこだわりたい', '建築予定地が既にある', '収納にこだわりたい', '注文住宅にこだわりはない'];
-
-    const toHalfWidth = (str: string) => {
-        return str.replace(/[！-～]/g, (s) =>
-            String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
-        ).replace(/　/g, ' ');
-    };
-
-    const actionMap = {
-        '資料送付': 'step_migration_item_catalog',
-        '初回面談': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
-        '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
-        '事前審査': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
-        'LINEグループ作成': 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
-        '契約': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'
-    };
 
     const modalClose = () => onClose();
 
@@ -246,7 +272,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         const requiredList = ['customer_contacts_name', 'in_charge_store', 'in_charge_user', 'status', 'sales_promotion_name'];
 
         if (!information.status) information.status = '見込み';
-        if (!information.category) information.category = '注文';
         if (!information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99) information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 = today;
         for (const key of requiredList) {
             if (!information[key]) {
@@ -256,12 +281,9 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             }
         }
 
-        await setSending(false);
+        setSending(false);
 
-        let updatedMasterData: any = {
-            ...information,
-            request: id === 'new' ? 'informationEdit_add_new_customer' : 'informationEdit_edit_registered_customer'
-        };
+        let updatedMasterData: any = {};
 
         // 面談記録の保存
         let updatedInterviewData;
@@ -274,7 +296,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             updatedMasterData = {
                 ...information,
                 [key]: interview.day,
-                request: id === 'new' ? 'informationEdit_add_new_customer' : 'informationEdit_edit_registered_customer'
             };
             const newInterviewLog = {
                 ...interviewLog,
@@ -286,23 +307,20 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                     { day: interview.day, action: interview.action, note: interview.note, staff: userName }
                 ]
             };
-            updatedInterviewData = {
-                ...newInterviewLog,
-                request: 'informationEdit_update_interview_log'
-            }
+            updatedInterviewData = newInterviewLog;
         } else {
             updatedInterviewData = {
                 ...interviewLog,
                 id: information.id,
                 name: information.customer_contacts_name,
                 shop: information.in_charge_store,
-                request: 'informationEdit_update_interview_log'
             }
+            updatedMasterData = information;
         }
 
         if (isAddInterview || interviewLog.add) {
             try {
-                await axios.post("https://khg-marketing.info/dashboard/api/gateway/", updatedInterviewData, { headers });
+                await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { ...updatedInterviewData, request: 'information', roll: 'update_interview_log', category: 'common' }, { headers });
             } catch (error) {
                 console.error("データ取得エラー:", error);
             }
@@ -326,7 +344,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 name: information.customer_contacts_name,
                 shop: information.in_charge_store,
                 staff: information.in_charge_user,
-                request: 'informationEdit_update_call_log',
             };
             calendarAdd = true;
         } else {
@@ -336,35 +353,34 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 name: information.customer_contacts_name,
                 shop: information.in_charge_store,
                 staff: information.in_charge_user,
-                request: 'informationEdit_update_call_log'
             };
             calendarAdd = callLog.add;
         }
 
         if (callLog.status || isAddCallLog || callLog.add) {
             try {
-                await axios.post("https://khg-marketing.info/dashboard/api/gateway/", updatedCallData, { headers });
+                await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { ...updatedCallData, request: 'information', roll: 'update_call_log', category: 'common' }, { headers });
             } catch (error) {
                 console.error("データ取得エラー:", error);
             }
         }
 
-        // ==========================================
-        // ▼ 修正前：顧客情報の保存（JSONで送信していた部分）
-        // console.log(updatedMasterData);
-        // try {
-        //     await axios.post("https://khg-marketing.info/dashboard/api/gateway/", updatedMasterData, { headers });
-        // } catch (error) {
-        //     console.error("データ取得エラー:", error);
-        // }
-        // ==========================================
 
         console.log("送信するマスタデータ:", updatedMasterData);
 
         const masterFormData = new FormData();
 
-        Object.keys(updatedMasterData).forEach(key => {
-            const value = updatedMasterData[key];
+        const roll = id === 'new' ? 'add' : 'update';
+
+        const postData = {
+            ...updatedMasterData,
+            request: 'information',
+            category,
+            roll
+        };
+
+        Object.keys(postData).forEach(key => {
+            const value = postData[key];
             masterFormData.append(key, value !== null && value !== undefined ? value : '');
         });
 
@@ -398,7 +414,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
         } catch (error) {
             console.error("データ保存エラー:", error);
         }
-        // ▲ 修正後ここまで ▲
 
         const logJson = JSON.stringify(information);
 
@@ -407,15 +422,15 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             customer: information.customer_contacts_name,
             staff: userName,
             log: logJson,
-            request: 'informationEdit_log'
         };
 
         try {
-            await axios.post("https://khg-marketing.info/dashboard/api/gateway/", logData, { headers });
+            await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { ...logData, request: 'information', category: 'common', roll: 'log' }, { headers });
         } catch (err) {
             console.error("データ取得エラー:", err);
         }
 
+        //以下インサイドセールス連携
         const callLogs = updatedCallData.call_log;
         const lastLog = callLogs && callLogs.length > 0 ? callLogs[callLogs.length - 1] : null;
 
@@ -457,7 +472,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                     console.error("データ取得エラー:", error);
                 }
             };
-            await fetchCallData();
+            fetchCallData();
         }
 
         setInformation(prev =>
@@ -465,13 +480,13 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 Object.keys(prev).map(key => [key, ''])
             )
         );
-        await setInterview({
+        setInterview({
             day: '',
             action: '',
             note: '',
             staff: ''
         });
-        await setCall({
+        setCall({
             status: '',
             day: '',
             time: '',
@@ -479,55 +494,10 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             note: '',
             staff: ''
         });
-        await setCompetitorPdfFile([]);
+        setCompetitorPdfFile([]);
         modalClose();
     };
 
-    const baseStyle = { border: '1px solid #D3D3D3', borderRadius: '4px', height: '35px', width: '150px', paddingLeft: '10px', color: '#303030' };
-    const labelStyle = { color: '#303030', fontSize: '11px', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' };
-    const buttonStyle = {
-        color: '#495057',                  // 入力欄の文字色(#303030)より少しだけ柔らかい色に
-        backgroundColor: '#f8f9fa',        // 真っ白ではなく、ごく薄いグレーにして入力欄と区別
-        border: '1px solid #d2d6da',       // 枠線も少しだけトーンを変える
-        borderRadius: '6px',               // 入力欄(4px)より少しだけ丸くする
-        padding: '0 16px',                 // 左右の余白を少し広めに
-        fontSize: '11px',
-        fontWeight: '600',                 // ほんの少し太字にしてボタンらしさを強調
-        letterSpacing: '0.6px',
-        marginBottom: '4px',
-        cursor: 'pointer',
-        height: '35px',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.05)', // 影をほんの少しだけ濃くして立体感を出す
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',          // 文字を左右中央に
-        width: 'fit-content'
-    };
-    const valueStyle = { fontSize: '12px', letterSpacing: '.6px', verticalAlign: 'middle' };
-    const inputStyle = { ...baseStyle, margin: '5px', color: '#303030' };
-    const selectStyle = { ...baseStyle };
-    const requiredStyle = { border: '1px solid #9b9b9b', borderRadius: '4px', color: '#303030', padding: '3px 5px', marginLeft: '5px' };
-    const competitorsStyle = {
-        ...baseStyle, border: 'transparent', minWidth: '60px', maxWidth: '100%', flex: '1', outline: 'none', boxShadow: 'none', paddingLeft: 'none'
-    };
-    const primaryButtonStyle = {
-        color: '#ffffff',
-        backgroundColor: '#6c757d',
-        border: 'none',
-        borderRadius: '6px',
-        padding: '0 20px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        letterSpacing: '0.6px',
-        cursor: 'pointer',
-        height: '35px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        width: 'fit-content'
-    };
     const expandStyle = (key: string) => {
         return {
             padding: key === 'interview' || key === 'call' ? '15px' : '0',
@@ -538,12 +508,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             overflowY: 'hidden' as const
         }
     };
-    const expandButton = {
-        ...buttonStyle,
-        height: '28px',
-        padding: '2px 10px'
-    };
-    const actionButton = { ...buttonStyle, padding: '6px', marginLeft: '5px' };
+
     const handleClose = () => {
         setInterviewLog({
             id: '',
@@ -636,15 +601,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
     }, [originalMakerList, competitorsInput]);
 
 
-    const safeFormate = (value: string) => {
-        return value ?? '';
-    };
-
-    const dateFormate = (value: string) => {
-        return value ? value.replace(/\//g, '-') : '';
-    };
-
-
     const calculateAge = (birthDateString: string) => {
         if (!birthDateString) return "";
 
@@ -661,20 +617,6 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
 
         return age;
     };
-
-    const steps = [
-        '事前審査提出',
-        'LINE等で連絡可',
-        '次回アポ済み',
-        '候補地有(プラン提案中)',
-        '事前審査承諾',
-        '建築意思がある(自社他社問わず)',
-        '土地買付受領',
-        '建築申込',
-        '土地内諾',
-        '契約日決定',
-        '入金済'
-    ];
 
     const generateRandomId = (): string => {
         const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -700,13 +642,17 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                 try {
                     const response = await axios.post(
                         "https://khg-marketing.info/dashboard/api/gateway/",
-                        { request: "informationEdit_register_k-snap", id, pass },
+                        { request: "information", id, pass, category: 'common', roll: 'k-snap' },
                         { headers }
                     );
                     if (response.data.status === 'success') {
                         isRegistered = true;
                         setShowDetail('k-snap');
                         setPhotoPass(pass);
+                        setInformation(prev => ({
+                            ...prev,
+                            k_snap: pass
+                        }));
                     }
                     else if (response.data.status === 'duplicate') {
                         console.warn(`重複が発生しました (${attempts}/${MAX_ATTEMPTS}回目)。パスワードを再生成してリトライします。`);
@@ -748,436 +694,94 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                     <div style={{ background: 'rgb(233, 233, 233)', fontSize: '11px' }} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
                 </Modal.Header>
                 <Modal.Body>
-                    <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll' }}>
+                    <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll', zoom: isSp ? 0.35 : 1 }}>
                         <div style={{ minWidth: '1000px' }}>
                             <Table responsive style={{ fontSize: '11px', textAlign: 'left' }} className='list_table database'>
                                 <tbody>
                                     <tr>
                                         <td style={{ ...labelStyle, width: '10%' }} className='table-secondary'>お客様名<span style={requiredStyle}>必須</span></td>
                                         <td style={{ ...valueStyle, width: '40%' }} className='table-secondary'>
-                                            <input type='text' placeholder='漢字' style={inputStyle} value={safeFormate(information[idMapping('お客様名')])}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            [idMapping('お客様名')]: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
-                                            <input type='text' placeholder='フリガナ' style={inputStyle} value={safeFormate(information[idMapping('名前（かな）')])}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            [idMapping('名前（かな）')]: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
+                                            <TableInput information={information} setInformation={setInformation} itemKey={idMapping('お客様名')} defaultValue='漢字' />
+                                            <TableInput information={information} setInformation={setInformation} itemKey={idMapping('名前（かな）')} defaultValue='ふりがな' />
                                         </td>
-                                        <td style={{ ...labelStyle, width: '10%' }} className='table-secondary'>連絡先</td>
-                                        <td style={{ ...valueStyle, width: '40%' }} className='table-secondary'>
-                                            <input type='text' placeholder='固定電話' style={{ ...inputStyle, width: '100px' }} value={safeFormate(information.customer_contacts_phone_number)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_phone_number: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9-]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_phone_number: numericOnly
-                                                        }
-                                                    ));
-                                                }} />
-                                            <input type='text' placeholder='携帯電話' style={{ ...inputStyle, width: '100px' }} value={safeFormate(information.customer_contacts_mobile_phone_number)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_mobile_phone_number: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9-]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_mobile_phone_number: numericOnly
-                                                        }
-                                                    ));
-                                                }} />
-                                            <input type='text' placeholder='メールアドレス' style={inputStyle} value={safeFormate(information.customer_contacts_email)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_email: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
+                                        <td style={{ ...labelStyle, width: '10%' }}>連絡先</td>
+                                        <td style={{ ...valueStyle, width: '40%' }}>
+                                            <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_phone_number' defaultValue='固定電話' widthValue='100px' numeric={true} />
+                                            <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_mobile_phone_number' defaultValue='携帯電話' widthValue='100px' numeric={true} />
+                                            <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_email' defaultValue='メールアドレス' />
                                         </td>
                                     </tr>
                                     <tr>
                                         <td style={labelStyle} className='table-secondary'>住所</td>
                                         <td style={valueStyle} className='table-secondary'>
-                                            <input type='text' placeholder='郵便番号' style={{ ...inputStyle, width: '80px' }} value={safeFormate(information.postal_code)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            postal_code: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,-]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            postal_code: numericOnly
-                                                        }
-                                                    ));
-                                                }} />
-                                            <input type='text' placeholder='住所' style={{ ...inputStyle, width: '300px' }} value={safeFormate(information.full_address)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            full_address: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
+                                            <TableInput information={information} setInformation={setInformation} itemKey='postal_code' defaultValue='郵便番号' widthValue='80px' numeric={true} />
+                                            <TableInput information={information} setInformation={setInformation} itemKey='full_address' defaultValue='住所' widthValue='300px' />
                                         </td>
                                         <td style={labelStyle} className='table-secondary'>担当店舗<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle} className='table-secondary'>
-                                            <select
-                                                style={selectStyle}
-                                                value={safeFormate(information[idMapping('担当店舗')])}
-                                                onChange={(e) => {
-                                                    const selected = staffArray.find(item => item.shop === e.target.value);
-                                                    setInformation(prev => ({
-                                                        ...prev,
-                                                        [idMapping('担当店舗')]: e.target.value,
-                                                        [idMapping('担当営業')]: selected?.name || "",
-                                                    }));
-                                                }}
-                                            >
-                                                <option value=''>担当店舗を選択</option>
-                                                {shopArray
-                                                    .map((item, index) => (
-                                                        <option key={index} value={item.shop}>
-                                                            {item.shop}
-                                                        </option>
-                                                    ))}
-                                            </select>
+                                            <TableShop
+                                                information={information}
+                                                setInformation={setInformation}
+                                                idMapping={idMapping}
+                                                staffArray={staffArray}
+                                                shopArray={shopArray}
+                                            />
                                         </td>
                                     </tr>
                                     <tr>
                                         <td style={labelStyle} className='table-secondary'>担当営業<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle} className='table-secondary'>
-                                            <div className="d-flex align-items-center">
-                                                <select
-                                                    style={selectStyle}
-                                                    value={safeFormate(information[idMapping('担当営業')])}
-                                                    onChange={(e) => {
-                                                        const newStaff = e.target.value;
-                                                        const listedCustomer = `${information.in_charge_store} 管理`;
-
-                                                        const selected = staffArray.find(item => item.name === newStaff);
-                                                        const nextStaffName = selected?.name || newStaff;
-
-                                                        setInformation(prev => ({
-                                                            ...prev,
-                                                            [idMapping('担当営業')]: nextStaffName,
-                                                            first_interviewed_user: id !== 'new' ? safeFormate(prev[idMapping('担当営業')]) : ''
-                                                        }));
-
-                                                        if (newStaff === listedCustomer && id !== 'new') {
-                                                            setShowDetail('staff');
-                                                        }
-                                                    }}
-                                                >
-                                                    <option value=''>担当営業を選択</option>
-                                                    {staffArray
-                                                        .filter(item => item.shop === information.in_charge_store)
-                                                        .map((item, index) => (
-                                                            <option key={index} value={item.name}>
-                                                                {item.name}
-                                                            </option>
-                                                        ))}
-                                                    <option value={`${information.in_charge_store} 管理`}>{information.in_charge_store} 管理</option>
-                                                </select>
-
-                                                {(information[idMapping('担当営業')] === `${information.in_charge_store} 管理` && information.first_interviewed_user)
-                                                    && <div className="ms-2">変更前:{safeFormate(information.first_interviewed_user)}({safeFormate(information.last_action_step_migration_item_name)})</div>}
-                                            </div>
+                                            <TableStaff
+                                                information={information}
+                                                setInformation={setInformation}
+                                                idMapping={idMapping}
+                                                staffArray={staffArray}
+                                                setShowDetail={setShowDetail}
+                                                id={id}
+                                            />
                                         </td>
                                         <td style={labelStyle}>ステータス</td>
                                         <td style={valueStyle}>
-                                            {/* 1. ステータス選択エリア */}
-                                            <div className="d-flex align-items-center mb-2">
-                                                <select style={inputStyle} value={safeFormate(information[idMapping('ステータス')])}
-                                                    onChange={(e) => {
-                                                        setInformation(prev => (
-                                                            {
-                                                                ...prev,
-                                                                [idMapping('ステータス')]: e.target.value
-                                                            }
-                                                        ));
-                                                        if (e.target.value === '失注') setShowLostReason(true);
-                                                    }}>
-                                                    <option value='見込み'>見込み</option>
-                                                    <option value='会社管理'>会社管理</option>
-                                                    <option value='失注'>失注</option>
-                                                    <option value='重複'>重複</option>
-                                                    <option value='契約済み'>契約済み</option>
-                                                    <option value="解約">解約</option>
-                                                </select>
-                                            </div>
-
-                                            {information[idMapping('ステータス')] === '失注' && (
-                                                <div className="bg-light p-3 rounded border mt-2">
-
-                                                    <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
-                                                        <div className="fw-bold text-dark" style={{ fontSize: '13px' }}>失注情報の入力{!information.competitor_lost_contract_reason && <i className="fa-solid fa-triangle-exclamation text-danger me-1"></i>}</div>
-                                                    </div>
-
-                                                    <div className="mb-3 d-flex align-items-center">
-                                                        <span className="me-3 fw-bold text-secondary" style={{ fontSize: '12px' }}>失注理由:</span>
-                                                        <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information.competitor_lost_contract_reason)}
-                                                            onChange={(e) => {
-                                                                setInformation(prev => ({ ...prev, competitor_lost_contract_reason: e.target.value }));
-                                                            }}>
-                                                            <option value="">選択してください</option>
-                                                            {["競合負け", "計画中止", "身内の反対", "音信不通", "建築エリア外", "その他"].map(reason => (
-                                                                <option value={reason} key={reason}>{reason}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-
-                                                    {information.competitor_lost_contract_reason === '競合負け' && (
-                                                        <>
-                                                            <div className="d-flex flex-wrap align-items-center mb-3 p-2 bg-white rounded border" style={{ fontSize: '12px' }}>
-                                                                <span className="fw-bold me-3 text-secondary">失注先{information.competitor_name ? ':' : 'を選択'}</span>
-                                                                {information.competitors_text ? (
-                                                                    information.competitors_text.split(',')
-                                                                        .filter(c => c !== 'null' && c.trim() !== '')
-                                                                        .map((c, cIndex) => (
-                                                                            <div className={`me-2 mb-1 px-2 py-1 rounded border ${information.competitor_name === c ? 'bg-warning border-warning fw-bold text-dark' : 'bg-light text-secondary'}`}
-                                                                                key={cIndex}
-                                                                                style={{ cursor: 'pointer', transition: 'all 0.2s' }}
-                                                                                onClick={() => setInformation(prev => ({
-                                                                                    ...prev,
-                                                                                    competitor_name: c === information.competitor_name ? '' : c
-                                                                                }))}>
-                                                                                {c}
-                                                                            </div>
-                                                                        ))
-                                                                ) : (
-                                                                    <div className="d-flex align-items-center flex-grow-1 mt-1 mt-md-0">
-                                                                        <div className="position-relative flex-grow-1 me-2">
-                                                                            <input
-                                                                                type='text'
-                                                                                className="form-control form-control-sm border-0 shadow-none px-1"
-                                                                                style={{ backgroundColor: 'transparent', fontSize: '12px' }}
-                                                                                placeholder={!information.competitors_text ? '競合他社名を入力...' : ''}
-                                                                                ref={competitorsRef} // 👈 Backspaceの判定などで使うため残しておいてOKです
-
-                                                                                value={competitorsInput || ''} // 🌟 👈 ココを追加！！（ReactのStateと同期させる）
-
-                                                                                onKeyDown={(e) => {
-                                                                                    // 入力欄が空の状態でBackspaceを押した時の処理
-                                                                                    if (e.key === 'Backspace' && !competitorsInput) {
-                                                                                        handleCompetitorsDelete();
-                                                                                    }
-                                                                                    if (e.key === 'Enter') {
-                                                                                        e.preventDefault(); // Enterキーでの意図しない画面リロードを防止
-                                                                                        handleCompetitors();
-                                                                                    }
-                                                                                }}
-                                                                                onChange={(e) => setCompetitorsInput(e.target.value)}
-                                                                            />
-
-                                                                            {competitorsInput && (
-                                                                                <div className="position-absolute bg-white border rounded shadow-sm w-100 py-1"
-                                                                                    style={{ top: '100%', left: 0, marginTop: '2px', zIndex: 1000, maxHeight: '150px', overflowY: 'auto' }}>
-                                                                                    {makerList.map((m, mIndex) => (
-                                                                                        <div key={mIndex}
-                                                                                            className="px-2 py-1 text-dark"
-                                                                                            style={{ cursor: 'pointer', fontSize: '12px' }}
-                                                                                            onMouseEnter={(e) => e.currentTarget.classList.add('bg-light')}
-                                                                                            onMouseLeave={(e) => e.currentTarget.classList.remove('bg-light')}
-                                                                                            onClick={() => {
-                                                                                                handleCompetitors(m.label);
-                                                                                                setInformation(prev => ({
-                                                                                                    ...prev,
-                                                                                                    competitor_name: m.label
-                                                                                                }));
-                                                                                            }}
-                                                                                        >
-                                                                                            {m.label}
-                                                                                        </div>
-                                                                                    ))}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-
-                                                                        <button
-                                                                            className="btn btn-primary btn-sm text-nowrap shadow-sm px-3"
-                                                                            onClick={() => handleCompetitors()}
-                                                                        >
-                                                                            追加
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="fw-bold mb-2 text-secondary mt-3" style={{ fontSize: '12px' }}>詳細な他決・失注理由（複数選択可）</div>
-                                                            <div className="d-flex flex-wrap gap-2 mb-3">
-                                                                {['価格・予算', '間取り・プラン提案', 'デザイン・外観', '性能', '土地・立地条件（他社物件）', '営業の対応（スピード・相性）', '保証・アフターサポート', '会社のブランド・信頼性', '縁戚・知人の紹介', 'その他'].map(reason => {
-                                                                    const currentReasons = information.customized_input_01JRF9CZSW65A151WR30NA4PB3
-                                                                        ? String(information.customized_input_01JRF9CZSW65A151WR30NA4PB3).split(',')
-                                                                        : [];
-                                                                    const isChecked = currentReasons.includes(reason);
-
-                                                                    return (
-                                                                        <div key={reason} className="form-check form-check-inline m-0">
-                                                                            <input
-                                                                                className="form-check-input shadow-sm"
-                                                                                type="checkbox"
-                                                                                id={`detail-reason-${reason}`}
-                                                                                checked={isChecked}
-                                                                                onChange={() => {
-                                                                                    let newArray = [...currentReasons];
-                                                                                    if (isChecked) {
-                                                                                        newArray = newArray.filter(r => r !== reason);
-                                                                                    } else {
-                                                                                        newArray.push(reason);
-                                                                                    }
-                                                                                    setInformation(prev => ({
-                                                                                        ...prev,
-                                                                                        customized_input_01JRF9CZSW65A151WR30NA4PB3: newArray.filter(Boolean).join(',')
-                                                                                    }));
-                                                                                }}
-                                                                                style={{ cursor: 'pointer' }}
-                                                                            />
-                                                                            <label
-                                                                                className="form-check-label text-dark"
-                                                                                htmlFor={`detail-reason-${reason}`}
-                                                                                style={{ fontSize: '12px', cursor: 'pointer' }}
-                                                                            >
-                                                                                {reason}
-                                                                            </label>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                            <textarea
-                                                                placeholder='具体的な理由や詳細を入力してください（他社名、金額差など）'
-                                                                style={{ fontSize: '12px', borderRadius: '5px', border: '1px solid #cfcfcf', width: '100%', height: '60px', padding: '8px', resize: 'none' }}
-                                                                value={safeFormate(information.customized_input_01JSE7H4MQES619NBWX6PQDFRH)}
-                                                                onChange={(e) => setInformation(prev => ({
-                                                                    ...prev,
-                                                                    customized_input_01JSE7H4MQES619NBWX6PQDFRH: e.target.value
-                                                                }))}
-                                                            ></textarea>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            )}
+                                            <TableStatus
+                                                information={information}
+                                                setInformation={setInformation}
+                                                idMapping={idMapping}
+                                                setShowLostReason={setShowLostReason}
+                                                competitorsRef={competitorsRef}
+                                                competitorsInput={competitorsInput}
+                                                handleCompetitorsDelete={handleCompetitorsDelete}
+                                                handleCompetitors={handleCompetitors}
+                                                setCompetitorsInput={setCompetitorsInput}
+                                                makerList={makerList} />
                                         </td>
                                     </tr>
                                     <tr>
                                         <td style={labelStyle}>顧客ランク<br />(契約見込み月)</td>
                                         <td style={valueStyle}>
-                                            <div className="d-flex align-items-center">
-                                                <select style={{ ...inputStyle, width: '130px' }} value={safeFormate(information[idMapping('顧客ランク')])}
-                                                    onChange={(e) => {
-                                                        setInformation(prev => (
-                                                            {
-                                                                ...prev,
-                                                                [idMapping('顧客ランク')]: e.target.value
-                                                            }
-                                                        ));
-                                                    }}>
-                                                    <option value="">選択してください</option>
-                                                    <option value='Sランク'>Sランク</option>
-                                                    <option value='Aランク'>Aランク</option>
-                                                    <option value='Bランク'>Bランク</option>
-                                                    <option value='Cランク'>Cランク</option>
-                                                    <option value='Dランク'>Dランク</option>
-                                                    <option value='Eランク'>Eランク</option>
-                                                </select>
-                                                <input type="month" style={{ ...inputStyle, width: '100px' }}
-                                                    value={information.rank_period && information.rank_period >= thisMonth ? information.rank_period.replace(/\//g, '-') : thisMonth}
-                                                    onChange={(e) => {
-                                                        const formattedMonth = e.target.value.replace(/-/g, '/');
-                                                        setInformation(prev => (
-                                                            {
-                                                                ...prev,
-                                                                rank_period: formattedMonth
-                                                            }
-                                                        ));
-                                                    }} />
-                                                <div style={buttonStyle}
-                                                    onClick={() => setShowDetail('rank')}>ランク設定</div>
-                                            </div>
+                                            <TableRank
+                                                information={information}
+                                                setInformation={setInformation}
+                                                idMapping={idMapping}
+                                                thisMonth={thisMonth}
+                                                setShowDetail={setShowDetail}
+                                            />
                                         </td>
                                         <td style={labelStyle}>反響媒体<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>
-                                            <div className="d-flex align-items-center">
-                                                <select style={inputStyle} value={safeFormate(information[idMapping('反響媒体')])}
-                                                    onChange={(e) => {
-                                                        setInformation(prev => (
-                                                            {
-                                                                ...prev,
-                                                                [idMapping('反響媒体')]: e.target.value
-                                                            }
-                                                        ));
-                                                        if (e.target.value === '紹介') setShowDetail('medium');
-                                                        if (e.target.value === 'イベント') setShowDetail('event');
-                                                    }}>
-                                                    <option value=''>反響媒体を選択</option>
-                                                    {mediumArray.filter(item => item.list_medium === 1 && !/(Amazonギフトカード|HOTLEAD|アポラック|システム利用料)/.test(item.medium)).map((item, index) =>
-                                                        <option key={index} value={item.medium}>{item.medium}</option>
-                                                    )}
-                                                </select>
-                                                {(information[idMapping('反響媒体')] === '紹介' && information.introduction_person_category)
-                                                    ? <div className="ms-2">紹介者:{safeFormate(information.introduction_person_category)}</div> :
-                                                    (information[idMapping('反響媒体')] === '紹介' && !information.introduction_person_category) ?
-                                                        <div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
-                                                            onClick={() => setShowDetail('medium')}>紹介者を入力</div> : ''}
-                                                {(information[idMapping('反響媒体')] === 'イベント' && information.customized_input_01JRCT12N9X24PCQ5QZPAYKB93)
-                                                    ? <div className="ms-2">イベント名:{safeFormate(information.customized_input_01JRCT12N9X24PCQ5QZPAYKB93)}</div> :
-                                                    (information[idMapping('反響媒体')] === 'イベント' && !information.customized_input_01JRCT12N9X24PCQ5QZPAYKB93) ?
-                                                        <div className="bg-primary text-white py-1 px-2 rounded" style={{ ...labelStyle, width: 'fit-content', cursor: 'pointer' }}
-                                                            onClick={() => setShowDetail('event')}>イベント名を入力</div> : ''}
-                                            </div>
+                                            <TableMedium
+                                                information={information}
+                                                setInformation={setInformation}
+                                                idMapping={idMapping}
+                                                setShowDetail={setShowDetail}
+                                                mediumArray={mediumArray} />
                                         </td>
                                     </tr>
                                     <tr>
                                         <td style={labelStyle}>生年月日</td>
                                         <td style={valueStyle}>
                                             <div className="d-flex align-items-center">
-                                                <input type='date' style={inputStyle}
-                                                    value={dateFormate(information.customer_contacts_birth_date)}
-                                                    onChange={(e) => {
-                                                        setInformation(prev => (
-                                                            {
-                                                                ...prev,
-                                                                customer_contacts_birth_date: e.target.value
-                                                            }
-                                                        ));
-                                                    }}
-                                                />
+                                                <TableInput type='date' information={information} setInformation={setInformation}
+                                                    itemKey='customer_contacts_birth_date' formattedValue={dateFormate(information.customer_contacts_birth_date)} />
                                                 {information.customer_contacts_birth_date && <div className="ms-2">({calculateAge(information.customer_contacts_birth_date)}歳)</div>}
                                             </div>
                                         </td>
@@ -1188,151 +792,25 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                     <tr>
                                         <td style={labelStyle}>競合情報</td>
                                         <td style={valueStyle}>
-                                            <div className="text-secondary" style={{ fontSize: '10px' }}>※予測変換リストを追加したい場合は広報・マーケティング課まで</div>
-                                            <div className="d-flex align-items-stretch w-100 gap-2 mb-3">
-                                                <div className="d-flex flex-wrap align-items-center flex-grow-1 p-1 bg-white border rounded shadow-sm" style={{ minHeight: '34px' }}>
-                                                    {information.competitors_text && information.competitors_text.split(',')
-                                                        .filter(c => c !== 'null' && c.trim() !== '')
-                                                        .map((c, cIndex) => (
-                                                            <div className={`badge border d-flex align-items-center me-1 my-1 px-2 py-1 shadow-sm bg-light text-secondary border-secondary`}
-                                                                key={cIndex} style={{ fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s' }}
-                                                                onClick={() => setInformation(prev => ({
-                                                                    ...prev,
-                                                                    competitor_name: c === information.competitor_name ? '' : c
-                                                                }))}>
-                                                                {c}
-                                                                <span className="ms-2 fw-bold"
-                                                                    style={{ cursor: 'pointer', fontSize: '10px', opacity: 0.5 }}
-                                                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                                                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.5'}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setInformation(prev => {
-                                                                            const arr = (prev.competitors_text ?? '').split(',').map(s => s.trim()).filter(s => s !== '' && s !== 'null');
-                                                                            arr.splice(cIndex, 1);
-                                                                            return {
-                                                                                ...prev,
-                                                                                competitors_text: arr.length ? arr.join(',') : '',
-                                                                                competitor_name: prev.competitor_name === c ? '' : prev.competitor_name
-                                                                            }
-                                                                        });
-                                                                    }}>
-                                                                    ✕
-                                                                </span>
-                                                            </div>
-                                                        ))}
-
-                                                    <div className="position-relative flex-grow-1" style={{ minWidth: '120px' }}>
-                                                        <input
-                                                            type='text'
-                                                            className="form-control form-control-sm border-0 shadow-none px-1"
-                                                            style={{ backgroundColor: 'transparent', fontSize: '12px' }}
-                                                            placeholder={!information.competitors_text ? '競合他社名を入力...' : ''}
-                                                            ref={competitorsRef}
-                                                            value={competitorsInput}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Backspace' && !competitorsInput) {
-                                                                    handleCompetitorsDelete();
-                                                                }
-                                                                if (e.key === 'Enter') {
-                                                                    e.preventDefault();
-                                                                    handleCompetitors();
-                                                                }
-                                                            }}
-                                                            onChange={(e) => setCompetitorsInput(e.target.value)}
-                                                        />
-
-                                                        {competitorsInput && (
-                                                            <div className="position-absolute bg-white border rounded shadow-sm w-100 py-1"
-                                                                style={{ top: '100%', left: 0, marginTop: '2px', zIndex: 1050, maxHeight: '200px', overflowY: 'auto' }}>
-                                                                {makerList.map((m, mIndex) => (
-                                                                    <div key={mIndex}
-                                                                        className="px-2 py-1 text-dark"
-                                                                        style={{ cursor: 'pointer', fontSize: '12px' }}
-                                                                        onMouseEnter={(e) => e.currentTarget.classList.add('bg-light')}
-                                                                        onMouseLeave={(e) => e.currentTarget.classList.remove('bg-light')}
-                                                                        onClick={() => handleCompetitors(m.label)}
-                                                                    >
-                                                                        {m.label}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                <button
-                                                    className="btn btn-primary btn-sm shadow-sm px-3 text-nowrap"
-                                                    onClick={() => handleCompetitors()}
-                                                >
-                                                    追加
-                                                </button>
-                                            </div>
+                                            <TableCompetitor
+                                                information={information}
+                                                setInformation={setInformation}
+                                                competitorsRef={competitorsRef}
+                                                competitorsInput={competitorsInput}
+                                                handleCompetitorsDelete={handleCompetitorsDelete}
+                                                handleCompetitors={handleCompetitors}
+                                                setCompetitorsInput={setCompetitorsInput}
+                                                makerList={makerList}
+                                            />
                                         </td>
 
                                         <td style={labelStyle}>競合資料 (PDF)</td>
                                         <td style={valueStyle}>
-                                            <div className="d-flex flex-column gap-2 py-1">
-                                                <input
-                                                    type="file"
-                                                    accept="application/pdf"
-                                                    multiple
-                                                    className="form-control form-control-sm border shadow-sm"
-                                                    onChange={(e) => {
-                                                        const files = Array.from(e.target.files || []);
-                                                        if (files.length > 0) {
-                                                            const newFiles = files.map(file => ({
-                                                                name: file.name,
-                                                                file: file,
-                                                                staff: userName
-                                                            }));
-                                                            console.log(newFiles)
-                                                            setCompetitorPdfFile(prev => [...prev, ...newFiles]);
-                                                        }
-                                                        e.target.value = '';
-                                                    }}
-                                                />
-
-                                                {competitorPdfFile.length > 0 && (
-                                                    <div className="d-flex flex-column gap-2 mt-1">
-                                                        {competitorPdfFile.map((item, index) => (
-                                                            <div key={index} className="d-flex align-items-center gap-2">
-                                                                <a
-                                                                    href={`https://khg-marketing.info/dashboard/api/gateway/handlers${String(item.path)}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-primary text-decoration-none"
-                                                                    style={{ fontSize: '12px', transition: 'opacity 0.2s', cursor: 'pointer' }}
-                                                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
-                                                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                                                                >
-                                                                    <i className="fa-solid fa-file-pdf text-danger" style={{ fontSize: '1.2rem' }}></i>
-                                                                </a>
-                                                                <input
-                                                                    type="text"
-                                                                    className="form-control form-control-sm"
-                                                                    value={item.name}
-                                                                    placeholder="保存するファイル名"
-                                                                    onChange={(e) => {
-                                                                        const updatedFiles = [...competitorPdfFile];
-                                                                        updatedFiles[index].name = e.target.value;
-                                                                        setCompetitorPdfFile(updatedFiles);
-                                                                    }}
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    className="btn btn-sm btn-outline-danger py-0 px-2"
-                                                                    onClick={() => {
-                                                                        setCompetitorPdfFile(prev => prev.filter((_, i) => i !== index));
-                                                                    }}
-                                                                >
-                                                                    ×
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <TableCompetitorPdf
+                                                userName={userName}
+                                                setCompetitorPdfFile={setCompetitorPdfFile}
+                                                competitorPdfFile={competitorPdfFile}
+                                            />
                                         </td>
                                     </tr>
                                     <tr>
@@ -1353,220 +831,15 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td colSpan={3} className='table-secondary'>
                                             <div style={expandStyle('interview')}>
-                                                <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                    <div>
-                                                        <input type="date" value={dateFormate(information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99)}
-                                                            style={inputStyle}
-                                                            onChange={(e) => {
-                                                                setInformation(prev => (
-                                                                    {
-                                                                        ...prev,
-                                                                        step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: e.target.value
-                                                                    }
-                                                                ));
-                                                            }} />
-                                                    </div>
-                                                    <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                                        <select style={inputStyle} disabled>
-                                                            <option value="">反響取得</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="ms-2">
-                                                        {information.sales_promotion_name && `${information.sales_promotion_name}からの反響取得`}</div>
-                                                    {information.reserved_interview && <div className="ms-3 d-flex align-items-center">
-                                                        <div>来場予約日</div>
-                                                        <div>
-                                                            <input type="date" value={dateFormate(information.reserved_interview)}
-                                                                style={inputStyle}
-                                                                onChange={(e) => {
-                                                                    setInformation(prev => (
-                                                                        {
-                                                                            ...prev,
-                                                                            reserved_interview: e.target.value
-                                                                        }
-                                                                    ));
-                                                                }} />
-                                                        </div>
-                                                    </div>}
-                                                </div>
-                                                <div style={{ color: '#868686ff', marginBottom: '7px' }}>
-                                                    <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
-                                                    <div style={{ textAlign: 'center' }}>
-                                                        <i className="fa-solid fa-file-pen"></i>
-                                                    </div>
-                                                    <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
-                                                </div>
-                                                {interviewLog.interview_log &&
-                                                    interviewLog.interview_log
-                                                        .sort((a, b) => {
-                                                            const dayA = new Date(a.day).getTime();
-                                                            const dayB = new Date(b.day).getTime();
-                                                            return dayA - dayB;
-                                                        })
-                                                        .map((item, index) => <><div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                            <div>
-                                                                <input type="date" value={dateFormate(item.day)} style={inputStyle}
-                                                                    onChange={(e) => {
-                                                                        setInterviewLog(prev => ({
-                                                                            ...prev,
-                                                                            add: true,
-                                                                            interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                                                { ...log, day: e.target.value } : log)
-                                                                        }));
-                                                                        const key = actionMap[item.action];
-                                                                        if (key) {
-                                                                            setInformation(prev => ({
-                                                                                ...prev,
-                                                                                [key]: e.target.value
-                                                                            }));
-                                                                        }
-                                                                    }} />
-                                                            </div>
-                                                            <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                                                <select style={inputStyle} value={safeFormate(item.action)}
-                                                                    onChange={(e) => {
-                                                                        setInterviewLog(prev => ({
-                                                                            ...prev,
-                                                                            add: true,
-                                                                            interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                                                { ...log, action: e.target.value } : log)
-                                                                        }));
-                                                                        const key = actionMap[e.target.value];
-                                                                        const prevKey = actionMap[item.action];
-                                                                        if (key) {
-                                                                            setInformation(prev => ({
-                                                                                ...prev,
-                                                                                [prevKey]: '',
-                                                                                [key]: item.day
-                                                                            }));
-                                                                        }
-                                                                    }}>
-                                                                    <option value="">アクション内容</option>
-                                                                    <option value="資料送付">資料送付</option>
-                                                                    <option value="初回面談">初回面談</option>
-                                                                    <option value="2回目以降面談">2回目以降面談</option>
-                                                                    <option value="オンライン面談">オンライン面談</option>
-                                                                    <option value="LINEグループ作成">LINEグループ作成</option>
-                                                                    <option value="事前審査">事前審査</option>
-                                                                    <option value="契約">契約</option>
-                                                                    <option value="解約">解約</option>
-                                                                </select>
-                                                            </div>
-                                                            <div>
-                                                                <textarea style={{ ...inputStyle, width: '550px' }} placeholder='面談内容を記載' value={safeFormate(item.note)}
-                                                                    rows={Math.max(1, Math.ceil((item.note?.length || 0) / 50))}
-                                                                    onChange={(e) => setInterviewLog(prev => ({
-                                                                        ...prev,
-                                                                        add: true,
-                                                                        interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                                            { ...log, note: e.target.value } : log)
-                                                                    }))}></textarea>
-                                                            </div>
-                                                            <div className="text-danger" style={actionButton}
-                                                                onClick={() => {
-                                                                    const key = actionMap[item.action];
-                                                                    setInformation(prev => ({
-                                                                        ...prev,
-                                                                        [key]: ''
-                                                                    }));
-                                                                    setInterviewLog(prev => ({
-                                                                        ...prev,
-                                                                        add: true,
-                                                                        interview_log: prev.interview_log.filter((_, i) => i !== index)
-                                                                    }));
-                                                                }}>削除</div>
-                                                        </div>
-                                                            <div style={{ color: '#868686ff', marginBottom: '7px' }}>
-                                                                <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
-                                                                <div style={{ textAlign: 'center' }}>
-                                                                    <i className="fa-solid fa-file-pen"></i>
-                                                                </div>
-                                                                <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
-                                                            </div>
-                                                        </>)}
-                                                <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                    <div>
-                                                        <input type="date" style={inputStyle} value={dateFormate(interview.day)}
-                                                            onChange={(e) => {
-                                                                setInterview(prev => ({
-                                                                    ...prev,
-                                                                    day: e.target.value
-                                                                }));
-                                                                if (interview.action) {
-                                                                    const key = actionMap[interview.action];
-                                                                    setInformation(prev => ({
-                                                                        ...prev,
-                                                                        [key]: e.target.value
-                                                                    }));
-                                                                }
-                                                            }} />
-                                                    </div>
-                                                    <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                                        <select style={inputStyle}
-                                                            onChange={(e) => {
-                                                                setInterview(prev => ({
-                                                                    ...prev,
-                                                                    action: e.target.value,
-                                                                    note: e.target.value === 'LINEグループ作成' ? 'LINEグループ作成' :
-                                                                        e.target.value === '契約' ? '契約' : prev.note
-                                                                }));
-                                                                const key = actionMap[e.target.value];
-                                                                if (key && interview.day) {
-                                                                    setInformation(prev => ({
-                                                                        ...prev,
-                                                                        [key]: interview.day,
-                                                                    }))
-                                                                }
-                                                            }}
-                                                            value={safeFormate(interview.action)}>
-                                                            <option value="">アクション内容</option>
-                                                            <option value="資料送付">資料送付</option>
-                                                            <option value="初回面談">初回面談</option>
-                                                            <option value="2回目以降面談">2回目以降面談</option>
-                                                            <option value="オンライン面談">オンライン面談</option>
-                                                            <option value="LINEグループ作成">LINEグループ作成</option>
-                                                            <option value="事前審査">事前審査</option>
-                                                            <option value="契約">契約</option>
-                                                            <option value="解約">解約</option>
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <textarea value={safeFormate(interview.note)} style={{ ...inputStyle, width: '550px', height: 'auto' }} placeholder='面談内容を記載'
-                                                            onChange={(e) => setInterview(prev => ({
-                                                                ...prev,
-                                                                note: e.target.value
-                                                            }))} ></textarea></div>
-                                                    <div className="text-primary" style={actionButton}
-                                                        onClick={() => {
-                                                            if (!interview.day || !interview.action) {
-                                                                alert('未入力の項目があります');
-                                                                return;
-                                                            };
-                                                            setInterviewLog(prev => ({
-                                                                ...prev,
-                                                                id: information.id,
-                                                                name: information.customer_contacts_name,
-                                                                status: information.call_status,
-                                                                interview_log: [
-                                                                    ...prev.interview_log,
-                                                                    { day: interview.day, action: interview.action, note: interview.note, staff: userName }
-                                                                ],
-                                                                add: true
-                                                            }));
-
-                                                            const key = actionMap[interview.action];
-                                                            if (key) {
-                                                                setInformation(prev => ({
-                                                                    ...prev,
-                                                                    [key]: interview.day,
-                                                                }));
-                                                            }
-                                                            setInterview({
-                                                                day: '', action: '', note: '', staff: ''
-                                                            });
-                                                        }
-                                                        }>追加</div>
-                                                </div>
+                                                <TableInterview
+                                                    information={information}
+                                                    setInformation={setInformation}
+                                                    interviewLog={interviewLog}
+                                                    setInterviewLog={setInterviewLog}
+                                                    actionMap={actionMap}
+                                                    interview={interview}
+                                                    setInterview={setInterview}
+                                                    userName={userName} />
                                             </div>
                                         </td>
                                     </tr>
@@ -1588,171 +861,14 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td colSpan={3}>
                                             <div style={expandStyle('call')}>
-                                                <div className="d-flex align-items-center mb-2">
-                                                    <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>架電ステータス</div>
-                                                    <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '10px' }}>
-                                                        <select style={inputStyle}
-                                                            onChange={(e) => {
-                                                                setInformation(prev => (
-                                                                    {
-                                                                        ...prev,
-                                                                        call_status: e.target.value
-                                                                    }
-                                                                ));
-                                                                setCallLog(prev => ({
-                                                                    ...prev,
-                                                                    status: e.target.value
-                                                                }));
-                                                            }}
-                                                            value={safeFormate(information.call_status)}>
-                                                            <option value="">架電ステータスを選択</option>
-                                                            <option value="未通電">未通電</option>
-                                                            <option value="継続">継続</option>
-                                                            <option value="来場アポ">来場アポ</option>
-                                                            <option value="来場済み">来場済み</option>
-                                                            <option value="架電停止">架電停止</option>
-                                                        </select>
-                                                    </div>
-                                                    <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '10px' }}>来場予定日</div>
-                                                    <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '10px' }}>
-                                                        <input type="date" style={inputStyle} value={safeFormate(callLog.reserved_status)}
-                                                            onChange={(e) => setCallLog(prev => ({
-                                                                ...prev,
-                                                                reserved_status: e.target.value
-                                                            }))} />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <textarea style={{ ...inputStyle, width: '95%', height: 'auto' }} placeholder='架電者用メモ欄' value={safeFormate(information.memo_other_related_person)}
-                                                        rows={4}
-                                                        onChange={(e) => setInformation(prev => ({
-                                                            ...prev,
-                                                            memo_other_related_person: e.target.value
-                                                        }))}
-                                                    ></textarea>
-                                                </div>
-                                                <div style={{ padding: '15px', border: '1px solid #dddddda9', borderRadius: '7px' }}>
-                                                    {callLog.call_log &&
-                                                        callLog.call_log.map((item, index) => <><div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                            <div>
-                                                                <input type="date" value={dateFormate(item.day)} style={inputStyle}
-                                                                    onChange={(e) => setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.map((log, i) => i === index ?
-                                                                            { ...log, day: e.target.value, staff: interviewer } : log)
-                                                                    }))} />
-                                                            </div>
-                                                            <div>
-                                                                <input type="time" value={safeFormate(item.time)} style={inputStyle}
-                                                                    onChange={(e) => setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.map((log, i) => i === index ?
-                                                                            { ...log, time: e.target.value, staff: interviewer } : log)
-                                                                    }))} />
-                                                            </div>
-                                                            <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                                                <select style={inputStyle} value={safeFormate(item.action)}
-                                                                    onChange={(e) => setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.map((log, i) => i === index ?
-                                                                            { ...log, action: e.target.value, staff: interviewer } : log)
-                                                                    }))}>
-                                                                    <option value="">アクション内容</option>
-                                                                    <option value="架電">架電</option>
-                                                                    <option value="SMS送信">SMS送信</option>
-                                                                    <option value="メール送信">メール送信</option>
-                                                                    <option value="資料郵送">資料郵送</option>
-                                                                </select>
-                                                            </div>
-                                                            <div>
-                                                                <textarea style={{ ...inputStyle, width: '360px' }} placeholder='アクション内容・ヒアリング内容を記載' value={item.note}
-                                                                    rows={Math.max(1, Math.ceil((item.note?.length || 0) / 50))}
-                                                                    onChange={(e) => setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.map((log, i) => i === index ?
-                                                                            { ...log, note: e.target.value, staff: interviewer } : log)
-                                                                    }))}></textarea>
-                                                            </div>
-                                                            <div className="text-danger" style={actionButton}
-                                                                onClick={() => {
-                                                                    setCallLog(prev => ({
-                                                                        ...prev,
-                                                                        call_log: prev.call_log.filter((_, i) => i !== index),
-                                                                        add: true
-                                                                    }));
-                                                                }}>削除</div>
-                                                        </div>
-                                                            <div style={{ color: '#868686ff', marginBottom: '7px' }}>
-                                                                <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
-                                                                <div style={{ textAlign: 'center' }}>
-                                                                    {callLog.call_log[index]['action'] === '架電' && <i className="fa-solid fa-phone-volume"></i>}
-                                                                    {callLog.call_log[index]['action'] === 'SMS送信' && <i className="fa-solid fa-message"></i>}
-                                                                    {callLog.call_log[index]['action'] === 'メール送信' && <i className="fa-solid fa-envelope"></i>}
-                                                                    {callLog.call_log[index]['action'] === '資料郵送' && <i className="fa-solid fa-truck"></i>}
-                                                                </div>
-                                                                <div style={{ width: '1.5px', height: '10px', backgroundColor: '#868686ff', margin: '0 auto' }}></div>
-                                                            </div>
-                                                        </>)}
-                                                    <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                                                        <div>
-                                                            <input type="date" style={inputStyle} value={dateFormate(call.day)}
-                                                                onChange={(e) => setCall(prev => ({
-                                                                    ...prev,
-                                                                    day: e.target.value, staff: interviewer
-                                                                }))} />
-                                                        </div>
-                                                        <div>
-                                                            <input type="time" step="60" style={inputStyle} value={safeFormate(call.time)}
-                                                                onChange={(e) => setCall(prev => ({
-                                                                    ...prev,
-                                                                    time: e.target.value, staff: interviewer
-                                                                }))} />
-                                                        </div>
-                                                        <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                                            <select style={inputStyle}
-                                                                onChange={(e) => setCall(prev => ({
-                                                                    ...prev,
-                                                                    action: e.target.value, staff: interviewer
-                                                                }))}
-                                                                value={safeFormate(call.action)}>
-                                                                <option value="">アクション内容</option>
-                                                                <option value="架電">架電</option>
-                                                                <option value="SMS送信">SMS送信</option>
-                                                                <option value="メール送信">メール送信</option>
-                                                                <option value="資料郵送">資料郵送</option>
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <textarea value={safeFormate(call.note)} style={{ ...inputStyle, width: '360px' }} placeholder='アクション内容・ヒアリング内容を記載'
-                                                                onChange={(e) => setCall(prev => ({
-                                                                    ...prev,
-                                                                    note: e.target.value, staff: interviewer
-                                                                }))} ></textarea></div>
-                                                        <div className="text-primary" style={actionButton}
-                                                            onClick={() => {
-                                                                if (!call.day && !call.action && !call.note) {
-                                                                    alert('未入力の項目があります');
-                                                                    return;
-                                                                };
-                                                                setCallLog(prev => ({
-                                                                    ...prev,
-                                                                    id: information.id,
-                                                                    name: information.customer_contacts_name,
-                                                                    staff: interviewer,
-                                                                    status: information.call_status,
-                                                                    call_log: [
-                                                                        ...prev.call_log,
-                                                                        { day: call.day, time: call.time, action: call.action, note: call.note, staff: call.staff }
-                                                                    ],
-                                                                    add: true
-                                                                }));
-                                                                setCall({
-                                                                    status: '', day: '', time: '', action: '', note: '', staff: ''
-                                                                });
-                                                            }
-                                                            }>追加</div>
-                                                    </div>
-                                                </div>
+                                                <TableCall
+                                                    information={information}
+                                                    setInformation={setInformation}
+                                                    callLog={callLog}
+                                                    setCallLog={setCallLog}
+                                                    interviewer={interviewer}
+                                                    call={call}
+                                                    setCall={setCall} />
                                             </div>
                                         </td>
                                     </tr>
@@ -1773,31 +889,13 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </div></td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('remarks')}>
-                                                <textarea placeholder='面談前アンケート' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={safeFormate(information.customized_input_01J95TC6KEES87F0YXH29AJP7K)}
-                                                    rows={information.customized_input_01J95TC6KEES87F0YXH29AJP7K ? Math.max(information.customized_input_01J95TC6KEES87F0YXH29AJP7K.length / 53) + 2 : 2}
-                                                    onChange={(e) => {
-                                                        setInformation(prev => (
-                                                            {
-                                                                ...prev,
-                                                                customized_input_01J95TC6KEES87F0YXH29AJP7K: e.target.value
-                                                            }
-                                                        ));
-                                                    }} />
+                                                <TableTextarea information={information} setInformation={setInformation} itemKey='customized_input_01J95TC6KEES87F0YXH29AJP7K' placeholder='面談前アンケート' />
                                             </div>
                                         </td>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>面談後アンケート</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('remarks')}>
-                                                <textarea placeholder='面談後アンケート' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={safeFormate(information.remarks)}
-                                                    rows={information.remarks ? Math.ceil(information.remarks.length / 53) + 2 : 2}
-                                                    onChange={(e) => {
-                                                        setInformation(prev => (
-                                                            {
-                                                                ...prev,
-                                                                remarks: e.target.value
-                                                            }
-                                                        ));
-                                                    }} />
+                                                <TableTextarea information={information} setInformation={setInformation} itemKey='remarks' placeholder='面談後アンケート' />
                                             </div>
                                         </td>
                                     </tr>
@@ -1819,49 +917,13 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                             </div></td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('reason')}>
-                                                <div className="d-flex flex-wrap">{inquiryReasons.map((item, index) =>
-                                                    <div className="form-check me-2" style={{ fontSize: '12px', letterSpacing: '.5px' }}>
-                                                        <input className="form-check-input" type="checkbox" value={item} id={`check_${String(index + 1)}`} checked={information[idMapping('問い合せのきっかけ')]?.split(',').includes(item)}
-                                                            onChange={(e) => {
-                                                                const { checked, value } = e.target;
-                                                                setInformation(prev => {
-                                                                    const current = prev.inquiry_reason?.split(',').filter(Boolean) ?? [];
-                                                                    const updated = checked ? [...new Set([...current, value])] : current.filter(item => item !== value);
-                                                                    return {
-                                                                        ...prev,
-                                                                        [idMapping('問い合せのきっかけ')]: updated.join(','),
-                                                                    };
-                                                                });
-                                                            }} />
-                                                        <label className="form-check-label" htmlFor={`check_${String(index + 1)}`}>
-                                                            {item}
-                                                        </label>
-                                                    </div>
-                                                )}</div>
+                                                <TableCheckboxGroup information={information} setInformation={setInformation} itemKey={idMapping('問い合せのきっかけ')} idPrefix='inquiry_reason' options={inquiryReasons} />
                                             </div>
                                         </td>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>建築動機</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('reason')}>
-                                                <div className="d-flex flex-wrap">{houseHuntingMotivation.slice(0, 16).map((item, index) =>
-                                                    <div className="form-check me-2" style={{ fontSize: '12px', letterSpacing: '.5px' }}>
-                                                        <input className="form-check-input" type="checkbox" value={item} id={`check1_${String(index + 10)}`} checked={information[idMapping('建築動機')]?.split(',').includes(item)}
-                                                            onChange={(e) => {
-                                                                const { checked, value } = e.target;
-                                                                setInformation(prev => {
-                                                                    const current = prev.house_hunting_motivation?.split(',').filter(Boolean) ?? [];
-                                                                    const updated = checked ? [...new Set([...current, value])] : current.filter(item => item !== value);
-                                                                    return {
-                                                                        ...prev,
-                                                                        [idMapping('建築動機')]: updated.join(','),
-                                                                    };
-                                                                });
-                                                            }} />
-                                                        <label className="form-check-label" htmlFor={`check1_${String(index + 10)}`}>
-                                                            {item}
-                                                        </label>
-                                                    </div>
-                                                )}</div>
+                                                <TableCheckboxGroup information={information} setInformation={setInformation} itemKey={idMapping('建築動機')} idPrefix='house_hunting_motivation' options={houseHuntingMotivation.slice(0, 25)} />
                                             </div>
                                         </td>
                                     </tr>
@@ -1883,25 +945,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                         </td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('trigger')}>
-                                                <div className="d-flex flex-wrap">{houseHuntingMotivation.slice(16, 25).map((item, index) =>
-                                                    <div className="form-check me-2" style={{ fontSize: '12px', letterSpacing: '.5px' }}>
-                                                        <input className="form-check-input" type="checkbox" value={item} id={`check2_${String(index + 10)}`} checked={information[idMapping('建築動機')]?.split(',').includes(item)}
-                                                            onChange={(e) => {
-                                                                const { checked, value } = e.target;
-                                                                setInformation(prev => {
-                                                                    const current = prev.house_hunting_motivation?.split(',').filter(Boolean) ?? [];
-                                                                    const updated = checked ? [...new Set([...current, value])] : current.filter(item => item !== value);
-                                                                    return {
-                                                                        ...prev,
-                                                                        [idMapping('建築動機')]: updated.join(','),
-                                                                    };
-                                                                });
-                                                            }} />
-                                                        <label className="form-check-label" htmlFor={`check2_${String(index + 10)}`}>
-                                                            {item}
-                                                        </label>
-                                                    </div>
-                                                )}</div>
+                                                <TableCheckboxGroup information={information} setInformation={setInformation} itemKey={idMapping('建築動機')} idPrefix='house_hunting_motivation' options={houseHuntingMotivation.slice(16, 25)} />
                                             </div>
                                         </td>
                                         <td></td><td></td>
@@ -1913,429 +957,131 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                     <tr>
                                         <td style={{ ...labelStyle, width: '60px' }}>建設<br />予定地</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='建設予定地' style={inputStyle} value={safeFormate(information.planned_construction_site)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            planned_construction_site: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
+                                            <TableInput information={information} setInformation={setInformation} itemKey='planned_construction_site' />
                                         </td>
                                         <td style={{ ...labelStyle, width: '60px' }}>新築<br />計画</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information[idMapping('新築計画')])}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            [idMapping('新築計画')]: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value="">選択してください</option>
-                                                <option value="新築平屋">新築平屋</option>
-                                                <option value="新築2階建て">新築2階建て</option>
-                                                <option value="建て替え平屋">建て替え平屋</option>
-                                                <option value="建て替え2階建て">建て替え2階建て</option>
-                                                <option value="その他">その他</option>
-                                            </select>
+                                            <TableSelect information={information} setInformation={setInformation} itemKey={idMapping('新築計画')}
+                                                list={['新築平屋', '新築2階建て', '建て替え平屋', '建て替え2階建て', 'その他']} defaultValue='選択してください' />
                                         </td>
                                         <td style={{ ...labelStyle, width: '60px' }}>入居<br />時期</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information[idMapping('入居時期')])}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            [idMapping('入居時期')]: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value="">選択してください</option>
-                                                <option value="すぐにでも">すぐにでも</option>
-                                                <option value="半年～1年以内">半年～1年以内</option>
-                                                <option value="1年～2年以内">1年～2年以内</option>
-                                                <option value="2年以上後">2年以上後</option>
-                                                <option value="その他">その他</option>
-                                            </select>
+                                            <TableSelect information={information} setInformation={setInformation} itemKey={idMapping('入居時期')}
+                                                list={['すぐにでも', '半年～1年以内', '1年～2年以内', '2年以上後', 'その他']} defaultValue='選択してください' />
                                         </td>
                                         <td style={{ ...labelStyle, width: '60px' }}>土地の<br />状況</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information[idMapping('土地の状況')])}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            [idMapping('土地の状況')]: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value="">選択してください</option>
-                                                <option value="自分で持っている（購入予定の土地がある）">自分で持っている（購入予定の土地がある）</option>
-                                                <option value="親・親族等の土地で建築予定">親・親族等の土地で建築予定</option>
-                                                <option value="土地を探している">土地を探している</option>
-                                            </select>
+                                            <TableSelect information={information} setInformation={setInformation} itemKey={idMapping('土地の状況')}
+                                                list={['自分で持っている（購入予定の土地がある）', '親・親族等の土地で建築予定', '土地を探している']} defaultValue='選択してください' />
                                         </td>
                                     </tr>
                                     <tr >
                                         <td style={labelStyle}>土地の<br />有無</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information.has_owned_land)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            has_owned_land: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value="無">無</option><option value="有">有</option>
-                                            </select>
+                                            <TableSelect information={information} setInformation={setInformation} itemKey='has_owned_land'
+                                                list={['無', '有']} defaultValue='選択してください' />
                                         </td>
                                         <td style={labelStyle}>重視<br />項目</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information.customized_input_01JSE7DKY5RYY3T8T8NVR1AJMN)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customized_input_01JSE7DKY5RYY3T8T8NVR1AJMN: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value="">選択してください</option>
-                                                <option value="性能">性能</option>
-                                                <option value="デザイン">デザイン</option>
-                                                <option value="価格">価格</option>
-                                                <option value="アフターサービス">アフターサービス</option>
-                                            </select>
+                                            <TableSelect information={information} setInformation={setInformation} itemKey='customized_input_01JSE7DKY5RYY3T8T8NVR1AJMN'
+                                                list={['性能', 'デザイン', '価格', 'アフターサービス']} defaultValue='選択してください' />
                                         </td>
                                         <td style={labelStyle}>予算<br />総額</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='予算総額' style={inputStyle}
-                                                value={safeFormate(information.budget).replace('万円', '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            budget: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            budget: `${numericOnly}万円`
-                                                        }
-                                                    ));
-                                                }} />万円
+                                            <TableInput information={information} setInformation={setInformation} itemKey='budget'
+                                                defaultValue='予算総額' formattedValue={(information.budget ?? '').replace('万円', '')} numeric />
+                                            万円
                                         </td>
                                         <td style={labelStyle}>月々支<br />払予算</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='月々支払予算' style={inputStyle}
-                                                value={safeFormate(information.monthly_repayment_amount).replace('0000', '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            monthly_repayment_amount: `${e.target.value}0000`
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            monthly_repayment_amount: `${numericOnly}0000`
-                                                        }
-                                                    ));
-                                                }} />万円
+                                            <TableInput information={information} setInformation={setInformation} itemKey='monthly_repayment_amount'
+                                                defaultValue='月々支払予算' formattedValue={(information.monthly_repayment_amount ?? '').replace('0000', '')} numeric />
+                                            万円
                                         </td>
                                     </tr>
                                     <tr>
                                         <td style={labelStyle}>返済希<br />望年数</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='返済希望年数' style={inputStyle}
-                                                value={safeFormate(information.repayment_years).replace(/[年\/]/g, '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            repayment_years: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            repayment_years: `${numericOnly}年`
-                                                        }
-                                                    ));
-                                                }} />年
+                                            <TableInput information={information} setInformation={setInformation} itemKey='repayment_years'
+                                                defaultValue='返済希望年数' formattedValue={(information.repayment_years ?? '').replace(/[年\/]/g, '')} numeric />
+                                            年
                                         </td>
                                         <td style={labelStyle}>現居家賃</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='現居家賃' style={inputStyle}
-                                                value={safeFormate(information.current_rent).replace('万円', '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            current_rent: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            current_rent: `${numericOnly}万円`
-                                                        }
-                                                    ));
-                                                }} />万円
+                                            <TableInput information={information} setInformation={setInformation} itemKey='current_rent'
+                                                defaultValue='現居家賃' formattedValue={safeFormate(information.current_rent).replace('0000', '')} numeric />
+                                            万円
                                         </td>
                                         <td style={labelStyle}>自己<br />資金</td>
                                         <td style={valueStyle}>
-                                            <input type="text" placeholder="自己資金" style={inputStyle} value={safeFormate(information.self_budget).replace('0000', '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            self_budget: `${e.target.value}0000`
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            self_budget: `${numericOnly}0000`
-                                                        }
-                                                    ));
-                                                }} />万円
+                                            <TableInput information={information} setInformation={setInformation} itemKey='self_budget'
+                                                defaultValue='自己資金' formattedValue={safeFormate(information.self_budget).replace('0000', '')} numeric />
+                                            万円
                                         </td>
                                         <td style={labelStyle}>現居<br />光熱費</td>
                                         <td style={valueStyle}>
-                                            <input type="text" placeholder="現居光熱費" style={inputStyle} value={safeFormate(information.current_utility_costs).replace('万円', '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            current_utility_costs: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            current_utility_costs: numericOnly
-                                                        }
-                                                    ));
-                                                }} />万円
+                                            <TableInput information={information} setInformation={setInformation} itemKey='current_utility_costs'
+                                                defaultValue='現居光熱費' formattedValue={safeFormate(information.current_utility_costs).replace('万円', '')} numeric />
+                                            万円
                                         </td>
                                     </tr>
                                     <tr>
-
                                     </tr>
                                     <tr>
                                         <td style={labelStyle}>負債<br />総額</td>
                                         <td style={valueStyle}>
-                                            <input type="text" placeholder="自己資金" style={inputStyle}
-                                                value={safeFormate(information.current_loan_balance).replace('0000', '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            current_loan_balance: `${e.target.value}0000`
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            current_loan_balance: `${numericOnly}0000`
-                                                        }
-                                                    ));
-                                                }} />万円
+                                            <TableInput information={information} setInformation={setInformation} itemKey='current_loan_balance'
+                                                defaultValue='自己資金' formattedValue={safeFormate(information.current_loan_balance).replace('0000', '')} numeric />
+                                            万円
                                         </td>
                                         <td style={labelStyle}>現居契<br />約形態</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information.current_contract_type)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            current_contract_type: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value="">選択してください</option>
-                                                <option value="賃貸(マンション)">賃貸(マンション)</option>
-                                                <option value="賃貸(戸建)">賃貸(戸建)</option>
-                                                <option value="持家(マンション)">持家(マンション)</option>
-                                                <option value="持家(戸建)">持家(戸建)</option>
-                                                <option value="賃貸(アパート)">賃貸(アパート)</option>
-                                            </select>
+                                            <TableSelect information={information} setInformation={setInformation} itemKey='current_contract_type'
+                                                list={['賃貸(マンション)', '賃貸(戸建)', '持家(マンション)', '持家(戸建)', '賃貸(アパート)']} defaultValue='選択してください' />
                                         </td>
                                         <td style={labelStyle}>雇用<br />形態</td>
                                         <td style={valueStyle}>
-                                            <select style={inputStyle} value={safeFormate(information.customer_contacts_employment_type)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_employment_type: e.target.value
-                                                        }
-                                                    ));
-                                                }}>
-                                                <option value="">選択してください</option>
-                                                <option value="経営者">経営者</option>
-                                                <option value="正社員">正社員</option>
-                                                <option value="契約社員">契約社員</option>
-                                                <option value="パート・アルバイト">パート・アルバイト</option>
-                                                <option value="派遣社員">派遣社員</option>
-                                                <option value="専業主婦">専業主婦</option>
-                                            </select>
+                                            <TableSelect information={information} setInformation={setInformation} itemKey='customer_contacts_employment_type'
+                                                list={['経営者', '正社員', '契約社員', 'パート・アルバイト', '派遣社員', '専業主婦']} defaultValue='選択してください' />
                                         </td>
                                         <td style={labelStyle}>勤務<br />先名</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='勤務先名' style={inputStyle} value={safeFormate(information.customer_contacts_employer_name)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_employer_name: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
+                                            <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_employer_name'
+                                                defaultValue='勤務先名' />
                                         </td>
                                     </tr>
                                     <tr>
                                         <td style={labelStyle}>勤務先<br />住所</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='勤務先住所' style={inputStyle} value={safeFormate(information.customer_contacts_employer_address)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_employer_address: e.target.value
-                                                        }
-                                                    ));
-                                                }} />
+                                            <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_employer_address'
+                                                defaultValue='勤務先住所' />
                                         </td>
                                         <td style={labelStyle}>勤続<br />年数</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='勤続年数' style={inputStyle} value={safeFormate(information.customer_contacts_years_of_service)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_years_of_service: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_years_of_service: `${numericOnly}`
-                                                        }
-                                                    ));
-                                                }} />年
+                                            <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_years_of_service'
+                                                defaultValue='勤続年数' numeric />
+                                            年
                                         </td>
                                         <td style={labelStyle}>年収</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='年収' style={inputStyle}
-                                                value={safeFormate(information.customer_contacts_annual_income).replace('万円', '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_annual_income: `${e.target.value}万円`
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            customer_contacts_annual_income: `${numericOnly}万円`
-                                                        }
-                                                    ));
-                                                }} />万円
+                                            <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_annual_income'
+                                                defaultValue='年収' numeric />
+                                            万円
                                         </td>
                                         <td style={labelStyle}>希望土<br />地面積</td>
                                         <td style={valueStyle}>
-                                            <input type='text' placeholder='希望土地面積' style={inputStyle} value={safeFormate(information.desired_land_area)}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            desired_land_area: e.target.value
-                                                        }
-                                                    ));
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            desired_land_area: numericOnly
-                                                        }
-                                                    ));
-                                                }} />坪
+                                            <TableInput information={information} setInformation={setInformation} itemKey='desired_land_area'
+                                                defaultValue='希望土地面積' numeric />
+                                            坪
                                         </td>
                                     </tr>
                                     <tr>
 
                                         <td style={labelStyle}>土地の予算</td>
                                         <td style={valueStyle}>
-                                            <input type='text' pattern="[A-Za-z0-9]*" placeholder='予算総額' style={inputStyle}
-                                                value={safeFormate(information.land_budget).replace('万円', '')}
-                                                onChange={(e) => {
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            land_budget: `${e.target.value}万円`
-                                                        }
-                                                    ));
-
-                                                }}
-                                                onBlur={(e) => {
-                                                    const halfValue = toHalfWidth(e.target.value);
-                                                    const numericOnly = halfValue.replace(/[^0-9.,]/g, '');
-                                                    setInformation(prev => (
-                                                        {
-                                                            ...prev,
-                                                            land_budget: `${numericOnly}万円`
-                                                        }
-                                                    ));
-                                                }} />万円
+                                            <TableInput information={information} setInformation={setInformation} itemKey='land_budget'
+                                                defaultValue='土地の予算' numeric />
+                                            万円
                                         </td>
                                         {[...Array(6)].map((_, index) => <td key={index}></td>
                                         )}
@@ -2344,7 +1090,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                             </Table>
                         </div>
                     </div>
-                    <Modal.Footer className="bg-light border-top pb-3 pt-3">
+                    <Modal.Footer className="bg-light border-top pb-3 pt-3" style={{ zoom: isSp ? 0.3 : 1 }}>
                         <div className="d-flex justify-content-end w-100 gap-2">
                             {information.k_snap ? (
                                 <button
@@ -2367,7 +1113,10 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                             <button
                                 className="btn btn-outline-info btn-sm rounded-pill px-4 d-flex align-items-center"
                                 style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
-                                onClick={() => navigate(`/calendar?id=${information.id}`)}
+                                onClick={() => {
+                                    setEditId(information.id);
+                                    setShowIceWorld(true);
+                                }}
                             >
                                 <i className="fa-regular fa-calendar-check me-2"></i>アイスワールド利用予約
                             </button>
@@ -2408,7 +1157,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
                                     ));
                                 }}>
                                 <option value="">選択してください</option>
-                                {["失注", "計画中止", "計画延期", "ブラックリスト", "建築エリア外", "物貰い", "その他"].map(reason => <option value={reason} key={reason}>{reason}</option>)}
+                                {["失注", "計画中止", "計画延期", "ブラックリスト", "建築エリア外", "物貰い", "連絡不能", "その他"].map(reason => <option value={reason} key={reason}>{reason}</option>)}
                             </select>
                             <div className="bg-danger text-white px-4 py-1 rounded-pill" style={{ fontSize: '12px', cursor: 'pointer' }} onClick={() => {
                                 if (information.last_action_step_migration_item_name) {
@@ -2522,6 +1271,7 @@ const InformationEdit = ({ id, token, onClose, brand }: Props) => {
             </Modal >
             <Estate estateId={estateId} setEstateId={setEstateId} />
             <KSnap id={kSnap} setKSnap={setKSnap} />
+            <IceWorld shopList={shopArray.map(s => ({ brand: '', shop: s.shop }))} editId={editId} showIceWorld={showIceWorld} setShowIceWorld={setShowIceWorld} />
         </>
     );
 };

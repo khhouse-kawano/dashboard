@@ -15,7 +15,7 @@ import InterviewLog from '../InterviewLog';
 import StaffMemo from './StaffMemo';
 import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
-import Category from '../Category';
+import { useIsSp } from '../../utils/isSp';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -58,6 +58,7 @@ const RankOrder = () => {
         return Number(month) <= 4 ? String(year) : String(year + 1)
     };
     const [memoList, setMemoList] = useState<Memo[]>([]);
+    const isSp = useIsSp();
 
     const fetchCustomerData = async () => {
         return await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", category }, { headers });
@@ -70,13 +71,13 @@ const RankOrder = () => {
         const fetchData = async () => {
             try {
                 const response = await fetchCustomerData();
-                await setCustomerList(response.data.customer);
-                await setExpectedContract(response.data.expected);
-                await setShopList(response.data.shop);
+                setCustomerList(response.data.customer);
+                setExpectedContract(response.data.expected);
+                setShopList(response.data.shop);
                 const sectionNames = response.data.section.map((s: any) => s.name);
                 setSections(sectionNames);
-                await setOriginalStaffList(response.data.staff);
-                await setAchievement(response.data.achievement);
+                setOriginalStaffList(response.data.staff);
+                setAchievement(response.data.achievement);
                 setMemoList(
                     response.data.staff.map(s => ({
                         staff: s.name,
@@ -309,8 +310,7 @@ const RankOrder = () => {
         };
         try {
             const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
-            console.log(response.data.status);
-            await setCustomerList(response.data.newCustomers);
+            setCustomerList(response.data.newCustomers);
         } catch (e) {
             console.error(e);
         }
@@ -398,8 +398,8 @@ const RankOrder = () => {
     };
 
     return (
-        <div style={{ overflowX: 'scroll' }}>
-            <div className='bg-white p-2' style={{ width: '1600px' }}>
+        <div style={{ overflowX: 'scroll'}}>
+            <div className='bg-white p-2' style={{ width: isSp ? '1200px' : '1600px' }}>
                 <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                 <div className="row mt-3 mb-4" >
                     <div className="col d-flex">
@@ -413,7 +413,7 @@ const RankOrder = () => {
                 </div>
                 <div>
                     <Table bordered>
-                        <tbody style={{ fontSize: '12px' }} className='align-middle'>
+                        <tbody style={{ fontSize:isSp ? '8px' : '12px' }} className='align-middle'>
                             <tr className="text-center">
                                 <td rowSpan={2} className='sticky-column-rank'>店舗</td>
                                 {tooltipItems
@@ -599,6 +599,7 @@ const RankOrder = () => {
                                                     onChange={(e) => {
                                                         setNewRank(item.id, e.target.value, '');
                                                     }}>
+                                                    <option value=''>未設定</option>
                                                     {['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'].map(rank => {
                                                         return <option value={rank} key={rank} selected={rank === item.rank}>{rank}</option>
                                                     }

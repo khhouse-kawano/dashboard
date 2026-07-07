@@ -11,6 +11,8 @@ import InformationEditResale from './information/InformationEditResale';
 import { getYears } from '../utils/getYears';
 import { staffSorter } from '../utils/staffSorter';
 import { thisYear } from '../utils/thisYear';
+import { safeFormate } from '../utils/informationUtils';
+import { useIsSp } from '../utils/isSp';
 
 type Staff = { name: string, shop: string, section: string, report: number, sort: number, multi: number, status: string, period: string, position: string, khg_id: string };
 type Shop = { brand: string, shop: string, section: string, area: string, division: string, multi: number };
@@ -23,7 +25,7 @@ const divisionArray: string[] = ['注文事業', '建売分譲事業', '不動�
 const divisionMapping = {
     '注文事業': '注文',
     '建売分譲事業': '建売',
-    '中古リノベ': '買い:中古リノベ'
+    '中古リノベ': '中専'
 };
 
 const Company = () => {
@@ -45,6 +47,8 @@ const Company = () => {
     });
     const [showLastYear, setShowLastYear] = useState(false);
     const [showCancel, setShowCancel] = useState(true);
+
+    const isSp = useIsSp();
 
     useEffect(() => {
         const fetchData = async () => {
@@ -233,19 +237,19 @@ const Company = () => {
         }
         if (category === 'division') {
             const targetShopArray = shopList.filter(s => s.division === division).map(s => s.shop);
-            return base.filter(a => targetShopArray.includes(a.name)).reduce((cur, acc) => cur + Number(acc.value), 0);
+            return base.filter(a => targetShopArray.includes(safeFormate(a.name))).reduce((cur, acc) => cur + Number(acc.value), 0);
         }
         if (category === 'division_lastYear') {
             const targetShopArray = shopList.filter(s => s.division === division).map(s => s.shop);
-            return baseLastYear.filter(a => targetShopArray.includes(a.name)).reduce((cur, acc) => cur + Number(acc.value), 0);
+            return baseLastYear.filter(a => targetShopArray.includes(safeFormate(a.name))).reduce((cur, acc) => cur + Number(acc.value), 0);
         }
         if (category === 'section') {
             const targetShopArray = shopList.filter(s => s.section === section).map(s => s.shop);
-            return base.filter(a => targetShopArray.includes(a.name)).reduce((cur, acc) => cur + Number(acc.value), 0);
+            return base.filter(a => targetShopArray.includes(safeFormate(a.name))).reduce((cur, acc) => cur + Number(acc.value), 0);
         }
         if (category === 'section_lastYear') {
             const targetShopArray = shopList.filter(s => s.section === section).map(s => s.shop);
-            return baseLastYear.filter(a => targetShopArray.includes(a.name)).reduce((cur, acc) => cur + Number(acc.value), 0);
+            return baseLastYear.filter(a => targetShopArray.includes(safeFormate(a.name))).reduce((cur, acc) => cur + Number(acc.value), 0);
         }
 
         return 0;
@@ -399,270 +403,279 @@ const Company = () => {
     }, [contractSectionMemoLastYear, shopList]);
 
 
+    const sortStyle = { position: 'fixed' as const, zIndex: '1000', backgroundColor: '#fff', width: '100%', height: '60px' };
+
+    const tableStyle = { fontSize: isSp ? '9px' : '12px' };
+
+    const tdStyle = { width: isSp ? '40px' : '70px', minWidth: isSp ? '40px' : '70px', maxWidth: isSp ? '40px' : '70px', letterSpacing: '1px' };
+
     return (
         <>
             <div className='content company bg-white p-0'>
-                <div className="d-flex align-items-center sort_section">
-                    <div className="bg-white m-1">
-                        <select className='target' onChange={(e) => setTargetYear(Number(e.target.value))}
-                            value={String(targetYear)}>
-                            {getYears().map((year => <option value={year}>{year}年5月期</option>))}
-                        </select>
-                    </div>
-                    <div className="bg-white m-1">
-                        <select className='target' onChange={(e) => moveToTarget(e.target.value)}>
-                            <option value={divisionArray[0]}>事業部を選択</option>
-                            {divisionArray.map((division, index) =>
-                                <option key={index} value={division}>{division}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div className="bg-white m-1">
-                        <select className='target' onChange={(e) => moveToTarget(e.target.value)}>
-                            <option value={divisionArray[0]}>課を選択</option>
-                            {sectionList.map((section, index) =>
-                                <option key={index} value={section.name}>{section.name}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div className="bg-white m-1">
-                        <select className='target' onChange={(e) => moveToTarget(e.target.value)}>
-                            <option value={divisionArray[0]}>店舗を選択</option>
-                            {shopList.filter(s => s.section).map((shop, index) =>
-                                <option key={index} value={shop.shop}>{shop.brand === 'KHF' && `${shop.division}_`}{shop.shop}</option>
-                            )}
-                        </select>
-                    </div>
-                    <div className="bg-white m-1">
-                        <label style={{ fontSize: '12px', cursor: 'pointer' }} className='d-flex align-items-center'><input type='checkbox' className='me-1'
-                            onChange={() => setShowLastYear(!showLastYear)} />昨年実績を表示</label>
-                    </div>
-                    <div className="bg-white m-1">
-                        <label style={{ fontSize: '12px', cursor: 'pointer' }} className='d-flex align-items-center'><input type='checkbox' className='me-1'
-                            checked={showCancel}
-                            onChange={() => setShowCancel(!showCancel)} />キャンセル数を表示</label>
-                    </div>
-                </div>
-                <Table bordered style={{ fontSize: '12px' }} className='company-table'>
-                    <tbody className='align-middle'>
-                        {/* 以下グループ */}
-                        <tr className='text-center target-bottom sticky-header'>
-                            <td colSpan={2} style={{ letterSpacing: '1px' }} className='sticky-column'>{Number(targetYear) - 1}/06~{Number(targetYear)}/05</td>
-                            {monthArray.map(month =>
-                                <td className='text-center' style={{ letterSpacing: '1px' }}>{dateFormate(month)}</td>
-                            )}
-                            <td>合計</td>
-                            <td>個人目標</td>
-                            <td className='table-none-border'></td>
-                            {rankArray.map(r =>
-                                <td className='text-center'>{r}</td>
-                            )}
-                        </tr>
-                        <tr className='target-top sticky-header next_top'>
-                            <td colSpan={2} className='text-center table-danger text-danger sticky-column' style={{ letterSpacing: '1px' }}>グループ予算</td>
-                            {monthArray.map(month => {
-                                return <TableAchievement list={achievementLength('group', month) ?? null} row={1} col={1} lastYear={achievementLength('group_lastYear', month) ?? null} />;
-                            }
-                            )}
-                            <TableAchievement list={achievementLength('group') ?? null} row={1} col={2} lastYear={achievementLength('group_lastYear') ?? 0} />
-                            <td className='table-none-border'></td>
-                            {rankArray.map((r, index) => {
-                                const orderProspectList = customerList.filter(o => o.status === '見込み' && (o.rank_period <= formattedThisMonth || !o.rank_period));
-                                const target = r === '契約済み' ?
-                                    contractMemoThisMonth[monthFormate(formattedThisMonth)] :
-                                    orderProspectList.filter(o => o.rank?.includes(r));
-                                return <TableContract key={index} list={target} row={2} col={1} lastYear={null} />
-                            })}
-                        </tr>
-                        <tr className='sticky-header third_top'>
-                            <td colSpan={2} className='text-center text-primary table-primary sticky-column' style={{ letterSpacing: '1px' }}>グループ実績</td>
-                            {monthArray.map(month => {
-                                return <TableContract list={contractMemoThisMonth[month]} row={1} col={1} lastYear={contractMemoThisMonthLastYear[month]} />
-                            }
-                            )}
-                            <TableContract list={contractMemo} row={1} col={2} lastYear={contractMemoLastYear} />
-                            <td className='table-none-border'></td>
-                        </tr>
-                        {/* 以下部門別 */}
-                        {divisionArray.map((division, divisionIndex) => {
-                            const prospectList = customerList.filter(o => o.status === '見込み' && (o.rank_period <= formattedThisMonth || !o.rank_period) && o.category === divisionMapping[division]);
-                            return <React.Fragment key={divisionIndex}>
-                                <tr className='target-top' id={division}>
-                                    <td rowSpan={2} style={{ backgroundColor: '#272727ff', color: '#f7f7f7' }} className='text-center align-middle sticky-column'>{division}</td>
-                                    <td className='table-danger text-danger sticky-column next'>予算</td>
-                                    {monthArray.map(month => {
-                                        return <TableAchievement list={achievementLength('division', month, division) ?? null} row={1} col={1} lastYear={achievementLength('division_lastYear', month, division) ?? 0} />;
-                                    }
-                                    )}
-                                    <TableAchievement list={achievementLength('division', '', division) ?? null} row={1} col={2} lastYear={achievementLength('division_lastYear', '', division) ?? 0} />
-                                    <td className='table-none-border'></td>
-                                    {rankArray.map(r => {
-                                        const targetList = r === '契約済み' ?
-                                            contractDivisionMemoThisMonth[division][monthFormate(formattedThisMonth)] :
-                                            prospectList.filter(o => o.rank?.includes(r));;
-                                        return <TableContract list={targetList} row={2} col={1} lastYear={null} />
-                                    }
-                                    )}
-                                </tr>
-                                <tr className='target-bottom'>
-                                    <td className='table-primary text-primary sticky-column next'>実績</td>
-                                    {monthArray.map((month, monthIndex) => {
-                                        return <TableContract list={contractDivisionMemoThisMonth[division][month]} row={1} col={1} key={monthIndex} lastYear={contractDivisionMemoThisMonthLastYear[division][month]} />
-                                    }
-                                    )}
-                                    <TableContract list={contractDivisionMemo[division]} row={1} col={2} lastYear={contractDivisionMemoLastYear[division]} />
-                                    <td className='table-none-border'></td>
-                                </tr>
-                                {/* 以下営業課別 */}
-                                {sectionList.filter(s => s.division === division).map((section, sectionIndex) => {
-                                    const sectionColors = ['table-primary', 'table-success', 'table-warning', 'table-danger', 'table-secondary', 'table-info'];
-                                    const sectionColor = sectionColors[sectionIndex] || '#CCCCCC';
-                                    const targetShop = shopList.filter(s => s.section === section.name).map(s => s.shop);
-                                    const sectionProspectList = prospectList.filter(o => targetShop.includes(o.shop));
-                                    return (
-                                        <React.Fragment key={section.name}>
-                                            <tr className='target-top' key={sectionIndex} id={section.name}>
-                                                <td rowSpan={2} className={`${sectionColor} text-center align-middle sticky-column`}>{section.name}</td>
-                                                <td className='table-danger text-danger sticky-column next'>予算</td>
-                                                {monthArray.map(month => {
-                                                    return <TableAchievement list={achievementLength('section', month, '', section.name) ?? null} row={1} col={1} lastYear={achievementLength('section_lastYear', month, '', section.name) ?? 0} />;
-                                                }
-                                                )}
-                                                <TableAchievement list={achievementLength('section', '', '', section.name) ?? null} row={1} col={2} lastYear={achievementLength('section_lastYear', '', '', section.name) ?? 0} />
-                                                <td className='table-none-border'></td>
-                                                {rankArray.map(r => {
-                                                    const target = r === '契約済み' ?
-                                                        contractSectionMemoThisMonth[section.name][monthFormate(formattedThisMonth)] :
-                                                        sectionProspectList.filter(o => o.rank.includes(r));
-                                                    return <TableContract list={target} row={2} col={1} lastYear={null} />
-                                                }
-                                                )}
-                                            </tr>
-                                            <tr className='target-bottom'>
-                                                <td className='table-primary text-primary sticky-column next'>実績</td>
-                                                {monthArray.map((month, monthIndex) => {
-                                                    return <TableContract list={contractSectionMemoThisMonth[section.name][month]} row={1} col={1} key={monthIndex} lastYear={contractSectionMemoThisMonthLastYear[section.name][month]} />;
-                                                }
-                                                )}
-                                                <TableContract list={contractSectionMemo[section.name]} row={1} col={2} lastYear={contractSectionMemoLastYear[section.name]} />
-                                                <td className='table-none-border'></td>
-                                            </tr>
-                                            {/* 以下店舗・担当別 */}
-                                            {shopList
-                                                .filter(shop => shop.section === section.name && !shop.shop.includes('FH'))
-                                                .map(shop => {
-                                                    return [...staffList, { name: '予算', shop: shop.shop, section: section.name, report: 1, sort: 0, multi: 0 }, { name: '実績', shop: shop.shop, section: section.name, report: 1, sort: -1, multi: shop.multi }]
-                                                        .sort(staffSorter()).filter(staff => staff.shop === shop.shop && staff.report === 1)
-                                                        .map((staff, staffIndex) => {
-                                                            const staffLength = staffList.filter(s => s.shop === shop.shop && s.report === 1).length + 2;
-                                                            const isShop = staffIndex === staffLength - 1;
-                                                            const shopContract = isShop ? contractShopMemo[shop.shop] : contractShopMemo[shop.shop].filter(o => {
-                                                                return (o.staff === staff.name && o.shop === staff.shop)
-                                                            });
-                                                            const shopContractLastYear = isShop ? contractShopMemoLastYear[shop.shop] : calculateContractList(contractShopMemoLastYear[shop.shop], 'staff_lastYear', '', '', '', shop.shop, staff.name)
-                                                            const multiContract = contractDivisionMemo[division].filter(o => {
-                                                                return isShop ? o.shop.includes(shop.shop.replace(shop.brand, '')) : o.staff === staff.name
-                                                            });
-                                                            const isStaff = staffIndex < staffLength - 2;
-                                                            const isAchievement = staffIndex === staffLength - 2;
-                                                            const isShopMulti = shop.multi === 1;
-                                                            const isStaffMulti = staff.multi === 1;
-                                                            const cancelList = shopContract.filter(o => o.status === '解約');
-                                                            return (
-                                                                <>
-                                                                    <tr key={`${shop.shop}-${staff.name}`} className={staffIndex === 0 ? 'target-top' : staffIndex === staffLength - 1 ? 'target-bottom' : ''}
-                                                                        id={staffIndex === 0 ? shop.shop : ''}>
-                                                                        {staffIndex === 0 && <td rowSpan={staffLength} className={`${sectionColor} text-center align-middle sticky-column`}>{shop.shop}</td>}
-                                                                        <td className={staffIndex === staffLength - 2 ? 'table-danger text-danger sticky-column next' :
-                                                                            staffIndex === staffLength - 1 ? 'table-primary text-primary sticky-column next' : 'sticky-column next'}>{staff.name}</td>
-                                                                        {[...monthArray, 'total'].map((month, monthIndex) => {
-                                                                            const isTotal = monthIndex === monthArray.length;
-                                                                            const shopPeriodContract = shopContract.filter(o => dateFormate(o.contract).includes(dateFormate(month)));
-                                                                            const shopPeriodContractLastYear = isShop ? calculateContractList(shopContractLastYear, 'shop_lastYear', month, '', '', shop.shop) : calculateContractList(shopContractLastYear, 'staff_lastYear', month, '', '', shop.shop, staff.name)
-                                                                            const multiPeriodContract = multiContract.filter(o => dateFormate(o.contract).includes(dateFormate(month)));
-                                                                            const targetShop = achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value ?
-                                                                                achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value : '';
-                                                                            const achievementLength = achievement.filter(a =>
-                                                                                a.category === 'shop' &&
-                                                                                a.name === shop.shop &&
-                                                                                monthArray.includes(monthFormate(a.period))
-                                                                            ).reduce((cur, acc) => cur + Number(acc.value), 0);
-                                                                            const periodCancelList = shopPeriodContract.filter(o => o.status === '解約');
-                                                                            return (
-                                                                                <>{isAchievement &&
-                                                                                    <td key={monthIndex} className='text-center text-danger table-danger' colSpan={isTotal ? 2 : 1}>
-                                                                                        {isTotal ?
-                                                                                            achievementLength
-                                                                                            : <input
-                                                                                                type="text"
-                                                                                                className="company_input text-danger"
-                                                                                                value={targetShop}
-                                                                                                onChange={(e) => changeAchievement(month, 'shop', shop.shop, e.target.value)}
-                                                                                            />}</td>}
-                                                                                    {(isStaff || isShop) &&
-                                                                                        <td key={monthIndex} className={((isTotal && shopContract.length > 0) || shopPeriodContract.length > 0) ? 'text-primary company_contract text-center table-primary' : 'text-center'}
-                                                                                            onClick={((isTotal && shopContract.length > 0) || shopPeriodContract.length > 0) ? () => {
-                                                                                                setShow(true);
-                                                                                                setContract(isTotal ? shopContract : shopPeriodContract);
-                                                                                            } : undefined}
-                                                                                            colSpan={(isTotal && isShop) ? 2 : 1}>
-                                                                                            <div className='position-relative'>
-                                                                                                {isShop ?
-                                                                                                    (isTotal ? `${shopContract.length}${isShopMulti ? `(${multiContract.length})` : ''}` : `${shopPeriodContract.length}${isShopMulti ? `(${multiPeriodContract.length})` : ''}`)
-                                                                                                    : (isTotal ? `${shopContract.length}${isStaffMulti ? `(${multiContract.length})` : ''}` : shopPeriodContract.length)
-                                                                                                }
-                                                                                                {isTotal ?
-                                                                                                    (( showCancel && cancelList.length > 0) ? <span style={cancelStyle}>{cancelList.length}</span> : '') :
-                                                                                                    ((showCancel && periodCancelList.length > 0) ? <span style={cancelStyle}>{periodCancelList.length}</span> : '')}
-                                                                                                {(showLastYear && shopContractLastYear !== null) && <div className='position-absolute'
-                                                                                                    style={{ ...lastYearStyle, right: isTotal && isShop ? '23px' : '-5px' }}>
-                                                                                                    {isTotal ? (shopContractLastYear ?? []).length : (shopPeriodContractLastYear ?? []).length
-                                                                                                    }</div>}
-                                                                                            </div>
-                                                                                        </td>
-                                                                                    }
-                                                                                </>
-                                                                            )
-                                                                        }
-                                                                        )}
-                                                                        {(() => {
-                                                                            const target = achievement.find(a => a.category === 'staff' && a.name === staff.name && a.period === monthArray[0].slice(0, 7))?.value ? achievement.find(a => a.category === 'staff' && a.name === staff.name && a.period === monthArray[0].slice(0, 7))?.value : '';
-                                                                            return (staffIndex !== staffLength - 2 && staffIndex !== staffLength - 1) &&
-                                                                                <td className='text-danger company_contract text-center'
-                                                                                ><input
-                                                                                        type="text"
-                                                                                        className="company_input text-danger"
-                                                                                        value={target}
-                                                                                        onChange={(e) => changeAchievement(monthArray[0].slice(0, 7), 'staff', staff.name, e.target.value)}
-                                                                                    /></td>;
-                                                                        })()}
-                                                                        <td className='table-none-border'></td>
-                                                                        {rankArray.map(r => {
-                                                                            const isStaff = staffIndex !== staffLength - 2 && staffIndex !== staffLength - 1;
-                                                                            const target = r === '契約済み' ?
-                                                                                shopContract.filter(o => dateFormate(o.contract).includes(formattedThisMonth)) :
-                                                                                sectionProspectList.filter(o => o.rank.includes(r) && (isStaff ? o.staff === staff.name : o.shop === shop.shop));
-                                                                            return (
-                                                                                staffIndex !== staffLength - 1 && <TableContract list={target} row={staffIndex === staffLength - 2 ? 2 : 1} col={1} lastYear={null} />
-                                                                            )
-                                                                        }
-                                                                        )}
-                                                                    </tr>
-                                                                </>
-                                                            )
-                                                        })
-                                                })}
-                                        </React.Fragment>
-                                    )
+                {!isSp &&
+                    <div className="d-flex align-items-center" style={sortStyle}>
+                        <div className="bg-white m-1">
+                            <select className='target' onChange={(e) => setTargetYear(Number(e.target.value))}
+                                value={String(targetYear)}>
+                                {getYears().map((year => <option value={year}>{year}年5月期</option>))}
+                            </select>
+                        </div>
+                        <div className="bg-white m-1">
+                            <select className='target' onChange={(e) => moveToTarget(e.target.value)}>
+                                <option value={divisionArray[0]}>事業部を選択</option>
+                                {divisionArray.map((division, index) =>
+                                    <option key={index} value={division}>{division}</option>
+                                )}
+                            </select>
+                        </div>
+                        <div className="bg-white m-1">
+                            <select className='target' onChange={(e) => moveToTarget(e.target.value)}>
+                                <option value={divisionArray[0]}>課を選択</option>
+                                {sectionList.map((section, index) =>
+                                    <option key={index} value={section.name}>{section.name}</option>
+                                )}
+                            </select>
+                        </div>
+                        <div className="bg-white m-1">
+                            <select className='target' onChange={(e) => moveToTarget(e.target.value)}>
+                                <option value={divisionArray[0]}>店舗を選択</option>
+                                {shopList.filter(s => s.section).map((shop, index) =>
+                                    <option key={index} value={shop.shop}>{shop.brand === 'KHF' && `${shop.division}_`}{shop.shop}</option>
+                                )}
+                            </select>
+                        </div>
+                        <div className="bg-white m-1">
+                            <label style={{ fontSize: '12px', cursor: 'pointer' }} className='d-flex align-items-center'><input type='checkbox' className='me-1'
+                                onChange={() => setShowLastYear(!showLastYear)} />昨年実績を表示</label>
+                        </div>
+                        <div className="bg-white m-1">
+                            <label style={{ fontSize: '12px', cursor: 'pointer' }} className='d-flex align-items-center'><input type='checkbox' className='me-1'
+                                checked={showCancel}
+                                onChange={() => setShowCancel(!showCancel)} />キャンセル数を表示</label>
+                        </div>
+                    </div>}
+                <div style={{ transform: isSp ? '' : 'translateY(80px)' }}>
+                    <Table bordered style={tableStyle} >
+                        <tbody className='align-middle'>
+                            {/* 以下グループ */}
+                            <tr className='text-center target-bottom sticky-header'>
+                                <td colSpan={2} style={tdStyle} className='sticky-column'>{Number(targetYear) - 1}/06~{Number(targetYear)}/05</td>
+                                {monthArray.map(month =>
+                                    <td className='text-center' style={tdStyle}>{dateFormate(month)}</td>
+                                )}
+                                <td style={tdStyle}>合計</td>
+                                <td style={tdStyle}>個人目標</td>
+                                <td className='table-none-border'></td>
+                                {rankArray.map(r =>
+                                    <td className='text-center' style={tdStyle}>{r}</td>
+                                )}
+                            </tr>
+                            <tr className='target-top sticky-header next_top'>
+                                <td colSpan={2} className='text-center table-danger text-danger sticky-column' style={{ letterSpacing: '1px' }}>グループ予算</td>
+                                {monthArray.map(month => {
+                                    return <TableAchievement list={achievementLength('group', month) ?? null} row={1} col={1} lastYear={achievementLength('group_lastYear', month) ?? null} />;
+                                }
+                                )}
+                                <TableAchievement list={achievementLength('group') ?? null} row={1} col={2} lastYear={achievementLength('group_lastYear') ?? 0} />
+                                <td className='table-none-border'></td>
+                                {rankArray.map((r, index) => {
+                                    const orderProspectList = customerList.filter(o => o.status === '見込み' && (o.rank_period <= formattedThisMonth || !o.rank_period));
+                                    const target = r === '契約済み' ?
+                                        contractMemoThisMonth[monthFormate(formattedThisMonth)] :
+                                        orderProspectList.filter(o => safeFormate(o.rank)?.includes(r));
+                                    return <TableContract key={index} list={target} row={2} col={1} lastYear={null} />
                                 })}
-                                <tr>
-                                    <td></td>
-                                </tr>
-                            </React.Fragment>
-                        }
-                        )}
-                    </tbody>
-                </Table>
+                            </tr>
+                            <tr className='sticky-header third_top'>
+                                <td colSpan={2} className='text-center text-primary table-primary sticky-column' style={{ letterSpacing: '1px' }}>グループ実績</td>
+                                {monthArray.map(month => {
+                                    return <TableContract list={contractMemoThisMonth[month]} row={1} col={1} lastYear={contractMemoThisMonthLastYear[month]} />
+                                }
+                                )}
+                                <TableContract list={contractMemo} row={1} col={2} lastYear={contractMemoLastYear} />
+                                <td className='table-none-border'></td>
+                            </tr>
+                            {/* 以下部門別 */}
+                            {divisionArray.map((division, divisionIndex) => {
+                                const prospectList = customerList.filter(o => o.status === '見込み' && (o.rank_period <= formattedThisMonth || !o.rank_period) && o.category === divisionMapping[division]);
+                                return <React.Fragment key={divisionIndex}>
+                                    <tr className='target-top' id={division}>
+                                        <td rowSpan={2} style={{ backgroundColor: '#272727ff', color: '#f7f7f7' }} className='text-center align-middle sticky-column'>{division}</td>
+                                        <td className='table-danger text-danger sticky-column next'>予算</td>
+                                        {monthArray.map(month => {
+                                            return <TableAchievement list={achievementLength('division', month, division) ?? null} row={1} col={1} lastYear={achievementLength('division_lastYear', month, division) ?? 0} />;
+                                        }
+                                        )}
+                                        <TableAchievement list={achievementLength('division', '', division) ?? null} row={1} col={2} lastYear={achievementLength('division_lastYear', '', division) ?? 0} />
+                                        <td className='table-none-border'></td>
+                                        {rankArray.map(r => {
+                                            const targetList = r === '契約済み' ?
+                                                contractDivisionMemoThisMonth[division][monthFormate(formattedThisMonth)] :
+                                                prospectList.filter(o => safeFormate(o.rank)?.includes(r));;
+                                            return <TableContract list={targetList} row={2} col={1} lastYear={null} />
+                                        }
+                                        )}
+                                    </tr>
+                                    <tr className='target-bottom'>
+                                        <td className='table-primary text-primary sticky-column next'>実績</td>
+                                        {monthArray.map((month, monthIndex) => {
+                                            return <TableContract list={contractDivisionMemoThisMonth[division][month]} row={1} col={1} key={monthIndex} lastYear={contractDivisionMemoThisMonthLastYear[division][month]} />
+                                        }
+                                        )}
+                                        <TableContract list={contractDivisionMemo[division]} row={1} col={2} lastYear={contractDivisionMemoLastYear[division]} />
+                                        <td className='table-none-border'></td>
+                                    </tr>
+                                    {/* 以下営業課別 */}
+                                    {sectionList.filter(s => s.division === division).map((section, sectionIndex) => {
+                                        const sectionColors = ['table-primary', 'table-success', 'table-warning', 'table-danger', 'table-secondary', 'table-info'];
+                                        const sectionColor = sectionColors[sectionIndex] || '#CCCCCC';
+                                        const targetShop = shopList.filter(s => s.section === section.name).map(s => s.shop);
+                                        const sectionProspectList = prospectList.filter(o => targetShop.includes(o.shop));
+                                        return (
+                                            <React.Fragment key={section.name}>
+                                                <tr className='target-top' key={sectionIndex} id={section.name}>
+                                                    <td rowSpan={2} className={`${sectionColor} text-center align-middle sticky-column`}>{section.name}</td>
+                                                    <td className='table-danger text-danger sticky-column next'>予算</td>
+                                                    {monthArray.map(month => {
+                                                        return <TableAchievement list={achievementLength('section', month, '', section.name) ?? null} row={1} col={1} lastYear={achievementLength('section_lastYear', month, '', section.name) ?? 0} />;
+                                                    }
+                                                    )}
+                                                    <TableAchievement list={achievementLength('section', '', '', section.name) ?? null} row={1} col={2} lastYear={achievementLength('section_lastYear', '', '', section.name) ?? 0} />
+                                                    <td className='table-none-border'></td>
+                                                    {rankArray.map(r => {
+                                                        const target = r === '契約済み' ?
+                                                            contractSectionMemoThisMonth[section.name][monthFormate(formattedThisMonth)] :
+                                                            sectionProspectList.filter(o => safeFormate(o.rank).includes(r));
+                                                        return <TableContract list={target} row={2} col={1} lastYear={null} />
+                                                    }
+                                                    )}
+                                                </tr>
+                                                <tr className='target-bottom'>
+                                                    <td className='table-primary text-primary sticky-column next'>実績</td>
+                                                    {monthArray.map((month, monthIndex) => {
+                                                        return <TableContract list={contractSectionMemoThisMonth[section.name][month]} row={1} col={1} key={monthIndex} lastYear={contractSectionMemoThisMonthLastYear[section.name][month]} />;
+                                                    }
+                                                    )}
+                                                    <TableContract list={contractSectionMemo[section.name]} row={1} col={2} lastYear={contractSectionMemoLastYear[section.name]} />
+                                                    <td className='table-none-border'></td>
+                                                </tr>
+                                                {/* 以下店舗・担当別 */}
+                                                {shopList
+                                                    .filter(shop => shop.section === section.name && !shop.shop.includes('FH'))
+                                                    .map(shop => {
+                                                        return [...staffList, { name: '予算', shop: shop.shop, section: section.name, report: 1, sort: 0, multi: 0 }, { name: '実績', shop: shop.shop, section: section.name, report: 1, sort: -1, multi: shop.multi }]
+                                                            .sort(staffSorter()).filter(staff => staff.shop === shop.shop && staff.report === 1)
+                                                            .map((staff, staffIndex) => {
+                                                                const staffLength = staffList.filter(s => s.shop === shop.shop && s.report === 1).length + 2;
+                                                                const isShop = staffIndex === staffLength - 1;
+                                                                const shopContract = isShop ? contractShopMemo[shop.shop] : contractShopMemo[shop.shop].filter(o => {
+                                                                    return (o.staff === staff.name && o.shop === staff.shop)
+                                                                });
+                                                                const shopContractLastYear = isShop ? contractShopMemoLastYear[shop.shop] : calculateContractList(contractShopMemoLastYear[shop.shop], 'staff_lastYear', '', '', '', shop.shop, staff.name)
+                                                                const multiContract = contractDivisionMemo[division].filter(o => {
+                                                                    return isShop ? o.shop.includes(shop.shop.replace(shop.brand, '')) : o.staff === staff.name
+                                                                });
+                                                                const isStaff = staffIndex < staffLength - 2;
+                                                                const isAchievement = staffIndex === staffLength - 2;
+                                                                const isShopMulti = shop.multi === 1;
+                                                                const isStaffMulti = staff.multi === 1;
+                                                                const cancelList = shopContract.filter(o => o.status === '解約');
+                                                                return (
+                                                                    <>
+                                                                        <tr key={`${shop.shop}-${staff.name}`} className={staffIndex === 0 ? 'target-top' : staffIndex === staffLength - 1 ? 'target-bottom' : ''}
+                                                                            id={staffIndex === 0 ? shop.shop : ''}>
+                                                                            {staffIndex === 0 && <td rowSpan={staffLength} className={`${sectionColor} text-center align-middle sticky-column`}>{shop.shop}</td>}
+                                                                            <td className={staffIndex === staffLength - 2 ? 'table-danger text-danger sticky-column next' :
+                                                                                staffIndex === staffLength - 1 ? 'table-primary text-primary sticky-column next' : 'sticky-column next'}>{staff.name}</td>
+                                                                            {[...monthArray, 'total'].map((month, monthIndex) => {
+                                                                                const isTotal = monthIndex === monthArray.length;
+                                                                                const shopPeriodContract = shopContract.filter(o => dateFormate(o.contract).includes(dateFormate(month)));
+                                                                                const shopPeriodContractLastYear = isShop ? calculateContractList(shopContractLastYear, 'shop_lastYear', month, '', '', shop.shop) : calculateContractList(shopContractLastYear, 'staff_lastYear', month, '', '', shop.shop, staff.name)
+                                                                                const multiPeriodContract = multiContract.filter(o => dateFormate(o.contract).includes(dateFormate(month)));
+                                                                                const targetShop = achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value ?
+                                                                                    achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value : '';
+                                                                                const achievementLength = achievement.filter(a =>
+                                                                                    a.category === 'shop' &&
+                                                                                    a.name === shop.shop &&
+                                                                                    monthArray.includes(monthFormate(a.period))
+                                                                                ).reduce((cur, acc) => cur + Number(acc.value), 0);
+                                                                                const periodCancelList = shopPeriodContract.filter(o => o.status === '解約');
+                                                                                return (
+                                                                                    <>{isAchievement &&
+                                                                                        <td key={monthIndex} className='text-center text-danger table-danger' colSpan={isTotal ? 2 : 1}>
+                                                                                            {isTotal ?
+                                                                                                achievementLength
+                                                                                                : <input
+                                                                                                    type="text"
+                                                                                                    className="company_input text-danger"
+                                                                                                    value={targetShop}
+                                                                                                    onChange={(e) => changeAchievement(month, 'shop', shop.shop, e.target.value)}
+                                                                                                />}</td>}
+                                                                                        {(isStaff || isShop) &&
+                                                                                            <td key={monthIndex} className={((isTotal && shopContract.length > 0) || shopPeriodContract.length > 0) ? 'text-primary company_contract text-center table-primary' : 'text-center'}
+                                                                                                onClick={((isTotal && shopContract.length > 0) || shopPeriodContract.length > 0) ? () => {
+                                                                                                    setShow(true);
+                                                                                                    setContract(isTotal ? shopContract : shopPeriodContract);
+                                                                                                } : undefined}
+                                                                                                colSpan={(isTotal && isShop) ? 2 : 1}>
+                                                                                                <div className='position-relative'>
+                                                                                                    {isShop ?
+                                                                                                        (isTotal ? `${shopContract.length}${isShopMulti ? `(${multiContract.length})` : ''}` : `${shopPeriodContract.length}${isShopMulti ? `(${multiPeriodContract.length})` : ''}`)
+                                                                                                        : (isTotal ? `${shopContract.length}${isStaffMulti ? `(${multiContract.length})` : ''}` : shopPeriodContract.length)
+                                                                                                    }
+                                                                                                    {isTotal ?
+                                                                                                        ((showCancel && cancelList.length > 0) ? <span style={cancelStyle}>{cancelList.length}</span> : '') :
+                                                                                                        ((showCancel && periodCancelList.length > 0) ? <span style={cancelStyle}>{periodCancelList.length}</span> : '')}
+                                                                                                    {(showLastYear && shopContractLastYear !== null) && <div className='position-absolute'
+                                                                                                        style={{ ...lastYearStyle, right: isTotal && isShop ? '23px' : '-5px' }}>
+                                                                                                        {isTotal ? (shopContractLastYear ?? []).length : (shopPeriodContractLastYear ?? []).length
+                                                                                                        }</div>}
+                                                                                                </div>
+                                                                                            </td>
+                                                                                        }
+                                                                                    </>
+                                                                                )
+                                                                            }
+                                                                            )}
+                                                                            {(() => {
+                                                                                const target = achievement.find(a => a.category === 'staff' && a.name === staff.name && a.period === monthArray[0].slice(0, 7))?.value ? achievement.find(a => a.category === 'staff' && a.name === staff.name && a.period === monthArray[0].slice(0, 7))?.value : '';
+                                                                                return (staffIndex !== staffLength - 2 && staffIndex !== staffLength - 1) &&
+                                                                                    <td className='text-danger company_contract text-center'
+                                                                                    ><input
+                                                                                            type="text"
+                                                                                            className="company_input text-danger"
+                                                                                            value={target}
+                                                                                            onChange={(e) => changeAchievement(monthArray[0].slice(0, 7), 'staff', staff.name, e.target.value)}
+                                                                                        /></td>;
+                                                                            })()}
+                                                                            <td className='table-none-border'></td>
+                                                                            {rankArray.map(r => {
+                                                                                const isStaff = staffIndex !== staffLength - 2 && staffIndex !== staffLength - 1;
+                                                                                const target = r === '契約済み' ?
+                                                                                    shopContract.filter(o => dateFormate(o.contract).includes(formattedThisMonth)) :
+                                                                                    sectionProspectList.filter(o => safeFormate(o.rank).includes(r) && (isStaff ? o.staff === staff.name : o.shop === shop.shop));
+                                                                                return (
+                                                                                    staffIndex !== staffLength - 1 && <TableContract list={target} row={staffIndex === staffLength - 2 ? 2 : 1} col={1} lastYear={null} />
+                                                                                )
+                                                                            }
+                                                                            )}
+                                                                        </tr>
+                                                                    </>
+                                                                )
+                                                            })
+                                                    })}
+                                            </React.Fragment>
+                                        )
+                                    })}
+                                    <tr>
+                                        <td></td>
+                                    </tr>
+                                </React.Fragment>
+                            }
+                            )}
+                        </tbody>
+                    </Table>
+                </div>
             </div>
             <Modal show={show} onHide={modalClose}>
                 <Modal.Header closeButton>
@@ -681,9 +694,7 @@ const Company = () => {
                                 const idMapping = {
                                     '注文': 'order',
                                     '建売': 'kaeru',
-                                    '買い:中古リノベ': 'resale',
-                                    '買い:ポータル': 'resale',
-                                    '売り:ポータル': 'resale'
+                                    '中専': 'resale'
                                 };
                                 return <tr key={index}>
                                     <td>{c.contract ? c.contract : '-'}</td>

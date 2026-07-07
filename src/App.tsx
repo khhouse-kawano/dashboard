@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import Calendar from "./components/Calendar";
@@ -41,6 +41,10 @@ import { useJsApiLoader } from "@react-google-maps/api";
 import MenuD from "./components/Menu";
 import Dev from "./components/Dev";
 import Header from "./components/header/Header";
+import CustomerTrendRouter from "./components/customerTrend/CustomerTrendRouter";
+import MapRouter from "./components/map/MapRouter";
+import { useIsSp } from './utils/isSp';
+
 
 export default function App() {
   const clientId = process.env.REACT_APP_CLIENT_ID;
@@ -73,6 +77,12 @@ function AppInner() {
   const reload = () => {
     setMenuKey(prev => prev + 1);
   };
+  const isSp = useIsSp();
+
+  useEffect(() => {
+    if (!isSp) return;
+    setOpen(true);
+  }, []);
 
 
 
@@ -83,15 +93,25 @@ function AppInner() {
         {currentPath !== '/login' && <Header key={menuKey} />}
         <div className="d-flex pt-4">
           {currentPath !== '/home' && currentPath !== '/login' && <>
+            {/* PC用メニュー */}
             <div className="modal_menu">
               <MenuD key={menuKey} onReload={reload} />
             </div>
+
+            {/* スマホ用ヘッダー */}
             <div className="header_sp">
               <i
                 className="fa-solid fa-bars hamburger"
                 onClick={() => setOpen(true)}
               />
             </div>
+
+            {/* スマホ用：メニュー展開時の背景（外側タップで閉じる用） */}
+            {open && (
+              <div className="overlay_sp" onClick={() => setOpen(false)} />
+            )}
+
+            {/* スマホ用メニュー */}
             <div className={`modal_menu_sp ${open ? "open" : ""}`}>
               <i
                 className="fa-solid fa-xmark hamburger position-absolute"
@@ -109,7 +129,7 @@ function AppInner() {
             <Route path="/customer" element={<Customer />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/shopTrend" element={<ShopTrendRouter />} />
-            <Route path="/customerTrend" element={<CustomerTrend />} />
+            <Route path="/customerTrend" element={<CustomerTrendRouter />} />
             <Route path="/list" element={<ListRouter onReload={reload} />} />
             <Route path="/database" element={<DatabaseRouter onReload={reload} key={menuKey} />} />
             <Route path="/budget" element={<BudgetAccounting />} />
@@ -117,7 +137,7 @@ function AppInner() {
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/campaign" element={<CampaignHome />} />
             <Route path="/editcampaign" element={<NewCampaign />} />
-            <Route path="/map" element={<Map />} />
+            <Route path="/map" element={<MapRouter />} />
             <Route path="/resale" element={<Resale />} />
             <Route path="/specBudget" element={<BudgetKaeru />} />
             <Route path="/specCustomer" element={<CustomerKaeru />} />

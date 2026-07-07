@@ -63,6 +63,7 @@ const Company = () => {
     const [modalOriginalList, setModalOriginalList] = useState<ModalList[]>([]);
     const [modalDay, setModalDay] = useState<number>(0);
     const [allShop, setAllShop] = useState(false);
+    const [showIceWorld, setShowIceWorld] = useState(false);
 
     const [eventData, setEventData] = useState<ResponseChange>({
         id: null,
@@ -186,6 +187,12 @@ const Company = () => {
             setLastDay(end.getDate());
         }
     }, [targetMonth, display]);
+
+
+    useEffect(() => {
+        if (targetShop !== 'iceWorld') return;
+        setShowIceWorld(true);
+    }, [targetShop]);
 
     const getColoredEvents = useCallback(() => {
         const [year, month] = targetMonth.split('/').map(Number);
@@ -547,7 +554,9 @@ const Company = () => {
                                 </div>
                             </div>
                             <div className='me-2'>
-                                <select className='target' onChange={(e) => setTargetShop(e.target.value)} disabled={display === 'list'}>
+                                <select className='target' onChange={(e) => {
+                                    setTargetShop(e.target.value);
+                                }} disabled={display === 'list'}>
                                     <option value="" selected={targetShop === ''}>店舗を選択</option>
                                     <option value="iceWorld">アイスワールド</option>
                                     {shopList.map((shop, index) => <option value={shop.shop} key={index} selected={targetShop === shop.shop}>{shop.shop.replace('khg', 'KHG')}</option>)}
@@ -938,12 +947,7 @@ const Company = () => {
                     </div>
                 </Modal.Body>
             </Modal>
-            <Modal show={targetShop === 'iceWorld'} size='xl' onHide={modalClose}>
-                <Modal.Header closeButton>ぶるぶるアイスワールド利用予約</Modal.Header>
-                <Modal.Body>
-                    <IceWorld shopList={shopList} editId={editId} />
-                </Modal.Body>
-            </Modal>
+            <IceWorld shopList={shopList} editId={editId} showIceWorld={showIceWorld} setShowIceWorld={setShowIceWorld} />
         </>
     );
 };

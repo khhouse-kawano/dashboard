@@ -52,7 +52,7 @@ type InterviewLog = {
     add: boolean
 };
 const ShopTrendOrder = () => {
-    const { brand } = useContext(AuthContext);
+    const { brand, category } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<Shop[]>([]);
     const [originalShopArray, setOriginalShopArray] = useState<Shop[]>([]);
     const [customerList, setCustomerList] = useState<Customer[]>([]);
@@ -234,7 +234,7 @@ const ShopTrendOrder = () => {
             const interviewValue = originalCustomerList.filter(c => (formate(c.interview).includes(m) || formate(c.appointment).includes(m) || formate(c.screening).includes(m) || formate(c.contract).includes(m)) && matchTarget(c)).length;
             const appointmentValue = originalCustomerList.filter(c => (formate(c.appointment).includes(m) || formate(c.screening).includes(m) || formate(c.contract).includes(m)) && matchTarget(c)).length;
             const cancelValue = originalCustomerList.filter(c => c.reserved_interview?.replace(/-/g, '/').includes(m) && matchTarget(c)).length;
-            const contractValue = originalCustomerList.filter(c => formate(c.contract).includes(m) && c.status === '契約済み' && matchTarget(c)).length;
+            const contractValue = originalCustomerList.filter(c => formate(c.contract).includes(m) && ['契約済み', '解約'].includes(c.status) && matchTarget(c)).length;
             return {
                 period: m,
                 register: registerValue,
@@ -331,7 +331,7 @@ const ShopTrendOrder = () => {
         }
 
         if (target === 'contract') {
-            return base.filter(b => (monthIndex >= 1 ? formate(b.contract).includes(month) && b.status === '契約済み' : period.includes(formate(b.contract).slice(0, 7)) && b.status === '契約済み'))
+            return base.filter(b => (monthIndex >= 1 ? formate(b.contract).includes(month) && ['契約済み', '解約'].includes(b.status) : period.includes(formate(b.contract).slice(0, 7)) && ['契約済み', '解約'].includes(b.status)))
         }
         return base.filter(b => (monthIndex >= 1 ? formate(b[target]).includes(month) : period.includes(formate(b[target]).slice(0, 7))))
     };
@@ -534,7 +534,7 @@ const ShopTrendOrder = () => {
                                             },
                                             ...(targetSection !== 'all' ? shopArray : sections)
                                         ].filter(shop => !shop.shop.includes('店舗未設定') && !shop.shop.includes('FH')).map((target, targetIndex) => {
-                                            const staffLength = setStaffLength(staff, targetSection, target.section, target.shop, targetIndex).length;
+                                            const staffLength = setStaffLength(staff, targetSection, target.section, target.shop, targetIndex, category).length;
                                             return <>
                                                 <tr>
                                                     <td className='align-middle  sticky-column text-center' rowSpan={checked.budget.show ? 2 : 1}>

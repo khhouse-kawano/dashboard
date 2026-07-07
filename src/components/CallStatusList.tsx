@@ -179,7 +179,7 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                             const callLogIds = new Set(customerFilter.filter(c => targetShopList.includes(c.shop)).map(c => c.id));
                             const calledCustomer = filteredCustomer.filter(o => callLogIds.has(o.id));
 
-                            const callFilter = targetParsedActions.filter(p => p.action === '架電');
+                            const callFilter = targetParsedActions.filter(p => p.action === '通電' || p.action === '未通電');
                             const postFilter = targetParsedActions.filter(p => p.action === '資料郵送');
                             const mailFilter = targetParsedActions.filter(p => p.action === 'メール送信');
                             const smsFilter = targetParsedActions.filter(p => p.action === 'SMS送信');
@@ -296,35 +296,51 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                                         <td className="border-end bg-white text-secondary" style={{ position: 'sticky', left: '150px', width: '240px', minWidth: '240px', zIndex: 1 }}>
                                             {category} <span className="text-muted" style={{ fontSize: '10px' }}>{subText}</span>
                                         </td>
-                                        {['total', ...monthArray.slice(12)].map((month, mIndex) => {
-                                            const matchMonth = (dateStr: string) => mIndex === 0 || dateFormate(dateStr).includes(dateFormate(month));
-                                            let value = 0;
-                                            let textColorClass = '';
+                                        {(() => {
+                                            const preFilteredActions = (category === '総架電数' || category === '通電数')
+                                                ? targetParsedActions.filter(log => {
+                                                    const staffName = filteredStaffName(log.staff);
+                                                    const isTargetStaff = sIndex > 0 ? staffName === fStaffName : validStaffNames.includes(staffName);
 
-                                            if (category === '土地新着ネット反響数') {
-                                                value = estateResponses.filter(r => mIndex === 0 || dateFormate(r.register).includes(month)).length;
-                                            } else if (category === '総架電数') {
-                                                value = targetParsedActions.filter(log => {
-                                                    const isTargetStaff = sIndex > 0 ? filteredStaffName(log.staff) === fStaffName : validStaffNames.includes(filteredStaffName(log.staff));
-                                                    return isTargetStaff && log.action === '架電' && matchMonth(log.day);
-                                                }).length;
-                                                textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 100 ? 'text-danger' : 'text-success fw-bold') : '';
-                                            } else if (category === '通電数') {
-                                                value = calledCustomerRegs.filter(reg => mIndex === 0 || dateFormate(reg.slice(0, 7)) === month).length;
-                                                textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 15 ? 'text-danger' : 'text-success fw-bold') : '';
-                                            } else if (category === 'アポ取得数') {
-                                                value = appointCustomerRegs.filter(reg => mIndex === 0 || dateFormate(reg.slice(0, 7)) === month).length;
-                                                textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 2 ? 'text-danger' : 'text-success fw-bold') : '';
-                                            } else if (category === '架電からの来場数') {
-                                                value = interviewCustomerRegs.filter(reg => mIndex === 0 || dateFormate(reg.slice(0, 7)) === month).length;
-                                            }
+                                                    if (!isTargetStaff) return false;
 
-                                            return (
-                                                <td key={mIndex} className={`text-end ${mIndex === 0 ? 'bg-light fw-bold' : ''} ${textColorClass}`}>
-                                                    {value}
-                                                </td>
-                                            );
-                                        })}
+                                                    if (category === '総架電数') return log.action === '通電' || log.action === '未通電';
+                                                    if (category === '通電数') return log.action === '通電';
+                                                    return false;
+                                                })
+                                                : [];
+
+                                            return ['total', ...monthArray.slice(12)].map((month, mIndex) => {
+                                                const targetMonthStr = mIndex > 0 ? dateFormate(month) : '';
+                                                const matchMonth = (dateStr: string) => mIndex === 0 || dateFormate(dateStr).includes(targetMonthStr);
+
+                                                let value = 0;
+                                                let textColorClass = '';
+
+                                                if (category === '土地新着ネット反響数') {
+                                                    value = estateResponses.filter(r => mIndex === 0 || dateFormate(r.register).includes(month)).length;
+                                                } else if (category === '総架電数') {
+                                                    // 事前フィルタ済みの配列から、月だけを判定するから爆速
+                                                    value = preFilteredActions.filter(log => matchMonth(log.day)).length;
+                                                    textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 100 ? 'text-danger' : 'text-success fw-bold') : '';
+                                                } else if (category === '通電数') {
+                                                    // 事前フィルタ済みの配列から、月だけを判定
+                                                    value = preFilteredActions.filter(log => matchMonth(log.day)).length;
+                                                    textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 15 ? 'text-danger' : 'text-success fw-bold') : '';
+                                                } else if (category === 'アポ取得数') {
+                                                    value = appointCustomerRegs.filter(reg => mIndex === 0 || dateFormate(reg.slice(0, 7)) === month).length;
+                                                    textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 2 ? 'text-danger' : 'text-success fw-bold') : '';
+                                                } else if (category === '架電からの来場数') {
+                                                    value = interviewCustomerRegs.filter(reg => mIndex === 0 || dateFormate(reg.slice(0, 7)) === month).length;
+                                                }
+
+                                                return (
+                                                    <td key={mIndex} className={`text-end ${mIndex === 0 ? 'bg-light fw-bold' : ''} ${textColorClass}`}>
+                                                        {value}
+                                                    </td>
+                                                );
+                                            });
+                                        })()}
                                     </tr>
                                 );
                             });

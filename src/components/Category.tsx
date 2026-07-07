@@ -5,7 +5,7 @@ import Logo from "../assets/images/logo.png";
 import axios from 'axios';
 import { headers } from '../utils/headers';
 import Table from "react-bootstrap/Table";
-import ActiveUser from './ActiveUser';
+import { useIsSp } from '../utils/isSp';
 
 type Log = { no: number, version: string, date: string, note: string };
 
@@ -14,6 +14,7 @@ const Category = () => {
     const navigate = useNavigate();
     const { setCategory } = useContext(AuthContext);
     const [log, setLog] = useState<Log[]>([]);
+    const isSp = useIsSp();
 
     useEffect(() => {
         if (!brand || brand.trim() === "" || !token || token.trim() === "") navigate("/login");
@@ -41,11 +42,11 @@ const Category = () => {
                     <div className="position-absolute" style={{ bottom: '-10px', right: '3px' }}>ver{version}</div>
                 </div>
                 <div className="d-md-flex align-items-center justify-content-center home_menu">
-                    <div className="bg-primary text-center text-white py-3 px-4 px-md-5 rounded-pill pointer my-2" style={{ fontWeight: '700', letterSpacing: '1px' }}
+                    <div className="bg-primary text-center text-white py-2 py-md-3 px-4 px-md-5 rounded-pill pointer my-2" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
                         onClick={() => goToDashboard('order')}>注文営業</div>
-                    <div className="bg-success text-center text-white py-3 px-4 px-md-5 rounded-pill mx-md-3 my-4 pointer" style={{ fontWeight: '700', letterSpacing: '1px' }}
+                    <div className="bg-success text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill mx-md-3 my-4 pointer" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
                         onClick={() => goToDashboard('spec')}>建売営業</div>
-                    <div className="bg-warning text-center text-white py-3 px-4 px-md-5 rounded-pill pointer my-2" style={{ fontWeight: '700', letterSpacing: '1px' }}
+                    <div className="bg-warning text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill pointer my-2" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
                         onClick={() => goToDashboard('used')}>中古住宅</div>
                 </div>
                 <div style={{ width: '90%', maxWidth: '568px', margin: '30px auto 0', height: '180px', overflowY: 'scroll' }}>

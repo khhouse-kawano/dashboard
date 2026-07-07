@@ -199,6 +199,28 @@ a img:hover {
     z-index: 20;
 }
 
+@media screen and (max-width: 768px) {
+
+    .sticky-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+    }
+
+    .sticky-header.next_top {
+        position: sticky;
+        top: 30px;
+        z-index: 20;
+    }
+
+    .sticky-header.third_top {
+        position: sticky;
+        top: 60px;
+        z-index: 20;
+    }
+
+}
+
 .sticky-header.calenderList {
     position: sticky;
     top: 200px;
@@ -284,8 +306,9 @@ a img:hover {
 }
 
 .inquiry_table.spec {
-    width: 1600px !important;
+    width: 2600px !important;
     font-size: .875rem;
+    overflow-x: scroll;
 }
 
 .budget_table {
@@ -1248,6 +1271,15 @@ th {
     cursor: pointer;
 }
 
+@media screen and (max-width:768px) {
+    .company_contract {
+        font-size: 10px;
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+}
+
 .company_input {
     border: 1px solid #ffffff;
     width: 40px;
@@ -1264,16 +1296,6 @@ th {
     text-align: center;
     /* background-color: #dfdfdf; */
     border-radius: 5px;
-}
-
-.company-table {
-    transform: translateY(60px);
-}
-
-.company-table td {
-    min-width: 70px !important;
-    width: 70px !important;
-    max-width: 70px !important;
 }
 
 td.table-none-border {
@@ -1741,5 +1763,5 @@ td.sticky-column.budget {
 /* Chrome、Safari、Edge 用：スピンボタンの不透明度を常に1（100%）にする */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
-  opacity: 1 !important;
+    opacity: 1 !important;
 }

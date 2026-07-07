@@ -41,7 +41,9 @@ const MetaAdsDashboard = () => {
         const fetchData = async () => {
             try {
                 const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "meta_ads" }, { headers });
-                const formattedAds = response.data.ads.map((ad: any) => ({
+                const formattedAds = response.data.ads.
+                sort((a, b) => new Date(b.scraped_date).getTime() - new Date(a.scraped_date).getTime())
+                .map((ad: any) => ({
                     ...ad,
                     bookmark: Number(ad.bookmark) === 1 ? 1 : 0
                 }));
@@ -51,10 +53,9 @@ const MetaAdsDashboard = () => {
                 const companyArray: string[] = formattedAds.map((a: AdData) => a.advertiser_name);
                 setCompanyList([...new Set(companyArray)]);
 
-                // 💡 3. DBから取得したデータから重複しない「エリア一覧」を抽出
                 const areas: string[] = formattedAds
                     .map((a: AdData) => a.advertiser_area)
-                    .filter((area: string) => area && area !== "不明"); // 空白や不明を除外
+                    .filter((area: string) => area && area !== "不明");
                 setAreaList([...new Set(areas)]);
 
             } catch (err) {
@@ -64,7 +65,6 @@ const MetaAdsDashboard = () => {
         fetchData();
     }, []);
 
-    // 💡 エリア変更時もページを1に戻すように依存配列に追加
     useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery, viewMode, showOnlyBookmarked, selectedArea]);
@@ -87,7 +87,6 @@ const MetaAdsDashboard = () => {
         }
     };
 
-    // 💡 4. エリアでの絞り込み処理を追加
     const filteredAds = ads.filter(ad => {
         const matchSearch = ad.advertiser_name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchBookmark = showOnlyBookmarked ? ad.bookmark === 1 : true;
