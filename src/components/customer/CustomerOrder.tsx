@@ -1,0 +1,384 @@
+import React, { useEffect, useMemo, useState, useContext } from 'react';
+import Table from "react-bootstrap/Table";
+import axios from "axios";
+import '../chartConfig';
+import AuthContext from '../../context/AuthContext';
+import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
+import Tooltip from 'react-bootstrap/Tooltip';
+import { getYearMonthArray } from '../../utils/getYearMonthArray';
+import Category from '../Category';
+
+type Customer = Record<string, string>;
+type Budget = { id: number; medium: string; budget_period: string; shop: string; budget_value: number; note: string; company: string; response_medium: number; category: string; section: string; order_section: string }
+type Shop = { id: number; brand: string; shop: string; section: string; area: string; }
+type Medium = { id: number; medium: string }
+type Section = { no: number, name: string }
+
+const CustomerOrder = () => {
+    const { category } = useContext(AuthContext);
+    const [monthArray, setMonthArray] = useState<string[]>([]);
+    const [shopArray, setShopArray] = useState<Shop[]>([]);
+    const [mediumArray, setMediumArray] = useState<Medium[]>([]);
+    const [originalList, setOriginalList] = useState<Customer[]>([]);
+    const [originalBudgetList, setOriginalBudgetList] = useState<Budget[]>([]);
+    const [startMonth, setStartMonth] = useState<string>('');
+    const [endMonth, setEndMonth] = useState<string>('');
+    const [selectedShop, setSelectedShop] = useState<string>('');
+    const [selectedSection, setSelectedSection] = useState<string>('');
+    const [selectedArea, setSelectedArea] = useState<string>('');
+    const [sortKey, setSortKey] = useState<string>('');
+    const [sortOrder, setSortOrder] = useState<string>('');
+    const [sectionList, setSectionList] = useState<Section[]>([]);
+
+    useEffect(() => {
+        setMonthArray(getYearMonthArray(2025, 1));
+
+        const fetchData = async () => {
+            try {
+                const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "customer", category }, { headers });
+                await setOriginalList(response.data.customer);
+                await setShopArray(response.data.shop.filter(s => !s.shop.includes('未設定') && !s.shop.includes('全店舗')));
+                await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
+                await setOriginalBudgetList(response.data.budget);
+                await setSectionList(response.data.section);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        };
+        fetchData();
+    }, []);
+
+    const filteredCustomers = useMemo(() => {
+        if (!originalList.length) return [];
+        const areaValue = shopArray.find(item => item.area === selectedArea);
+
+        let startDate: Date | undefined;
+        if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
+
+        let endDate: Date | undefined;
+        if (endMonth !== '') {
+            const [year, month] = endMonth.split('/').map(Number);
+            endDate = new Date(year, month, 0);
+        }
+
+        return originalList.filter(item => {
+            const targetDate = new Date(item.register.replace(/\//g, '-'));
+            const sectionShops = shopArray.filter(s => s.section === selectedSection).map(s => s.shop);
+            return (
+                (!startDate || targetDate >= startDate) &&
+                (!endDate || targetDate <= endDate) &&
+                (!selectedShop || item.shop?.includes(selectedShop)) &&
+                (!selectedSection || sectionShops.includes(item.shop)) &&
+                (!selectedArea || item.shop === areaValue?.shop)
+            );
+        });
+    }, [originalList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
+
+    const filteredBudgets = useMemo(() => {
+        if (!originalBudgetList.length) return [];
+        const areaValue = shopArray.find(item => item.area === selectedArea);
+
+        let startDate: Date | undefined;
+        if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
+
+        let endDate: Date | undefined;
+        if (endMonth !== '') {
+            const [year, month] = endMonth.split('/').map(Number);
+            endDate = new Date(year, month, 0);
+        }
+
+        return originalBudgetList.filter(item => {
+            const targetDate = new Date(item.budget_period);
+            return (
+                (!startDate || targetDate >= startDate) &&
+                (!endDate || targetDate <= endDate) &&
+                (!selectedShop || item.shop.includes(selectedShop)) &&
+                (!selectedSection || item.order_section.includes(selectedSection)) &&
+                (!selectedArea || item.shop === areaValue?.shop)
+            );
+        });
+    }, [originalBudgetList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
+
+    const aggregated = useMemo(() => {
+        return [...mediumArray, { id: 0, medium: '総反響' }].map(value => {
+            const base = filteredCustomers.filter(
+                c => value.medium === '総反響' || c.medium === value.medium
+            );
+
+            const totalValue = base.length;
+            const reserveValue = base.filter(item =>
+                item.interview || item.appointment || item.screening || item.contract
+            ).length;
+            const contractValue = base.filter(
+                item => item.contract && (item.status === '契約済み' || item.status === '解約')
+            ).length;
+
+            const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
+            const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
+            const rankSValue = base.filter(item => item.rank === 'Sランク' && item.status === '見込み').length;
+            const rankAValue = base.filter(item => item.rank === 'Aランク' && item.status === '見込み').length;
+            const rankBValue = base.filter(item => item.rank === 'Bランク' && item.status === '見込み').length;
+            const rankCValue = base.filter(item => item.rank === 'Cランク' && item.status === '見込み').length;
+            const rankDValue = base.filter(item => item.rank === 'Dランク' && item.status === '見込み').length;
+
+            const totalBudget = filteredBudgets
+                .filter(item => value.medium === '総反響' || item.medium === value.medium)
+                .reduce((acc, cur) => acc + cur.budget_value, 0);
+
+            return {
+                value,
+                totalValue,
+                reserveValue,
+                contractValue,
+                perReserve,
+                perContract,
+                rankSValue,
+                rankAValue,
+                rankBValue,
+                rankCValue,
+                rankDValue,
+                totalBudget,
+            };
+        });
+    }, [mediumArray, filteredCustomers, filteredBudgets]);
+
+
+    const sorted = useMemo(() => {
+        const arr = [...aggregated];
+        arr.sort((a, b) => {
+            const getKey = (x) => {
+                switch (sortKey) {
+                    case 'total': default: return x.totalValue;
+                    case 'perReserve': return x.perReserve;
+                    case 'reserve': return x.reserveValue;
+                    case 'perContract': return x.perContract;
+                    case 'contract': return x.contractValue;
+                    case 'S': return x.rankSValue;
+                    case 'A': return x.rankAValue;
+                    case 'B': return x.rankBValue;
+                    case 'C': return x.rankCValue;
+                    case 'D': return x.rankDValue;
+                    case 'E': return x.rankEValue;
+                    case 'totalBudget': return x.totalBudget;
+                    case 'registerBudget':
+                        return isFinite(x.totalBudget / x.totalValue) ? Math.round(x.totalBudget / x.totalValue) : 0;
+                    case 'reserveBudget':
+                        return isFinite(x.totalBudget / x.reserveValue) ? Math.round(x.totalBudget / x.reserveValue) : 0;
+                    case 'contractBudget':
+                        return isFinite(x.totalBudget / x.contractValue) ? Math.round(x.totalBudget / x.contractValue) : 0;
+                }
+            };
+            const aVal = getKey(a);
+            const bVal = getKey(b);
+            return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+        return arr;
+    }, [aggregated, sortKey, sortOrder]);
+
+
+
+    const handleSort = async (start: string, end: string, shop: string, section: string, area: string) => {
+        await setStartMonth(start);
+        await setEndMonth(end);
+        await setSelectedShop(shop);
+        await setSelectedSection(section);
+        await setSelectedArea(area);
+    };
+
+    const changeSort = (order: string, key: string) => {
+        setSortKey(key);
+        setSortOrder(order)
+    };
+
+    const arrowStyle = { position: 'absolute' as const, right: '4px', cursor: 'pointer' as const, fontSize: '10px' };
+
+    return (
+        <>
+            <div className='content customer bg-white p-2'>
+                <div style={{ fontSize: '13px' }}>※来場数・契約数は"反響日"起算となります。</div>
+                <div className="d-flex flex-wrap mb-3">
+                    <div className="m-1">
+                        <select className="target" onChange={(event) => handleSort(event.target.value, endMonth, selectedShop, selectedSection, selectedArea)}>
+                            <option value="" selected>開始月</option>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <span className='d-flex align-items-center mx-1'>～</span>
+                    <div className="m-1">
+                        <select className="target" onChange={(event) => handleSort(startMonth, event.target.value, selectedShop, selectedSection, selectedArea)}>
+                            <option value="" selected>終了月</option>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="m-1">
+                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, event.target.value, '', '')}>
+                            <option value="">グループ全体</option>
+                            {shopArray.map((item, index) => (
+                                <option key={index} value={item.shop} selected={item.shop === selectedShop}>{item.shop}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="m-1">
+                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, '', event.target.value, '')}>
+                            <option value="" selected={selectedSection === ''}>注文営業全体</option>
+                            {sectionList.map((section, index) =>
+                                <option value={section.name} key={index}>{section.name}</option>
+                            )}
+                        </select>
+                    </div>
+                    <div className="m-1">
+                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, '', '', event.target.value)}>
+                            <option value="" selected={selectedArea === ''}>全エリア</option>
+                            <option value="鹿児島県" selected={selectedArea === '鹿児島県'}>鹿児島県</option>
+                            <option value="宮崎県" selected={selectedArea === '宮崎県'}>宮崎県</option>
+                            <option value="大分県" selected={selectedArea === '大分県'}>大分県</option>
+                            <option value="熊本県" selected={selectedArea === '熊本県'}>熊本県</option>
+                            <option value="佐賀県" selected={selectedArea === '佐賀県'}>佐賀県</option>
+                        </select>
+                    </div>
+                </div>
+                <div className="table-wrapper mt-3">
+                    <div className="list_table">
+                        <Table striped style={{ fontSize: '12px' }} bordered>
+                            <tbody>
+                                <tr className='sticky-header'>
+                                    <td className='sticky-column budget' style={{ position: 'relative', textAlign: 'center' }}>販促媒体名</td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>
+                                        <OverlayTrigger
+                                            placement="top"
+                                            overlay={
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の総反響数</Tooltip>
+                                            }>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>総反響</span>
+                                        </OverlayTrigger>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'total')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'total')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>
+                                        <OverlayTrigger
+                                            placement="top"
+                                            overlay={
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>来場者数/総反響数</Tooltip>
+                                            }>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>来場率</span>
+                                        </OverlayTrigger>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perReserve')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perReserve')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>
+                                        <OverlayTrigger
+                                            placement="top"
+                                            overlay={
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち来場した方の数</Tooltip>
+                                            }>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>来場数</span>
+                                        </OverlayTrigger>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'reserve')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'reserve')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>
+                                        <OverlayTrigger
+                                            placement="top"
+                                            overlay={
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>契約者数/来場者数</Tooltip>
+                                            }>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約率</span>
+                                        </OverlayTrigger>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perContract')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perContract')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>
+                                        <OverlayTrigger
+                                            placement="top"
+                                            overlay={
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち契約した方の数</Tooltip>
+                                            }>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約数</span>
+                                        </OverlayTrigger>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'contract')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'contract')}>▼</span>
+                                    </td>
+                                    {['S', 'A', 'B', 'C'].map(item =>
+                                        <td style={{ position: 'relative', textAlign: 'center' }}>
+                                            <OverlayTrigger
+                                                placement="top"
+                                                overlay={
+                                                    <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち{item}ランクの数</Tooltip>
+                                                }>
+                                                <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>{item}ランク</span>
+                                            </OverlayTrigger>
+                                            <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', item)}>▲</span>
+                                            <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', item)}>▼</span>
+                                        </td>
+                                    )}
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>総予算
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'totalBudget')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'totalBudget')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>反響単価
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'registerBudget')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'registerBudget')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>来場単価
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'reserveBudget')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'reserveBudget')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>契約単価
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'contractBudget')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'contractBudget')}>▼</span>
+                                    </td>
+                                </tr>
+                                {sorted.map((item, index) => {
+                                    const {
+                                        value,
+                                        totalValue,
+                                        reserveValue,
+                                        contractValue,
+                                        perReserve,
+                                        perContract,
+                                        rankSValue,
+                                        rankAValue,
+                                        rankBValue,
+                                        rankCValue,
+                                        rankDValue,
+                                        totalBudget,
+                                    } = item;
+
+                                    return (
+                                        <tr key={value.id ?? `medium-${index}`}>
+                                            <td className='sticky-column' style={{ textAlign: 'center' }}>{value.medium}</td>
+                                            <td style={{ textAlign: 'center' }}>{totalValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{perReserve}%</td>
+                                            <td style={{ textAlign: 'center' }}>{reserveValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{perContract}%</td>
+                                            <td style={{ textAlign: 'center' }}>{contractValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{rankSValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{rankAValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{rankBValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{rankCValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{`¥${totalBudget.toLocaleString()}`}</td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                {isFinite(totalBudget / totalValue) ? `¥${Math.round(totalBudget / totalValue).toLocaleString()}` : '-'}
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                {isFinite(totalBudget / reserveValue) ? `¥${Math.round(totalBudget / reserveValue).toLocaleString()}` : '-'}
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                {isFinite(totalBudget / contractValue) ? `¥${Math.round(totalBudget / contractValue).toLocaleString()}` : '-'}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </Table>
+                    </div>
+                </div>
+            </div>
+        </>
+    )
+}
+
+export default CustomerOrder;

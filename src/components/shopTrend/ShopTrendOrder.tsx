@@ -98,7 +98,7 @@ const ShopTrendOrder = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend' }, { headers });
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend', category }, { headers });
                 await setOriginalCustomerList(response.data.customer);
                 await setOriginalShopArray(response.data.shop.filter(s => !s.shop.includes('全店舗')));
                 await setShopArray(response.data.shop);

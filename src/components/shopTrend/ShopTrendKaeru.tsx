@@ -23,14 +23,13 @@ import { get11MonthsAgoString } from '../../utils/get11MonthsAgoString';
 import { isLastYear } from '../../utils/isLastYear';
 import { ModalBody } from 'react-bootstrap';
 import InformationEditKaeru from '../information/InformationEditKaeru';
-import InterviewLog from '../InterviewLog';
 import { thisYear } from '../../utils/thisYear';
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
-type Customer = { id: string, shop: string, customer: string, staff: string, status: string, contract: string, rank: string, medium: string, interview: string, register: string, reserved_interview: string, appointment: string, screening: string };
+type Customer = Record<string, string>;
 type Medium = { id: number; medium: string, list_medium: number };
 type Staff = { name: string; shop: string; rank: number, section: string };
-type ResponseData = { period: string, register: number, reserve: number, interview: number, appointment: number, cancel: number, contract: number };
+type ResponseData = { period: string, register: number, contact: number, interview: number, tour: number,  contract: number };
 type CheckItem = {
     name: string;
     show: boolean;
@@ -79,9 +78,8 @@ const ShopTrendKaeru = () => {
     const [checked, setChecked] = useState<CheckedState>({
         register: { name: '総反響数', show: true },
         contact: { name: '接触数', show: true },
-        interview: { name: '面談数', show: true },
+        interview: { name: '店舗来場', show: true },
         tour: { name: '物件案内数', show: true },
-        appointment: { name: '店舗来場数', show: true },
         contract: { name: '契約数', show: true },
         budget: { name: '広告費', show: false },
         comparison: { name: '昨年実績', show: false }
@@ -90,7 +88,6 @@ const ShopTrendKaeru = () => {
     const [listShow, setListShow] = useState({ show: false, label: '' });
     const [modalList, setModalList] = useState<Customer[]>([]);
     const [listPage, setListPage] = useState(1);
-    const [interviewId, setInterviewId] = useState('');
 
     const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
     const [editId, setEditId] = useState('');
@@ -98,7 +95,7 @@ const ShopTrendKaeru = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend_kaeru' }, { headers });
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend', category }, { headers });
                 await setOriginalCustomerList(response.data.customer);
                 await setOriginalShopArray(response.data.shop.filter(s => !s.shop.includes('全店舗')));
                 await setShopArray(response.data.shop);
@@ -117,7 +114,6 @@ const ShopTrendKaeru = () => {
 
     useEffect(() => {
         const filtered = originalCustomerList.filter(item => {
-            const brand = item.shop.slice(0, 2);
             const sectionShops = originalShopArray.filter(s => s.section === targetSection).map(s => s.shop);
             return ((targetMedium && targetMedium !== 'all') ? item.medium === targetMedium : true) &&
                 ((targetMedium === 'all' && !Object.values(mediumChecked).every(v => v))
@@ -154,19 +150,20 @@ const ShopTrendKaeru = () => {
             const formattedMedium = mediumArray.filter(m => m.list_medium === 1 && (targetMedium ? m.medium === targetMedium : true)).map(m => m.medium);
             formattedMedium.push('合計');
             const periodSummary = formattedMedium.map(medium => {
-                const totalValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.register).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const interviewValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const cancelValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && !item.interview && formate(item.reserved_interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const reserveValue = cancelValue + interviewValue;
-                const appointmentValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && (item.appointment || item.screening || item.contract) && formate(item.interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const contractValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.contract).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
+                const getSummary = (key: string) => {
+                    return customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item[key]).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
+                }
+                const totalValue = getSummary('register');
+                const contactValue = getSummary('contact');
+                const interviewValue = getSummary('interview');
+                const tourValue = getSummary('tour');
+                const contractValue = getSummary('contract');
                 return {
                     medium: medium,
                     total: totalValue,
+                    contact: contactValue,
                     interview: interviewValue,
-                    cancel: cancelValue,
-                    reserve: reserveValue,
-                    appointment: appointmentValue,
+                    tour: tourValue,
                     contract: contractValue,
                 }
             });
@@ -227,18 +224,16 @@ const ShopTrendKaeru = () => {
                             : c.shop === title;
 
             const registerValue = originalCustomerList.filter(c => formate(c.register).includes(m) && matchTarget(c)).length;
-            const reserveValue = originalCustomerList.filter(c => (c.interview.includes(m) || c.reserved_interview?.replace(/-/g, '/').includes(m)) && matchTarget(c)).length;
+            const contactValue = originalCustomerList.filter(c => formate(c.contact).includes(m) && matchTarget(c)).length;
             const interviewValue = originalCustomerList.filter(c => (formate(c.interview).includes(m) || formate(c.appointment).includes(m) || formate(c.screening).includes(m) || formate(c.contract).includes(m)) && matchTarget(c)).length;
-            const appointmentValue = originalCustomerList.filter(c => (formate(c.appointment).includes(m) || formate(c.screening).includes(m) || formate(c.contract).includes(m)) && matchTarget(c)).length;
-            const cancelValue = originalCustomerList.filter(c => c.reserved_interview?.replace(/-/g, '/').includes(m) && matchTarget(c)).length;
+            const tourValue = originalCustomerList.filter(c => formate(c.tour).includes(m) && matchTarget(c)).length;
             const contractValue = originalCustomerList.filter(c => formate(c.contract).includes(m) && c.status === '契約済み' && matchTarget(c)).length;
             return {
                 period: m,
                 register: registerValue,
-                reserve: reserveValue,
+                contact: contactValue,
                 interview: interviewValue,
-                appointment: appointmentValue,
-                cancel: cancelValue,
+                tour: tourValue,
                 contract: contractValue
             }
         });
@@ -463,22 +458,20 @@ const ShopTrendKaeru = () => {
                                                     const total = getValue(base, monthIndex, month, 'register');
                                                     const interview = getValue(base, monthIndex, month, 'interview');
                                                     const tour = getValue(base, monthIndex, month, 'tour');
-                                                    const combined = [...interview, ...tour];
-                                                    const contactMap = new Map(combined.map(item => [item.id, item]));
-                                                    const contact = Array.from(contactMap.values());
+                                                    const contact = getValue(base, monthIndex, month, 'contact');
                                                     const contract = getValue(base, monthIndex, month, 'contract');
                                                     return (
                                                         <td style={{ fontSize: '10px' }}>
                                                             <div className={checked.register.show ? "text-white p-2 rounded" : 'text-white rounded'} style={{ backgroundColor: '#6baed6' }}>
                                                                 {checked.register.show && <div onClick={() => total.length ? handleShow(total, '総反響') : null}>総反響:<span style={clickable(total.length)}>{total.length.toLocaleString()}</span>
                                                                 </div>}
-                                                                <div className={checked.interview.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#4292c6' }}>
-                                                                    {checked.interview.show && <div>接触:<span style={clickable(contact.length)} onClick={() => contact.length ? handleShow(contact, '接触者') : null}>{contact.length.toLocaleString()}</span>({isNaN(contact.length / total.length) ? 0 : Math.floor(contact.length / total.length * 100)}%)
+                                                                <div className={checked.contact.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#4292c6' }}>
+                                                                    {checked.contact.show && <div>接触:<span style={clickable(contact.length)} onClick={() => contact.length ? handleShow(contact, '接触者') : null}>{contact.length.toLocaleString()}</span>({isNaN(contact.length / total.length) ? 0 : Math.floor(contact.length / total.length * 100)}%)
                                                                     </div>}
-                                                                    <div className={checked.appointment.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
-                                                                        {checked.appointment.show && <div className='my-1'>店舗来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '店舗来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / contact.length) ? 0 : Math.floor(interview.length / contact.length * 100)}%)
+                                                                    <div className={(checked.interview.show || checked.tour.show) ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
+                                                                        {checked.interview.show && <div className='my-1'>店舗来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '店舗来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / contact.length) ? 0 : Math.floor(interview.length / contact.length * 100)}%)
                                                                         </div>}
-                                                                        {checked.appointment.show && <div className='my-1'>物件案内:<span style={clickable(tour.length)} onClick={() => tour.length ? handleShow(tour, '店舗来場者') : null}>{tour.length.toLocaleString()}</span>({isNaN(tour.length / contact.length) ? 0 : Math.floor(tour.length / contact.length * 100)}%)
+                                                                        {checked.tour.show && <div className='my-1'>物件案内:<span style={clickable(tour.length)} onClick={() => tour.length ? handleShow(tour, '店舗来場者') : null}>{tour.length.toLocaleString()}</span>({isNaN(tour.length / contact.length) ? 0 : Math.floor(tour.length / contact.length * 100)}%)
                                                                         </div>}
                                                                         <div className={checked.contract.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
                                                                             {checked.contract.show && <div>契約:<span style={clickable(contract.length)} onClick={() => contract.length ? handleShow(contract, '契約者') : null}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
@@ -533,9 +526,8 @@ const ShopTrendKaeru = () => {
                                                         const total = getValue(base, monthIndex, month, 'register');
                                                         const interview = getValue(base, monthIndex, month, 'interview');
                                                         const tour = getValue(base, monthIndex, month, 'tour');
-                                                        const combined = [...interview, ...tour];
-                                                        const contactMap = new Map(combined.map(item => [item.id, item]));
-                                                        const contact = Array.from(contactMap.values()); const contract = getValue(base, monthIndex, month, 'contract');
+                                                        const contact = getValue(base, monthIndex, month, 'contact');
+                                                        const contract = getValue(base, monthIndex, month, 'contract');
                                                         const lastYear = `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`
                                                         const lastYearMonthArray = monthArray.map(month => `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`);
                                                         let lastYearValue;
@@ -558,13 +550,13 @@ const ShopTrendKaeru = () => {
                                                                 <div className={checked.register.show ? "text-white p-2 rounded" : 'text-white rounded'} style={{ backgroundColor: '#6baed6' }}>
                                                                     {checked.register.show && <div onClick={() => total.length ? handleShow(total, '総反響') : null}>総反響:<span style={clickable(total.length)}>{total.length.toLocaleString()}</span>
                                                                         {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.total.toLocaleString()}</span>}</div>}
-                                                                    <div className={checked.interview.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#2171b5' }}>
-                                                                        {checked.interview.show && <div>接触:<span style={clickable(contact.length)} onClick={() => contact.length ? handleShow(contact, '接触者') : null}>{contact.length.toLocaleString()}</span>({isNaN(contact.length / total.length) ? 0 : Math.floor(contact.length / total.length * 100)}%)
+                                                                    <div className={checked.contact.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#2171b5' }}>
+                                                                        {checked.contact.show && <div>接触:<span style={clickable(contact.length)} onClick={() => contact.length ? handleShow(contact, '接触者') : null}>{contact.length.toLocaleString()}</span>({isNaN(contact.length / total.length) ? 0 : Math.floor(contact.length / total.length * 100)}%)
                                                                             {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.interview.toLocaleString()}</span>}</div>}
-                                                                        <div className={checked.appointment.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
-                                                                            {checked.appointment.show && <div>店舗来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '店舗来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / contact.length) ? 0 : Math.floor(interview.length / contact.length * 100)}%)
+                                                                        <div className={(checked.interview.show || checked.tour.show) ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
+                                                                            {checked.interview.show && <div>店舗来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '店舗来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / contact.length) ? 0 : Math.floor(interview.length / contact.length * 100)}%)
                                                                                 {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.interview.toLocaleString()}</span>}</div>}
-                                                                            {checked.appointment.show && <div className='my-1'>物件案内:<span style={clickable(tour.length)} onClick={() => tour.length ? handleShow(tour, '店舗来場者') : null}>{tour.length.toLocaleString()}</span>({isNaN(tour.length / contact.length) ? 0 : Math.floor(tour.length / contact.length * 100)}%)
+                                                                            {checked.tour.show && <div className='my-1'>物件案内:<span style={clickable(tour.length)} onClick={() => tour.length ? handleShow(tour, '店舗来場者') : null}>{tour.length.toLocaleString()}</span>({isNaN(tour.length / contact.length) ? 0 : Math.floor(tour.length / contact.length * 100)}%)
                                                                             </div>}
                                                                             <div className={checked.contract.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
                                                                                 {checked.contract.show && <div>契約:<span style={clickable(contract.length)} onClick={() => contract.length ? handleShow(contract, '契約者') : null}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / contact.length) ? 0 : Math.floor(contract.length / contact.length * 100)}%)
@@ -672,7 +664,7 @@ const ShopTrendKaeru = () => {
                                         }}
                                         content={({ payload }) => (
                                             <div className='d-flex justify-content-center mt-3'>
-                                                {["register", "reserve", "interview", "appointment", "contract", "cancel"].map(key => {
+                                                {["register", "contact", "interview", "tour", "contract"].map(key => {
                                                     const entry = payload?.find(p => p.dataKey === key);
                                                     return (
                                                         <div className='m-1 px-2 py-1 rounded' key={key} style={{ backgroundColor: entry?.color, color: '#fff' }}>
@@ -684,8 +676,9 @@ const ShopTrendKaeru = () => {
                                         )}
                                     />
                                     <Line type="monotone" dataKey="contract" stroke="#4b0082" strokeWidth={3} name="契約" />
-                                    <Line type="monotone" dataKey="appointment" stroke="#198754" name="店舗来場" />
-                                    <Line type="monotone" dataKey="interview" stroke="#0d6efd" name="接触" />
+                                    <Line type="monotone" dataKey="tour" stroke="#198754" name="物件案内" />
+                                    <Line type="monotone" dataKey="interview" stroke="#0d6efd" name="店舗来場" />
+                                    <Line type="monotone" dataKey="contact" stroke="#b1980b" name="接触" />
                                     <Line type="monotone" dataKey="register" stroke="#dc3545" name="総反響" />
                                 </LineChart>
                             </ResponsiveContainer>
@@ -699,8 +692,8 @@ const ShopTrendKaeru = () => {
                                             <td>{month}</td>
                                         )}
                                     </tr>
-                                    {['総反響', '接触', '店舗来場', '契約'].map((label, labelIndex) => {
-                                        const keyMap = ['register', 'reserve', 'interview', 'appointment', 'contract', 'cancel'];
+                                    {['総反響', '接触', '店舗来場', '物件案内', '契約'].map((label, labelIndex) => {
+                                        const keyMap = ['register', 'contact', 'interview', 'tour', 'contract'];
                                         return <tr>
                                             {labelIndex === 0 && <td rowSpan={6} className='align-middle text-center'>{modalTitle}</td>}
                                             <td>{label}</td>
@@ -761,7 +754,6 @@ const ShopTrendKaeru = () => {
                     </div>
                 </ModalBody>
             </Modal>
-            <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
             <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} brand={brand} />
         </>
     )

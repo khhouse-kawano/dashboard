@@ -454,7 +454,7 @@ const Company = () => {
                                 onChange={() => setShowCancel(!showCancel)} />キャンセル数を表示</label>
                         </div>
                     </div>}
-                <div style={{ transform: isSp ? '' : 'translateY(80px)' }}>
+                <div style={{ transform: isSp ? '' : 'translateY(60.5px)' }}>
                     <Table bordered style={tableStyle} >
                         <tbody className='align-middle'>
                             {/* 以下グループ */}

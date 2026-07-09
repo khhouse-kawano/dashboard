@@ -26,7 +26,7 @@ const isTruthy = (val: string | undefined | null) => {
 };
 
 const getPhase = (item: CustomerItem): PhaseType => {
-    if (item.status === '契約済み') return "contract";
+    if (item.status === '契約済み' || item.status === '解約') return "contract";
     if (isTruthy(item.tour) || isTruthy(item.interview) || isTruthy(item.contract)) return "interview";
     return "lead";
 };

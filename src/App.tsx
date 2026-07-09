@@ -3,14 +3,13 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import Calendar from "./components/Calendar";
 import Category from "./components/Category";
-import Shop from "./components/Shop";
-import CustomerTrend from "./components/CustomerTrend";
+import ShopRouter from './components/shop/ShopRouter';
 import BudgetAccounting from "./components/BudgetAccounting";
 import DatabaseRouter from "./components/database/DatabaseRouter";
 import DatabaseProperty from "./components/database/DatabaseProperty";
 import RankRouter from "./components/rank/RankRouter";
 import AuthProvider from "./context/AuthProvider";
-import Customer from "./components/Customers";
+import Customer from "./components/customer/CustomerRouter";
 import { ShopTrendRouter } from "./components/shopTrend/ShopTrendRouter";
 import CampaignHome from "./components/CampaignHome";
 import Company from "./components/Company";
@@ -25,7 +24,6 @@ import Hab from "./components/Hab";
 import BudgetKaeru from "./components/BudgetKaeru";
 import CustomerKaeru from "./components/CustomerKaeru";
 import CustomerResale from "./components/CustomerResale";
-import CustomerTrendResale from "./components/CustomerTrendResale";
 import Market from "./components/Market";
 import ResalePerformance from "./components/ResalePerformance";
 import PortalBuy from "./components/PortalBuy";
@@ -127,7 +125,7 @@ function AppInner() {
             <Route path="/login" element={<Login />} />
             <Route path="/company" element={<Company />} />
             <Route path="/customer" element={<Customer />} />
-            <Route path="/shop" element={<Shop />} />
+            <Route path="/shop" element={<ShopRouter />} />
             <Route path="/shopTrend" element={<ShopTrendRouter />} />
             <Route path="/customerTrend" element={<CustomerTrendRouter />} />
             <Route path="/list" element={<ListRouter onReload={reload} />} />
@@ -142,7 +140,6 @@ function AppInner() {
             <Route path="/specBudget" element={<BudgetKaeru />} />
             <Route path="/specCustomer" element={<CustomerKaeru />} />
             <Route path="/customerResale" element={<CustomerResale />} />
-            <Route path="/customerTrendResale" element={<CustomerTrendResale />} />
             <Route path="/market" element={<Market />} />
             <Route path="/resale_performance" element={<ResalePerformance />} />
             <Route path="/portal_buy" element={<PortalBuy />} />

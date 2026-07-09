@@ -51,7 +51,7 @@ type InterviewLog = {
     add: boolean
 };
 const ShopTrendResale = () => {
-    const { brand } = useContext(AuthContext);
+    const { brand, category } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<Shop[]>([]);
     const [originalShopArray, setOriginalShopArray] = useState<Shop[]>([{
         shop: '買い:中古リノベ', section: '中古住宅専門店'
@@ -101,7 +101,7 @@ const ShopTrendResale = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend_resale' }, { headers });
+                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend', category }, { headers });
                 await setOriginalCustomerList(response.data.customer);
                 await setShopArray(response.data.shop);
                 await setMediumArray(response.data.medium);
@@ -445,7 +445,7 @@ const ShopTrendResale = () => {
                                             <tr>
                                                 <td className='align-middle  sticky-column text-center'>{item.name}</td>
                                                 {['全期間', ...monthArray].map((month, monthIndex) => {
-                                                    const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name && c.shop === targetShop: c.shop === targetShop));
+                                                    const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name && c.shop === targetShop : c.shop === targetShop));
                                                     const total = getValue(base, monthIndex, month, 'register');
                                                     const interview = getValue(base, monthIndex, month, 'interview');
                                                     const contract = getValue(base, monthIndex, month, 'contract');
@@ -457,18 +457,18 @@ const ShopTrendResale = () => {
                                                             <div className={checked.register.show ? "text-white p-2 rounded" : 'text-white rounded'} style={{ backgroundColor: '#6baed6', textAlign: 'center' }}>
                                                                 {checked.register.show && <div onClick={() => total.length ? handleShow(total, '総反響') : null}>総反響:<span style={clickable(total.length)}>{total.length.toLocaleString()}</span>
                                                                 </div>}
-                                                                    <div className={checked.interview.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#2171b5' }}>
-                                                                        {checked.interview.show && <div>実来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '実来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / reserve.length) ? 0 : Math.floor(interview.length / reserve.length * 100)}%)
+                                                                <div className={checked.interview.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#2171b5' }}>
+                                                                    {checked.interview.show && <div>実来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '実来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / reserve.length) ? 0 : Math.floor(interview.length / reserve.length * 100)}%)
+                                                                    </div>}
+                                                                    <div className={checked.appointment.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
+                                                                        {checked.appointment.show && <div>次アポ:<span style={clickable(appointment.length)} onClick={() => appointment.length ? handleShow(appointment, '次アポ者') : null}>{appointment.length.toLocaleString()}</span>({isNaN(appointment.length / interview.length) ? 0 : Math.floor(appointment.length / interview.length * 100)}%)
                                                                         </div>}
-                                                                        <div className={checked.appointment.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
-                                                                            {checked.appointment.show && <div>次アポ:<span style={clickable(appointment.length)} onClick={() => appointment.length ? handleShow(appointment, '次アポ者') : null}>{appointment.length.toLocaleString()}</span>({isNaN(appointment.length / interview.length) ? 0 : Math.floor(appointment.length / interview.length * 100)}%)
-                                                                            </div>}
-                                                                        </div>
-                                                                        <div className={checked.contract.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
-                                                                            {checked.contract.show && <div>契約:<span style={clickable(contract.length)} onClick={() => contract.length ? handleShow(contract, '契約者') : null}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
-                                                                            </div>}
-                                                                        </div>
                                                                     </div>
+                                                                    <div className={checked.contract.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
+                                                                        {checked.contract.show && <div>契約:<span style={clickable(contract.length)} onClick={() => contract.length ? handleShow(contract, '契約者') : null}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
+                                                                        </div>}
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </td>
                                                     )

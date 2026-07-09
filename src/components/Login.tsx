@@ -96,7 +96,6 @@ const Login = () => {
                 error: "認証がキャンセルされたか、エラーが発生しました",
               }));
             }}
-            ux_mode="redirect"
             useOneTap
           />
         </div>

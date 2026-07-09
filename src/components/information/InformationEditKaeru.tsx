@@ -96,6 +96,7 @@ const actionMap = {
     '物件案内': 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
     '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
     '次回アクション': 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
+    '事前取得（現金確認含む）': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
     'ローン事前承認済み': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
     '申し込み': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
     '契約': 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useContext, useMemo, useRef, useDeferredValue } from 'react';
 import Table from "react-bootstrap/Table";
 import axios from "axios";
 import AuthContext from '../../context/AuthContext';
@@ -12,7 +12,6 @@ import InformationEdit from '../information/InformationEdit';
 import { useIsSp } from '../../utils/isSp';
 
 type shopList = { brand: string, shop: string, section: string };
-type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string };
 type CustomerList = Record<string, string>;
 type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number, list_medium: number }
 type CallAction = {
@@ -42,7 +41,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const { brand } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<shopList[]>([]);
     const [mediumArray, setMediumArray] = useState<string[]>([]);
-    const [staffArray, setStaffArray] = useState<staffList[]>([]);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [originalDatabase, setOriginalDatabase] = useState<CustomerList[]>([]);
     const [selectedShop, setSelectedShop] = useState<string>('')
@@ -52,7 +50,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const [selectedMedium, setSelectedMedium] = useState<string>('')
     const [selectedIntroductory, setSelectedIntroductory] = useState<string>('')
     const [selectedStatus, setSelectedStatus] = useState<string>('')
-    const [searchedName, setSearchedName] = useState<string>('')
+    const [searchedName, setSearchedName] = useState<string>('');
     const [searchedStaff, setSearchedStaff] = useState<string>('');
     const [searchedPhone, setSearchedPhone] = useState<string>('')
     const [searchedAddress, setSearchedAddress] = useState<string>('')
@@ -77,6 +75,10 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [loseListShow, setLoseListShow] = useState(false);
 
+    const deferredSearchedName = useDeferredValue(searchedName);
+    const deferredSearchedStaff= useDeferredValue(searchedStaff);
+
+
     const isSp = useIsSp();
 
     const now = new Date();
@@ -97,17 +99,16 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
             try {
                 const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database' }, { headers });
 
-                // 1. 激重だった住所の空白削除を、最初の1回だけ実行して裏データとして持たせる
                 const customers = response.data.customer.map((c: any) => ({
                     ...c,
-                    search_address: (c.full_address ?? '').replace(/[\s ]+/g, "")
+                    search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
+                    _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '') // ★あらかじめスペースを消しておく
                 }));
                 setOriginalDatabase(customers);
 
                 setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
                 setMediumArray(response.data.medium.filter((item: MediumType) => item.list_medium === 1).map((item: MediumType) => item.medium));
                 setDisplayLength(customers.length);
-                setStaffArray(response.data.staff.filter((s: staffList) => s.period === String(thisYear)));
 
                 const familyId = response.data.family.map((f: any) => f.id);
                 setFamilyList(familyId);
@@ -162,10 +163,12 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
 
     const filteredDatabase = useMemo(() => {
-        const sName = searchedName ?? '';
+        const sName = deferredSearchedName ?? '';
         const formattedName = sName.includes('&') ? sName.split('&')[0] : sName.includes('+') ? sName.split('+')[0] : sName;
         const formattedNumber = sName.includes('&') ? sName.split('&')[1] : searchedPhone ?? '';
         const formattedAddress = sName.includes('+') ? sName.split('+')[1] : '';
+
+        const cleanFormattedName = formattedName.replace(/[\s\u3000]+/g, '');
 
         const result = originalDatabase.filter(item => {
             return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
@@ -179,9 +182,10 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                 && (selectedMedium === 'SUUMO(ポータル反響)' ? (item.medium === 'SUUMO' && !item.reserved_interview) : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
                 && (selectedIntroductory ? arrIncludes(item.introduction_person_category, selectedIntroductory) : true)
                 && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
-                && (searchedName ? strIncludes(item.customer, formattedName) : true)
-                && (searchedStaff ? strIncludes(item.staff, searchedStaff.split(' ')[0]) : true)
-                && ((searchedPhone || searchedName) ? strIncludes(item.phone_number, formattedNumber) : true)
+                && (deferredSearchedName ? strIncludes(item._cleanCustomer, cleanFormattedName) : true)
+
+                && (deferredSearchedStaff ? strIncludes(item.staff, deferredSearchedStaff.split(' ')[0]) : true)
+                && ((searchedPhone || deferredSearchedName) ? strIncludes(item.phone_number, formattedNumber) : true)
                 && (formattedAddress ? strIncludes(item.full_address, formattedAddress) : true)
                 && (searchedAddress ? strIncludes(item.search_address, searchedAddress) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
@@ -197,8 +201,8 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         });
     }, [
         originalDatabase, selectedShop, selectedRegister, selectedReserve,
-        selectedRank, selectedMedium, selectedStatus, searchedName,
-        searchedStaff, searchedAddress, callStatus, searchedPhone,
+        selectedRank, selectedMedium, selectedStatus, deferredSearchedName,
+        deferredSearchedStaff, searchedAddress, callStatus, searchedPhone,
         selectedIntroductory, trash, familyList, familyStatus,
         snapStatus, searchedEvent
     ]);
@@ -218,8 +222,8 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         selectedRank,
         selectedMedium,
         selectedStatus,
-        searchedName,
-        searchedStaff,
+        deferredSearchedName,
+        deferredSearchedStaff,
         searchedAddress,
         callStatus,
         searchedPhone,

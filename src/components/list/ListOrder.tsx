@@ -543,10 +543,10 @@ const ListOrder = ({ onReload }: Props) => {
                                 )}
                             </tbody>
                         </Table>}
-                    <Table striped bordered hover style={{ width: isSp ? '1200px' : '1500px', fontSize: isSp ? "8px" : "12px" }}>
+                    <Table striped bordered hover style={{ width: isSp ? '1200px' : '1800px', fontSize: isSp ? "8px" : "12px" }}>
                         <thead className='sticky-header'>
                             <tr className='sticky-header'>
-                                <td style={{ width: '50px', textAlign: 'center' }}>顧客取込</td>
+                                <td style={{ width: '50px', textAlign: 'center' }} className={`${isSp ? '' : 'sticky-column'}`}>顧客取込</td>
                                 <td style={{ width: '60px', textAlign: 'center' }}>事前アンケート</td>
                                 <td style={{ width: '80px', textAlign: 'center' }}>店舗名</td>
                                 <td style={{ width: '80px', textAlign: 'center' }}>担当営業</td>
@@ -566,7 +566,7 @@ const ListOrder = ({ onReload }: Props) => {
                                 return (
                                     <tr key={index} style={{ textAlign: 'left' }}
                                         className={isBlack(item.mail, item.mobile, item.black_list) ? 'table-danger align-middle' : notNeedSync(item) ? 'table-primary align-middle' : 'align-middle'}>
-                                        <td style={{ textAlign: 'center' }}>
+                                        <td style={{ textAlign: 'center' }} className={`${isSp ? '' : 'sticky-column'}`}>
                                             <>{isDup(item) ? <i className="fa-solid fa-xmark"></i> :
                                                 item.sync === 1 ? <span style={{ textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
                                                     onClick={() => item.pg_id.length === 26 ? setEditId(item.pg_id) : null}><i className="fa-solid fa-up-right-from-square"></i></span> :
