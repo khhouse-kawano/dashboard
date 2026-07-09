@@ -376,18 +376,35 @@ const CustomerTrendOrder: React.FC = () => {
                                             </td>
                                         ))}
                                     </tr>
-                                    {['全販促媒体', 'ホームページ反響計', ...mediumArray]
+                                    {['全販促媒体', 'ホームページ反響計', ...mediumArray, 'その他']
                                         .map((medium, mediumIndex) => {
                                             const sectionShops = originalShopArray.filter(o => o.section === targetSection).map(o => o.shop);
-                                            const base = userData.filter(o =>
-                                                mediumIndex === 0 ? true :
-                                                    mediumIndex === 1 ? o.hp_campaign : formate(o.medium) === formate(medium));
-                                            const baseBudget = budgetList.filter(b =>
-                                                b.section === 'order'
-                                                && (mediumIndex === 0 ? true : formate(b.medium) === formate(medium))
-                                                && (targetBrand ? b.shop.slice(0, 2) === targetBrand.slice(0, 2) : true)
-                                                && (targetSection ? sectionShops.includes(b.shop) : true)
-                                                && (targetShop ? b.shop === targetShop : true));
+
+                                            const base = userData.filter(o => {
+                                                if (mediumIndex === 0) return true;
+                                                if (mediumIndex === 1) return o.hp_campaign;
+                                                if (medium === 'その他') {
+                                                    return (!o.medium || !mediumArray.some(m => formate(m) === formate(o.medium)));
+                                                }
+                                                return formate(o.medium) === formate(medium);
+                                            });
+
+                                            // ▼ 2. budgetList の絞り込み
+                                            const baseBudget = budgetList.filter(b => {
+                                                if (b.section !== 'order') return false;
+                                                if (targetBrand && b.shop.slice(0, 2) !== targetBrand.slice(0, 2)) return false;
+                                                if (targetSection && !sectionShops.includes(b.shop)) return false;
+                                                if (targetShop && b.shop !== targetShop) return false;
+
+                                                if (mediumIndex === 0) return true;
+                                                if (mediumIndex === 1) return formate(b.medium) === formate('ホームページ反響計');
+                                                if (medium === 'その他') {
+                                                    // HP反響予算ではなく、かつ mediumArray の予算にもフォーマット一致で含まれないものを「その他」とする
+                                                    return formate(b.medium) !== formate('ホームページ反響計')
+                                                        && (!b.medium || !mediumArray.some(m => formate(m) === formate(b.medium)));
+                                                }
+                                                return formate(b.medium) === formate(medium);
+                                            });
                                             const isBudget = checked.budget.show && mediumIndex !== 1;
                                             return (
                                                 <>{(portalChecked ? mediumIndex !== 1 : true) && (<tr key={mediumIndex}>

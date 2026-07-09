@@ -76,7 +76,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const [loseListShow, setLoseListShow] = useState(false);
 
     const deferredSearchedName = useDeferredValue(searchedName);
-    const deferredSearchedStaff= useDeferredValue(searchedStaff);
+    const deferredSearchedStaff = useDeferredValue(searchedStaff);
 
 
     const isSp = useIsSp();
@@ -309,8 +309,15 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
 
         const fetchData = async () => {
             const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database' }, { headers });
-            // setOriginalDatabase は await しても意味がないので外してOKです
-            setOriginalDatabase(response.data.customer);
+
+            // ★修正ポイント: 初回useEffect時と同じように検索用プロパティを付与する
+            const customers = response.data.customer.map((c: any) => ({
+                ...c,
+                search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
+                _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '')
+            }));
+
+            setOriginalDatabase(customers);
         }
 
         await fetchData();
