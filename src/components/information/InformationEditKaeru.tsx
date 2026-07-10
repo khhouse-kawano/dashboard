@@ -319,6 +319,7 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
         // 架電記録の保存
         let updatedCallData;
         let calendarAdd;
+        let callLength;
         const isAddCallLog = call.day && call.action;
         if (isAddCallLog) {
             const newCallLog = {
@@ -336,6 +337,7 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
                 staff: information.in_charge_user,
             };
             calendarAdd = true;
+            callLength = newCallLog.call_log.filter(c => c.action === '通電' || c.action === '未通電').length;
         } else {
             updatedCallData = {
                 ...callLog,
@@ -345,6 +347,7 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
                 staff: information.in_charge_user,
             };
             calendarAdd = callLog.add;
+            callLength = callLog.call_log.filter(c => c.action === '通電' || c.action === '未通電').length;
         }
 
         if (callLog.status || isAddCallLog || callLog.add) {
@@ -364,6 +367,7 @@ const InformationEditKaeru = ({ id, token, onClose, brand }: Props) => {
         const postData = {
             ...updatedMasterData,
             request: 'information',
+            call_log: callLength,
             category,
             roll
         };

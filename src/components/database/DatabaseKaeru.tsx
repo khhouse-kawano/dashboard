@@ -13,23 +13,6 @@ import { PastCustomer } from './PastCustomer';
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string };
 type CustomerList = Record<string, string>;
-type CallAction = {
-    day: string;
-    time: string;
-    action: string;
-    note: string;
-    staff: string
-};
-type CallLog = {
-    id: string;
-    shop: string;
-    staff: string;
-    name: string;
-    status: string;
-    reserved_interview: string;
-    call_log: CallAction[];
-    add: Boolean;
-};
 
 type Props = {
     onReload: () => void,
@@ -64,12 +47,11 @@ const DatabaseKaeru = ({ }: Props) => {
     const { token } = useContext(AuthContext);
     const [familyList, setFamilyList] = useState<string[]>([]);
     const [familyStatus, setFamilyStatus] = useState<boolean>(false);
-    const [callList, setCallList] = useState<CallLog[]>([]);
-    const [callStatusShow, setCallStatusShow] = useState(false);
     const skipPageReset = useRef(false);
     const [integrate, setIntegrate] = useState<CustomerList>({});
     const [integrateList, setIntegrateList] = useState<CustomerList[]>([]);
     const [pastCustomer, setPastCustomer] = useState<Record<string, string>[]>([]);
+    const [callStatusShow, setCallStatusShow] = useState(false);
 
     const [pastCustomerShow, setPastCustomerShow] = useState(false);
 
@@ -95,11 +77,6 @@ const DatabaseKaeru = ({ }: Props) => {
                 await setStaffArray(response.data.staff);
                 const familyId = response.data.family.map(f => f.id);
                 await setFamilyList(familyId);
-                const filteredCallResponse = response.data.call.map(item => ({
-                    ...item,
-                    call_log: item.call_log ? JSON.parse(item.call_log) : []
-                }))
-                await setCallList(filteredCallResponse);
                 const callList = response.data.call.map(r => ({ id: r.id, log: r.call_log }));
                 const interviewList = response.data.interview.map(r => ({ id: r.id, log: r.call_log }));
                 setPastCustomer([...callList, ...interviewList]);
@@ -185,16 +162,6 @@ const DatabaseKaeru = ({ }: Props) => {
         familyStatus,
         pastCustomerIds // 追加
     ]);
-
-    const callLogDictionary = useMemo(() => {
-        const dict: Record<string, CallAction[]> = {};
-
-        callList.forEach(call => {
-            dict[call.id] = call.call_log;
-        });
-
-        return dict;
-    }, [callList]);
 
     const duplicateDictionary = useMemo(() => {
         const dict: Record<string, string[]> = {};
@@ -303,7 +270,6 @@ const DatabaseKaeru = ({ }: Props) => {
 
         const fetchData = async () => {
             const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'database_kaeru' }, { headers });
-            // setOriginalDatabase は await しても意味がないので外してOKです
             setOriginalDatabase(response.data.customer);
         }
 
@@ -536,10 +502,6 @@ const DatabaseKaeru = ({ }: Props) => {
                                 {filteredDatabase
                                     .slice(sliceStart, sliceStart + basicLength)
                                     .map(item => {
-                                        const callLog = callLogDictionary[item.id];
-                                        const callLength = callLog ? callLog.filter(c => c.action === '通電' || c.action === '未通電').length : 0;
-
-
                                         const duplicateMailIds = item.mail ? duplicateDictionary[item.mail] || [] : [];
                                         const duplicatePhoneIds = item.phone_number ? duplicateDictionary[item.phone_number] || [] : [];
                                         const isDuplicate =
@@ -567,7 +529,7 @@ const DatabaseKaeru = ({ }: Props) => {
                                             <td style={{ textAlign: 'left' }}>{item.full_address}</td>
                                             <td style={{ textAlign: 'left' }}>{item.mail}<br />{item.phone_number}</td>
                                             <td>{item.call_status}</td>
-                                            <td>{callLength}</td>
+                                            <td>{item.call_log || '0'}</td>
                                             <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>
                                         </tr>
                                     })}

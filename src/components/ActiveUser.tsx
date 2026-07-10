@@ -71,7 +71,7 @@ const ActiveUser: React.FC = () => {
 
         const fetchData = async () => {
             try {
-                const res = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: 'login_log' }, { headers });
+                const res = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'login_log' }, { headers });
                 setActiveUsers(Array.isArray(res.data) ? res.data : []);
             } catch (e) {
                 console.error('active users fetch error', e);

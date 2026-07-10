@@ -324,6 +324,8 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
         // 架電記録の保存
         let updatedCallData;
         let calendarAdd;
+        let callLength;
+
         const isAddCallLog = call.day && call.action;
         if (isAddCallLog) {
             const newCallLog = {
@@ -341,6 +343,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                 staff: information.in_charge_user,
             };
             calendarAdd = true;
+            callLength = newCallLog.call_log.filter(c => c.action === '通電' || c.action === '未通電').length;
         } else {
             updatedCallData = {
                 ...callLog,
@@ -350,6 +353,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                 staff: information.in_charge_user,
             };
             calendarAdd = callLog.add;
+            callLength = callLog.call_log.filter(c => c.action === '通電' || c.action === '未通電').length;
         }
 
         if (callLog.status || isAddCallLog || callLog.add) {
@@ -369,6 +373,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
         const postData = {
             ...updatedMasterData,
             request: 'information',
+            call_log: callLength,
             category,
             roll
         };
@@ -665,7 +670,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
             >
                 <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{id === 'new' ? <div>新規顧客登録 <span className='text-danger'>※は入力必須</span></div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div></Modal.Header>
                 <Modal.Body>
-                    <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll' ,zoom: isSp ? 0.35: 1}}>
+                    <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll', zoom: isSp ? 0.35 : 1 }}>
                         <div style={{ minWidth: '1000px' }}>
                             <Table responsive style={{ fontSize: '11px', textAlign: 'left' }} className='list_table database'>
                                 <tbody>
@@ -1076,7 +1081,7 @@ const InformationEditResale = ({ id, token, onClose, brand }: Props) => {
                             </Table>
                         </div>
                     </div>
-                    <Modal.Footer className="bg-light border-top pb-3 pt-3" style={{zoom: isSp ? 0.3: 1}}>
+                    <Modal.Footer className="bg-light border-top pb-3 pt-3" style={{ zoom: isSp ? 0.3 : 1 }}>
                         <div className="d-flex justify-content-end w-100 gap-2">
                             <button
                                 className="btn btn-primary btn-sm rounded-pill px-5 shadow-sm d-flex align-items-center"

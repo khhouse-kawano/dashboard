@@ -518,8 +518,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                                 return dateB.getTime() - dateA.getTime()
                                             })[0]?.day ?? ''
                                             : '';
-
-                                        const callLength = callLog ? callLog.filter(c => c.action === '通電' || c.action === '未通電').length : 0; const isDuplicate = duplicateList.some(d =>
+                                        const isDuplicate = duplicateList.some(d =>
                                             d.id !== item.id &&
                                             d.contact &&
                                             (d.contact === item.mail || d.contact === item.phone_number)
@@ -543,7 +542,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                             <td style={{ textAlign: 'left' }}>{item.full_address}</td>
                                             <td style={{ textAlign: 'left' }}>{item.mail}<br />{item.phone_number}</td>
                                             <td>{item.call_status}</td>
-                                            <td>{callLength}</td>
+                                            <td>{item.call_log || '0'}</td>
                                             <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>
                                         </tr>
                                     })}

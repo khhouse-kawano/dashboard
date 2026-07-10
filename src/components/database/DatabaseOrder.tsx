@@ -14,23 +14,6 @@ import { useIsSp } from '../../utils/isSp';
 type shopList = { brand: string, shop: string, section: string };
 type CustomerList = Record<string, string>;
 type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number, list_medium: number }
-type CallAction = {
-    day: string;
-    time: string;
-    action: string;
-    note: string;
-    staff: string
-};
-type CallLog = {
-    id: string;
-    shop: string;
-    staff: string;
-    name: string;
-    status: string;
-    reserved_interview: string;
-    call_log: CallAction[];
-    add: Boolean;
-};
 
 type Props = {
     onReload: () => void,
@@ -64,7 +47,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const { token } = useContext(AuthContext);
     const [familyList, setFamilyList] = useState<string[]>([]);
     const [familyStatus, setFamilyStatus] = useState<boolean>(false);
-    const [callList, setCallList] = useState<CallLog[]>([]);
     const [callStatusShow, setCallStatusShow] = useState(false);
     const [surveyShow, setSurveyShow] = useState(false);
     const [cancelListShow, setCancelListShow] = useState(false);
@@ -78,12 +60,8 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const deferredSearchedName = useDeferredValue(searchedName);
     const deferredSearchedStaff = useDeferredValue(searchedStaff);
 
-
     const isSp = useIsSp();
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const thisYear = now.getMonth() <= 4 ? year : year + 1;
     const safeFormate = (value: string) => {
         return (value ?? '').replace(/-/g, '/');
     };
@@ -112,12 +90,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
 
                 const familyId = response.data.family.map((f: any) => f.id);
                 setFamilyList(familyId);
-
-                const filteredCallResponse = response.data.call.map((item: any) => ({
-                    ...item,
-                    call_log: item.call_log ? JSON.parse(item.call_log) : []
-                }));
-                setCallList(filteredCallResponse);
                 setIntroductoryList(response.data.introductory.map((i: any) => i.name));
                 setEventList(response.data.event);
 
@@ -231,18 +203,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         familyList,
         familyStatus,
     ]);
-
-    const callLogDictionary = useMemo(() => {
-        const dict: Record<string, { log: CallAction[], length: number }> = {};
-
-        callList.forEach(call => {
-            const log = call.call_log || [];
-            const length = log.filter(c => c.action === '通電' || c.action === '未通電').length;
-            dict[call.id] = { log, length };
-        });
-
-        return dict;
-    }, [callList]);
 
     // ページングリンク
     const pages = {
@@ -529,8 +489,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                                 {filteredDatabase
                                     .slice(sliceStart, sliceStart + basicLength)
                                     .map(item => {
-                                        const callData = callLogDictionary[item.id] || { log: [], length: 0 };
-                                        const callLength = callData.length;
                                         return <tr key={item.id}>
                                             <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
                                                 onClick={() => {
@@ -547,7 +505,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                                             <td>{item.medium}{(item.medium === '紹介' && item.introduction_person_category) && <><br /><span className='bg-danger text-white px-1 rounded' style={{ fontSize: '8px', whiteSpace: 'nowrap' }}>{safeFormate(item.introduction_person_category)}</span></>}</td>
                                             <td style={{ textAlign: 'left' }}>{item.full_address}</td>
                                             <td>{item.call_status}</td>
-                                            <td>{callLength}</td>
+                                            <td>{item.call_log || '0'}</td>
                                             <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>
                                         </tr>
                                     })}
