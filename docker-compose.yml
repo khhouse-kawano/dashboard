@@ -1,0 +1,30 @@
+services:
+  php-web:
+    build:
+      context: ./backend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./backend/src:/var/www/html
+    environment:
+      # ホスト名をMariaDBのコンテナ名に合わせる
+      - DB_HOST=mariadb-db
+      - DB_NAME=local_db
+      - DB_USER=local_user
+      - DB_PASS=local_password
+
+  mariadb-db:
+    # ここを MySQL から MariaDB に変更！
+    image: mariadb:10.11
+    ports:
+      - "3306:3306"
+    environment:
+      - MARIADB_DATABASE=local_db
+      - MARIADB_USER=local_user
+      - MARIADB_PASSWORD=local_password
+      - MARIADB_ROOT_PASSWORD=root_password
+    volumes:
+      - db-data:/var/lib/mysql
+
+volumes:
+  db-data:
