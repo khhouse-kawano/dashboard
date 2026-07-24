@@ -53,19 +53,19 @@ $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 販促費
-$sql_budget = "SELECT * FROM budget WHERE response_medium = 0";
+$sql_budget = "SELECT * FROM budget WHERE response_medium = 0 AND section ='spec'";
 $stmt_budget = $pdo->prepare($sql_budget);
 $stmt_budget->execute();
 $response_budget = $stmt_budget->fetchAll(PDO::FETCH_ASSOC);
 
 
 $result = [
-    "staff" => $response_staff,
-    "shop" => $response_shop,
-    "section" => $response_section,
-    "customer" => $response_contract,
-    "medium" => $response_medium,
-    "budget" => $response_budget
+        "staff" => $response_staff,
+        "shop" => $response_shop,
+        "section" => $response_section,
+        "customer" => $response_contract,
+        "medium" => $response_medium,
+        "budget" => $response_budget
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

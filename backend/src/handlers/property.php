@@ -1,4 +1,5 @@
 <?php
+// ini_set('memory_limit', '256M');
 
 // 担当営業
 $sql_staff = "SELECT *

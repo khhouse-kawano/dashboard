@@ -29,14 +29,24 @@ if (strpos($contentType, "multipart/form-data") !== false) {
 $request = isset($data['request']) ? $data['request'] : "";
 $headers = getallheaders();
 $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? null;
-// // ローカルデータベース接続 (PDO)
-// $dsn = 'mysql:host=127.0.0.1;port=3306;dbname=owners_house;charset=utf8';
-// $db_user = 'root';
-// $db_password = '';
 
-// 本番サーバーデータベース接続 (PDO)
-$dsn = 'mysql:host=localhost:3306;dbname=xs200571_kawano;charset=utf8';
-$db_user = 'xs200571_kawano';
-$db_password = '4081kawano';
-$pdo = new PDO($dsn, $db_user, $db_password);
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$host = getenv('DB_HOST');
+$db   = getenv('DB_NAME');
+$user = getenv('DB_USER');
+$pass = getenv('DB_PASS');
+
+$dsn = "mysql:host={$host};dbname={$db};charset=utf8mb4";
+
+try {
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+} catch (PDOException $e) {
+    echo json_encode([
+        'status' => 'error', 
+        'message' => 'データベース接続に失敗しました: ' . $e->getMessage()
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}

@@ -66,7 +66,8 @@ if ($id && isset($_POST['existing_pdfs'])) {
     }
 }
 // =========================================================
-
+// （これより上のPDF処理はそのまま）
+// =========================================================
 
 $tableMap = [
     'order' => 'master_data',
@@ -85,51 +86,61 @@ if (!array_key_exists($category, $tableMap)) {
 }
 
 $tableName = $tableMap[$category];
+$allowedColumns = require __DIR__ . '/../../core/allowed_columns.php';
 
-// 1. 別ファイルからホワイトリストを読み込む
-$allowedColumns = require __DIR__ . '/allowed_columns.php';
-
-$queryParams = ['id' => $id];
-$setClauses = [];
-
-// ▼ 【重要】 'id' を最初から手動で含めず、後から安全に1つだけ確定させる
-$insertCols = [];
-$insertVals = [];
-
-// 2. ホワイトリストをループし、動的にSQLパーツとパラメータを構築
-foreach ($allowedColumns as $col) {
-    // 万が一 allowed_columns.php に 'id' が書かれていても、ここでスキップして重複を防ぐ
-    if ($col === 'id') {
-        continue;
-    }
-
-    if (array_key_exists($col, $data)) {
-        $val = $data[$col];
-        $queryParams[$col] = ($val === '') ? null : $val;
-        
-        $setClauses[] = "{$col} = :{$col}";
-        $insertCols[] = $col;
-        $insertVals[] = ":{$col}";
-    }
-}
-
-// 3. INSERT用の配列の先頭に、確実に「id」を1つだけ差し込む（TSの unshift() や配列結合と同じ発想）
-array_unshift($insertCols, 'id');
-array_unshift($insertVals, ':id');
-
-// 挿入時に今日を入れる場合（フロントから未送信の場合のみ補完）
-if (!isset($queryParams['first_interviewed_date'])) {
-    $queryParams['first_interviewed_date'] = date('Y/m/d');
-    $setClauses[] = "first_interviewed_date = :first_interviewed_date";
-    $insertCols[] = "first_interviewed_date";
-    $insertVals[] = ":first_interviewed_date";
-}
-
-// 4. レコードの存在確認（UPSERT判定）
+// ---------------------------------------------------------
+// 1. まず「INSERT(新規)」か「UPDATE(更新)」かを判定する
+// ---------------------------------------------------------
 $checkMasterStmt = $pdo->prepare("SELECT id FROM {$tableName} WHERE id = :id");
 $checkMasterStmt->execute(['id' => $id]);
-$isExists = $checkMasterStmt->fetch();
+$isExists = (bool) $checkMasterStmt->fetch();
 
+// ---------------------------------------------------------
+// 2. 安全なSQL文（プレースホルダー）を構築する
+// ---------------------------------------------------------
+$queryParams = ['id' => $id];
+$setClauses = [];
+$insertCols = ['id'];
+$insertVals = [':id'];
+
+// PDOでハイフン入りのカラム名がエラーになるのを防ぐため、連番を使用
+$pIndex = 1;
+
+foreach ($allowedColumns as $col) {
+    if ($col === 'id') continue;
+
+    // フロントからデータが送信されてきているカラムだけを処理
+    if (array_key_exists($col, $data)) {
+        $val = $data[$col];
+        $pName = 'p' . $pIndex++; // p1, p2, p3... と安全な名前を生成
+
+        // 空文字はNULLに変換して保存（TypeScriptのオプション型のような扱い）
+        $queryParams[$pName] = ($val === '') ? null : $val;
+        
+        // UPDATE用のパーツ
+        $setClauses[] = "`{$col}` = :{$pName}";
+        
+        // INSERT用のパーツ
+        $insertCols[] = "`{$col}`";
+        $insertVals[] = ":{$pName}";
+    }
+}
+
+// ---------------------------------------------------------
+// 3. 【修正箇所】新規作成(INSERT)時のみ、初回訪問日を自動補完する
+// ---------------------------------------------------------
+if (!$isExists && !array_key_exists('first_interviewed_date', $data)) {
+    $pName = 'p_first_date';
+    $queryParams[$pName] = date('Y/m/d');
+    
+    // UPDATE句には追加せず、INSERT句にのみ追加する！
+    $insertCols[] = "`first_interviewed_date`";
+    $insertVals[] = ":{$pName}";
+}
+
+// ---------------------------------------------------------
+// 4. クエリの実行
+// ---------------------------------------------------------
 $result = false;
 
 try {
@@ -140,17 +151,18 @@ try {
             $stmt = $pdo->prepare($sql);
             $result = $stmt->execute($queryParams);
         } else {
-            $result = true;
+            $result = true; // 更新対象がない場合は成功扱い
         }
     } else {
         // --- INSERT ---
-        // ここで実行されるSQLの形: INSERT INTO <table> (id, col1, col2) VALUES (:id, :col1, :col2)
         $sql = "INSERT INTO {$tableName} (" . implode(', ', $insertCols) . ") VALUES (" . implode(', ', $insertVals) . ")";
         $stmt = $pdo->prepare($sql);
         $result = $stmt->execute($queryParams);
     }
     
+    // ---------------------------------------------------------
     // 5. レスポンス返却
+    // ---------------------------------------------------------
     if ($result) {
         $customerName = $data['customer_contacts_name'] ?? 'お客様';
         echo json_encode([
@@ -158,7 +170,7 @@ try {
             'message' => "{$customerName}様の情報を保存しました。"
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } else {
-        throw new Exception("保存に失敗しました。");
+        throw new Exception("データベースの保存処理に失敗しました。");
     }
 
 } catch (Exception $e) {

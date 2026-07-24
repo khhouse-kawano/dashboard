@@ -17,7 +17,7 @@ services:
     # ここを MySQL から MariaDB に変更！
     image: mariadb:10.11
     ports:
-      - "3306:3306"
+      - "3307:3306"
     environment:
       - MARIADB_DATABASE=local_db
       - MARIADB_USER=local_user
@@ -25,6 +25,6 @@ services:
       - MARIADB_ROOT_PASSWORD=root_password
     volumes:
       - db-data:/var/lib/mysql
-
+      - ./docker/mariadb/init:/docker-entrypoint-initdb.d
 volumes:
   db-data:

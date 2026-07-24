@@ -19,21 +19,102 @@ if (isset($data['request']) && $data['request'] === 'integrate') {
     $integrateIds = !empty($integrateListStr) ? explode(',', $integrateListStr) : [];
 
     try {
-        // 安全対策: 複数のテーブルを同時に更新するため、トランザクションを開始
+        // 安全対策: トランザクションを開始
         $pdo->beginTransaction();
+
+        // ------------------------------------------
+        // ★新規追加: ベースと統合対象のデータを取得
+        // ------------------------------------------
+        // 1. ベース（統合先）の現在データを取得
+        $stmt = $pdo->prepare("SELECT * FROM master_data_kaeru WHERE id = :id");
+        $stmt->execute([':id' => $baseId]);
+        $baseRecord = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$baseRecord) {
+            throw new Exception("統合先(ベース)のデータが存在しません。");
+        }
+
+        // 2. 統合対象（統合元）のデータを取得
+        $integrateRecords = [];
+        if (!empty($integrateIds)) {
+            $placeholders = implode(',', array_fill(0, count($integrateIds), '?'));
+            $stmt = $pdo->prepare("SELECT * FROM master_data_resale WHERE id IN ($placeholders)");
+            $stmt->execute($integrateIds);
+            $integrateRecords = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        // ------------------------------------------
+        // ★新規追加: 項目ごとの重複排除＆データ引き継ぎロジック
+        // ------------------------------------------
+        // ①と②のカラム名のペア定義
+        $fieldPairs = [
+            ['customer_contacts_name', 'customer_contacts_name_2'],
+            ['customer_contacts_name_kana', 'customer_contacts_name_kana_2'],
+            ['customer_contacts_email', 'extra_address_info'], // メアド
+            ['customer_contacts_phone_number', 'customer_contacts_mobile_phone_number'], // 電話番号
+            ['sales_promotion_name', 'sales_promotion_name_2']
+        ];
+
+        // UPDATE用のクエリパーツとバインド値を格納する配列
+        $updateQueryParts = ["integration = '1'"];
+        $updateValues = [':id' => $baseId];
+
+        // 比較用：全角・半角スペースを除去する関数（TypeScriptのアロー関数のようなもの）
+        $normalize = function ($str) {
+            return str_replace([' ', ' ', "\t", "\n", "\r"], '', (string)$str);
+        };
+
+        foreach ($fieldPairs as $pair) {
+            $col1 = $pair[0];
+            $col2 = $pair[1];
+
+            // ベースの現在の値と、比較用のスペース除去済み値
+            $val1 = $baseRecord[$col1] ?? '';
+            $val2 = $baseRecord[$col2] ?? '';
+            $norm1 = $normalize($val1);
+            $norm2 = $normalize($val2);
+
+            foreach ($integrateRecords as $rec) {
+                // 統合元の①と②の値
+                $intVals = [$rec[$col1] ?? '', $rec[$col2] ?? ''];
+
+                foreach ($intVals as $intVal) {
+                    $intNorm = $normalize($intVal);
+                    if ($intNorm === '') continue; // データが無ければスキップ
+
+                    // 重複チェック: ベースの①にも②にも同じデータが「無い」場合のみ処理
+                    if ($intNorm !== $norm1 && $intNorm !== $norm2) {
+                        // 空いているスロット（①または②）にデータを格納
+                        if ($norm1 === '') {
+                            $val1 = $intVal;
+                            $norm1 = $intNorm;
+                            $updateQueryParts[] = "$col1 = :$col1";
+                            $updateValues[":$col1"] = $val1;
+                        } elseif ($norm2 === '') {
+                            $val2 = $intVal;
+                            $norm2 = $intNorm;
+                            $updateQueryParts[] = "$col2 = :$col2";
+                            $updateValues[":$col2"] = $val2;
+                        }
+                    }
+                }
+            }
+        }
 
         // ------------------------------------------
         // 1. master_data_kaeru テーブルの更新
         // ------------------------------------------
-        $stmt = $pdo->prepare("UPDATE master_data_resale SET integration = '1' WHERE id = :id");
-        $stmt->execute([':id' => $baseId]);
+        // 動的に生成したSET句でベース行をUPDATE
+        $setClause = implode(', ', $updateQueryParts);
+        $stmt = $pdo->prepare("UPDATE master_data_resale SET $setClause WHERE id = :id");
+        $stmt->execute($updateValues);
 
+        // 統合された側のフラグ更新
         if (!empty($integrateIds)) {
             $placeholders = implode(',', array_fill(0, count($integrateIds), '?'));
-            $stmt = $pdo->prepare("UPDATE master_data_resale SET show_dashboard = '0' WHERE id IN ($placeholders)");
+            $stmt = $pdo->prepare("UPDATE master_data_kaeru SET show_dashboard = '0' WHERE id IN ($placeholders)");
             $stmt->execute($integrateIds);
         }
-
         // ------------------------------------------
         // 2. interview_sheet テーブルのログ結合 (longtext型 JSON配列)
         // ------------------------------------------

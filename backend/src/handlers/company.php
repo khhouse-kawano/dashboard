@@ -31,6 +31,7 @@ in_charge_store as shop,
 in_charge_user as staff,
 customized_input_01J82Z5F366ZQ897PXWF6H5ZAM as rank,
 step_migration_item_01J82Z5F1RR18Z792C7KZS88QG as contract,
+'' as contract_broker,
 status,
 rank_period FROM master_data
 WHERE show_dashboard = 1 and (step_migration_item_01J82Z5F1RR18Z792C7KZS88QG <> '' or customized_input_01J82Z5F366ZQ897PXWF6H5ZAM IN ('Sランク','Aランク', 'Bランク', 'Cランク'))";
@@ -42,14 +43,15 @@ $response_contract = $stmt_contract->fetchAll(PDO::FETCH_ASSOC);
 // 契約者一覧(建売事業)
 $sql_contract_kaeru = "SELECT id,
 customer_contacts_name as customer,
-category as category,
+'建売' as category,
 in_charge_store as shop,
 in_charge_user as staff,
 customized_input_01J82Z5F366ZQ897PXWF6H5ZAM as rank,
-step_migration_item_01J82Z5F1RR18Z792C7KZS88QG as contract,
+step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW as contract,
+step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 as contract_broker,
 status,
 rank_period FROM master_data_kaeru
-WHERE show_dashboard = 1 and (step_migration_item_01J82Z5F1RR18Z792C7KZS88QG <> '' or customized_input_01J82Z5F366ZQ897PXWF6H5ZAM IN ('Sランク','Aランク', 'Bランク', 'Cランク'))";
+WHERE show_dashboard = 1 and (step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW <> '' or step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 IN ('Sランク','Aランク', 'Bランク', 'Cランク'))";
 $stmt_contract_kaeru = $pdo->prepare($sql_contract_kaeru);
 $stmt_contract_kaeru->execute();
 $response_contract_kaeru = $stmt_contract_kaeru->fetchAll(PDO::FETCH_ASSOC);
