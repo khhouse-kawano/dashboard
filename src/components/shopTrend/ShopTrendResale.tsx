@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import axios from "axios";
 import AuthContext from '../../context/AuthContext';
 import Table from "react-bootstrap/Table";
@@ -23,6 +23,7 @@ import { isLastYear } from '../../utils/isLastYear';
 import { ModalBody } from 'react-bootstrap';
 import InformationEditResale from '../information/InformationEditResale';
 import InterviewLog from '../InterviewLog';
+import apiClient from '../../utils/apiClient';
 
 type Shop = Record<string, string>;
 type Customer = Record<string, string>;
@@ -58,16 +59,21 @@ const originalShopArray = [{
     shop: '売り:ポータル', section: '中古住宅専門店'
 }];
 
+const KPIMapping = {
+    '中古リノベ全体': ['総反響', '接触', '対面接触', '契約', '粗利総額'],
+    '買い:中古リノベ': ['総反響', '接触(通話・返信)', '来場面談', '売買契約', 'リフォーム契約', '粗利総額'],
+    '買い:ポータル': ['総反響', '接触(通話・返信)', '物件案内', '売買契約', '粗利総額'],
+    '売り:ポータル': ['総反響', '査定アポ・査定書提出', '訪問査定', '媒介取得', '粗利総額']
+};
+
 const ShopTrendResale = () => {
     const { authority, category } = useContext(AuthContext);
-    const [shopArray, setShopArray] = useState<Shop[]>([]);
-    const [customerList, setCustomerList] = useState<Customer[]>([]);
+    const [shopArray, setShopArray] = useState<Shop[]>(originalShopArray);
     const [originalCustomerList, setOriginalCustomerList] = useState<Customer[]>([]);
     const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
-    const [startMonth, setStartMonth] = useState(startMonthValue);
+    const [startMonth, setStartMonth] = useState('2026/06');
     const [endMonth, setEndMonth] = useState('');
     const [originalMonthArray, setOriginalMonthArray] = useState<string[]>([]);
-    const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMedium, setTargetMedium] = useState('');
     const [targetSection, setTargetSection] = useState('');
     const [targetBrand, setTargetBrand] = useState('');
@@ -87,8 +93,9 @@ const ShopTrendResale = () => {
         interview: { name: '実来場数', show: true },
         appointment: { name: '次アポ数', show: true },
         contract: { name: '契約数', show: true },
+        profit: { name: '粗利総額', show: true },
         budget: { name: '広告費', show: false },
-        comparison: { name: '昨年実績', show: false }
+        comparison: { name: '昨年実績', show: false },
     });
     const [mediumChecked, setMediumChecked] = useState({});
     const [listShow, setListShow] = useState({ show: false, label: '' });
@@ -96,15 +103,13 @@ const ShopTrendResale = () => {
     const [listPage, setListPage] = useState(1);
     const [interviewId, setInterviewId] = useState('');
 
-    const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
     const [editId, setEditId] = useState('');
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend', category }, { headers });
+                const response = await apiClient.post("", { request: 'shopTrend', category });
                 await setOriginalCustomerList(response.data.customer);
-                await setShopArray(response.data.shop);
                 await setMediumArray(response.data.medium);
                 await setOriginalMonthArray(getYearMonthArray(2025, 1));
                 await setStaff(response.data.staff.filter(s => s.rank === 1));
@@ -115,39 +120,26 @@ const ShopTrendResale = () => {
         };
 
         fetchData();
-        setMonthArray(getYearMonthArray(2025, 1));
     }, []);
 
-    useEffect(() => {
+    const customerList = useMemo(() => {
         const filtered = originalCustomerList.filter(item => {
-            const brand = item.shop.slice(0, 2);
-            const sectionShops = originalShopArray.filter(s => s.section === targetSection).map(s => s.shop);
+            const sectionShops = shopArray.filter(s => s.section === targetSection).map(s => s.shop);
             return ((targetMedium && targetMedium !== 'all') ? item.medium === targetMedium : true) &&
                 ((targetMedium === 'all' && !Object.values(mediumChecked).every(v => v))
                     ? (mediumChecked[item.medium] !== false)
                     : true)
                 && (targetSection && targetSection !== 'all' ? sectionShops.includes(item.shop) : true)
         });
-        setCustomerList(filtered);
+        return filtered;
+    }, [originalCustomerList, shopArray, targetSection, targetMedium, mediumChecked]);
 
+    const monthArray = useMemo(() => {
         const startIndex = startMonth ? originalMonthArray.indexOf(startMonth) : 0;
         const endIndex = endMonth ? originalMonthArray.indexOf(endMonth) + 1 : originalMonthArray.length
         const filteredMonthArray = originalMonthArray.slice(startIndex, endIndex);
-        setMonthArray(filteredMonthArray);
-
-        const filteredShopArray = originalShopArray.filter(item => {
-            return (targetSection ? item.section === targetSection : true)
-        });
-        setShopArray(filteredShopArray);
-
-        const uniqueSectionArray = [...new Set(originalShopArray.filter(o => o.section).map(o => o.section))];
-        const filteredSectionArray = uniqueSectionArray.sort((a, b) => {
-            const numA = parseInt(a?.match(/\d+/)?.[0] ?? "9999", 10);
-            const numB = parseInt(b?.match(/\d+/)?.[0] ?? "9999", 10);
-            return numA - numB
-        });
-        setSectionArray(filteredSectionArray);
-    }, [originalCustomerList, originalMonthArray, originalShopArray, startMonth, endMonth, targetMedium, targetSection, targetBrand, mediumChecked]);
+        return filteredMonthArray;
+    }, [startMonth, endMonth, originalMonthArray]);
 
     useEffect(() => {
         if (!geminiApi) return;
@@ -284,53 +276,67 @@ const ShopTrendResale = () => {
     };
 
     const getValue = (base: Customer[], monthIndex: number, month: string, target: string, period: string[] = monthArray) => {
-        if (target === 'appointment') {
-            return base.filter(b => {
-                if (b.interview || b.tour || b.appraisal) {
-                    return monthIndex >= 1 ? (formate(b.interview).includes(month) || formate(b.tour).includes(month) || formate(b.appraisal).includes(month)) && (b.appointment || b.screening || b.contract || b.negotiation_apo || b.contract_portal)
-                        : period.includes(formate(b.interview).slice(0, 7) || formate(b.tour).slice(0, 7) || formate(b.appraisal).slice(0, 7)) && (b.appointment || b.screening || b.contract || b.negotiation_apo || b.contract_portal);
-                }
-                return (monthIndex >= 1 ? (formate(b.appointment).includes(month) || formate(b.screening).includes(month) || formate(b.contract).includes(month) || formate(b.negotiation_apo).includes(month) || formate(b.negotiation).includes(month) || formate(b.contract_portal).includes(month))
-                    : (period.includes(formate(b.appointment).slice(0, 7)) || period.includes(formate(b.screening).slice(0, 7)) || period.includes(formate(b.contract).slice(0, 7)) || period.includes(formate(b.negotiation_apo).slice(0, 7)) || period.includes(formate(b.negotiation).slice(0, 7)) || period.includes(formate(b.contract_portal).slice(0, 7))))
-            })
+        const formattedPeriod = period.map(p => formate(p));
+        const formattedMonth = formate(month);
+        const isPeriodMode = monthIndex < 1;
+
+        // 1. 各階層のKPIキーを配列として定義
+        const contactKeys = ['contact', 'appraisal', 'negotiation_apo'] as const;
+        const interviewKeys = ['interview', 'valuation', 'tour'] as const;
+        const screeningKeys = ['screening'] as const;
+        const contractKeys = ['contract_reform', 'contract_buy', 'contract_sell'] as const;
+
+        // 2. 共通の判定関数を用意（対象月 or 対象期間 に含まれているか）
+        const hasMatchInMonth = (b: Customer, keys: readonly string[]) => {
+            return keys.some(key => {
+                const val = formate(b[key as keyof Customer] as string) || '';
+                if (!val) return false;
+
+                return isPeriodMode
+                    ? formattedPeriod.includes(val.slice(0, 7))
+                    : val.includes(formattedMonth);
+            });
+        };
+
+        // 3. 対象階層のキーが「すべて未入力か」を判定する関数
+        const isAllEmpty = (b: Customer, keys: readonly string[]) => {
+            return keys.every(key => !b[key as keyof Customer]);
+        };
+
+        // --- メインロジック ---
+
+        if (target === 'contact') {
+            const higherKeys = [...interviewKeys, ...screeningKeys, ...contractKeys];
+            return base.filter(b =>
+                hasMatchInMonth(b, contactKeys) ||
+                (isAllEmpty(b, contactKeys) && hasMatchInMonth(b, higherKeys))
+            );
         }
-if (target === 'interview') {
-            if (monthIndex >= 1) {
-                const interviewBase = base.filter(b =>
-                    formate(b.interview).includes(month) || formate(b.tour).includes(month) || formate(b.appraisal).includes(month)
-                );
-                const appointmentBase = base.filter(b =>
-                    (!b.interview && !b.tour && !b.appraisal) &&
-                    (
-                        formate(b.appointment).includes(month) || formate(b.appraisal).includes(month) || formate(b.screening).includes(month) || formate(b.negotiation_apo).includes(month) || formate(b.valuation).includes(month) || formate(b.contract_portal).includes(month)
-                    )
-                );
-                return [...interviewBase, ...appointmentBase];
-            } else {
-                const interviewBase = base.filter(b =>
-                    period.includes(formate(b.interview).slice(0, 7)) ||
-                    period.includes(formate(b.tour).slice(0, 7)) ||
-                    period.includes(formate(b.appraisal).slice(0, 7))
-                );
-                const appointmentBase = base.filter(b =>
-                    (!b.interview && !b.tour && !b.appraisal) &&
-                    (
-                        period.includes(formate(b.appointment).slice(0, 7)) ||
-                        period.includes(formate(b.appraisal).slice(0, 7)) ||
-                        period.includes(formate(b.screening).slice(0, 7)) ||
-                        period.includes(formate(b.negotiation_apo).slice(0, 7)) ||
-                        period.includes(formate(b.valuation).slice(0, 7)) ||
-                        period.includes(formate(b.contract_portal).slice(0, 7))
-                    )
-                );
-                return [...interviewBase, ...appointmentBase];
-            }
+
+        if (target === 'interview' || target === 'tour') {
+            const higherKeys = [...screeningKeys, ...contractKeys];
+            return base.filter(b =>
+                hasMatchInMonth(b, interviewKeys) ||
+                (isAllEmpty(b, interviewKeys) && hasMatchInMonth(b, higherKeys))
+            );
+        }
+
+        if (target === '') {
+            const higherKeys = [...screeningKeys, ...contractKeys];
+            return base.filter(b =>
+                hasMatchInMonth(b, interviewKeys) ||
+                (isAllEmpty(b, interviewKeys) && hasMatchInMonth(b, higherKeys))
+            );
         }
 
         if (target === 'contract') {
-            return base.filter(b => (monthIndex >= 1 ? (formate(b.contract).includes(month) || formate(b.contract_portal).includes(month) || formate(b.negotiation_apo).includes(month)) && b.status === '契約済み' : period.includes(formate(b.contract).slice(0, 7)) && b.status === '契約済み'))
+            return base.filter(b =>
+                b.status === '契約済み' &&
+                hasMatchInMonth(b, contractKeys) // ← b.contractのバグもこれで解消されます
+            );
         }
-        return base.filter(b => (monthIndex >= 1 ? formate(b[target]).includes(month) : period.includes(formate(b[target]).slice(0, 7))))
+
+        return base.filter(b => hasMatchInMonth(b, [target]));
     };
 
     const clickable = (value: number) => {
@@ -349,7 +355,7 @@ if (target === 'interview') {
         setEditId('');
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'shopTrend_resale' }, { headers });
+                const response = await apiClient.post("", { request: 'shopTrend', category });
                 await setOriginalCustomerList(response.data.customer);
             } catch (error) {
                 console.error("データ取得エラー:", error);
@@ -359,9 +365,343 @@ if (target === 'interview') {
         fetchData();
     };
 
-    useEffect(() => {
-        console.log(mediumArray)
-    }, [mediumArray])
+const formateSummary = (
+        label: string,
+        num: Customer[],
+        den: Customer[],
+        isDisplayLastYear?: boolean,
+        lastYearValue?: number,
+        colorCode: string = '#94a3b8' // デフォルト色を追加
+    ) => {
+        // 分母が0の場合はInfinityやNaNを防ぐために強制的に0にする
+        const percentage = den.length === 0
+            ? 0
+            : Math.floor((num.length / den.length) * 100);
+        
+        const hasData = num.length > 0;
+
+        return (
+            <div 
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '6px 8px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderLeft: `4px solid ${colorCode}`,
+                    borderRadius: '4px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                    cursor: hasData ? 'pointer' : 'default',
+                    transition: 'all 0.2s ease-in-out',
+                }}
+                onClick={() => hasData ? handleShow(num, label) : null}
+                onMouseEnter={(e) => {
+                    if (hasData) {
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                        e.currentTarget.style.opacity = '0.8';
+                    }
+                }}
+                onMouseLeave={(e) => {
+                    if (hasData) {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.opacity = '1';
+                    }
+                }}
+            >
+                <div style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>
+                    {label}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+                        <span
+                            style={{
+                                color: hasData ? '#0284c7' : '#94a3b8',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textDecoration: 'none',
+                                transition: 'color 0.2s ease'
+                            }}
+                        >
+                            {num.length.toLocaleString()}
+                        </span>
+                        {label !== '総反響' && (
+                            <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 500 }}>
+                                ({percentage}%)
+                            </span>
+                        )}
+                    </div>
+                    {isDisplayLastYear && (
+                        <span style={{
+                            backgroundColor: '#f1f5f9', color: '#64748b', padding: '2px 5px',
+                            borderRadius: '3px', fontSize: '10px', fontWeight: 600, border: '1px solid #e2e8f0'
+                        }}>
+                            昨: {(lastYearValue ?? 0).toLocaleString()}
+                        </span>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const calculateProfit = (list: Customer[]) => {
+        return (list.reduce((acc, cur) => acc + Number(cur.profit || 0) * 100, 0) / 100).toLocaleString();
+    };
+
+    const staffSummary = () => {
+        const theme: Record<string, React.CSSProperties> = {
+            table: { borderCollapse: 'separate', borderSpacing: 0, borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', width: '100%', backgroundColor: '#ffffff' },
+            th: { backgroundColor: '#f8fafc', color: '#475569', fontWeight: '600', padding: '8px 6px', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap', fontSize: '11px' },
+            tdName: { backgroundColor: '#f8fafc', color: '#334155', fontWeight: '700', padding: '8px 6px', borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', fontSize: '11px' },
+            tdContent: { padding: '6px', verticalAlign: 'top', borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', backgroundColor: '#f8fafc' },
+        };
+        const nestWrapperStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '4px' };
+        const getCardStyle = (colorCode: string): React.CSSProperties => ({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderLeft: `4px solid ${colorCode}`, borderRadius: '4px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', transition: 'all 0.2s ease-in-out' });
+
+        return <Table style={theme.table} responsive>
+            <tbody style={{ fontSize: '12px', letterSpacing: '.5px' }}>
+                <tr className='sticky-header text-center'>
+                    <td className='sticky-column text-center' style={{ ...theme.th, width: '120px' }}>店舗名</td>
+                    {['全期間', ...monthArray].map((month, idx) => <td key={idx} style={theme.th}>{month}</td>)}
+                </tr>
+                {[{ name: targetShop, shop: targetShop, rank: 1 }, ...staff].filter(s => s.rank === 1).map((item, staffIndex) =>
+                    <tr key={staffIndex}>
+                        <td className='align-middle sticky-column text-center' style={theme.tdName}>{item.name}</td>
+                        {['全期間', ...monthArray].map((month, monthIndex) => {
+                            const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name && c.shop === targetShop : c.shop === targetShop));
+                            const total = getValue(base, monthIndex, month, 'register');
+                            const contact = getValue(base, monthIndex, month, 'contact');
+                            const interview = getValue(base, monthIndex, month, 'interview');
+                            const contractBase = getValue(base, monthIndex, month, 'contract');
+                            const contract_buy = contractBase.filter(c => c.contract_buy);
+                            const contract_reform = contractBase.filter(c => c.contract_reform);
+                            const cancel = base.filter(c => (!c.interview && (monthIndex >= 1 ? formate(c.reserved_interview).includes(month) : monthArray.includes(formate(c.reserved_interview).slice(0, 7)))));
+                            
+                            return (
+                                <td key={monthIndex} style={theme.tdContent}>
+                                    <div style={nestWrapperStyle}>
+                                        {checked.register.show && (
+                                            <div 
+                                                style={{ ...getCardStyle('#38bdf8'), cursor: total.length ? 'pointer' : 'default' }}
+                                                onClick={() => total.length ? handleShow(total, '総反響') : null}
+                                                onMouseEnter={(e) => { if (total.length) { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.opacity = '0.8'; } }}
+                                                onMouseLeave={(e) => { if (total.length) { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.opacity = '1'; } }}
+                                            >
+                                                <div style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>総反響</div>
+                                                <span style={{ color: total.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px' }}>{total.length.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        <div style={nestWrapperStyle}>
+                                            {checked.interview.show && formateSummary(KPIMapping[targetShop]?.[1] ?? '', contact, total, false, 0, '#0ea5e9')}
+                                            <div style={nestWrapperStyle}>
+                                                {checked.appointment.show && formateSummary(KPIMapping[targetShop]?.[2] ?? '', interview, contact, false, 0, '#0284c7')}
+                                                {item.name === '買い:中古リノベ' ? <>
+                                                    <div style={nestWrapperStyle}>
+                                                        {checked.contract.show && formateSummary(KPIMapping[targetShop]?.[3] ?? '', contract_reform, interview, false, 0, '#075985')}
+                                                    </div>
+                                                    <div style={nestWrapperStyle}>
+                                                        {checked.contract.show && formateSummary(KPIMapping[targetShop]?.[4] ?? '', contract_buy, interview, false, 0, '#075985')}
+                                                    </div>
+                                                </> :
+                                                    <div style={nestWrapperStyle}>
+                                                        {checked.contract.show && formateSummary(KPIMapping[targetShop]?.[4] ?? '', contractBase, interview, false, 0, '#075985')}
+                                                    </div>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            )
+                        })}
+                    </tr>
+                )}
+            </tbody>
+        </Table>
+    };
+
+    const shopSummary = () => {
+        const theme: Record<string, React.CSSProperties> = {
+            table: { borderCollapse: 'separate', borderSpacing: 0, borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', width: '100%', backgroundColor: '#ffffff' },
+            th: { backgroundColor: '#f8fafc', color: '#475569', fontWeight: '600', padding: '8px 6px', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap', fontSize: '11px' },
+            tdName: { backgroundColor: '#f8fafc', color: '#334155', fontWeight: '700', padding: '8px 6px', borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', fontSize: '11px' },
+            tdContent: { padding: '6px', verticalAlign: 'top', borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', backgroundColor: '#f8fafc' },
+        };
+        const nestWrapperStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '4px' };
+        const getCardStyle = (colorCode: string): React.CSSProperties => ({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderLeft: `4px solid ${colorCode}`, borderRadius: '4px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', transition: 'all 0.2s ease-in-out' });
+        const lastYearBadgeStyle: React.CSSProperties = { backgroundColor: '#f1f5f9', color: '#64748b', padding: '2px 5px', borderRadius: '3px', fontSize: '10px', fontWeight: 600, border: '1px solid #e2e8f0' };
+        const profitBadgeStyle: React.CSSProperties = { backgroundColor: '#fef2f2', color: '#b91c1c', padding: '2px 5px', borderRadius: '3px', fontSize: '10px', fontWeight: 600, border: '1px solid #fca5a5' };
+
+        return <Table style={theme.table} responsive>
+            <tbody style={{ fontSize: '12px', letterSpacing: '.5px' }}>
+                <tr className='sticky-header text-center'>
+                    <td className='sticky-column text-center' style={{ ...theme.th, width: '120px' }}>店舗名</td>
+                    {['全期間', ...monthArray].map((month, monthIndex) => {
+                        const isDisplayLastYear = isLastYear(month) && monthIndex >= 1 && checked.comparison.show;
+                        return <td key={monthIndex} style={theme.th}>{month}{isDisplayLastYear && <span style={{ ...lastYearBadgeStyle, marginLeft: '4px' }}>昨年</span>}</td>
+                    })}
+                </tr>
+                {[
+                    {
+                        brand: '',
+                        shop: (targetSection && targetSection !== 'all')
+                            ? targetSection
+                            : targetBrand
+                                ? `${targetBrand}全体`
+                                : '中古リノベ全体',
+                        section: '',
+                        area: ''
+                    },
+                    ...(targetSection !== 'all' ? shopArray : sections)
+                ].map((target, targetIndex) => {
+                    return <React.Fragment key={targetIndex}>
+                        <tr>
+                            <td className='align-middle sticky-column text-center' style={theme.tdName}>
+                                {(targetMedium && targetMedium !== 'all') && <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>{targetMedium}</div>}
+                                <div>{target.shop}</div>
+                                <div className="bg-primary btn text-white rounded-pill py-0 mt-2" style={{ fontSize: '11px', cursor: 'pointer' }}
+                                    onClick={() => showSummary(target.shop)}
+                                >サマリ</div>
+                            </td>
+                            {['全期間', ...monthArray].map((month, monthIndex) => {
+                                const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
+                                const base = setSection(customerList, targetSection, target.section, target.shop, targetIndex, sectionShops);
+                                const total = getValue(base, monthIndex, month, 'register');
+                                const contact = getValue(base, monthIndex, month, 'contact');
+                                const interview = getValue(base, monthIndex, month, 'interview');
+                                const contractBase = getValue(base, monthIndex, month, 'contract');
+                                const contract_buy = contractBase.filter(c => c.contract_buy);
+                                const contract_reform = contractBase.filter(c => c.contract_reform);
+                                const lastYear = `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`
+                                const lastYearMonthArray = monthArray.map(month => `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`);
+                                let lastYearValue;
+                                if (monthIndex === 0 || isLastYear(month)) {
+                                    lastYearValue = {
+                                        total: getValue(base, monthIndex, lastYear, 'register', lastYearMonthArray).length,
+                                        contact: getValue(base, monthIndex, lastYear, 'contact', lastYearMonthArray).length,
+                                        interview: getValue(base, monthIndex, lastYear, 'interview', lastYearMonthArray).length,
+                                        contractBase: getValue(base, monthIndex, lastYear, 'contract', lastYearMonthArray).length,
+                                        contract_buy: getValue(base, monthIndex, lastYear, 'contract', lastYearMonthArray).filter(c => c.contract_buy).length,
+                                        contract_reform: getValue(base, monthIndex, lastYear, 'contract', lastYearMonthArray).filter(c => c.contract_reform).length,
+                                    };
+                                }
+
+                                // 以下予算
+                                const isDisplayLastYear =
+                                    checked.comparison.show &&
+                                    (monthIndex === 0 || isLastYear(month));
+                                const baseBudget = budgetList.filter(b =>
+                                    (monthIndex > 0 ? formate(b.budget_period).includes(formate(month)) : monthArray.map(m => formate(m)).includes(formate(b.budget_period).slice(0, 7)))
+                                    && (targetMedium ? b.medium === targetMedium : true));
+                                const filteredBudget = budgetFilter(baseBudget, targetSection, target.shop, targetIndex);
+                                const formattedValue = filteredBudget.reduce((acc, cur) => acc + cur.budget_value, 0);
+                                let formattedLastYearValue;
+                                const lastYearBudget = budgetList.filter(b =>
+                                    b.section === 'order'
+                                    && (monthIndex > 0 ? b.budget_period.includes(lastYear) : lastYearMonthArray.includes(b.budget_period.slice(0, 7)))
+                                    && (targetBrand ? b.shop.slice(0, 2) === targetBrand.slice(0, 2) : true)
+                                    && (targetMedium ? b.medium === targetMedium : true));
+                                const filteredLastYearBudget = budgetFilter(lastYearBudget, targetSection, target.shop, targetIndex);
+                                formattedLastYearValue = filteredLastYearBudget.reduce((acc, cur) => acc + cur.budget_value, 0);
+                                
+                                return (
+                                    <td key={monthIndex} style={theme.tdContent}>
+                                        <div style={nestWrapperStyle}>
+                                            {checked.register.show && (
+                                                <div 
+                                                    style={{ ...getCardStyle('#38bdf8'), cursor: total.length ? 'pointer' : 'default' }}
+                                                    onClick={() => total.length ? handleShow(total, '総反響') : null}
+                                                    onMouseEnter={(e) => { if (total.length) { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.opacity = '0.8'; } }}
+                                                    onMouseLeave={(e) => { if (total.length) { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.opacity = '1'; } }}
+                                                >
+                                                    <div style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>{KPIMapping[target.shop]?.[0] ?? ''}</div>
+                                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                                        <span style={{ color: total.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px' }}>{total.length.toLocaleString()}</span>
+                                                        {isDisplayLastYear && <span style={lastYearBadgeStyle}>昨: {lastYearValue?.total?.toLocaleString() ?? 0}</span>}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div style={nestWrapperStyle}>
+                                                {checked.interview.show && formateSummary(KPIMapping[target.shop]?.[1] ?? '', contact, total, isDisplayLastYear, lastYearValue?.contact, '#0ea5e9')}
+                                                <div style={nestWrapperStyle}>
+                                                    {checked.appointment.show && formateSummary(KPIMapping[target.shop]?.[2] ?? '', interview, contact, isDisplayLastYear, lastYearValue?.interview, '#0284c7')}
+                                                    {target.shop === '買い:中古リノベ' ? <>
+                                                        <div style={nestWrapperStyle}>
+                                                            {checked.contract.show && formateSummary(KPIMapping[target.shop]?.[3] ?? '', contract_buy, interview, isDisplayLastYear, lastYearValue?.contract_buy, '#075985')}
+                                                            {checked.profit.show && (
+                                                                <div style={getCardStyle('#10b981')}>
+                                                                    <span style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>{KPIMapping[target.shop]?.[5] ?? ''}</span>
+                                                                    <span style={{ color: '#0f172a', fontWeight: 700, fontSize: '13px' }}>{calculateProfit(contract_buy)}万円</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div style={nestWrapperStyle}>
+                                                            {checked.contract.show && formateSummary(KPIMapping[target.shop]?.[4] ?? '', contract_reform, interview, isDisplayLastYear, lastYearValue?.contract_reform, '#075985')}
+                                                            {checked.profit.show && (
+                                                                <div style={getCardStyle('#10b981')}>
+                                                                    <span style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>{KPIMapping[target.shop]?.[5] ?? ''}</span>
+                                                                    <span style={{ color: '#0f172a', fontWeight: 700, fontSize: '13px' }}>{calculateProfit(contract_reform)}万円</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </> :
+                                                        <div style={nestWrapperStyle}>
+                                                            {checked.contract.show && formateSummary(KPIMapping[target.shop]?.[3] ?? '', contractBase, interview, isDisplayLastYear, lastYearValue?.contractBase, '#075985')}
+                                                            {checked.profit.show && (
+                                                                <div style={getCardStyle('#10b981')}>
+                                                                    <span style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>{KPIMapping[target.shop]?.[4] ?? ''}</span>
+                                                                    <span style={{ color: '#0f172a', fontWeight: 700, fontSize: '13px' }}>{calculateProfit(contractBase)}万円</span>
+                                                                </div>
+                                                            )}
+                                                        </div>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {checked.budget.show && <>
+                                            <div style={{ borderTop: '1px dashed #cbd5e1', margin: '4px 0' }}></div>
+                                            {[{ label: '総額', color: '#c03442' }, { label: '反響単価', color: '#b02a37' }, { label: '来場単価', color: '#8a1e28' }, { label: '契約単価', color: '#64151c' }]
+                                                .map((item, index) => {
+                                                    const budgetMapping: Record<number, number> = {
+                                                        1: total.length,
+                                                        2: interview.length,
+                                                        3: contractBase.length
+                                                    };
+                                                    const lastYearBudgetMapping: Record<number, number> = {
+                                                        1: lastYearValue?.total ?? 0,
+                                                        2: lastYearValue?.interview ?? 0,
+                                                        3: lastYearValue?.contractBase ?? 0
+                                                    };
+
+                                                    // 計算結果を一度変数に入れる
+                                                    const calcBudget = Math.ceil(formattedValue / budgetMapping[index]);
+                                                    const formattedBudget = Number.isFinite(calcBudget) ? calcBudget : 0;
+
+                                                    // 昨年実績も同様にスッキリさせる
+                                                    const calcLastYearBudget = Math.ceil(formattedLastYearValue / lastYearBudgetMapping[index]);
+                                                    const lastYearFormattedBudget = Number.isFinite(calcLastYearBudget) ? calcLastYearBudget : 0;
+
+                                                    return (
+                                                        <div key={index} style={getCardStyle(item.color)}>
+                                                            <span style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>{item.label}</span>
+                                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                                                <span style={{ color: '#0f172a', fontWeight: 700, fontSize: '13px' }}>￥{index === 0 ? formattedValue.toLocaleString() : formattedBudget.toLocaleString()}</span>
+                                                                {isDisplayLastYear && (
+                                                                    <span style={profitBadgeStyle}>
+                                                                        昨: ￥{index === 0 ? formattedLastYearValue.toLocaleString() : lastYearFormattedBudget.toLocaleString()}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </>}
+                                    </td>
+                                )
+                            })}
+                        </tr>
+                    </React.Fragment>
+                })}
+            </tbody>
+        </Table>
+    };
 
     const searchPart = () => {
         return <>                <div className="d-flex flex-wrap mb-1 search_condition">
@@ -434,177 +774,14 @@ if (target === 'interview') {
         </>
     };
 
-    const KPIMapping = {
-        '中古リノベ全体': ['総反響', '接触', '次アポ', '契約'],
-        '買い:中古リノベ': ['総反響', '来場面談', '次回面談', 'リフォーム契約'],
-        '買い:ポータル': ['総反響', '物件案内', '次回面談', '売買契約'],
-        '売り:ポータル': ['総反響', '査定書提出', '訪問査定', '媒介取得']
-    };
-
     return (
         <>
             <div className='content bg-white p-2'>
                 {searchPart()}
                 <div className="table-wrapper">
                     <div className="list_table">
-                        <div style={{ width: `${(monthArray.length + 1) * 190 + 120}px` }}>
-                            {targetShop ?
-                                <Table striped bordered>
-                                    <tbody style={{ fontSize: '12px', letterSpacing: '.5px' }}>
-                                        <tr className='sticky-header text-center'>
-                                            <td className='sticky-column text-center' style={{ width: '120px' }}>店舗名</td>
-                                            {['全期間', ...monthArray].map(month => <td>{month}</td>)}
-                                        </tr>
-                                        {[{ name: targetShop, shop: targetShop, rank: 1 }, ...staff].filter(s => s.rank === 1).map((item, staffIndex) =>
-                                            <tr>
-                                                <td className='align-middle  sticky-column text-center'>{item.name}</td>
-                                                {['全期間', ...monthArray].map((month, monthIndex) => {
-                                                    const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name && c.shop === targetShop : c.shop === targetShop));
-                                                    const total = getValue(base, monthIndex, month, 'register');
-                                                    const interview = getValue(base, monthIndex, month, 'interview');
-                                                    const contract = getValue(base, monthIndex, month, 'contract');
-                                                    const cancel = base.filter(c => (!c.interview && (monthIndex >= 1 ? formate(c.reserved_interview).includes(month) : monthArray.includes(formate(c.reserved_interview).slice(0, 7)))));
-                                                    const appointment = getValue(base, monthIndex, month, 'appointment');
-                                                    const reserve = [...cancel, ...interview];
-                                                    return (
-                                                        <td style={{ fontSize: '10px' }}>
-                                                            <div className={checked.register.show ? "text-white p-2 rounded" : 'text-white rounded'} style={{ backgroundColor: '#6baed6', textAlign: 'center' }}>
-                                                                {checked.register.show && <div onClick={() => total.length ? handleShow(total, '総反響') : null}>総反響:<span style={clickable(total.length)}>{total.length.toLocaleString()}</span>
-                                                                </div>}
-                                                                <div className={checked.interview.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#2171b5' }}>
-                                                                    {checked.interview.show && <div>実来場:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '実来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / reserve.length) ? 0 : Math.floor(interview.length / reserve.length * 100)}%)
-                                                                    </div>}
-                                                                    <div className={checked.appointment.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
-                                                                        {checked.appointment.show && <div>次アポ:<span style={clickable(appointment.length)} onClick={() => appointment.length ? handleShow(appointment, '次アポ者') : null}>{appointment.length.toLocaleString()}</span>({isNaN(appointment.length / interview.length) ? 0 : Math.floor(appointment.length / interview.length * 100)}%)
-                                                                        </div>}
-                                                                    </div>
-                                                                    <div className={checked.contract.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
-                                                                        {checked.contract.show && <div>契約:<span style={clickable(contract.length)} onClick={() => contract.length ? handleShow(contract, '契約者') : null}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
-                                                                        </div>}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                    )
-                                                })}
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </Table> : <Table striped bordered>
-                                    <tbody style={{ fontSize: '12px', letterSpacing: '.5px' }}>
-                                        <tr className='sticky-header text-center'>
-                                            <td className='sticky-column text-center' style={{ width: '120px' }}>店舗名</td>
-                                            {['全期間', ...monthArray].map((month, monthIndex) => {
-                                                const isDisplayLastYear = isLastYear(month) && monthIndex >= 1 && checked.comparison.show;
-                                                return <td>{month}{isDisplayLastYear && <span className='bg-white rounded text-dark px-2 ms-1'>昨年実績</span>}</td>
-                                            })}
-                                        </tr>
-                                        {[
-                                            {
-                                                brand: '',
-                                                shop: (targetSection && targetSection !== 'all')
-                                                    ? targetSection
-                                                    : targetBrand
-                                                        ? `${targetBrand}全体`
-                                                        : '中古リノベ全体',
-                                                section: '',
-                                                area: ''
-                                            },
-                                            ...(targetSection !== 'all' ? shopArray : sections)
-                                        ].map((target, targetIndex) => {
-                                            return <>
-                                                <tr>
-                                                    <td className='align-middle  sticky-column text-center' rowSpan={checked.budget.show ? 2 : 1}>
-                                                        {(targetMedium && targetMedium !== 'all') && <div>{targetMedium}</div>}
-                                                        <div>{target.shop}</div>
-                                                        <div className="bg-primary btn text-white rounded-pill py-0 mt-2" style={{ fontSize: '11px', cursor: 'pointer' }}
-                                                            onClick={() => showSummary(target.shop)}
-                                                        >サマリ</div>
-                                                    </td>
-                                                    {['全期間', ...monthArray].map((month, monthIndex) => {
-                                                        const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
-                                                        const base = setSection(customerList, targetSection, target.section, target.shop, targetIndex, sectionShops);
-                                                        const total = getValue(base, monthIndex, month, 'register');
-                                                        const interview = getValue(base, monthIndex, month, 'interview');
-                                                        const contract = getValue(base, monthIndex, month, 'contract');
-                                                        const appointment = getValue(base, monthIndex, month, 'appointment');
-                                                        const lastYear = `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`
-                                                        const lastYearMonthArray = monthArray.map(month => `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`);
-                                                        let lastYearValue;
-                                                        if (monthIndex === 0 || isLastYear(month)) {
-                                                            lastYearValue = {
-                                                                total: getValue(base, monthIndex, lastYear, 'register', lastYearMonthArray).length,
-                                                                interview: getValue(base, monthIndex, lastYear, 'interview', lastYearMonthArray).length,
-                                                                appointment: getValue(base, monthIndex, lastYear, 'appointment', lastYearMonthArray).length,
-                                                                contract: getValue(base, monthIndex, lastYear, 'contract', lastYearMonthArray),
-                                                            };
-                                                        }
-                                                        const isDisplayLastYear =
-                                                            checked.comparison.show &&
-                                                            (monthIndex === 0 || isLastYear(month));
-                                                        return (
-                                                            <td style={{ fontSize: '10px' }}>
-                                                                <div className={checked.register.show ? "text-white p-2 rounded" : 'text-white rounded'} style={{ backgroundColor: '#6baed6' }}>
-                                                                    {checked.register.show && <div onClick={() => total.length ? handleShow(total, '総反響') : null}>{KPIMapping[target.shop]?.[0] ?? ''}:<span style={clickable(total.length)}>{total.length.toLocaleString()}</span>
-                                                                        {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.total.toLocaleString()}</span>}</div>}
-                                                                    <div className={checked.interview.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#2171b5' }}>
-                                                                        {checked.interview.show && <div>{KPIMapping[target.shop]?.[1] ?? ''}:<span style={clickable(interview.length)} onClick={() => interview.length ? handleShow(interview, '実来場者') : null}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / total.length) ? 0 : Math.floor(interview.length / total.length * 100)}%)
-                                                                            {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.interview.toLocaleString()}</span>}</div>}
-                                                                        <div className={checked.appointment.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
-                                                                            {checked.appointment.show && <div>{KPIMapping[target.shop]?.[2] ?? ''}:<span style={clickable(appointment.length)} onClick={() => appointment.length ? handleShow(appointment, '次アポ者') : null}>{appointment.length.toLocaleString()}</span>({isNaN(appointment.length / interview.length) ? 0 : Math.floor(appointment.length / interview.length * 100)}%)
-                                                                                {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.appointment.toLocaleString()}</span>}</div>}
-                                                                        </div>
-                                                                        <div className={checked.contract.show ? "rounded px-2 py-1 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
-                                                                            {checked.contract.show && <div>{KPIMapping[target.shop]?.[3] ?? ''}:<span style={clickable(contract.length)} onClick={() => contract.length ? handleShow(contract, '契約者') : null}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
-                                                                                {isDisplayLastYear && <span className='bg-white text-primary rounded px-2 ms-1 fw-bold'>{lastYearValue.contract.length.toLocaleString()}</span>}</div>}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        )
-                                                    })}
-                                                </tr>
-                                                {checked.budget.show && <tr>
-                                                    {['全期間', ...monthArray].map((month, monthIndex) => {
-                                                        const baseBudget = budgetList.filter(b =>
-                                                            (monthIndex > 0 ? b.budget_period.includes(month) : monthArray.includes(b.budget_period.slice(0, 7)))
-                                                            && (targetMedium ? b.medium === targetMedium : true));
-                                                        const filteredBudget = budgetFilter(baseBudget, targetSection, target.shop, targetIndex);
-                                                        const formattedValue = filteredBudget.reduce((acc, cur) => acc + cur.budget_value, 0);
-                                                        const base = customerList.filter(item => (monthIndex >= 1 ? item.register.includes(month) : monthArray.includes(item.register.slice(0, 7))));
-                                                        const lastYear = `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`
-                                                        const lastYearMonthArray = monthArray.map(month => `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`);
-                                                        const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
-                                                        const total = setSection(base, targetSection, target.section, target.shop, targetIndex, sectionShops);
-                                                        const baseLastYear = customerList.filter(item => (monthIndex >= 1 ? item.register.includes(lastYear) : monthArray.includes(item.register.slice(0, 7))));
-                                                        const totalLastYear = setSection(baseLastYear, targetSection, target.section, target.shop, targetIndex);
-                                                        let formattedLastYearValue;
-                                                        const isDisplayLastYear = (isLastYear(month) || monthIndex === 0) && checked.comparison.show;
-                                                        const lastYearBudget = budgetList.filter(b =>
-                                                            b.section === 'order'
-                                                            && (monthIndex > 0 ? b.budget_period.includes(lastYear) : lastYearMonthArray.includes(b.budget_period.slice(0, 7)))
-                                                            && (targetBrand ? b.shop.slice(0, 2) === targetBrand.slice(0, 2) : true)
-                                                            && (targetMedium ? b.medium === targetMedium : true));
-                                                        const filteredLastYearBudget = budgetFilter(lastYearBudget, targetSection, target.shop, targetIndex);
-                                                        formattedLastYearValue = filteredLastYearBudget.reduce((acc, cur) => acc + cur.budget_value, 0);
-                                                        return <td key={monthIndex} style={{ fontSize: '11px' }}>
-                                                            {[{ label: '総額', color: '#c03442' }, { label: '反響単価', color: '#b02a37' }, { label: '来場単価', color: '#8a1e28' }, { label: '契約単価', color: '#64151c' }]
-                                                                .map((item, index) => {
-                                                                    const filteredLength = total.filter(t => index === 1 ? true : index === 2 ? (t.interview || t.appointment || t.screening || t.contract) : t.contract).length;
-                                                                    const formattedBudget = Number.isFinite(Math.ceil(formattedValue / filteredLength)) ? Math.ceil(formattedValue / filteredLength) : 0;
-                                                                    const lastYearFilteredLength = totalLastYear.filter(t => index === 1 ? true : index === 2 ? (t.interview || t.appointment || t.screening || t.contract) : t.contract).length;
-                                                                    const lastYearFormattedBudget = Number.isFinite(Math.ceil(formattedLastYearValue / lastYearFilteredLength)) ? Math.ceil(formattedLastYearValue / lastYearFilteredLength) : 0;
-                                                                    return <div className="text-white rounded pe-2 py-1 mb-1" style={{ backgroundColor: item.color, textAlign: 'right' }} key={index}>{item.label}:￥{index === 0 ? formattedValue.toLocaleString() : formattedBudget.toLocaleString()}
-                                                                        {isDisplayLastYear && <span className='bg-white text-danger rounded px-1 ms-1 fw-bold'>￥{index === 0 ? formattedLastYearValue.toLocaleString() : lastYearFormattedBudget.toLocaleString()}</span>}</div>
-                                                                })}
-                                                        </td>
-                                                    })}
-                                                </tr>}
-                                            </>
-                                        }
-                                        )}
-                                    </tbody>
-                                </Table>}
+                        <div style={{ width: `${(monthArray.length + 1) * 210 + 120}px` }}>
+                            {targetShop ? staffSummary() : shopSummary()}
                         </div>
                     </div>
                 </div>

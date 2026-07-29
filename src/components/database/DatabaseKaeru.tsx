@@ -47,10 +47,10 @@ const DatabaseKaeru = ({ }: Props) => {
     const [integrateList, setIntegrateList] = useState<CustomerList[]>([]);
     const [pastCustomer, setPastCustomer] = useState<Record<string, string>[]>([]);
     const [callStatusShow, setCallStatusShow] = useState(false);
+    const [selectedFollow, setSelectedFollow] = useState('');
 
     const [pastCustomerShow, setPastCustomerShow] = useState(false);
 
-    //　オリジナルフック
     const nameSearch = useDebounce('', 300);
     const staffSearch = useDebounce('', 300);
     const phoneSearch = useDebounce('', 300);
@@ -124,12 +124,13 @@ const DatabaseKaeru = ({ }: Props) => {
                 && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
                 && (nameSearch.debouncedValue ? strIncludes(item._cleanCustomer, cleanFormattedName) : true)
                 && (staffSearch.debouncedValue ? strIncludes(item.staff, staffSearch.debouncedValue.split(' ')[0]) : true)
-                && (phoneSearch.debouncedValue ? strIncludes(item.phone_number, phoneSearch.debouncedValue) : true)
-                && (mailSearch.debouncedValue ? strIncludes(item.mail, mailSearch.debouncedValue) : true)
+                && (phoneSearch.debouncedValue ? (strIncludes(item.phone_number, phoneSearch.debouncedValue) || strIncludes(item.phone_number_2, phoneSearch.debouncedValue)) : true)
+                && (mailSearch.debouncedValue ? (strIncludes(item.mail, mailSearch.debouncedValue) || strIncludes(item.mail_2, mailSearch.debouncedValue)) : true)
                 && (addressSearch.debouncedValue ? String((item.full_address ?? '').replace(/[\s　]+/g, "")).includes(addressSearch.debouncedValue) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
                 && (familyStatus ? familyList.includes(item.id) : true)
                 && (searchedPastStaff ? pastCustomerIds.includes(item.id) : true)
+                && (selectedFollow === '追客中' ? arrIncludes(['Aランク', 'Bランク', 'Cランク', 'Dランク'], item.rank) : selectedFollow === '追客終了' ? arrIncludes(['Eランク', 'Fランク', 'Gランク', 'Hランク'], item.rank) : true)
                 && (searchedPastStaff ? pastCustomerIds.includes(item.id) : true);
         });
 
@@ -146,6 +147,7 @@ const DatabaseKaeru = ({ }: Props) => {
         selectedRank,
         selectedMedium,
         selectedStatus,
+        selectedFollow,
         nameSearch.debouncedValue,
         staffSearch.debouncedValue,
         phoneSearch.debouncedValue,
@@ -198,6 +200,7 @@ const DatabaseKaeru = ({ }: Props) => {
         selectedRank,
         selectedMedium,
         selectedStatus,
+        selectedFollow,
         nameSearch.debouncedValue,
         staffSearch.debouncedValue,
         phoneSearch.debouncedValue,
@@ -395,7 +398,6 @@ const DatabaseKaeru = ({ }: Props) => {
                         <div className="m-1">
                             <select className="target" onChange={(e) => setSelectedStatus(e.target.value)}>
                                 <option value="">ステータスを選択</option>
-                                <option value="見込み">見込み</option>
                                 <option value="追客中">追客中</option>
                                 <option value="接触（通話・返信）">接触（通話・返信）</option>
                                 <option value="アポイント確定">アポイント確定</option>
@@ -417,6 +419,15 @@ const DatabaseKaeru = ({ }: Props) => {
                                 <option value="来場アポ">来場アポ</option>
                                 <option value="来場済み">来場済み</option>
                                 <option value="架電停止">架電停止</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => {
+                                setSelectedFollow(e.target.value)
+                            }}>
+                                <option value="">追客状況</option>
+                                <option value="追客中">追客中</option>
+                                <option value="追客終了">追客終了</option>
                             </select>
                         </div>
                         <div className="m-1">
@@ -509,7 +520,7 @@ const DatabaseKaeru = ({ }: Props) => {
                     </div>
                 </div>
                 <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <div style={{ width: '1700px' }}>
+                    <div style={{ width: '1900px' }}>
                         <Table style={{ fontSize: isSp ? '9px' : '11px', textAlign: 'center' }} bordered striped>
                             <tbody className='align-middle'>
                                 <tr className='align-middle sticky-header'>
@@ -519,13 +530,13 @@ const DatabaseKaeru = ({ }: Props) => {
                                     <td>担当営業</td>
                                     <td>ステータス</td>
                                     <td>反響日</td>
-                                    <td>面談<br />(物件案内)</td>
-                                    <td>次回アクション</td>
+                                    <td>初回面談</td>
                                     <td>ランク</td>
                                     <td>反響経路</td>
                                     <td>販促媒体</td>
                                     <td>住所</td>
-                                    <td>連絡先</td>
+                                    <td>連絡先①</td>
+                                    <td>連絡先②</td>
                                     <td>架電状況</td>
                                     <td>架電件数</td>
                                     <td>{trash === 1 ? '非表示' : '元に戻す'}</td>
@@ -533,7 +544,6 @@ const DatabaseKaeru = ({ }: Props) => {
                                 {filteredDatabase
                                     .slice(sliceStart, sliceStart + basicLength)
                                     .map(item => {
-
                                         const targetEmails = [normalize(item.mail), normalize(item.mail_2)].filter(Boolean);
                                         const targetPhones = [normalize(item.phone_number), normalize(item.phone_number_2)].filter(Boolean);
 
@@ -551,16 +561,13 @@ const DatabaseKaeru = ({ }: Props) => {
                                             <td>{item.staff ?? ''}</td>
                                             <td>{item.status ?? ''}</td>
                                             <td>{formate(item.register)}</td>
-                                            <td>{formate(item.interview)}
-                                                <br />{item.tour && `(${formate(item.tour)})`}
-                                            </td>
-                                            <td>{item.interview && formate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
-                                                style={{ fontSize: '8px' }}>キャンセル({item.cancel_status})</span>}<br /><span style={{ fontSize: '10px', fontWeight: '700' }}>{item.reserved_interview ? <>({formate(item.reserved_interview)})</> : ''}</span></td>
+                                            <td>{formate(item.interview) || formate(item.tour)}</td>
                                             <td>{(item.rank ?? '').replace('ランク', '')}</td>
                                             <td>{item.hp_campaign}</td>
                                             <td>{item.medium}</td>
                                             <td style={{ textAlign: 'left' }}>{item.full_address}</td>
                                             <td style={{ textAlign: 'left' }}>{item.mail}<br />{item.phone_number}</td>
+                                            <td style={{ textAlign: 'left' }}>{item.mail_2}<br />{item.phone_number_2}</td>
                                             <td>{item.call_status}</td>
                                             <td>{item.call_log || '0'}</td>
                                             <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>

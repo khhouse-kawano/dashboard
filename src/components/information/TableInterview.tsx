@@ -29,6 +29,40 @@ type Props = {
     userName: string
 };
 
+const getMigratedAction = (actionStr: string) => {
+    if (!actionStr) return '';
+    const baseAction = actionStr.split(',')[0];
+
+    switch (baseAction) {
+        case '物件案内':
+            return '初回面談';
+        case '事前取得（現金確認含む）':
+        case 'ローン事前承認済み':
+            return '2回目以降面談';
+        case '次回アクション':
+            return '';
+        default:
+            return actionStr;
+    }
+};
+
+const getDisplayNote = (actionStr: string, noteStr: string) => {
+    if (!actionStr) return noteStr || '';
+    const baseAction = actionStr.split(',')[0];
+    const mappedActionStr = getMigratedAction(actionStr);
+    const mappedBase = mappedActionStr ? mappedActionStr.split(',')[0] : '';
+
+    // 旧KPIであり、新しいKPIに丸め込まれている場合
+    if (baseAction !== mappedBase && baseAction !== '') {
+        const prefix = `${baseAction}\n`;
+        // 何度も同じプレフィックスが付くのを防ぐ
+        if (!(noteStr || '').includes(`${baseAction}`)) {
+            return prefix + (noteStr || '');
+        }
+    }
+    return noteStr || '';
+};
+
 const TableInterview = ({ information, setInformation, interviewLog, setInterviewLog, actionMap, interview, setInterview, userName }: Props) => {
     const { category } = useContext(AuthContext);
     const [interviewSort, setInterviewSort] = useState('asc');
@@ -103,14 +137,7 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                                 [key]: interview.day
                             }));
                         }
-                        if (formattedValue === '物件案内') {
-                            const property = e.target.value.split(',')[1];
-                            const newArray = information.property_tour_name ? information.property_tour_name.split(',') : [];
-                            setInformation(prev => ({
-                                ...prev,
-                                property_tour_name: [...newArray, property].join(',')
-                            }));
-                        }
+
                         if (formattedValue === '自社契約' || formattedValue === '仲介契約') {
                             const property = e.target.value.split(',')[1];
                             setInformation(prev => ({
@@ -121,7 +148,7 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                     }}>
                     <option value="">アクション内容</option>
                     {Object.keys(actionMap).map(item => {
-                        if ((item === '物件案内' || item === '自社契約' || item === '仲介契約') && information.property_name) {
+                        if ((item === '自社契約' || item === '仲介契約') && information.property_name) {
                             return information.property_name.split(',').map((property, pIndex) =>
                                 <option value={`${item},${property}`} key={pIndex}>{item}({property})</option>)
                         }
@@ -204,120 +231,122 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                         const dayB = new Date(b.day).getTime();
                         return interviewSort === 'asc' ? dayA - dayB : dayB - dayA;
                     })
-                    .map((item, index) => <>
-                        {interviewSort === 'desc' && actionIcon()}
-                        <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
-                            <div>
-                                <input type="date" value={dateFormate(item.day)} style={inputStyle}
-                                    onChange={(e) => {
-                                        setInterviewLog(prev => ({
-                                            ...prev,
-                                            add: true,
-                                            interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                { ...log, day: e.target.value } : log)
-                                        }));
-                                        const key = actionMap[item.action];
-                                        if (key) {
-                                            setInformation(prev => ({
-                                                ...prev,
-                                                [key]: e.target.value
-                                            }));
-                                        }
-                                    }} />
-                            </div>
-                            <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
-                                <div>
-                                    <select style={{
-                                        ...inputStyle,
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden'
-                                    }}
-                                        title={item.action || "アクション内容"}
-                                        onChange={(e) => {
-                                            const newActionValue = e.target.value;
+                    .map((item, index) => {
+                        const displayNote = getDisplayNote(item.action, item.note);
 
-                                            const oldFormattedValue = item.action.split(',')[0] ?? item.action;
-                                            const oldKey = actionMap[oldFormattedValue];
+                        return (
+                            <React.Fragment key={index}>
+                                {interviewSort === 'desc' && actionIcon()}
+                                <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
+                                    <div>
+                                        <input type="date" value={dateFormate(item.day)} style={inputStyle}
+                                            onChange={(e) => {
+                                                setInterviewLog(prev => ({
+                                                    ...prev,
+                                                    add: true,
+                                                    interview_log: prev.interview_log.map((log, i) => i === index ?
+                                                        { ...log, day: e.target.value } : log)
+                                                }));
+                                                const mappedAction = getMigratedAction(item.action);
+                                                const key = actionMap[mappedAction.split(',')[0]];
+                                                if (key) {
+                                                    setInformation(prev => ({
+                                                        ...prev,
+                                                        [key]: e.target.value
+                                                    }));
+                                                }
+                                            }} />
+                                    </div>
+                                    <div style={{ fontSize: '11px', fontWeight: '500', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '5px' }}>
+                                        <div>
+                                            <select style={{
+                                                ...inputStyle,
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden'
+                                            }}
+                                                title={item.action || "アクション内容"}
+                                                onChange={(e) => {
+                                                    const newActionValue = e.target.value;
 
-                                            const newFormattedValue = newActionValue.split(',')[0] ?? newActionValue;
-                                            const newKey = actionMap[newFormattedValue];
+                                                    const mappedOldAction = getMigratedAction(item.action);
+                                                    const oldFormattedValue = mappedOldAction.split(',')[0] ?? mappedOldAction;
+                                                    const oldKey = actionMap[oldFormattedValue];
 
-                                            setInterviewLog(prev => ({
+                                                    const newFormattedValue = newActionValue.split(',')[0] ?? newActionValue;
+                                                    const newKey = actionMap[newFormattedValue];
+
+                                                    setInterviewLog(prev => ({
+                                                        ...prev,
+                                                        add: true,
+                                                        interview_log: prev.interview_log.map((log, i) => i === index ?
+                                                            { ...log, action: newActionValue } : log)
+                                                    }));
+
+                                                    setInformation(prev => {
+                                                        const updated = { ...prev };
+                                                        if (oldKey) {
+                                                            updated[oldKey] = '';
+                                                        }
+                                                        if (newKey) {
+                                                            updated[newKey] = item.day;
+                                                        }
+                                                        return updated;
+                                                    });
+
+                                                    if (newFormattedValue === '自社契約' || newFormattedValue === '仲介契約') {
+                                                        const property = newActionValue.split(',')[1];
+                                                        setInformation(prev => ({
+                                                            ...prev,
+                                                            property_contract_name: property
+                                                        }));
+                                                    }
+                                                }}
+                                                value={getMigratedAction(item.action)}>
+                                                <option value="">アクション内容</option>
+                                                {Object.keys(actionMap).map(actionItem => {
+                                                    if ((actionItem === '自社契約' || actionItem === '仲介契約') && information.property_name) {
+                                                        return information.property_name.split(',').map((property, pIndex) =>
+                                                            <option value={`${actionItem},${property}`} key={pIndex}>{actionItem}({property})</option>)
+                                                    }
+                                                    return <option value={actionItem} key={actionItem}>{(stars.includes(actionItem) && category === 'used') && '★'}{actionItem}</option>
+                                                }
+                                                )}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <textarea style={{ ...inputStyle, width: '550px', height: 'auto' }} placeholder='面談内容を記載'
+                                            value={displayNote}
+                                            rows={Math.max(2, displayNote.split('\n').length, Math.ceil(displayNote.length / 50))}
+                                            onChange={(e) => setInterviewLog(prev => ({
                                                 ...prev,
                                                 add: true,
                                                 interview_log: prev.interview_log.map((log, i) => i === index ?
-                                                    { ...log, action: newActionValue } : log)
+                                                    { ...log, note: e.target.value } : log)
+                                            }))}></textarea>
+                                    </div>
+                                    <div className="text-danger" style={actionButton}
+                                        onClick={() => {
+                                            const mappedAction = getMigratedAction(item.action);
+                                            const formattedValue = mappedAction.split(',')[0] ?? mappedAction;
+                                            const key = actionMap[formattedValue];
+
+                                            setInformation(prev => ({
+                                                ...prev,
+                                                [key]: ''
                                             }));
-
-                                            setInformation(prev => {
-                                                const updated = { ...prev };
-
-                                                if (oldKey) {
-                                                    updated[oldKey] = '';
-                                                }
-                                                if (newKey) {
-                                                    updated[newKey] = item.day;
-                                                }
-
-                                                return updated;
-                                            });
-
-                                            if (newFormattedValue === '物件案内') {
-                                                const property = newActionValue.split(',')[1];
-                                                const newArray = information.property_tour_name ? information.property_tour_name.split(',') : [];
-                                                setInformation(prev => ({
-                                                    ...prev,
-                                                    property_tour_name: [...newArray, property].join(',')
-                                                }));
-                                            }
-                                            if (newFormattedValue === '自社契約' || newFormattedValue === '仲介契約') {
-                                                const property = newActionValue.split(',')[1];
-                                                setInformation(prev => ({
-                                                    ...prev,
-                                                    property_contract_name: property
-                                                }));
-                                            }
-                                        }}
-                                        value={item.action}>
-                                        <option value="">アクション内容</option>
-                                        {Object.keys(actionMap).map(item => {
-                                            if ((item === '物件案内' || item === '自社契約' || item === '仲介契約') && information.property_name) {
-                                                return information.property_name.split(',').map((property, pIndex) =>
-                                                    <option value={`${item},${property}`} key={pIndex}>{item}({property})</option>)
-                                            }
-                                            return <option value={item} key={item}>{(stars.includes(item) && category === 'used') && '★'}{item}</option>
-                                        }
-                                        )}
-                                    </select>
+                                            setInterviewLog(prev => ({
+                                                ...prev,
+                                                add: true,
+                                                interview_log: prev.interview_log.filter((_, i) => i !== index)
+                                            }));
+                                        }}>削除</div>
                                 </div>
-                            </div>
-                            <div>
-                                <textarea style={{ ...inputStyle, width: '550px', height: 'auto' }} placeholder='面談内容を記載' value={item.note} rows={Math.max(2, item.note.length / 50)}
-                                    onChange={(e) => setInterviewLog(prev => ({
-                                        ...prev,
-                                        add: true,
-                                        interview_log: prev.interview_log.map((log, i) => i === index ?
-                                            { ...log, note: e.target.value } : log)
-                                    }))}></textarea>
-                            </div>
-                            <div className="text-danger" style={actionButton}
-                                onClick={() => {
-                                    const formattedValue = item.action.split(',')[0] ?? item.action;
-                                    const key = actionMap[formattedValue];
-                                    setInformation(prev => ({
-                                        ...prev,
-                                        [key]: ''
-                                    }));
-                                    setInterviewLog(prev => ({
-                                        ...prev,
-                                        add: true,
-                                        interview_log: prev.interview_log.filter((_, i) => i !== index)
-                                    }));
-                                }}>削除</div>
-                        </div>
-                        {interviewSort === 'asc' && actionIcon()}
-                    </>)}
+                                {interviewSort === 'asc' && actionIcon()}
+                            </React.Fragment>
+                        );
+                    })}
             {interviewSort === 'asc' && newAction()}
             {interviewSort === 'desc' && registerAction()}
             {category === 'used' && <div className="d-flex align-items-center mt-4" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>

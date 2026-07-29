@@ -10,17 +10,15 @@ type InputProps = {
     setInformation: React.Dispatch<React.SetStateAction<Record<string, string>>>;
     type?: string;
     formattedValue?: string;
+    disabled?: boolean
 };
 
-const TableInput = ({ itemKey, defaultValue, widthValue, numeric, information, setInformation, type, formattedValue }: InputProps) => {
-    
-    // 修正: ?? を使って条件を整理しました
+const TableInput = ({ itemKey, defaultValue, widthValue, numeric, information, setInformation, type, formattedValue, disabled }: InputProps) => {
+
     const [localValue, setLocalValue] = useState(
         formattedValue ?? (type === 'date' ? dateFormate(information[itemKey]) : safeFormate(information[itemKey]))
     );
 
-    // 修正: useEffect 側も useState の初期値と同じロジックにしておくことをお勧めします
-    // （そうしないと、再レンダリング時に type === 'date' のフォーマットが失われる可能性があります）
     useEffect(() => {
         setLocalValue(
             formattedValue ?? (type === 'date' ? dateFormate(information[itemKey]) : safeFormate(information[itemKey]))
@@ -32,24 +30,25 @@ const TableInput = ({ itemKey, defaultValue, widthValue, numeric, information, s
             type={type ?? 'text'}
             placeholder={defaultValue}
             style={widthValue ? { ...inputStyle, width: widthValue } : inputStyle}
-            value={localValue} 
+            value={localValue}
             onChange={(e) => {
                 setLocalValue(e.target.value);
             }}
             onBlur={(e) => {
                 let finalValue = e.target.value;
-                
+
                 if (numeric) {
                     const halfValue = toHalfWidth(finalValue);
                     finalValue = halfValue.replace(/[^0-9-]/g, '');
                     setLocalValue(finalValue);
                 }
-                
+
                 setInformation((prev: any) => ({
                     ...prev,
                     [itemKey]: finalValue
                 }));
             }}
+            disabled={disabled}
         />
     );
 };
@@ -57,5 +56,6 @@ const TableInput = ({ itemKey, defaultValue, widthValue, numeric, information, s
 export default memo(TableInput, (prevProps, nextProps) => {
     const isValueEqual = prevProps.information[prevProps.itemKey] === nextProps.information[nextProps.itemKey];
     const isFormattedEqual = prevProps.formattedValue === nextProps.formattedValue;
-    return isValueEqual && isFormattedEqual;
+    const isDisabledEqual = prevProps.disabled === nextProps.disabled;
+    return isValueEqual && isFormattedEqual && isDisabledEqual;
 });

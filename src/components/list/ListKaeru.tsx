@@ -163,6 +163,10 @@ const ListKaeru = ({ onReload }: Props) => {
 
         const roll = 'insert';
 
+        const phone_number_1 = filteredCustomer.mobile || filteredCustomer.landline;
+
+        const phone_number_2 = phone_number_1 === filteredCustomer.landline ? '' : filteredCustomer.landline;
+
         if (window.confirm(`${filteredShop} ${filteredCustomer.first_name} ${filteredCustomer.last_name}様 顧客情報を取り込みますか?`)) {
             const postData = {
                 id: generateULID(),
@@ -172,8 +176,8 @@ const ListKaeru = ({ onReload }: Props) => {
                 customer_contacts_name_kana: `${filteredCustomer.first_name_kana} ${filteredCustomer.last_name_kana}`, //ふりがな
                 in_charge_store: filteredShop, //店舗
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date, //反響取得日
-                customer_contacts_mobile_phone_number: filteredCustomer.mobile, //携帯
-                customer_contacts_phone_number: filteredCustomer.landline, //固定及びその他電話番号
+                customer_contacts_phone_number: phone_number_1, //番号①
+                customer_contacts_mobile_phone_number: phone_number_2, //番号②
                 customer_contacts_email: filteredCustomer.mail,  //メアド
                 postal_code: filteredCustomer.zip, //郵便番号
                 full_address: `${filteredCustomer.pref} ${filteredCustomer.city} ${filteredCustomer.town} ${filteredCustomer.street} ${filteredCustomer.building}`, //住所
@@ -181,7 +185,7 @@ const ListKaeru = ({ onReload }: Props) => {
                 remarks: filteredCustomer.note,  //反響情報
                 reserved_interview: filteredCustomer.reserved_date, //来場予約日
                 hp_campaign: filteredCustomer.hp_campaign, //HP反響の場合のCP名
-                status: '見込み',
+                status: '追客中',
                 planned_construction_site: filteredCustomer.area,
                 category,
                 request: 'list',

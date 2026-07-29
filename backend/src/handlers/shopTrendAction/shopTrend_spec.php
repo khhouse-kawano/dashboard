@@ -30,9 +30,14 @@ COALESCE(in_charge_store, '') as shop,
 COALESCE(in_charge_user, '') as staff,
 COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') as rank,
 COALESCE(sales_promotion_name, '') as medium,
-COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG , '')as contract,
+COALESCE(step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW, '') as contract,
+COALESCE(step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0, '') as contract_broker,
 COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
 COALESCE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '') as register,
+COALESCE(step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR, '') as screening,
+COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG, '') as application,
+COALESCE(step_migration_item_01JSENACS2FC422ZHEZWNSXNYA, '') as appointment,
+COALESCE(step_migration_item_01J95TGVT725CV1Z4HTWB22DAV, '') as obtain,
 COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
 COALESCE(step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z, '') as contact,
 COALESCE(reserved_interview, '') as reserved_interview,
@@ -59,12 +64,12 @@ $response_budget = $stmt_budget->fetchAll(PDO::FETCH_ASSOC);
 
 
 $result = [
-    "staff" => $response_staff,
-    "shop" => $response_shop,
-    "section" => $response_section,
-    "customer" => $response_contract,
-    "medium" => $response_medium,
-    "budget" => $response_budget
+        "staff" => $response_staff,
+        "shop" => $response_shop,
+        "section" => $response_section,
+        "customer" => $response_contract,
+        "medium" => $response_medium,
+        "budget" => $response_budget
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

@@ -22,7 +22,7 @@ type Props = {
 }
 
 const TableStatus = ({ information, setInformation, idMapping, setShowLostReason, competitorsRef, competitorsInput, handleCompetitorsDelete, handleCompetitors, setCompetitorsInput, makerList }: Props) => {
-    const { category } = useContext(AuthContext);
+    const { category, authority } = useContext(AuthContext);
 
     return (
         <>
@@ -40,14 +40,13 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                     }}>
                     {category === 'spec' ?
                         <>
-                            <option value="見込み">見込み</option>
                             <option value="追客中">追客中</option>
                             <option value="接触（通話・返信）">接触（通話・返信）</option>
                             <option value="アポイント確定">アポイント確定</option>
                             <option value="来店あり">来店あり</option>
                             <option value="申込み済み">申込み済み</option>
                             <option value="事前取得（現金確認含む）">事前取得（現金確認含む）</option>
-                            <option value="契約済み">契約済み</option>
+                            <option value="契約済み" disabled={authority === 'ordinary'}>契約済み</option>
                             <option value="追客終了">追客終了</option>
                             <option value="解約">解約</option>
                         </> : <>

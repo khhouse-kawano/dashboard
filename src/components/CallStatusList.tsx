@@ -13,7 +13,7 @@ import AuthContext from '../context/AuthContext';
 
 // --- Types ---
 type shopList = { brand: string, shop: string, section: string, show_flag: number };
-type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string, inside: number };
+type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string, inside: number, section: string };
 type CallLogList = {
     id: string;
     shop: string;
@@ -92,6 +92,9 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                 if (categoryValue === 'order') {
                     setInsideSalesCategory('inside_sales');
                     setTargetShop('inside_sales');
+                } else if (categoryValue === 'used') {
+                    setInsideSalesCategory('shopStaff');
+                    setTargetShop('中古住宅専門店');
                 } else {
                     setInsideSalesCategory('shopStaff');
                     setTargetShop(filteredShopList.map((f: any) => f.shop)[0]);
@@ -125,6 +128,7 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
     }, [targetShop, shopArray, categoryValue]);
 
     const changedStaff = useMemo(() => {
+        if (category === 'used') return staffArray.filter(s => s.section === '中古住宅専門店');
         return staffArray.sort(staffSorter()).filter(s =>
             s.rank === 1 && (targetShop === 'estate' ? s.estate === 1 : (targetShop ? s.shop === targetShop : false))
         );
@@ -149,12 +153,12 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
         return (value ?? '').replace(/[\s\u3000]+/g, '');
     };
 
-const filteredCustomer = useMemo(() => {
+    const filteredCustomer = useMemo(() => {
         let ids: string[] = [];
-        
+
         if (targetInsideSales && targetShop === 'inside_sales') {
-            ids = parsedCallLogs.filter(c => 
-                c.parsedActions.some(action => 
+            ids = parsedCallLogs.filter(c =>
+                c.parsedActions.some(action =>
                     safeFormate(action.staff).includes(safeFormate(targetInsideSales))
                 )
             ).map(c => c.id);
@@ -165,7 +169,7 @@ const filteredCustomer = useMemo(() => {
             const isStaffMatch = (targetInsideSales && targetShop === 'inside_sales') ? ids.includes(o.id) : true;
             return isShopMatch && isStaffMatch;
         });
-        
+
     }, [originalDatabase, targetShop, targetShopList, targetInsideSales, parsedCallLogs]);
 
     const isThisMonth = (month: string) => month === `${String(yearValue).padStart(2, '0')}/${String(monthValue).padStart(2, '0')}`;
@@ -175,11 +179,11 @@ const filteredCustomer = useMemo(() => {
         return isThisMonth(month) ? (value * days) / now.getDate() : value;
     };
 
-const renderInsideSalesList = () => {
+    const renderInsideSalesList = () => {
         const displayShops = [{ brand: '', shop: '熊本営業課', section: '熊本営業課', show_flag: 1 }, ...shopArray]
             .filter(s => s.section === '熊本営業課');
         const metrics = ['総反響数', '対応反響数', '対応中', 'アポ取得数', '対応反響数からの来場数', '総架電数', '資料郵送数', 'SMS送信数', 'メール送信数'];
-        
+
         return (
             <div className="table-responsive shadow-sm rounded mb-3 border" style={{ maxHeight: '600px', overflowY: 'auto' }}>
                 <Table hover className="mb-0 bg-white" style={{ minWidth: `${monthArray.slice(8).length * 110 + 220}px` }} bordered>
@@ -213,7 +217,7 @@ const renderInsideSalesList = () => {
                             const calledCustomer = filteredCustomer.filter(c => isTotalRow ? true : c.shop === s.shop);
 
                             // 💡 4. アクション（架電やSMS）も、この行の customerFilter から展開する
-                            const base = customerFilter.flatMap(c => c.parsedActions).filter(a => 
+                            const base = customerFilter.flatMap(c => c.parsedActions).filter(a =>
                                 targetInsideSales ? safeFormate(a.staff).includes(safeFormate(targetInsideSales)) : true
                             );
 
@@ -281,6 +285,7 @@ const renderInsideSalesList = () => {
     };
 
     const renderShopStaffList = () => {
+        console.log(changedStaff)
         const staffListToRender = [{ name: '合計', shop: '', pg_id: '', category: 0, estate: 1 } as unknown as staffList, ...changedStaff];
         const targetCategories = targetShop === 'estate' ? ['土地新着ネット反響数', '総架電数', '通電数', 'アポ取得数', '架電からの来場数'] : ['総架電数', '通電数', 'アポ取得数', '架電からの来場数'];
 
@@ -432,7 +437,7 @@ const renderInsideSalesList = () => {
     return (
         <>{source ?
             <>
-                {categoryValue !== 'used' && selectCategory}
+                { selectCategory}
                 {insideSalesCategory === 'shopStaff' ? renderShopStaffList() : renderInsideSalesList()}
             </>
             :

@@ -21,7 +21,7 @@ export const buttonStyle = {
 export const valueStyle = { fontSize: '12px', letterSpacing: '.6px', verticalAlign: 'middle' };
 export const inputStyle = { ...baseStyle, margin: '5px', color: '#303030' };
 export const selectStyle = { ...baseStyle };
-export const requiredStyle = { border: '1px solid #9b9b9b', borderRadius: '4px', color: '#303030', padding: '3px 5px', marginLeft: '5px' };
+export const requiredStyle = { border: '1px solid #f87171b4', borderRadius: '4px', color: '#f87171', padding: '3px 5px', marginLeft: '5px', fontSize: '7px' };
 export const actionButton = { backgroundColor: '#D3D3D3', padding: '6px', marginLeft: '5px', borderRadius: '3px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.39)' };
 export const safeFormate = (value: string) => {
     return value ?? '';

@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
-import axios from "axios";
 import Table from "react-bootstrap/Table";
 import "../SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -8,16 +7,16 @@ import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
-import { headers } from '../../utils/headers';
 import { getFiscalYearMonthsFromJune } from '../../utils/getFiscalYearMonthsFromJune';
-import InformationEdit from '../information/InformationEdit';
+import InformationEditKaeru from '../information/InformationEditKaeru';
 import InterviewLog from '../InterviewLog';
 import StaffMemo from './StaffMemo';
 import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
 import { useIsSp } from '../../utils/isSp';
+import apiClient from '../../utils/apiClient';
 
-type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
+type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string }
 type Expect = { date: string, shop: string, section: string, count: number };
 type Target = { [key: string]: boolean };
@@ -59,7 +58,7 @@ const RankOrder = () => {
     const isSp = useIsSp();
 
     const fetchCustomerData = async () => {
-        return await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", category }, { headers });
+        return await apiClient.post('', { request: "rank", category });
     };
 
     useEffect(() => {
@@ -110,23 +109,24 @@ const RankOrder = () => {
     const tooltipItems = [
         { label: '総反響', desc: (<>{targetMonth}の総反響数</>) },
         // { label: '来場率', desc: '来場者数/総反響' },
+        { label: '接触数', desc: (<>{targetMonth}の通話及びメールへの返信数</>) },
         { label: '来場数', desc: (<>{targetMonth}の来場者数</>) },
-        { label: '次アポ数', desc: (<>{targetMonth}の次アポ数</>) },
+        { label: '次アポ数', desc: (<>{targetMonth}の2回目以降の面談数</>) },
         { label: '契約数(率)', desc: (<>契約者数/来場者数</>) },
-        { label: '当月確約数', desc: (<>{targetMonth}の契約が確実な数</>) },
-        { label: '見込数', desc: (<>{targetMonth}の見込数</>) },
+        // { label: '当月確約数', desc: (<>{targetMonth}の契約が確実な数</>) },
+        // { label: '見込数', desc: (<>{targetMonth}の見込数</>) },
         { label: '目標数', desc: (<>{targetMonth}の目標数</>) },
-        { label: '達成率', desc: (<>契約者数/予算 ()内は見込み達成率</>) },
-        { label: 'Sランク', desc: (<>契約確定(95%)<br />土地内諾<br />契約日決定<br />入金済み</>) },
-        { label: 'Aランク', desc: (<>契約確度高い(90%)<br />土地買付受領<br />建築申込</>) },
-        { label: 'Bランク', desc: (<>勝算あり(60%)<br />建築意思がある(自社他社問わず)<br />事前審査承諾<br />候補地有(プラン提案中)</>) },
-        { label: 'Cランク', desc: (<>見込み案件(40%)<br />次回アポ済み<br />LINE等で連絡可<br />事前審査提出</>) },
-        { label: 'Dランク', desc: '中長期管理' },
-        // { label: 'Eランク', desc: '中長期管理' },
-        // { label: 'ランクダウン', desc: 'A~CランクからD~Eランクにダウンした数' },
+        { label: '目標達成率', desc: (<>契約者数/予算</>) },
+        { label: 'Sランク', desc: '契約済み' },
+        { label: 'Aランク', desc: '契約予定(申込有)' },
+        { label: 'Bランク', desc: '次回結論' },
+        { label: 'Cランク', desc: '商談案件' },
+        { label: 'Dランク', desc: '追客保有名簿' },
+        { label: 'Eランク', desc: 'フリー顧客' },
+        { label: 'Fランク', desc: '没' },
     ];
 
-    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク'];
+    const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク', 'Fランク'];
 
     const background = {
         '建売分譲事業': 'table-secondary ',
@@ -146,6 +146,21 @@ const RankOrder = () => {
             ...prev,
             [target.label]: !prev[target.label] // true と false を反転
         }));
+    };
+
+    const formate = (value: string) => {
+        return (value ?? '').replace(/-/g, '/');
+    };
+
+    const getTargetYears = (value: string) => {
+        if (value.length !== 4) return [];
+        const start = Number(value) - 1;
+        let monthArray: string[] = [];
+        for (let i = start; i <= start + 1; i++) {
+            if (i === start) monthArray.push(`${String(i)}/06`, `${String(i)}/07`, `${String(i)}/08`, `${String(i)}/09`, `${String(i)}/10`, `${String(i)}/11`, `${String(i)}/12`);
+            if (i === start + 1) monthArray.push(`${String(i)}/01`, `${String(i)}/02`, `${String(i)}/03`, `${String(i)}/04`, `${String(i)}/05`);
+        }
+        return monthArray;
     };
 
     const baseData = useMemo(() => {
@@ -210,7 +225,6 @@ const RankOrder = () => {
         rank_period: number
     ) => {
         const isPeriod = targetMonth.length === 4;
-
         let targetPeriod = '';
         if (rank_period > 0 && !isPeriod) {
             const [yStr, mStr] = targetMonth.split('/');
@@ -218,16 +232,40 @@ const RankOrder = () => {
             targetPeriod = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
         }
 
-        let base: Customer[] = [];
-        if (period === 'contract') base = baseData.contract;
-        else if (period === 'interview') base = baseData.interview;
-        else if (period === 'register') base = baseData.register;
-        else if (period === 'appointment') base = baseData.appointment;
-        else base = baseData.all;
+        // --- 丸め込み用KPIキーの定義 ---
+        const registerKeys = ['register'] as const;
+        const contactKeys = ['contact'] as const;
+        const interviewKeys = ['interview', 'tour'] as const;
+        const appointmentKeys = ['appointment'] as const;
+        const screeningKeys = ['screening', 'obtain'] as const;
+        const applicationKeys = ['application'] as const;
+        const contractKeys = ['contract', 'contract_broker'] as const;
+
+        const formattedPeriod = getTargetYears(targetMonth);
+        const formattedMonth = formate(targetMonth);
+        console.log(formattedPeriod)
+
+        // 月(または期間)の一致判定関数
+        const hasMatchInMonth = (b: Customer, keys: readonly string[]) => {
+            return keys.some(key => {
+                const val = formate(b[key as keyof Customer] as string) || '';
+                if (!val) return false;
+                return isPeriod
+                    ? formattedPeriod.includes(val.slice(0, 7))
+                    : val.includes(formattedMonth);
+            });
+        };
+
+        // 対象キーが全て空かどうかの判定関数
+        const isAllEmpty = (b: Customer, keys: readonly string[]) => {
+            return keys.every(key => !b[key as keyof Customer]);
+        };
 
         const targetShops = category === 'section' ? shopList.filter(s => s.section === target).map(s => s.shop) : [];
 
-        return base.filter(item => {
+        // 大元の baseData.all に対して、カテゴリ・ランク・KPI丸め込みの条件を1回のループで判定する
+        return baseData.all.filter(item => {
+            // --- 1. カテゴリ/店舗の判定 ---
             let matchCategory = true;
             if (index > 0) {
                 if (category === 'section') {
@@ -237,21 +275,52 @@ const RankOrder = () => {
                 }
             }
             if (!matchCategory) return false;
+
+            // --- 2. ランクの判定 ---
             if (isPeriod) {
-                return rank ? (item.rank === rank && item.status === '見込み') : true;
+                if (rank && (item.rank !== rank || (item.status ?? '').includes('契約'))) return false;
             } else {
                 if (rank) {
-                    if (item.rank !== rank || item.status !== '見込み') return false;
+                    if (item.rank !== rank || (item.status ?? '').includes('契約')) return false;
                     if (rank_period > 0) {
                         if (item.rank_period !== targetPeriod) return false;
                     } else {
                         if (item.rank_period && item.rank_period > targetMonth) return false;
                     }
+                    if (rank === 'Sランク' && (!formate(item.contract ?? '').includes(formate(targetMonth)) && !formate(item.contract_broker ?? '').includes(formate(targetMonth)))) return false;
                 }
-                return true;
             }
+
+            // --- 3. KPIと丸め込みの判定 ---
+            if (period === 'register') {
+                const higherKeys = [...contactKeys, ...interviewKeys, ...appointmentKeys, ...screeningKeys, ...applicationKeys, ...contractKeys];
+                if (!hasMatchInMonth(item, registerKeys) && !(isAllEmpty(item, registerKeys) && hasMatchInMonth(item, higherKeys))) return false;
+            }
+            if (period === 'contact') {
+                const higherKeys = [...interviewKeys, ...appointmentKeys, ...screeningKeys, ...applicationKeys, ...contractKeys];
+                if (!hasMatchInMonth(item, contactKeys) && !(isAllEmpty(item, contactKeys) && hasMatchInMonth(item, higherKeys))) return false;
+            }
+            else if (period === 'interview') {
+                const higherKeys = [...appointmentKeys, ...screeningKeys, ...applicationKeys, ...contractKeys];
+                if (!hasMatchInMonth(item, interviewKeys) && !(isAllEmpty(item, interviewKeys) && hasMatchInMonth(item, higherKeys))) return false;
+            }
+            else if (period === 'appointment') {
+                const higherKeys = [...screeningKeys, ...applicationKeys, ...contractKeys];
+                if (!hasMatchInMonth(item, appointmentKeys) && !(isAllEmpty(item, appointmentKeys) && hasMatchInMonth(item, higherKeys))) return false;
+            }
+            else if (period === 'contract') {
+                if ((item.status ?? '').includes('契約済み') || !hasMatchInMonth(item, contractKeys)) return false;
+            }
+            else if (period) {
+                // register, screening, application など上記以外の単体KPIに対するフォールバック
+                if (!hasMatchInMonth(item, [period])) return false;
+            }
+
+            // 全ての条件をクリアしたデータだけを返す
+            return true;
         });
-    }, [baseData, shopList, targetMonth]);
+
+    }, [baseData, shopList, targetMonth, monthArray]);
 
 
 
@@ -270,8 +339,7 @@ const RankOrder = () => {
         };
         const fetchData = async () => {
             try {
-                const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/", postData, { headers });
+                const response = await apiClient.post("", postData);
                 console.log(response.data);
             } catch (error) {
                 console.error("Error fetching data:", error);
@@ -303,7 +371,7 @@ const RankOrder = () => {
             category
         };
         try {
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+            const response = await apiClient.post('', postData);
             console.log(response.data.status);
             await setCustomerList(response.data.newCustomers);
         } catch (e) {
@@ -352,7 +420,7 @@ const RankOrder = () => {
 
         const fetchData = async () => {
             try {
-                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", staff, memo: text, shop }, { headers });
+                await apiClient.post('', { request: "rank", staff, memo: text, shop });
             } catch (err) {
                 console.error(err);
             }
@@ -392,170 +460,138 @@ const RankOrder = () => {
         }
     };
 
-    return (
-        <div style={{ overflowX: 'scroll' }}>
-            <div className='bg-white p-2' style={{ width: isSp ? '1200px' : '1600px' }}>
-                <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-                <div className="row mt-3 mb-4" >
-                    <div className="col d-flex">
-                        <select className="target" name="startMonth" onChange={(e) => setTargetMonth(e.target.value)}>
-                            {getYears().map(year => <option key={year} value={year}>{year}年度</option>)}
-                            {monthArray.map((month, index) => (
-                                <option key={index} value={month} selected={targetMonth === month}>{month}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-                <div>
-                    <Table bordered>
-                        <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
-                            <tr className="text-center">
-                                <td rowSpan={2} className='sticky-column-rank'>店舗</td>
-                                {tooltipItems
-                                    .filter(t => {
-                                        const isPeriod = targetMonth.length === 4;
-                                        return isPeriod ? t.label !== '当月契約確約数' : true
-                                    })
-                                    .map((item, i) => {
-                                        const isRank = rankLabels.includes(item.label);
-                                        const isPeriod = targetMonth.length === 4;
-                                        return (
-                                            <td
-                                                key={`head-${i}`}
-                                                colSpan={(isRank && !isPeriod) ? 3 : 1}
-                                                rowSpan={isRank ? 1 : 2}
-                                                className="align-middle"
-                                            >
-                                                <OverlayTriggerComponent label={item.label} desc={item.desc} />
-                                            </td>
-                                        );
-                                    })}
-                            </tr>
-                            <tr className="text-center">
-                                {tooltipItems
-                                    .map((item, i) => {
-                                        const isRank = rankLabels.includes(item.label);
-                                        const isPeriod = targetMonth.length === 4;
-                                        if (!isRank) {
-                                            return null;
-                                        }
-                                        return (
-                                            <>{!isPeriod &&
-                                                <React.Fragment key={`sub-${i}`}>
-                                                    <td>{targetMonth}</td>
-                                                    <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 1).padStart(2, '0')}</td>
-                                                    <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 2).padStart(2, '0')}</td>
-                                                </React.Fragment>
-                                            }</>
-                                        );
-                                    })}
-                            </tr>
-                            {[{ label: '建売営業全体', category: 'all', show: true }, ...displayLabelList].map((target, targetIndex) => {
-                                let bgKey;
-                                if (target.category === 'section' || target.category === 'all') {
-                                    bgKey = target.label;
-                                } else if (target.category === 'shop') {
-                                    bgKey = shopList.find(s => s.shop === target.label)?.section;
-                                }
-                                const isPeriod = targetMonth.length === 4;
-                                const register = getFiltered('register', target.category, target.label, targetIndex, '', 0);
-                                const interview = getFiltered('interview', target.category, target.label, targetIndex, '', 0);
-                                const appointment = getFiltered('appointment', target.category, target.label, targetIndex, '', 0);
-                                const contract = getFiltered('contract', target.category, target.label, targetIndex, '', 0);
-                                const rankS = getFiltered('', target.category, target.label, targetIndex, 'Sランク', 0);
-                                const rankA = getFiltered('', target.category, target.label, targetIndex, 'Aランク', 0);
-                                const goal = calculateGoal(target.category, target.label);
-
-                                const expectedList = expectedContract.filter(item => item.date === targetMonth
-                                    && ((targetIndex > 0) ? item[target.category] === target.label : true));
-                                const expected = expectedList.reduce((acc, cur) => acc + cur.count, 0);
-                                return (
-                                    <tr key={targetIndex} className={`${background[bgKey]} align-middle`} style={{ textAlign: 'center' }}>
-                                        <td style={{
-                                            cursor: target.category === 'staff' ? 'text' : 'pointer',
-                                            textAlign: 'left',
-                                            paddingLeft: (targetIndex === 0 || target.category === 'staff') ? '34px' : '',
-                                        }}
-                                            onClick={() => expandTarget(target)}
-                                            className='sticky-column-rank'
-                                        >
-                                            <div className="d-flex align-items-center">
-                                                {(targetIndex > 0 && target.category !== 'staff') && <i className={`fa-solid ${showTarget[target.label] ? 'fa-minus' : 'fa-plus'} me-2 p-1 pointer-icon rounded`} ></i>}
-                                                {target.label}
-                                                {target.category === 'staff' && (
-                                                    <StaffMemo
-                                                        staffName={target.label}
-                                                        staffShop={memoList.find(m => m.staff === target.label)?.shop ?? ''}
-                                                        initialMemo={memoList.find(m => m.staff === target.label)?.memo ?? ''}
-                                                        onSave={handleMemoChange}
-                                                    />
-                                                )}
-                                            </div>
-                                        </td>
-                                        <TableParts key={targetIndex} list={register} setModalList={setModalList} />
-                                        <TableParts key={targetIndex} list={interview} setModalList={setModalList} />
-                                        <TableParts key={targetIndex} list={appointment} setModalList={setModalList} />
-                                        <td onClick={() => contract.length > 0 ? setModalList(contract) : null} style={{
-                                            textDecoration: contract.length > 0 ? 'underline' : ''
-                                            , cursor: contract.length > 0 ? 'pointer' : ''
-                                        }}
-                                            className={contract.length === 0 ? 'table-white' : ''}
-                                            key={targetIndex}>{contract.length}({perFormate(contract.length / interview.length)}%)</td>
-                                        <TableParts key={targetIndex} list={[...contract, ...rankS]} setModalList={setModalList} />
-                                        {!isPeriod && <td>
-                                            {(targetIndex === 0 || target.category === 'section') && expected}
-                                            {(target.category === 'shop') && <input type='number' className='target text-center' value={expected}
-                                                style={{ width: '40px', height: '25px', margin: '0 auto' }}
-                                                onChange={(e) => {
-                                                    const sectionValue = shopList.find(s => s.shop === target.label)?.section;
-                                                    setNewExpected({
-                                                        date: targetMonth,
-                                                        shop: target.label,
-                                                        section: sectionValue ?? '',
-                                                        count: Number(e.target.value)
-                                                    });
-                                                    setExpectedContract(
-                                                        prev => expectedList.length > 0 ?
-                                                            prev.map(item =>
-                                                                item.shop === target.label
-                                                                    ? {
-                                                                        ...item,
-                                                                        count: Number(e.target.value)
-                                                                    }
-                                                                    : item) : [...prev,
-                                                                    {
-                                                                        date: targetMonth,
-                                                                        shop: target.label,
-                                                                        section: sectionValue ?? '',
-                                                                        count: Number(e.target.value)
-                                                                    }]
-                                                    );
-                                                }}
-                                            />}</td>}
-                                        <td>{target.category === 'staff' ? '-' : goal}</td>
-                                        <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%
-                                            (<span className='text-primary'>{goal ? perFormate((contract.length + rankS.length) / Number(goal)) : 0}%</span>)</td>
-                                        {rankLabels.map((rank, rankIndex) => {
-                                            const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, 0);
-                                            return <>
-                                                <TableParts key={rankIndex} list={targetList} setModalList={setModalList} />
-                                                {[1, 2].map(num => {
-                                                    const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, num);
-                                                    return <>
-                                                        <TableParts key={num} list={targetList} setModalList={setModalList} />
-                                                    </>
-                                                }
-                                                )}
-                                            </>
-                                        }
-                                        )}
-                                    </tr>)
-                            }
-                            )}
-                        </tbody>
-                    </Table>
+    const searchParts = () => {
+        return <div className='bg-white p-2' style={{ width: isSp ? '1300px' : '1800px' }}>
+            <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
+            <div className="row mt-3 mb-4" >
+                <div className="col d-flex">
+                    <select className="target" name="startMonth" onChange={(e) => setTargetMonth(e.target.value)}>
+                        {getYears().map(year => <option key={year} value={year}>{year}年度</option>)}
+                        {monthArray.map((month, index) => (
+                            <option key={index} value={month} selected={targetMonth === month}>{month}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
+            <div>
+                <Table bordered>
+                    <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
+                        <tr className="text-center">
+                            <td rowSpan={2} className='sticky-column-rank'>店舗</td>
+                            {tooltipItems
+                                .filter(t => {
+                                    const isPeriod = targetMonth.length === 4;
+                                    return isPeriod ? t.label !== '当月契約確約数' : true
+                                })
+                                .map((item, i) => {
+                                    const isRank = rankLabels.filter(r => r !== 'Eランク' && r !== 'Fランク').includes(item.label);
+                                    const isPeriod = targetMonth.length === 4;
+                                    return (
+                                        <td
+                                            key={`head-${i}`}
+                                            colSpan={(isRank && !isPeriod) ? 3 : 1}
+                                            rowSpan={isRank ? 1 : 2}
+                                            className="align-middle"
+                                        >
+                                            <OverlayTriggerComponent label={item.label} desc={item.desc} />
+                                        </td>
+                                    );
+                                })}
+                        </tr>
+                        <tr className="text-center">
+                            {tooltipItems
+                                .map((item, i) => {
+                                    const isRank = rankLabels.includes(item.label);
+                                    const isPeriod = targetMonth.length === 4;
+                                    if (!isRank) {
+                                        return null;
+                                    }
+                                    return (
+                                        <>{(!isPeriod && (item.label !== 'Eランク' && item.label !== 'Fランク')) &&
+                                            <React.Fragment key={`sub-${i}`}>
+                                                <td>{targetMonth}</td>
+                                                <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 1).padStart(2, '0')}</td>
+                                                <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 2).padStart(2, '0')}</td>
+                                            </React.Fragment>
+                                        }</>
+                                    );
+                                })}
+                        </tr>
+                        {[{ label: '建売営業全体', category: 'all', show: true }, ...displayLabelList].map((target, targetIndex) => {
+                            let bgKey;
+                            if (target.category === 'section' || target.category === 'all') {
+                                bgKey = target.label;
+                            } else if (target.category === 'shop') {
+                                bgKey = shopList.find(s => s.shop === target.label)?.section;
+                            }
+                            const register = getFiltered('register', target.category, target.label, targetIndex, '', 0);
+                            const contact = getFiltered('contact', target.category, target.label, targetIndex, '', 0);
+                            const interview = getFiltered('interview', target.category, target.label, targetIndex, '', 0);
+                            const appointment = getFiltered('appointment', target.category, target.label, targetIndex, '', 0);
+                            const contract = getFiltered('contract', target.category, target.label, targetIndex, '', 0);
+                            const rankS = getFiltered('', target.category, target.label, targetIndex, 'Sランク', 0);
+                            const goal = calculateGoal(target.category, target.label);
+                            return (
+                                <tr key={targetIndex} className={`${background[bgKey]} align-middle`} style={{ textAlign: 'center' }}>
+                                    <td style={{
+                                        cursor: target.category === 'staff' ? 'text' : 'pointer',
+                                        textAlign: 'left',
+                                        paddingLeft: (targetIndex === 0 || target.category === 'staff') ? '34px' : '',
+                                    }}
+                                        onClick={() => expandTarget(target)}
+                                        className='sticky-column-rank'
+                                    >
+                                        <div className="d-flex align-items-center">
+                                            {(targetIndex > 0 && target.category !== 'staff') && <i className={`fa-solid ${showTarget[target.label] ? 'fa-minus' : 'fa-plus'} me-2 p-1 pointer-icon rounded`} ></i>}
+                                            {target.label}
+                                            {target.category === 'staff' && (
+                                                <StaffMemo
+                                                    staffName={target.label}
+                                                    staffShop={memoList.find(m => m.staff === target.label)?.shop ?? ''}
+                                                    initialMemo={memoList.find(m => m.staff === target.label)?.memo ?? ''}
+                                                    onSave={handleMemoChange}
+                                                />
+                                            )}
+                                        </div>
+                                    </td>
+                                    <TableParts key={targetIndex} list={register} setModalList={setModalList} />
+                                    <TableParts key={targetIndex} list={contact} setModalList={setModalList} />
+                                    <TableParts key={targetIndex} list={interview} setModalList={setModalList} />
+                                    <TableParts key={targetIndex} list={appointment} setModalList={setModalList} />
+                                    <td onClick={() => contract.length > 0 ? setModalList(contract) : null} style={{
+                                        textDecoration: contract.length > 0 ? 'underline' : ''
+                                        , cursor: contract.length > 0 ? 'pointer' : ''
+                                    }}
+                                        className={contract.length === 0 ? 'table-white' : ''}
+                                        key={targetIndex}>{contract.length}({perFormate(contract.length / interview.length)}%)</td>
+                                    <td>{target.category === 'staff' ? '-' : goal}</td>
+                                    <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%</td>
+                                    {rankLabels.map((rank, rankIndex) => {
+                                        const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, 0);
+                                        return <>
+                                            <TableParts key={rankIndex} list={targetList} setModalList={setModalList} />
+                                            {(rank !== 'Eランク' && rank !== 'Fランク') && <>{[1, 2].map(num => {
+                                                const targetList = getFiltered('', target.category, target.label, targetIndex, `${rank}`, num);
+                                                return <>
+                                                    <TableParts key={num} list={targetList} setModalList={setModalList} />
+                                                </>
+                                            }
+                                            )}</>}
+                                        </>
+                                    }
+                                    )}
+                                </tr>)
+                        }
+                        )}
+                    </tbody>
+                </Table>
+            </div>
+        </div>
+    };
+
+    return (
+        <div style={{ overflowX: 'scroll' }}>
+            {searchParts()}
             <Modal show={modalList.length > 0} onHide={modalClose} size='xl'>
                 <Modal.Header closeButton>
                     <Modal.Title style={{ fontSize: '15px' }}>案件詳細</Modal.Title>
@@ -577,7 +613,7 @@ const RankOrder = () => {
                                         <td>見込み月</td>
                                         <td>反響日</td>
                                         <td>初回来場日</td>
-                                        <td>契約日</td>
+                                        <td>契約日<span className='text-success'>(仲介)</span></td>
                                     </tr>
                                     {modalList.slice(page - 20, page).map((item, index) =>
                                         <tr key={index}>
@@ -596,7 +632,7 @@ const RankOrder = () => {
                                                         setNewRank(item.id, e.target.value, '');
                                                     }}>
                                                     <option value=''>未設定</option>
-                                                    {['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク',].map(rank => {
+                                                    {['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク', 'Fランク'].map(rank => {
                                                         return <option value={rank} key={rank} selected={rank === item.rank}>{rank}</option>
                                                     }
                                                     )}
@@ -616,7 +652,7 @@ const RankOrder = () => {
                                                 </select></td>
                                             <td>{dateFormate(item.register)}</td>
                                             <td>{dateFormate(item.interview)}</td>
-                                            <td>{dateFormate(item.contract)}</td>
+                                            <td>{dateFormate(item.contract) || <span className='text-success'>({dateFormate(item.contract_broker)})</span>}</td>
                                         </tr>)}
                                 </tbody>
                             </Table>
@@ -630,7 +666,7 @@ const RankOrder = () => {
                 </Modal.Body>
             </Modal>
             <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
-            <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
+            <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </div>
     )
 }

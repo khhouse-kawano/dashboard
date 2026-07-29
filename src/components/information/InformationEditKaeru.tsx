@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import Modal from 'react-bootstrap/Modal';
-import axios from 'axios';
-import { headers } from '../../utils/headers';
+import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
+import Tooltip from 'react-bootstrap/Tooltip';
 import Table from "react-bootstrap/Table";
 import { databaseList } from '../../utils/databaseList';
 import FamilyInfo from '../FamilyInfo';
@@ -94,14 +94,25 @@ const idMapping = (text: string) => {
 const actionMap = {
     '接触（通話・返信）': 'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z',
     '初回面談': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
-    '物件案内': 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+    // '物件案内': 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
     '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
-    '次回アクション': 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
-    '事前取得（現金確認含む）': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
-    'ローン事前承認済み': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+    // '次回アクション': 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
+    // '事前取得（現金確認含む）': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
+    // 'ローン事前承認済み': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
     '申し込み': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
     '自社契約': 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
     '仲介契約': 'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0',
+};
+
+const OverlayTriggerComponent = ({ label, desc }) => {
+    return (
+        <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-top" style={{
+            fontSize: "12px",
+            "--bs-tooltip-bg": "#4a90e2",
+            "--bs-tooltip-color": "#ffffff"
+        } as React.CSSProperties}>{desc}</Tooltip>}>
+            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer', color: '#4a90e2' }}>{label}<i className="fa-regular fa-circle-question"></i></span>
+        </OverlayTrigger>)
 };
 
 const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
@@ -671,24 +682,30 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                     <tr>
                                         <td style={{ ...labelStyle, width: '10%' }}>お客様名<span style={requiredStyle}>必須</span></td>
                                         <td style={{ ...valueStyle, width: '40%' }}>
-                                            <div>
+                                            <div className='d-flex align-items-center'>
+                                                <div className='text-secondary'>①</div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey={idMapping('お客様名')} defaultValue='氏名①' />
                                                 <TableInput information={information} setInformation={setInformation} itemKey={idMapping('名前（かな）')} defaultValue='ふりがな①' />
                                             </div>
-                                            <div>
+                                            <div className='d-flex align-items-center'>
+                                                <div className='text-secondary'>②</div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_2' defaultValue='氏名②' />
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_kana_2' defaultValue='ふりがな②' />
                                             </div>
                                         </td>
-                                        <td style={{ ...labelStyle, width: '10%' }}>連絡先</td>
+                                        <td style={{ ...labelStyle, width: '10%' }}><OverlayTriggerComponent label="連絡先" desc={(<>※「氏名②」に入力したら「電話番号②」「メールアドレス①」にも登録可能になります。</>)} /></td>
                                         <td style={{ ...valueStyle, width: '40%' }}>
-                                            <div>
+                                            <div className='d-flex align-items-center'>
+                                                <div className='text-secondary'>①</div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_phone_number' defaultValue='電話番号①' widthValue='100px' numeric={true} />
-                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_mobile_phone_number' defaultValue='電話番号' widthValue='100px' numeric={true} />
+                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_email' defaultValue='メールアドレス①' />
                                             </div>
                                             <div>
-                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_email' defaultValue='メールアドレス①' />
-                                                <TableInput information={information} setInformation={setInformation} itemKey='extra_address_info' defaultValue='メールアドレス②' />
+                                                <div className='d-flex align-items-center'>
+                                                    <div className='text-secondary'>②</div>
+                                                    <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_mobile_phone_number' defaultValue='電話番号②' widthValue='100px' numeric={true} disabled={!information.customer_contacts_name_2} />
+                                                    <TableInput information={information} setInformation={setInformation} itemKey='extra_address_info' defaultValue='メールアドレス②' disabled={!information.customer_contacts_name_2} />
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -760,8 +777,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                             {(information[idMapping('担当営業')] === `${information.in_charge_store} 管理` && information.first_interviewed_user)
                                                 && <div className="ms-2">変更前:{safeFormate(information.first_interviewed_user)}({safeFormate(information.last_action_step_migration_item_name)})</div>}
                                         </td>
-                                        <td style={labelStyle}>ステータス</td>
-                                        <td style={valueStyle}>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="ステータス" desc={(<>現在の進捗に合わせて、常に最新の状態へ更新してください。<br />※「契約済み」への変更は課長が行います。</>)} /></td>                                        <td style={valueStyle}>
                                             <TableStatus
                                                 information={information}
                                                 setInformation={setInformation}
@@ -776,8 +792,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>顧客ランク<br />(契約見込み月)</td>
-                                        <td style={valueStyle}>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="顧客ランク" desc={(<>当月の契約見込み数を把握するための重要な指標です。<br />常に最新の状態に更新してください。<br />【S】契約済 <br />【A】契約予定(申込有) <br />【B】次回結論<br />【C】商談案件 <br />【D】追加保有名簿 <br />【E】フリー <br />【F】没</>)} /><br />(契約見込み月)</td>                                        <td style={valueStyle}>
                                             <div className="d-flex">
                                                 <TableSelect information={information} setInformation={setInformation} itemKey={idMapping('顧客ランク')}
                                                     list={['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク', 'Fランク', 'Gランク', 'Hランク']}
@@ -786,8 +801,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                                     formattedValue={information.rank_period && information.rank_period >= thisMonth ? information.rank_period.replace(/\//g, '-') : thisMonth} />
                                             </div>
                                         </td>
-                                        <td style={labelStyle}>反響媒体<span style={requiredStyle}>必須</span></td>
-                                        <td style={valueStyle}>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="反響媒体" desc={(<>お客様との最初の接点となった媒体を選択してください。<br />飛び込み来場などの場合は、面談時にヒアリングしてご登録をお願いいたします。</>)} /><span style={requiredStyle}>必須</span></td>                                        <td style={valueStyle}>
                                             <TableMedium
                                                 information={information}
                                                 setInformation={setInformation}
@@ -797,10 +811,10 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>家族情報</td>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="家族情報" desc={(<>ギフトカードなど、特典進呈の条件となる場合があります。<br />ご面談でヒアリングできた範囲でご入力をお願いいたします。</>)} /></td>
                                         <td style={valueStyle}><div style={buttonStyle}
                                             onClick={() => setFamilyMShow(true)}>入力・確認</div></td>
-                                        <td style={labelStyle}>物件連携</td>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="物件" desc={(<>ご案内した物件や、お客様が関心を持たれている物件は必ずご登録ください。<br />※物件DBの反響状況やステータスと連携されます。</>)} /></td>
                                         <td style={valueStyle}>
                                             <div className="text-secondary" style={{ fontSize: '10px' }}>※リストをクリックして選択</div>
                                             <div className="d-flex align-items-center position-relative">
@@ -854,8 +868,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>競合情報</td>
-                                        <td style={valueStyle}>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="競合情報" desc={(<>今後の競合対策や分析に活用する重要なデータとなります。<br />他社の検討状況が判明した際は、必ずご入力をお願いいたします。</>)} /></td>                                        <td style={valueStyle}>
                                             <TableCompetitor
                                                 information={information}
                                                 setInformation={setInformation}
@@ -868,8 +881,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                             />
                                         </td>
 
-                                        <td style={labelStyle}>競合資料 (PDF)</td>
-                                        <td style={valueStyle}>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="競合資料(PDF)" desc={(<>他社の提案資料や見積書などを取得した場合はこちらへ保存してください。<br />今後の貴重な対策データとして社内で蓄積されます。</>)} /></td>                                        <td style={valueStyle}>
                                             <TableCompetitorPdf
                                                 userName={userName}
                                                 setCompetitorPdfFile={setCompetitorPdfFile}
@@ -878,8 +890,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style={labelStyle}>入居希望地</td>
-                                        <td style={valueStyle}>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="入居希望地" desc={(<>お客様へ自動送信される「物件マッチングメール」の配信に必須となる条件です。<br />漏れなくご入力ください。</>)} /></td>                                        <td style={valueStyle}>
                                             <div className="">
                                                 <TableInput information={information} setInformation={setInformation} itemKey='planned_construction_site' defaultValue='入居希望地①'
                                                 />
@@ -901,8 +912,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
-                                                架電状況
-                                                <div className='position-absolute'
+                                                <OverlayTriggerComponent label="架電状況" desc={(<>架電数や次のステップへの引き上げ率を自動集計する元データとなります。<br />お電話でのアクションを行うたびに、必ずご入力をお願いいたします。</>)} />                                                <div className='position-absolute'
                                                     style={buttonStyle}
                                                     onClick={() => {
                                                         setExpand(prev =>
@@ -930,7 +940,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
-                                                商談ステップ
+                                                <OverlayTriggerComponent label="商談ステップ" desc={(<>日々の商談記録としてはもちろん、個人・店舗・課のKPI（実績）に直結する重要なデータとなります。<br />お客様とのご連絡やご面談の際は、漏れなく都度ご入力をお願いいたします。</>)} />
                                                 <div className='position-absolute'
                                                     style={buttonStyle}
                                                     onClick={() => {
@@ -962,8 +972,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
-                                                備考
-                                                <div className='position-absolute'
+                                                <OverlayTriggerComponent label="備考" desc={(<>反響発生時の情報は自動的にこちらへ反映されます。<br />その他、引き継ぎや共有が必要な特記事項があればご入力ください。</>)} />                                                <div className='position-absolute'
                                                     style={buttonStyle}
                                                     onClick={() => {
                                                         setExpand(prev =>
@@ -1088,6 +1097,18 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                             万円
                                         </td>
                                     </tr>
+                                    <tr>
+                                        <td style={labelStyle}>事前取得（現金確認含む）</td>
+                                        <td style={valueStyle}>
+                                            <TableInput information={information} setInformation={setInformation} itemKey='step_migration_item_01J95TGVT725CV1Z4HTWB22DAV'
+                                                type='date' />
+                                        </td>
+                                        <td style={labelStyle}>ローン事前承認済み</td>
+                                        <td style={valueStyle}>
+                                            <TableInput information={information} setInformation={setInformation} itemKey='step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR'
+                                                type='date' />
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </Table>
                         </div>
@@ -1103,7 +1124,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                             </button>
                         </div>
                     </Modal.Footer>
-                </Modal.Body>
+                </Modal.Body >
             </Modal >
             <Modal show={familyModalShow} onHide={familyModalClose} size='lg'>
                 <FamilyInfo idValue={information.id} shopValue={information.in_charge_store} nameValue={information.customer_contacts_name} modalClose={familyModalClose} />

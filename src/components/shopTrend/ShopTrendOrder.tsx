@@ -754,7 +754,6 @@ const ShopTrendOrder = () => {
                                 <td>ステータス</td>
                                 <td>ランク</td>
                                 <td>販促媒体</td>
-                                <td>商談ステップ</td>
                             </tr>
                             {modalList.slice(listPage * 10 - 10, listPage * 10).map((item, index) =>
                                 <tr key={index}>
@@ -765,8 +764,6 @@ const ShopTrendOrder = () => {
                                     <td>{item.status}</td>
                                     <td>{item.rank}</td>
                                     <td>{item.medium}</td>
-                                    <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
-                                        onClick={() => setInterviewId(item.id)}>表示</div></td>
                                 </tr>)}
                         </tbody>
                     </Table>
@@ -789,7 +786,6 @@ const ShopTrendOrder = () => {
                     </div>
                 </ModalBody>
             </Modal>
-            <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </>
     )

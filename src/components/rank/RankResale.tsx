@@ -193,7 +193,11 @@ const RankResale = () => {
                     if (showTarget[shop.shop]) {
                         const staffs = staffList
                             .sort(staffSorter());
-                        staffs.forEach(staff => {
+                        staffs.filter(s => {
+                            if(shop.shop === '買い:中古リノベ') return s.shop === '中古住宅専門店';
+                            if(shop.shop === '売り:ポータル') return s.shop === '不動産企画係';
+                            return true;
+                         }).forEach(staff => {
                             list.push({ category: 'staff', label: staff.name, show: false });
                         });
                     }
