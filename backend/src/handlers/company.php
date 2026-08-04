@@ -51,7 +51,7 @@ step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW as contract,
 step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 as contract_broker,
 status,
 rank_period FROM master_data_kaeru
-WHERE show_dashboard = 1 and (step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW <> '' or step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 IN ('Sランク','Aランク', 'Bランク', 'Cランク'))";
+WHERE show_dashboard = 1 and (step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW <> '' or step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 <> '') AND customized_input_01J82Z5F366ZQ897PXWF6H5ZAM IN ('Sランク','Aランク', 'Bランク', 'Cランク')";
 $stmt_contract_kaeru = $pdo->prepare($sql_contract_kaeru);
 $stmt_contract_kaeru->execute();
 $response_contract_kaeru = $stmt_contract_kaeru->fetchAll(PDO::FETCH_ASSOC);

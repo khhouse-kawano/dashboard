@@ -10,7 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import { setStyleClassUsed } from '../../utils/setStyleClassUsed';
 import { thisYear } from '../../utils/thisYear';
 import { useIsSp } from '../../utils/isSp';
-import { dateFormate, monthFormate, handleBlack } from './listUtils';
+import { dateFormate, monthFormate, handleBlack, toHalfWidth } from './listUtils';
 
 type InquiryCustomer = {
     id: number, inquiry_id: string, pg_id: string, inquiry_date: string, medium: string, response_medium: string, first_name: string, last_name: string, category: string,
@@ -61,16 +61,7 @@ const ListResale = ({ onReload }: Props) => {
 
     const isSp = useIsSp();
 
-    const monthFormate = (date: string) => {
-        return date ? date.replace(/-/g, '/').slice(0, 7) : '';
-    };
-
-    const dateFormate = (date: string) => {
-        return date ? date.replace(/-/g, '/') : '';
-    };
-
     useEffect(() => {
-
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -145,6 +136,11 @@ const ListResale = ({ onReload }: Props) => {
             return;
         }
 
+        const phone_number_1 = toHalfWidth(filteredCustomer.mobile) || toHalfWidth(filteredCustomer.landline);
+
+        const phone_number_2 = phone_number_1 === toHalfWidth(filteredCustomer.landline) ? '' : toHalfWidth(filteredCustomer.landline);
+
+
         if (window.confirm(`${categoryValue} ${filteredCustomer.first_name} ${filteredCustomer.last_name}様 顧客情報を取り込みますか?`)) {
             const postData = {
                 id: generateULID(),
@@ -154,8 +150,8 @@ const ListResale = ({ onReload }: Props) => {
                 customer_contacts_name_kana: `${filteredCustomer.first_name_kana} ${filteredCustomer.last_name_kana}`, //ふりがな
                 in_charge_store: categoryValue, //店舗
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date, //反響取得日
-                customer_contacts_mobile_phone_number: filteredCustomer.mobile, //携帯
-                customer_contacts_phone_number: filteredCustomer.landline, //固定及びその他電話番号
+                customer_contacts_phone_number: phone_number_1, //番号①
+                customer_contacts_mobile_phone_number: phone_number_2, //番号②
                 customer_contacts_email: filteredCustomer.mail,  //メアド
                 postal_code: filteredCustomer.zip, //郵便番号
                 full_address: `${filteredCustomer.pref} ${filteredCustomer.city} ${filteredCustomer.town} ${filteredCustomer.street} ${filteredCustomer.building}`, //住所
@@ -281,7 +277,7 @@ const ListResale = ({ onReload }: Props) => {
     const isBlack = (mailValue: string, mobileValue: string, blackValue: string) => {
         return blackList.some(b =>
             (mailValue && b.mail.includes(mailValue)) ||
-            (mobileValue && b.mobile.includes(mobileValue))
+            (toHalfWidth(mobileValue) && toHalfWidth(b.mobile).includes(toHalfWidth(mobileValue)))
         ) || (blackValue.split('black').length % 2 === 0);
     };
 
@@ -396,7 +392,7 @@ const ListResale = ({ onReload }: Props) => {
                                 <td style={{ width: '140px' }}>反響日</td>
                                 <td style={{ width: '160px' }}>反響媒体</td>
                                 <td style={{ width: '130px' }}>お客様名</td>
-                                <td style={{ width: '200px' }}>住所</td>
+                                <td style={{ width: '200px' }}>連絡先</td>
                                 <td style={{ width: '130px' }}>物件名</td>
                                 <td style={{ width: '120px' }}>希望エリア</td>
                                 <td style={{ width: '500px' }}>顧客タグ</td>
@@ -444,7 +440,7 @@ const ListResale = ({ onReload }: Props) => {
                                         <td>{dateFormate(item.inquiry_date)}</td>
                                         <td>{item.response_medium}{item.medium !== 'ホームページ反響' || <><br /><span style={{ fontSize: '10px', fontWeight: 'bold' }}>（{item.hp_campaign}）</span></>}</td>
                                         <td>{item.first_name}{item.last_name}</td>
-                                        <td>{item.pref}{item.city}{item.town}{item.street}{item.building}</td>
+                                        <td>{item.pref}{item.city}{item.town}{item.street}{item.building}<br />{toHalfWidth(item.mobile)}{(!item.mobile && item.landline) && `/${toHalfWidth(item.landline)}`}</td>
                                         <td>{item.property}</td>
                                         <td>{item.area}</td>
                                         <td>

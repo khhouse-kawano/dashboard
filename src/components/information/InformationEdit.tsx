@@ -1000,13 +1000,13 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>予算<br />総額</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='budget'
-                                                defaultValue='予算総額' formattedValue={(information.budget ?? '').replace('万円', '')} numeric />
+                                                defaultValue='予算総額' formattedValue={(information.budget ?? '').replace('万円', '')} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>月々支<br />払予算</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='monthly_repayment_amount'
-                                                defaultValue='月々支払予算' formattedValue={(information.monthly_repayment_amount ?? '').replace('0000', '')} numeric />
+                                                defaultValue='月々支払予算' formattedValue={(information.monthly_repayment_amount ?? '').replace('0000', '')} />
                                             万円
                                         </td>
                                     </tr>
@@ -1014,25 +1014,25 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>返済希<br />望年数</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='repayment_years'
-                                                defaultValue='返済希望年数' formattedValue={(information.repayment_years ?? '').replace(/[年\/]/g, '')} numeric />
+                                                defaultValue='返済希望年数' formattedValue={(information.repayment_years ?? '').replace(/[年\/]/g, '')} />
                                             年
                                         </td>
                                         <td style={labelStyle}>現居家賃</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_rent'
-                                                defaultValue='現居家賃' formattedValue={safeFormate(information.current_rent).replace('0000', '')} numeric />
+                                                defaultValue='現居家賃' formattedValue={safeFormate(information.current_rent).replace('0000', '')} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>自己<br />資金</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='self_budget'
-                                                defaultValue='自己資金' formattedValue={safeFormate(information.self_budget).replace('0000', '')} numeric />
+                                                defaultValue='自己資金' formattedValue={safeFormate(information.self_budget).replace('0000', '')} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>現居<br />光熱費</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_utility_costs'
-                                                defaultValue='現居光熱費' formattedValue={safeFormate(information.current_utility_costs).replace('万円', '')} numeric />
+                                                defaultValue='現居光熱費' formattedValue={safeFormate(information.current_utility_costs).replace('万円', '')} />
                                             万円
                                         </td>
                                     </tr>
@@ -1042,7 +1042,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>負債<br />総額</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_loan_balance'
-                                                defaultValue='自己資金' formattedValue={safeFormate(information.current_loan_balance).replace('0000', '')} numeric />
+                                                defaultValue='自己資金' formattedValue={safeFormate(information.current_loan_balance).replace('0000', '')} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>現居契<br />約形態</td>
@@ -1070,19 +1070,19 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>勤続<br />年数</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_years_of_service'
-                                                defaultValue='勤続年数' numeric />
+                                                defaultValue='勤続年数' />
                                             年
                                         </td>
                                         <td style={labelStyle}>年収</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_annual_income'
-                                                defaultValue='年収' numeric />
+                                                defaultValue='年収' />
                                             万円
                                         </td>
                                         <td style={labelStyle}>希望土<br />地面積</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='desired_land_area'
-                                                defaultValue='希望土地面積' numeric />
+                                                defaultValue='希望土地面積' />
                                             坪
                                         </td>
                                     </tr>
@@ -1091,7 +1091,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>土地の予算</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='land_budget'
-                                                defaultValue='土地の予算' numeric />
+                                                defaultValue='土地の予算' />
                                             万円
                                         </td>
                                         {[...Array(6)].map((_, index) => <td key={index}></td>

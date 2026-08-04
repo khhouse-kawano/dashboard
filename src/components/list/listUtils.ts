@@ -30,3 +30,9 @@ export const handleBlack = async (brandValue: string, nameValue: string, mobileV
     };
     fetchData();
 };
+
+/**
+ * 全角数字・長音符・記号を変換し、数字とハイフンのみを抽出する（電話番号・郵便番号等に最適）
+ */
+export const toHalfWidth = (str: string): string =>
+    str.normalize('NFKC').replace(/\D/g, '');

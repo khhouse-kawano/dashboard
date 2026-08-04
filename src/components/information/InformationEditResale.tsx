@@ -1,7 +1,5 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext, useRef, useMemo } from 'react';
 import Modal from 'react-bootstrap/Modal';
-import axios from 'axios';
-import { headers } from '../../utils/headers';
 import Table from "react-bootstrap/Table";
 import { databaseList } from '../../utils/databaseList';
 import FamilyInfo from '../FamilyInfo';
@@ -14,6 +12,7 @@ import TableInterview from './TableInterview';
 import TableCall from './TableCall';
 import TableStatus from './TableStatus';
 import TableMedium from './TableMedium';
+import TableTextarea from './TableTextarea';
 import TableCompetitor from './TableCompetitor';
 import TableCompetitorPdf from './TableCompetitorPdf';
 import { calculateAge } from '../../utils/informationUtils';
@@ -161,7 +160,6 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
     const thisYear = now.getMonth() <= 4 ? year : year + 1;
     const [propertyInput, setPropertyInput] = useState('');
     const [originalPropertyList, setOriginalPropertyList] = useState<string[]>([]);
-    const [propertyList, setPropertyList] = useState<string[]>([]);
     const categoryList = ['買い:ポータル', '売り:ポータル', '買い:中古リノベ'];
     const [showDetail, setShowDetail] = useState('');
     const [showLostReason, setShowLostReason] = useState(false);
@@ -644,9 +642,9 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
         });
     };
 
-    useEffect(() => {
+    const propertyList = useMemo(() => {
         const filtered = originalPropertyList.filter(o => o.includes(propertyInput));
-        setPropertyList(filtered);
+        return filtered;
     }, [originalPropertyList, propertyInput]);
 
     useEffect(() => {
@@ -853,13 +851,14 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                                                         style={{ cursor: 'pointer', width: 'fit-content' }}
                                                                         className='badge border d-flex align-items-center me-1 my-1 px-2 py-1 shadow-sm bg-light text-secondary border-secondary'
                                                                         onClick={() => handleProperty(m)}
-                                                                    >{m}</div>)}
+                                                                    >{m.replace('(公開)', '')}</div>)}
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr>
+                                    {/* 削除要望のためいったんコメントアウト */}
+                                    {/* <tr>
                                         <td style={labelStyle}>競合情報</td>
                                         <td style={valueStyle}>
                                             <TableCompetitor
@@ -882,22 +881,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                                 competitorPdfFile={competitorPdfFile}
                                             />
                                         </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={labelStyle}>入居希望地</td>
-                                        <td style={valueStyle}>
-                                            <TableInput information={information} setInformation={setInformation} itemKey='planned_construction_site'
-                                                widthValue='240px' />
-                                        </td>
-                                        <td style={labelStyle}>生年月日</td>
-                                        <td style={valueStyle}>
-                                            <div className="d-flex align-items-center">
-                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_birth_date'
-                                                    type='date' formattedValue={dateFormate(information.customer_contacts_birth_date)} />
-                                                {information.customer_contacts_birth_date && <div className="ms-2">({calculateAge(information.customer_contacts_birth_date)}歳)</div>}
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    </tr> */}
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
@@ -962,7 +946,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
                                             <div className="position-relative">
-                                                備考
+                                                メモ
                                                 <div className='position-absolute'
                                                     style={buttonStyle}
                                                     onClick={() => {
@@ -976,24 +960,42 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                             </div></td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
                                             <div style={expandStyle('remarks')}>
-                                                <textarea placeholder='反響内容・備考' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={information.remarks}
-                                                    rows={information.remarks ? Math.max(2, information.remarks.length / 23) + 2 : 2}
-                                                    onChange={(e) => {
-                                                        setInformation(prev => (
-                                                            {
-                                                                ...prev,
-                                                                remarks: e.target.value
-                                                            }
-                                                        ));
-                                                    }} />
+                                                <TableTextarea information={information} setInformation={setInformation} itemKey='customized_input_01J95TC6KEES87F0YXH29AJP7K' placeholder='自由記載' />
                                             </div>
                                         </td>
-                                        <td></td><td></td>
+                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>反響内容</td>
+                                        <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
+                                            <div style={expandStyle('remarks')}>
+                                                <TableTextarea information={information} setInformation={setInformation} itemKey='remarks' placeholder='反響内容' />
+                                            </div>
+                                        </td>
                                     </tr>
                                 </tbody>
                             </Table>
                             <Table>
                                 <tbody>
+                                    <tr>
+                                        <td style={labelStyle}>生年月日</td>
+                                        <td style={valueStyle}>
+                                            <div className="d-flex align-items-center">
+                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_birth_date'
+                                                    type='date' formattedValue={dateFormate(information.customer_contacts_birth_date)} />
+                                                {information.customer_contacts_birth_date && <div className="ms-2">({calculateAge(information.customer_contacts_birth_date)}歳)</div>}
+                                            </div>
+                                        </td>
+                                        <td style={labelStyle}>仲介粗利見込</td>
+                                        <td style={valueStyle}>
+                                            <TableInput information={information} setInformation={setInformation} itemKey='contract_building_application_date'
+                                                defaultValue='仲介粗利見込' formattedValue={(information.contract_building_application_date ?? '').replace('万円', '')} />
+                                            万円
+                                        </td>
+                                        <td style={labelStyle}>リフォーム粗利見込</td>
+                                        <td style={valueStyle}>
+                                            <TableInput information={information} setInformation={setInformation} itemKey='contract_land_application_date'
+                                                defaultValue='リフォーム粗利見込' formattedValue={(information.contract_land_application_date ?? '').replace('万円', '')} />
+                                            万円
+                                        </td>
+                                    </tr>
                                     <tr>
                                         <td style={labelStyle}>入居希望時期</td>
                                         <td style={valueStyle}>
@@ -1008,7 +1010,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>予算総額</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='budget'
-                                                defaultValue='予算総額' formattedValue={(information.budget ?? '').replace('万円', '')} numeric />
+                                                defaultValue='予算総額' formattedValue={(information.budget ?? '').replace('万円', '')} />
                                             万円
                                         </td>
                                     </tr>
@@ -1016,19 +1018,19 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>月々支払予算</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='monthly_repayment_amount'
-                                                defaultValue='月々支払予算' formattedValue={(information.monthly_repayment_amount ?? '').replace('0000', '')} numeric />
+                                                defaultValue='月々支払予算' formattedValue={(information.monthly_repayment_amount ?? '').replace('0000', '')} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>返済希望年数</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='repayment_years'
-                                                defaultValue='返済希望年数' formattedValue={(information.repayment_years ?? '').replace(/[年\/]/g, '')} numeric />
+                                                defaultValue='返済希望年数' formattedValue={(information.repayment_years ?? '').replace(/[年\/]/g, '')} />
                                             年
                                         </td>
                                         <td style={labelStyle}>現居家賃</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_rent'
-                                                defaultValue='現居家賃' formattedValue={safeFormate(information.current_rent).replace('0000', '')} numeric />
+                                                defaultValue='現居家賃' formattedValue={safeFormate(information.current_rent).replace('0000', '')} />
                                             万円
                                         </td>
                                     </tr>
@@ -1036,19 +1038,19 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>自己資金</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='self_budget'
-                                                defaultValue='自己資金' formattedValue={safeFormate(information.self_budget).replace('0000', '')} numeric />
+                                                defaultValue='自己資金' formattedValue={safeFormate(information.self_budget).replace('0000', '')} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>現居光熱費</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_utility_costs'
-                                                defaultValue='現居光熱費' formattedValue={safeFormate(information.current_utility_costs).replace('万円', '')} numeric />
+                                                defaultValue='現居光熱費' formattedValue={safeFormate(information.current_utility_costs).replace('万円', '')} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>負債総額</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_loan_balance'
-                                                defaultValue='自己資金' formattedValue={safeFormate(information.current_loan_balance).replace('0000', '')} numeric />
+                                                defaultValue='自己資金' formattedValue={safeFormate(information.current_loan_balance).replace('0000', '')} />
                                             万円
                                         </td>
                                     </tr>
@@ -1078,13 +1080,13 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>勤続年数</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_years_of_service'
-                                                defaultValue='勤続年数' numeric />
+                                                defaultValue='勤続年数' />
                                             年
                                         </td>
                                         <td style={labelStyle}>年収</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_annual_income'
-                                                defaultValue='年収' numeric />
+                                                defaultValue='年収' />
                                             万円
                                         </td>
                                     </tr>

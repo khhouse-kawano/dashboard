@@ -23,6 +23,7 @@ return [
 'contract_building_application_date',
 'contract_land_agreement_date',
 'contract_land_application_date',
+'contract_building_application_date',
 'contract_payment_planned_date',
 'contract_planned_date',
 'contracted_property_id',

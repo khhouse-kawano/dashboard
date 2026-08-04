@@ -10,7 +10,7 @@ import { generateULID } from '../../utils/createULID';
 import Modal from 'react-bootstrap/Modal';
 import { setStyleClassSpec } from '../../utils/setStyleClassSpec';
 import { thisYear } from '../../utils/thisYear';
-import { dateFormate, monthFormate, handleBlack } from './listUtils';
+import { dateFormate, monthFormate, handleBlack, toHalfWidth } from './listUtils';
 import { kataToHira } from '../../utils/kataToHira';
 import { extractNumbers } from '../../utils/extraNumbers';
 import { useIsSp } from '../../utils/isSp';
@@ -163,9 +163,9 @@ const ListKaeru = ({ onReload }: Props) => {
 
         const roll = 'insert';
 
-        const phone_number_1 = filteredCustomer.mobile || filteredCustomer.landline;
+        const phone_number_1 = toHalfWidth(filteredCustomer.mobile) || toHalfWidth(filteredCustomer.landline);
 
-        const phone_number_2 = phone_number_1 === filteredCustomer.landline ? '' : filteredCustomer.landline;
+        const phone_number_2 = phone_number_1 === toHalfWidth(filteredCustomer.landline) ? '' : toHalfWidth(filteredCustomer.landline);
 
         if (window.confirm(`${filteredShop} ${filteredCustomer.first_name} ${filteredCustomer.last_name}様 顧客情報を取り込みますか?`)) {
             const postData = {
@@ -305,7 +305,7 @@ const ListKaeru = ({ onReload }: Props) => {
     const isBlack = (mailValue: string, mobileValue: string, blackValue: string) => {
         return blackList.some(b =>
             (mailValue && b.mail.includes(mailValue)) ||
-            (mobileValue && b.mobile.includes(mobileValue))
+            (toHalfWidth(mobileValue) && toHalfWidth(b.mobile).includes(toHalfWidth(mobileValue)))
         ) || (blackValue.split('black').length % 2 === 0);
     };
 

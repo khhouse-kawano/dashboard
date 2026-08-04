@@ -10,16 +10,18 @@ import SyncEstate from './SyncEstate';
 import CompetitorMaterials from './CompetitorMaterials';
 import Estate from '../Estate';
 import CallStatus from '../CallStatusList';
-import axios from "axios";
-import { headers } from '../../utils/headers';
 import { useIsSp } from '../../utils/isSp';
 import AuthContext from '../../context/AuthContext';
 import BudgetSimulator from './BudgetSimulator';
+import AfterInterview from './AfterInterview';
+import apiClient from '../../utils/apiClient';
+import CompetitorSummary from './CompetitorSummary';
+import RegisterBrokerageListings from './RegisterBrokerageListings';
 
 // 型安全のための定義
 type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況';
 
-const Header = ({  }) => {
+const Header = ({ }) => {
     const { authority } = useContext(AuthContext);
     const [editMenu, setEditMenu] = useState<string>('');
     const [modal, setModal] = useState<boolean>(false);
@@ -33,9 +35,9 @@ const Header = ({  }) => {
     const menuMapping: Record<MenuKey, string[]> = {
         '店舗管理': ['店舗編集'],
         'スタッフ管理': ['スタッフ編集・追加', '権限編集'],
-        '反響管理': authority === 'Master' ? ['販促媒体設定', 'ブラックリスト設定', '広告費シミュレーター'] : ['販促媒体設定', 'ブラックリスト設定'],
-        '土地・物件管理': ['土地情報同期', '土地情報一覧'],
-        '他社動向': ['他社広告ライブラリ', '他社資料'],
+        '反響管理': authority === 'Master' ? ['販促媒体設定', 'ブラックリスト設定', '広告費シミュレーター', '事後アンケート'] : ['販促媒体設定', 'ブラックリスト設定', '事後アンケート'],
+        '土地・物件管理': ['仲介物件登録', '土地情報同期', '土地情報一覧'],
+        '他社動向': ['他社広告ライブラリ', '他社資料', '競合サマリー'],
         '架電状況': ['注文営業', '建売営業', '中古営業']
     };
 
@@ -51,12 +53,15 @@ const Header = ({  }) => {
         '注文営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='order' />,
         '建売営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='spec' />,
         '中古営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='used' />,
-        '広告費シミュレーター': <BudgetSimulator />
+        '広告費シミュレーター': <BudgetSimulator />,
+        '事後アンケート': <AfterInterview name={''} staff={''} id={''} shop={''} />,
+        '競合サマリー': <CompetitorSummary />,
+        '仲介物件登録': <RegisterBrokerageListings setModal={setModal}/>
     };
 
     useEffect(() => {
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "header" }, { headers });
+            const response = await apiClient.post("", { request: "header" });
             setNewEstate(response.data.estate);
         };
         fetchData();
@@ -109,7 +114,7 @@ const Header = ({  }) => {
                     </Dropdown>
                 ))}
             </div>}
-            <Modal show={modal} onHide={() => setModal(false)} size={editMenu === '土地情報同期' ? 'sm' : 'xl'} centered backdrop="static">
+            <Modal show={modal} onHide={() => setModal(false)} size={editMenu === '土地情報同期' ? 'sm' : 'xl'} centered>
                 <Modal.Header closeButton className="border-bottom-0 pb-0 fw-bold text-secondary" style={{ fontSize: '15px' }}>
                     {editMenu}
                 </Modal.Header>

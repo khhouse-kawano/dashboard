@@ -26,17 +26,22 @@ $sql_customer = "SELECT
   COALESCE(status, '') AS status,
   COALESCE(rank_period, '') AS rank_period,
   COALESCE(call_status, '') AS call_status,
+  COALESCE(category, '') AS category,
   COALESCE(cancel_status, '') AS cancel_status,
   COALESCE(show_dashboard, 0) AS trash,
-  COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
   COALESCE(REPLACE(reserved_interview, '/', '-'), '') AS reserved_interview,
   COALESCE(full_address, '') AS full_address,
   COALESCE(hp_campaign, '') AS hp_campaign,
   COALESCE(property_name, '') AS property_name,
   COALESCE(property_tour_name, '') AS property_tour_name,
+  COALESCE(introduction_person_category, '') AS introduction_person_category,
   COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number,
+  COALESCE(customer_contacts_phone_number, '') AS phone_number_2,
+  COALESCE(customer_contacts_email, '') AS mail,
+  COALESCE(extra_address_info, '') AS mail_2,
+  COALESCE(integration, '') AS integration,
   COALESCE(call_log, '') AS call_log
- FROM master_data_resale;
+  FROM master_data_resale;
 ";
 $stmt_customer = $pdo->prepare($sql_customer);
 $stmt_customer->execute();

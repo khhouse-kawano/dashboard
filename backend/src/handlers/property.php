@@ -31,7 +31,6 @@ $stmt_call->execute();
 $response_call = $stmt_call->fetchAll(PDO::FETCH_ASSOC);
 
 
-// 顧客一覧
 // 顧客一覧（kaeru と resale を結合）
 $sql_customer = "
   SELECT
@@ -61,7 +60,8 @@ $sql_customer = "
     COALESCE(property_name, '') AS property_name,
     COALESCE(property_tour_name, '') AS property_tour_name,
     COALESCE(property_contract_name, '') AS property_contract_name,
-    COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number
+    COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number,
+    '株式会社　国分ハウジング不動産　本店' as category
   FROM master_data_kaeru
 
   UNION ALL
@@ -93,7 +93,8 @@ $sql_customer = "
     COALESCE(property_name, '') AS property_name,
     COALESCE(property_tour_name, '') AS property_tour_name,
     COALESCE(property_contract_name, '') AS property_contract_name,
-    COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number
+    COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number,
+    '国分ハウジンググループ中古住宅専門店' as category
   FROM master_data_resale
 ";
 
@@ -114,6 +115,27 @@ $stmt_property = $pdo->prepare($sql_property);
 $stmt_property->execute();
 $response_property = $stmt_property->fetchAll(PDO::FETCH_ASSOC);
 
+// athome
+$sql_athome = "SELECT * FROM athome_summary_db";
+$stmt_athome = $pdo->prepare($sql_athome);
+$stmt_athome->execute();
+$response_athome = $stmt_athome->fetchAll(PDO::FETCH_ASSOC);
+
+
+// SUUMO
+$sql_SUUMO = "SELECT * FROM suumo_resale_summary";
+$stmt_SUUMO = $pdo->prepare($sql_SUUMO);
+$stmt_SUUMO->execute();
+$response_SUUMO = $stmt_SUUMO->fetchAll(PDO::FETCH_ASSOC);
+
+
+// HOME'S
+$sql_homes = "SELECT * FROM homes_summary_db";
+$stmt_homes = $pdo->prepare($sql_homes);
+$stmt_homes->execute();
+$response_homes = $stmt_homes->fetchAll(PDO::FETCH_ASSOC);
+
+
 
 $result = [
         "staff" => $response_staff,
@@ -122,7 +144,10 @@ $result = [
         "customer" => $response_customer,
         "call" => $response_call,
         "family" => $response_family,
-        "property" => $response_property
+        "property" => $response_property,
+        "athome" => $response_athome,
+        "suumo" => $response_SUUMO,
+        "homes" => $response_homes
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

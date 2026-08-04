@@ -179,6 +179,7 @@ const DatabaseKaeru = ({ }: Props) => {
                 if (!dict[phone]) dict[phone] = [];
                 if (!dict[phone].includes(item.id)) dict[phone].push(item.id);
             });
+
         });
 
         return dict;
@@ -297,60 +298,28 @@ const DatabaseKaeru = ({ }: Props) => {
         setActivePage(prevPage);
     };
 
-    const integrationCustomer = (customer: Record<string, string>) => {
+const integrationCustomer = (customer: Record<string, string>) => {
         setIntegrate(customer);
-        const filteredDuplicate = originalDatabase.filter(o =>
-            o.id !== customer.id
-            && ((o.mail !== '' && o.mail === customer.mail) || (o.phone_number !== '' && o.phone_number === customer.phone_number))
-        );
+
+        const customerMails = [customer.mail, customer.mail_2].filter(Boolean);
+        const customerPhones = [customer.phone_number, customer.phone_number_2].filter(Boolean);
+
+        const filteredDuplicate = originalDatabase.filter(o => {
+            if (o.id === customer.id) return false; // 自分自身は除外
+
+            const targetMails = [o.mail, o.mail_2].filter(Boolean);
+            const targetPhones = [o.phone_number, o.phone_number_2].filter(Boolean);
+
+            const hasDuplicateMail = customerMails.some(mail => targetMails.includes(mail));
+            
+            const hasDuplicatePhone = customerPhones.some(phone => targetPhones.includes(phone));
+
+            return hasDuplicateMail || hasDuplicatePhone;
+        });
+
         setIntegrateList(filteredDuplicate);
     };
 
-    const handleIntegrate = () => {
-        const filteredList = [integrate, ...integrateList];
-
-        const baseCustomer = filteredList.find(f => f.integration === '1');
-        const integrateTargets = filteredList.filter(f => f.show_dashboard === '0');
-
-        if (!baseCustomer) {
-            alert('名寄せ先（統合先）が選択されていません。');
-            return;
-        }
-
-        if (integrateTargets.length === 0) {
-            alert('統合されるデータが一つも選択されていません。');
-            return;
-        }
-
-        const postData = {
-            base: baseCustomer,
-            integrateList: integrateTargets.map(i => i.id).join(','),
-            request: 'integrate',
-            category
-        };
-
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post("", postData);
-                const customers = response.data.customer.map((c: any) => ({
-                    ...c,
-                    search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
-                    _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '')
-                }));
-
-                setOriginalDatabase(customers);
-            } catch (error) {
-                console.error("名寄せ処理中にエラーが発生しました", error);
-                alert("通信エラーが発生しました。");
-            }
-        };
-
-
-        fetchData();
-
-        setIntegrate({});
-        setIntegrateList([]);
-    };
 
     return (
         <>
@@ -580,7 +549,7 @@ const DatabaseKaeru = ({ }: Props) => {
                 </div>
             </div>
             <PastCustomer pastCustomerShow={pastCustomerShow} setPastCustomerShow={setPastCustomerShow} />
-            <IntegrateModal integrate={integrate} setIntegrate={setIntegrate} integrateList={integrateList} setIntegrateList={setIntegrateList} handleIntegrate={handleIntegrate} />
+            <IntegrateModal integrate={integrate} setIntegrate={setIntegrate} integrateList={integrateList} setIntegrateList={setIntegrateList} setOriginalDatabase={setOriginalDatabase}/>
             <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
             <CallStatusList
                 callStatusShow={callStatusShow}

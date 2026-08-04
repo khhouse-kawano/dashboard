@@ -17,6 +17,7 @@ $sql_customer = "SELECT
   COALESCE(in_charge_user, '') AS staff,
   COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') AS rank,
   COALESCE(REPLACE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '/', '-'), '') AS interview,
+  COALESCE(REPLACE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '/', '-'), '') AS tour,
   COALESCE(
   DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y/%m/%d'), '%Y-%m-%d'),
   DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y-%m-%d'), '%Y-%m-%d'),
@@ -26,17 +27,19 @@ $sql_customer = "SELECT
   COALESCE(status, '') AS status,
   COALESCE(rank_period, '') AS rank_period,
   COALESCE(call_status, '') AS call_status,
-  COALESCE(cancel_status, '') AS cancel_status,
   COALESCE(show_dashboard, 0) AS trash,
-  COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
-  COALESCE(REPLACE(reserved_interview, '/', '-'), '') AS reserved_interview,
   COALESCE(full_address, '') AS full_address,
   COALESCE(hp_campaign, '') AS hp_campaign,
   COALESCE(property_name, '') AS property_name,
   COALESCE(property_tour_name, '') AS property_tour_name,
-  COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number,
+  COALESCE(introduction_person_category, '') AS introduction_person_category,
+  COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number_2,
+  COALESCE(customer_contacts_phone_number, '') AS phone_number,
+  COALESCE(customer_contacts_email, '') AS mail,
+  COALESCE(extra_address_info, '') AS mail_2,
+  COALESCE(integration, '') AS integration,
   COALESCE(call_log, '') AS call_log
- FROM master_data_kaeru;
+  FROM master_data_kaeru;
 ";
 $stmt_customer = $pdo->prepare($sql_customer);
 $stmt_customer->execute();

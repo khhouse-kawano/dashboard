@@ -8,6 +8,7 @@ import IntegrateModal from './IntegrateModal';
 import { useIsSp } from '../../utils/isSp';
 import { generateULID } from '../../utils/createULID';
 import apiClient from '../../utils/apiClient';
+import { toHalfWidth } from './databaseUtils';
 
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
 type CustomerList = Record<string, string>;
@@ -171,9 +172,10 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                 if (!dict[item.mail]) dict[item.mail] = [];
                 dict[item.mail].push(item.id);
             }
-            if (item.phone_number) {
-                if (!dict[item.phone_number]) dict[item.phone_number] = [];
-                dict[item.phone_number].push(item.id);
+            const formattedNumber = toHalfWidth(item.phone_number);
+            if (formattedNumber) {
+                if (!dict[formattedNumber]) dict[formattedNumber] = [];
+                dict[formattedNumber].push(item.id);
             }
         });
 
@@ -213,18 +215,6 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         page4: null,
         page5: null
     };
-
-    const duplicateList = useMemo(() => {
-        const mailList = originalDatabase.map(o => ({
-            id: o.id,
-            contact: o.mail
-        }));
-        const phoneList = originalDatabase.map(o => ({
-            id: o.id,
-            contact: o.phone_number
-        }));
-        return [...mailList, ...phoneList];
-    }, [originalDatabase]);
 
     Object.entries(pages).map(([key, _], index) => {
         if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) === activePage) {
@@ -298,45 +288,6 @@ const DatabaseResale = ({ onReload, key }: Props) => {
             && ((o.mail !== '' && o.mail === customer.mail) || (o.phone_number !== '' && o.phone_number === customer.phone_number))
         );
         setIntegrateList(filteredDuplicate);
-    };
-
-    const handleIntegrate = () => {
-        const filteredList = [integrate, ...integrateList];
-
-        const baseCustomer = filteredList.find(f => f.integration === '1');
-        const integrateTargets = filteredList.filter(f => f.show_dashboard === '0');
-
-        if (!baseCustomer) {
-            alert('名寄せ先（統合先）が選択されていません。');
-            return;
-        }
-
-        if (integrateTargets.length === 0) {
-            alert('統合されるデータが一つも選択されていません。');
-            return;
-        }
-
-        const postData = {
-            base: baseCustomer,
-            integrateList: integrateTargets.map(i => i.id).join(','),
-            request: 'integrate',
-            category
-        };
-
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post("", postData);
-                setOriginalDatabase(response.data.customer);
-            } catch (error) {
-                console.error("名寄せ処理中にエラーが発生しました", error);
-                alert("通信エラーが発生しました。");
-            }
-        };
-
-        fetchData();
-
-        setIntegrate({});
-        setIntegrateList([]);
     };
 
     const handleCopy = (id: string) => {
@@ -562,7 +513,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                             })[0]?.day ?? ''
                                             : '';
                                         const duplicateMailIds = item.mail ? duplicateDictionary[item.mail] || [] : [];
-                                        const duplicatePhoneIds = item.phone_number ? duplicateDictionary[item.phone_number] || [] : [];
+                                        const duplicatePhoneIds = item.phone_number ? duplicateDictionary[toHalfWidth(item.phone_number)] || [] : [];
                                         const isDuplicate =
                                             duplicateMailIds.some(id => id !== item.id) ||
                                             duplicatePhoneIds.some(id => id !== item.id);
@@ -597,7 +548,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                     </div>
                 </div>
             </div>
-            <IntegrateModal integrate={integrate} setIntegrate={setIntegrate} integrateList={integrateList} setIntegrateList={setIntegrateList} handleIntegrate={handleIntegrate} />
+            <IntegrateModal integrate={integrate} setIntegrate={setIntegrate} integrateList={integrateList} setIntegrateList={setIntegrateList} setOriginalDatabase={setOriginalDatabase} />
             <InformationEditResale id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
             <CallStatusList
                 callStatusShow={callStatusShow}

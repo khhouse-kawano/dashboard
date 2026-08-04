@@ -2,28 +2,27 @@
 // ==========================================
 // 顧客データ統合（名寄せ）処理
 // ==========================================
-// ★ 修正1: $postData ではなく $data を使用する
 if (isset($data['request']) && $data['request'] === 'integrate') {
 
-    $base = $data['base'] ?? null;
-    $integrateListStr = $data['integrateList'] ?? ''; // 例: "12,35,40"
+    // フロントエンドから送信されたキーに合わせて受け取る
+    $baseId = $data['base_id'] ?? null;
+    $integrateListStr = $data['integrate_ids'] ?? ''; // 例: "12,35,40"
+    $newStaff = $data['staff'] ?? '';
 
-    if (!$base || !isset($base['id'])) {
+    if (!$baseId) {
         echo json_encode(['status' => 'error', 'message' => '統合先(ベース)のデータが不足しています。'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    $baseId = $base['id']; // 統合先のID
-
     // カンマ区切りの文字列を配列に変換（空文字なら空配列）
     $integrateIds = !empty($integrateListStr) ? explode(',', $integrateListStr) : [];
 
-try {
+    try {
         // 安全対策: トランザクションを開始
         $pdo->beginTransaction();
 
         // 1. ベース（統合先）の現在データを取得
-        $stmt = $pdo->prepare("SELECT * FROM master_data_kaeru WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT * FROM master_data_kaeru WHERE id = :id FOR UPDATE");
         $stmt->execute([':id' => $baseId]);
         $baseRecord = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -32,34 +31,95 @@ try {
         }
 
         // 2. 統合対象のデータを取得
-        // 💡 堅牢化: フロントから来た "12, 35" などの空白を確実に除去し、空の値を弾く
+        // 堅牢化: フロントから来た "12, 35" などの空白を確実に除去し、空の値を弾く
         $cleanIntegrateIds = array_filter(array_map('trim', $integrateIds));
-        
+
         $integrateRecords = [];
         if (!empty($cleanIntegrateIds)) {
             $placeholders = implode(',', array_fill(0, count($cleanIntegrateIds), '?'));
-            $stmt = $pdo->prepare("SELECT * FROM master_data_kaeru WHERE id IN ($placeholders)");
+            $stmt = $pdo->prepare("SELECT * FROM master_data_kaeru WHERE id IN ($placeholders) FOR UPDATE");
             $stmt->execute($cleanIntegrateIds);
             $integrateRecords = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        $fieldPairs = [
-            ['customer_contacts_name', 'customer_contacts_name_2'],
-            ['customer_contacts_name_kana', 'customer_contacts_name_kana_2'],
-            ['customer_contacts_email', 'extra_address_info'],
-            ['customer_contacts_phone_number', 'customer_contacts_mobile_phone_number'],
-            ['sales_promotion_name', 'sales_promotion_name_2']
-        ];
-
-        // 💡 修正1: 名寄せ先（ベース）は必ず「integration=1, show_dashboard=1」にする
+        // ベースの基本更新要素（名寄せ先は表示状態を維持）
         $updateQueryParts = ["integration = '1'", "show_dashboard = '1'"];
         $updateValues = [':id' => $baseId];
 
-        $normalize = function($str) {
-            return str_replace([' ', ' ', "\t", "\n", "\r"], '', (string)$str);
+        // Step4で選択した担当者の更新
+        if ($newStaff !== '' && ($baseRecord['in_charge_user'] ?? '') !== $newStaff) {
+            $updateQueryParts[] = "in_charge_user = :in_charge_user";
+            $updateValues[':in_charge_user'] = $newStaff;
+        }
+
+        // 比較用に全角・半角スペース等を削除する無名関数
+        $normalize = function ($str) {
+            return preg_replace('/[\s\x{3000}]+/u', '', (string)$str);
         };
 
-        foreach ($fieldPairs as $pair) {
+        // ==========================================
+        // A. 氏名とふりがなの処理
+        // ==========================================
+        $valName1 = $baseRecord['customer_contacts_name'] ?? '';
+        $valName2 = $baseRecord['customer_contacts_name_2'] ?? '';
+        $normName1 = $normalize($valName1);
+        $normName2 = $normalize($valName2);
+
+        $valKana1 = $baseRecord['customer_contacts_name_kana'] ?? '';
+        $valKana2 = $baseRecord['customer_contacts_name_kana_2'] ?? '';
+
+        foreach ($integrateRecords as $rec) {
+            // 統合元の ① と ② の氏名・ふりがなペア
+            $intNames = [
+                ['name' => $rec['customer_contacts_name'] ?? '', 'kana' => $rec['customer_contacts_name_kana'] ?? ''],
+                ['name' => $rec['customer_contacts_name_2'] ?? '', 'kana' => $rec['customer_contacts_name_kana_2'] ?? '']
+            ];
+
+            foreach ($intNames as $intData) {
+                $intName = $intData['name'];
+                $intKana = $intData['kana'];
+                $intNormName = $normalize($intName);
+
+                if ($intNormName === '') continue;
+
+                // ①にも②にも一致しない場合
+                if ($intNormName !== $normName1 && $intNormName !== $normName2) {
+                    // ①が空なら①へ入れる（自然な挙動として）
+                    if ($normName1 === '') {
+                        $valName1 = $intName;
+                        $normName1 = $intNormName;
+                        $valKana1 = $intKana; // ふりがなも連動
+
+                        $updateQueryParts[] = "customer_contacts_name = :customer_contacts_name";
+                        $updateValues[":customer_contacts_name"] = $valName1;
+                        $updateQueryParts[] = "customer_contacts_name_kana = :customer_contacts_name_kana";
+                        $updateValues[":customer_contacts_name_kana"] = $valKana1;
+                    }
+                    // ①が埋まっていて②が空なら②へ入れる
+                    elseif ($normName2 === '') {
+                        $valName2 = $intName;
+                        $normName2 = $intNormName;
+                        $valKana2 = $intKana; // 氏名②の追加があった場合のみふりがな②を追加
+
+                        $updateQueryParts[] = "customer_contacts_name_2 = :customer_contacts_name_2";
+                        $updateValues[":customer_contacts_name_2"] = $valName2;
+                        $updateQueryParts[] = "customer_contacts_name_kana_2 = :customer_contacts_name_kana_2";
+                        $updateValues[":customer_contacts_name_kana_2"] = $valKana2;
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // B. 電話番号、メールアドレス、販促媒体の処理
+        // ==========================================
+        $otherFields = [
+            ['customer_contacts_phone_number', 'customer_contacts_mobile_phone_number'],
+            ['customer_contacts_email', 'extra_address_info'],
+            ['sales_promotion_name', 'sales_promotion_name_2']
+        ];
+
+        foreach ($otherFields as $pair) {
             $col1 = $pair[0];
             $col2 = $pair[1];
 
@@ -69,19 +129,24 @@ try {
             $norm2 = $normalize($val2);
 
             foreach ($integrateRecords as $rec) {
+                // 統合元の ① と ② の値
                 $intVals = [$rec[$col1] ?? '', $rec[$col2] ?? ''];
-                
+
                 foreach ($intVals as $intVal) {
                     $intNorm = $normalize($intVal);
                     if ($intNorm === '') continue;
 
+                    // ①にも②にも一致しない場合
                     if ($intNorm !== $norm1 && $intNorm !== $norm2) {
+                        // ①が空なら①へ入れる
                         if ($norm1 === '') {
                             $val1 = $intVal;
                             $norm1 = $intNorm;
                             $updateQueryParts[] = "$col1 = :$col1";
                             $updateValues[":$col1"] = $val1;
-                        } elseif ($norm2 === '') {
+                        }
+                        // ①が埋まっていて②が空なら②へ入れる
+                        elseif ($norm2 === '') {
                             $val2 = $intVal;
                             $norm2 = $intNorm;
                             $updateQueryParts[] = "$col2 = :$col2";
@@ -92,25 +157,95 @@ try {
             }
         }
 
-        // ベース行のUPDATE
+        // 統合先(ベース)のUPDATE実行
         $setClause = implode(', ', $updateQueryParts);
         $stmt = $pdo->prepare("UPDATE master_data_kaeru SET $setClause WHERE id = :id");
         $stmt->execute($updateValues);
 
-        // 💡 修正2: 名寄せされた側（統合元）は必ず「integration=0, show_dashboard=0」にする
+        // 統合元(消える側)は show_dashboard=0 にして非表示化
         if (!empty($cleanIntegrateIds)) {
             $placeholders = implode(',', array_fill(0, count($cleanIntegrateIds), '?'));
             $stmt = $pdo->prepare("UPDATE master_data_kaeru SET show_dashboard = '0', integration = '0' WHERE id IN ($placeholders)");
             $stmt->execute($cleanIntegrateIds);
         }
 
-        // --- (中略：interview_sheet と call_sheet の統合処理は元のまま) ---
-        // ※長くなるため省略します。そのまま残してください。
+        // ------------------------------------------
+        // 3. interview_sheet テーブルのログ結合 (JSON配列)
+        // ------------------------------------------
+        $stmt = $pdo->prepare("SELECT interview_log FROM interview_sheet WHERE id = :id FOR UPDATE");
+        $stmt->execute([':id' => $baseId]);
+        $baseInterview = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $baseInterviewLogs = $baseInterview ? json_decode($baseInterview['interview_log'], true) : [];
+        if (!is_array($baseInterviewLogs)) $baseInterviewLogs = [];
+
+        if (!empty($cleanIntegrateIds)) {
+            $placeholders = implode(',', array_fill(0, count($cleanIntegrateIds), '?'));
+            $stmt = $pdo->prepare("SELECT interview_log FROM interview_sheet WHERE id IN ($placeholders)");
+            $stmt->execute($cleanIntegrateIds);
+            $mergeInterviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($mergeInterviews as $row) {
+                $logs = json_decode($row['interview_log'], true);
+                if (is_array($logs)) {
+                    $baseInterviewLogs = array_merge($baseInterviewLogs, $logs);
+                }
+            }
+        }
+
+        $updatedInterviewJson = json_encode($baseInterviewLogs, JSON_UNESCAPED_UNICODE);
+
+        // ★ 担当者を決定 (新しく選択された担当者がいればそれ、なければ元の担当者)
+        $staffToInsert = $newStaff !== '' ? $newStaff : ($baseRecord['in_charge_user'] ?? '');
+
+        if ($baseInterview) {
+            $stmt = $pdo->prepare("UPDATE interview_sheet SET interview_log = :log WHERE id = :id");
+            $stmt->execute([':log' => $updatedInterviewJson, ':id' => $baseId]);
+        } else {
+            // ★ INSERT文に staff を追加
+            $stmt = $pdo->prepare("INSERT INTO interview_sheet (id, interview_log) VALUES (:id, :log)");
+            $stmt->execute([':id' => $baseId, ':log' => $updatedInterviewJson]);
+        }
+
+        // ------------------------------------------
+        // 4. call_sheet テーブルのログ結合 (JSON配列)
+        // ------------------------------------------
+        $stmt = $pdo->prepare("SELECT call_log FROM call_sheet WHERE id = :id FOR UPDATE");
+        $stmt->execute([':id' => $baseId]);
+        $baseCall = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $baseCallLogs = $baseCall ? json_decode($baseCall['call_log'], true) : [];
+        if (!is_array($baseCallLogs)) $baseCallLogs = [];
+
+        if (!empty($cleanIntegrateIds)) {
+            $placeholders = implode(',', array_fill(0, count($cleanIntegrateIds), '?'));
+            $stmt = $pdo->prepare("SELECT call_log FROM call_sheet WHERE id IN ($placeholders)");
+            $stmt->execute($cleanIntegrateIds);
+            $mergeCalls = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($mergeCalls as $row) {
+                $logs = json_decode($row['call_log'], true);
+                if (is_array($logs)) {
+                    $baseCallLogs = array_merge($baseCallLogs, $logs);
+                }
+            }
+        }
+
+        $updatedCallJson = json_encode($baseCallLogs, JSON_UNESCAPED_UNICODE);
+
+        if ($baseCall) {
+            $stmt = $pdo->prepare("UPDATE call_sheet SET call_log = :log WHERE id = :id");
+            $stmt->execute([':log' => $updatedCallJson, ':id' => $baseId]);
+        } else {
+            // ★ INSERT文に staff を追加
+            $stmt = $pdo->prepare("INSERT INTO call_sheet (id, shop, staff, name, status, reserved_status, call_log) VALUES (:id, '', :staff, '', '','', :log)");
+            $stmt->execute([':id' => $baseId, ':staff' => $staffToInsert, ':log' => $updatedCallJson]);
+        }
 
         // データベースに確定
         $pdo->commit();
 
-        // 💡 修正3: フロントエンドが期待するプロパティ名で正しく返却する
+        // 更新された最新のマスターデータを返却
         $sql_customer = "SELECT
           id,
           COALESCE(customer_contacts_name, '') AS customer,
@@ -128,8 +263,8 @@ try {
           COALESCE(status, '') AS status,
           COALESCE(rank_period, '') AS rank_period,
           COALESCE(call_status, '') AS call_status,
-          COALESCE(show_dashboard, 0) AS trash,            /* ←既存の機能が壊れないよう念のため残す */
-          COALESCE(show_dashboard, 0) AS show_dashboard,   /* ←★Reactが期待している名前を確実に追加！ */
+          COALESCE(show_dashboard, 0) AS trash,
+          COALESCE(show_dashboard, 0) AS show_dashboard,
           COALESCE(full_address, '') AS full_address,
           COALESCE(hp_campaign, '') AS hp_campaign,
           COALESCE(property_name, '') AS property_name,
@@ -150,7 +285,6 @@ try {
             'customer' => $response_customer
         ], JSON_UNESCAPED_UNICODE);
         exit;
-
     } catch (Throwable $e) {
         $pdo->rollBack();
 

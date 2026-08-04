@@ -21,7 +21,6 @@ type Section = { name: string, division: string };
 type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string };
 
-
 const Company = () => {
     const { token, authority, category } = useContext(AuthContext);
     const [originalStaffList, setOriginalStaffList] = useState<Staff[]>([]);
@@ -56,7 +55,7 @@ const Company = () => {
         'spec': ['建売分譲事業', '中古リノベ', '注文事業'],
         'used': ['中古リノベ', '注文事業', '建売分譲事業'],
     };
-    const divisionArray: string[] = divisionListMapping[category];
+    const divisionArray: string[] = divisionListMapping[category as keyof typeof divisionListMapping];
 
     useEffect(() => {
         const fetchData = async () => {
@@ -154,7 +153,6 @@ const Company = () => {
             console.log(response.data.status)
         } catch (error) {
             console.error('Error updating achievement:', error);
-
         }
     };
 
@@ -183,9 +181,11 @@ const Company = () => {
 
     type ContractProps = {
         list: any,
+        brokerList?: any,
         row: number,
         col: number,
         lastYear: any,
+        lastYearBroker?: any,
         division?: string
     };
 
@@ -197,15 +197,22 @@ const Company = () => {
             </div></td>
     };
 
-    const TableContract = ({ list = [], row, col, lastYear, division }: ContractProps) => {
-        const cancelList = list.filter(o => o.status === '解約');
-        return <td rowSpan={row} colSpan={col} className={list.length > 0 ? 'text-primary company_contract text-center table-primary' : 'text-center'}
-            onClick={() => showCustomer(list)}>
+    const TableContract = ({ list = [], brokerList = [], row, col, lastYear, lastYearBroker = [], division }: ContractProps) => {
+        const cancelList = list.filter((o: any) => o.status === '解約');
+        const showBroker = brokerList && brokerList.length > 0;
+        
+        return <td rowSpan={row} colSpan={col} className={(list.length > 0 || showBroker) ? 'text-primary company_contract text-center table-primary' : 'text-center'}
+            onClick={() => showCustomer(showBroker ? [...list, ...brokerList] : list)}>
             <div className='position-relative'>
-                {division === '中古リノベ' ? list.reduce((acc, cur) => acc + Number(cur?.contraction_contract_price ?? 0) * 100, 0) / 100 : <>
-                    {list.length}{(showCancel && cancelList.length > 0) && <span style={cancelStyle}>{cancelList.length}</span>}
+                {division === '中古リノベ' ? list.reduce((acc: any, cur: any) => acc + Number(cur?.contraction_contract_price ?? 0) * 100, 0) / 100 : <>
+                    {list.length}
+                    {showBroker && <span className="text-success ms-1">({brokerList.length})</span>}
+                    {(showCancel && cancelList.length > 0) && <span style={cancelStyle}>{cancelList.length}</span>}
                     {(showLastYear && lastYear !== null) && <div className='position-absolute'
-                        style={{ ...lastYearStyle, right: col === 2 ? '23px' : '-5px' }}>{lastYear.length}</div>}
+                        style={{ ...lastYearStyle, right: col === 2 ? '23px' : '-5px' }}>
+                        {lastYear.length}
+                        {lastYearBroker?.length > 0 && <span className="text-success ms-1">({lastYearBroker.length})</span>}
+                    </div>}
                 </>}
             </div></td>
     };
@@ -250,10 +257,10 @@ const Company = () => {
             return baseLastYear ?? [];
         }
         if (category === 'division' && division) {
-            return base.filter(b => b.category === divisionMapping[division]) ?? [];
+            return base.filter(b => b.category === divisionMapping[division as keyof typeof divisionMapping]) ?? [];
         }
         if (category === 'division_lastYear' && division) {
-            return baseLastYear.filter(b => b.category === divisionMapping[division]) ?? [];
+            return baseLastYear.filter(b => b.category === divisionMapping[division as keyof typeof divisionMapping]) ?? [];
         }
         if (category === 'section') {
             const targetShopArray = shopList.filter(s => s.section === section).map(s => s.shop);
@@ -279,10 +286,11 @@ const Company = () => {
     };
 
     const calculateContractListBroker = (list: Customer[], category: string, month?: string, division?: string, section?: string, shop?: string, staff?: string) => {
-        if (!division || division !== '建売分譲事業') return [];
+        if (division && division !== '建売分譲事業') return [];
         if (!list || !Array.isArray(list)) return [];
         const base = list.filter(c => c.contract_broker && c.category === '建売' && (c.status === '契約済み' || c.status === '解約') && (month ? dateFormate(c.contract_broker).includes(dateFormate(month)) : monthArray.includes(monthFormate(c.contract_broker))));
         const baseLastYear = list.filter(c => c.contract_broker && c.category === '建売' && (c.status === '契約済み' || c.status === '解約') && (month ? dateFormate(c.contract_broker).includes(lastYearMonthFormate(month, '/') ?? '') : lastYearMonthArray.includes(monthFormate(c.contract_broker))));
+        
         if (category === 'group' || category === 'division') {
             return base ?? [];
         }
@@ -326,23 +334,36 @@ const Company = () => {
         const groupLastYear = calculateContractList(customerList, 'group_lastYear') ?? [];
 
         const groupTotal_broker = calculateContractListBroker(customerList, 'group') ?? [];
+        const groupLastYear_broker = calculateContractListBroker(customerList, 'group_lastYear') ?? [];
 
         const group = {
             total: groupTotal,
             lastYear: groupLastYear,
             monthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(groupTotal, 'group', m)])),
-            lastYearMonthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(groupLastYear, 'group_lastYear', m)]))
+            lastYearMonthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(groupLastYear, 'group_lastYear', m)])),
+            total_broker: groupTotal_broker,
+            lastYear_broker: groupLastYear_broker,
+            monthly_broker: Object.fromEntries(monthArray.map(m => [m, calculateContractListBroker(groupTotal_broker, 'group', m)])),
+            lastYearMonthly_broker: Object.fromEntries(monthArray.map(m => [m, calculateContractListBroker(groupLastYear_broker, 'group_lastYear', m)]))
         };
 
         // --- 2. 事業部 (Division) ---
         const divisions = Object.fromEntries(divisionArray.map(div => {
             const total = calculateContractList(groupTotal, 'division', '', div) ?? [];
             const lastYear = calculateContractList(groupLastYear, 'division_lastYear', '', div) ?? [];
+            
+            const total_broker = calculateContractListBroker(groupTotal_broker, 'division', '', div) ?? [];
+            const lastYear_broker = calculateContractListBroker(groupLastYear_broker, 'division_lastYear', '', div) ?? [];
+
             return [div, {
                 total,
                 lastYear,
                 monthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(total, 'division', m, div)])),
-                lastYearMonthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(lastYear, 'division_lastYear', m, div)]))
+                lastYearMonthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(lastYear, 'division_lastYear', m, div)])),
+                total_broker,
+                lastYear_broker,
+                monthly_broker: Object.fromEntries(monthArray.map(m => [m, calculateContractListBroker(total_broker, 'division', m, div)])),
+                lastYearMonthly_broker: Object.fromEntries(monthArray.map(m => [m, calculateContractListBroker(lastYear_broker, 'division_lastYear', m, div)]))
             }];
         }));
 
@@ -350,11 +371,19 @@ const Company = () => {
         const sections = Object.fromEntries(sectionList.map(sec => {
             const total = calculateContractList(divisions[sec.division]?.total || [], 'section', '', '', sec.name) ?? [];
             const lastYear = calculateContractList(divisions[sec.division]?.lastYear || [], 'section_lastYear', '', '', sec.name) ?? [];
+            
+            const total_broker = calculateContractListBroker(divisions[sec.division]?.total_broker || [], 'section', '', '', sec.name) ?? [];
+            const lastYear_broker = calculateContractListBroker(divisions[sec.division]?.lastYear_broker || [], 'section_lastYear', '', '', sec.name) ?? [];
+
             return [sec.name, {
                 total,
                 lastYear,
                 monthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(total, 'section', m, '', sec.name)])),
-                lastYearMonthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(lastYear, 'section_lastYear', m, '', sec.name)]))
+                lastYearMonthly: Object.fromEntries(monthArray.map(m => [m, calculateContractList(lastYear, 'section_lastYear', m, '', sec.name)])),
+                total_broker,
+                lastYear_broker,
+                monthly_broker: Object.fromEntries(monthArray.map(m => [m, calculateContractListBroker(total_broker, 'section', m, '', sec.name)])),
+                lastYearMonthly_broker: Object.fromEntries(monthArray.map(m => [m, calculateContractListBroker(lastYear_broker, 'section_lastYear', m, '', sec.name)]))
             }];
         }));
 
@@ -362,10 +391,15 @@ const Company = () => {
         const shops = Object.fromEntries(shopList.map(shp => {
             const total = calculateContractList(sections[shp.section]?.total || [], 'shop', '', '', '', shp.shop) ?? [];
             const lastYear = calculateContractList(sections[shp.section]?.lastYear || [], 'shop_lastYear', '', '', '', shp.shop) ?? [];
+            
+            const total_broker = calculateContractListBroker(sections[shp.section]?.total_broker || [], 'shop', '', '', '', shp.shop) ?? [];
+            const lastYear_broker = calculateContractListBroker(sections[shp.section]?.lastYear_broker || [], 'shop_lastYear', '', '', '', shp.shop) ?? [];
+
             return [shp.shop, {
                 total,
-                lastYear
-                // ※店舗ごとの月次データが必要な場合はここに追加します
+                lastYear,
+                total_broker,
+                lastYear_broker
             }];
         }));
 
@@ -385,12 +419,20 @@ const Company = () => {
                         const isShop = staffIndex === staffLength - 1;
 
                         const baseShopTotal = aggregatedContracts.shops[shop.shop]?.total || [];
+                        const baseShopTotalBroker = aggregatedContracts.shops[shop.shop]?.total_broker || [];
+                        
                         const shopContract = isShop ? baseShopTotal : baseShopTotal.filter(o => {
+                            return (o.staff === staff.name && o.shop === staff.shop)
+                        });
+                        const shopContractBroker = isShop ? baseShopTotalBroker : baseShopTotalBroker.filter(o => {
                             return (o.staff === staff.name && o.shop === staff.shop)
                         });
 
                         const baseShopLastYear = aggregatedContracts.shops[shop.shop]?.lastYear || [];
+                        const baseShopLastYearBroker = aggregatedContracts.shops[shop.shop]?.lastYear_broker || [];
+                        
                         const shopContractLastYear = isShop ? baseShopLastYear : calculateContractList(baseShopLastYear, 'staff_lastYear', '', '', '', shop.shop, staff.name)
+                        const shopContractLastYearBroker = isShop ? baseShopLastYearBroker : calculateContractListBroker(baseShopLastYearBroker, 'staff_lastYear', '', '', '', shop.shop, staff.name)
 
                         const baseDivTotal = aggregatedContracts.divisions[division]?.total || [];
                         const multiContract = baseDivTotal.filter(o => {
@@ -413,7 +455,11 @@ const Company = () => {
                                     {[...monthArray, 'total'].map((month, monthIndex) => {
                                         const isTotal = monthIndex === monthArray.length;
                                         const shopPeriodContract = shopContract.filter(o => dateFormate(o.contract).includes(dateFormate(month)));
+                                        const shopPeriodContractBroker = shopContractBroker.filter(o => dateFormate(o.contract_broker).includes(dateFormate(month)));
+                                        
                                         const shopPeriodContractLastYear = isShop ? calculateContractList(shopContractLastYear, 'shop_lastYear', month, '', '', shop.shop) : calculateContractList(shopContractLastYear, 'staff_lastYear', month, '', '', shop.shop, staff.name)
+                                        const shopPeriodContractLastYearBroker = isShop ? calculateContractListBroker(shopContractLastYearBroker, 'shop_lastYear', month, '', '', shop.shop) : calculateContractListBroker(shopContractLastYearBroker, 'staff_lastYear', month, '', '', shop.shop, staff.name)
+                                        
                                         const multiPeriodContract = multiContract.filter(o => dateFormate(o.contract).includes(dateFormate(month)));
                                         const targetShop = achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value ?
                                             achievement.find(a => a.category === 'shop' && a.name === shop.shop && a.period === month)?.value : '';
@@ -436,10 +482,10 @@ const Company = () => {
                                                                 onChange={(e) => changeAchievement(month, 'shop', shop.shop, e.target.value)}
                                                             />}</td>}
                                                 {(isStaff || isShop) &&
-                                                    <td className={((isTotal && shopContract.length > 0) || shopPeriodContract.length > 0) ? 'text-primary company_contract text-center table-primary' : 'text-center'}
-                                                        onClick={((isTotal && shopContract.length > 0) || shopPeriodContract.length > 0) ? () => {
+                                                    <td className={((isTotal && (shopContract.length > 0 || shopContractBroker.length > 0)) || (shopPeriodContract.length > 0 || shopPeriodContractBroker.length > 0)) ? 'text-primary company_contract text-center table-primary' : 'text-center'}
+                                                        onClick={((isTotal && (shopContract.length > 0 || shopContractBroker.length > 0)) || (shopPeriodContract.length > 0 || shopPeriodContractBroker.length > 0)) ? () => {
                                                             setShow(true);
-                                                            setContract(isTotal ? shopContract : shopPeriodContract);
+                                                            setContract(isTotal ? [...shopContract, ...shopContractBroker] : [...shopPeriodContract, ...shopPeriodContractBroker]);
                                                         } : undefined}
                                                         colSpan={(isTotal && isShop) ? 2 : 1}>
                                                         <div className='position-relative'>
@@ -448,12 +494,20 @@ const Company = () => {
                                                                 : (isTotal ? `${shopContract.length}${isStaffMulti ? `(${multiContract.length})` : ''}` : shopPeriodContract.length)
                                                             }
                                                             {isTotal ?
+                                                                (shopContractBroker.length > 0 && <span className="text-success ms-1">({shopContractBroker.length})</span>) :
+                                                                (shopPeriodContractBroker.length > 0 && <span className="text-success ms-1">({shopPeriodContractBroker.length})</span>)
+                                                            }
+                                                            {isTotal ?
                                                                 ((showCancel && cancelList.length > 0) ? <span style={cancelStyle}>{cancelList.length}</span> : '') :
                                                                 ((showCancel && periodCancelList.length > 0) ? <span style={cancelStyle}>{periodCancelList.length}</span> : '')}
                                                             {(showLastYear && shopContractLastYear !== null) && <div className='position-absolute'
                                                                 style={{ ...lastYearStyle, right: isTotal && isShop ? '23px' : '-5px' }}>
-                                                                {isTotal ? (shopContractLastYear ?? []).length : (shopPeriodContractLastYear ?? []).length
-                                                                }</div>}
+                                                                {isTotal ? (shopContractLastYear ?? []).length : (shopPeriodContractLastYear ?? []).length}
+                                                                {isTotal ? 
+                                                                    ((shopContractLastYearBroker ?? []).length > 0 && <span className="text-success ms-1">({(shopContractLastYearBroker ?? []).length})</span>) : 
+                                                                    ((shopPeriodContractLastYearBroker ?? []).length > 0 && <span className="text-success ms-1">({(shopPeriodContractLastYearBroker ?? []).length})</span>)
+                                                                }
+                                                                </div>}
                                                         </div>
                                                     </td>
                                                 }
@@ -477,8 +531,12 @@ const Company = () => {
                                         const target = r === '契約済み' ?
                                             shopContract.filter(o => dateFormate(o.contract).includes(formattedThisMonth)) :
                                             sectionProspectList.filter(o => safeFormate(o.rank).includes(r) && (isStaff ? o.staff === staff.name : o.shop === shop.shop));
+                                        
+                                        const targetBroker = r === '契約済み' ?
+                                            shopContractBroker.filter(o => dateFormate(o.contract_broker).includes(formattedThisMonth)) : [];
+
                                         return (
-                                            staffIndex !== staffLength - 1 && <TableContract key={r} list={target} row={staffIndex === staffLength - 2 ? 2 : 1} col={1} lastYear={null} />
+                                            staffIndex !== staffLength - 1 && <TableContract key={r} list={target} brokerList={targetBroker} row={staffIndex === staffLength - 2 ? 2 : 1} col={1} lastYear={null} />
                                         )
                                     })}
                                 </tr>
@@ -600,7 +658,7 @@ const Company = () => {
                                             );
                                         } else {
                                             return (
-                                                <React.Fragment>
+                                                <React.Fragment key={monthIndex}>
                                                     {isAchievement &&
                                                         <td className='text-center text-danger table-danger' colSpan={1}>
                                                             {(shopAchievement || 0).toLocaleString()}
@@ -622,7 +680,6 @@ const Company = () => {
                                                         </td>
                                                     }
                                                     {isStaff && <td
-                                                        key={month}
                                                         className={periodBudget > 0 ? 'text-primary company_contract text-center table-primary' : 'text-center'}
                                                         onClick={periodBudget > 0 ? () => {
                                                             setShow(true);
@@ -642,7 +699,7 @@ const Company = () => {
                                             usedList.filter(o => o.staff === staff.name && (dateFormate(o.contract_reform).includes(formattedThisMonth) || dateFormate(o.contract_sell).includes(formattedThisMonth) || dateFormate(o.contract_buy).includes(formattedThisMonth))) :
                                             usedList.filter(o => safeFormate(o.rank).includes(r) && (o.staff === staff.name));
                                         return (
-                                            <TableContract list={target} row={1} col={1} lastYear={null} />
+                                            <TableContract key={r} list={target} row={1} col={1} lastYear={null} />
                                         )
                                     }
                                     )}
@@ -727,21 +784,20 @@ const Company = () => {
                                 <td className='table-none-border'></td>
                                 {rankArray.map((r, index) => {
                                     const orderProspectList = customerList.filter(o => o.status === '見込み' && (o.rank_period <= formattedThisMonth || !o.rank_period));
-                                    // 💡 修正: aggregatedContracts.group を使用
                                     const target = r === '契約済み' ?
                                         (aggregatedContracts.group.monthly?.[monthFormate(formattedThisMonth)] || []) :
                                         orderProspectList.filter(o => safeFormate(o.rank)?.includes(r));
-                                    return <TableContract key={index} list={target} row={2} col={1} lastYear={null} />
+                                    const targetBroker = r === '契約済み' ?
+                                        (aggregatedContracts.group.monthly_broker?.[monthFormate(formattedThisMonth)] || []) : [];
+                                    return <TableContract key={index} list={target} brokerList={targetBroker} row={2} col={1} lastYear={null} />
                                 })}
                             </tr>
                             <tr className='sticky-header third_top'>
                                 <td colSpan={2} className='text-center text-primary table-primary sticky-column' style={{ letterSpacing: '1px' }}>グループ実績</td>
                                 {monthArray.map(month => {
-                                    // 💡 修正: aggregatedContracts.group を使用
-                                    return <TableContract key={month} list={aggregatedContracts.group.monthly?.[month] || []} row={1} col={1} lastYear={aggregatedContracts.group.lastYearMonthly?.[month] || []} />
+                                    return <TableContract key={month} list={aggregatedContracts.group.monthly?.[month] || []} brokerList={aggregatedContracts.group.monthly_broker?.[month] || []} row={1} col={1} lastYear={aggregatedContracts.group.lastYearMonthly?.[month] || []} lastYearBroker={aggregatedContracts.group.lastYearMonthly_broker?.[month] || []} />
                                 })}
-                                {/* 💡 修正: aggregatedContracts.group を使用 */}
-                                <TableContract list={aggregatedContracts.group.total || []} row={1} col={2} lastYear={aggregatedContracts.group.lastYear || []} />
+                                <TableContract list={aggregatedContracts.group.total || []} brokerList={aggregatedContracts.group.total_broker || []} row={1} col={2} lastYear={aggregatedContracts.group.lastYear || []} lastYearBroker={aggregatedContracts.group.lastYear_broker || []} />
                                 <td className='table-none-border'></td>
                             </tr>
                             {/* 以下部門別 */}
@@ -762,7 +818,6 @@ const Company = () => {
                                         <TableAchievement list={achievementLength('division', '', division) ?? null} row={1} col={2} lastYear={achievementLength('division_lastYear', '', division) ?? 0} />
                                         <td className='table-none-border'></td>
                                         {rankArray.map(r => {
-                                            // 💡 修正: aggregatedContracts.divisions を使用
                                             const targetList = r === '契約済み' ?
                                                 (aggregatedContracts.divisions[division]?.monthly?.[monthFormate(formattedThisMonth)] || []) :
                                                 prospectList.filter(o => safeFormate(o.rank)?.includes(r));
@@ -770,7 +825,11 @@ const Company = () => {
                                                 && (monthFormate(u.contract_reform).includes(monthFormate(formattedThisMonth))
                                                     || monthFormate(u.contract_buy).includes(monthFormate(formattedThisMonth)) || monthFormate(u.contract_sell).includes(monthFormate(formattedThisMonth)))) :
                                                 usedList.filter(u => u.status !== '契約済み' && safeFormate(u.rank)?.includes(r));
-                                            return <TableContract key={r} list={division === '中古リノベ' ? targetUsedList : targetList} row={2} col={1} lastYear={null} />
+                                            
+                                            const targetBrokerList = r === '契約済み' ?
+                                                (aggregatedContracts.divisions[division]?.monthly_broker?.[monthFormate(formattedThisMonth)] || []) : [];
+                                            
+                                            return <TableContract key={r} list={division === '中古リノベ' ? targetUsedList : targetList} brokerList={targetBrokerList} row={2} col={1} lastYear={null} />
                                         })}
                                     </tr>
                                     <tr className='target-bottom'>
@@ -781,11 +840,9 @@ const Company = () => {
                                                     dateFormate(u.contract_buy).includes(dateFormate(month)) ||
                                                     dateFormate(u.contract_sell).includes(dateFormate(month)))
                                             );
-                                            // 💡 修正: aggregatedContracts.divisions を使用
-                                            return <TableContract list={division === '中古リノベ' ? targetList : (aggregatedContracts.divisions[division]?.monthly?.[month] || [])} row={1} col={1} key={monthIndex} lastYear={aggregatedContracts.divisions[division]?.lastYearMonthly?.[month] || []} division={division} />
+                                            return <TableContract list={division === '中古リノベ' ? targetList : (aggregatedContracts.divisions[division]?.monthly?.[month] || [])} brokerList={aggregatedContracts.divisions[division]?.monthly_broker?.[month] || []} row={1} col={1} key={monthIndex} lastYear={aggregatedContracts.divisions[division]?.lastYearMonthly?.[month] || []} lastYearBroker={aggregatedContracts.divisions[division]?.lastYearMonthly_broker?.[month] || []} division={division} />
                                         })}
-                                        {/* 💡 修正: aggregatedContracts.divisions を使用 */}
-                                        <TableContract list={division === '中古リノベ' ? targetTotalList : (aggregatedContracts.divisions[division]?.total || [])} row={1} col={2} lastYear={aggregatedContracts.divisions[division]?.lastYear || []} division={division} />
+                                        <TableContract list={division === '中古リノベ' ? targetTotalList : (aggregatedContracts.divisions[division]?.total || [])} brokerList={aggregatedContracts.divisions[division]?.total_broker || []} row={1} col={2} lastYear={aggregatedContracts.divisions[division]?.lastYear || []} lastYearBroker={aggregatedContracts.divisions[division]?.lastYear_broker || []} division={division} />
                                         <td className='table-none-border'></td>
                                     </tr>
                                     {/* 以下営業課別 */}
@@ -813,15 +870,17 @@ const Company = () => {
                                                                 const target = r === '契約済み' ?
                                                                     (aggregatedContracts.sections[section.name]?.monthly?.[monthFormate(formattedThisMonth)] || []) :
                                                                     sectionProspectList.filter(o => safeFormate(o.rank).includes(r));
-                                                                return <TableContract key={r} list={target} row={2} col={1} lastYear={null} />
+                                                                const targetBroker = r === '契約済み' ?
+                                                                    (aggregatedContracts.sections[section.name]?.monthly_broker?.[monthFormate(formattedThisMonth)] || []) : [];
+                                                                return <TableContract key={r} list={target} brokerList={targetBroker} row={2} col={1} lastYear={null} />
                                                             })}
                                                         </tr>
                                                         <tr className='target-bottom'>
                                                             <td className='table-primary text-primary sticky-column next'>実績</td>
                                                             {monthArray.map((month, monthIndex) => {
-                                                                return <TableContract list={aggregatedContracts.sections[section.name]?.monthly?.[month] || []} row={1} col={1} key={monthIndex} lastYear={aggregatedContracts.sections[section.name]?.lastYearMonthly?.[month] || []} />;
+                                                                return <TableContract list={aggregatedContracts.sections[section.name]?.monthly?.[month] || []} brokerList={aggregatedContracts.sections[section.name]?.monthly_broker?.[month] || []} row={1} col={1} key={monthIndex} lastYear={aggregatedContracts.sections[section.name]?.lastYearMonthly?.[month] || []} lastYearBroker={aggregatedContracts.sections[section.name]?.lastYearMonthly_broker?.[month] || []} />;
                                                             })}
-                                                            <TableContract list={aggregatedContracts.sections[section.name]?.total || []} row={1} col={2} lastYear={aggregatedContracts.sections[section.name]?.lastYear || []} />
+                                                            <TableContract list={aggregatedContracts.sections[section.name]?.total || []} brokerList={aggregatedContracts.sections[section.name]?.total_broker || []} row={1} col={2} lastYear={aggregatedContracts.sections[section.name]?.lastYear || []} lastYearBroker={aggregatedContracts.sections[section.name]?.lastYear_broker || []} />
                                                             <td className='table-none-border'></td>
                                                         </tr>
                                                     </>
@@ -852,4 +911,4 @@ const Company = () => {
     )
 }
 
-export default Company
+export default Company;

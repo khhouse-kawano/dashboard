@@ -15,6 +15,7 @@ import { generateULID } from '../../utils/createULID';
 import { monthFormate, handleBlack } from './listUtils';
 import { useIsSp } from '../../utils/isSp';
 import axios from 'axios';
+import { toHalfWidth } from './listUtils';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -184,32 +185,10 @@ const ListOrder = ({ onReload }: Props) => {
 
         const staffIdValue = staffList.find(s => s.name === filteredCustomer.staff && s.shop === filteredShop)?.pg_id ?? '';
 
-        const registerData = {
-            id: idValue,
-            staff: filteredCustomer.staff ?? '',
-            firstName: filteredCustomer.first_name,
-            lastName: filteredCustomer.last_name,
-            firstKana: filteredCustomer.first_name_kana,
-            lastKana: filteredCustomer.last_name_kana,
-            shop: filteredShop,
-            date: filteredCustomer.inquiry_date,
-            mobile: filteredCustomer.mobile,
-            landline: filteredCustomer.landline,
-            mail: mailValue,
-            zip: filteredCustomer.zip,
-            pref: filteredCustomer.pref,
-            city: filteredCustomer.city,
-            town: filteredCustomer.town,
-            street: filteredCustomer.street,
-            building: filteredCustomer.building,
-            medium: filteredMedium,
-            note: targetData ? `反響経路:${filteredCustomer.hp_campaign}／検討時期:${targetData?.considerationStart}\n入居希望時期:${targetData?.desiredMoveIn}／新築検討理由:${targetData?.reasonForConsidering} ${targetData?.reasonOther}\n今後の予定:${targetData?.futurePlan} ${targetData?.futureOther}／希望の広さ:${targetData?.desiredSize}／希望の間取り:${targetData?.desiredLayout}\n重視項目:${targetData?.priorityItem}／入居予定人数:${targetData?.expectedResidents}\n総予算:${targetData?.totalBudget}／返済額:${targetData?.monthlyRepayment}\n前年度の年収:${targetData?.annualIncome}／勤続年数:${targetData?.yearsOfService}\n年収がある方：${targetData?.otherIncomePerson}／年収がある方の年収:${targetData?.otherAnnualIncome}\n自己資金:${targetData?.ownFunds}／その他ローン:${targetData?.otherLoans}\n当日したいこと:${targetData?.thingsToDo} ${targetData?.thingsToDoOther}／新居の希望:${targetData?.housingType} ${targetData?.housingTypeOther}\n希望の土地エリア:${targetData?.landArea}／紹介者:${targetData?.referrerName}`
-                : '',
-            reserved_status: filteredCustomer.reserved_date,
-            response_status: filteredCustomer.response_medium,
-            campaign: filteredCustomer.hp_campaign,
-            staffId: staffIdValue
-        };
+
+        const phone_number_1 = toHalfWidth(filteredCustomer.mobile) || toHalfWidth(filteredCustomer.landline);
+
+        const phone_number_2 = phone_number_1 === toHalfWidth(filteredCustomer.landline) ? '' : toHalfWidth(filteredCustomer.landline);
 
         if (window.confirm(`${filteredShop} ${filteredCustomer.first_name} ${filteredCustomer.last_name}様 顧客情報を取り込みますか?`)) {
             const brands = {
@@ -234,8 +213,8 @@ const ListOrder = ({ onReload }: Props) => {
                 customer_contacts_name_kana: `${filteredCustomer.first_name_kana} ${filteredCustomer.last_name_kana}`,
                 in_charge_store: filteredShop,
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date,
-                customer_contacts_mobile_phone_number: filteredCustomer.mobile.replace('="', '').replace('"', '') ?? null,
-                customer_contacts_phone_number: filteredCustomer.landline.replace('="', '').replace('"', '') ?? null,
+                customer_contacts_phone_number: phone_number_1, //番号①
+                customer_contacts_mobile_phone_number: phone_number_2, //番号②
                 customer_contacts_email: mailValue,
                 postal_code: filteredCustomer.zip,
                 full_address: `${filteredCustomer.pref} ${filteredCustomer.city} ${filteredCustomer.town} ${filteredCustomer.street} ${filteredCustomer.building}`,
@@ -301,6 +280,32 @@ const ListOrder = ({ onReload }: Props) => {
                 }
             }, checkInterval);
             try {
+                const registerData = {
+                    id: idValue,
+                    staff: filteredCustomer.staff ?? '',
+                    firstName: filteredCustomer.first_name,
+                    lastName: filteredCustomer.last_name,
+                    firstKana: filteredCustomer.first_name_kana,
+                    lastKana: filteredCustomer.last_name_kana,
+                    shop: filteredShop,
+                    date: filteredCustomer.inquiry_date,
+                    mobile: filteredCustomer.mobile,
+                    landline: filteredCustomer.landline,
+                    mail: mailValue,
+                    zip: filteredCustomer.zip,
+                    pref: filteredCustomer.pref,
+                    city: filteredCustomer.city,
+                    town: filteredCustomer.town,
+                    street: filteredCustomer.street,
+                    building: filteredCustomer.building,
+                    medium: filteredMedium,
+                    note: targetData ? `反響経路:${filteredCustomer.hp_campaign}／検討時期:${targetData?.considerationStart}\n入居希望時期:${targetData?.desiredMoveIn}／新築検討理由:${targetData?.reasonForConsidering} ${targetData?.reasonOther}\n今後の予定:${targetData?.futurePlan} ${targetData?.futureOther}／希望の広さ:${targetData?.desiredSize}／希望の間取り:${targetData?.desiredLayout}\n重視項目:${targetData?.priorityItem}／入居予定人数:${targetData?.expectedResidents}\n総予算:${targetData?.totalBudget}／返済額:${targetData?.monthlyRepayment}\n前年度の年収:${targetData?.annualIncome}／勤続年数:${targetData?.yearsOfService}\n年収がある方：${targetData?.otherIncomePerson}／年収がある方の年収:${targetData?.otherAnnualIncome}\n自己資金:${targetData?.ownFunds}／その他ローン:${targetData?.otherLoans}\n当日したいこと:${targetData?.thingsToDo} ${targetData?.thingsToDoOther}／新居の希望:${targetData?.housingType} ${targetData?.housingTypeOther}\n希望の土地エリア:${targetData?.landArea}／紹介者:${targetData?.referrerName}`
+                        : '',
+                    reserved_status: filteredCustomer.reserved_date,
+                    response_status: filteredCustomer.response_medium,
+                    campaign: filteredCustomer.hp_campaign,
+                    staffId: staffIdValue
+                };
                 const response = await axios.post(`${baseURL}/api/`, registerData, { headers });
                 console.log(response.data);
             } catch (error) {
@@ -426,7 +431,7 @@ const ListOrder = ({ onReload }: Props) => {
     const isBlack = (mailValue: string, mobileValue: string, blackValue: string) => {
         return blackList.some(b =>
             (mailValue && b.mail.includes(mailValue)) ||
-            (mobileValue && b.mobile.includes(mobileValue))
+            (toHalfWidth(mobileValue) && toHalfWidth(b.mobile).includes(toHalfWidth(mobileValue)))
         ) || (blackValue.split('black').length % 2 === 0);
     };
 
@@ -527,7 +532,7 @@ const ListOrder = ({ onReload }: Props) => {
                                 <td style={{ width: '40px' }}>反響日</td>
                                 <td style={{ width: '90px' }}>反響媒体</td>
                                 <td style={{ width: '80px' }}>お客様名</td>
-                                <td style={{ width: '200px' }}>住所</td>
+                                <td style={{ width: '200px' }}>連絡先</td>
                                 <td style={{ width: '130px' }}>詳細</td>
                                 <td style={{ width: '120px' }}>予定地</td>
                                 <td style={{ width: '400px' }}>顧客タグ</td>
@@ -591,7 +596,7 @@ const ListOrder = ({ onReload }: Props) => {
                                         <td>{item.inquiry_date}</td>
                                         <td>{item.response_medium}{item.medium !== 'ホームページ反響' || <><br /><span style={{ fontSize: '10px', fontWeight: 'bold' }}>（{item.hp_campaign}）</span></>}</td>
                                         <td>{item.first_name}{item.last_name}</td>
-                                        <td>{item.pref}{item.city}{item.town}{item.street}{item.building}</td>
+                                        <td>{item.pref}{item.city}{item.town}{item.street}{item.building}<br />{toHalfWidth(item.mobile)}{(!item.mobile && item.landline) && `/${toHalfWidth(item.landline)}`}</td>
                                         <td>{item.duplicate && item.duplicate.split(',').map(value => {
                                             return (
                                                 <div style={styleClass} className='mb-1'>{(formattedValue.includes('ホットリード') ? <a href={item.hotlead_url} target='_blank' style={{ color: '#fff' }}>#{value}</a> : value)}</div>

@@ -38,7 +38,7 @@ const CustomerDetail = ({ show, setShow, contract, setEditId }: Props) => {
                                     '中専': 'resale'
                                 };
                                 const contractDate = categoryValue === '中専' ? (c.contract_reform || c.contract_buy || c.contract_sell || '-')
-                                    : c.contract || '-';
+                                    : c.contract || c.contract_broker || '-';
                                 return <tr key={index}>
                                     <td>{contractDate}</td>
                                     <td><span onClick={() => {
@@ -48,7 +48,8 @@ const CustomerDetail = ({ show, setShow, contract, setEditId }: Props) => {
                                         }));
                                     }
                                     }
-                                        style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{c.customer} 様</span></td>
+                                        style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{c.customer} 様</span>
+                                        {c.contract_broker && <span className='bg-success text-white rounded px-1 ms-1' style={{fontSize: '9px'}}>仲介</span>}</td>
                                     <td>{categoryValue === '中専' ? `${c.contraction_contract_price}万円` : c.shop}</td>
                                     <td>{c.staff}</td>
                                 </tr>

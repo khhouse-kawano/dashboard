@@ -22,7 +22,7 @@ $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 物件リスト
-$sql_property = "SELECT * FROM property_list_kaeru";
+$sql_property = "SELECT * FROM property_db";
 $stmt_property = $pdo->prepare($sql_property);
 $stmt_property->execute();
 $response_property = $stmt_property->fetchAll(PDO::FETCH_ASSOC);

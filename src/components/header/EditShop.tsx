@@ -4,6 +4,7 @@ import BsForm from 'react-bootstrap/Form';
 import axios from 'axios';
 import { headers } from '../../utils/headers';
 import AuthContext from '../../context/AuthContext';
+import apiClient from '../../utils/apiClient';
 
 type Shop = Record<string, string>;
 
@@ -32,7 +33,7 @@ const EditShop = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "header_shop_edit" }, { headers });
+                const response = await apiClient.post('', { request: "header_shop_edit" });
                 const shops = response.data.shop || response.data.shops || [];
                 setOriginalShopList(shops);
                 setShopList(shops);
@@ -52,7 +53,7 @@ const EditShop = () => {
                 request: "header_shop_update"
             };
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+                const response = await apiClient.post('', postData);
                 console.log(response.data.status);
             } catch (err) {
                 console.error(err);
@@ -73,7 +74,7 @@ const EditShop = () => {
                 request: "header_shop_insert"
             };
 
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+            const response = await apiClient.post('', postData);
 
             if (response.data.status === 'success') {
                 // 採番されたIDをマージして一覧の先頭に追加

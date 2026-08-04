@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import axios from "axios";
 import AuthContext from '../../context/AuthContext';
 import Table from "react-bootstrap/Table";
@@ -85,6 +85,7 @@ const ShopTrendKaeru = () => {
     const [listPage, setListPage] = useState(1);
 
     const [editId, setEditId] = useState('');
+    const [isReverse, setIsReverse] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -145,6 +146,10 @@ const ShopTrendKaeru = () => {
         checkedObject['その他'] = true;
         setMediumChecked(checkedObject);
     }, [targetMedium]);
+
+    const formattedMonthArray = useMemo(() => {
+        return isReverse ? [...monthArray].reverse() : [...monthArray];
+    }, [monthArray, isReverse]);
 
     const showSummary = (title: string) => {
         setShow(true);
@@ -377,6 +382,11 @@ const ShopTrendKaeru = () => {
                         </label>
                     </div>
                 })}
+                <div className="m-1">
+                    <label className="target checkbox d-flex align-items-center">
+                        <input type="checkbox" checked={isReverse === false} className='me-1' onChange={() => setIsReverse(!isReverse)} />期間を反転
+                    </label>
+                </div>
             </div>
             {targetMedium === 'all' && <>
                 <div style={{ fontSize: '12px' }}>表示する販促媒体を選択</div>
@@ -423,7 +433,6 @@ const ShopTrendKaeru = () => {
                     transition: 'all 0.2s ease-in-out', // 拡大・透明度の変化を滑らかにするアニメーション
                 }}
                 onClick={() => hasData ? handleShow(num, label) : null}
-                // --- ホバー時のアニメーション処理（インラインスタイル直接操作） ---
                 onMouseEnter={(e) => {
                     if (hasData) {
                         e.currentTarget.style.transform = 'scale(1.02)'; // 少し拡大
@@ -488,7 +497,6 @@ const ShopTrendKaeru = () => {
             borderCollapse: 'separate',
             borderSpacing: 0,
             borderRadius: '8px',
-            overflow: 'hidden',
             border: '1px solid #e2e8f0',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
             width: '100%',
@@ -530,7 +538,6 @@ const ShopTrendKaeru = () => {
         }
     };
 
-    // 洗練されたグラデーション風のアクセントカラー（KPI）
     const kpiColors = {
         register: '#38bdf8',    // ライトブルー
         contact: '#0ea5e9',     // スカイブルー
@@ -541,11 +548,11 @@ const ShopTrendKaeru = () => {
 
     const staffSummary = () => {
         return (
-            <Table style={theme.table} responsive>
+            <Table style={theme.table} >
                 <tbody style={{ fontSize: '12px', letterSpacing: '0.5px' }}>
                     <tr className='sticky-header text-center'>
                         <td className='sticky-column' style={{ ...theme.th, width: '120px' }}>店舗名</td>
-                        {['全期間', ...monthArray].map((month, idx) => (
+                        {['全期間',...formattedMonthArray].map((month, idx) => (
                             <td key={`th-${idx}`} style={theme.th}>{month}</td>
                         ))}
                     </tr>
@@ -563,7 +570,7 @@ const ShopTrendKaeru = () => {
                                         サマリ
                                     </div>
                                 </td>
-                                {['全期間', ...monthArray].map((month, monthIndex) => {
+                                {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                                     const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name : c.shop === targetShop));
                                     const total = getValue(base, monthIndex, month, 'register');
                                     const interview = getValue(base, monthIndex, month, 'interview');
@@ -612,11 +619,11 @@ const ShopTrendKaeru = () => {
 
     const shopSummary = () => {
         return (
-            <Table style={theme.table} responsive>
+            <Table style={theme.table}>
                 <tbody style={{ fontSize: '12px', letterSpacing: '.5px' }}>
                     <tr className='sticky-header text-center'>
                         <td className='sticky-column text-center' style={{ ...theme.th, width: '120px' }}>店舗名</td>
-                        {['全期間', ...monthArray].map((month, monthIndex) => {
+                        {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                             const isDisplayLastYear = isLastYear(month) && monthIndex >= 1 && checked.comparison.show;
                             return (
                                 <td key={`th-${monthIndex}`} style={theme.th}>
@@ -658,7 +665,7 @@ const ShopTrendKaeru = () => {
                                                 サマリ
                                             </div>
                                         </td>
-                                        {['全期間', ...monthArray].map((month, monthIndex) => {
+                                        {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                                             const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
                                             const base = setSection(customerList, targetSection, target.section, target.shop, targetIndex, sectionShops);
 

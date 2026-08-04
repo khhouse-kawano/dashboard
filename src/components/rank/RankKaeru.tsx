@@ -309,7 +309,7 @@ const RankOrder = () => {
                 if (!hasMatchInMonth(item, appointmentKeys) && !(isAllEmpty(item, appointmentKeys) && hasMatchInMonth(item, higherKeys))) return false;
             }
             else if (period === 'contract') {
-                if ((item.status ?? '').includes('契約済み') || !hasMatchInMonth(item, contractKeys)) return false;
+                if (!(item.status ?? '').includes('契約済み') || !hasMatchInMonth(item, contractKeys)) return false;
             }
             else if (period) {
                 // register, screening, application など上記以外の単体KPIに対するフォールバック

@@ -129,7 +129,7 @@ const Menu = ({ key, onReload }: Props) => {
                         {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/shop" ? "selected " : ""}`}
                             onClick={() => navigate("/shop", { state: { authority: authority, }, })}><i className="fa-solid fa-chart-pie me-1 text-secondary"></i>店舗別広告費</div>}
                         {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/property") ? "selected" : ""}`}
-                            onClick={() => navigate("/property", { state: { authority: authority, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>物件データベース</div>}
+                            onClick={() => navigate("/property", { state: { authority: authority, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>掲載物件一覧</div>}
                         {(category === 'order' || category === 'spec') && <div className={`category_menu  ps-3 ${currentPath === "/customerTrend" ? "selected " : ""}`}
                             onClick={() => navigate("/customerTrend", { state: { authority: authority, }, })}><i className="fa-solid fa-chart-bar me-1 text-secondary"></i>販促媒体別反響推移</div>}
                         <div className={`category_menu  ps-3 ${currentPath === "/shopTrend" ? "selected " : ""}`}
