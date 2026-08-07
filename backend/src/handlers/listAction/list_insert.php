@@ -101,12 +101,12 @@ try {
     // $result が成功しており、かつ連携用の $inquiry_id が存在する場合のみ実行
     if ($result && $inquiry_id) {
         $updateSql = "UPDATE {$tableNameInquiry} SET pg_id = ?, sync = 1 WHERE inquiry_id = ?";
-        
+
         // ⚠️ 元のコードで $dbh と $pdo が混在していましたが、別々のDB接続でない限り $pdo に統一するのが安全です。
         // ここではフォールバックとして $dbh があれば使い、なければ $pdo を使います。
-        $dbConn = isset($dbh) ? $dbh : $pdo; 
+        $dbConn = isset($dbh) ? $dbh : $pdo;
         $updateStmt = $dbConn->prepare($updateSql);
-        
+
         if (!$updateStmt->execute([$id, $inquiry_id])) {
             throw new Exception("{$tableNameInquiry} の連携更新に失敗しました。");
         }
@@ -120,18 +120,22 @@ try {
     // 4. フロントエンド（React）へのレスポンスは必ず最後に「1回だけ」行う
     if ($result) {
         $customerName = $data['customer_contacts_name'] ?? 'お客様';
+        $sql_inquiry = "SELECT pg_id FROM {$tableNameInquiry} WHERE inquiry_id = ?";
+        $stmt_inquiry = $pdo->prepare($sql_inquiry);
+        $stmt_inquiry->execute([$inquiry_id]);
+        $response_inquiry = $stmt_inquiry->fetch(PDO::FETCH_ASSOC);
         echo json_encode([
             'status' => 'success',
+            'pg_id' => $response_inquiry,
             'message' => "{$customerName}様の情報を保存し、連携データを更新しました。"
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
-
 } catch (Exception $e) {
     // 💡 エラーが起きたら必ずロールバックして中途半端なデータを防ぐ
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    
+
     echo json_encode([
         'status' => 'error',
         'message' => 'データベースエラー詳細: ' . $e->getMessage()

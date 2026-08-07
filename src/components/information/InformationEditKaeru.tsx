@@ -274,7 +274,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
         const requiredList = ['customer_contacts_name', 'in_charge_store', 'in_charge_user'];
 
         if (!information.status) information.status = '見込み';
-        if (!information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99) information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 = today;
+        if (!information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 && id === 'new') information.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 = today;
         for (const key of requiredList) {
             if (!information[key]) {
                 const targetLabel = databaseList.find(d => d.id === key)?.value;

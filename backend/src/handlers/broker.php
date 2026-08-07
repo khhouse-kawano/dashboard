@@ -1,7 +1,7 @@
 <?php
 
 $roll = $data['roll'] ?? 'list';
-$allowed_rolls = ['list', 'detail'];
+$allowed_rolls = ['list', 'update', 'customer'];
 
 if (!in_array($roll, $allowed_rolls, true)) {
         http_response_code(400);
@@ -9,7 +9,7 @@ if (!in_array($roll, $allowed_rolls, true)) {
         exit;
 }
 
-require_once __DIR__ . "/propertyAction/property_{$roll}.php";
+require_once __DIR__ . "/brokerAction/broker_{$roll}.php";
 
 exit;
 

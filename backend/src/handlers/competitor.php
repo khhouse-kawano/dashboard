@@ -29,6 +29,7 @@ $sql_contract = "SELECT
     COALESCE(competitors_text, '') as competitor,
     COALESCE(competitor_name, '') as lost_competitor,
     COALESCE(competitor_lost_contract_reason, '') as lost_reason,
+    COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') as lost_reason_detail,
     COALESCE(sales_promotion_name, '') as medium,
     COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
     COALESCE(step_migration_item_01JSENACS2FC422ZHEZWNSXNYA, '') as appointment,

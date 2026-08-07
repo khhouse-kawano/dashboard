@@ -1,49 +1,61 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import "./SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import AuthContext from '../context/AuthContext';
-import axios from "axios";
-import { headers } from '../utils/headers';
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import Logo from '../assets/images/logo.png';
-
 import Estate from './Estate';
 import { useIsSp } from '../utils/isSp';
+import apiClient from "../utils/apiClient";
 
 type UnSync = { inquiry_date: string, sync: number, black_list: string };
-type Cancel = Record<string, string>;;
+type Cancel = Record<string, string>;
 type Props = {
     key: number,
     onReload: () => void
 };
+
+// 💡 メニュー項目の型定義
+type Badge = { label: string; top: string };
+type MenuItem = {
+    id: string;
+    path: string;
+    icon: string;
+    // 💡 string から React.ReactNode に変更することで <span> 等のJSXが使用可能になります
+    label: React.ReactNode;
+    show: boolean;               // 表示条件
+    exact?: boolean;             // パスの完全一致でアクティブ判定をするか
+    activePaths?: string[];      // 複数のパスでアクティブ判定する場合
+    isAdminOnly?: boolean;       // 管理者バッジを表示するか
+    badges?: Badge[];            // 通知バッジの設定
+};
+
 const Menu = ({ key, onReload }: Props) => {
-    const { authority } = useContext(AuthContext);
+    const { authority, category, version } = useContext(AuthContext);
     const location = useLocation();
     const currentPath = location.pathname;
-    const { category } = useContext(AuthContext);
-    const { version } = useContext(AuthContext);
+    const fullPath = location.pathname + location.search;
+    const navigate = useNavigate();
+    const isSp = useIsSp();
+
     const [unSyncList, setUnSyncList] = useState<UnSync[]>([]);
     const [sync, setSync] = useState(0);
     const [cancelList, setCancelList] = useState<Cancel[]>([]);
     const [cancel, setCancel] = useState(0);
+    const [lost, setLost] = useState(0);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [estateId, setEstateId] = useState('');
-    const [lost, setLost] = useState(0);
-    const isSp = useIsSp();
 
-    const dateFormate = (value: string) => {
-        return (value ?? '').replace(/\//g, '-');
-    }
+    const dateFormate = (value: string) => (value ?? '').replace(/\//g, '-');
 
     useEffect(() => {
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "menu" }, { headers });
+            const response = await apiClient.post("", { request: "menu" });
             setUnSyncList(response.data.inquiry);
             setCancelList(response.data.customer);
         };
         fetchData();
-
         setMonthArray(getYearMonthArray(2025, 1).slice(5));
     }, [key]);
 
@@ -52,15 +64,14 @@ const Menu = ({ key, onReload }: Props) => {
             return monthArray.includes(c.inquiry_date.slice(0, 7)) && c.sync === 0 && (c.black_list.split('duplicate').length % 2 !== 0 && c.black_list.split('support').length % 2 !== 0 && c.black_list.split('black').length % 2 !== 0)
         }).length;
         setSync(total);
-    }, [unSyncList]);
+    }, [unSyncList, monthArray]);
 
     useEffect(() => {
         const cancelLength = cancelList.filter(item => {
             const now = new Date();
             const today = now.getTime();
             const target = new Date(dateFormate(item.reserved_interview)).getTime();
-            const start = new Date('2026-01-01');
-            const base = start.getTime();
+            const base = new Date('2026-01-01').getTime();
             return target < today && base < target && (!item.interview && !item.cancel_status) && item.status !== '重複'
         }).length;
         setCancel(cancelLength);
@@ -69,8 +80,7 @@ const Menu = ({ key, onReload }: Props) => {
             const now = new Date();
             const today = now.getTime();
             const target = new Date(dateFormate(item.register)).getTime();
-            const start = new Date('2026-06-01');
-            const base = start.getTime();
+            const base = new Date('2026-06-01').getTime();
             const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
             const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
             const isDetailMissing = item.competitor_lost_contract_reason === '競合負け' &&
@@ -78,91 +88,108 @@ const Menu = ({ key, onReload }: Props) => {
                     !item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
                     !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
                 );
-
             return target < today && base < target && item.status === '失注' && (isReasonMissing || isCompetitorMissing || isDetailMissing) && Number(item.trash) === 1;
         }).length
         setLost(lostLength);
     }, [cancelList]);
 
-    const navigate = useNavigate();
-
-    const categoryMapping = {
-        'order': {
-            label: '注文営業',
-            class: 'text-white bg-primary rounded px-2 py-0 ms-1'
-        },
-        'spec': {
-            label: '建売営業',
-            class: 'text-white bg-success rounded px-2 py-0 ms-1'
-        },
-        'used': {
-            label: '中古住宅',
-            class: 'text-white bg-warning rounded px-2 py-0 ms-1'
-        }
+    const handleNavigate = (path: string) => {
+        navigate(path, { state: { authority } });
     };
 
+    const checkIsActive = (item: MenuItem) => {
+        if (item.activePaths) return item.activePaths.some(p => fullPath.includes(p));
+        return item.exact ? fullPath === item.path : fullPath.includes(item.path);
+    };
+
+    const categoryMapping = {
+        'order': { label: '注文営業', class: 'text-white bg-primary rounded px-2 py-0 ms-1' },
+        'spec': { label: '建売営業', class: 'text-white bg-success rounded px-2 py-0 ms-1' },
+        'used': { label: '中古住宅', class: 'text-white bg-warning rounded px-2 py-0 ms-1' }
+    };
+
+    const backgroundColors = {
+        '買い:中古リノベ': '#1f77b4',
+        '買い:ポータル': '#ff7f0e',
+        '売り:ポータル': '#d62728'
+    }
+        ;
+
+    const MENU_CONFIG: MenuItem[] = useMemo(() => [
+        { id: 'company', path: '/company', icon: 'fa-rainbow', label: '全社報告用フォーマット', show: true, exact: true },
+        {
+            id: 'list', path: '/list', icon: 'fa-phone', label: '反響一覧', show: (category === 'order' || category === 'spec'), exact: true,
+            badges: (category === 'order' && sync > 0) ? [{ label: `未同期 ${sync}件`, top: '8px' }] : []
+        },
+        // 💡 labelにJSXを直接記述可能になりました
+        { id: 'list_sell', path: '/list?shop=portal_sell', icon: 'fa-phone', label: (<>反響一覧<span style={{ color: backgroundColors['売り:ポータル'], fontWeight: '700' }}>(売り:ポータル)</span></>), show: category === 'used', exact: true },
+        { id: 'list_buy', path: '/list?shop=portal_buy', icon: 'fa-phone', label: (<>反響一覧<span style={{ color: backgroundColors['買い:ポータル'], fontWeight: '700' }}>(買い:ポータル)</span></>), show: category === 'used', exact: true },
+        { id: 'list_renove', path: '/list?shop=renove', icon: 'fa-phone', label: (<>反響一覧<span style={{ color: backgroundColors['買い:中古リノベ'], fontWeight: '700' }}>(買い:中古リノベ)</span></>), show: category === 'used', exact: true },
+        {
+            id: 'database', path: '/database', icon: 'fa-magnifying-glass', label: '顧客DB', show: true, exact: true,
+            badges: category === 'order' ? [
+                cancel > 0 ? { label: `来場未入力 ${cancel}件`, top: '2px' } : null,
+                lost > 0 ? { label: `失注未入力 ${lost}件`, top: '16px' } : null
+            ].filter(Boolean) as Badge[] : []
+        },
+        { id: 'rank', path: '/rank', icon: 'fa-person', label: '店舗・担当別反響', show: true, exact: true },
+        { id: 'map', path: '/map', icon: 'fa-map', label: '反響MAP', show: true, exact: true },
+        { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && category === 'order', exact: true },
+        { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && category === 'order', exact: true },
+        { id: 'property_used', path: '/property', icon: 'fa-house', label: '掲載物件一覧', show: !isSp && category === 'used', exact: false },
+        { id: 'broker', path: '/broker', icon: 'fa-house', label: '媒介獲得台帳', show: !isSp && category === 'used', exact: false },
+        { id: 'customerTrend', path: '/customerTrend', icon: 'fa-chart-bar', label: '販促媒体別反響推移', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
+        { id: 'shopTrend', path: '/shopTrend', icon: 'fa-shop', label: '店舗別反響推移', show: !isSp, exact: true },
+        { id: 'calendar', path: '/calendar', icon: 'fa-calendar', label: 'カレンダー', show: !isSp && category === 'order', exact: true },
+        { id: 'property_spec', path: '/property', icon: 'fa-house', label: '物件DB', show: !isSp && category === 'spec', exact: false },
+        { id: 'campaign', path: '/campaign', activePaths: ['/campaign', '/editcampaign'], icon: 'fa-calendar-days', label: 'キャンペーン管理', show: !isSp && category === 'order' && (authority === "BrandAdmin" || authority === "Master"), isAdminOnly: true },
+        { id: 'budget', path: '/budget', icon: 'fa-money-check', label: '予算詳細', show: !isSp && (authority === "BrandAdmin" || authority === "Master"), exact: false, isAdminOnly: true },
+        { id: 'photo', path: '/photo', icon: 'fa-camera', label: 'K-snap登録', show: !isSp && category === 'order', exact: false }
+    ], [isSp, category, authority, sync, cancel, lost]);
+
+    if (currentPath === '/login' || currentPath === '/home') return null;
+
     return (
-        <>{currentPath !== '/login' && currentPath !== '/home' &&
-            <>
-                <div className="d-md-flex flex-column p-2" style={{ height: '100vh', borderRight: '1px solid #D3D3D3' }}>
-                    <div className="menuLogo m-3 position-relative" onClick={() => navigate("/home", { state: { authority: authority, }, })}>
-                        <img src={Logo} alt="PG-CLOUDダッシュボード" className="w-100" />
-                        <div style={{ fontSize: '10px', bottom: '-10px', right: '0' }} className="position-absolute">
-                            ver{version}<span style={{ fontSize: '8px', textAlign: 'center' }}
-                                className={categoryMapping[category].class}>{categoryMapping[category].label}</span></div>
+        <>
+            <div className="d-md-flex flex-column p-2" style={{ height: '100vh', borderRight: '1px solid #D3D3D3', overflowY: 'auto' }}>
+                <div className="menuLogo m-3 position-relative" style={{ cursor: 'pointer' }} onClick={() => handleNavigate("/home")}>
+                    <img src={Logo} alt="PG-CLOUDダッシュボード" className="w-100" />
+                    <div style={{ fontSize: '10px', bottom: '-10px', right: '0' }} className="position-absolute">
+                        ver{version}
+                        <span style={{ fontSize: '8px', textAlign: 'center' }} className={categoryMapping[category as keyof typeof categoryMapping]?.class || ''}>
+                            {categoryMapping[category as keyof typeof categoryMapping]?.label || ''}
+                        </span>
                     </div>
-                    <div className={`category_menu  ps-3 ${currentPath === "/company" ? "selected " : ""}`}
-                        onClick={() => navigate("/company", { state: { authority: authority, }, })}><i className="fa-solid fa-rainbow me-1 text-secondary"></i>全社報告用フォーマット</div>
-                    <div className={`position-relative category_menu  ps-3 ${currentPath === "/list" ? "selected " : ""}`}
-                        onClick={() => navigate("/list", { state: { authority: authority, }, })}><i className="fa-solid fa-phone me-1 text-secondary"></i>反響一覧{(sync > 0 && category === 'order') && <div className="position-absolute menu_sync" style={{ top: '8px', right: '10px' }}>未同期 {sync}件</div>}</div>
-                    <div className={`position-relative category_menu  ps-3 ${currentPath === "/database" ? "selected " : ""}`}
-                        onClick={() => navigate("/database", { state: { authority: authority, }, })}><i className="fa-solid fa-magnifying-glass me-1 text-secondary"></i>顧客DB
-                        {(cancel > 0 && category === 'order') && <div className="position-absolute menu_sync" style={{ top: '2px', right: '10px' }}>来場未入力 {cancel}件</div>}
-                        {(lost > 0 && category === 'order') && <div className="position-absolute menu_sync" style={{ top: '16px', right: '10px' }}>失注未入力 {lost}件</div>}</div>
-                    <div className={`category_menu  ps-3 ${currentPath === "/rank" ? "selected " : ""}`}
-                        onClick={() => navigate("/rank", { state: { authority: authority, }, })}><i className="fa-solid fa-person me-1 text-secondary"></i>店舗・担当別反響</div>
-                    <div className={`category_menu  ps-3 ${currentPath === "/map" ? "selected " : ""}`}
-                        onClick={() => navigate("/map", { state: { authority: authority, }, })}><i className="fa-solid fa-map me-1 text-secondary"></i>反響MAP</div>
-                    {!isSp && <>
-                        {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/customer" ? "selected " : ""}`}
-                            onClick={() => navigate("/customer", { state: { authority: authority, }, })}><i className="fa-solid fa-mobile-screen me-1 text-secondary"></i>販促媒体別広告費</div>}
-                        {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/shop" ? "selected " : ""}`}
-                            onClick={() => navigate("/shop", { state: { authority: authority, }, })}><i className="fa-solid fa-chart-pie me-1 text-secondary"></i>店舗別広告費</div>}
-                        {category === 'used' && <div className={`category_menu  ps-3  ${currentPath.includes("/property") ? "selected" : ""}`}
-                            onClick={() => navigate("/property", { state: { authority: authority, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>掲載物件一覧</div>}
-                        {(category === 'order' || category === 'spec') && <div className={`category_menu  ps-3 ${currentPath === "/customerTrend" ? "selected " : ""}`}
-                            onClick={() => navigate("/customerTrend", { state: { authority: authority, }, })}><i className="fa-solid fa-chart-bar me-1 text-secondary"></i>販促媒体別反響推移</div>}
-                        <div className={`category_menu  ps-3 ${currentPath === "/shopTrend" ? "selected " : ""}`}
-                            onClick={() => navigate("/shopTrend", { state: { authority: authority, }, })}><i className="fa-solid fa-shop me-1 text-secondary"></i>店舗別反響推移</div>
-                        {category === 'order' && <div className={`category_menu  ps-3 ${currentPath === "/calendar" ? "selected " : ""}`}
-                            onClick={() => navigate("/calendar", { state: { authority: authority, }, })}><i className="fa-solid fa-calendar me-1 text-secondary"></i>カレンダー</div>}
-                        {category === 'spec' && <div className={`category_menu  ps-3  ${currentPath.includes("/property") ? "selected" : ""}`}
-                            onClick={() => navigate("/property", { state: { authority: authority, }, })}><i className="fa-solid fa-house me-1 text-secondary"></i>物件DB</div>}
-                        {(authority === "BrandAdmin" || authority === "Master") && category === 'order' ? (
-                            <div className={`category_menu  ps-3  ${currentPath.includes("/campaign") || currentPath.includes("/editcampaign") ? "selected" : ""}`}
-                                onClick={() => navigate("/campaign", { state: { authority: authority, }, })}>
-                                <i className="fa-solid fa-calendar-days me-1 text-secondary"></i>キャンペーン管理<span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>管理者専用</span>
-                            </div>
-                        ) : null}
-                        {authority === "BrandAdmin" || authority === "Master" ? (
-                            <div className={`category_menu  ps-3  ${currentPath.includes("/budget") ? "selected" : ""}`}
-                                onClick={() => navigate("/budget", { state: { authority: authority, }, })}>
-                                <i className="fa-solid fa-money-check me-1 text-secondary"></i>予算詳細<span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>管理者専用</span>
-                            </div>
-                        ) : null}
-                        {category === 'order' && <div className={`category_menu  ps-3  ${currentPath.includes("/photo") ? "selected" : ""}`}
-                            onClick={() => navigate("/photo", { state: { authority: authority, }, })}>
-                            <i className="fa-solid fa-camera me-1 text-secondary"></i>K-snap登録
-                        </div>}
-                    </>
-                    }
-
-
                 </div>
-            </>}
+
+                {MENU_CONFIG.filter(item => item.show).map((item, index) => {
+                    const isActive = checkIsActive(item);
+                    return (
+                        <div
+                            key={`${item.id}-${index}`}
+                            className={`position-relative category_menu ps-3 ${isActive ? "selected" : ""}`}
+                            onClick={() => handleNavigate(item.path)}
+                        >
+                            <i className={`fa-solid ${item.icon} me-1 text-secondary`}></i>
+                            {item.label}
+                            {item.isAdminOnly && (
+                                <span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>
+                                    管理者専用
+                                </span>
+                            )}
+                            {item.badges?.map((badge, idx) => (
+                                <div key={idx} className="position-absolute menu_sync" style={{ top: badge.top, right: '10px' }}>
+                                    {badge.label}
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })}
+            </div>
+
             <Estate estateId={estateId} setEstateId={setEstateId} />
         </>
     );
 }
 
-export default Menu
+export default Menu;

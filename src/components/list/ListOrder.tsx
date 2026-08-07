@@ -1,21 +1,16 @@
-import React, { useEffect, useState, useContext, useMemo } from 'react';
+import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
 import Table from "react-bootstrap/Table";
 import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
-import ProgressBar from 'react-bootstrap/ProgressBar';
-import Modal from 'react-bootstrap/Modal';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
-import { headers } from '../../utils/headers';
-import { baseURL } from '../../utils/baseURL';
 import { shopFormate } from '../../utils/shopFormate';
 import { setStyleClass } from '../../utils/setStyleClass';
 import { mediumFormate } from '../../utils/mediumFormate';
 import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
-import { monthFormate, handleBlack } from './listUtils';
+import { monthFormate, handleBlack, toHalfWidth } from './listUtils';
 import { useIsSp } from '../../utils/isSp';
-import axios from 'axios';
-import { toHalfWidth } from './listUtils';
+import OrderModal from './OrderModal';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -30,7 +25,7 @@ type InquiryCustomer = {
 
 type Customer = { register: string, shop: string, interview: string, medium: string };
 
-type Staff = { name: string, pg_id: string, shop: string, category: number, robo_id: string, period: string };
+type Staff = { name: string, pg_id: string, shop: string, category: number, robo_id: string, period: string, section: string };
 
 type Survey = { id: number, sync: number, brand: string, dateStr: string, name: string, considerationStart: string, desiredMoveIn: string, visitedCompanies: string, reasonForConsidering: string, reasonOther: string, futurePlan: string, futureOther: string, desiredSize: string, desiredLayout: string, priorityItem: string, expectedResidents: string, totalBudget: string, monthlyRepayment: string, annualIncome: string, yearsOfService: string, otherIncomePerson: string, otherAnnualIncome: string, ownFunds: string, otherLoans: string, thingsToDo: string, thingsToDoOther: string, housingType: string, housingTypeOther: string, landArea: string, referrerName: string, emailAddress: string, campaign: string };
 
@@ -48,13 +43,14 @@ const targetSection = ['鹿児島営業1課', '鹿児島営業2課', '鹿児島�
 const monthArray = getYearMonthArray(2025, 1);
 
 const isDup = (item: InquiryCustomer) => {
-    return item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.black_list.split('duplicate').length % 2 === 0;
+    const bl = item.black_list || '';
+    return bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 || bl.split('duplicate').length % 2 === 0;
 };
 
 const notNeedSync = (item: InquiryCustomer) => {
-    return item.sync === 1 || item.black_list.split('support').length % 2 === 0 || item.black_list.split('black').length % 2 === 0 || item.black_list.split('duplicate').length % 2 === 0;
+    const bl = item.black_list || '';
+    return item.sync === 1 || bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 || bl.split('duplicate').length % 2 === 0;
 };
-
 
 const ListOrder = ({ onReload }: Props) => {
     const { authority, token, category } = useContext(AuthContext);
@@ -81,7 +77,10 @@ const ListOrder = ({ onReload }: Props) => {
     const [editId, setEditId] = useState('');
     const [blackList, setBlackList] = useState<Black[]>([]);
 
+    const [checkedIds, setCheckedIds] = useState<string[]>([]);
+
     const isSp = useIsSp();
+    const loaderRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const now = new Date();
@@ -97,8 +96,8 @@ const ListOrder = ({ onReload }: Props) => {
                 const response = await apiClient.post('', { request: 'list', category });
                 setCustomerList(response.data.summary);
                 setShopArray(response.data.shop);
-                setStaffList(response.data.staff.filter(s => s.period === String(thisYear) && targetSection.includes(s.section)));
-                setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
+                setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && targetSection.includes(s.section)));
+                setMediumArray(response.data.medium.filter((m: Medium) => m.list_medium === 1));
                 setOriginalList(response.data.inquiry);
                 setOriginalBeforeList(response.data.survey);
                 setBlackList(response.data.black);
@@ -108,7 +107,7 @@ const ListOrder = ({ onReload }: Props) => {
         };
 
         fetchData();
-    }, []);
+    }, [category]);
 
     useEffect(() => {
         const startIndex = startMonth ? monthArray.indexOf(startMonth) : 0;
@@ -126,16 +125,21 @@ const ListOrder = ({ onReload }: Props) => {
     const mediumValue = targetMedium === '公式LINE' ? 'ALLGRIT' : targetMedium;
 
     const isSync = (list: InquiryCustomer, value: string) => {
-        return list.black_list.split(value).length % 2 !== 0
+        const bl = list.black_list || '';
+        return bl.split(value).length % 2 !== 0
     };
 
     const filteredInquiryList = useMemo(() => originalList.filter(item => {
         const fullName = `${item.first_name || ""}${item.last_name || ""}`;
         const fullAddress = `${item.pref || ""}${item.city || ""}${item.town || ""}${item.street || ""}${item.building || ""}`;
+        const resMedium = item.response_medium || '';
+        const inqDate = item.inquiry_date || '';
+        const itemShop = item.shop || '';
+
         return (
-            selectedMonth.includes(monthFormate(item.inquiry_date)) &&
-            (targetShop === '' || item.shop.includes(targetShop)) &&
-            (mediumValue === '' || item.response_medium === mediumValue) &&
+            selectedMonth.includes(monthFormate(inqDate)) &&
+            (targetShop === '' || itemShop.includes(targetShop)) &&
+            (mediumValue === '' || resMedium === mediumValue) &&
             (targetSync === null || (targetSync === 0 ?
                 (item.sync === targetSync && (isSync(item, 'duplicate') && isSync(item, 'support') && isSync(item, 'black')))
                 : item.sync === targetSync || !isSync(item, 'duplicate') || !isSync(item, 'support') || !isSync(item, 'black'))) &&
@@ -147,51 +151,89 @@ const ListOrder = ({ onReload }: Props) => {
         setInquiryList(filteredInquiryList);
         setTotalLength(filteredInquiryList.length);
         setDisplayLength(20);
+        setCheckedIds([]); 
     }, [filteredInquiryList]);
 
     useEffect(() => {
         setSurveyBeforeList(filteredBeforeList);
-    }, [originalBeforeList, selectedMonth,]);
+    }, [originalBeforeList, selectedMonth]);
 
     const filteredBeforeList = useMemo(() => {
-        const filtered = originalBeforeList.filter(item => selectedMonth.includes(monthFormate(item.dateStr)));
+        const filtered = originalBeforeList.filter(item => selectedMonth.includes(monthFormate(item.dateStr || '')));
         return filtered;
     }, [originalBeforeList, selectedMonth]);
 
     const filteredInterview = useMemo(() => {
-        return customerList.filter(c => selectedMonth.includes(monthFormate(c.interview)));
+        return customerList.filter(c => selectedMonth.includes(monthFormate(c.interview || '')));
     }, [customerList, selectedMonth]);
 
     const filteredInquiry = useMemo(() => {
-        return originalList.filter(c => selectedMonth.includes(monthFormate(c.inquiry_date)));
+        return originalList.filter(c => selectedMonth.includes(monthFormate(c.inquiry_date || '')));
     }, [originalList, selectedMonth]);
 
-    const [progress, setProgress] = useState(0);
-    const [isSyncing, setIsSyncing] = useState(false);
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setDisplayLength((prev) => {
+                        if (prev < totalLength) return prev + 20;
+                        return prev;
+                    });
+                }
+            },
+            { rootMargin: '200px' }
+        );
 
-    const handleSync = async (idValue: string) => {
-        const filteredCustomer = inquiryList.find(i => i.inquiry_id === idValue);
-        const filteredShop = shopFormate(filteredCustomer?.shop ?? '', filteredCustomer?.brand ?? '', shopArray);
-        const filteredMedium = filteredCustomer ? mediumFormate(filteredCustomer?.medium) : '';
-        const brandValue = filteredCustomer?.brand ?? '';
-        const mailValue = filteredCustomer?.mail ?? '';
-        const surveyID = surveyBeforeList.find(s => s.brand === brandValue && s.emailAddress === mailValue)?.id ?? '0';
-        const targetData = surveyBeforeList.find(item => item.id === surveyID);
+        const currentLoader = loaderRef.current;
+        if (currentLoader) {
+            observer.observe(currentLoader);
+        }
 
-        if (!idValue || !filteredCustomer || filteredShop.includes('店舗未設定')) {
-            alert(`同期に失敗しました。${filteredShop.includes('店舗未設定') ? ' ※店舗が未選択' : ''}`);
+        return () => {
+            if (currentLoader) observer.unobserve(currentLoader);
+        };
+    }, [totalLength]);
+
+
+    // 💡 修正: 指定された同期成功後のロジックを復元し、一括処理にも対応
+    const handleSync = async (idValues: string | string[]) => {
+        const idsToProcess = Array.isArray(idValues) ? idValues : [idValues];
+        const targets = inquiryList.filter(i => idsToProcess.includes(i.inquiry_id));
+
+        if (targets.length === 0) return;
+
+        const unassigned = targets.find(t => shopFormate(t.shop || '', t.brand || '', shopArray)?.includes('店舗未設定'));
+        if (unassigned) {
+            alert(`同期に失敗しました。 ※店舗が未選択の顧客が含まれています。`);
             return;
         }
 
-        const staffIdValue = staffList.find(s => s.name === filteredCustomer.staff && s.shop === filteredShop)?.pg_id ?? '';
+        const confirmMsg = targets.length === 1 
+            ? `${shopFormate(targets[0].shop || '', targets[0].brand || '', shopArray)} ${targets[0].first_name || ''} ${targets[0].last_name || ''}様 顧客情報を取り込みますか?`
+            : `選択した ${targets.length} 件の顧客情報を一括で取り込みますか?`;
 
+        if (!window.confirm(confirmMsg)) {
+            console.log("キャンセルされました。");
+            return;
+        }
 
-        const phone_number_1 = toHalfWidth(filteredCustomer.mobile) || toHalfWidth(filteredCustomer.landline);
+        let successCount = 0;
+        let failCount = 0;
+        let lastMessage = '';
+        let updatedList = [...originalList];
 
-        const phone_number_2 = phone_number_1 === toHalfWidth(filteredCustomer.landline) ? '' : toHalfWidth(filteredCustomer.landline);
+        for (const filteredCustomer of targets) {
+            const filteredShop = shopFormate(filteredCustomer.shop || '', filteredCustomer.brand || '', shopArray) ?? '';
+            const filteredMedium = mediumFormate(filteredCustomer.medium || '');
+            const brandValue = filteredCustomer.brand ?? '';
+            const mailValue = filteredCustomer.mail ?? '';
+            const surveyID = surveyBeforeList.find(s => s.brand === brandValue && s.emailAddress === mailValue)?.id ?? '0';
+            const targetData = surveyBeforeList.find(item => item.id === surveyID);
 
-        if (window.confirm(`${filteredShop} ${filteredCustomer.first_name} ${filteredCustomer.last_name}様 顧客情報を取り込みますか?`)) {
-            const brands = {
+            const phone_number_1 = toHalfWidth(filteredCustomer.mobile || '') || toHalfWidth(filteredCustomer.landline || '');
+            const phone_number_2 = phone_number_1 === toHalfWidth(filteredCustomer.landline || '') ? '' : toHalfWidth(filteredCustomer.landline || '');
+
+            const brands: Record<string, string> = {
                 'KH': '国分ハウジング',
                 'DJ': 'デイジャストハウス',
                 'なご': 'なごみ工務店',
@@ -201,121 +243,74 @@ const ListOrder = ({ onReload }: Props) => {
                 'PG': 'PG HOUSE'
             };
 
-            const brandValue = brands[filteredShop.slice(0, 2)];
-
-            const roll = 'insert';
+            const brandValueStr = brands[filteredShop.slice(0, 2)] || '';
 
             const postData = {
                 id: generateULID(),
                 inquiry_id: filteredCustomer.inquiry_id,
                 in_charge_user: filteredCustomer.staff ? filteredCustomer.staff : `${filteredShop} 管理`,
-                customer_contacts_name: `${filteredCustomer.first_name} ${filteredCustomer.last_name}`,
-                customer_contacts_name_kana: `${filteredCustomer.first_name_kana} ${filteredCustomer.last_name_kana}`,
+                customer_contacts_name: `${filteredCustomer.first_name || ''} ${filteredCustomer.last_name || ''}`,
+                customer_contacts_name_kana: `${filteredCustomer.first_name_kana || ''} ${filteredCustomer.last_name_kana || ''}`,
                 in_charge_store: filteredShop,
-                step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date,
-                customer_contacts_phone_number: phone_number_1, //番号①
-                customer_contacts_mobile_phone_number: phone_number_2, //番号②
+                step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date || '',
+                customer_contacts_phone_number: phone_number_1,
+                customer_contacts_mobile_phone_number: phone_number_2,
                 customer_contacts_email: mailValue,
-                postal_code: filteredCustomer.zip,
-                full_address: `${filteredCustomer.pref} ${filteredCustomer.city} ${filteredCustomer.town} ${filteredCustomer.street} ${filteredCustomer.building}`,
-                sales_promotion_name: filteredCustomer.response_medium,
+                postal_code: filteredCustomer.zip || '',
+                full_address: `${filteredCustomer.pref || ''} ${filteredCustomer.city || ''} ${filteredCustomer.town || ''} ${filteredCustomer.street || ''} ${filteredCustomer.building || ''}`,
+                sales_promotion_name: filteredCustomer.response_medium || '',
                 remarks: targetData ? `反響経路:${filteredCustomer.hp_campaign}／検討時期:${targetData?.considerationStart}\n入居希望時期:${targetData?.desiredMoveIn}／新築検討理由:${targetData?.reasonForConsidering} ${targetData?.reasonOther}\n今後の予定:${targetData?.futurePlan} ${targetData?.futureOther}／希望の広さ:${targetData?.desiredSize}／希望の間取り:${targetData?.desiredLayout}\n重視項目:${targetData?.priorityItem}／入居予定人数:${targetData?.expectedResidents}\n総予算:${targetData?.totalBudget}／返済額:${targetData?.monthlyRepayment}\n前年度の年収:${targetData?.annualIncome}／勤続年数:${targetData?.yearsOfService}\n年収がある方：${targetData?.otherIncomePerson}／年収がある方の年収:${targetData?.otherAnnualIncome}\n自己資金:${targetData?.ownFunds}／その他ローン:${targetData?.otherLoans}\n当日したいこと:${targetData?.thingsToDo} ${targetData?.thingsToDoOther}／新居の希望:${targetData?.housingType} ${targetData?.housingTypeOther}\n希望の土地エリア:${targetData?.landArea}／紹介者:${targetData?.referrerName}`
                     : '',
-                reserved_interview: filteredCustomer.reserved_date,
+                reserved_interview: filteredCustomer.reserved_date || '',
                 response_status: filteredMedium,
-                hp_campaign: filteredCustomer.hp_campaign,
+                hp_campaign: filteredCustomer.hp_campaign || '',
                 status: '見込み',
-                planned_construction_site: filteredCustomer.area,
+                planned_construction_site: filteredCustomer.area || '',
                 request: 'list',
                 section: shopArray.find(s => s.shop === filteredShop)?.section ?? '',
-                brand: brandValue,
+                brand: brandValueStr,
                 category,
-                roll
+                roll: 'insert'
             };
 
-            console.log(postData);
-
             try {
-                await apiClient.post("", postData);
+                const response = await apiClient.post("", postData);
+                if (response.data && response.data.status === 'success') {
+                    successCount++;
+                    lastMessage = response.data.message || '同期が完了しました。';
+                    
+                    // 💡 指定された元のロジックを適用
+                    const pg_id = response.data.pg_id?.pg_id ?? '';
+                    updatedList = updatedList.map(o => o.inquiry_id === filteredCustomer.inquiry_id ? ({
+                        ...o,
+                        pg_id,
+                        sync: 1
+                    }): o);
+                } else {
+                    failCount++;
+                }
             } catch (error) {
                 console.error("データ取得エラー:", error);
+                failCount++;
             }
-
-
-            const fetchData = async () => {
-                const response = await apiClient.post('', { request: 'list', category });
-                return response.data.inquiry;
-            };
-
-            await setIsSyncing(true);
-            await setProgress(0);
-            const duration = 40000;
-            const interval = 200;
-            const step = 100 / (duration / interval);
-
-            let elapsed = 0;
-            const maxTime = 40000;
-            const checkInterval = 2000; // 2秒ごとに
-
-            const timer = setInterval(async () => {
-                const updatedList = await fetchData();
-                const targetID = updatedList.find(item => item.inquiry_id === idValue)?.pg_id;
-
-                if (targetID) {
-                    clearInterval(timer);
-
-                    setOriginalList(updatedList);
-                    setProgress(100);
-                    alert('同期が完了しました。');
-                    setIsSyncing(false);
-                } else if (elapsed >= maxTime) {
-                    clearInterval(timer);
-                    setProgress(100);
-                    alert('同期に失敗しました。');
-                    setIsSyncing(false);
-                } else {
-                    elapsed += checkInterval;
-                    const ratio = elapsed / maxTime;
-                    setProgress(ratio * 100);
-                }
-            }, checkInterval);
-            try {
-                const registerData = {
-                    id: idValue,
-                    staff: filteredCustomer.staff ?? '',
-                    firstName: filteredCustomer.first_name,
-                    lastName: filteredCustomer.last_name,
-                    firstKana: filteredCustomer.first_name_kana,
-                    lastKana: filteredCustomer.last_name_kana,
-                    shop: filteredShop,
-                    date: filteredCustomer.inquiry_date,
-                    mobile: filteredCustomer.mobile,
-                    landline: filteredCustomer.landline,
-                    mail: mailValue,
-                    zip: filteredCustomer.zip,
-                    pref: filteredCustomer.pref,
-                    city: filteredCustomer.city,
-                    town: filteredCustomer.town,
-                    street: filteredCustomer.street,
-                    building: filteredCustomer.building,
-                    medium: filteredMedium,
-                    note: targetData ? `反響経路:${filteredCustomer.hp_campaign}／検討時期:${targetData?.considerationStart}\n入居希望時期:${targetData?.desiredMoveIn}／新築検討理由:${targetData?.reasonForConsidering} ${targetData?.reasonOther}\n今後の予定:${targetData?.futurePlan} ${targetData?.futureOther}／希望の広さ:${targetData?.desiredSize}／希望の間取り:${targetData?.desiredLayout}\n重視項目:${targetData?.priorityItem}／入居予定人数:${targetData?.expectedResidents}\n総予算:${targetData?.totalBudget}／返済額:${targetData?.monthlyRepayment}\n前年度の年収:${targetData?.annualIncome}／勤続年数:${targetData?.yearsOfService}\n年収がある方：${targetData?.otherIncomePerson}／年収がある方の年収:${targetData?.otherAnnualIncome}\n自己資金:${targetData?.ownFunds}／その他ローン:${targetData?.otherLoans}\n当日したいこと:${targetData?.thingsToDo} ${targetData?.thingsToDoOther}／新居の希望:${targetData?.housingType} ${targetData?.housingTypeOther}\n希望の土地エリア:${targetData?.landArea}／紹介者:${targetData?.referrerName}`
-                        : '',
-                    reserved_status: filteredCustomer.reserved_date,
-                    response_status: filteredCustomer.response_medium,
-                    campaign: filteredCustomer.hp_campaign,
-                    staffId: staffIdValue
-                };
-                const response = await axios.post(`${baseURL}/api/`, registerData, { headers });
-                console.log(response.data);
-            } catch (error) {
-                console.error('リクエストエラー:', error);
-                clearInterval(timer);
-            }
-        } else {
-            console.log("キャンセルされました。");
         }
+
+        // 💡 状態を一度に更新
+        setOriginalList(updatedList);
+
+        if (targets.length === 1) {
+            if (successCount > 0) alert(lastMessage);
+            else alert('同期に失敗しました。');
+        } else {
+            alert(`一括同期が完了しました。\n成功: ${successCount}件\n失敗: ${failCount}件`);
+        }
+
+        setCheckedIds([]); 
         onReload();
+    };
+
+    const handleCheck = (id: string) => {
+        setCheckedIds(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]);
     };
 
     const listChange = async (id: string, listValue: string, demandValue: string) => {
@@ -335,11 +330,11 @@ const ListOrder = ({ onReload }: Props) => {
 
         const updated = inquiryList.map(item => {
             if (item.inquiry_id !== id) return item;
-            const key = keyMap[demandValue];
+            const key = keyMap[demandValue as keyof typeof keyMap];
             if (demandValue === 'tag') {
                 return {
                     ...item,
-                    [key]: `${item[key]} ${listValue}`.trim(),
+                    [key]: `${item[key as keyof InquiryCustomer] || ''} ${listValue}`.trim(),
                 };
             }
             return {
@@ -352,7 +347,7 @@ const ListOrder = ({ onReload }: Props) => {
 
         try {
             const response = await apiClient.post('', postData);
-            if (response.data.length === 0) {
+            if (!response.data || response.data.length === 0) {
                 alert('処理に失敗しました。');
                 return;
             }
@@ -429,18 +424,19 @@ const ListOrder = ({ onReload }: Props) => {
     };
 
     const isBlack = (mailValue: string, mobileValue: string, blackValue: string) => {
+        const bl = blackValue || '';
+        const safeMail = mailValue || '';
+        const safeMobile = mobileValue || '';
         return blackList.some(b =>
-            (mailValue && b.mail.includes(mailValue)) ||
-            (toHalfWidth(mobileValue) && toHalfWidth(b.mobile).includes(toHalfWidth(mobileValue)))
-        ) || (blackValue.split('black').length % 2 === 0);
+            (safeMail && b.mail.includes(safeMail)) ||
+            (toHalfWidth(safeMobile) && toHalfWidth(b.mobile).includes(toHalfWidth(safeMobile)))
+        ) || (bl.split('black').length % 2 === 0);
     };
 
     const closeInformationEdit = () => setEditId('');
+
     return (
-        <>  {isSyncing && <div style={{ position: 'absolute', top: '30vh', width: '60vw', left: 'calc( 50% - 30vw)', zIndex: '2000', height: '220px', backgroundColor: 'white', boxShadow: '0px 5px 15px 0px rgba(0, 0, 0, 0.35)', padding: '80px 100px 100px' }}>
-            <span>同期処理中</span>
-            <ProgressBar now={progress} label={`${Math.round(progress)}%`} />
-        </div>}
+        <>
             <div className='inquiry_table spec bg-white p-2'>
                 <div className="d-flex flex-wrap mb-3 align-items-center" style={{ paddingTop: isSp ? '30px' : '' }}>
                     <div className="m-1">
@@ -490,9 +486,19 @@ const ListOrder = ({ onReload }: Props) => {
                             <input type="text" className='target' placeholder='住所で検索' onChange={(e) => setTargetAddress(e.target.value)} style={{ fontSize: '13px' }} />
                         </div>
                     </>}
+
+                    {checkedIds.length > 0 && (
+                        <div className="bg-success text-white px-3 py-1 rounded m-1 d-flex justify-content-center align-items-center" 
+                            style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                            onClick={() => handleSync(checkedIds)}>
+                            <i className="fa-solid fa-check-double me-2"></i> {checkedIds.length}件を一括同期
+                        </div>
+                    )}
+
                     <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
                         onClick={() => setEditId('new')}>新規登録</div>
                 </div>
+
                 <div className='p-0 inquiry'>
                     {!isSp &&
                         <Table striped bordered hover className='inquiry_table'>
@@ -522,10 +528,12 @@ const ListOrder = ({ onReload }: Props) => {
                                 )}
                             </tbody>
                         </Table>}
+
                     <Table striped bordered hover style={{ width: isSp ? '1200px' : '1800px', fontSize: isSp ? "8px" : "12px" }}>
                         <thead className='sticky-header'>
                             <tr className='sticky-header'>
-                                <td style={{ width: '50px', textAlign: 'center' }} className={`${isSp ? '' : 'sticky-column'}`}>顧客取込</td>
+                                {/* 💡 チェックボックスと同期ボタンを同じカラムに統合 */}
+                                <td style={{ width: '80px', textAlign: 'center' }} className={`${isSp ? '' : 'sticky-column'}`}>顧客取込</td>
                                 <td style={{ width: '60px', textAlign: 'center' }}>事前アンケート</td>
                                 <td style={{ width: '80px', textAlign: 'center' }}>店舗名</td>
                                 <td style={{ width: '80px', textAlign: 'center' }}>担当営業</td>
@@ -540,34 +548,49 @@ const ListOrder = ({ onReload }: Props) => {
                         </thead>
                         <tbody>
                             {inquiryList.slice(0, displayLength).map((item, index) => {
-                                const formattedValue = shopFormate(item.shop, item.brand, shopArray) ?? '';
-                                const styleClass = setStyleClass(item.shop);
+                                const formattedValue = shopFormate(item.shop || '', item.brand || '', shopArray) ?? '';
+                                const styleClass = setStyleClass(item.shop || '');
+                                const bl = item.black_list || '';
+                                
                                 return (
                                     <tr key={index} style={{ textAlign: 'left' }}
-                                        className={isBlack(item.mail, item.mobile, item.black_list) ? 'table-danger align-middle' : notNeedSync(item) ? 'table-primary align-middle' : 'align-middle'}>
-                                        <td style={{ textAlign: 'center' }} className={`${isSp ? '' : 'sticky-column'}`}>
-                                            <>{isDup(item) ? <i className="fa-solid fa-xmark"></i> :
-                                                item.sync === 1 ? <span style={{ textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
-                                                    onClick={() => item.pg_id.length === 26 ? setEditId(item.pg_id) : null}><i className="fa-solid fa-up-right-from-square"></i></span> :
-                                                    <i className='fa-solid fa-arrows-rotate sticky-column pointer'
-                                                        onClick={() => handleSync(item.inquiry_id)}
-                                                    ></i>
-                                            }</>
-                                            {isBlack(item.mail, item.mobile, item.black_list) &&
-                                                <div className='text-danger'><i className="fa-solid fa-triangle-exclamation"></i><span style={{ fontSize: '9px' }}>ブラックリスト</span></div>}
+                                        className={isBlack(item.mail, item.mobile, bl) ? 'table-danger align-middle' : notNeedSync(item) ? 'table-primary align-middle' : 'align-middle'}>
+                                        
+                                        {/* 💡 横並びのレイアウト調整 */}
+                                        <td style={{ textAlign: 'center', verticalAlign: 'middle' }} className={`${isSp ? '' : 'sticky-column'}`}>
+                                            <div className="d-flex align-items-center justify-content-center gap-2">
+                                                {item.sync !== 1 && !isDup(item) && !isBlack(item.mail, item.mobile, bl) && (
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={checkedIds.includes(item.inquiry_id)} 
+                                                        onChange={() => handleCheck(item.inquiry_id)} 
+                                                        style={{ cursor: 'pointer', transform: 'scale(1.2)' }} 
+                                                    />
+                                                )}
+                                                <>{isDup(item) ? <i className="fa-solid fa-xmark"></i> :
+                                                    item.sync === 1 ? <span style={{ textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
+                                                        onClick={() => (item.pg_id || '').length === 26 ? setEditId(item.pg_id) : null}><i className="fa-solid fa-up-right-from-square"></i></span> :
+                                                        <i className='fa-solid fa-arrows-rotate pointer'
+                                                            onClick={() => handleSync(item.inquiry_id)}
+                                                        ></i>
+                                                }</>
+                                            </div>
+                                            {isBlack(item.mail, item.mobile, bl) &&
+                                                <div className='text-danger mt-1'><i className="fa-solid fa-triangle-exclamation"></i><span style={{ fontSize: '9px' }}>ブラックリスト</span></div>}
                                         </td>
+
                                         <td style={{ textAlign: 'center' }}>{surveyBeforeList.find(value => value.brand === item.brand && value.emailAddress === item.mail)?.id ? (
                                             <span style={{ textDecoration: 'none', backgroundColor: 'green', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
                                                 onClick={() => {
                                                     setModalContent('beforeSurvey');
-                                                    modalShow('beforeSurvey', surveyBeforeList.find(value => value.brand === item.brand && value.emailAddress === item.mail)!.id, item.hp_campaign);
+                                                    modalShow('beforeSurvey', surveyBeforeList.find(value => value.brand === item.brand && value.emailAddress === item.mail)!.id, item.hp_campaign || '');
                                                 }}><i className="fa-solid fa-magnifying-glass-plus"></i></span>)
                                             : ('-')}
                                         </td>
                                         <td style={{ textAlign: 'center' }}>{(() => {
-                                            const formattedShops = shopArray.map(item => ({
-                                                ...item,
-                                                shop: shopFormate(item.shop, item.brand, shopArray) ?? ''
+                                            const formattedShops = shopArray.map(shopItem => ({
+                                                ...shopItem,
+                                                shop: shopFormate(shopItem.shop, shopItem.brand, shopArray) ?? ''
                                             }))
                                             return (
                                                 <>{item.sync === 1 ? item.shop :
@@ -586,7 +609,7 @@ const ListOrder = ({ onReload }: Props) => {
                                                 <select style={{ ...styleClass, fontSize: isSp ? '8px' : '12px' }} onChange={(e) => listChange(item.inquiry_id, e.target.value, 'staff_change')}>
                                                     <option value=''>担当営業を選択</option>
                                                     {staffList.filter(staffValue =>
-                                                        (formattedValue.includes('全店舗管理') ? staffValue.shop.includes(item.brand) && staffValue.shop.includes('霧島店') : staffValue.shop === formattedValue) &&
+                                                        (formattedValue.includes('全店舗管理') ? staffValue.shop.includes(item.brand || '') && staffValue.shop.includes('霧島店') : staffValue.shop === formattedValue) &&
                                                         staffValue.category === 1).map((staffValue, shopIndex) =>
                                                             <option key={shopIndex} selected={staffValue.name === item.staff} style={{ backgroundColor: '#fff', color: '#000' }}>{staffValue.name}</option>
                                                         )}
@@ -594,24 +617,24 @@ const ListOrder = ({ onReload }: Props) => {
                                             );
                                         })()}</td>
                                         <td>{item.inquiry_date}</td>
-                                        <td>{item.response_medium}{item.medium !== 'ホームページ反響' || <><br /><span style={{ fontSize: '10px', fontWeight: 'bold' }}>（{item.hp_campaign}）</span></>}</td>
-                                        <td>{item.first_name}{item.last_name}</td>
-                                        <td>{item.pref}{item.city}{item.town}{item.street}{item.building}<br />{toHalfWidth(item.mobile)}{(!item.mobile && item.landline) && `/${toHalfWidth(item.landline)}`}</td>
-                                        <td>{item.duplicate && item.duplicate.split(',').map(value => {
+                                        <td>{item.response_medium || ''}{(item.medium || '') !== 'ホームページ反響' || <><br /><span style={{ fontSize: '10px', fontWeight: 'bold' }}>（{item.hp_campaign || ''}）</span></>}</td>
+                                        <td>{item.first_name || ''}{item.last_name || ''}</td>
+                                        <td>{item.pref || ''}{item.city || ''}{item.town || ''}{item.street || ''}{item.building || ''}<br />{toHalfWidth(item.mobile || '')}{(!item.mobile && item.landline) && `/${toHalfWidth(item.landline || '')}`}</td>
+                                        <td>{item.duplicate && (item.duplicate || '').split(',').map((value, vIndex) => {
                                             return (
-                                                <div style={styleClass} className='mb-1'>{(formattedValue.includes('ホットリード') ? <a href={item.hotlead_url} target='_blank' style={{ color: '#fff' }}>#{value}</a> : value)}</div>
+                                                <div key={vIndex} style={styleClass} className='mb-1'>{(formattedValue.includes('ホットリード') ? <a href={item.hotlead_url} target='_blank' rel="noreferrer" style={{ color: '#fff' }}>#{value}</a> : value)}</div>
                                             )
                                         })}</td>
-                                        <td>{item.area}</td>
+                                        <td>{item.area || ''}</td>
                                         <td>
                                             <div className='d-flex'>
-                                                <div className={`bg-primary text-white rounded-pill px-2 me-2 tag ${item.black_list.split('duplicate').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(item.inquiry_id, 'duplicate', 'tag')}>重複</div>
-                                                <div className={`bg-danger text-white rounded-pill px-2 me-2 tag ${item.black_list.split('gift').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(item.inquiry_id, 'gift', 'tag')}>ギフト券進呈済み</div>
-                                                <div className={`bg-warning text-white rounded-pill px-2 me-2 tag ${item.black_list.split('support').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(item.inquiry_id, 'support', 'tag')}>業者</div>
-                                                <div className={`bg-dark text-white rounded-pill px-2 me-2 tag ${item.black_list.split('black').length % 2 === 0 ? 'checked' : ''}`}
+                                                <div className={`bg-primary text-white rounded-pill px-2 me-2 tag ${bl.split('duplicate').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(item.inquiry_id, 'duplicate', 'tag')}>重複</div>
+                                                <div className={`bg-danger text-white rounded-pill px-2 me-2 tag ${bl.split('gift').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(item.inquiry_id, 'gift', 'tag')}>ギフト券進呈済み</div>
+                                                <div className={`bg-warning text-white rounded-pill px-2 me-2 tag ${bl.split('support').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(item.inquiry_id, 'support', 'tag')}>業者</div>
+                                                <div className={`bg-dark text-white rounded-pill px-2 me-2 tag ${bl.split('black').length % 2 === 0 ? 'checked' : ''}`}
                                                     onClick={() => {
                                                         listChange(item.inquiry_id, 'black', 'tag');
-                                                        handleBlack(item.brand, `${item.first_name}${item.last_name}`, item.mobile, item.mail, item.zip, `${item.pref}${item.city}${item.town}${item.street}${item.building}`, category);
+                                                        handleBlack(item.brand || '', `${item.first_name || ''}${item.last_name || ''}`, item.mobile || '', item.mail || '', item.zip || '', `${item.pref || ''}${item.city || ''}${item.town || ''}${item.street || ''}${item.building || ''}`, category);
                                                     }}>ブラックリスト</div>
                                             </div>
                                         </td>
@@ -619,149 +642,16 @@ const ListOrder = ({ onReload }: Props) => {
                             })}
                         </tbody>
                     </Table>
-                    {totalLength <= displayLength ? null :
-                        <div style={{ textAlign: 'center', paddingBottom: '10px' }}>
-                            <span style={{ backgroundColor: '#0f3675', color: '#fff', fontSize: '12px', padding: '5px 12px', borderRadius: '10px', cursor: 'pointer' }}
-                                onClick={() => setDisplayLength(displayLength + 20)}>
-                                {totalLength - displayLength > 19 ? `${displayLength + 20}件を表示/${totalLength}件中` : `${totalLength - displayLength + (20 * (displayLength / 20))}件を表示/${totalLength}件中`}
-                            </span>
-                        </div>}
+
+                    <div ref={loaderRef} style={{ height: '30px', textAlign: 'center', paddingBottom: '20px' }}>
+                        {totalLength > displayLength && <span className="text-muted" style={{ fontSize: '12px' }}>読み込み中...</span>}
+                    </div>
+
                 </div>
             </div>
-            <Modal show={show} onHide={modalClose} size='lg'>
-                <Modal.Header closeButton>
-                    <Modal.Title style={{ fontSize: '15px' }}>{modalContent === 'beforeSurvey' ? 'アンケート詳細' : ''}</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>{modalContent === 'beforeSurvey' &&
-                    <Table striped bordered>
-                        <tbody style={{ fontSize: '12px' }}>
-                            <tr>
-                                <td>受信日</td>
-                                <td>{modalBeforeContent?.dateStr ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>顧客名</td>
-                                <td>{modalBeforeContent?.name ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>ブランド</td>
-                                <td>{modalBeforeContent?.brand ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>反響経路</td>
-                                <td>{modalBeforeContent?.campaign ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>検討時期</td>
-                                <td>{modalBeforeContent?.considerationStart ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>入居希望時期</td>
-                                <td>{modalBeforeContent?.desiredMoveIn ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>住宅会社訪問数</td>
-                                <td>{modalBeforeContent?.visitedCompanies ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>新築検討理由</td>
-                                <td>{modalBeforeContent?.reasonForConsidering ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>その他の検討理由</td>
-                                <td>{modalBeforeContent?.reasonOther ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>今後の行動予定</td>
-                                <td>{modalBeforeContent?.futurePlan ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>その他の行動予定</td>
-                                <td>{modalBeforeContent?.futureOther ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>希望の広さ</td>
-                                <td>{modalBeforeContent?.desiredSize ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>希望の間取り</td>
-                                <td>{modalBeforeContent?.desiredLayout ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>重視項目</td>
-                                <td>{modalBeforeContent?.priorityItem ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>入居予定人数</td>
-                                <td>{modalBeforeContent?.expectedResidents ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>総予算</td>
-                                <td>{modalBeforeContent?.totalBudget ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>返済額</td>
-                                <td>{modalBeforeContent?.monthlyRepayment ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>前年度の年収</td>
-                                <td>{modalBeforeContent?.annualIncome ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>勤続年数</td>
-                                <td>{modalBeforeContent?.yearsOfService ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>年収がある方</td>
-                                <td>{modalBeforeContent?.otherIncomePerson ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>年収がある方の年収</td>
-                                <td>{modalBeforeContent?.otherAnnualIncome ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>自己資金の支払予定</td>
-                                <td>{modalBeforeContent?.ownFunds ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>その他ローン</td>
-                                <td>{modalBeforeContent?.otherLoans ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>当日したいこと</td>
-                                <td>{modalBeforeContent?.thingsToDo ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>その他当日したいこと</td>
-                                <td>{modalBeforeContent?.thingsToDoOther ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>新居の希望</td>
-                                <td>{modalBeforeContent?.housingType ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>その他の希望</td>
-                                <td>{modalBeforeContent?.housingTypeOther ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>希望の土地エリア</td>
-                                <td>{modalBeforeContent?.landArea ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>紹介者様</td>
-                                <td>{modalBeforeContent?.referrerName ?? '-'}</td>
-                            </tr>
-                            <tr>
-                                <td>メールアドレス</td>
-                                <td>{modalBeforeContent?.emailAddress ?? '-'}</td>
-                            </tr>
-                        </tbody>
-                    </Table>}
-                </Modal.Body>
-            </Modal>
+            <OrderModal show={show} modalClose={modalClose} modalContent={modalContent} modalBeforeContent={modalBeforeContent} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </>
-
     )
 }
 export default ListOrder;

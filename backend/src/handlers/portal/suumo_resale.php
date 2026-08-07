@@ -24,7 +24,7 @@ $sql = "INSERT IGNORE INTO inquiry_customer_resale
         SELECT 
             CONCAT('suumo_', sequence_no),
             '買い:ポータル',
-            SUBSTRING_INDEX(received_at, ' ', 1),
+            DATE_FORMAT(STR_TO_DATE(received_at, '%Y/%c/%e %H:%i:%s'), '%Y/%m/%d'),
             last_name_kanji,
             last_name_kana,
             'SUUMO',

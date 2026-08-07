@@ -30,6 +30,8 @@ import CustomerTrendRouter from "./components/customerTrend/CustomerTrendRouter"
 import MapRouter from "./components/map/MapRouter";
 import { useIsSp } from './utils/isSp';
 import CampaignRouter from './components/campaign/CampaignRouter';
+import DatabaseBroker from "./components/database/DatabaseBroker";
+
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
 
 export default function App() {
@@ -126,7 +128,9 @@ function AppInner() {
             <Route path="/property" element={<DatabaseProperty />} />
             <Route path="/photo" element={<Photo />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
+            <Route path="/broker" element={<DatabaseBroker />} />
             <Route path="*" element={<Category />} />
+
           </Routes>
         </div>
       </div>

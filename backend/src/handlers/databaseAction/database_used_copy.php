@@ -24,7 +24,33 @@ try {
 
     // 3. IDを上書きする (スプレッド構文 {...row, id: newId} と同じ感覚)
     $row['id'] = $newId;
-    unset($row['no']);
+
+    $excludeColumns = [
+        'no',            // 元々あった処理
+        'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
+        'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z',
+        'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+        'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
+        'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+        'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+        'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+        'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0',
+        'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
+        'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
+        'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
+        'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',         // 例: ステータスは初期値に戻したい場合など
+        'contraction_contract_price',
+        'additional_contraction_contract_price',
+        'contract_land_application_date',
+        'contract_building_application_date'
+    ];
+
+    // ループで配列からキーごと削除 (TSの delete row[col] と同じ)
+    foreach ($excludeColumns as $col) {
+        if (array_key_exists($col, $row)) {
+            unset($row[$col]);
+        }
+    }
     // 4. 動的にINSERT文を生成する
     // 例: INSERT INTO table (id, name, ...) VALUES (:id, :name, ...)
     $columns = array_keys($row);
