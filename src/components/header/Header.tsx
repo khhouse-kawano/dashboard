@@ -17,9 +17,10 @@ import AfterInterview from './AfterInterview';
 import apiClient from '../../utils/apiClient';
 import CompetitorSummary from './CompetitorSummary';
 import RegisterBrokerageListings from './RegisterBrokerageListings';
+import DailyReports from './DailyReports';
 
 // 型安全のための定義
-type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況';
+type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報';
 
 const Header = ({ }) => {
     const { authority } = useContext(AuthContext);
@@ -27,7 +28,7 @@ const Header = ({ }) => {
     const [modal, setModal] = useState<boolean>(false);
     const [estateId, setEstateId] = useState('search');
     const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '架電状況'];
+    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const isSp = useIsSp();
@@ -38,7 +39,8 @@ const Header = ({ }) => {
         '反響管理': authority === 'Master' ? ['販促媒体設定', 'ブラックリスト設定', '広告費シミュレーター', '事後アンケート'] : ['販促媒体設定', 'ブラックリスト設定', '事後アンケート'],
         '土地・物件管理': ['仲介物件登録', '土地情報同期', '土地情報一覧'],
         '他社動向': ['他社広告ライブラリ', '他社資料', '競合サマリー'],
-        '架電状況': ['注文営業', '建売営業', '中古営業']
+        '架電状況': ['注文営業', '建売営業', '中古営業'],
+        '日報': ['月次日報']
     };
 
     const editMapping: Record<string, React.ReactNode> = {
@@ -56,7 +58,8 @@ const Header = ({ }) => {
         '広告費シミュレーター': <BudgetSimulator />,
         '事後アンケート': <AfterInterview name={''} staff={''} id={''} shop={''} />,
         '競合サマリー': <CompetitorSummary />,
-        '仲介物件登録': <RegisterBrokerageListings setModal={setModal}/>
+        '仲介物件登録': <RegisterBrokerageListings setModal={setModal} />,
+        '月次日報': <DailyReports />
     };
 
     useEffect(() => {

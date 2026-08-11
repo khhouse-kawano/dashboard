@@ -11,6 +11,7 @@ import { generateULID } from '../../utils/createULID';
 import { monthFormate, handleBlack, toHalfWidth } from './listUtils';
 import { useIsSp } from '../../utils/isSp';
 import OrderModal from './OrderModal';
+import SmileFestival from './SmileFestival';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -151,7 +152,7 @@ const ListOrder = ({ onReload }: Props) => {
         setInquiryList(filteredInquiryList);
         setTotalLength(filteredInquiryList.length);
         setDisplayLength(20);
-        setCheckedIds([]); 
+        setCheckedIds([]);
     }, [filteredInquiryList]);
 
     useEffect(() => {
@@ -208,7 +209,7 @@ const ListOrder = ({ onReload }: Props) => {
             return;
         }
 
-        const confirmMsg = targets.length === 1 
+        const confirmMsg = targets.length === 1
             ? `${shopFormate(targets[0].shop || '', targets[0].brand || '', shopArray)} ${targets[0].first_name || ''} ${targets[0].last_name || ''}様 顧客情報を取り込みますか?`
             : `選択した ${targets.length} 件の顧客情報を一括で取り込みますか?`;
 
@@ -278,14 +279,14 @@ const ListOrder = ({ onReload }: Props) => {
                 if (response.data && response.data.status === 'success') {
                     successCount++;
                     lastMessage = response.data.message || '同期が完了しました。';
-                    
+
                     // 💡 指定された元のロジックを適用
                     const pg_id = response.data.pg_id?.pg_id ?? '';
                     updatedList = updatedList.map(o => o.inquiry_id === filteredCustomer.inquiry_id ? ({
                         ...o,
                         pg_id,
                         sync: 1
-                    }): o);
+                    }) : o);
                 } else {
                     failCount++;
                 }
@@ -305,7 +306,7 @@ const ListOrder = ({ onReload }: Props) => {
             alert(`一括同期が完了しました。\n成功: ${successCount}件\n失敗: ${failCount}件`);
         }
 
-        setCheckedIds([]); 
+        setCheckedIds([]);
         onReload();
     };
 
@@ -435,6 +436,11 @@ const ListOrder = ({ onReload }: Props) => {
 
     const closeInformationEdit = () => setEditId('');
 
+
+    // 特設イベント用
+    const eventTitle = '住まいるフェスティバル';
+    const [eventSummary, setEventSummary] = useState(false);
+
     return (
         <>
             <div className='inquiry_table spec bg-white p-2'>
@@ -487,16 +493,18 @@ const ListOrder = ({ onReload }: Props) => {
                         </div>
                     </>}
 
+                    <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+                        onClick={() => setEditId('new')}>新規登録</div>
+
                     {checkedIds.length > 0 && (
-                        <div className="bg-success text-white px-3 py-1 rounded m-1 d-flex justify-content-center align-items-center" 
+                        <div className="bg-success text-white px-3 py-1 rounded m-1 d-flex justify-content-center align-items-center"
                             style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                             onClick={() => handleSync(checkedIds)}>
                             <i className="fa-solid fa-check-double me-2"></i> {checkedIds.length}件を一括同期
                         </div>
                     )}
-
-                    <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-                        onClick={() => setEditId('new')}>新規登録</div>
+                    <div className="bg-danger text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+                        onClick={() => setEventSummary(true)}>{eventTitle}</div>
                 </div>
 
                 <div className='p-0 inquiry'>
@@ -551,20 +559,20 @@ const ListOrder = ({ onReload }: Props) => {
                                 const formattedValue = shopFormate(item.shop || '', item.brand || '', shopArray) ?? '';
                                 const styleClass = setStyleClass(item.shop || '');
                                 const bl = item.black_list || '';
-                                
+
                                 return (
                                     <tr key={index} style={{ textAlign: 'left' }}
                                         className={isBlack(item.mail, item.mobile, bl) ? 'table-danger align-middle' : notNeedSync(item) ? 'table-primary align-middle' : 'align-middle'}>
-                                        
+
                                         {/* 💡 横並びのレイアウト調整 */}
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }} className={`${isSp ? '' : 'sticky-column'}`}>
                                             <div className="d-flex align-items-center justify-content-center gap-2">
                                                 {item.sync !== 1 && !isDup(item) && !isBlack(item.mail, item.mobile, bl) && (
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={checkedIds.includes(item.inquiry_id)} 
-                                                        onChange={() => handleCheck(item.inquiry_id)} 
-                                                        style={{ cursor: 'pointer', transform: 'scale(1.2)' }} 
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checkedIds.includes(item.inquiry_id)}
+                                                        onChange={() => handleCheck(item.inquiry_id)}
+                                                        style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
                                                     />
                                                 )}
                                                 <>{isDup(item) ? <i className="fa-solid fa-xmark"></i> :
@@ -651,6 +659,7 @@ const ListOrder = ({ onReload }: Props) => {
             </div>
             <OrderModal show={show} modalClose={modalClose} modalContent={modalContent} modalBeforeContent={modalBeforeContent} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
+            <SmileFestival eventSummary={eventSummary} setEventSummary={setEventSummary} />
         </>
     )
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useContext } from 'react';
 import Table from "react-bootstrap/Table";
+import Form from 'react-bootstrap/Form';
 import AuthContext from '../../context/AuthContext';
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
@@ -11,6 +12,50 @@ type Props = {
     targetId: string,
     setTargetId: React.Dispatch<React.SetStateAction<string>>,
     setEditId: React.Dispatch<React.SetStateAction<string>>,
+};
+
+// 💡 編集用フォームの型定義を拡張 (全項目対応)
+type ReportFormState = {
+    sellerName: string;
+    
+    // 物件の表示
+    propertyName: string;
+    price: string;
+    address: string;
+    propertyId: string;
+    baikaiType: string;
+
+    // インターネット広告の反応状況
+    suumoPv: number | string;
+    athomePv: number | string;
+    athomeFavorite: number | string;
+    athomeInquiry: number | string;
+    homesPv: number | string;
+    homesInquiry: number | string;
+
+    // 来場・その他の反響状況
+    tourCount: number | string;
+    otherTourCount: number | string;
+    inquiryCount: number | string;
+    otherInquiryCount: number | string;
+
+    // 活動状況および今後の方針
+    actionPlan: string;
+};
+
+// 💡 ご指定いただいたトンマナのデザインスタイル
+export const styles = {
+    label: { color: '#303030', fontSize: '11px', marginBottom: '4px', letterSpacing: '.6px', fontWeight: '500', display: 'block' },
+    input: { border: '1px solid #D3D3D3', borderRadius: '4px', height: '35px', width: '100%', paddingLeft: '10px', color: '#303030', fontSize: '12px', letterSpacing: '.6px', backgroundColor: '#fff', outline: 'none', boxSizing: 'border-box' as const },
+    textarea: { border: '1px solid #D3D3D3', borderRadius: '4px', width: '100%', padding: '10px', color: '#303030', fontSize: '12px', letterSpacing: '.6px', backgroundColor: '#fff', outline: 'none', boxSizing: 'border-box' as const },
+    // ボタン(キャンセル等)
+    buttonSecondary: { color: '#495057', backgroundColor: '#f8f9fa', border: '1px solid #d2d6da', borderRadius: '6px', padding: '0 16px', fontSize: '11px', fontWeight: '600', letterSpacing: '0.6px', height: '35px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'fit-content' },
+    // ボタン(保存等 - ベースは同じで色だけ落ち着いたブルーグレーに変更)
+    buttonPrimary: { color: '#ffffff', backgroundColor: '#5e72e4', border: '1px solid #5e72e4', borderRadius: '6px', padding: '0 24px', fontSize: '11px', fontWeight: '600', letterSpacing: '0.6px', height: '35px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'fit-content' },
+    // サジェストリストの枠
+    suggestList: { zIndex: 9999, maxHeight: '250px', overflowY: 'auto' as const, top: 'calc(100% + 2px)', left: 0, backgroundColor: '#fff', border: '1px solid #D3D3D3', borderRadius: '4px', padding: 0, margin: 0, listStyle: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', width: '100%', position: 'absolute' as const },
+    // サジェストリストの各アイテム
+    suggestItem: { cursor: 'pointer', fontSize: '12px', minHeight: '36px', padding: '8px 12px', borderBottom: '1px solid #f0f0f0', color: '#303030', letterSpacing: '.6px', display: 'flex', alignItems: 'center' }
 };
 
 const normalizePropertyName = (str?: string | null | number) => {
@@ -27,6 +72,16 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
     const [athomeData, setAthomeData] = useState<Record<string, string> | null>(null);
     const [customerList, setCustomerList] = useState<Customer[]>([]);
 
+    const [isEditingReport, setIsEditingReport] = useState(false);
+    
+    const [reportForm, setReportForm] = useState<ReportFormState>({
+        sellerName: '売主 様',
+        propertyName: '', price: '', address: '', propertyId: '', baikaiType: '',
+        suumoPv: 0, athomePv: 0, athomeFavorite: 0, athomeInquiry: 0, homesPv: 0, homesInquiry: 0,
+        tourCount: 0, otherTourCount: 0, inquiryCount: 0, otherInquiryCount: 0,
+        actionPlan: ''
+    });
+
     useEffect(() => {
         if (!targetId) {
             setTargetProperty(null);
@@ -34,6 +89,7 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
             setHomesData(null);
             setAthomeData(null);
             setCustomerList([]);
+            setIsEditingReport(false);
             return;
         }
 
@@ -60,7 +116,7 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
 
     const pvData = useMemo(() => {
         if (!targetProperty) return { suumo: 0, homes: 0, athome: 0, total: 0 };
-        const pv_suumo = Number(suumoData?.pv_total ?? 0);
+        const pv_suumo = Number(suumoData?.pv_recent_week ?? 0); 
         const now = new Date();
         const today = now.getDate() || 1;
         const pv_homes_raw = Number(homesData?.detail_page_views ?? 0);
@@ -107,17 +163,7 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
         };
     }, []);
 
-    const handleGenerateReport = () => {
-        const originalTitle = document.title;
-        document.title = `販売活動状況報告書_${targetProperty?.property_name || '物件'}`;
-        window.print();
-        document.title = originalTitle;
-    };
-
-    const netInquiryTotal = Number(athomeData?.inquiry_total || 0) + Number(homesData?.inquiries_count || 0);
-    const grandTotalInquiry = netInquiryTotal + responseStats.inquiry;
-
-    const renderActionPlan = () => {
+    const generateInitialActionPlan = () => {
         const totalPv = pvData.total;
         let planText = "";
         if (totalPv >= 40) {
@@ -128,40 +174,63 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
             planText = "さらなる閲覧数増加が必要な状況です。価格や掲載内容が最終的な判断の妨げとなっている可能性がございますので、見直しをおこなってまいります。";
         }
 
-        return (
-            <>
-                掲載媒体はSUUMO・アットホーム・LIFULL HOME'Sです。期間中、アットホームのアクセスは{athomeData?.pv_total || 0}件、LIFULL HOME'Sの詳細閲覧は{homesData?.detail_page_views || 0}件でした。SUUMOの詳細閲覧は直近1週間で1日あたり{suumoData?.pv_recent_week || 0}件です。<br />
-                {planText}
-            </>
-        );
+        return `掲載媒体はSUUMO・アットホーム・LIFULL HOME'Sです。期間中、アットホームのアクセスは${athomeData?.pv_total || 0}件、LIFULL HOME'Sの詳細閲覧は${homesData?.detail_page_views || 0}件でした。SUUMOの詳細閲覧は直近1週間で1日あたり${suumoData?.pv_recent_week || 0}件です。\n${planText}`;
     };
 
-    return (
-        <Modal show={!!targetId} onHide={() => setTargetId('')} size='lg' centered backdrop="static">
+    const handleOpenEditReport = () => {
+        setReportForm({
+            sellerName: '売主 様',
+            propertyName: targetProperty?.property_name || '',
+            price: targetProperty?.price ? `${targetProperty.price}` : '',
+            address: targetProperty?.address || '',
+            propertyId: targetProperty?.property_id || '',
+            baikaiType: targetProperty?.baikaiType || '仲介(専任媒介)',
+            suumoPv: suumoData?.pv_recent_week || 0,
+            athomePv: athomeData?.pv_total || 0,
+            athomeFavorite: athomeData?.favorite_count || 0,
+            athomeInquiry: athomeData?.inquiry_total || 0,
+            homesPv: homesData?.detail_page_views || 0,
+            homesInquiry: homesData?.inquiries_count || 0,
+            tourCount: responseStats.tour,
+            otherTourCount: 0,
+            inquiryCount: responseStats.inquiry,
+            otherInquiryCount: 0,
+            actionPlan: generateInitialActionPlan()
+        });
+        setIsEditingReport(true);
+    };
 
+    const handleGenerateReport = () => {
+        const originalTitle = document.title;
+        document.title = `販売活動状況報告書_${reportForm.propertyName || '物件'}`;
+        window.print();
+        document.title = originalTitle;
+    };
+
+    const netInquiryTotal = Number(reportForm.athomeInquiry || 0) + Number(reportForm.homesInquiry || 0);
+    const grandTotalInquiry =  Number(reportForm.inquiryCount) + Number(reportForm.otherInquiryCount);
+
+    return (
+        <Modal show={!!targetId} onHide={() => setTargetId('')} size='lg' centered>
             <style>
                 {`
                     @media screen {
                         .print-only { display: none !important; }
                     }
                     @media print {
-                        /* 💡 余計なDOMの空間を完全に消去（2ページ目生成の最大の原因） */
                         body > *:not(.modal) { display: none !important; }
                         .modal-backdrop { display: none !important; }
                         .d-print-none { display: none !important; }
                         
-                        /* 💡 モーダルの表示位置をリセット */
                         .modal { position: relative !important; padding: 0 !important; overflow: visible !important; display: block !important; }
                         .modal-dialog { max-width: 100% !important; margin: 0 !important; transform: none !important; }
                         .modal-content { border: none !important; box-shadow: none !important; border-radius: 0 !important; background: transparent !important; }
                         
-                        /* 💡 2ページ目（白紙）の強制カット */
                         @page { size: A4 portrait; margin: 10mm; }
                         html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden !important; background-color: #fff; }
                         
                         .print-container { position: relative !important; width: 100%; padding: 0 !important; }
                         
-                        /* PDFレポート用の専用スタイル */
                         .print-title { font-size: 22px; font-weight: bold; text-align: center; margin-bottom: 25px; letter-spacing: 4px; border-bottom: 2px solid #333; padding-bottom: 10px;}
                         .print-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
                         .print-table th, .print-table td { border: 1px solid #444; padding: 8px 10px; font-size: 13px; word-wrap: break-word; }
@@ -178,9 +247,11 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
                         {targetProperty?.property_name || '読込中...'}
                         {isLoading && <span className="spinner-border spinner-border-sm ms-3 text-primary"></span>}
                     </div>
-                    {category === 'used' && <button className="btn btn-sm btn-primary shadow-sm rounded-pill px-4 fw-bold me-3" onClick={handleGenerateReport} disabled={isLoading}>
-                        <i className="bi bi-file-earmark-pdf-fill me-2"></i>報告書作成
-                    </button>}
+                    {category === 'used' && !isEditingReport && (
+                        <button className="btn btn-sm btn-primary shadow-sm rounded-pill px-4 fw-bold me-3" onClick={handleOpenEditReport} disabled={isLoading}>
+                            <i className="bi bi-file-earmark-pdf-fill me-2"></i>報告書作成
+                        </button>
+                    )}
                 </Modal.Title>
             </Modal.Header>
 
@@ -194,7 +265,7 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
                     <div className="d-flex justify-content-between align-items-end mb-4" style={{ fontSize: '13px' }}>
                         <div>
                             <div className="fs-5 fw-bold border-bottom border-dark d-inline-block pb-1 pe-4 mb-2">
-                                売主 様
+                                {reportForm.sellerName}
                             </div>
                         </div>
                         <div className="text-end">
@@ -209,11 +280,11 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
                     <div className="print-section-title">物件の表示</div>
                     <table className="print-table">
                         <tbody>
-                            <tr><th style={{ width: '25%' }}>物件名</th><td style={{ width: '75%' }}>{targetProperty?.property_name || '-'}</td></tr>
-                            <tr><th>価格</th><td>{targetProperty?.price ? `${targetProperty.price}` : '-'}</td></tr>
-                            <tr><th>所在地</th><td>{targetProperty?.address || '-'}</td></tr>
-                            <tr><th>管理番号</th><td>{targetProperty?.property_id || '-'}</td></tr>
-                            <tr><th>媒介契約の種類</th><td>{targetProperty?.baikaiType || '仲介(専任媒介)'}</td></tr>
+                            <tr><th style={{ width: '25%' }}>物件名</th><td style={{ width: '75%' }}>{reportForm.propertyName || '-'}</td></tr>
+                            <tr><th>価格</th><td>{reportForm.price || '-'}</td></tr>
+                            <tr><th>所在地</th><td>{reportForm.address || '-'}</td></tr>
+                            <tr><th>管理番号</th><td>{reportForm.propertyId || '-'}</td></tr>
+                            <tr><th>媒介契約の種類</th><td>{reportForm.baikaiType || '-'}</td></tr>
                         </tbody>
                     </table>
 
@@ -233,21 +304,21 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
                         <tbody>
                             <tr>
                                 <td className="text-start fw-bold">SUUMO</td>
-                                <td>{suumoData?.pv_recent_week || '-'} / 日</td>
+                                <td>{reportForm.suumoPv} / 日</td>
                                 <td>-</td>
                                 <td>-</td>
                             </tr>
                             <tr>
                                 <td className="text-start fw-bold">アットホーム</td>
-                                <td>{athomeData?.pv_total || '0'}</td>
-                                <td>{athomeData?.favorite_count || '0'}</td>
-                                <td>{athomeData?.inquiry_total || '0'}</td>
+                                <td>{reportForm.athomePv}</td>
+                                <td>{reportForm.athomeFavorite}</td>
+                                <td>{reportForm.athomeInquiry}</td>
                             </tr>
                             <tr>
                                 <td className="text-start fw-bold">LIFULL HOME'S</td>
-                                <td>{homesData?.detail_page_views || '0'}</td>
+                                <td>{reportForm.homesPv}</td>
                                 <td>-</td>
-                                <td>{homesData?.inquiries_count || '0'}</td>
+                                <td>{reportForm.homesInquiry}</td>
                             </tr>
                             <tr className="fw-bold">
                                 <td className="text-start bg-light" style={{ backgroundColor: '#f0f0f0' }}>お問い合わせ合計</td>
@@ -264,17 +335,17 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
                     <div className="print-section-title">来場・その他の反響状況</div>
                     <table className="print-table">
                         <tbody>
-                            <tr><th style={{ width: '50%' }}>自社案内件数</th><td className="text-center">{responseStats.tour} 件</td></tr>
-                            <tr><th>他社案内件数</th><td className="text-center">0 件</td></tr>
-                            <tr><th>お問い合わせ件数(電話等)</th><td className="text-center">{responseStats.inquiry} 件</td></tr>
-                            <tr><th>資料請求件数(その他)</th><td className="text-center">0 件</td></tr>
+                            <tr><th style={{ width: '50%' }}>自社案内件数</th><td className="text-center">{reportForm.tourCount} 件</td></tr>
+                            <tr><th>他社案内件数</th><td className="text-center">{reportForm.otherTourCount} 件</td></tr>
+                            <tr><th>お問い合わせ件数(電話等)</th><td className="text-center">{reportForm.inquiryCount} 件</td></tr>
+                            <tr><th>資料請求件数(その他)</th><td className="text-center">{reportForm.otherInquiryCount} 件</td></tr>
                             <tr className="fw-bold"><th style={{ backgroundColor: '#f0f0f0' }}>お問い合わせ合計 (ネット+電話等)</th><td className="text-center" style={{ backgroundColor: '#f0f0f0' }}>{grandTotalInquiry} 件</td></tr>
                         </tbody>
                     </table>
 
                     <div className="print-section-title">活動状況および今後の方針</div>
-                    <div className="p-3 border border-dark mb-4" style={{ fontSize: '13px', height: '120px', lineHeight: '1.8' }}>
-                        {renderActionPlan()}
+                    <div className="p-3 border border-dark mb-4" style={{ fontSize: '13px', height: '120px', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
+                        {reportForm.actionPlan}
                     </div>
 
                     <div className="d-flex justify-content-between align-items-end mt-4 pt-2" style={{ fontSize: '13px', lineHeight: '1.6' }}>
@@ -292,177 +363,332 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
             </Modal.Body>
 
             {/* ============================================================== */}
-            {/* 💡 2. 通常表示用レイアウト (画面上でのモーダル表示) */}
+            {/* 💡 2. 通常表示 / 編集画面用レイアウト (画面上でのモーダル表示) */}
             {/* ============================================================== */}
             <Modal.Body className="pt-3 pb-4 d-print-none" style={{ backgroundColor: '#fafbfe' }}>
-                <div className="mb-3 px-1">
-                    <span className="text-muted" style={{ fontSize: '12px', letterSpacing: '0.5px' }}>
-                        <i className="bi bi-geo-alt-fill text-danger me-1"></i> {targetProperty?.address || '-'}
-                    </span>
-                </div>
-
-                <div className="row g-3">
-                    <div className="col-12">
-                        <div className="card shadow-sm border-0 rounded-3">
-                            <div className="card-header bg-white border-bottom-0 pt-3 pb-1">
-                                <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>基本情報</h6>
-                            </div>
-                            <div className="card-body pt-1 pb-3 px-3">
-                                <Table bordered className="mb-0 align-middle" style={{ fontSize: '12px', borderColor: '#e2e8f0', borderRight: '1px solid #e2e8f0' }}>
-                                    <tbody>
-                                        <tr>
-                                            <th style={{ width: '15%', backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>所在地</th>
-                                            <td style={{ width: '35%', color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.address}</td>
-                                            <th style={{ width: '15%', backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>担当営業</th>
-                                            <td style={{ width: '35%', color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.property_staff}</td>
-                                        </tr>
-                                        <tr>
-                                            <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>価格</th>
-                                            <td style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: '13px' }}>{targetProperty?.price}</td>
-                                            <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>取扱</th>
-                                            <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.seller}</td>
-                                        </tr>
-                                        <tr>
-                                            <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>土地面積</th>
-                                            <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.land_area}</td>
-                                            <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>建築面積</th>
-                                            <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.building_area}</td>
-                                        </tr>
-                                        <tr>
-                                            <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>間取り</th>
-                                            <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.layout}</td>
-                                            <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>建築時期</th>
-                                            <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.building_age}</td>
-                                        </tr>
-                                    </tbody>
-                                </Table>
-                            </div>
+                {!isEditingReport ? (
+                    // --- 📌 通常の詳細表示モード (変更なし) ---
+                    <>
+                        <div className="mb-3 px-1">
+                            <span className="text-muted" style={{ fontSize: '12px', letterSpacing: '0.5px' }}>
+                                <i className="bi bi-geo-alt-fill text-danger me-1"></i> {targetProperty?.address || '-'}
+                            </span>
                         </div>
-                    </div>
 
-                    <div className="col-12">
-                        <div className="card shadow-sm border-0 rounded-3">
-                            <div className="card-header bg-white border-bottom-0 pt-3 pb-1">
-                                <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>PVサマリ</h6>
+                        <div className="row g-3">
+                            <div className="col-12">
+                                <div className="card shadow-sm border-0 rounded-3">
+                                    <div className="card-header bg-white border-bottom-0 pt-3 pb-1">
+                                        <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>基本情報</h6>
+                                    </div>
+                                    <div className="card-body pt-1 pb-3 px-3">
+                                        <Table bordered className="mb-0 align-middle" style={{ fontSize: '12px', borderColor: '#e2e8f0', borderRight: '1px solid #e2e8f0' }}>
+                                            <tbody>
+                                                <tr>
+                                                    <th style={{ width: '15%', backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>所在地</th>
+                                                    <td style={{ width: '35%', color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.address}</td>
+                                                    <th style={{ width: '15%', backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>担当営業</th>
+                                                    <td style={{ width: '35%', color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.property_staff}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>価格</th>
+                                                    <td style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: '13px' }}>{targetProperty?.price}</td>
+                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>取扱</th>
+                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.seller}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>土地面積</th>
+                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.land_area}</td>
+                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>建築面積</th>
+                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.building_area}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>間取り</th>
+                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.layout}</td>
+                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>建築時期</th>
+                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.building_age}</td>
+                                                </tr>
+                                            </tbody>
+                                        </Table>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="card-body pt-1 pb-3 px-3">
-                                <Table bordered className="mb-0 text-center align-middle" style={{ fontSize: '12px', borderColor: '#e2e8f0', borderRight: '1px solid #e2e8f0' }}>
-                                    <thead style={{ backgroundColor: '#f8f9fa' }}>
-                                        <tr>
-                                            <th style={{ color: '#718096', fontWeight: '500' }}>総PV</th>
-                                            <th style={{ color: '#38a169', fontWeight: '500' }}>SUUMO</th>
-                                            <th style={{ color: '#e53e3e', fontWeight: '500' }}>HOME'S</th>
-                                            <th style={{ color: '#3182ce', fontWeight: '500' }}>athome</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td className="fw-bold" style={{ fontSize: '14px', color: '#2d3748' }}>{pvData.total.toLocaleString()}</td>
-                                            <td className="fw-bold" style={{ color: '#2f855a' }}>{pvData.suumo.toLocaleString()}</td>
-                                            <td className="fw-bold" style={{ color: '#c53030' }}>{pvData.homes.toLocaleString()}</td>
-                                            <td className="fw-bold" style={{ color: '#2b6cb0' }}>{pvData.athome.toLocaleString()}</td>
-                                        </tr>
-                                    </tbody>
-                                </Table>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div className="col-12">
-                        <div className="card shadow-sm border-0 rounded-3 bg-light">
-                            <div className="card-body p-3">
-                                <div className="row text-center g-2">
-                                    <div className="col-4">
-                                        <div className="border bg-white rounded-3 p-2 shadow-sm">
-                                            <div className="text-muted mb-1" style={{ fontSize: '11px', fontWeight: 'bold' }}>問い合わせ数</div>
-                                            <div className="fw-bold text-primary" style={{ fontSize: '18px' }}>{responseStats.inquiry}</div>
-                                        </div>
+                            <div className="col-12">
+                                <div className="card shadow-sm border-0 rounded-3">
+                                    <div className="card-header bg-white border-bottom-0 pt-3 pb-1">
+                                        <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>PVサマリ</h6>
                                     </div>
-                                    <div className="col-4">
-                                        <div className="border bg-white rounded-3 p-2 shadow-sm">
-                                            <div className="text-muted mb-1" style={{ fontSize: '11px', fontWeight: 'bold' }}>面談数</div>
-                                            <div className="fw-bold text-success" style={{ fontSize: '18px' }}>{responseStats.interview}</div>
-                                        </div>
+                                    <div className="card-body pt-1 pb-3 px-3">
+                                        <Table bordered className="mb-0 text-center align-middle" style={{ fontSize: '12px', borderColor: '#e2e8f0', borderRight: '1px solid #e2e8f0' }}>
+                                            <thead style={{ backgroundColor: '#f8f9fa' }}>
+                                                <tr>
+                                                    <th style={{ color: '#718096', fontWeight: '500' }}>総PV</th>
+                                                    <th style={{ color: '#38a169', fontWeight: '500' }}>SUUMO</th>
+                                                    <th style={{ color: '#e53e3e', fontWeight: '500' }}>HOME'S</th>
+                                                    <th style={{ color: '#3182ce', fontWeight: '500' }}>athome</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td className="fw-bold" style={{ fontSize: '14px', color: '#2d3748' }}>{pvData.total.toLocaleString()}</td>
+                                                    <td className="fw-bold" style={{ color: '#2f855a' }}>{pvData.suumo.toLocaleString()}</td>
+                                                    <td className="fw-bold" style={{ color: '#c53030' }}>{pvData.homes.toLocaleString()}</td>
+                                                    <td className="fw-bold" style={{ color: '#2b6cb0' }}>{pvData.athome.toLocaleString()}</td>
+                                                </tr>
+                                            </tbody>
+                                        </Table>
                                     </div>
-                                    <div className="col-4">
-                                        <div className="border bg-white rounded-3 p-2 shadow-sm">
-                                            <div className="text-muted mb-1" style={{ fontSize: '11px', fontWeight: 'bold' }}>案内数</div>
-                                            <div className="fw-bold text-danger" style={{ fontSize: '18px' }}>{responseStats.tour}</div>
+                                </div>
+                            </div>
+
+                            <div className="col-12">
+                                <div className="card shadow-sm border-0 rounded-3 bg-light">
+                                    <div className="card-body p-3">
+                                        <div className="row text-center g-2">
+                                            <div className="col-4">
+                                                <div className="border bg-white rounded-3 p-2 shadow-sm">
+                                                    <div className="text-muted mb-1" style={{ fontSize: '11px', fontWeight: 'bold' }}>問い合わせ数</div>
+                                                    <div className="fw-bold text-primary" style={{ fontSize: '18px' }}>{responseStats.inquiry}</div>
+                                                </div>
+                                            </div>
+                                            <div className="col-4">
+                                                <div className="border bg-white rounded-3 p-2 shadow-sm">
+                                                    <div className="text-muted mb-1" style={{ fontSize: '11px', fontWeight: 'bold' }}>面談数</div>
+                                                    <div className="fw-bold text-success" style={{ fontSize: '18px' }}>{responseStats.interview}</div>
+                                                </div>
+                                            </div>
+                                            <div className="col-4">
+                                                <div className="border bg-white rounded-3 p-2 shadow-sm">
+                                                    <div className="text-muted mb-1" style={{ fontSize: '11px', fontWeight: 'bold' }}>案内数</div>
+                                                    <div className="fw-bold text-danger" style={{ fontSize: '18px' }}>{responseStats.tour}</div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    {targetProperty?.lat_lng && (
-                        <div className="col-12">
-                            <div className="rounded-3 overflow-hidden shadow-sm" style={{ height: '250px', backgroundColor: '#e2e8f0', border: '1px solid #e2e8f0' }}>
-                                <iframe
-                                    width="100%"
-                                    height="100%"
-                                    frameBorder="0"
-                                    style={{ border: 0 }}
-                                    src={`https://maps.google.com/maps?q=${targetProperty.lat_lng}&hl=ja&z=16&output=embed`}
-                                    allowFullScreen
-                                    title="Property Location Map"
-                                ></iframe>
-                            </div>
-                        </div>
-                    )}
+                            {targetProperty?.lat_lng && (
+                                <div className="col-12">
+                                    <div className="rounded-3 overflow-hidden shadow-sm" style={{ height: '250px', backgroundColor: '#e2e8f0', border: '1px solid #e2e8f0' }}>
+                                        <iframe
+                                            width="100%"
+                                            height="100%"
+                                            frameBorder="0"
+                                            style={{ border: 0 }}
+                                            src={`https://maps.google.com/maps?q=${targetProperty.lat_lng}&hl=ja&z=16&output=embed`}
+                                            allowFullScreen
+                                            title="Property Location Map"
+                                        ></iframe>
+                                    </div>
+                                </div>
+                            )}
 
-                    <div className="col-12 mt-2">
-                        <h6 className="fw-bold mb-2 px-2" style={{ fontSize: '13px', color: '#4a5568' }}>
-                            <i className="bi bi-people-fill me-2 text-primary"></i>反響・顧客一覧
-                        </h6>
-                        <div className="card shadow-sm border-0 rounded-3 overflow-hidden">
-                            <div className="table-responsive">
-                                <Table hover className="mb-0 text-center align-middle text-nowrap" style={{ fontSize: '11px' }}>
-                                    <thead style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #e2e8f0' }}>
-                                        <tr>
-                                            <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>No</th>
-                                            <th className="py-2 text-start" style={{ color: '#718096', fontWeight: '500' }}>顧客名</th>
-                                            <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>ランク</th>
-                                            <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>反響取得日</th>
-                                            <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>初回来場日</th>
-                                            <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>販促媒体</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody style={{ borderTop: 'none' }}>
-                                        {filteredCustomer.length > 0 ? (
-                                            filteredCustomer.map((item, index) => (
-                                                <tr key={item.id || index} style={{ borderBottom: '1px solid #edf2f7' }}>
-                                                    <td className="text-muted">{index + 1}</td>
-                                                    <td className="text-start">
-                                                        <span
-                                                            className="text-primary fw-bold"
-                                                            style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
-                                                            onClick={() => setEditId(item.id)}
-                                                        >
-                                                            {item.customer}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span className="badge" style={{ backgroundColor: '#cbd5e0', color: '#2d3748', fontSize: '10px' }}>
-                                                            {item.rank}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ color: '#4a5568' }}>{item.register}</td>
-                                                    <td style={{ color: '#4a5568' }}>{item.interview}</td>
-                                                    <td style={{ color: '#4a5568' }}>{item.medium}</td>
+                            <div className="col-12 mt-2">
+                                <h6 className="fw-bold mb-2 px-2" style={{ fontSize: '13px', color: '#4a5568' }}>
+                                    <i className="bi bi-people-fill me-2 text-primary"></i>反響・顧客一覧
+                                </h6>
+                                <div className="card shadow-sm border-0 rounded-3 overflow-hidden">
+                                    <div className="table-responsive">
+                                        <Table hover className="mb-0 text-center align-middle text-nowrap" style={{ fontSize: '11px' }}>
+                                            <thead style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #e2e8f0' }}>
+                                                <tr>
+                                                    <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>No</th>
+                                                    <th className="py-2 text-start" style={{ color: '#718096', fontWeight: '500' }}>顧客名</th>
+                                                    <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>ランク</th>
+                                                    <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>反響取得日</th>
+                                                    <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>初回来場日</th>
+                                                    <th className="py-2" style={{ color: '#718096', fontWeight: '500' }}>販促媒体</th>
                                                 </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan={6} className="py-4 text-muted">関連する顧客データはありません</td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </Table>
+                                            </thead>
+                                            <tbody style={{ borderTop: 'none' }}>
+                                                {filteredCustomer.length > 0 ? (
+                                                    filteredCustomer.map((item, index) => (
+                                                        <tr key={item.id || index} style={{ borderBottom: '1px solid #edf2f7' }}>
+                                                            <td className="text-muted">{index + 1}</td>
+                                                            <td className="text-start">
+                                                                <span
+                                                                    className="text-primary fw-bold"
+                                                                    style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
+                                                                    onClick={() => setEditId(item.id)}
+                                                                >
+                                                                    {item.customer}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <span className="badge" style={{ backgroundColor: '#cbd5e0', color: '#2d3748', fontSize: '10px' }}>
+                                                                    {item.rank}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ color: '#4a5568' }}>{item.register}</td>
+                                                            <td style={{ color: '#4a5568' }}>{item.interview}</td>
+                                                            <td style={{ color: '#4a5568' }}>{item.medium}</td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={6} className="py-4 text-muted">関連する顧客データはありません</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </Table>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
+                    </>
+                ) : (
+                    // --- 📌 編集モード (報告書作成画面 - 💡 stylesを適用) ---
+                    <>
+                        <div className="mb-3 px-1">
+                            <span className="text-muted" style={{ fontSize: '12px', letterSpacing: '0.5px' }}>
+                                <i className="bi bi-pencil-square text-primary me-1"></i> 報告書内容の編集・確認
+                            </span>
+                        </div>
+
+                        {/* 💡 宛名 */}
+                        <div className="card shadow-sm border-0 rounded-3 mb-3">
+                            <div className="card-header bg-white border-bottom-0 pt-3 pb-2">
+                                <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>宛名</h6>
+                            </div>
+                            <div className="card-body pt-1 pb-3">
+                                <input 
+                                    type="text" 
+                                    style={styles.input}
+                                    value={reportForm.sellerName} 
+                                    onChange={(e) => setReportForm({ ...reportForm, sellerName: e.target.value })} 
+                                />
+                            </div>
+                        </div>
+
+                        {/* 💡 物件の表示 */}
+                        <div className="card shadow-sm border-0 rounded-3 mb-3">
+                            <div className="card-header bg-white border-bottom-0 pt-3 pb-2">
+                                <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>物件の表示</h6>
+                            </div>
+                            <div className="card-body pt-1 pb-3">
+                                <div className="row g-2">
+                                    <div className="col-sm-12">
+                                        <label style={styles.label}>物件名</label>
+                                        <input type="text" style={styles.input} value={reportForm.propertyName} onChange={(e) => setReportForm({ ...reportForm, propertyName: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-6">
+                                        <label style={styles.label}>価格</label>
+                                        <input type="text" style={styles.input} value={reportForm.price} onChange={(e) => setReportForm({ ...reportForm, price: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-6">
+                                        <label style={styles.label}>管理番号</label>
+                                        <input type="text" style={styles.input} value={reportForm.propertyId} onChange={(e) => setReportForm({ ...reportForm, propertyId: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-12">
+                                        <label style={styles.label}>所在地</label>
+                                        <input type="text" style={styles.input} value={reportForm.address} onChange={(e) => setReportForm({ ...reportForm, address: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-12">
+                                        <label style={styles.label}>媒介契約の種類</label>
+                                        <input type="text" style={styles.input} value={reportForm.baikaiType} onChange={(e) => setReportForm({ ...reportForm, baikaiType: e.target.value })} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 💡 インターネット広告の反応状況 */}
+                        <div className="card shadow-sm border-0 rounded-3 mb-3">
+                            <div className="card-header bg-white border-bottom-0 pt-3 pb-2">
+                                <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>インターネット広告の反応状況</h6>
+                            </div>
+                            <div className="card-body pt-1 pb-3">
+                                <div className="row g-2 align-items-end mb-2">
+                                    <div className="col-sm-4 fw-bold" style={{ fontSize: '12px', color: '#303030' }}>SUUMO</div>
+                                    <div className="col-sm-4">
+                                        <label style={styles.label}>詳細閲覧 (1日あたり)</label>
+                                        <input type="number" style={styles.input} value={reportForm.suumoPv} onChange={(e) => setReportForm({ ...reportForm, suumoPv: e.target.value })} />
+                                    </div>
+                                </div>
+                                <hr className="my-2" />
+                                <div className="row g-2 align-items-end mb-2">
+                                    <div className="col-sm-4 fw-bold" style={{ fontSize: '12px', color: '#303030' }}>アットホーム</div>
+                                    <div className="col-sm-3">
+                                        <label style={styles.label}>詳細閲覧</label>
+                                        <input type="number" style={styles.input} value={reportForm.athomePv} onChange={(e) => setReportForm({ ...reportForm, athomePv: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-2">
+                                        <label style={styles.label}>お気に入り</label>
+                                        <input type="number" style={styles.input} value={reportForm.athomeFavorite} onChange={(e) => setReportForm({ ...reportForm, athomeFavorite: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-3">
+                                        <label style={styles.label}>お問い合わせ</label>
+                                        <input type="number" style={styles.input} value={reportForm.athomeInquiry} onChange={(e) => setReportForm({ ...reportForm, athomeInquiry: e.target.value })} />
+                                    </div>
+                                </div>
+                                <hr className="my-2" />
+                                <div className="row g-2 align-items-end">
+                                    <div className="col-sm-4 fw-bold" style={{ fontSize: '12px', color: '#303030' }}>LIFULL HOME'S</div>
+                                    <div className="col-sm-4">
+                                        <label style={styles.label}>詳細閲覧</label>
+                                        <input type="number" style={styles.input} value={reportForm.homesPv} onChange={(e) => setReportForm({ ...reportForm, homesPv: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-4">
+                                        <label style={styles.label}>お問い合わせ</label>
+                                        <input type="number" style={styles.input} value={reportForm.homesInquiry} onChange={(e) => setReportForm({ ...reportForm, homesInquiry: e.target.value })} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 💡 来場・その他の反響状況 */}
+                        <div className="card shadow-sm border-0 rounded-3 mb-3">
+                            <div className="card-header bg-white border-bottom-0 pt-3 pb-2">
+                                <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>来場・その他の反響状況</h6>
+                            </div>
+                            <div className="card-body pt-1 pb-3">
+                                <div className="row g-3">
+                                    <div className="col-sm-6">
+                                        <label style={styles.label}>自社案内件数</label>
+                                        <input type="number" style={styles.input} value={reportForm.tourCount} onChange={(e) => setReportForm({ ...reportForm, tourCount: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-6">
+                                        <label style={styles.label}>他社案内件数</label>
+                                        <input type="number" style={styles.input} value={reportForm.otherTourCount} onChange={(e) => setReportForm({ ...reportForm, otherTourCount: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-6">
+                                        <label style={styles.label}>お問い合わせ件数 (電話等)</label>
+                                        <input type="number" style={styles.input} value={reportForm.inquiryCount} onChange={(e) => setReportForm({ ...reportForm, inquiryCount: e.target.value })} />
+                                    </div>
+                                    <div className="col-sm-6">
+                                        <label style={styles.label}>資料請求件数 (その他)</label>
+                                        <input type="number" style={styles.input} value={reportForm.otherInquiryCount} onChange={(e) => setReportForm({ ...reportForm, otherInquiryCount: e.target.value })} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 💡 活動状況および今後の方針 */}
+                        <div className="card shadow-sm border-0 rounded-3 mb-3">
+                            <div className="card-header bg-white border-bottom-0 pt-3 pb-2">
+                                <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>活動状況および今後の方針</h6>
+                            </div>
+                            <div className="card-body pt-1 pb-3">
+                                <textarea 
+                                    rows={5} 
+                                    style={styles.textarea}
+                                    value={reportForm.actionPlan} 
+                                    onChange={(e) => setReportForm({ ...reportForm, actionPlan: e.target.value })} 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="d-flex justify-content-end mt-4">
+                            <button style={{ ...styles.buttonSecondary, marginRight: '8px' }} onClick={() => setIsEditingReport(false)}>
+                                <i className="bi bi-x-circle me-2"></i>キャンセル
+                            </button>
+                            <button style={styles.buttonPrimary} onClick={handleGenerateReport}>
+                                <i className="bi bi-printer-fill me-2"></i>PDFを作成する
+                            </button>
+                        </div>
+                    </>
+                )}
             </Modal.Body>
         </Modal>
     );

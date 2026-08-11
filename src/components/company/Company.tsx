@@ -436,7 +436,7 @@ const Company = () => {
 
                         const baseDivTotal = aggregatedContracts.divisions[division]?.total || [];
                         const multiContract = baseDivTotal.filter(o => {
-                            return isShop ? o.shop.includes(shop.shop.replace(shop.brand, '')) : o.staff === staff.name
+                            return isShop ? o.shop?.includes(shop.shop.replace(shop.brand, '')) : o.staff === staff.name
                         });
 
                         const isStaff = staffIndex < staffLength - 2;

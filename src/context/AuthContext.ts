@@ -10,7 +10,8 @@ type AuthContextType = {
   version: string,
   userName: string,
   setUserName: (value: string) => void,
-
+  shopName: string,
+  setShopName: (value: string) => void
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,6 +24,8 @@ const AuthContext = createContext<AuthContextType>({
   version: "",
   userName: "",
   setUserName: (value: string) => { },
+  shopName: "",
+  setShopName: (value: string) => { },
 });
 
 export default AuthContext;

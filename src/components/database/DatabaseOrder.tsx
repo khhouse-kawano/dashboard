@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Table from "react-bootstrap/Table";
 import AuthContext from '../../context/AuthContext';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
-import { headers } from '../../utils/headers';
 import SurveyList from '../Survey';
 import CancelList from '../CancelList';
 import CallStatusList from '../CallStatusList';
@@ -22,7 +22,7 @@ type Props = {
 };
 
 const DatabaseOrder = ({ onReload, key }: Props) => {
-    const { authority ,category} = useContext(AuthContext);
+    const { authority, category } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<shopList[]>([]);
     const [mediumArray, setMediumArray] = useState<string[]>([]);
     const [monthArray, setMonthArray] = useState<string[]>([]);
@@ -61,6 +61,21 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const addressSearch = useDebounce('', 300);
 
     const isSp = useIsSp();
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const id = searchParams.get('id');
+
+    const removeParam = (keyToRemove) => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete(keyToRemove);
+        setSearchParams(newParams);
+    };
+
+    useEffect(() => {
+        if (!id) return;
+        setEditId(id);
+    }, [id]);
+
 
     const safeFormate = (value: string) => {
         return (value ?? '').replace(/-/g, '/');
@@ -234,7 +249,16 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         setSliceStart((page - 1) * basicLength);
     };
 
-    const [editId, setEditId] = useState('')
+    const [editId, setEditId] = useState('');
+
+    useEffect(() => {
+        if (!editId) return;
+        const newParams = new URLSearchParams(searchParams);
+
+        newParams.set('id', editId);
+
+        setSearchParams(newParams);
+    }, [editId]);
 
     const handleGarbage = async (id: string, name: string) => {
         if (!id) return;
@@ -281,6 +305,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
 
         await fetchData();
         setActivePage(prevPage);
+        setSearchParams({});
     };
 
     return (

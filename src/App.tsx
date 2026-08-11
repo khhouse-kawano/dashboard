@@ -106,7 +106,6 @@ function AppInner() {
             </div>
           </>}
           <Routes>
-            <Route path="/dev" element={<Dev />} />
             <Route path="/" element={<Category />} />
             <Route path="/home" element={<Category />} />
             <Route path="/login" element={<Login />} />

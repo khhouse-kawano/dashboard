@@ -29,27 +29,29 @@ type Props = {
     userName: string
 };
 
-const getMigratedAction = (actionStr: string) => {
+const getMigratedAction = (actionStr: string, category: string) => {
     if (!actionStr) return '';
     const baseAction = actionStr.split(',')[0];
 
-    switch (baseAction) {
-        case '物件案内':
-            return '初回面談';
-        case '事前取得（現金確認含む）':
-        case 'ローン事前承認済み':
-            return '2回目以降面談';
-        case '次回アクション':
-            return '';
-        default:
+    if (baseAction === '物件案内') {
+        if (category === 'used') {
             return actionStr;
+        } else {
+            return '初回面談';
+        }
+    } else if (baseAction === '事前取得（現金確認含む）' || baseAction === 'ローン事前承認済み') {
+        return '2回目以降面談';
+    } else if (baseAction === '次回アクション') {
+        return '';
+    } else {
+        return actionStr;
     }
 };
 
-const getDisplayNote = (actionStr: string, noteStr: string) => {
+const getDisplayNote = (actionStr: string, noteStr: string, category: string) => {
     if (!actionStr) return noteStr || '';
     const baseAction = actionStr.split(',')[0];
-    const mappedActionStr = getMigratedAction(actionStr);
+    const mappedActionStr = getMigratedAction(actionStr, category);
     const mappedBase = mappedActionStr ? mappedActionStr.split(',')[0] : '';
 
     // 旧KPIであり、新しいKPIに丸め込まれている場合
@@ -232,7 +234,7 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                         return interviewSort === 'asc' ? dayA - dayB : dayB - dayA;
                     })
                     .map((item, index) => {
-                        const displayNote = getDisplayNote(item.action, item.note);
+                        const displayNote = getDisplayNote(item.action, item.note, category);
 
                         return (
                             <React.Fragment key={index}>
@@ -247,7 +249,7 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                                                     interview_log: prev.interview_log.map((log, i) => i === index ?
                                                         { ...log, day: e.target.value } : log)
                                                 }));
-                                                const mappedAction = getMigratedAction(item.action);
+                                                const mappedAction = getMigratedAction(item.action, category);
                                                 const key = actionMap[mappedAction.split(',')[0]];
                                                 if (key) {
                                                     setInformation(prev => ({
@@ -269,7 +271,7 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                                                 onChange={(e) => {
                                                     const newActionValue = e.target.value;
 
-                                                    const mappedOldAction = getMigratedAction(item.action);
+                                                    const mappedOldAction = getMigratedAction(item.action, category);
                                                     const oldFormattedValue = mappedOldAction.split(',')[0] ?? mappedOldAction;
                                                     const oldKey = actionMap[oldFormattedValue];
 
@@ -302,7 +304,7 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                                                         }));
                                                     }
                                                 }}
-                                                value={getMigratedAction(item.action)}>
+                                                value={getMigratedAction(item.action, category)}>
                                                 <option value="">アクション内容</option>
                                                 {Object.keys(actionMap).map(actionItem => {
                                                     if ((actionItem === '自社契約' || actionItem === '仲介契約') && information.property_name) {
@@ -328,7 +330,7 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                                     </div>
                                     <div className="text-danger" style={actionButton}
                                         onClick={() => {
-                                            const mappedAction = getMigratedAction(item.action);
+                                            const mappedAction = getMigratedAction(item.action, category);
                                             const formattedValue = mappedAction.split(',')[0] ?? mappedAction;
                                             const key = actionMap[formattedValue];
 

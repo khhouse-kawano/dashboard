@@ -1,7 +1,7 @@
-import React from 'react'
+import React from 'react';
 import { useState, useContext } from "react";
 import AuthContext from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom"; // 💡 useLocationを追加
 import "./Home.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Logo from "../assets/images/logo.png";
@@ -26,6 +26,7 @@ const Login = () => {
   });
 
   const navigate = useNavigate();
+  const location = useLocation(); // 💡 現在のURL情報を取得
   const { setAuthority, setToken, setUserName } = useContext(AuthContext);
 
   const handleGoogleSuccess = (credentialResponse: any) => {
@@ -42,11 +43,21 @@ const Login = () => {
           setAuthority(response.data.authority);
           setToken(response.data.token);
           setUserName(response.data.userName);
-          navigate("/home", {
-            state: {
-              authority: response.data.authority,
-            },
-          });
+
+          // 💡 URLから redirect パラメータを取り出す
+          const searchParams = new URLSearchParams(location.search);
+          const redirectUrl = searchParams.get('redirect');
+
+          // 💡 リダイレクト先があればそこに、無ければデフォルトの /home へ飛ばす
+          if (redirectUrl) {
+            navigate(redirectUrl, {
+              state: { authority: response.data.authority },
+            });
+          } else {
+            navigate("/home", {
+              state: { authority: response.data.authority },
+            });
+          }
         } else {
           setValidationMessage({
             ...newValidationMessage,

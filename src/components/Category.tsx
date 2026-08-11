@@ -9,21 +9,28 @@ import { useIsSp } from '../utils/isSp';
 type Log = { no: number, version: string, date: string, note: string };
 
 const Category = () => {
-    const { version } = useContext(AuthContext);
+    const { version, userName, setShopName } = useContext(AuthContext);
     const navigate = useNavigate();
     const { setCategory } = useContext(AuthContext);
     const [log, setLog] = useState<Log[]>([]);
+    const [shopValue, setShopValue] = useState('');
     const isSp = useIsSp();
 
     useEffect(() => {
         const fetchData = async () => {
-            const response = await apiClient.post("", { request: 'update_log' },);
-            setLog(response.data);
+            const response = await apiClient.post("", { request: 'update_log', userName },);
+            setLog(response.data.log);
+            setShopValue(response.data.shop.shop);
+            setShopName(response.data.shop.shop);
         }
         fetchData();
     }, []);
 
     const goToDashboard = async (categoryValue: string) => {
+        if (shopValue !== 'all' && shopValue !== categoryValue) {
+            alert('閲覧権限がありません');
+            return;
+        }
         await setCategory(categoryValue);
         await navigate('/company');
     };

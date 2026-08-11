@@ -143,11 +143,11 @@ const ListResale = ({ onReload }: Props) => {
         const mediumValue = targetMedium === '公式LINE' ? 'ALLGRIT' : targetMedium;
         const fullName = `${item.first_name || ""}${item.last_name || ""}`;
         const fullAddress = `${item.pref || ""}${item.city || ""}${item.town || ""}${item.street || ""}${item.building || ""}`;
-        
+
         const inqDate = item.inquiry_date || '';
         const itemCategory = item.category || '';
         const resMedium = item.response_medium || '';
-        
+
         return (
             selectedMonth.includes(monthFormate(inqDate)) &&
             (targetCategory === '' || itemCategory === targetCategory) &&
@@ -176,7 +176,7 @@ const ListResale = ({ onReload }: Props) => {
                     });
                 }
             },
-            { rootMargin: '200px' } 
+            { rootMargin: '200px' }
         );
 
         const currentLoader = loaderRef.current;
@@ -204,7 +204,7 @@ const ListResale = ({ onReload }: Props) => {
             return;
         }
 
-        const confirmMsg = targets.length === 1 
+        const confirmMsg = targets.length === 1
             ? `${targets[0].category} ${targets[0].first_name || ''} ${targets[0].last_name || ''}様 顧客情報を取り込みますか?`
             : `選択した ${targets.length} 件の顧客情報を一括で取り込みますか?`;
 
@@ -231,8 +231,8 @@ const ListResale = ({ onReload }: Props) => {
                 customer_contacts_name_kana: `${filteredCustomer.first_name_kana || ''} ${filteredCustomer.last_name_kana || ''}`,
                 in_charge_store: categoryValue,
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date || '',
-                customer_contacts_phone_number: phone_number_1, 
-                customer_contacts_mobile_phone_number: phone_number_2, 
+                customer_contacts_phone_number: phone_number_1,
+                customer_contacts_mobile_phone_number: phone_number_2,
                 customer_contacts_email: filteredCustomer.mail || '',
                 postal_code: filteredCustomer.zip || '',
                 full_address: `${filteredCustomer.pref || ''} ${filteredCustomer.city || ''} ${filteredCustomer.town || ''} ${filteredCustomer.street || ''} ${filteredCustomer.building || ''}`,
@@ -247,13 +247,13 @@ const ListResale = ({ onReload }: Props) => {
                 roll: 'insert'
             };
 
-try {
+            try {
                 const response = await apiClient.post("", postData);
-                
+
                 if (response.data && response.data.status === 'success') {
                     successCount++;
                     lastMessage = response.data.message || '同期が完了しました。';
-                    
+
                     // 💡 PHPから返ってきた pg_id を安全に取得。万が一取れなければ Reactで生成した postData.id を使う
                     const returnedPgId = response.data.pg_id?.pg_id || postData.id;
 
@@ -262,7 +262,7 @@ try {
                         ...o,
                         pg_id: returnedPgId,
                         sync: 1
-                    }): o);
+                    }) : o);
 
                 } else {
                     failCount++;
@@ -283,7 +283,7 @@ try {
             alert(`一括同期が完了しました。\n成功: ${successCount}件\n失敗: ${failCount}件`);
         }
 
-        setCheckedIds([]); 
+        setCheckedIds([]);
         onReload();
     };
 
@@ -430,7 +430,7 @@ try {
     }, [searchId, inquiryList]);
 
     return (
-        <>  
+        <>
             <div className='inquiry_table spec bg-white p-2'>
                 <div className="d-flex flex-wrap mb-3 align-items-center" style={{ paddingTop: isSp ? '30px' : '' }}>
                     <div className="m-1">
@@ -481,17 +481,19 @@ try {
                         </div>
                     </>}
 
+
+
+                    <div className="bg-warning text-dark px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+                        onClick={() => setEditId('new')}>新規登録</div>
+
                     {/* 💡 一括登録ボタン（チェックされている場合のみ表示） */}
                     {checkedIds.length > 0 && (
-                        <div className="bg-success text-white px-3 py-1 rounded m-1 d-flex justify-content-center align-items-center" 
+                        <div className="bg-success text-white px-3 py-1 rounded m-1 d-flex justify-content-center align-items-center"
                             style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                             onClick={() => handleSync(checkedIds)}>
                             <i className="fa-solid fa-check-double me-2"></i> {checkedIds.length}件を一括同期
                         </div>
                     )}
-
-                    <div className="bg-warning text-dark px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-                        onClick={() => setEditId('new')}>新規登録</div>
                 </div>
                 <div className='p-0 inquiry'>
                     {!isSp &&
@@ -544,20 +546,20 @@ try {
                                 const itemShop = item.shop || '';
                                 const bl = item.black_list || '';
                                 const styleClass = setStyleClassUsed(itemCat);
-                                
+
                                 return (
                                     <tr key={index} style={{ textAlign: 'left' }}
                                         className={isBlack(item.mail, item.mobile, bl) ? 'table-danger align-middle' : item.sync === 1 || bl.split('duplicate').length % 2 === 0 || bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 ? 'table-primary align-middle' : 'align-middle'}>
-                                        
+
                                         {/* 💡 横並びのレイアウトでチェックボックスと同期ボタンを配置 */}
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }} className={`${isSp ? '' : 'sticky-column'}`}>
                                             <div className="d-flex align-items-center justify-content-center gap-3">
                                                 {item.sync !== 1 && !isDup(item) && !isBlack(item.mail, item.mobile, bl) && (
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={checkedIds.includes(item.inquiry_id)} 
-                                                        onChange={() => handleCheck(item.inquiry_id)} 
-                                                        style={{ cursor: 'pointer', transform: 'scale(1.3)' }} 
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checkedIds.includes(item.inquiry_id)}
+                                                        onChange={() => handleCheck(item.inquiry_id)}
+                                                        style={{ cursor: 'pointer', transform: 'scale(1.3)' }}
                                                     />
                                                 )}
                                                 <>{bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 || itemShop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
@@ -572,7 +574,7 @@ try {
                                             {isBlack(item.mail, item.mobile, bl) &&
                                                 <div className='text-danger mt-1'><i className="fa-solid fa-triangle-exclamation"></i><span style={{ fontSize: '9px' }}>ブラックリスト</span></div>}
                                         </td>
-                                        
+
                                         <td style={{ textAlign: 'center' }}>
                                             {item.note ?
                                                 <i className="fa-solid fa-magnifying-glass" style={{ cursor: 'pointer' }}

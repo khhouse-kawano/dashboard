@@ -107,7 +107,7 @@ const TableCall = ({ information, setInformation, callLog, setCallLog, interview
                 <i className="fa-solid fa-arrow-up"></i>
             </div>}
             <div style={{ textAlign: 'center' }}>
-                {callLog.call_log[index]['action'] === '架電' && <i className="fa-solid fa-phone-volume"></i>}
+                {(callLog.call_log[index]['action'] === '通電' || callLog.call_log[index]['action'] === '未通電') && <i className="fa-solid fa-phone-volume"></i>}
                 {callLog.call_log[index]['action'] === 'SMS送信' && <i className="fa-solid fa-message"></i>}
                 {callLog.call_log[index]['action'] === 'メール送信' && <i className="fa-solid fa-envelope"></i>}
                 {callLog.call_log[index]['action'] === '資料郵送' && <i className="fa-solid fa-truck"></i>}

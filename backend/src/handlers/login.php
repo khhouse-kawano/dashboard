@@ -24,5 +24,6 @@ echo json_encode([
     "token" => $token,
     "authority" => $user['brand'] ?? '',
     "brand" => $user['brand'] ?? '',
-    "userName" => $user['name'] ?? ''
+    "userName" => $user['name'] ?? '',
+    "shopValue" => $user['shop'] ?? ''
 ]);

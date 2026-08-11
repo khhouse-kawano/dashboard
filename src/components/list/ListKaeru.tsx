@@ -69,7 +69,7 @@ const ListKaeru = ({ onReload }: Props) => {
     const [editId, setEditId] = useState('');
     const [blackList, setBlackList] = useState<Black[]>([]);
     const [searchId, setSearchId] = useState('');
-    
+
     const [originalBeforeList, setOriginalBeforeList] = useState<Survey[]>([]);
     const [surveyBeforeList, setSurveyBeforeList] = useState<Survey[]>([]);
     const [modalBeforeContent, setModalBeforeContent] = useState<Survey>();
@@ -159,7 +159,7 @@ const ListKaeru = ({ onReload }: Props) => {
         setInquiryList(filteredInquiryList);
         setTotalLength(filteredInquiryList.length);
         setDisplayLength(20);
-        setCheckedIds([]); 
+        setCheckedIds([]);
     }, [filteredInquiryList]);
 
     useEffect(() => {
@@ -189,7 +189,7 @@ const ListKaeru = ({ onReload }: Props) => {
                     });
                 }
             },
-            { rootMargin: '200px' } 
+            { rootMargin: '200px' }
         );
 
         const currentLoader = loaderRef.current;
@@ -220,7 +220,7 @@ const ListKaeru = ({ onReload }: Props) => {
             return;
         }
 
-        const confirmMsg = targets.length === 1 
+        const confirmMsg = targets.length === 1
             ? `${targets[0].shop || ''} ${targets[0].first_name || ''} ${targets[0].last_name || ''}様 顧客情報を取り込みますか?`
             : `選択した ${targets.length} 件の顧客情報を一括で取り込みますか?`;
 
@@ -247,8 +247,8 @@ const ListKaeru = ({ onReload }: Props) => {
                 customer_contacts_name_kana: `${filteredCustomer.first_name_kana || ''} ${filteredCustomer.last_name_kana || ''}`,
                 in_charge_store: filteredShop,
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date || '',
-                customer_contacts_phone_number: phone_number_1, 
-                customer_contacts_mobile_phone_number: phone_number_2, 
+                customer_contacts_phone_number: phone_number_1,
+                customer_contacts_mobile_phone_number: phone_number_2,
                 customer_contacts_email: filteredCustomer.mail || '',
                 postal_code: filteredCustomer.zip || '',
                 full_address: `${filteredCustomer.pref || ''} ${filteredCustomer.city || ''} ${filteredCustomer.town || ''} ${filteredCustomer.street || ''} ${filteredCustomer.building || ''}`,
@@ -265,17 +265,17 @@ const ListKaeru = ({ onReload }: Props) => {
 
             try {
                 const response = await apiClient.post("", postData);
-                
+
                 if (response.data && response.data.status === 'success') {
                     successCount++;
                     lastMessage = response.data.message || '同期が完了しました。';
-                    
+
                     const returnedPgId = response.data.pg_id?.pg_id || postData.id;
                     updatedList = updatedList.map(o => o.inquiry_id === filteredCustomer.inquiry_id ? ({
                         ...o,
                         pg_id: returnedPgId,
-                        sync: 1 
-                    }): o);
+                        sync: 1
+                    }) : o);
 
                 } else {
                     failCount++;
@@ -295,7 +295,7 @@ const ListKaeru = ({ onReload }: Props) => {
             alert(`一括同期が完了しました。\n成功: ${successCount}件\n失敗: ${failCount}件`);
         }
 
-        setCheckedIds([]); 
+        setCheckedIds([]);
         onReload();
     };
 
@@ -402,11 +402,11 @@ const ListKaeru = ({ onReload }: Props) => {
     const unSyncFilter = (shopValue: string) => {
         return filteredInquiry.filter(c => {
             const bl = String(c.black_list || '');
-            return (shopValue ? c.shop === shopValue : true) && 
-                (Number(c.sync) === 0 && 
-                bl.split('duplicate').length % 2 !== 0 && 
-                bl.split('support').length % 2 !== 0 && 
-                bl.split('black').length % 2 !== 0);
+            return (shopValue ? c.shop === shopValue : true) &&
+                (Number(c.sync) === 0 &&
+                    bl.split('duplicate').length % 2 !== 0 &&
+                    bl.split('support').length % 2 !== 0 &&
+                    bl.split('black').length % 2 !== 0);
         }).length;
     };
 
@@ -502,16 +502,16 @@ const ListKaeru = ({ onReload }: Props) => {
                         </div>
                     </>}
 
+                    <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+                        onClick={() => setEditId('new')}>新規登録</div>
+
                     {checkedIds.length > 0 && (
-                        <div className="bg-success text-white px-3 py-1 rounded m-1 d-flex justify-content-center align-items-center" 
+                        <div className="bg-success text-white px-3 py-1 rounded m-1 d-flex justify-content-center align-items-center"
                             style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                             onClick={() => handleSync(checkedIds)}>
                             <i className="fa-solid fa-check-double me-2"></i> {checkedIds.length}件を一括同期
                         </div>
                     )}
-
-                    <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-                        onClick={() => setEditId('new')}>新規登録</div>
                 </div>
 
                 <div className='p-0 inquiry'>
@@ -574,19 +574,19 @@ const ListKaeru = ({ onReload }: Props) => {
                                     ...shopItem,
                                     shop: shopFormate(shopItem.shop, shopItem.brand, shopArray) ?? ''
                                 }));
-                                
+
                                 return (
                                     <tr key={index} style={{ textAlign: 'left' }}
                                         className={isBlack(String(item.mail || ''), String(item.mobile || ''), bl) ? 'table-danger align-middle' : Number(item.sync) === 1 || bl.split('duplicate').length % 2 === 0 || bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 ? 'table-primary align-middle' : 'align-middle'}>
-                                        
+
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }} className={`${isSp ? '' : 'sticky-column'}`}>
                                             <div className="d-flex align-items-center justify-content-center gap-3">
                                                 {Number(item.sync) !== 1 && !isDup(item) && !isBlack(String(item.mail || ''), String(item.mobile || ''), bl) && (
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={checkedIds.includes(String(item.inquiry_id))} 
-                                                        onChange={() => handleCheck(String(item.inquiry_id))} 
-                                                        style={{ cursor: 'pointer', transform: 'scale(1.3)' }} 
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checkedIds.includes(String(item.inquiry_id))}
+                                                        onChange={() => handleCheck(String(item.inquiry_id))}
+                                                        style={{ cursor: 'pointer', transform: 'scale(1.3)' }}
                                                     />
                                                 )}
                                                 <>{bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 || itemShop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
@@ -601,7 +601,7 @@ const ListKaeru = ({ onReload }: Props) => {
                                             {isBlack(String(item.mail || ''), String(item.mobile || ''), bl) &&
                                                 <div className='text-danger mt-1'><i className="fa-solid fa-triangle-exclamation"></i><span style={{ fontSize: '9px' }}>ブラックリスト</span></div>}
                                         </td>
-                                        
+
                                         <td style={{ textAlign: 'center' }}>
                                             {item.note ?
                                                 <i className="fa-solid fa-magnifying-glass" style={{ cursor: 'pointer' }}
