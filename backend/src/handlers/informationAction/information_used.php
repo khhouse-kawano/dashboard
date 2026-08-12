@@ -7,7 +7,7 @@ $id = $data['id'] ?? '';
 // マスターデータの取得（全員共通）
 // ==========================================
 // 担当営業
-$sql_staff = "SELECT name, shop, category, section, period
+$sql_staff = "SELECT name, shop, category, section, period, position
         FROM staff_list WHERE category = 1;";
 $stmt_staff = $pdo->prepare($sql_staff);
 $stmt_staff->execute();
@@ -38,6 +38,12 @@ $sql_introductory = "SELECT * FROM introductory";
 $stmt_introductory = $pdo->prepare($sql_introductory);
 $stmt_introductory->execute();
 $response_introductory = $stmt_introductory->fetchAll(PDO::FETCH_ASSOC);
+
+
+$sql_broker = "SELECT *  FROM brokerage_listings WHERE master_data_id = ?";
+$stmt_broker = $pdo->prepare($sql_broker);
+$stmt_broker->execute([$id]);
+$response_broker = $stmt_broker->fetch(PDO::FETCH_ASSOC);
 
 // ==========================================
 // 個別データの取得（初期値は空のオブジェクト）
@@ -88,7 +94,8 @@ $result = [
     "interview" => $response_interview,
     "maker" => $response_maker,
     "introductory" => $response_introductory,
-    "pdf" => $response_pdf
+    "pdf" => $response_pdf,
+    "broker" => $response_broker
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

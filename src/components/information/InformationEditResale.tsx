@@ -13,14 +13,15 @@ import TableCall from './TableCall';
 import TableStatus from './TableStatus';
 import TableMedium from './TableMedium';
 import TableTextarea from './TableTextarea';
-import TableCompetitor from './TableCompetitor';
-import TableCompetitorPdf from './TableCompetitorPdf';
 import { calculateAge } from '../../utils/informationUtils';
 import { dateFormate } from '../../utils/informationUtils';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import PropertyRegister from '../database/PropertyRegister';
+import { BrokerData } from '../database/PropertyRegister';
+import { generateNewId } from '../database/databaseUtils';
 
-type Staff = { name: string; shop: string; category: number, section: string };
+type Staff = { name: string; shop: string; category: number, section: string, position: string };
 type Customer = Record<string, string>;
 type Medium = { id: number; medium: string, list_medium: number };
 type InterviewLog = {
@@ -101,6 +102,9 @@ const actionMap = {
         '媒介取得': 'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0',
     }
 };
+
+const positions = ['常務', '部長', '課長', '課長代理', '店長', '店長代理', '一般'];
+
 const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
     const { userName } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
@@ -171,6 +175,12 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
     const [introductoryList, setIntroductoryList] = useState<string[]>([]);
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
 
+    //以下媒介獲得用の状態管理
+    const [targetPropertyId, setTargetPropertyId] = useState<string>('');
+    const [editData, setEditData] = useState<Partial<BrokerData>>({});
+    const [isSaving, setIsSaving] = useState(false);
+
+
     const isSp = useIsSp();
 
     const safeParse = (data: any) => {
@@ -201,12 +211,19 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                 const response = await apiClient.post("", { request: "information", category, id });
 
                 setShopArray(categoryList);
-                setStaffArray(response.data.staff.filter(s => s.category === 1 && Number(s.period) === thisYear));
+                setStaffArray(response.data.staff
+                    .sort((a, b) => {
+                        const positionA = positions.indexOf(a.position);
+                        const positionB = positions.indexOf(b.position);
+                        return positionA - positionB
+                    })
+                    .filter(s => s.category === 1 && Number(s.period) === thisYear));
                 setMediumArray(response.data.medium.map(m => ({ ...m, list_medium: 1 })));
                 setOriginalPropertyList(response.data.property.filter(p => p.store_name === '国分ハウジンググループ中古住宅専門店').map(p => p.property_name));
                 setOriginalMakerList(response.data.maker);
                 setIntroductoryList(response.data.introductory.map(i => i.name));
-
+                const responseBroker = response.data.broker ?? {};
+                setEditData(responseBroker);
                 if (id !== 'new') {
                     setInformation(response.data.customer);
 
@@ -656,6 +673,33 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
         fetchData();
     }, [showDetail]);
 
+    const handleAddNew = () => {
+        const newId = generateNewId();
+        setTargetPropertyId(newId);
+        setEditData({ id: newId, kind: 'ledger' });
+    };
+
+    const handleUpdate = async () => {
+        if (!targetPropertyId) return;
+        setIsSaving(true);
+        try {
+            const payload = {
+                request: 'broker',
+                roll: 'update',
+                id: targetPropertyId,
+                data: editData
+            };
+            const response = await apiClient.post('', payload);
+            if (response.data.status === 'error') alert('更新に失敗しました');
+        } catch (e) {
+            console.error(e);
+            alert('更新に失敗しました。');
+        } finally {
+            setIsSaving(false);
+            setTargetPropertyId('');
+        }
+    };
+
     return (
         <>
             <Modal
@@ -1096,6 +1140,20 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                     </div>
                     <Modal.Footer className="bg-light border-top pb-3 pt-3" style={{ zoom: isSp ? 0.3 : 1 }}>
                         <div className="d-flex justify-content-end w-100 gap-2">
+                            {editData.id ? <button
+                                className="btn btn-warning btn-sm rounded-pill px-5 shadow-sm d-flex align-items-center"
+                                style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
+                                onClick={() => setTargetPropertyId(editData.id ?? '')}
+                            >
+                                <i className="fa-solid fa-check me-2"></i>媒介編集
+                            </button> : <button
+                                className="btn btn-warning btn-sm rounded-pill px-5 shadow-sm d-flex align-items-center"
+                                style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
+                                onClick={handleAddNew}
+                            >
+                                <i className="fa-solid fa-check me-2"></i>媒介追加
+                            </button>}
+
                             <button
                                 className="btn btn-primary btn-sm rounded-pill px-5 shadow-sm d-flex align-items-center"
                                 style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
@@ -1179,6 +1237,14 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                         </div></>}
                 </Modal.Body>
             </Modal >
+            <PropertyRegister
+                targetPropertyId={targetPropertyId}
+                setTargetPropertyId={setTargetPropertyId}
+                editData={editData} setEditData={setEditData}
+                staffList={[...new Set(staffArray.filter(s => s.shop === '中古住宅専門店' || s.shop === '不動産企画係').map(s => s.name))]}
+                isSaving={isSaving}
+                handleUpdate={handleUpdate}
+                customerId={information.id} />
         </>
     );
 };

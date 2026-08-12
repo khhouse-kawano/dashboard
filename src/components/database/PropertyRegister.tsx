@@ -17,7 +17,6 @@ const styles = {
 };
 
 export interface BrokerData {
-    // ... (既存の型定義そのまま)
     internal_id: number;
     id: string;
     kind: string | null;
@@ -69,10 +68,11 @@ type Props = {
     setEditData: React.Dispatch<React.SetStateAction<Partial<BrokerData>>>,
     staffList: string[],
     isSaving: boolean,
-    handleUpdate: () => void
+    handleUpdate: () => void,
+    customerId?: string,
 };
 
-const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, setEditData, staffList, isSaving, handleUpdate }: Props) => {
+const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, setEditData, staffList, isSaving, handleUpdate, customerId }: Props) => {
     const [customerList, setCustomerList] = useState<Record<string, string>[]>([]);
     const [propertyList, setPropertyList] = useState<Record<string, string>[]>([]);
 
@@ -143,6 +143,22 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
         setEditData(prev => ({ ...prev, [field]: value }));
     };
 
+    useEffect(() => {
+        if (!customerId || customerList.length === 0) return;
+
+        const targetCustomer = customerList.find(c => String(c.id) === String(customerId));
+        if (!targetCustomer) return;
+
+        const formattedData = {
+            id: targetCustomer.id ?? '',
+            name: targetCustomer.customer_contacts_name ?? '',
+            medium: targetCustomer.sales_promotion_name ?? '',
+            status: targetCustomer.status ?? ''
+        };
+        handleCustomerSelect(formattedData);
+
+    }, [customerId, customerList]);
+
     const handleCustomerSelect = (customer: { id: string, name: string, medium: string, status: string }) => {
         handleInputChange('master_data_id', customer.id);
         handleInputChange('seller', customer.name);
@@ -157,7 +173,6 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
         setShowPropertyDropdown(false);
     };
 
-    // 💡 連携ステータスを描画するヘルパー関数
     const renderLinkBadge = (id?: string | null) => {
         if (id) {
             return (
@@ -175,7 +190,10 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
 
     return (
         <>
-            <Modal show={!!targetPropertyId} onHide={() => setTargetPropertyId('')} size="lg" centered>
+            <Modal show={!!targetPropertyId} onHide={() => {
+                setTargetPropertyId('');
+                setEditData({});
+            }} size="lg" centered>
                 <Modal.Header closeButton className="border-0 pb-0">
                     <Modal.Title style={{ color: '#495057', fontSize: '16px', fontWeight: 'bold', letterSpacing: '0.5px' }}>
                         <i className="bi bi-pencil-square me-2" style={{ color: '#a0aec0' }}></i>物件情報の編集
@@ -187,7 +205,7 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                         {/* 顧客連携 */}
                         <div className="col-12 position-relative">
                             <label style={styles.label}>
-                                <i className="bi bi-link-45deg me-1 text-primary"></i>顧客連携 
+                                <i className="bi bi-link-45deg me-1 text-primary"></i>顧客連携
                                 {renderLinkBadge(editData.master_data_id)}
                             </label>
                             <input
@@ -280,12 +298,29 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                             <input type="text" style={styles.input} value={editData.addr || ''} onChange={e => handleInputChange('addr', e.target.value)} />
                         </div>
 
-                        {/* 価格・担当 */}
-                        <div className="col-md-6">
+                        {/* 💡 価格・手数料・担当 */}
+                        <div className="col-md-4">
                             <label style={styles.label}>販売価格 (円)</label>
-                            <input type="number" style={{ ...styles.input, color: '#e53e3e', fontWeight: 'bold' }} value={editData.price || ''} onChange={e => handleInputChange('price', Number(e.target.value))} />
+                            <input
+                                type="number"
+                                style={{ ...styles.input, color: '#e53e3e', fontWeight: 'bold' }}
+                                value={editData.price || ''}
+                                onChange={e => handleInputChange('price', Number(e.target.value))}
+                            />
                         </div>
-                        <div className="col-md-6">
+                        <div className="col-md-4">
+                            <label style={styles.label}>仲介手数料 (円)</label>
+                            <input
+                                type="number"
+                                style={styles.input}
+                                value={editData.fee || ''}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    handleInputChange('fee', val ? Number(val) : null);
+                                }}
+                            />
+                        </div>
+                        <div className="col-md-4">
                             <label style={styles.label}>担当営業</label>
                             <select style={styles.input} value={editData.staff || ''} onChange={e => handleInputChange('staff', e.target.value)}>
                                 <option value="">選択してください</option>
@@ -316,19 +351,26 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                             </select>
                         </div>
 
-                        {/* 状況・ステータス */}
-                        <div className="col-md-6">
+                        {/* 💡 状況・ステータス (3カラムに変更) */}
+                        <div className="col-md-4">
                             <label style={styles.label}>連絡頻度 (freq)</label>
                             <select style={styles.input} value={editData.freq || ''} onChange={e => handleInputChange('freq', e.target.value)}>
                                 <option value="">選択してください</option>
                                 {['1週間', '2週間', '1か月'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         </div>
-                        <div className="col-md-6">
+                        <div className="col-md-4">
                             <label style={styles.label}>物件ステータス (propStatus)</label>
                             <select style={styles.input} value={editData.propStatus || ''} onChange={e => handleInputChange('propStatus', e.target.value)}>
                                 <option value="">選択してください</option>
                                 {['アクティブ', '成約完了', '媒介終了'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        </div>
+                        <div className="col-md-4">
+                            <label style={styles.label}>フェーズ (phase)</label>
+                            <select style={styles.input} value={editData.phase || ''} onChange={e => handleInputChange('phase', e.target.value)}>
+                                <option value="">選択してください</option>
+                                {['リード受信', '架電中', '通電済', '訪問査定予定', '訪問査定済', '媒介受託', '追客終了'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         </div>
 

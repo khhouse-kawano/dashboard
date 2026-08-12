@@ -9,8 +9,11 @@ import { useIsSp } from '../../utils/isSp';
 import { generateULID } from '../../utils/createULID';
 import apiClient from '../../utils/apiClient';
 import { toHalfWidth } from './databaseUtils';
+import PropertyRegister from './PropertyRegister';
+import { BrokerData } from './PropertyRegister';
+import { generateNewId } from './databaseUtils';
 
-type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
+type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, position: string };
 type CustomerList = Record<string, string>;
 type CallAction = {
     day: string;
@@ -34,6 +37,8 @@ type Props = {
     onReload: () => void,
     key: number
 };
+
+const positions = ['常務', '部長', '課長', '課長代理', '店長', '店長代理', '一般'];
 
 const DatabaseResale = ({ onReload, key }: Props) => {
     const { authority, category } = useContext(AuthContext);
@@ -68,6 +73,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
     const skipPageReset = useRef(false);
     const [integrate, setIntegrate] = useState<CustomerList>({});
     const [integrateList, setIntegrateList] = useState<CustomerList[]>([]);
+    const [broker, setBroker] = useState<Record<string, string>[]>([]);
+
     const isSp = useIsSp();
 
     const formate = (value: string) => {
@@ -83,18 +90,25 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         const fetchData = async () => {
             try {
                 const response = await apiClient.post("", { request: 'database', category });
-                await setOriginalDatabase(response.data.customer);
-                await setShopArray(categoryList);
-                await setMediumArray(response.data.medium.map(item => item.medium));
-                await setDisplayLength(response.data.customer.length);
-                await setStaffArray(response.data.staff);
+                setOriginalDatabase(response.data.customer);
+                setShopArray(categoryList);
+                setMediumArray(response.data.medium.map(item => item.medium));
+                setDisplayLength(response.data.customer.length);
+                const responseStaff = response.data.staff.sort((a, b) => {
+                    const positionA = positions.indexOf(a.position);
+                    const positionB = positions.indexOf(b.position);
+                    return positionA - positionB
+                })
+                setStaffArray(responseStaff);
                 const familyId = response.data.family.map(f => f.id);
-                await setFamilyList(familyId);
+                setFamilyList(familyId);
                 const filteredCallResponse = response.data.call.map(item => ({
                     ...item,
                     call_log: item.call_log ? JSON.parse(item.call_log) : []
                 }))
-                await setFirstCallDate(filteredCallResponse);
+                setFirstCallDate(filteredCallResponse);
+                const filtered = response.data.broker.filter(b => b.kind === 'ledger' && b.show_dashboard === 1 && Boolean(b.master_data_id));
+                setBroker(filtered);
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -273,6 +287,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         const fetchData = async () => {
             const response = await apiClient.post("", { request: 'database', category });
             setOriginalDatabase(response.data.customer);
+            const filtered = response.data.broker.filter(b => b.kind === 'ledger' && b.show_dashboard === 1 && Boolean(b.master_data_id));
+            setBroker(filtered);
         }
 
         await fetchData();
@@ -315,6 +331,46 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         };
     };
 
+    // 媒介獲得用の状態管理
+    const [targetPropertyId, setTargetPropertyId] = useState<string>('');
+    const [editData, setEditData] = useState<Partial<BrokerData>>({});
+    const [isSaving, setIsSaving] = useState(false);
+    const [brokerCustomer, setBrokerCustomer] = useState('');
+
+    useEffect(() => {
+        if (!targetPropertyId) return;
+        const targetPropertyData = broker.find(b => b.id === targetPropertyId);
+        setEditData(targetPropertyData ?? {});
+    }, [targetPropertyId])
+
+    const handleUpdate = async () => {
+        if (!targetPropertyId) return;
+        setIsSaving(true);
+        try {
+            const payload = {
+                request: 'broker',
+                roll: 'update',
+                id: targetPropertyId,
+                data: editData
+            };
+            const response = await apiClient.post('', payload);
+            if (response.data.status === 'error') alert('更新に失敗しました');
+            const filtered = response.data.brokerage.filter(b => b.kind === 'ledger' && b.show_dashboard === 1 && Boolean(b.master_data_id));
+            setBroker(filtered);
+        } catch (e) {
+            console.error(e);
+            alert('更新に失敗しました。');
+        } finally {
+            setIsSaving(false);
+            setTargetPropertyId('');
+        }
+    };
+
+    const handleAddNew = () => {
+        const newId = generateNewId();
+        setTargetPropertyId(newId);
+        setEditData({ id: newId, kind: 'ledger' });
+    };
     return (
         <>
             <div className='content database bg-white p-2'>
@@ -469,16 +525,15 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                     <td>顧客名</td>
                                     <td>担当営業</td>
                                     <td>ステータス</td>
+                                    <td>架電状況</td>
+                                    <td>架電件数</td>
                                     <td>反響日</td>
                                     <td>初回通電日</td>
-                                    <td>最終架電日</td>
                                     <td>次回架電日</td>
                                     <td>ランク</td>
                                     <td>販促媒体</td>
                                     <td>住所</td>
                                     <td>連絡先</td>
-                                    <td>架電状況</td>
-                                    <td>架電件数</td>
                                     <td>{trash === 1 ? '非表示' : '元に戻す'}</td>
                                 </tr>
                                 {filteredDatabase
@@ -517,6 +572,9 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                         const isDuplicate =
                                             duplicateMailIds.some(id => id !== item.id) ||
                                             duplicatePhoneIds.some(id => id !== item.id);
+                                        const targetBroker = broker.find(b => b.master_data_id === item.id);
+                                        const isBroker = targetBroker && item.shop === '売り:ポータル';
+                                        const isBrokerNone = !targetBroker && item.shop === '売り:ポータル';
                                         return <tr key={index}>
                                             <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
                                                 onClick={() => {
@@ -527,19 +585,32 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                                     onClick={() => handleCopy(item.id)}><i className="fa-solid fa-user-plus"></i></div></td>
                                             <td>{item.shop}</td>
                                             <td>{isDuplicate && <span style={{ cursor: 'pointer' }}
-                                                onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}{item.customer ?? ''}</td>
+                                                onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}{item.customer ?? ''}
+                                                {isBroker && <span className='bg-warning rounded ms-1 p-1 fw-bold'
+                                                    style={{ fontSize: '9px', textDecoration: 'underline dotted', cursor: 'pointer' }}
+                                                    onClick={() => {
+                                                        setBrokerCustomer(item.id);
+                                                        setTargetPropertyId(targetBroker?.id);
+                                                    }}>
+                                                    媒介編集</span>}
+                                                {isBrokerNone && <span className='bg-danger rounded ms-1 p-1 fw-bold text-white'
+                                                    style={{ fontSize: '9px', textDecoration: 'underline dotted', cursor: 'pointer' }}
+                                                    onClick={() => {
+                                                        setBrokerCustomer(item.id);
+                                                        handleAddNew();
+                                                    }}>
+                                                    媒介追加</span>}</td>
                                             <td>{item.staff ?? ''}</td>
                                             <td>{item.status ?? ''}</td>
+                                            <td>{item.call_status}</td>
+                                            <td>{item.call_log || '0'}</td>
                                             <td>{formate(item.register)}</td>
                                             <td>{formate(firstDate)}</td>
-                                            <td>{formate(lastDate)}</td>
                                             <td>{formate(nextDate)}</td>
                                             <td>{(item.rank ?? '').replace('ランク', '')}</td>
                                             <td>{item.medium}</td>
                                             <td style={{ textAlign: 'left' }}>{item.full_address}</td>
                                             <td style={{ textAlign: 'left' }}>{item.mail}<br />{item.phone_number}</td>
-                                            <td>{item.call_status}</td>
-                                            <td>{item.call_log || '0'}</td>
                                             <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>
                                         </tr>
                                     })}
@@ -554,6 +625,14 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                 callStatusShow={callStatusShow}
                 setCallStatusShow={setCallStatusShow}
             />
+            <PropertyRegister
+                targetPropertyId={targetPropertyId}
+                setTargetPropertyId={setTargetPropertyId}
+                editData={editData} setEditData={setEditData}
+                staffList={[...new Set(staffArray.filter(s => s.shop === '中古住宅専門店' || s.shop === '不動産企画係').map(s => s.name))]}
+                isSaving={isSaving}
+                handleUpdate={handleUpdate}
+                customerId={brokerCustomer} />
         </>
     )
 }

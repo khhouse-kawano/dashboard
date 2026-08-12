@@ -69,12 +69,20 @@ $stmt_family->execute();
 $response_family = $stmt_family->fetchAll(PDO::FETCH_ASSOC);
 
 
+// 媒介取得
+$sql_broker = "SELECT *  FROM brokerage_listings";
+$stmt_broker = $pdo->prepare($sql_broker);
+$stmt_broker->execute();
+$response_broker = $stmt_broker->fetchAll(PDO::FETCH_ASSOC);
+
+
 $result = [
     "staff" => $response_staff,
     "medium" => $response_medium,
     "customer" => $response_customer,
     "call" => $response_call,
-    "family" => $response_family
+    "family" => $response_family,
+    "broker" => $response_broker
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

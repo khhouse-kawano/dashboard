@@ -31,6 +31,7 @@ import MapRouter from "./components/map/MapRouter";
 import { useIsSp } from './utils/isSp';
 import CampaignRouter from './components/campaign/CampaignRouter';
 import DatabaseBroker from "./components/database/DatabaseBroker";
+import MonthlySalesReport from "./components/MonthlySalesReport";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
 
@@ -128,6 +129,7 @@ function AppInner() {
             <Route path="/photo" element={<Photo />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
             <Route path="/broker" element={<DatabaseBroker />} />
+            <Route path="/report" element={<MonthlySalesReport/>} />
             <Route path="*" element={<Category />} />
 
           </Routes>

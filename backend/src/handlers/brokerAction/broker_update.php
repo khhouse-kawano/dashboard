@@ -12,7 +12,7 @@ $allowedColumns = [
     'baikaiType', 'currentStatus', 'freq', 'lastReportDate',
     'reinsDate', 'priceRevDate', 'propStatus', 'keyStatus', 'keyInfo',
     'kind', 'master_data_id', 'seller', 'property_db_id', 'property_db_name',
-    'show_dashboard'
+    'show_dashboard', 'fee', 'phase'
 ];
 
 // UPSERT用の配列
