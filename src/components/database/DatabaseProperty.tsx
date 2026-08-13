@@ -10,6 +10,7 @@ import InformationEditResale from '../information/InformationEditResale';
 import apiClient from '../../utils/apiClient';
 import PropertySummary from './PropertySummary';
 import { removeAllSpaces } from './databaseUtils';
+import SuumoPropertySummary from './SuumoPropertySummary';
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
@@ -62,6 +63,7 @@ const DatabaseProperty = () => {
     const [athomeSummary, setAthomeSummary] = useState<Record<string, string>[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'pv_total', direction: 'desc' });
     const [editId, setEditId] = useState('');
+    const [showSuumoSummary, setShowSuumoSummary] = useState(false);
 
     const [portalModal, setPortalModal] = useState<{ type: 'SUUMO' | "HOME'S" | 'athome', data: Record<string, string> } | null>(null);
 
@@ -282,10 +284,8 @@ const DatabaseProperty = () => {
                         <input className="form-check-input shadow-sm" type='checkbox' id="checkContract" onChange={() => setCheckedContract(!checkedContract)} checked={checkedContract} />
                         <label className="form-check-label" htmlFor="checkContract">契約済みの物件を表示</label>
                     </div>
-                    <div className="form-check">
-                        <input className="form-check-input shadow-sm" type='checkbox' id="checkMap" onChange={() => setCheckedMap(!checkedMap)} checked={checkedMap} />
-                        <label className="form-check-label" htmlFor="checkMap">MAPを表示</label>
-                    </div>
+                    <div className='text-white bg-primary shadow px-2 py-1 rounded'
+                    style={{cursor: 'pointer'}} onClick={() => setShowSuumoSummary(true)}>SUUMO掲載順位</div>
                 </div>
 
                 {/* ページネーション & 件数表示 */}
@@ -556,6 +556,7 @@ const DatabaseProperty = () => {
             />
             {category === 'spec' && <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />}
             {category === 'used' && <InformationEditResale id={editId} token={token} onClose={closeInformationEdit} authority={authority} />}
+            <SuumoPropertySummary showSuumoSummary={showSuumoSummary} setShowSuumoSummary={setShowSuumoSummary}/>
         </>
     );
 }

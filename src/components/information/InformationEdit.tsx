@@ -713,8 +713,8 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={{ ...labelStyle, width: '10%' }}>連絡先</td>
                                         <td style={{ ...valueStyle, width: '40%' }}>
                                             <div>
-                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_phone_number' defaultValue='電話番号①' widthValue='100px' numeric={true} />
-                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_mobile_phone_number' defaultValue='電話番号' widthValue='100px' numeric={true} />
+                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_mobile_phone_number' defaultValue='電話番号①' widthValue='100px' numeric={true} />
+                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_phone_number' defaultValue='電話番号②' widthValue='100px' numeric={true} />
                                             </div>
                                             <div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_email' defaultValue='メールアドレス①' />

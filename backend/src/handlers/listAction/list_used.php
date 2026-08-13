@@ -22,7 +22,7 @@ $response_shop = $stmt_shop->fetchAll(PDO::FETCH_ASSOC);
 
 
 // スタッフ
-$sql_staff = "SELECT name, shop , period, section FROM staff_list";
+$sql_staff = "SELECT name, shop , period, section, position FROM staff_list";
 $stmt_staff = $pdo->prepare($sql_staff);
 $stmt_staff->execute();
 $response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
