@@ -11,6 +11,7 @@ import InformationEdit from '../information/InformationEdit';
 import { useIsSp } from '../../utils/isSp';
 import { useDebounce } from './useDebounce';
 import apiClient from '../../utils/apiClient';
+import { safeParse } from './databaseUtils';
 
 type shopList = { brand: string, shop: string, section: string };
 type CustomerList = Record<string, string>;
@@ -42,7 +43,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const [basicLength, setBasicLength] = useState<number>(20);
     const [trash, setTrash] = useState<number>(1);
     const { token } = useContext(AuthContext);
-    const [familyList, setFamilyList] = useState<string[]>([]);
+    const [familyList, setFamilyList] = useState<Record<string, string>[]>([]);
     const [familyStatus, setFamilyStatus] = useState<boolean>(false);
     const [callStatusShow, setCallStatusShow] = useState(false);
     const [surveyShow, setSurveyShow] = useState(false);
@@ -59,6 +60,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
     const staffSearch = useDebounce('', 300);
     const phoneSearch = useDebounce('', 300);
     const addressSearch = useDebounce('', 300);
+    const familySearch = useDebounce('', 300);
 
     const isSp = useIsSp();
 
@@ -101,9 +103,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                 setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
                 setMediumArray(response.data.medium.filter((item: MediumType) => item.list_medium === 1).map((item: MediumType) => item.medium));
                 setDisplayLength(customers.length);
-
-                const familyId = response.data.family.map((f: any) => f.id);
-                setFamilyList(familyId);
+                setFamilyList(response.data.family);
                 setIntroductoryList(response.data.introductory.map((i: any) => i.name));
                 setEventList(response.data.event);
 
@@ -156,6 +156,15 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
 
         const cleanFormattedName = formattedName.replace(/[\s\u3000]+/g, '');
 
+        const familyIds = familyList.map(f => f.id);
+        const familyFlatList = familyList.flatMap(f => {
+            const parsedList = safeParse(f.family_info) || [];
+            return parsedList.map(info => ({
+                name: info.name,
+                id: f.id
+            }));
+        });
+        const filteredFamilyID = familyFlatList.filter(f => f.name.includes(familySearch.debouncedValue)).map(f => f.id);
         const result = originalDatabase.filter(item => {
             return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
                 && (trash === 0 ? (Number(item.trash) ?? 0) !== 1 : true)
@@ -173,8 +182,9 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                 && ((phoneSearch.debouncedValue || nameSearch.debouncedValue) ? strIncludes(item.phone_number, formattedNumber) : true)
                 && (formattedAddress ? strIncludes(item.full_address, formattedAddress) : true)
                 && (addressSearch.debouncedValue ? strIncludes(item.search_address, addressSearch.debouncedValue) : true)
+                && (familySearch.debouncedValue ? filteredFamilyID.includes(item.id) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
-                && (familyStatus ? familyList.includes(item.id) : true)
+                && (familyStatus ? familyIds.includes(item.id) : true)
                 && (searchedEvent ? (item.event === searchedEvent && item.medium === 'イベント') : true)
                 && (snapStatus ? item.k_snap : true);
         });
@@ -188,7 +198,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         originalDatabase, selectedShop, selectedRegister, selectedReserve,
         selectedRank, selectedMedium, selectedStatus, nameSearch.debouncedValue,
         staffSearch.debouncedValue, phoneSearch.debouncedValue, callStatus, addressSearch.debouncedValue,
-        selectedIntroductory, trash, familyList, familyStatus,
+        familySearch.debouncedValue, selectedIntroductory, trash, familyList, familyStatus,
         snapStatus, searchedEvent
     ]);
 
@@ -212,6 +222,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         phoneSearch.debouncedValue,
         callStatus,
         addressSearch.debouncedValue,
+        familySearch.debouncedValue,
         trash,
         familyList,
         familyStatus,
@@ -428,6 +439,10 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                         <div className="m-1">
                             <input className="target" placeholder='住所で検索'
                                 value={addressSearch.inputValue} onChange={addressSearch.onChange} />
+                        </div>
+                        <div className="m-1">
+                            <input className="target" placeholder='家族名で検索'
+                                value={familySearch.inputValue} onChange={familySearch.onChange} />
                         </div>
                     </>}
                     <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}

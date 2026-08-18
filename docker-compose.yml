@@ -7,14 +7,12 @@ services:
     volumes:
       - ./backend/src:/var/www/html
     environment:
-      # ホスト名をMariaDBのコンテナ名に合わせる
       - DB_HOST=mariadb-db
       - DB_NAME=local_db
       - DB_USER=local_user
       - DB_PASS=local_password
 
   mariadb-db:
-    # ここを MySQL から MariaDB に変更！
     image: mariadb:10.11
     ports:
       - "3307:3306"

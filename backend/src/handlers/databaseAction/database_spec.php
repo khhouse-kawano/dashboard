@@ -42,6 +42,7 @@ $response_interview = $stmt_interview->fetchAll(PDO::FETCH_ASSOC);
 $sql_customer = "SELECT
   id,
   COALESCE(customer_contacts_name, '') AS customer,
+  COALESCE(customer_contacts_name_kana, '') AS customer_contacts_name_kana,
   COALESCE(in_charge_store, '') AS shop,
   COALESCE(in_charge_user, '') AS staff,
   COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') AS rank,

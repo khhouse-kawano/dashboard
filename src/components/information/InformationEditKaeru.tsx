@@ -776,7 +776,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                             {(information[idMapping('担当営業')] === `${information.in_charge_store} 管理` && information.first_interviewed_user)
                                                 && <div className="ms-2">変更前:{safeFormate(information.first_interviewed_user)}({safeFormate(information.last_action_step_migration_item_name)})</div>}
                                         </td>
-                                        <td style={labelStyle}><OverlayTriggerComponent label="ステータス" desc={(<>現在の進捗に合わせて、常に最新の状態へ更新してください。<br />※「契約済み」への変更は課長が行います。</>)} /></td>                                        <td style={valueStyle}>
+                                        <td style={labelStyle}><OverlayTriggerComponent label="ステータス" desc={(<>現在の進捗に合わせて、常に最新の状態へ更新してください。</>)} /></td>                                        <td style={valueStyle}>
                                             <TableStatus
                                                 information={information}
                                                 setInformation={setInformation}

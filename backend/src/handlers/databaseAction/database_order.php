@@ -71,7 +71,7 @@ $response_customer = $stmt_customer->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 家族情報
-$sql_family = "SELECT id FROM family_info";
+$sql_family = "SELECT id, family_info FROM family_info WHERE family_info IS NOT NULL";
 $stmt_family = $pdo->prepare($sql_family);
 $stmt_family->execute();
 $response_family = $stmt_family->fetchAll(PDO::FETCH_ASSOC);

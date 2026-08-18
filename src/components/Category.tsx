@@ -31,8 +31,14 @@ const Category = () => {
             alert('閲覧権限がありません');
             return;
         }
+        const navigateMap = {
+            order: '/company',
+            spec: '/company',
+            used: '/company',
+            planner: '/report'
+        };
         await setCategory(categoryValue);
-        await navigate('/company');
+        await navigate(navigateMap[categoryValue] ?? '/home');
     };
 
     return (
@@ -43,12 +49,14 @@ const Category = () => {
                     <div className="position-absolute" style={{ bottom: '-10px', right: '3px' }}>ver{version}</div>
                 </div>
                 <div className="d-md-flex align-items-center justify-content-center home_menu">
-                    <div className="bg-primary text-center text-white py-2 py-md-3 px-4 px-md-5 rounded-pill pointer my-2" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
+                    <div className="bg-primary text-center text-white py-2 py-md-3 px-4 px-md-5 rounded-pill pointer my-2 me-md-2" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
                         onClick={() => goToDashboard('order')}>注文営業</div>
-                    <div className="bg-success text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill mx-md-3 my-4 pointer" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
+                    <div className="bg-success text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill me-md-2 my-4 pointer" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
                         onClick={() => goToDashboard('spec')}>建売営業</div>
+                    <div className="bg-info text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill pointer me-md-2 my-4" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
+                        onClick={() => goToDashboard('planner')}>不動産企画係</div>
                     <div className="bg-warning text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill pointer my-2" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
-                        onClick={() => goToDashboard('used')}>中古住宅</div>
+                        onClick={() => goToDashboard('used')}>中古リノベ</div>
                 </div>
                 <div style={{ width: '90%', maxWidth: '568px', margin: '30px auto 0', height: '180px', overflowY: 'scroll' }}>
                     <Table striped>

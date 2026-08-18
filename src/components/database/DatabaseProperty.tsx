@@ -71,7 +71,7 @@ const DatabaseProperty = () => {
     const categoryList = ['買い:ポータル', '売り:ポータル', '買い:中古リノベ'];
     const categoryMapping: Record<string, string> = {
         spec: '株式会社 国分ハウジング不動産 本店',
-        used: '国分ハウジンググループ中古住宅専門店'
+        planner: '国分ハウジンググループ中古住宅専門店'
     };
 
     useEffect(() => {

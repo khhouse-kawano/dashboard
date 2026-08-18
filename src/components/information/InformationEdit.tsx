@@ -381,7 +381,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
 
         const masterFormData = new FormData();
 
-        const postData = {
+        const postData: Record<string, any> = {
             ...updatedMasterData,
             request: 'information',
             roll: 'customer_info',
@@ -389,18 +389,22 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
             category,
         };
 
+        // マスターデータの追加
         Object.keys(postData).forEach(key => {
             const value = postData[key];
-            masterFormData.append(key, value !== null && value !== undefined ? value : '');
+            // nullやundefinedは空文字に、それ以外はStringにして追加
+            masterFormData.append(key, value !== null && value !== undefined ? String(value) : '');
         });
 
-        if (competitorPdfFile) {
-            const existingFiles = competitorPdfFile
-                .filter(item => !item.file && item.path)
-                .map(item => ({ name: item.name, path: item.path, staff: item.staff }));
+        // 💡 修正: existingFilesはファイルがない場合でも必ず送信する（PHP側のisset判定をクリアするため）
+        const existingFiles = (competitorPdfFile || [])
+            .filter(item => !item.file && item.path)
+            .map(item => ({ name: item.name, path: item.path, staff: item.staff }));
 
-            masterFormData.append('existing_pdfs', JSON.stringify(existingFiles));
+        masterFormData.append('existing_pdfs', JSON.stringify(existingFiles));
 
+        // 💡 修正: 新規アップロードファイル（fileプロパティがあるもの）をappend
+        if (competitorPdfFile && competitorPdfFile.length > 0) {
             competitorPdfFile.forEach((item) => {
                 if (item.file) {
                     masterFormData.append('competitor_pdf_files[]', item.file);
@@ -410,15 +414,23 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
             });
         }
 
+        // デバッグ用: FormDataの中身を確認
         for (let [key, value] of (masterFormData as any).entries()) {
-            console.log(`FormDataの中身 - ${key}:`, value);
+            console.log(`FormDataの中身 - ${key}:`, value instanceof File ? value.name : value);
         }
 
         try {
-            await apiClient.post("", masterFormData);
+            // FormDataを送信
+            await axios.post(process.env.REACT_APP_XSERVER_API as string, masterFormData, {
+                headers: {
+                    'Authorization': '4081Kokubu',
+                    'Token': token || '',
+                }
+            });
         } catch (error) {
             console.error("データ保存エラー:", error);
         }
+
 
         const logJson = JSON.stringify(information);
 

@@ -119,3 +119,22 @@ export const getContractStatusInfo = (remainingDays: number | null) => {
         return { label: '★ 期限切れ', color: 'bg-danger' };
     }
 };
+
+
+export const kataToHira = (str: string | null | undefined): string => {
+    if (!str) return '';
+    return str.replace(/[\u30a1-\u30f6]/g, (match) => {
+        const chr = match.charCodeAt(0) - 0x60;
+        return String.fromCharCode(chr);
+    });
+};
+
+export const safeParse = (data: any) => {
+    if (typeof data !== 'string' || data.trim() === '') return data ?? [];
+    try {
+        return JSON.parse(data);
+    } catch (e) {
+        console.error("JSONの解析に失敗しました。不正なデータです:", data);
+        return [];
+    }
+};

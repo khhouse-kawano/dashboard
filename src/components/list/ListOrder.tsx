@@ -11,7 +11,7 @@ import { generateULID } from '../../utils/createULID';
 import { monthFormate, handleBlack, toHalfWidth } from './listUtils';
 import { useIsSp } from '../../utils/isSp';
 import OrderModal from './OrderModal';
-import SmileFestival from './SmileFestival';
+import SmileFestival from './ListEvent';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -438,7 +438,7 @@ const ListOrder = ({ onReload }: Props) => {
 
 
     // 特設イベント用
-    const eventTitle = '住まいるフェスティバル';
+    const eventTitle = '集客イベント';
     const [eventSummary, setEventSummary] = useState(false);
 
     return (

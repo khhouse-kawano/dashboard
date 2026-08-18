@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
-import Calendar from "./components/Calendar";
+import Calendar from "./components/calendar/Calendar";
 import Category from "./components/Category";
 import ShopRouter from './components/shop/ShopRouter';
 import BudgetAccounting from "./components/BudgetAccounting";
@@ -32,6 +32,10 @@ import { useIsSp } from './utils/isSp';
 import CampaignRouter from './components/campaign/CampaignRouter';
 import DatabaseBroker from "./components/database/DatabaseBroker";
 import MonthlySalesReport from "./components/MonthlySalesReport";
+import InsideSales from "./components/insideSales/InsideSales";
+import LeadBuy from "./components/lead/LeadBuy";
+import LeadSell from "./components/lead/LeadSell";
+import LeadOpportunity from "./components/lead/LeadOpportunity";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
 
@@ -130,6 +134,10 @@ function AppInner() {
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
             <Route path="/broker" element={<DatabaseBroker />} />
             <Route path="/report" element={<MonthlySalesReport/>} />
+            <Route path="/insideSales" element={<InsideSales/>} />
+            <Route path="/leadBuy" element={<LeadBuy/>} />
+            <Route path="/leadSell" element={<LeadSell/>} />
+            <Route path="/leadOpportunity" element={<LeadOpportunity/>} />
             <Route path="*" element={<Category />} />
 
           </Routes>

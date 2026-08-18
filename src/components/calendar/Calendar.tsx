@@ -2,9 +2,10 @@ import React, { useState, useEffect, useContext, useCallback } from 'react'
 import { useLocation } from "react-router-dom";
 import Table from "react-bootstrap/Table";
 import axios from "axios";
-import { colorCodes } from "../utils/colors";
+import { colorCodes } from "../../utils/colors";
 import Modal from 'react-bootstrap/Modal';
-import IceWorld from './IceWorld';
+import IceWorld from '../IceWorld';
+import CalendarHeader from './CalendarHeader';
 
 type Calendar = { id: number, shop: string, startDate: string, endDate: string, category: string, title: string, flag: number, color: string, note: string, url: string };
 type ResponseChange = {
@@ -302,21 +303,7 @@ const Company = () => {
         setResponse(filteredResponse);
     }, [weeks, calendar, targetMonth, targetShop, display, lastDay, modalOriginalList, getColoredEvents]);
 
-    const nextMonth = () => {
-        const [year, month] = targetMonth.split('/').map(Number);
-        const next = new Date(year, month, 1);
-        const y = next.getFullYear();
-        const m = String(next.getMonth() + 1).padStart(2, '0');
-        setTargetMonth(`${y}/${m}`);
-    };
 
-    const beforeMonth = () => {
-        const [year, month] = targetMonth.split('/').map(Number);
-        const prev = new Date(year, month - 2, 1);
-        const y = prev.getFullYear();
-        const m = String(prev.getMonth() + 1).padStart(2, '0');
-        setTargetMonth(`${y}/${m}`);
-    };
 
     const modalOpen = async (date: number) => {
         setModalDay(date);
@@ -513,59 +500,26 @@ const Company = () => {
         });
     };
 
-
+    const calendarStyle = { width: '90%', margin: '0 auto', letterSpacing: '1px', fontSize: '12px' };
+    const calendarListStyle = { marginTop: '85px' }
     return (
         <>
             <div className='bg-white p-0 w-100'>
-                <div className="event_calender">
-                    <div className="d-flex justify-content-between global_bar my-3 align-items-center calendar_menu">
-                        <div onClick={beforeMonth} className='bg-primary text-white py-2 px-3 rounded-pill' style={{ cursor: 'pointer' }}>前の月</div>
-                        <div className="d-flex align-items-center position-relative">
-                            <div className="me-2">{targetMonth.replace('/', '年')}月</div>
-                            <div className="me-2">
-                                <div onClick={() => {
-                                    setShow(true);
-                                    setSummary(true);
-                                }} className='bg-light text-dark border py-2 px-4 rounded-pill' style={{ cursor: 'pointer' }}>
-                                    反響集計
-                                </div>
-                            </div>
-                            <div className="me-2">
-                                <div onClick={() => setTargetMonth(`${year}/${String(month).padStart(2, '0')}`)}
-                                    className='bg-light text-dark border py-2 px-4 rounded-pill'
-                                    style={{ cursor: 'pointer' }}>
-                                    今月
-                                </div>
-                            </div>
-                            <div className="me-2">
-                                <div onClick={() => {
-                                    setListShop('');
-                                    setDisplay(display === 'list' ? 'shop' : 'list');
-                                }} className='bg-light text-dark border py-2 px-4 rounded-pill' style={{ cursor: 'pointer' }}>
-                                    {display === 'list' && '店舗表示'}{display === 'shop' && '全体表示'}
-                                </div>
-                            </div>
-                            <div className='me-2'>
-                                <select className='target' onChange={(e) => {
-                                    setTargetShop(e.target.value);
-                                }} disabled={display === 'list'}>
-                                    <option value="" selected={targetShop === ''}>店舗を選択</option>
-                                    <option value="iceWorld">アイスワールド</option>
-                                    {shopList.map((shop, index) => <option value={shop.shop} key={index} selected={targetShop === shop.shop}>{shop.shop.replace('khg', 'KHG')}</option>)}
-                                </select>
-                            </div>
-                            {display === 'shop' && <div className="calendarResponse menu">
-                                <div className="d-flex">
-                                    <div className="response sample register px-2">新規来場者:{response.filter(r => r.category === 'reserved').reduce((acc, cur) => acc + cur.count, 0)}名</div>
-                                    <div className="response sample new px-2">有効新規数:{response.filter(r => r.category === 'new').reduce((acc, cur) => acc + cur.count, 0)}名</div>
-                                    <div className="response sample appointment px-2">次アポ数:{response.filter(r => r.category === 'next').reduce((acc, cur) => acc + cur.count, 0)}名</div>
-                                    <div className="response sample listed px-2">管理客:{response.filter(r => r.category === 'registered').reduce((acc, cur) => acc + cur.count, 0)}名</div>
-                                </div>
-                            </div>}
-                        </div>
-                        <div onClick={nextMonth} className='bg-primary text-white py-2 px-3 rounded-pill' style={{ cursor: 'pointer' }}>次の月</div>
-                    </div>
-                    <div className="calendar_area">
+                <div style={calendarStyle}>
+                    <CalendarHeader
+                        targetMonth={targetMonth}
+                        setTargetMonth={setTargetMonth}
+                        setShow={setShow}
+                        setSummary={setSummary}
+                        setListShop={setListShop}
+                        setDisplay={setDisplay}
+                        display={display}
+                        targetShop={targetShop}
+                        setTargetShop={setTargetShop}
+                        shopList={shopList}
+                        response={response}
+                    />
+                    <div style={calendarListStyle}>
                         {display === 'shop' ? <Table striped>
                             <tbody className='shop_calendar'>
                                 <tr>

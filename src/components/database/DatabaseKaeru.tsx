@@ -9,6 +9,7 @@ import IntegrateModal from './IntegrateModal';
 import { useIsSp } from '../../utils/isSp';
 import { PastCustomer } from './PastCustomer';
 import { useDebounce } from './useDebounce';
+import { kataToHira } from './databaseUtils';
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string };
@@ -52,6 +53,7 @@ const DatabaseKaeru = ({ }: Props) => {
     const [pastCustomerShow, setPastCustomerShow] = useState(false);
 
     const nameSearch = useDebounce('', 300);
+    const kanaSearch = useDebounce('', 300);
     const staffSearch = useDebounce('', 300);
     const phoneSearch = useDebounce('', 300);
     const addressSearch = useDebounce('', 300);
@@ -109,8 +111,13 @@ const DatabaseKaeru = ({ }: Props) => {
     const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
 
     const filteredDatabase = useMemo(() => {
+        // 💡 パフォーマンス最適化: 検索キーワードの正規化（スペース除去＆平仮名変換）は filter の外で1度だけ実行する
+        const cleanFormattedName = nameSearch.debouncedValue.replace(/[\s\u3000]+/g, '');
+        const normalizedKanaSearch = kataToHira(kanaSearch.debouncedValue.replace(/[\s\u3000]+/g, ''));
+
         const result = originalDatabase.filter(item => {
-            const cleanFormattedName = nameSearch.debouncedValue.replace(/[\s\u3000]+/g, '');
+            // 💡 対象データの正規化: Null回避しつつ、スペース除去＆平仮名変換
+            const targetKana = kataToHira((item.customer_contacts_name_kana || '').replace(/[\s\u3000]+/g, ''));
 
             return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
                 && (trash === 0 ? (Number(item.trash) ?? 0) !== 1 : true)
@@ -123,15 +130,17 @@ const DatabaseKaeru = ({ }: Props) => {
                 && (selectedMedium === 'SUUMO(ポータル反響)' ? (item.medium === 'SUUMO' && !item.hp_campaign) : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
                 && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
                 && (nameSearch.debouncedValue ? strIncludes(item._cleanCustomer, cleanFormattedName) : true)
+                // 💡 修正: 正規化されたデータ同士で比較する
+                && (kanaSearch.debouncedValue ? strIncludes(targetKana, normalizedKanaSearch) : true)
                 && (staffSearch.debouncedValue ? strIncludes(item.staff, staffSearch.debouncedValue.split(' ')[0]) : true)
                 && (phoneSearch.debouncedValue ? (strIncludes(item.phone_number, phoneSearch.debouncedValue) || strIncludes(item.phone_number_2, phoneSearch.debouncedValue)) : true)
                 && (mailSearch.debouncedValue ? (strIncludes(item.mail, mailSearch.debouncedValue) || strIncludes(item.mail_2, mailSearch.debouncedValue)) : true)
-                && (addressSearch.debouncedValue ? String((item.full_address ?? '').replace(/[\s　]+/g, "")).includes(addressSearch.debouncedValue) : true)
+                && (addressSearch.debouncedValue ? String((item.full_address ?? '').replace(/[\s ]+/g, "")).includes(addressSearch.debouncedValue) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
                 && (familyStatus ? familyList.includes(item.id) : true)
                 && (searchedPastStaff ? pastCustomerIds.includes(item.id) : true)
                 && (selectedFollow === '追客中' ? arrIncludes(['Aランク', 'Bランク', 'Cランク', 'Dランク'], item.rank) : selectedFollow === '追客終了' ? arrIncludes(['Eランク', 'Fランク', 'Gランク', 'Hランク'], item.rank) : true)
-                && (searchedPastStaff ? pastCustomerIds.includes(item.id) : true);
+                && (searchedPastStaff ? pastCustomerIds.includes(item.id) : true); // ※既存コードにあった重複の記述をそのまま残しています
         });
 
         return result.sort((a, b) => {
@@ -149,6 +158,7 @@ const DatabaseKaeru = ({ }: Props) => {
         selectedStatus,
         selectedFollow,
         nameSearch.debouncedValue,
+        kanaSearch.debouncedValue,
         staffSearch.debouncedValue,
         phoneSearch.debouncedValue,
         addressSearch.debouncedValue,
@@ -158,7 +168,7 @@ const DatabaseKaeru = ({ }: Props) => {
         trash,
         familyList,
         familyStatus,
-        pastCustomerIds // 追加
+        pastCustomerIds
     ]);
 
     const normalize = (val?: string | null) => (val || '').replace(/[\s ]+/g, '');
@@ -298,7 +308,7 @@ const DatabaseKaeru = ({ }: Props) => {
         setActivePage(prevPage);
     };
 
-const integrationCustomer = (customer: Record<string, string>) => {
+    const integrationCustomer = (customer: Record<string, string>) => {
         setIntegrate(customer);
 
         const customerMails = [customer.mail, customer.mail_2].filter(Boolean);
@@ -311,7 +321,7 @@ const integrationCustomer = (customer: Record<string, string>) => {
             const targetPhones = [o.phone_number, o.phone_number_2].filter(Boolean);
 
             const hasDuplicateMail = customerMails.some(mail => targetMails.includes(mail));
-            
+
             const hasDuplicatePhone = customerPhones.some(phone => targetPhones.includes(phone));
 
             return hasDuplicateMail || hasDuplicatePhone;
@@ -412,8 +422,12 @@ const integrationCustomer = (customer: Record<string, string>) => {
                             </select>
                         </div></>}
                     <div className="m-1">
-                        <input className="target" placeholder='顧客名で検索(&電話番号+住所)'
+                        <input className="target" placeholder='顧客名で検索'
                             value={nameSearch.inputValue} onChange={nameSearch.onChange} />
+                    </div>
+                    <div className="m-1">
+                        <input className="target" placeholder='顧客名(ふりがな)で検索'
+                            value={kanaSearch.inputValue} onChange={kanaSearch.onChange} />
                     </div>
                     <div className="m-1">
                         <input className="target" placeholder='営業名で検索'
@@ -549,7 +563,7 @@ const integrationCustomer = (customer: Record<string, string>) => {
                 </div>
             </div>
             <PastCustomer pastCustomerShow={pastCustomerShow} setPastCustomerShow={setPastCustomerShow} />
-            <IntegrateModal integrate={integrate} setIntegrate={setIntegrate} integrateList={integrateList} setIntegrateList={setIntegrateList} setOriginalDatabase={setOriginalDatabase}/>
+            <IntegrateModal integrate={integrate} setIntegrate={setIntegrate} integrateList={integrateList} setIntegrateList={setIntegrateList} setOriginalDatabase={setOriginalDatabase} />
             <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
             <CallStatusList
                 callStatusShow={callStatusShow}

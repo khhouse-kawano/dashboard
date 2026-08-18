@@ -46,7 +46,7 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                             <option value="来店あり">来店あり</option>
                             <option value="申込み済み">申込み済み</option>
                             <option value="事前取得（現金確認含む）">事前取得（現金確認含む）</option>
-                            <option value="契約済み" disabled={authority === 'ordinary'}>契約済み</option>
+                            <option value="契約済み">契約済み</option>
                             <option value="追客終了">追客終了</option>
                             <option value="解約">解約</option>
                         </> : <>

@@ -1470,16 +1470,6 @@ td.sticky-column.budget {
     border: 1px solid #cecece;
 }
 
-.calendar_menu {
-    width: 80%;
-    position: fixed;
-    top: 20px;
-    left: 17%;
-    background-color: #fff;
-    z-index: 1006;
-    height: 100px;
-}
-
 .calendar_area {
     margin-top: 150px;
     height: 90vh;

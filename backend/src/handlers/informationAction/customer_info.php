@@ -1,4 +1,8 @@
 <?php
+if (empty($data)) {
+    $data = $_POST;
+}
+
 $id = $data['id'] ?? null;
 
 if (!$id) {
@@ -11,11 +15,20 @@ if (!$id) {
 // ※この部分は元のコードのまま変更していません
 // =========================================================
 $new_uploaded_pdfs = [];
+// 💡 検証強化: エラーチェック用の配列を用意
+$upload_errors = [];
+
 if (isset($_FILES['competitor_pdf_files']) && is_array($_FILES['competitor_pdf_files']['name'])) {
     $uploadDir = __DIR__ . '/../uploads/competitors/';
+    
+    // 💡 環境起因のチェック: ディレクトリが作れない場合はエラーにする
     if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0777, true);
+        if (!mkdir($uploadDir, 0777, true)) {
+            echo json_encode(['status' => 'error', 'message' => 'アップロード先のディレクトリ作成に失敗しました。権限(パーミッション)を確認してください。']);
+            exit;
+        }
     }
+
     $fileCount = count($_FILES['competitor_pdf_files']['name']);
     for ($i = 0; $i < $fileCount; $i++) {
         if ($_FILES['competitor_pdf_files']['error'][$i] === UPLOAD_ERR_OK) {
@@ -30,16 +43,28 @@ if (isset($_FILES['competitor_pdf_files']) && is_array($_FILES['competitor_pdf_f
                 $newFileName = uniqid('pdf_') . '_' . time() . '_' . $i . '.pdf';
                 $destination = $uploadDir . $newFileName;
 
+                // 💡 エラーハンドリング強化: 移動に失敗した理由をキャッチ
                 if (move_uploaded_file($tmpName, $destination)) {
                     $new_uploaded_pdfs[] = [
                         'name' => $customName,
                         'path' => '/uploads/competitors/' . $newFileName,
                         'staff' => $staffName
                     ];
+                } else {
+                    $upload_errors[] = "ファイル {$originalFileName} のサーバー保存に失敗しました。";
                 }
             }
+        } else {
+            // PHP側でファイル上限や通信エラーが起きた場合のコードを記録
+            $upload_errors[] = "ファイルアップロードエラーコード: " . $_FILES['competitor_pdf_files']['error'][$i];
         }
     }
+}
+
+// 💡 エラーがあればフロントエンドに返す
+if (!empty($upload_errors)) {
+    echo json_encode(['status' => 'error', 'message' => implode(" / ", $upload_errors)], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 $existing_pdfs = [];
@@ -52,17 +77,23 @@ if (isset($_POST['existing_pdfs'])) {
 
 $final_pdfs = array_merge($existing_pdfs, $new_uploaded_pdfs);
 
-if ($id && isset($_POST['existing_pdfs'])) {
-    $newPdfPathJson = json_encode($final_pdfs, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $checkStmt = $pdo->prepare('SELECT id FROM competitor_pdf WHERE id = :id');
-    $checkStmt->execute(['id' => $id]); // 配列で渡すモダンな書き方
+// 💡 修正: 新規ファイルがアップロードされた場合 or 既存ファイルデータが送られた場合にDBを更新する
+if ($id && (isset($_POST['existing_pdfs']) || !empty($new_uploaded_pdfs))) {
+    try {
+        $newPdfPathJson = json_encode($final_pdfs, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $checkStmt = $pdo->prepare('SELECT id FROM competitor_pdf WHERE id = :id');
+        $checkStmt->execute(['id' => $id]);
 
-    if ($checkStmt->fetch()) {
-        $updatePdfStmt = $pdo->prepare('UPDATE competitor_pdf SET pdf_path = :pdf_path WHERE id = :id');
-        $updatePdfStmt->execute(['pdf_path' => $newPdfPathJson, 'id' => $id]);
-    } else {
-        $insertPdfStmt = $pdo->prepare('INSERT INTO competitor_pdf (id, pdf_path) VALUES (:id, :pdf_path)');
-        $insertPdfStmt->execute(['id' => $id, 'pdf_path' => $newPdfPathJson]);
+        if ($checkStmt->fetch()) {
+            $updatePdfStmt = $pdo->prepare('UPDATE competitor_pdf SET pdf_path = :pdf_path WHERE id = :id');
+            $updatePdfStmt->execute(['pdf_path' => $newPdfPathJson, 'id' => $id]);
+        } else {
+            $insertPdfStmt = $pdo->prepare('INSERT INTO competitor_pdf (id, pdf_path) VALUES (:id, :pdf_path)');
+            $insertPdfStmt->execute(['id' => $id, 'pdf_path' => $newPdfPathJson]);
+        }
+    } catch (PDOException $e) {
+        echo json_encode(['status' => 'error', 'message' => 'PDF情報のDB保存に失敗しました: ' . $e->getMessage()]);
+        exit;
     }
 }
 // =========================================================
