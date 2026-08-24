@@ -35,7 +35,7 @@ const Category = () => {
             order: '/company',
             spec: '/company',
             used: '/company',
-            planner: '/report'
+            planner: '/summary'
         };
         await setCategory(categoryValue);
         await navigate(navigateMap[categoryValue] ?? '/home');

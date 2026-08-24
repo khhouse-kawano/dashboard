@@ -16,8 +16,9 @@ import StaffMemo from './StaffMemo';
 import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
 import { useIsSp } from '../../utils/isSp';
+import apiClient from '../../utils/apiClient';
 
-type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string };
+type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string, prev_staff: string };
 type Achievement = { category: string, name: string, period: string, value: string }
 type Expect = { date: string, shop: string, section: string, count: number };
 type Target = { [key: string]: boolean };
@@ -27,7 +28,7 @@ type Staff = { id: number, name: string, pg_id: string, shop: string, mail: stri
 type Memo = Record<string, string>;
 
 const RankOrder = () => {
-    const { token ,category, authority} = useContext(AuthContext);
+    const { token, category, authority } = useContext(AuthContext);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMonth, setTargetMonth] = useState('');
     const [customerList, setCustomerList] = useState<Customer[]>([]);
@@ -59,7 +60,7 @@ const RankOrder = () => {
     const isSp = useIsSp();
 
     const fetchCustomerData = async () => {
-        return await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", category }, { headers });
+        return await apiClient.post('', { request: "rank", category });
     };
 
     useEffect(() => {
@@ -69,7 +70,11 @@ const RankOrder = () => {
         const fetchData = async () => {
             try {
                 const response = await fetchCustomerData();
-                setCustomerList(response.data.customer);
+                const responseCustomer = response.data.customer.map(c => ({
+                    ...c,
+                    staff: [c.staff, c.prev_staff ?? '']
+                }));
+                setCustomerList(responseCustomer);
                 setExpectedContract(response.data.expected);
                 setShopList(response.data.shop);
                 const sectionNames = response.data.section.map((s: any) => s.name);
@@ -236,7 +241,10 @@ const RankOrder = () => {
                 if (category === 'section') {
                     matchCategory = targetShops.includes(item.shop);
                 } else if (category === 'staff') {
-                    matchCategory = item.staff === target && item.shop === shop;
+                    const curStaff = item.staff[0] ?? '';
+                    const prefStaff = item.staff[1] ?? '';
+                    matchCategory = curStaff.includes('管理') ? (prefStaff === target && item.shop === shop)
+                        : (curStaff === target && item.shop === shop);
                 } else {
                     matchCategory = (item as any)[category] === target;
                 }
@@ -275,9 +283,12 @@ const RankOrder = () => {
         };
         const fetchData = async () => {
             try {
-                const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/", postData, { headers });
-                console.log(response.data);
+                const response = await apiClient.post("", postData);
+                const responseCustomer = response.data.customer.map(c => ({
+                    ...c,
+                    staff: [c.staff, c.prev_staff ?? '']
+                }));
+                setCustomerList(responseCustomer);
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -304,11 +315,16 @@ const RankOrder = () => {
             id: idValue,
             rank: newRank ?? '',
             rank_period: periodValue ?? '',
-            request: 'rank'
+            request: 'rank',
+            category
         };
         try {
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
-            setCustomerList(response.data.newCustomers);
+            const response = await apiClient.post('', postData);
+            const responseCustomer = response.data.newCustomers.map(c => ({
+                ...c,
+                staff: [c.staff, c.prev_staff ?? '']
+            }));
+            setCustomerList(responseCustomer);
         } catch (e) {
             console.error(e);
         }
@@ -325,7 +341,11 @@ const RankOrder = () => {
     const closeInformationEdit = async () => {
         try {
             const response = await fetchCustomerData();
-            await setCustomerList(response.data.customer);
+            const responseCustomer = response.data.customer.map(c => ({
+                ...c,
+                staff: [c.staff, c.prev_staff ?? '']
+            }));
+            await setCustomerList(responseCustomer);
         } catch (e) {
             console.error(e);
         }
@@ -364,7 +384,7 @@ const RankOrder = () => {
         fetchData();
     };
 
-    const TableParts = ({ list, setModalList }: { list: Customer[], setModalList: React.Dispatch<React.SetStateAction<Customer[]>> }) => {
+    const TableParts = ({ list, denList, setModalList }: { list: Customer[], denList?: Customer[], setModalList: React.Dispatch<React.SetStateAction<Customer[]>> }) => {
         const hasList = list.length > 0;
         return (
             <td
@@ -373,9 +393,8 @@ const RankOrder = () => {
                     textDecoration: hasList ? 'underline' : '',
                     cursor: hasList ? 'pointer' : ''
                 }}
-                className={list.length === 0 ? 'table-white' : ''}
             >
-                {list.length}
+                {list.length}{denList && `(${perFormate(list.length / denList.length)}%)`}
             </td>
         );
     };
@@ -396,7 +415,7 @@ const RankOrder = () => {
     };
 
     return (
-        <div style={{ overflowX: 'scroll'}}>
+        <div style={{ overflowX: 'scroll' }}>
             <div className='bg-white p-2' style={{ width: isSp ? '1200px' : '1600px' }}>
                 <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                 <div className="row mt-3 mb-4" >
@@ -411,7 +430,7 @@ const RankOrder = () => {
                 </div>
                 <div>
                     <Table bordered>
-                        <tbody style={{ fontSize:isSp ? '8px' : '12px' }} className='align-middle'>
+                        <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
                             <tr className="text-center">
                                 <td rowSpan={2} className='sticky-column-rank'>店舗</td>
                                 {tooltipItems
@@ -494,13 +513,12 @@ const RankOrder = () => {
                                             </div>
                                         </td>
                                         <TableParts key={targetIndex} list={register} setModalList={setModalList} />
-                                        <TableParts key={targetIndex} list={interview} setModalList={setModalList} />
-                                        <TableParts key={targetIndex} list={appointment} setModalList={setModalList} />
+                                        <TableParts key={targetIndex} list={interview} denList={register} setModalList={setModalList} />
+                                        <TableParts key={targetIndex} list={appointment} denList={interview} setModalList={setModalList} />
                                         <td onClick={() => contract.length > 0 ? setModalList(contract) : null} style={{
                                             textDecoration: contract.length > 0 ? 'underline' : ''
                                             , cursor: contract.length > 0 ? 'pointer' : ''
                                         }}
-                                            className={contract.length === 0 ? 'table-white' : ''}
                                             key={targetIndex}>{contract.length}({perFormate(contract.length / interview.length)}%)</td>
                                         <TableParts key={targetIndex} list={[...contract, ...rankS]} setModalList={setModalList} />
                                         {!isPeriod && <td>
@@ -572,7 +590,7 @@ const RankOrder = () => {
                                     <tr>
                                         <td>No</td>
                                         <td>店舗</td>
-                                        <td>担当営業</td>
+                                        <td>担当営業(前担当)</td>
                                         <td>お客様名</td>
                                         <td>ランク</td>
                                         <td>見込み月</td>
@@ -581,11 +599,13 @@ const RankOrder = () => {
                                         <td>契約日</td>
                                         <td>商談ステップ</td>
                                     </tr>
-                                    {modalList.slice(page - 20, page).map((item, index) =>
-                                        <tr key={index}>
+                                    {modalList.slice(page - 20, page).map((item, index) => {
+                                        const currentStaff = item.staff[0] ?? '';
+                                        const prevStaff = item.staff[1] ? `(${item.staff[1]})` : '';
+                                        return <tr key={index}>
                                             <td>{page - 20 + index + 1}</td>
                                             <td>{item.shop}</td>
-                                            <td>{item.staff}</td>
+                                            <td>{currentStaff}{prevStaff}</td>
                                             <td>
                                                 <div style={{ textDecoration: 'underline dotted', cursor: 'pointer', width: 'fit-content' }}
                                                     onClick={() => setEditId(item.id)}>
@@ -621,7 +641,8 @@ const RankOrder = () => {
                                             <td>{dateFormate(item.contract)}</td>
                                             <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
                                                 onClick={() => setInterviewId(item.id)}>表示</div></td>
-                                        </tr>)}
+                                        </tr>
+                                    })}
                                 </tbody>
                             </Table>
                             <div className="d-flex justify-content-around" style={{ fontSize: '12px' }}>

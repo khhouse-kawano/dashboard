@@ -991,29 +991,13 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                     </tr>
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
-                                            <div className="position-relative">
-                                                メモ
-                                                <div className='position-absolute'
-                                                    style={buttonStyle}
-                                                    onClick={() => {
-                                                        setExpand(prev =>
-                                                        ({
-                                                            ...prev,
-                                                            remarks: !prev.remarks
-                                                        })
-                                                        );
-                                                    }}>{expand.remarks ? '×閉じる' : '編集'}</div>
-                                            </div></td>
+                                            メモ</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <div style={expandStyle('remarks')}>
-                                                <TableTextarea information={information} setInformation={setInformation} itemKey='customized_input_01J95TC6KEES87F0YXH29AJP7K' placeholder='自由記載' />
-                                            </div>
+                                            <TableTextarea information={information} setInformation={setInformation} itemKey='customized_input_01J95TC6KEES87F0YXH29AJP7K' placeholder='自由記載' />
                                         </td>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>反響内容</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <div style={expandStyle('remarks')}>
-                                                <TableTextarea information={information} setInformation={setInformation} itemKey='remarks' placeholder='反響内容' />
-                                            </div>
+                                            <TableTextarea information={information} setInformation={setInformation} itemKey='remarks' placeholder='反響内容' />
                                         </td>
                                     </tr>
                                 </tbody>

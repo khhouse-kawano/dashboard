@@ -138,3 +138,30 @@ export const safeParse = (data: any) => {
         return [];
     }
 };
+
+export const hotleadStyle = (status: string | null) => {
+  if (!status) return;
+
+  const base = {
+    fontSize: '10px',
+    padding: '2px 8px',
+    borderRadius: '10px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    display: 'inline-block',
+    whiteSpace: 'nowrap',
+    border: '1px solid',
+    lineHeight: 1.2,
+  };
+
+  switch (status) {
+    case '対応中':
+      return { ...base, color: '#0369a1', backgroundColor: '#e0f2fe', borderColor: '#bae6fd' };
+    case '架電停止':
+      return { ...base, color: '#475569', backgroundColor: '#f1f5f9', borderColor: '#cbd5e1' };
+    case 'アポ予約済み':
+      return { ...base, color: '#15803d', backgroundColor: '#dcfce7', borderColor: '#86efac' };
+    default:
+      return { ...base, color: '#4b5563', backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' };
+  }
+};

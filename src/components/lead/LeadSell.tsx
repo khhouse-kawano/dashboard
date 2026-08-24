@@ -7,6 +7,7 @@ import AuthContext from '../../context/AuthContext';
 import { removeSpaces, safeParse } from './leadUtiles';
 import LeadEdit from './LeadEdit';
 import LeadCall, { CallLog } from './LeadCall';
+import DocumentViewer from './DocumentViewer';
 
 export type SellLead = {
   internal_id: string;
@@ -82,6 +83,16 @@ type PeriodSummary = {
   mail: number;      // メール数
 };
 
+type initialData = {
+    name: string | null;
+    baikaiType: '専任媒介' | '専属専任媒介' | '一般媒介';
+    category?: string | null; // 追加: 区分
+    phone?: string | null;    // 追加: 連絡先(電話)
+    mail?: string | null;     // 追加: 連絡先(メール)
+    addr: string | null;
+    price: number | null;
+    fee: number | null;
+};
 
 const parseCallCounts = (callDatesJson: string | null) => {
   try {
@@ -208,6 +219,9 @@ const LeadSell = () => {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<Partial<SellLead>>({});
+
+  const [documentShow, setDocumentShow] = useState(false);
+  const [currentInitialData, setCurrentInitialData] = useState<initialData | undefined>(undefined);
 
   const newReceivedDateRef = useRef<HTMLInputElement>(null);
   const newSourceRef = useRef<HTMLSelectElement>(null);
@@ -489,6 +503,31 @@ const LeadSell = () => {
     setIsEditModalOpen(false);
   };
 
+  const handleOpenDocument = (lead: SellLead) => {
+    const bt = lead.baikaiType;
+    const validBaikaiTypes = ['専任媒介', '専属専任媒介', '一般媒介'];
+    const safeBaikaiType = validBaikaiTypes.includes(bt as string) ? bt : '専任媒介';
+
+    const parsedPrice = lead.price ? Number(String(lead.price).replace(/[^\d.-]/g, '')) : null;
+    const actualPrice = parsedPrice ? (parsedPrice < 1000000 ? parsedPrice * 10000 : parsedPrice) : null;
+    
+    const parsedFee = lead.fee ? Number(String(lead.fee).replace(/[^\d.-]/g, '')) : null;
+
+    const data: initialData = {
+        name: lead.seller || lead.name || null,
+        baikaiType: safeBaikaiType as '専任媒介' | '専属専任媒介' | '一般媒介',
+        category: lead.category || null,
+        phone: lead.phone || null,
+        mail: lead.mail || null,
+        addr: lead.addr1 || lead.addr || null,
+        price: actualPrice,
+        fee: parsedFee
+    };
+
+    setCurrentInitialData(data);
+    setDocumentShow(true);
+  };
+
   const headerLabel = {
     title: '売り反響（売却・媒介）管理',
     describe: '一括査定・自社HP等からの売却反響を受信→追客→通電→訪問査定→媒介受託で追跡集計します。'
@@ -658,7 +697,7 @@ const LeadSell = () => {
                 <th style={compactThStyle}>区分</th>
                 <th style={compactThStyle}>通電日</th>
                 <th style={compactThStyle}>訪問査定日</th>
-                <th style={compactThStyle}>操作</th>
+                <th style={compactThStyle}>書類</th>
               </tr>
             </thead>
             <tbody>
@@ -752,8 +791,8 @@ const LeadSell = () => {
                           defaultValue={lead.phase || ''}
                           onBlur={(e) => handleApiUpdate(lead.id, 'phase', e.target.value)}
                         >
-                          <option value="">フェーズ</option>
-                          {['反響受信', '追客中', '通電済み', '机上査定', '訪問査定', '査定書提出', '媒介受託', '売却済', '追客終了'].map(p => <option key={p} value={p}>{p}</option>)}
+                          <option value="">リード受信</option>
+                          {['架電中', '通電済', '訪問査定予定', '訪問査定済', '査定書提出', '媒介受託', '追客終了'].map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </td>
                       <td style={getTdStyle(isUnassigned)}>
@@ -809,9 +848,15 @@ const LeadSell = () => {
                       <td style={{ ...getTdStyle(isUnassigned), color: '#8898aa' }}>{formatDate(lead.connectDate)}</td>
                       <td style={{ ...getTdStyle(isUnassigned), color: '#8898aa' }}>{formatDate(lead.visitDate)}</td>
                       <td style={getTdStyle(isUnassigned)}>
-                        <button style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', color: '#6c757d' }}>
-                          🔗 媒介紐付
-                        </button>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                          <button style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', color: '#6c757d' }}>
+                            🔗 媒介紐付
+                          </button>
+                          <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px', backgroundColor: '#fff', color: '#6c757d' }}
+                              onClick={() => handleOpenDocument(lead)}>
+                              <i className="fa-solid fa-file-contract me-1 text-secondary"></i>契約書
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -850,6 +895,12 @@ const LeadSell = () => {
         setCustomerInfo={setCustomerInfo}
         leadCategory="sell"
         staffList={staffList}
+      />
+
+      <DocumentViewer
+        documentShow={documentShow}
+        setDocumentShow={setDocumentShow}
+        initialData={currentInitialData}
       />
     </div>
   );

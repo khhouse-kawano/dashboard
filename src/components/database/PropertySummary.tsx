@@ -247,7 +247,7 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
                         {targetProperty?.property_name || '読込中...'}
                         {isLoading && <span className="spinner-border spinner-border-sm ms-3 text-primary"></span>}
                     </div>
-                    {category === 'used' && !isEditingReport && (
+                    {category === 'planner' && !isEditingReport && (
                         <button className="btn btn-sm btn-primary shadow-sm rounded-pill px-4 fw-bold me-3" onClick={handleOpenEditReport} disabled={isLoading}>
                             <i className="bi bi-file-earmark-pdf-fill me-2"></i>報告書作成
                         </button>

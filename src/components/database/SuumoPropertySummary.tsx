@@ -112,7 +112,6 @@ const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) 
             <Modal.Header closeButton className="border-bottom-0 pb-2 bg-light">
                 <Modal.Title className="fw-bold text-secondary d-flex align-items-center w-100" style={{ fontSize: '18px' }}>
                     
-                    {/* 💡 SUUMO掲載順位の文字を消し、代わりにデータ取得日時を小さく表示 */}
                     {lastUpdated && (
                         <span className="text-muted fw-normal" style={{ fontSize: '12px' }}>
                             <i className="bi bi-clock-history me-1"></i>取得日時: {lastUpdated}

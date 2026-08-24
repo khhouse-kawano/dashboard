@@ -11,7 +11,7 @@ import { generateULID } from '../../utils/createULID';
 import { monthFormate, handleBlack, toHalfWidth } from './listUtils';
 import { useIsSp } from '../../utils/isSp';
 import OrderModal from './OrderModal';
-import SmileFestival from './ListEvent';
+import EventList from './EventList';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -39,7 +39,7 @@ type Black = {
     mail: string
 };
 
-const targetSection = ['鹿児島営業1課', '鹿児島営業2課', '鹿児島営業3課', '宮崎営業課', '熊本営業課', '大分・佐賀営業課',];
+const sections = ['鹿児島営業1課', '鹿児島営業2課', '鹿児島営業3課', '宮崎営業課', '熊本営業課', '大分・佐賀営業課',];
 
 const monthArray = getYearMonthArray(2025, 1);
 
@@ -69,6 +69,7 @@ const ListOrder = ({ onReload }: Props) => {
     const [targetName, setTargetName] = useState<string>('');
     const [targetAddress, setTargetAddress] = useState<string>('');
     const [targetShop, setTargetShop] = useState<string>('');
+    const [targetSection, setTargetSection] = useState('');
     const [totalLength, setTotalLength] = useState<number>(0);
     const [displayLength, setDisplayLength] = useState<number>(20);
     const [originalBeforeList, setOriginalBeforeList] = useState<Survey[]>([]);
@@ -97,7 +98,7 @@ const ListOrder = ({ onReload }: Props) => {
                 const response = await apiClient.post('', { request: 'list', category });
                 setCustomerList(response.data.summary);
                 setShopArray(response.data.shop);
-                setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && targetSection.includes(s.section)));
+                setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && sections.includes(s.section)));
                 setMediumArray(response.data.medium.filter((m: Medium) => m.list_medium === 1));
                 setOriginalList(response.data.inquiry);
                 setOriginalBeforeList(response.data.survey);
@@ -136,6 +137,7 @@ const ListOrder = ({ onReload }: Props) => {
         const resMedium = item.response_medium || '';
         const inqDate = item.inquiry_date || '';
         const itemShop = item.shop || '';
+        const sectionShops = shopArray.filter(s => s.section === targetSection).map(s => s.shop);
 
         return (
             selectedMonth.includes(monthFormate(inqDate)) &&
@@ -145,8 +147,9 @@ const ListOrder = ({ onReload }: Props) => {
                 (item.sync === targetSync && (isSync(item, 'duplicate') && isSync(item, 'support') && isSync(item, 'black')))
                 : item.sync === targetSync || !isSync(item, 'duplicate') || !isSync(item, 'support') || !isSync(item, 'black'))) &&
             (targetName === '' || fullName.includes(targetName)) &&
+            (targetSection === '' || sectionShops.includes(item.shop)) &&
             (targetAddress === '' || fullAddress.includes(targetAddress)))
-    }), [originalList, selectedMonth, targetShop, mediumValue, targetSync, targetName, targetAddress]);
+    }), [originalList, selectedMonth, targetShop, mediumValue, targetSync, targetName, targetAddress, targetSection, shopArray]);
 
     useEffect(() => {
         setInquiryList(filteredInquiryList);
@@ -155,14 +158,14 @@ const ListOrder = ({ onReload }: Props) => {
         setCheckedIds([]);
     }, [filteredInquiryList]);
 
-    useEffect(() => {
-        setSurveyBeforeList(filteredBeforeList);
-    }, [originalBeforeList, selectedMonth]);
-
     const filteredBeforeList = useMemo(() => {
         const filtered = originalBeforeList.filter(item => selectedMonth.includes(monthFormate(item.dateStr || '')));
         return filtered;
     }, [originalBeforeList, selectedMonth]);
+
+    useEffect(() => {
+        setSurveyBeforeList(filteredBeforeList);
+    }, [originalBeforeList, selectedMonth, filteredBeforeList]);
 
     const filteredInterview = useMemo(() => {
         return customerList.filter(c => selectedMonth.includes(monthFormate(c.interview || '')));
@@ -421,7 +424,7 @@ const ListOrder = ({ onReload }: Props) => {
     };
 
     const reserveFilter = (shopValue: string) => {
-        return filteredInterview.filter(c => (shopValue ? c.shop == shopValue : true)).length;
+        return filteredInterview.filter(c => (shopValue ? c.shop === shopValue : true)).length;
     };
 
     const isBlack = (mailValue: string, mobileValue: string, blackValue: string) => {
@@ -467,6 +470,14 @@ const ListOrder = ({ onReload }: Props) => {
                         </select>
                     </div>
                     {!isSp && <>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => setTargetSection(e.target.value)} style={{ fontSize: '13px' }}>
+                                <option value=''>全課表示</option>
+                                {sections.map(item =>
+                                    <option key={item} value={item}>{item}</option>
+                                )}
+                            </select>
+                        </div>
                         <div className="m-1">
                             <select className="target" onChange={(e) => setTargetMedium(e.target.value)} style={{ fontSize: '13px' }}>
                                 <option value=''>全媒体表示</option>
@@ -659,7 +670,7 @@ const ListOrder = ({ onReload }: Props) => {
             </div>
             <OrderModal show={show} modalClose={modalClose} modalContent={modalContent} modalBeforeContent={modalBeforeContent} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
-            <SmileFestival eventSummary={eventSummary} setEventSummary={setEventSummary} />
+            <EventList eventSummary={eventSummary} setEventSummary={setEventSummary} />
         </>
     )
 }

@@ -1,7 +1,7 @@
 <?php
 
 $roll = $data['roll'] ?? 'lead';
-$allowed_rolls = ['lead', 'detail', 'suumo'];
+$allowed_rolls = ['lead', 'detail', 'summary'];
 
 if (!in_array($roll, $allowed_rolls, true)) {
         http_response_code(400);

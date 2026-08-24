@@ -4,13 +4,19 @@ $function = $data['function'] ?? '';
 
 if ($function && $function === 'load') {
 
-    $sql_summary = "SELECT * FROM smile2026";
+    $sql_summary = "SELECT * FROM event_db";
     $stmt_summary = $pdo->prepare($sql_summary);
     $stmt_summary->execute();
     $response_summary = $stmt_summary->fetchAll(PDO::FETCH_ASSOC);
 
+    $sql_staff =  "SELECT * FROM staff_list";
+    $stmt_staff = $pdo->prepare($sql_staff);
+    $stmt_staff->execute();
+    $response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
+
     $result = [
         "summary" => $response_summary,
+        "staff" => $response_staff
     ];
 
     echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -30,7 +36,7 @@ if ($function && $function === 'update') {
         'time', 'date', 'name', 'zip', 'address', 'street', 
         'phone', 'age', 'adult', 'child', 'house', 'interview', 
         'medium', 'area', 'question', 'status', 
-        'check_in_time', 'check_out_time', 'remarks'
+        'check_in_time', 'check_out_time', 'remarks', 'title', 'shop', 'sync'
     ];
 
     $update_fields = [];
@@ -53,7 +59,7 @@ if ($function && $function === 'update') {
     // カンマ区切りでSET句を作成 (例: "name = :name, remarks = :remarks")
     $set_clause = implode(', ', $update_fields);
     
-    $sql = "UPDATE smile2026 SET {$set_clause} WHERE id = :id";
+    $sql = "UPDATE event_db SET {$set_clause} WHERE id = :id";
 
     try {
         $stmt = $pdo->prepare($sql);

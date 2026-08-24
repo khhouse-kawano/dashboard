@@ -85,7 +85,6 @@ type DailyMetrics = {
     sms: number;
     email: number;
     postalMail: number;
-    // 💡 商談アクション拡張
     firstInterview: number;
     subsequentInterview: number;
     propertyTour: number;
@@ -105,6 +104,9 @@ type DailyMetrics = {
     buySellContract: number;
     brokerageAcquisition: number;
 };
+
+// 💡 PHPからのデータ揺れ（スペースの有無）を吸収する関数
+const removeSpaces = (str: string | null | undefined) => (str || '').replace(/[\s\u3000]+/g, '');
 
 const shopMapping: Record<string, string> = {
     '買い:中古リノベ': '中古住宅専門店',
@@ -174,8 +176,9 @@ const DailyReports = () => {
                     setResponseList(filteredResponse);
                     setCallList(response.data.call || []);
                     setInterviewList(response.data.interview || []);
-                    setShopList((response.data.shop || []).filter((s: ShopInfo) => s.report_flag === 1));
-                    const responseStaff = response.data.staff.filter((s: StaffInfo) => s.report === 1)
+                    
+                    setShopList((response.data.shop || []).filter((s: ShopInfo) => Number(s.report_flag) === 1));
+                    const responseStaff = response.data.staff.filter((s: StaffInfo) => Number(s.report) === 1)
                         .sort((a: StaffInfo, b: StaffInfo) => {
                             const positionA = positions.indexOf(a.position) !== -1 ? positions.indexOf(a.position) : 6;
                             const positionB = positions.indexOf(b.position) !== -1 ? positions.indexOf(b.position) : 6;
@@ -252,16 +255,35 @@ const DailyReports = () => {
 
         const activeStaffs = staffList.filter(s => String(s.period) === '2027');
         activeStaffs.forEach(staff => {
-            staffData[staff.name] = {};
-            datesInMonth.forEach(d => staffData[staff.name][d] = emptyMetric());
+            const sKey = removeSpaces(staff.name);
+            staffData[sKey] = {};
+            datesInMonth.forEach(d => staffData[sKey][d] = emptyMetric());
         });
+
+        const getStaffKey = (logStaffName: string | null | undefined) => {
+            if (!logStaffName) return '';
+            const cleanLogName = removeSpaces(logStaffName);
+            
+            if (staffData[cleanLogName]) return cleanLogName;
+            
+            const matched = activeStaffs.find(s => {
+                const fullClean = removeSpaces(s.name);
+                const lastName = s.name.split(/[\s\u3000]+/)[0];
+                return fullClean.includes(cleanLogName) || 
+                       cleanLogName.includes(fullClean) || 
+                       lastName === cleanLogName || 
+                       cleanLogName.includes(lastName);
+            });
+            
+            return matched ? removeSpaces(matched.name) : '';
+        };
 
         // 1. ResponseInfo (反響・契約)
         responseList.forEach(r => {
             const sName = r.shop || '';
             if (!shopData[sName]) return;
             const divName = shopList.find(s => s.shop === sName)?.division;
-            const staffName = r.staff || '';
+            const staffNameKey = getStaffKey(r.staff);
 
             const regDate = String(r.register || '').replace(/\//g, '-');
             const intDate = String(r.interview || '').replace(/\//g, '-');
@@ -272,8 +294,8 @@ const DailyReports = () => {
                 if (datesInMonth.includes(date)) {
                     shopData[sName][date][key]++;
                     if (divName && divData[divName]) divData[divName][date][key]++;
-                    if (staffName && staffData[staffName] && staffData[staffName][date]) {
-                        staffData[staffName][date][key]++;
+                    if (staffNameKey && staffData[staffNameKey] && staffData[staffNameKey][date]) {
+                        staffData[staffNameKey][date][key]++;
                     }
                 }
             };
@@ -297,7 +319,7 @@ const DailyReports = () => {
                     if (datesInMonth.includes(logDay)) {
                         const act = log.action;
                         const isCall = act === '通電' || act === '未通電';
-                        const staffName = log.staff || '';
+                        const staffNameKey = getStaffKey(log.staff);
 
                         const updateObj = (obj: DailyMetrics) => {
                             if (isCall) {
@@ -313,7 +335,7 @@ const DailyReports = () => {
                         if (isCall || act === 'SMS送信' || act === 'メール送信' || act === '資料郵送') {
                             updateObj(shopData[shopValue][logDay]);
                             if (divName && divData[divName]) updateObj(divData[divName][logDay]);
-                            if (staffName && staffData[staffName]) updateObj(staffData[staffName][logDay]);
+                            if (staffNameKey && staffData[staffNameKey]) updateObj(staffData[staffNameKey][logDay]);
                         }
                     }
                 });
@@ -332,7 +354,7 @@ const DailyReports = () => {
                     const logDay = String(log.day || '').replace(/\//g, '-');
                     if (datesInMonth.includes(logDay)) {
                         const act = log.action;
-                        const staffName = log.staff || i.staff || '';
+                        const staffNameKey = getStaffKey(log.staff || i.staff);
 
                         const isFirst = act === '初回来場' || act === '初回面談';
                         const isSub = act === '2回目以降面談';
@@ -340,7 +362,6 @@ const DailyReports = () => {
                         const isApo = act === '査定アポ';
                         const isSubm = act === '査定書提出';
                         const isVis = act === '訪問査定';
-                        
                         const isMat = act === '資料送付';
                         const isZero = act === '0次接客';
                         const isLine = act === 'LINEグループ作成';
@@ -377,13 +398,13 @@ const DailyReports = () => {
 
                         updateObj(shopData[shopValue][logDay]);
                         if (divName && divData[divName]) updateObj(divData[divName][logDay]);
-                        if (staffName && staffData[staffName]) updateObj(staffData[staffName][logDay]);
+                        if (staffNameKey && staffData[staffNameKey]) updateObj(staffData[staffNameKey][logDay]);
                     }
                 });
             } catch (e) { }
         });
 
-        return { divData, shopData, staffData, activeStaffs };
+        return { divData, shopData, staffData };
     }, [datesInMonth, responseList, callList, interviewList, shopList, staffList, divisions, filteredShops]);
 
     // ==========================================
@@ -401,13 +422,24 @@ const DailyReports = () => {
         );
     };
 
-    // 💡 セル描画用コンポーネント (Divisionによる表示切り替えを実装)
-    const EntityCell = ({ data, division }: { data: DailyMetrics, division: string }) => {
+    // 💡 セル描画用コンポーネント (条件分岐を修正)
+    const EntityCell = ({ data, division, rowShop }: { data: DailyMetrics, division: string, rowShop: string }) => {
         const hasKpi = data.registers > 0 || data.contracts > 0;
         
+        const showOrder = division === '注文事業';
+        const showSpec = division === '建売分譲事業';
+        
+        // 💡 修正：マスタの不備を考慮し、様々な条件で「中古リノベ」扱いにする
+        const showRenove = division === '中古リノベ' || 
+                           rowShop === '中古住宅専門店' || 
+                           rowShop === '不動産企画係' || 
+                           targetShop === '中古住宅専門店' || 
+                           targetShop === '不動産企画係';
+
+        const isUnknown = !showOrder && !showSpec && !showRenove;
+
         return (
             <td className="text-center align-top text-nowrap" style={{ padding: '8px 6px', minWidth: '160px', fontSize: '11px', lineHeight: '1.5' }}>
-                {/* 💡 重要KPI（反響・契約） */}
                 <div 
                     className={`p-2 mb-2 rounded border ${hasKpi ? 'border-primary' : 'border-light'}`}
                     style={{ backgroundColor: hasKpi ? '#e7f1ff' : '#f8f9fa' }}
@@ -416,7 +448,6 @@ const DailyReports = () => {
                     <div className={data.contracts > 0 ? "text-success fw-bold" : "text-muted"}>契約数: {data.contracts}</div>
                 </div>
 
-                {/* 💡 【追客】 */}
                 <div className="text-start mb-2 px-1">
                     <div className="fw-bold text-secondary mb-1 border-bottom border-secondary-subtle" style={{ fontSize: '10px' }}>
                         <i className="fa-solid fa-phone me-1"></i>追客
@@ -428,13 +459,12 @@ const DailyReports = () => {
                     <div className={data.postalMail > 0 ? "text-dark fw-bold" : "text-muted"}>資料郵送: {data.postalMail}</div>
                 </div>
 
-                {/* 💡 【商談】 (Divisionごとに表示を切り替え) */}
                 <div className="text-start px-1">
                     <div className="fw-bold text-secondary mb-1 border-bottom border-secondary-subtle" style={{ fontSize: '10px' }}>
                         <i className="fa-solid fa-handshake me-1"></i>商談
                     </div>
                     
-                    {division === '注文事業' && (
+                    {showOrder && (
                         <>
                             <div className={data.materialSend > 0 ? "text-info fw-bold" : "text-muted"}>資料送付: {data.materialSend}</div>
                             <div className={data.zeroCustomer > 0 ? "text-info fw-bold" : "text-muted"}>0次接客: {data.zeroCustomer}</div>
@@ -446,7 +476,7 @@ const DailyReports = () => {
                         </>
                     )}
 
-                    {division === '建売分譲事業' && (
+                    {showSpec && (
                         <>
                             <div className={data.contact > 0 ? "text-info fw-bold" : "text-muted"}>接触(通話・返信): {data.contact}</div>
                             <div className={data.firstInterview > 0 ? "text-info fw-bold" : "text-muted"}>初回面談: {data.firstInterview}</div>
@@ -457,7 +487,7 @@ const DailyReports = () => {
                         </>
                     )}
 
-                    {division === '中古リノベ' && (
+                    {showRenove && (
                         <>
                             <div className={data.firstInterview > 0 ? "text-info fw-bold" : "text-muted"}>初回面談: {data.firstInterview}</div>
                             <div className={data.propertyTour > 0 ? "text-info fw-bold" : "text-muted"}>物件案内: {data.propertyTour}</div>
@@ -472,28 +502,28 @@ const DailyReports = () => {
                         </>
                     )}
 
-                    {/* 事業部が特定できない（全社サマリなど）場合は全項目を表示 */}
-                    {!['注文事業', '建売分譲事業', '中古リノベ'].includes(division) && (
-                        <div className="text-muted" style={{ fontSize: '9px' }}>店舗/事業部を選択してください</div>
+                    {isUnknown && (
+                        <div className="text-muted" style={{ fontSize: '9px' }}>設定外の事業部です({division || rowShop || '未設定'})</div>
                     )}
                 </div>
             </td>
         );
     };
 
-    // 行描画用コンポーネント
     const renderRow = (name: string, data: Record<string, DailyMetrics>, type: 'division' | 'shop' | 'staff') => {
         if (!data) return null;
 
-        // 💡 行ごとに事業部(division)を特定してEntityCellに渡す
         let rowDivision = '';
+        let rowShop = '';
         if (type === 'division') {
             rowDivision = name;
         } else if (type === 'shop') {
             rowDivision = shopList.find(s => s.shop === name)?.division || '';
+            rowShop = name;
         } else if (type === 'staff') {
             const staffShop = staffList.find(s => s.name === name)?.shop;
             rowDivision = shopList.find(s => s.shop === staffShop)?.division || '';
+            rowShop = staffShop || '';
         }
 
         return (
@@ -505,7 +535,7 @@ const DailyReports = () => {
                     {name}
                 </th>
                 {datesInMonth.map(d => (
-                    <EntityCell key={d} data={data[d]} division={rowDivision} />
+                    <EntityCell key={d} data={data[d]} division={rowDivision} rowShop={rowShop} />
                 ))}
             </tr>
         );
@@ -578,10 +608,8 @@ const DailyReports = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* 💡 ①全事業部モード */}
                                     {!targetDivision && !targetShop && divisions.map(div => renderRow(div, aggregatedData.divData[div], 'division'))}
 
-                                    {/* 💡 ②事業部選択済・店舗未選択モード */}
                                     {targetDivision && !targetShop && (
                                         <>
                                             <tr>
@@ -593,7 +621,6 @@ const DailyReports = () => {
                                         </>
                                     )}
 
-                                    {/* 💡 ③店舗選択済モード */}
                                     {targetShop && (
                                         <>
                                             <tr>
@@ -608,9 +635,9 @@ const DailyReports = () => {
                                                     <i className="fa-solid fa-users me-2"></i>スタッフ別 行動アクション
                                                 </th>
                                             </tr>
-                                            {aggregatedData.activeStaffs
-                                                .filter(s => s.shop === targetShop)
-                                                .map(staff => renderRow(staff.name, aggregatedData.staffData[staff.name], 'staff'))
+                                            {staffList
+                                                .filter(s => String(s.period) === '2027' && s.shop === targetShop)
+                                                .map(staff => renderRow(staff.name, aggregatedData.staffData[removeSpaces(staff.name)], 'staff'))
                                             }
                                         </>
                                     )}

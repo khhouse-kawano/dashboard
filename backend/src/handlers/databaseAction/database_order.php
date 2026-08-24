@@ -62,6 +62,7 @@ $sql_customer = "SELECT
   COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') AS customized_input_01JRF9CZSW65A151WR30NA4PB3,
   COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') AS customized_input_01JSE7H4MQES619NBWX6PQDFRH,
   COALESCE(call_log, '') AS call_log,
+  COALESCE(hotlead_id, '') AS hotlead_id,
   COALESCE(k_snap, '') AS k_snap
  FROM master_data;
 ";
@@ -84,6 +85,12 @@ $stmt_event->execute();
 $response_event = $stmt_event->fetchAll(PDO::FETCH_ASSOC);
 
 
+// イベント情報
+$sql_hotlead = "SELECT id, status, hotlead_url, action_history, ticket_stop_reason_type FROM hotlead_db";
+$stmt_hotlead = $pdo->prepare($sql_hotlead);
+$stmt_hotlead->execute();
+$response_hotlead = $stmt_hotlead->fetchAll(PDO::FETCH_ASSOC);
+
 $result = [
         "staff" => $response_staff,
         "shop" => $response_shop,
@@ -92,6 +99,7 @@ $result = [
         "family" => $response_family,
         "introductory" => $response_introductory,
         "event" => $response_event,
+        "hotlead" => $response_hotlead,
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

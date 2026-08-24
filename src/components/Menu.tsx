@@ -111,6 +111,7 @@ const Menu = ({ key, onReload }: Props) => {
 
     const MENU_CONFIG: MenuItem[] = useMemo(() => [
         { id: 'company', path: '/company', icon: 'fa-rainbow', label: '全社報告用フォーマット', show: category !== 'planner', exact: true },
+        { id: 'summary', path: '/summary', icon: 'fa-chart-line', label: 'チームサマリー', show: !isSp && category === 'planner', exact: true },
         { id: 'report', path: '/report', icon: 'fa-calendar', label: '月次報告書', show: !isSp && category === 'planner', exact: true },
         { id: 'leadSell', path: '/leadSell', icon: 'fa-calculator', label: '売り反響(一括査定)', show: !isSp && category === 'planner', exact: true },
         { id: 'leadBuy', path: '/leadBuy', icon: 'fa-desktop', label: '買い反響(ポータル)', show: !isSp && category === 'planner', exact: true },
@@ -141,7 +142,6 @@ const Menu = ({ key, onReload }: Props) => {
         { id: 'budget', path: '/budget', icon: 'fa-money-check', label: '予算詳細', show: !isSp && (authority === "BrandAdmin" || authority === "Master"), exact: false, isAdminOnly: true },
         { id: 'photo', path: '/photo', icon: 'fa-camera', label: 'K-snap登録', show: !isSp && category === 'order', exact: false },
         { id: 'photo', path: '/insideSales', icon: 'fa-camera', label: 'ISカレンダー', show: (authority === 'insideSales' || authority === 'Master') && category === 'order', exact: false, isAdminOnly: true },
-        { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && category === 'order', exact: true },
     ], [isSp, category, authority, sync, cancel, lost]);
 
     if (currentPath === '/login' || currentPath === '/home') return null;

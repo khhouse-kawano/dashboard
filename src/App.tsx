@@ -36,6 +36,7 @@ import InsideSales from "./components/insideSales/InsideSales";
 import LeadBuy from "./components/lead/LeadBuy";
 import LeadSell from "./components/lead/LeadSell";
 import LeadOpportunity from "./components/lead/LeadOpportunity";
+import Summary from "./components/summary/Summary";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
 
@@ -138,6 +139,7 @@ function AppInner() {
             <Route path="/leadBuy" element={<LeadBuy/>} />
             <Route path="/leadSell" element={<LeadSell/>} />
             <Route path="/leadOpportunity" element={<LeadOpportunity/>} />
+            <Route path="/summary" element={<Summary/>} />
             <Route path="*" element={<Category />} />
 
           </Routes>

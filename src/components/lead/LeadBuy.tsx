@@ -7,6 +7,7 @@ import AuthContext from '../../context/AuthContext';
 import { removeSpaces, safeParse } from './leadUtiles';
 import LeadEdit from './LeadEdit';
 import LeadCall, { CallLog } from './LeadCall';
+import DocumentViewer from './DocumentViewer';
 
 // ==========================================
 // 💡 型定義
@@ -47,6 +48,17 @@ type PeriodSummary = {
     today: number;
     thisWeek: number;
     mail: number;
+};
+
+type initialData = {
+    name: string | null;
+    baikaiType: '専任媒介' | '専属専任媒介' | '一般媒介';
+    category?: string | null; // 追加: 区分
+    phone?: string | null;    // 追加: 連絡先(電話)
+    mail?: string | null;     // 追加: 連絡先(メール)
+    addr: string | null;
+    price: number | null;
+    fee: number | null;
 };
 
 // ==========================================
@@ -106,6 +118,19 @@ const getThisWeekDates = () => {
         days.push(`${y}-${m}-${dt}`);
     }
     return days;
+};
+
+// 💡 仲介手数料の自動計算（800万円以下: 30万円、800万円超: 3% + 6万円）
+const calcBrokerageFee = (priceVal: string | number | null | undefined): number | null => {
+    if (!priceVal) return null;
+    const price = Number(String(priceVal).replace(/[^\d.-]/g, ''));
+    if (isNaN(price) || price === 0) return null;
+    const actualPrice = price < 1000000 ? price * 10000 : price;
+    if (actualPrice <= 8000000) {
+        return 300000;
+    } else {
+        return actualPrice * 0.03 + 60000;
+    }
 };
 
 // 💡 追加: 最終アクションを算出する関数
@@ -188,6 +213,9 @@ const LeadBuy = () => {
 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [customerInfo, setCustomerInfo] = useState<Partial<BuyLead>>({});
+
+    const [documentShow, setDocumentShow] = useState(false);
+    const [currentInitialData, setCurrentInitialData] = useState<initialData | undefined>(undefined);
 
     const newReceivedDateRef = useRef<HTMLInputElement>(null);
     const newPortalRef = useRef<HTMLSelectElement>(null);
@@ -432,6 +460,27 @@ const LeadBuy = () => {
         setIsEditModalOpen(false);
     };
 
+    const handleOpenDocument = (lead: BuyLead) => {
+        const priceVal = lead.budget;
+        const parsedPrice = priceVal ? Number(String(priceVal).replace(/[^\d.-]/g, '')) : null;
+        const actualPrice = parsedPrice ? (parsedPrice < 1000000 ? parsedPrice * 10000 : parsedPrice) : null;
+        const fee = calcBrokerageFee(priceVal);
+
+        const data: initialData = {
+            name: lead.name || null,
+            baikaiType: '専任媒介',
+            category: null,
+            phone: lead.phone || null,
+            mail: lead.mail || null,
+            addr: lead.addr || null,
+            price: actualPrice,
+            fee: fee
+        };
+
+        setCurrentInitialData(data);
+        setDocumentShow(true);
+    };
+
     const headerLabel = {
         title: '買い反響（ポータル）管理',
         describe: 'SUUMO・アットホーム等の購入反響を受信→追客→通電→内見→購入申込→成約で追跡。売り反響（一括査定）とは別枠で集計します。'
@@ -595,6 +644,7 @@ const LeadBuy = () => {
                                 <th style={{ ...compactThStyle, textAlign: 'right' }}>予算・希望</th>
                                 <th style={compactThStyle}>通電日</th>
                                 <th style={compactThStyle}>内見日</th>
+                                <th style={compactThStyle}>書類</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -625,7 +675,7 @@ const LeadBuy = () => {
                                             {['反響受信', '追客中', '通電済み', '内見予約', '内見済み', '購入申込', '成約', '追客終了'].map(p => <option key={p} value={p}>{p}</option>)}
                                         </select>
                                     </td>
-                                    <td colSpan={8} style={{ ...getTdStyle(false), color: '#6c757d', textAlign: 'left', fontSize: '10px' }}>
+                                    <td colSpan={9} style={{ ...getTdStyle(false), color: '#6c757d', textAlign: 'left', fontSize: '10px' }}>
                                         ※その他の詳細は追加後に設定できます。
                                     </td>
                                     <td style={getTdStyle(false)}>
@@ -639,7 +689,7 @@ const LeadBuy = () => {
 
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={14} style={{ padding: '40px', textAlign: 'center' }}>
+                                    <td colSpan={15} style={{ padding: '40px', textAlign: 'center' }}>
                                         <div className="spinner-border text-primary" role="status"></div>
                                     </td>
                                 </tr>
@@ -735,12 +785,18 @@ const LeadBuy = () => {
                                             {/* 💡 日付のバインディング変更 */}
                                             <td style={{ ...getTdStyle(isUnassigned), color: '#8898aa' }}>{formatDate(lead.connectDate)}</td>
                                             <td style={{ ...getTdStyle(isUnassigned), color: '#8898aa' }}>{formatDate(lead.viewDate)}</td>
+                                            <td style={getTdStyle(isUnassigned)}>
+                                                <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px' }}
+                                                    onClick={() => handleOpenDocument(lead)}>
+                                                    <i className="fa-solid fa-file-contract me-1 text-secondary"></i>契約書
+                                                </button>
+                                            </td>
                                         </tr>
                                     );
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={14} style={{ padding: '40px', textAlign: 'center', color: '#6c757d' }}>
+                                    <td colSpan={15} style={{ padding: '40px', textAlign: 'center', color: '#6c757d' }}>
                                         データが見つかりません。
                                     </td>
                                 </tr>
@@ -769,6 +825,12 @@ const LeadBuy = () => {
                 setCustomerInfo={setCustomerInfo}
                 leadCategory="buy"
                 staffList={staffList}
+            />
+
+            <DocumentViewer
+                documentShow={documentShow}
+                setDocumentShow={setDocumentShow}
+                initialData={currentInitialData}
             />
         </div>
     );

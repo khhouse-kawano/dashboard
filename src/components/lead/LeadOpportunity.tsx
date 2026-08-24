@@ -3,9 +3,9 @@ import apiClient from '../../utils/apiClient';
 import Card from 'react-bootstrap/Card';
 import Table from 'react-bootstrap/Table';
 import AuthContext from '../../context/AuthContext';
-// 💡 追加: 共通の顧客情報編集コンポーネントをインポート
-import LeadEdit from './LeadEdit'; 
-
+import LeadEdit from './LeadEdit';
+import DocumentViewer from './DocumentViewer';
+import PlannerGenerator from './PlannerGenerator';
 // ==========================================
 // 💡 型定義
 // ==========================================
@@ -36,6 +36,18 @@ type OpportunityLead = {
     receivedDate: string | null;
     note?: string | null;
     [key: string]: any;
+};
+
+// 💡 追加: DocumentViewerへ渡す初期データの型定義
+type initialData = {
+    name: string | null;
+    baikaiType: '専任媒介' | '専属専任媒介' | '一般媒介';
+    category?: string | null; // 追加: 区分
+    phone?: string | null;    // 追加: 連絡先(電話)
+    mail?: string | null;     // 追加: 連絡先(メール)
+    addr: string | null;
+    price: number | null;
+    fee: number | null;
 };
 
 // ==========================================
@@ -72,10 +84,10 @@ const calcBrokerageFee = (priceVal: string | number | null | undefined): number 
     // 数字以外の文字を除去して数値化
     const price = Number(String(priceVal).replace(/[^\d.-]/g, ''));
     if (isNaN(price) || price === 0) return null;
-    
+
     // データが万円単位（例: 3000）か、円単位（例: 30000000）かを判定して円に統一
     const actualPrice = price < 1000000 ? price * 10000 : price;
-    
+
     if (actualPrice <= 8000000) {
         return 300000;
     } else {
@@ -99,11 +111,17 @@ const LeadOpportunity = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [staffList, setStaffList] = useState<string[]>([]);
     const [displayLimit, setDisplayLimit] = useState<number>(15);
-    
+
+    // 💡 DocumentViewerの状態管理
+    const [documentShow, setDocumentShow] = useState(false);
+    const [currentInitialData, setCurrentInitialData] = useState<initialData | undefined>(undefined);
+
     // 💡 フィルター用ステート
     const [selectedStaff, setSelectedStaff] = useState<string>('');
     const [selectedPhase, setSelectedPhase] = useState<string>('');
     const [hideSettled, setHideSettled] = useState<boolean>(true); // デフォルトで決済完了を隠す
+
+    const [plannerShow, setPlannerShow] = useState(false);
 
     // モーダル制御・状態管理用
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -115,13 +133,13 @@ const LeadOpportunity = () => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const response = await apiClient.post('', { request: 'planner', roll: 'lead' }); 
+                const response = await apiClient.post('', { request: 'planner', roll: 'lead' });
                 if (response.data && response.data.lead) {
                     // 有効な商談フェーズ（決済完了も一旦含めて取得し、フロントでフィルタリング）
                     const validPhases = ['媒介受託', '購入申込', '内見済み', '契約済', '決済完了'];
 
                     const responseLead = response.data.lead
-                        .filter((l: any) => 
+                        .filter((l: any) =>
                             (l.kind === 'ledger' || l.kind === 'buyLead' || l.kind === 'buyLeads') &&
                             validPhases.includes(l.phase)
                         )
@@ -133,9 +151,9 @@ const LeadOpportunity = () => {
                             contractDate: dateFormate(l.contractDate),
                             settleDate: dateFormate(l.settleDate)
                         }));
-                        
+
                     setLeads(responseLead);
-                    
+
                     if (response.data.staff) {
                         // 重複排除してセット
                         const staffs = Array.from(new Set(response.data.staff.map((s: any) => s.name))) as string[];
@@ -210,12 +228,43 @@ const LeadOpportunity = () => {
         setIsEditModalOpen(false);
     };
 
+    // 💡 追加: 契約書ボタンクリック時の処理
+    const handleOpenDocument = (lead: OpportunityLead) => {
+        const isSell = lead.kind === 'ledger';
+        const customerName = isSell ? lead.seller : (lead.customer || lead.name);
+        const priceVal = isSell ? lead.price : lead.budget;
+
+        // 費用と価格の算出
+        const fee = calcBrokerageFee(priceVal);
+        const parsedPrice = priceVal ? Number(String(priceVal).replace(/[^\d.-]/g, '')) : null;
+        const actualPrice = parsedPrice ? (parsedPrice < 1000000 ? parsedPrice * 10000 : parsedPrice) : null;
+
+        // 媒介種別のバリデーション
+        const bt = lead.baikaiType;
+        const validBaikaiTypes = ['専任媒介', '専属専任媒介', '一般媒介'];
+        const safeBaikaiType = validBaikaiTypes.includes(bt) ? bt : '専任媒介';
+
+        const data: initialData = {
+            name: customerName || null,
+            baikaiType: safeBaikaiType as '専任媒介' | '専属専任媒介' | '一般媒介',
+            category: lead.category || null,
+            phone: lead.phone || null,
+            mail: lead.mail || null,
+            addr: lead.addr1 || lead.addr || null,
+            price: actualPrice,
+            fee: fee
+        };
+
+        setCurrentInitialData(data);
+        setDocumentShow(true);
+    };
+
     // 💡 動的なリードカテゴリの判定（売・買の切り分け）
     const currentLeadCategory = customerInfo?.kind === 'ledger' ? 'sellOpportunity' : 'buyOpportunity';
 
     return (
         <div className="p-3 p-md-4" style={{ backgroundColor: '#fafbfe', minHeight: '100vh', width: '100%', overflowX: 'auto' }}>
-            
+
             {/* 💡 ヘッダー＆フィルターセクション */}
             <div className="d-flex flex-wrap justify-content-between align-items-end mb-4 pb-2 border-bottom" style={{ minWidth: '1200px' }}>
                 <div>
@@ -226,14 +275,14 @@ const LeadOpportunity = () => {
                         購入申込・媒介受託以降の有効な商談を一元管理します。仲介手数料は800万円を基準に自動算出されます。
                     </div>
                 </div>
-                
+
                 <div className="d-flex align-items-center gap-3 mt-3 mt-md-0">
                     <div className="form-check form-switch d-flex align-items-center gap-2">
-                        <input 
-                            className="form-check-input" 
-                            type="checkbox" 
-                            role="switch" 
-                            id="hideSettledSwitch" 
+                        <input
+                            className="form-check-input"
+                            type="checkbox"
+                            role="switch"
+                            id="hideSettledSwitch"
                             checked={hideSettled}
                             onChange={() => setHideSettled(!hideSettled)}
                             style={{ cursor: 'pointer' }}
@@ -243,8 +292,8 @@ const LeadOpportunity = () => {
                         </label>
                     </div>
 
-                    <select 
-                        className="form-select form-select-sm shadow-sm" 
+                    <select
+                        className="form-select form-select-sm shadow-sm"
                         style={{ width: '150px', fontSize: '12px', fontWeight: 'bold' }}
                         value={selectedPhase}
                         onChange={(e) => setSelectedPhase(e.target.value)}
@@ -255,8 +304,8 @@ const LeadOpportunity = () => {
                         ))}
                     </select>
 
-                    <select 
-                        className="form-select form-select-sm shadow-sm" 
+                    <select
+                        className="form-select form-select-sm shadow-sm"
                         style={{ width: '150px', fontSize: '12px', fontWeight: 'bold' }}
                         value={selectedStaff}
                         onChange={(e) => setSelectedStaff(e.target.value)}
@@ -342,7 +391,7 @@ const LeadOpportunity = () => {
                                             <th className="text-secondary fw-bold">決済予定日</th>
                                             <th className="text-secondary fw-bold">経過日数</th>
                                             <th className="text-secondary fw-bold text-start">備考</th>
-                                            <th className="text-secondary fw-bold">操作</th>
+                                            <th className="text-secondary fw-bold">書類</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -352,7 +401,7 @@ const LeadOpportunity = () => {
                                                 const customerName = isSell ? lead.seller : (lead.customer || lead.name);
                                                 const price = isSell ? lead.price : lead.budget;
                                                 const fee = calcBrokerageFee(price);
-                                                
+
                                                 // 経過日数は契約日があればそこから、なければ受信日から算出
                                                 const baseDateForDays = lead.contractDate ? lead.contractDate : lead.receivedDate;
 
@@ -388,8 +437,13 @@ const LeadOpportunity = () => {
                                                             {lead.note || '―'}
                                                         </td>
                                                         <td>
-                                                            <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px' }}>
-                                                                <i className="bi bi-file-earmark-text text-primary me-1"></i>書類
+                                                            <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px' }}
+                                                                onClick={() => handleOpenDocument(lead)}>
+                                                                <i className="fa-solid fa-file-contract me-1 text-secondary"></i>契約書
+                                                            </button>
+                                                            <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px' }}
+                                                                onClick={() => setPlannerShow(true)}>
+                                                                <i className="fa-solid fa-calculator me-1 text-secondary"></i>精算書
                                                             </button>
                                                         </td>
                                                     </tr>
@@ -410,10 +464,7 @@ const LeadOpportunity = () => {
                 </>
             )}
 
-            {/* ==========================================
-                💡 顧客情報編集モーダル (共通コンポーネント)
-            ========================================== */}
-            <LeadEdit 
+            <LeadEdit
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
                 onSave={handleSaveCustomerInfo}
@@ -421,6 +472,17 @@ const LeadOpportunity = () => {
                 setCustomerInfo={setCustomerInfo}
                 leadCategory={currentLeadCategory}
                 staffList={staffList}
+            />
+
+            {/* 💡 DocumentViewerの組み込み */}
+            <DocumentViewer
+                documentShow={documentShow}
+                setDocumentShow={setDocumentShow}
+                initialData={currentInitialData}
+            />
+            <PlannerGenerator
+                plannerShow={plannerShow}
+                setPlannerShow={setPlannerShow}
             />
         </div>
     );

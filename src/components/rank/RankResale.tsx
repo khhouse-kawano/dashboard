@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
-import axios from "axios";
 import Table from "react-bootstrap/Table";
 import "../SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -8,13 +7,13 @@ import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
-import { headers } from '../../utils/headers';
 import { getFiscalYearMonthsFromJune } from '../../utils/getFiscalYearMonthsFromJune';
 import InformationEditResale from '../information/InformationEditResale';
 import StaffMemo from './StaffMemo';
 import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
 import { useIsSp } from '../../utils/isSp';
+import apiClient from '../../utils/apiClient';
 
 type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -30,20 +29,18 @@ const RankResale = () => {
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMonth, setTargetMonth] = useState('');
     const [customerList, setCustomerList] = useState<Customer[]>([]);
-    const [sections, setSections] = useState<string[]>(['中古住宅専門店']);
+    const [sections, setSections] = useState<string[]>(['中古リノベ']);
     const [expectedContract, setExpectedContract] = useState<Expect[]>([]);
     const [showTarget, setShowTarget] = useState<Target>({
-        '中古住宅専門店': true
+        '中古リノベ': true
     });
     const isSp = useIsSp();
 
     //　ココをtrueにすることで常時オープンに
     const [shopList, setShopList] = useState<Shop[]>([{
-        shop: '買い:中古リノベ', section: '中古住宅専門店'
+        shop: '中古住宅専門店', section: '中古リノベ'
     }, {
-        shop: '買い:ポータル', section: '中古住宅専門店'
-    }, {
-        shop: '売り:ポータル', section: '中古住宅専門店'
+        shop: '不動産企画係', section: '中古リノベ'
     }]);
     const [originalStaffList, setOriginalStaffList] = useState<Staff[]>([]);
     const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -67,7 +64,7 @@ const RankResale = () => {
     const [memoList, setMemoList] = useState<Memo[]>([]);
 
     const fetchCustomerData = async () => {
-        return await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", category }, { headers });
+        return await apiClient.post('', { request: "rank", category });
     };
 
     useEffect(() => {
@@ -117,10 +114,10 @@ const RankResale = () => {
         // { label: '来場率', desc: '来場者数/総反響' },
         { label: '来場数', desc: (<>{targetMonth}の来場者数</>) },
         { label: '次アポ数', desc: (<>{targetMonth}の次アポ数</>) },
-        { label: '契約数(率)', desc: (<>契約者数/来場者数</>) },
+        { label: '粗利額/契約数(率)', desc: (<>契約者数/来場者数</>) },
         { label: '当月確約数', desc: (<>{targetMonth}の契約が確実な数</>) },
-        { label: '見込数', desc: (<>{targetMonth}の見込数</>) },
-        { label: '目標数', desc: (<>{targetMonth}の目標数</>) },
+        // { label: '見込数', desc: (<>{targetMonth}の見込数</>) },
+        { label: '目標粗利', desc: (<>{targetMonth}目標粗利</>) },
         { label: '達成率', desc: (<>契約者数/予算 ()内は見込み達成率</>) },
         { label: 'Sランク', desc: (<>契約確定(95%)</>) },
         { label: 'Aランク', desc: (<>契約確度高い(90%)</>) },
@@ -134,8 +131,9 @@ const RankResale = () => {
     const rankLabels = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク'];
 
     const backgroundMapping = {
-        '中古リノベ': 'table-secondary ',
-        '中古住宅専門店': 'table-light ',
+        '中古リノベ': 'table-light ',
+        '中古住宅専門店': 'table-warning ',
+        '不動産企画係': 'table-info ',
         '買い:中古リノベ': 'table-primary ',
         '買い:ポータル': 'table-success ',
         '売り:ポータル': 'table-danger ',
@@ -166,7 +164,7 @@ const RankResale = () => {
         };
 
         const register = customerList.filter(c => checkDate(c.register));
-        const contract = customerList.filter(c => c.status === '契約済み' && checkDate(c.contract));
+        const contract = customerList.filter(c => c.status === '契約済み' && (checkDate(c.contract) || checkDate(c.contract_apply) || checkDate(c.contract_lead)));
         const interviewBase = customerList.filter(c => checkDate(c.interview));
         const appointmentOther = customerList.filter(c =>
             !c.interview && (checkDate(c.appointment) || checkDate(c.screening) || checkDate(c.contract))
@@ -179,6 +177,10 @@ const RankResale = () => {
 
         return { register, contract, interview, appointment, all: customerList };
     }, [customerList, targetMonth, staffList]);
+
+    useEffect(() => {
+        console.log(baseData)
+    }, [baseData])
 
     const displayLabelList = useMemo<Label[]>(() => {
         const list: Label[] = [];
@@ -194,10 +196,10 @@ const RankResale = () => {
                         const staffs = staffList
                             .sort(staffSorter());
                         staffs.filter(s => {
-                            if(shop.shop === '買い:中古リノベ') return s.shop === '中古住宅専門店';
-                            if(shop.shop === '売り:ポータル') return s.shop === '不動産企画係';
+                            if (shop.shop === '中古住宅専門店') return s.shop === '中古住宅専門店';
+                            if (shop.shop === '不動産企画係') return s.shop === '不動産企画係';
                             return true;
-                         }).forEach(staff => {
+                        }).forEach(staff => {
                             list.push({ category: 'staff', label: staff.name, show: false });
                         });
                     }
@@ -207,6 +209,7 @@ const RankResale = () => {
 
         return list;
     }, [sections, shopList, staffList, showTarget]);
+    // const register = getFiltered('register', target.category, target.label, targetIndex, '', 0);
 
     const getFiltered = useCallback((
         period: string,
@@ -231,16 +234,23 @@ const RankResale = () => {
         else if (period === 'register') base = baseData.register;
         else if (period === 'appointment') base = baseData.appointment;
         else base = baseData.all;
+        console.log(period + category + target + index + rank + rank_period)
+
 
         const targetShops = category === 'section' ? shopList.filter(s => s.section === target).map(s => s.shop) : [];
+        const shopMapping = {
+            '中古住宅専門店': '買い:中古リノベ',
 
+        };
         return base.filter(item => {
             let matchCategory = true;
             if (index > 0) {
                 if (category === 'section') {
-                    matchCategory = targetShops.includes(item.shop);
+                    matchCategory = ['買い:中古リノベ', '売り:ポータル', '買い:ポータル'].includes(item.shop);
+                } else if (category === 'shop') {
+                    matchCategory = target === '中古住宅専門店' ? ['買い:中古リノベ'].includes(item.shop) : ['買い:ポータル', '売り:ポータル'].includes(item.shop);
                 } else {
-                    matchCategory = (item as any)[category] === target;
+                    matchCategory = target === item.staff;
                 }
             }
             if (!matchCategory) return false;
@@ -277,8 +287,7 @@ const RankResale = () => {
         };
         const fetchData = async () => {
             try {
-                const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/", postData, { headers });
+                const response = await apiClient.post("", postData);
                 console.log(response.data);
             } catch (error) {
                 console.error("Error fetching data:", error);
@@ -310,7 +319,7 @@ const RankResale = () => {
             category
         };
         try {
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+            const response = await apiClient.post('', postData);
             await setCustomerList(response.data.newCustomers);
         } catch (e) {
             console.error(e);
@@ -358,7 +367,7 @@ const RankResale = () => {
 
         const fetchData = async () => {
             try {
-                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", staff, memo: text, shop }, { headers });
+                await apiClient.post('', { request: "rank", staff, memo: text, shop });
             } catch (err) {
                 console.error(err);
             }
@@ -399,7 +408,7 @@ const RankResale = () => {
                 </div>
                 <div>
                     <Table bordered>
-                        <tbody style={{ fontSize:isSp ? '8px' : '12px' }} className='align-middle'>
+                        <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
                             <tr className="text-center">
                                 <td rowSpan={2} className='sticky-column-rank'>店舗</td>
                                 {tooltipItems
@@ -459,7 +468,7 @@ const RankResale = () => {
                                     const rankA = getFiltered('', target.category, target.label, targetIndex, 'Aランク', 0);
                                     const goal = achievement.filter(a => {
                                         const yearPeriod = isPeriod ? getFiscalYearMonthsFromJune(targetMonth) : [];
-                                        return (target.category === 'all' ? a.name === '注文事業' : a.name === target.label) &&
+                                        return (target.category === 'section' ? ['中古住宅専門店', '不動産企画係'].includes(a.name) : a.name === target.label) &&
                                             (isPeriod ? yearPeriod.includes(a.period.replace(/-/g, '/')) : a.period.replace(/-/g, '/') === targetMonth)
                                     }).reduce((acc, cur) => acc + Number(cur.value), 0);
                                     const expectedList = expectedContract.filter(item => item.date === targetMonth
@@ -496,39 +505,17 @@ const RankResale = () => {
                                                 , cursor: contract.length > 0 ? 'pointer' : ''
                                             }}
                                                 className={contract.length === 0 ? 'table-white' : ''}
-                                                key={targetIndex}>{contract.length}({perFormate(contract.length / interview.length)}%)</td>
-                                            <TableParts key={targetIndex} list={[...contract, ...rankS]} setModalList={setModalList} />
-                                            {!isPeriod && <td>
-                                                {(targetIndex === 0 || target.category === 'section') && expected}
-                                                {(target.category === 'shop') && <input type='number' className='target text-center' value={expected}
-                                                    style={{ width: '40px', height: '25px', margin: '0 auto' }}
-                                                    onChange={(e) => {
-                                                        const sectionValue = shopList.find(s => s.shop === target.label)?.section;
-                                                        setNewExpected({
-                                                            date: targetMonth,
-                                                            shop: target.label,
-                                                            section: sectionValue ?? '',
-                                                            count: Number(e.target.value)
-                                                        });
-                                                        setExpectedContract(
-                                                            prev => expectedList.length > 0 ?
-                                                                prev.map(item =>
-                                                                    item.shop === target.label
-                                                                        ? {
-                                                                            ...item,
-                                                                            count: Number(e.target.value)
-                                                                        }
-                                                                        : item) : [...prev,
-                                                                        {
-                                                                            date: targetMonth,
-                                                                            shop: target.label,
-                                                                            section: sectionValue ?? '',
-                                                                            count: Number(e.target.value)
-                                                                        }]
-                                                        );
-                                                    }}
-                                                />}</td>}
-                                            <td>{target.category === 'staff' ? '-' : goal}</td>
+                                                key={targetIndex}>
+                                                {contract.reduce((acc, cur) => acc + Number(cur.budget_total ?? 0), 0)}<span style={{ fontSize: '7px', fontWeight: 'bold' }}>万円</span>
+                                                <br />{contract.length}<span style={{ fontSize: '9px', fontWeight: 'bold' }}>件</span>({perFormate(contract.length / interview.length)}%)</td>
+                                            <td onClick={() => contract.length > 0 ? setModalList([...contract, ...rankS]) : null} style={{
+                                                textDecoration: contract.length > 0 ? 'underline' : ''
+                                                , cursor: contract.length > 0 ? 'pointer' : ''
+                                            }}
+                                                className={contract.length === 0 ? 'table-white' : ''}
+                                                key={targetIndex}>
+                                                {[...contract, ...rankS].reduce((acc, cur) => acc + Number(cur.budget_total ?? 0), 0)}<span style={{ fontSize: '7px', fontWeight: 'bold' }}>万円</span>
+                                                <br />{contract.length + rankS.length}<span style={{ fontSize: '9px', fontWeight: 'bold' }}>件</span></td>                                            <td>{target.category === 'staff' ? '-' : goal}</td>
                                             <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%
                                                 (<span className='text-primary'>{goal ? perFormate((contract.length + rankS.length) / Number(goal)) : 0}%</span>)</td>
                                             {rankLabels.map((rank, rankIndex) => {

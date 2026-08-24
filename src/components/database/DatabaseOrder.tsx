@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useContext, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Table from "react-bootstrap/Table";
 import AuthContext from '../../context/AuthContext';
@@ -11,110 +11,146 @@ import InformationEdit from '../information/InformationEdit';
 import { useIsSp } from '../../utils/isSp';
 import { useDebounce } from './useDebounce';
 import apiClient from '../../utils/apiClient';
-import { safeParse } from './databaseUtils';
+import { safeParse, hotleadStyle } from './databaseUtils';
 
-type shopList = { brand: string, shop: string, section: string };
-type CustomerList = Record<string, string>;
-type MediumType = { id: number, medium: string, category: string, sort_key: number, response_medium: number, list_medium: number }
+// --- 型定義 ---
+type ShopList = { brand: string; shop: string; section: string };
+type MediumType = { id: number; medium: string; category: string; sort_key: number; response_medium: number; list_medium: number };
+
+// 必要なプロパティを明示することで、mapやsort時の型エラーをなくす
+
+interface CustomerItem extends Record<string, any> {
+    id: string;
+    trash: number | string;
+    shop: string;
+    register: string;
+    interview?: string;
+    reserved_interview?: string;
+    rank?: string;
+    medium?: string;
+    status?: string;
+    customer?: string;
+    staff?: string;
+    phone_number?: string;
+    full_address?: string;
+    search_address?: string;
+    _cleanCustomer?: string;
+    introduction_person_category?: string;
+    k_snap?: boolean | number;
+    call_status?: string;
+    call_log?: string | number;
+    cancel_status?: string;
+    hotlead_id?: string;
+}
 
 type Props = {
-    onReload: () => void,
-    key: number
+    onReload: () => void;
+    key?: number; // Reactの予約語に近いので、警告が出る場合は別名推奨
 };
 
-const DatabaseOrder = ({ onReload, key }: Props) => {
-    const { authority, category } = useContext(AuthContext);
-    const [shopArray, setShopArray] = useState<shopList[]>([]);
+// --- ヘルパー関数 ---
+const safeFormate = (value?: string) => (value ?? '').replace(/-/g, '/');
+const dateFormate = (value?: string) => (value ?? '').replace(/\//g, '-');
+const strIncludes = (val: any, sub: string) => sub ? String(val ?? '').includes(sub) : true;
+const arrIncludes = (arr: any, v: any) => v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true;
+
+
+const DatabaseOrder = ({ onReload }: Props) => {
+    const { authority, category, token } = useContext(AuthContext);
+
+    // データリスト関連
+    const [originalDatabase, setOriginalDatabase] = useState<CustomerItem[]>([]);
+    const [shopArray, setShopArray] = useState<ShopList[]>([]);
     const [mediumArray, setMediumArray] = useState<string[]>([]);
     const [monthArray, setMonthArray] = useState<string[]>([]);
-    const [originalDatabase, setOriginalDatabase] = useState<CustomerList[]>([]);
-    const [selectedShop, setSelectedShop] = useState<string>('')
-    const [selectedRegister, setSelectedRegister] = useState<string>('')
-    const [selectedReserve, setSelectedReserve] = useState<string>('')
-    const [selectedRank, setSelectedRank] = useState<string>('')
-    const [selectedMedium, setSelectedMedium] = useState<string>('')
-    const [selectedIntroductory, setSelectedIntroductory] = useState<string>('')
-    const [selectedStatus, setSelectedStatus] = useState<string>('')
-    const [searchedEvent, setSearchedEvent] = useState<string>('')
-    const [displayLength, setDisplayLength] = useState<number>(20);
+    const [familyList, setFamilyList] = useState<Record<string, any>[]>([]);
+    const [introductoryList, setIntroductoryList] = useState<string[]>([]);
+    const [eventList, setEventList] = useState<Record<string, any>[]>([]);
+    const [hotleadList, setHotledList] = useState<Record<string, any>[]>([]);
+
+    // 検索・フィルター条件
+    const [selectedShop, setSelectedShop] = useState<string>('');
+    const [selectedRegister, setSelectedRegister] = useState<string>('');
+    const [selectedReserve, setSelectedReserve] = useState<string>('');
+    const [selectedRank, setSelectedRank] = useState<string>('');
+    const [selectedMedium, setSelectedMedium] = useState<string>('');
+    const [selectedIntroductory, setSelectedIntroductory] = useState<string>('');
+    const [selectedStatus, setSelectedStatus] = useState<string>('');
+    const [searchedEvent, setSearchedEvent] = useState<string>('');
     const [callStatus, setCallStatus] = useState<string>('');
+    const [trash, setTrash] = useState<number>(1);
+    const [familyStatus, setFamilyStatus] = useState<boolean>(false);
+    const [snapStatus, setSnapStatus] = useState(false);
+    const [hotleadStatus, sethotleadStatus] = useState('');
+
+    // 表示・ページネーション
+    const [displayLength, setDisplayLength] = useState<number>(20);
     const [activePage, setActivePage] = useState<number>(1);
     const [sliceStart, setSliceStart] = useState<number>(0);
     const [basicLength, setBasicLength] = useState<number>(20);
-    const [trash, setTrash] = useState<number>(1);
-    const { token } = useContext(AuthContext);
-    const [familyList, setFamilyList] = useState<Record<string, string>[]>([]);
-    const [familyStatus, setFamilyStatus] = useState<boolean>(false);
+
+    // モーダル・集計表示制御
     const [callStatusShow, setCallStatusShow] = useState(false);
     const [surveyShow, setSurveyShow] = useState(false);
     const [cancelListShow, setCancelListShow] = useState(false);
-    const [cancelLength, setCancelLength] = useState<number | null>(0);
-    const [loseLength, setLoseLength] = useState<number | null>(0);
-    const [introductoryList, setIntroductoryList] = useState<string[]>([]);
-    const [snapStatus, setSnapStatus] = useState(false);
-    const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [loseListShow, setLoseListShow] = useState(false);
+    const [cancelLength, setCancelLength] = useState<number>(0);
+    const [loseLength, setLoseLength] = useState<number>(0);
+    const [editId, setEditId] = useState('');
 
-    //　オリジナルフック
+    // カスタムフック・URLパラメータ
     const nameSearch = useDebounce('', 300);
     const staffSearch = useDebounce('', 300);
     const phoneSearch = useDebounce('', 300);
     const addressSearch = useDebounce('', 300);
     const familySearch = useDebounce('', 300);
-
     const isSp = useIsSp();
-
     const [searchParams, setSearchParams] = useSearchParams();
-    const id = searchParams.get('id');
+    const skipPageReset = useRef(false);
 
-    const removeParam = (keyToRemove) => {
+    // URL IDの監視
+    useEffect(() => {
+        const id = searchParams.get('id');
+        if (id) setEditId(id);
+    }, [searchParams]);
+
+    useEffect(() => {
+        if (!editId) return;
         const newParams = new URLSearchParams(searchParams);
-        newParams.delete(keyToRemove);
+        newParams.set('id', editId);
         setSearchParams(newParams);
-    };
+    }, [editId, searchParams, setSearchParams]);
 
-    useEffect(() => {
-        if (!id) return;
-        setEditId(id);
-    }, [id]);
+    // データ取得処理（マウント時および更新時に再利用）
+    const fetchDatabase = useCallback(async (isInitial = false) => {
+        try {
+            const response = await apiClient.post("", { request: 'database', category });
 
+            const customers: CustomerItem[] = response.data.customer.map((c: any) => ({
+                ...c,
+                search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
+                _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '')
+            }));
 
-    const safeFormate = (value: string) => {
-        return (value ?? '').replace(/-/g, '/');
-    };
+            setOriginalDatabase(customers);
 
-    const dateFormate = (value: string) => {
-        return (value ?? '').replace(/\//g, '-');
-    };
-
-    useEffect(() => {
-        setMonthArray(getYearMonthArray(2025, 1));
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post("", { request: 'database', category });
-
-                const customers = response.data.customer.map((c: any) => ({
-                    ...c,
-                    search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
-                    _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '') // ★あらかじめスペースを消しておく
-                }));
-                setOriginalDatabase(customers);
-
-                setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
+            if (isInitial) {
+                setShopArray(response.data.shop.filter((item: ShopList) => !item.shop.includes('店舗未設定')));
                 setMediumArray(response.data.medium.filter((item: MediumType) => item.list_medium === 1).map((item: MediumType) => item.medium));
                 setDisplayLength(customers.length);
                 setFamilyList(response.data.family);
                 setIntroductoryList(response.data.introductory.map((i: any) => i.name));
                 setEventList(response.data.event);
+                setHotledList(response.data.hotlead);
 
+                // キャンセル・失注集計
                 const nowTime = new Date().getTime();
                 const cancelBase = new Date('2026-01-01').getTime();
                 const loseBase = new Date('2026-06-01').getTime();
-
                 let cCount = 0;
                 let lCount = 0;
 
-                customers.forEach((item: any) => {
+                customers.forEach((item) => {
                     if (Number(item.trash) !== 1) return;
 
                     const cTarget = new Date(dateFormate(item.reserved_interview)).getTime();
@@ -133,41 +169,39 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                         if (isReasonMissing || isCompetitorMissing || isDetailMissing) lCount++;
                     }
                 });
-
                 setCancelLength(cCount);
                 setLoseLength(lCount);
-
-            } catch (error) {
-                console.error("Error fetching data:", error);
             }
-        };
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
+    }, [category]);
 
-        fetchData();
-    }, []);
+    useEffect(() => {
+        setMonthArray(getYearMonthArray(2025, 1));
+        fetchDatabase(true);
+    }, [fetchDatabase]);
 
-    const strIncludes = (val: any, sub: string) => (sub ? String(val ?? '').includes(sub) : true);
-    const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
-
+    // フィルタリング・ソート処理
     const filteredDatabase = useMemo(() => {
         const sName = nameSearch.debouncedValue ?? '';
         const formattedName = sName.includes('&') ? sName.split('&')[0] : sName.includes('+') ? sName.split('+')[0] : sName;
         const formattedNumber = sName.includes('&') ? sName.split('&')[1] : phoneSearch.debouncedValue ?? '';
         const formattedAddress = sName.includes('+') ? sName.split('+')[1] : '';
-
         const cleanFormattedName = formattedName.replace(/[\s\u3000]+/g, '');
 
         const familyIds = familyList.map(f => f.id);
-        const familyFlatList = familyList.flatMap(f => {
+        const filteredFamilyID = familyList.flatMap(f => {
             const parsedList = safeParse(f.family_info) || [];
-            return parsedList.map(info => ({
-                name: info.name,
-                id: f.id
-            }));
-        });
-        const filteredFamilyID = familyFlatList.filter(f => f.name.includes(familySearch.debouncedValue)).map(f => f.id);
+            return parsedList.map(info => ({ name: info.name, id: f.id }));
+        }).filter(f => f.name.includes(familySearch.debouncedValue)).map(f => f.id);
+
+        const hotleadIds = hotleadList.filter(h => hotleadStatus ? h.status === hotleadStatus : true).map(h => h.id);
+
+        // 型安全なmapとsort
         const result = originalDatabase.filter(item => {
-            return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
-                && (trash === 0 ? (Number(item.trash) ?? 0) !== 1 : true)
+            return (trash === 1 ? Number(item.trash ?? 0) !== 0 : true)
+                && (trash === 0 ? Number(item.trash ?? 0) !== 1 : true)
                 && (selectedShop ? arrIncludes(item.shop, selectedShop) : true)
                 && (selectedRegister ? strIncludes(item.register, dateFormate(selectedRegister)) : true)
                 && (selectedReserve === 'notVisited'
@@ -186,12 +220,29 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
                 && (familyStatus ? familyIds.includes(item.id) : true)
                 && (searchedEvent ? (item.event === searchedEvent && item.medium === 'イベント') : true)
-                && (snapStatus ? item.k_snap : true);
+                && (snapStatus ? item.k_snap : true)
+                && (hotleadStatus ? hotleadIds.includes(item.hotlead_id) : true);
+        }).map(r => {
+            const targetStatus = hotleadList.find(h => h.id === r.hotlead_id) ?? {};
+            const targetAction = targetStatus?.action_history ?
+                (<div className='d-flex align-items-center text-secondary'>
+                    <i className="fa-solid fa-phone me-1"></i>{targetStatus?.action_history.split('架電').length - 1}
+                    <i className="fa-solid fa-envelope mx-1"></i>{targetStatus?.action_history.split('メール').length - 1}
+                    <i className="fa-solid fa-comment-sms mx-1"></i>{targetStatus?.action_history.split('SMS').length - 1}</div>) : '';
+            return {
+                ...r, hotlead: {
+                    status: targetStatus?.status ?? '',
+                    url: targetStatus?.hotlead_url ?? '',
+                    action: targetAction,
+                    reason: targetStatus?.ticket_stop_reason_type ?? ''
+                }
+            };
         });
 
+        // registerの型エラー解消部分（文字列化して安全に比較）
         return result.sort((a, b) => {
-            const dateA = a.register || "";
-            const dateB = b.register || "";
+            const dateA = String(a.register ?? "");
+            const dateB = String(b.register ?? "");
             return dateB.localeCompare(dateA);
         });
     }, [
@@ -199,9 +250,10 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         selectedRank, selectedMedium, selectedStatus, nameSearch.debouncedValue,
         staffSearch.debouncedValue, phoneSearch.debouncedValue, callStatus, addressSearch.debouncedValue,
         familySearch.debouncedValue, selectedIntroductory, trash, familyList, familyStatus,
-        snapStatus, searchedEvent
+        snapStatus, searchedEvent, hotleadStatus, hotleadList
     ]);
 
+    // 条件変更時にページをリセットする
     useEffect(() => {
         if (skipPageReset.current) {
             skipPageReset.current = false;
@@ -209,24 +261,52 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         }
         setActivePage(1);
         setSliceStart(0);
-    }, [
-        originalDatabase,
-        selectedShop,
-        selectedRegister,
-        selectedReserve,
-        selectedRank,
-        selectedMedium,
-        selectedStatus,
-        nameSearch.debouncedValue,
-        staffSearch.debouncedValue,
-        phoneSearch.debouncedValue,
-        callStatus,
-        addressSearch.debouncedValue,
-        familySearch.debouncedValue,
-        trash,
-        familyList,
-        familyStatus,
-    ]);
+    }, [filteredDatabase.length]); // 依存配列を絞り込み、filteredDatabaseの件数が変わった時にリセットする方針に変更
+
+    // ページネーション生成（スッキリと配列化）
+    const totalPages = Math.ceil((displayLength || 1) / basicLength);
+    const paginationRange = () => {
+        let start = Math.max(1, activePage - 2);
+        let end = Math.min(totalPages, start + 4);
+        if (end - start < 4) {
+            start = Math.max(1, end - 4);
+        }
+        return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+    };
+
+    const handlePageClick = (page: number) => {
+        setActivePage(page);
+        setSliceStart((page - 1) * basicLength);
+    };
+
+    // 操作系ハンドラ
+    const handleGarbage = async (id: string, name?: string) => {
+        if (!id) return;
+        const result = window.confirm(`${name}様を${trash === 1 ? '削除しますか？' : '元に戻しますか？'}`);
+        if (!result) return;
+
+        try {
+            const response = await apiClient.post("", {
+                request: 'database',
+                show_dashboard: trash === 1 ? 0 : 1,
+                id, category, roll: 'trash'
+            });
+            setOriginalDatabase(response.data.customer);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
+    };
+
+    const closeInformationEdit = async () => {
+        setEditId('');
+        const prevPage = activePage;
+        skipPageReset.current = true;
+
+        await fetchDatabase();
+
+        setActivePage(prevPage);
+        setSearchParams({});
+    };
 
     // ページングリンク
     const pages = {
@@ -237,7 +317,6 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         page5: null
     };
 
-    const skipPageReset = useRef(false);
 
     Object.entries(pages).map(([key, _], index) => {
         if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) === activePage) {
@@ -255,69 +334,15 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
         }
     })
 
-    const handlePageClick = async (page: number) => {
-        setActivePage(page);
-        setSliceStart((page - 1) * basicLength);
-    };
-
-    const [editId, setEditId] = useState('');
-
-    useEffect(() => {
-        if (!editId) return;
-        const newParams = new URLSearchParams(searchParams);
-
-        newParams.set('id', editId);
-
-        setSearchParams(newParams);
-    }, [editId]);
-
-    const handleGarbage = async (id: string, name: string) => {
-        if (!id) return;
-        const result = window.confirm(`${name}様を${trash === 1 ? '削除しますか？' : '元に戻しますか？'}`);
-        if (result) {
-            const fetchData = async () => {
-                try {
-                    const postData = {
-                        request: 'database',
-                        show_dashboard: trash === 1 ? 0 : 1,
-                        id: id,
-                        category,
-                        roll: 'trash'
-                    };
-                    const response = await apiClient.post("", postData);
-                    await setOriginalDatabase(response.data.customer);
-                } catch (error) {
-                    console.error("Error fetching data:", error);
-                }
-            };
-            await fetchData();
-        } else {
-            return;
-        }
-    };
-
-    const closeInformationEdit = async () => {
-        setEditId('');
-        const prevPage = activePage;
-
-        skipPageReset.current = true;
-
-        const fetchData = async () => {
-            const response = await apiClient.post("", { request: 'database', category });
-
-            const customers = response.data.customer.map((c: any) => ({
-                ...c,
-                search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
-                _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '')
-            }));
-
-            setOriginalDatabase(customers);
-        }
-
-        await fetchData();
-        setActivePage(prevPage);
-        setSearchParams({});
-    };
+    const hotlead = (item: any) => {
+        if (!item.hotlead) return;
+        return <div onClick={() => window.open(item.hotlead.url, '_blank', 'noopener,noreferrer')}>
+            <div style={hotleadStyle(item.hotlead.status)}
+            >{item.hotlead.status}</div>
+            {item.hotlead.status && <div className="text-secondary" style={{ fontSize: '8px' }}>{item.hotlead.reason}</div>}
+            <div style={{ cursor: 'pointer' }}>{item.hotlead.action}</div>
+        </div>
+    }
 
     return (
         <>
@@ -387,6 +412,14 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                                 <option value="来場アポ">来場アポ</option>
                                 <option value="来場済み">来場済み</option>
                                 <option value="架電停止">架電停止</option>
+                            </select>
+                        </div>
+                        <div className="m-1">
+                            <select className="target" onChange={(e) => sethotleadStatus(e.target.value)}>
+                                <option value="">Hotlead</option>
+                                <option value="対応停止">対応停止</option>
+                                <option value="アポ予約済み">アポ予約済み</option>
+                                <option value="対応中">対応中</option>
                             </select>
                         </div>
                         <div className="m-1">
@@ -526,8 +559,9 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                                     <td>ランク</td>
                                     <td>販促媒体</td>
                                     <td>住所</td>
-                                    <td>架電状況</td>
-                                    <td>架電件数</td>
+                                    <td>自社架電状況</td>
+                                    <td>自社架電件数</td>
+                                    <td>Hotlead<br />ステータス</td>
                                     <td>{trash === 1 ? '非表示' : '元に戻す'}</td>
                                 </tr>
                                 {filteredDatabase
@@ -550,6 +584,7 @@ const DatabaseOrder = ({ onReload, key }: Props) => {
                                             <td style={{ textAlign: 'left' }}>{item.full_address}</td>
                                             <td>{item.call_status}</td>
                                             <td>{item.call_log || '0'}</td>
+                                            <td>{hotlead(item)}</td>
                                             <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>
                                         </tr>
                                     })}

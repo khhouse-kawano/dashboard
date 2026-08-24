@@ -38,6 +38,7 @@ try {
     customer_contacts_name as customer,
     in_charge_store as shop,
     in_charge_user as staff,
+    first_interviewed_user as prev_staff,
     customized_input_01J82Z5F366ZQ897PXWF6H5ZAM as rank,
     step_migration_item_01J82Z5F1RR18Z792C7KZS88QG as contract,
     step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7 as interview,
