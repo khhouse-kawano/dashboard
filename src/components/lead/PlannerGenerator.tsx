@@ -200,7 +200,12 @@ const s = {
 // ==========================================
 // 💡 4. メインコンポーネント
 // ==========================================
-export const PlannerGenerator = ({ plannerShow, setPlannerShow }: { plannerShow: boolean, setPlannerShow: React.Dispatch<React.SetStateAction<boolean>> }) => {
+export const PlannerGenerator = ({ plannerShow, setPlannerShow, initialData }: {
+    plannerShow: boolean,
+    setPlannerShow: React.Dispatch<React.SetStateAction<boolean>>,
+    // 💡 追加: 呼び出し元の案件データで初期値を上書きする（未指定ならサンプルデータのまま）
+    initialData?: Partial<PlannerInputState>
+}) => {
     const today = new Date().toISOString().slice(0, 10);
 
     const [form, setForm] = useState<PlannerInputState>({
@@ -224,6 +229,14 @@ export const PlannerGenerator = ({ plannerShow, setPlannerShow }: { plannerShow:
     const [extras, setExtras] = useState<ExtraState>({ s: [], b: [] });
 
     const [previewOpen, setPreviewOpen] = useState(false);
+
+    // 💡 追加: モーダルを開くたびに呼び出し元の案件データを反映する（source.html の SETL.open(dealId) 相当）
+    useEffect(() => {
+        if (plannerShow && initialData) {
+            setForm(prev => ({ ...prev, ...initialData }));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [plannerShow]);
 
     const handleChange = (key: keyof PlannerInputState, val: any) => {
         setForm(prev => ({ ...prev, [key]: val }));

@@ -47,3 +47,22 @@ export const styles = {
 };
 
 export const positions = ['常務', '部長', '課長', '課長代理', '店長', '店長代理', '一般'];
+
+export const formatToYYYYMMDD = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '';
+
+    // スペースで区切って日付部分("2026/8/23")だけを取得
+    const datePart = dateStr.split(' ')[0];
+
+    // スラッシュまたはハイフンで年・月・日に分割
+    const parts = datePart.split(/[\/\-]/);
+
+    // 年・月・日が揃っていなければ、そのまま返す（安全対策）
+    if (parts.length !== 3) return datePart;
+
+    const year = parts[0];
+    const month = parts[1].padStart(2, '0'); // 1桁なら "08" にする
+    const day = parts[2].padStart(2, '0');   // 1桁なら "03" にする
+
+    return `${year}/${month}/${day}`;
+};

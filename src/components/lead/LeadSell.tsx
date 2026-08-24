@@ -4,7 +4,7 @@ import { thisYear } from '../../utils/thisYear';
 import Table from 'react-bootstrap/Table';
 import LeadHeader from './LeadHeader';
 import AuthContext from '../../context/AuthContext';
-import { removeSpaces, safeParse } from './leadUtiles';
+import { removeSpaces, safeParse, LEAD_END_REASONS } from './leadUtiles';
 import LeadEdit from './LeadEdit';
 import LeadCall, { CallLog } from './LeadCall';
 import DocumentViewer from './DocumentViewer';
@@ -60,6 +60,7 @@ export type SellLead = {
   renewDate: string | null;
   callDates: string | null;    // 架電履歴(JSON)
   nextDate: string | null;     // 次回連絡日
+  nextNote: string | null;     // 次回アクション内容
   created_at: string;
   updated_at: string;
   master_data_id: string | null;
@@ -267,7 +268,8 @@ const LeadSell = () => {
             visitDate: dateFormate(l.visitDate),
             contractDate: dateFormate(l.contractDate),
             connectDate: dateFormate(l.connectDate),
-            nextDate: dateFormate(l.nextDate)
+            nextDate: dateFormate(l.nextDate),
+            nextNote: l.nextNote || null
           }));
           setLeads(responseLead);
           setStaffList(response.data.staff.filter((s: any) => s.period === String(thisYear)).map((s: any) => s.name));
@@ -341,6 +343,17 @@ const LeadSell = () => {
 
     return total;
   }, [filteredLeads, selectedMonth, today]);
+
+  // 💡 追加: 次回アクション未設定・期限超過件数（LeadHeaderへ渡すアラート用）
+  const nextActionAlert = useMemo(() => {
+    let overdue = 0, missing = 0;
+    for (const l of filteredLeads) {
+      if (l.phase === '追客終了') continue;
+      if (!l.nextDate) { missing++; continue; }
+      if (l.nextDate.replace(/\//g, '-') < today) overdue++;
+    }
+    return { overdue, missing };
+  }, [filteredLeads, today]);
 
   const sourceSummary = useMemo(() => {
     const summary: Record<string, any> = {};
@@ -455,6 +468,7 @@ const LeadSell = () => {
       renewDate: null,
       callDates: '[]',
       nextDate: null,
+      nextNote: null,
       created_at: '',
       updated_at: '',
       master_data_id: null,
@@ -484,11 +498,60 @@ const LeadSell = () => {
 
     handleApiUpdate(lead.id, 'callDates', updatedCallDates);
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, callDates: updatedCallDates } : l));
+
+    // 💡 追加: 架電記録の直後に次回連絡日の設定を促す（source.html の V12.askNext 相当）
+    setCallTargetLead({ ...lead, callDates: updatedCallDates });
+    setIsCallModalOpen(true);
   };
 
-  const handleSaveCallLog = (leadId: string, updatedCallDatesJson: string) => {
+  const handleSaveCallLog = (leadId: string, updatedCallDatesJson: string, nextDate?: string, nextNote?: string) => {
     handleApiUpdate(leadId, 'callDates', updatedCallDatesJson);
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, callDates: updatedCallDatesJson } : l));
+    if (nextDate !== undefined) handleApiUpdate(leadId, 'nextDate', nextDate);
+    if (nextNote !== undefined) handleApiUpdate(leadId, 'nextNote', nextNote);
+    setLeads(prev => prev.map(l => l.id === leadId ? {
+      ...l,
+      callDates: updatedCallDatesJson,
+      ...(nextDate !== undefined ? { nextDate } : {}),
+      ...(nextNote !== undefined ? { nextNote } : {}),
+    } : l));
+  };
+
+  // 💡 追加: 担当変更の確認ダイアログ（source.html の担当変更確認と同等）
+  const handleStaffBlur = (lead: SellLead, e: React.FocusEvent<HTMLSelectElement>) => {
+    const prev = removeSpaces(lead.staff);
+    const next = removeSpaces(e.target.value);
+    if (prev && next && prev !== next) {
+      if (!window.confirm(`担当を「${lead.staff}」から「${e.target.value}」に変更します。よろしいですか？`)) {
+        e.target.value = prev;
+        return;
+      }
+    }
+    handleApiUpdate(lead.id, 'staff', e.target.value);
+  };
+
+  // 💡 追加: フェーズを「追客終了」にした際の理由入力（source.html の ieGuard 相当）
+  const handlePhaseBlur = (lead: SellLead, e: React.FocusEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === '追客終了') {
+      const reason = window.prompt(`追客終了の理由を入力してください（${LEAD_END_REASONS.join('／')}）`, LEAD_END_REASONS[0]);
+      if (reason == null) {
+        e.target.value = lead.phase || '';
+        return;
+      }
+    }
+    handleApiUpdate(lead.id, 'phase', val);
+  };
+
+  // 💡 追加: 次回連絡日セルの視覚強化（source.html の nextCell() 相当）
+  const renderNextCell = (nextDate: string | null) => {
+    if (!nextDate) return <span className="badge bg-secondary bg-opacity-10 text-secondary border" style={{ fontSize: '10px' }}>未設定</span>;
+    const d = new Date(`${nextDate.replace(/\//g, '-')}T00:00:00`);
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((d.getTime() - t.getTime()) / 86400000);
+    if (diffDays < 0) return <span className="badge bg-danger bg-opacity-10 text-danger border border-danger" style={{ fontSize: '10px' }}>{formatDate(nextDate)}（{-diffDays}日超過）</span>;
+    if (diffDays === 0) return <span className="badge bg-warning bg-opacity-10 text-warning border border-warning" style={{ fontSize: '10px' }}>{formatDate(nextDate)}（本日）</span>;
+    return <span className="text-muted">{formatDate(nextDate)}</span>;
   };
 
   const handleNameClick = (lead: SellLead) => {
@@ -542,6 +605,7 @@ const LeadSell = () => {
         handleAddClick={handleAddClick}
         isAdding={isAdding}
         headerLabel={headerLabel}
+        nextActionAlert={nextActionAlert}
       />
 
       {!isLoading && (
@@ -777,7 +841,7 @@ const LeadSell = () => {
                         <select
                           style={{ ...compactInputStyle, color: isUnassigned ? '#dc3545' : 'inherit', fontWeight: isUnassigned ? 'bold' : 'normal' }}
                           defaultValue={removeSpaces(lead.staff)}
-                          onBlur={(e) => handleApiUpdate(lead.id, 'staff', e.target.value)}
+                          onBlur={(e) => handleStaffBlur(lead, e)}
                         >
                           <option value="">未割当</option>
                           {staffList.map(s => (
@@ -789,7 +853,7 @@ const LeadSell = () => {
                         <select
                           style={{ ...compactInputStyle, backgroundColor: isUnassigned ? '#fff' : '#f8f9fa', borderRadius: '4px', fontWeight: 'bold' }}
                           defaultValue={lead.phase || ''}
-                          onBlur={(e) => handleApiUpdate(lead.id, 'phase', e.target.value)}
+                          onBlur={(e) => handlePhaseBlur(lead, e)}
                         >
                           <option value="">リード受信</option>
                           {['架電中', '通電済', '訪問査定予定', '訪問査定済', '査定書提出', '媒介受託', '追客終了'].map(p => <option key={p} value={p}>{p}</option>)}
@@ -825,8 +889,8 @@ const LeadSell = () => {
                       <td style={{ ...getTdStyle(isUnassigned), fontSize: '10px', fontWeight: 'bold', color: '#6c757d' }}>
                         {getLastAction(lead.callDates)}
                       </td>
-                      {/* 💡 次回連絡日 */}
-                      <td style={{ ...getTdStyle(isUnassigned), fontWeight: 'bold', color: '#dc3545' }}>{formatDate(lead.nextDate)}</td>
+                      {/* 💡 次回連絡日（期限超過・本日を色分け表示） */}
+                      <td style={getTdStyle(isUnassigned)}>{renderNextCell(lead.nextDate)}</td>
 
                       <td style={{ ...getTdStyle(isUnassigned), whiteSpace: 'normal', lineHeight: '1.4', textAlign: 'left' }}>
                         {lead.phone} <br /> <span style={{ fontSize: '9px', color: '#8898aa' }}>{lead.mail}</span>

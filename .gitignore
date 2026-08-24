@@ -5,6 +5,10 @@
 /.pnp
 .pnp.js
 
+# express backend
+/backend-express/node_modules
+/backend-express/dist
+
 # testing
 /coverage
 

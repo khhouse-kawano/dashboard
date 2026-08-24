@@ -1,6 +1,7 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
+import { NEXT_QUICK, addDaysISO } from './leadUtiles';
 
 export type CallLog = {
     date: string | null;
@@ -14,7 +15,8 @@ export type LeadCallProps = {
     onClose: () => void;
     targetLead: any;
     userName: string;
-    onSaveLog: (leadId: string, updatedCallDatesJson: string) => void;
+    // 💡 追加: 記録と同時に次回連絡日・内容も更新できるよう拡張（未指定なら従来どおり次回連絡日は変更しない）
+    onSaveLog: (leadId: string, updatedCallDatesJson: string, nextDate?: string, nextNote?: string) => void;
 };
 
 // ==========================================
@@ -107,6 +109,16 @@ const LeadCall: React.FC<LeadCallProps> = ({
     const memoTypeRef = useRef<HTMLSelectElement>(null);
     const memoTextRef = useRef<HTMLTextAreaElement>(null);
 
+    // 💡 次回連絡日・次回アクション内容（source.html の nextBar() 相当）
+    const [nextDate, setNextDate] = useState('');
+    const [nextNote, setNextNote] = useState('');
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setNextDate(targetLead?.nextDate ? String(targetLead.nextDate).replace(/\//g, '-') : '');
+        setNextNote(targetLead?.nextNote || '');
+    }, [isOpen, targetLead]);
+
     const sortedCallLogs = useMemo(() => {
         if (!targetLead?.callDates) return [];
         try {
@@ -131,7 +143,7 @@ const LeadCall: React.FC<LeadCallProps> = ({
         logs.push({ date: time, type, staff: userName || '不明', note });
         const updatedCallDates = JSON.stringify(logs);
 
-        onSaveLog(targetLead.id, updatedCallDates);
+        onSaveLog(targetLead.id, updatedCallDates, nextDate, nextNote);
 
         if (memoTimeRef.current) memoTimeRef.current.value = getCurrentDateTime();
         if (memoTextRef.current) memoTextRef.current.value = '';
@@ -210,6 +222,38 @@ const LeadCall: React.FC<LeadCallProps> = ({
                             {/* textareaも高さを28pxに固定し、1行入力として扱う */}
                             <textarea style={{ ...customStyles.inputBase, resize: 'none', lineHeight: '18px' }} placeholder="内容を入力してください..." ref={memoTextRef}></textarea>
                         </FormGroup>
+                    </div>
+
+                    {/* 💡 次回連絡予定（架電のたびに次のアクションを決めてから閉じる） */}
+                    <div className="mt-3 pt-3 border-top">
+                        <h6 className="fw-bold text-secondary mb-2" style={{ fontSize: '11px' }}>
+                            <i className="bi bi-calendar-check me-1 text-primary"></i>次回連絡予定
+                        </h6>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                            {NEXT_QUICK.map(q => (
+                                <button
+                                    key={q.label}
+                                    className="btn btn-outline-secondary btn-sm py-0 px-2"
+                                    style={{ fontSize: '10px' }}
+                                    onClick={() => setNextDate(addDaysISO(null, q.days))}
+                                >
+                                    {q.label}
+                                </button>
+                            ))}
+                            {nextDate && (
+                                <button className="btn btn-outline-secondary btn-sm py-0 px-2" style={{ fontSize: '10px' }} onClick={() => setNextDate('')}>
+                                    クリア
+                                </button>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                            <FormGroup label="次回連絡日" width="150px">
+                                <input type="date" style={customStyles.inputBase} value={nextDate} onChange={e => setNextDate(e.target.value)} />
+                            </FormGroup>
+                            <FormGroup label="次回アクション内容">
+                                <input type="text" style={customStyles.inputBase} placeholder="例）折り返し連絡・資料送付 など" value={nextNote} onChange={e => setNextNote(e.target.value)} />
+                            </FormGroup>
+                        </div>
                     </div>
 
                     <div style={{ textAlign: 'right', marginTop: '16px' }}>

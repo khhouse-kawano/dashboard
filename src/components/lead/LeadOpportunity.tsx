@@ -5,7 +5,7 @@ import Table from 'react-bootstrap/Table';
 import AuthContext from '../../context/AuthContext';
 import LeadEdit from './LeadEdit';
 import DocumentViewer from './DocumentViewer';
-import PlannerGenerator from './PlannerGenerator';
+import PlannerGenerator, { PlannerInputState } from './PlannerGenerator';
 // ==========================================
 // 💡 型定義
 // ==========================================
@@ -122,6 +122,8 @@ const LeadOpportunity = () => {
     const [hideSettled, setHideSettled] = useState<boolean>(true); // デフォルトで決済完了を隠す
 
     const [plannerShow, setPlannerShow] = useState(false);
+    // 💡 追加: 精算書に引き継ぐ案件データ（未設定ならPlannerGeneratorのサンプルデータのまま開く）
+    const [plannerInitialData, setPlannerInitialData] = useState<Partial<PlannerInputState> | undefined>(undefined);
 
     // モーダル制御・状態管理用
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -257,6 +259,33 @@ const LeadOpportunity = () => {
 
         setCurrentInitialData(data);
         setDocumentShow(true);
+    };
+
+    // 💡 追加: 「精算書」ボタン用に、クリックした案件のデータからPlannerGeneratorの初期値を組み立てる
+    // （source.html の fromDeal(d) → SETL.open(dealId) 相当）
+    const buildPlannerInitialData = (lead: OpportunityLead): Partial<PlannerInputState> => {
+        const isSell = lead.kind === 'ledger';
+        const customerName = isSell ? lead.seller : (lead.customer || lead.name);
+        const priceVal = isSell ? lead.price : lead.budget;
+        const parsedPrice = priceVal ? Number(String(priceVal).replace(/[^\d.-]/g, '')) : 0;
+        const propName = lead.targetProperty || lead.property || `${lead.addr1 || ''}${lead.addr2 || ''}`;
+        const propAddr = `${lead.addr1 || ''}${lead.addr2 || ''}` || lead.addr || '';
+
+        const data: Partial<PlannerInputState> = {};
+        if (propName) data.propName = propName;
+        if (propAddr) data.propAddr = propAddr;
+        if (parsedPrice) data.price = parsedPrice;
+        if (lead.contractDate) data.contractDate = lead.contractDate;
+        if (lead.settleDate) data.delivery = lead.settleDate;
+        if (customerName) {
+            if (isSell) data.seller = customerName; else data.buyer = customerName;
+        }
+        return data;
+    };
+
+    const handleOpenPlanner = (lead: OpportunityLead) => {
+        setPlannerInitialData(buildPlannerInitialData(lead));
+        setPlannerShow(true);
     };
 
     // 💡 動的なリードカテゴリの判定（売・買の切り分け）
@@ -442,7 +471,7 @@ const LeadOpportunity = () => {
                                                                 <i className="fa-solid fa-file-contract me-1 text-secondary"></i>契約書
                                                             </button>
                                                             <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px' }}
-                                                                onClick={() => setPlannerShow(true)}>
+                                                                onClick={() => handleOpenPlanner(lead)}>
                                                                 <i className="fa-solid fa-calculator me-1 text-secondary"></i>精算書
                                                             </button>
                                                         </td>
@@ -483,6 +512,7 @@ const LeadOpportunity = () => {
             <PlannerGenerator
                 plannerShow={plannerShow}
                 setPlannerShow={setPlannerShow}
+                initialData={plannerInitialData}
             />
         </div>
     );

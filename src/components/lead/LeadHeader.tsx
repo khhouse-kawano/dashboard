@@ -13,6 +13,11 @@ type Props = {
         title: string;
         describe: string;
     };
+    // 💡 追加: 次回アクション未設定・期限超過件数のアラート表示（任意）
+    nextActionAlert?: {
+        overdue: number;
+        missing: number;
+    };
 };
 
 // ==========================================
@@ -81,14 +86,16 @@ const customStyles = {
     } as React.CSSProperties,
 };
 
-const LeadHeader: React.FC<Props> = ({ 
-    selectedMonth, 
-    setSelectedMonth, 
-    availableMonths, 
-    handleAddClick, 
-    isAdding, 
-    headerLabel 
+const LeadHeader: React.FC<Props> = ({
+    selectedMonth,
+    setSelectedMonth,
+    availableMonths,
+    handleAddClick,
+    isAdding,
+    headerLabel,
+    nextActionAlert,
 }) => {
+    const hasAlert = !!nextActionAlert && (nextActionAlert.overdue > 0 || nextActionAlert.missing > 0);
     return (
         <div style={customStyles.headerWrapper}>
             <div>
@@ -116,6 +123,21 @@ const LeadHeader: React.FC<Props> = ({
                 <p style={customStyles.describeText}>
                     {headerLabel.describe}
                 </p>
+
+                {hasAlert && (
+                    <div style={{ marginTop: '6px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {nextActionAlert!.overdue > 0 && (
+                            <span className="badge bg-danger bg-opacity-10 text-danger border border-danger" style={{ fontSize: '10px', fontWeight: 'bold' }}>
+                                ⚠ 次回アクション期限超過 {nextActionAlert!.overdue}件
+                            </span>
+                        )}
+                        {nextActionAlert!.missing > 0 && (
+                            <span className="badge bg-warning bg-opacity-10 text-warning border border-warning" style={{ fontSize: '10px', fontWeight: 'bold' }}>
+                                ⚠ 次回アクション未設定 {nextActionAlert!.missing}件
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
             
             <div style={{ display: 'flex', gap: '8px' }}>

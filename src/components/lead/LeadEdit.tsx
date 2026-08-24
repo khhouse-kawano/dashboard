@@ -2,9 +2,19 @@ import React, { useEffect, useMemo, useContext, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
 import AuthContext from '../../context/AuthContext';
-import { removeSpaces } from './leadUtiles';
+import { removeSpaces, NEXT_QUICK, addDaysISO, LEAD_END_REASONS, BUY_END_REASONS } from './leadUtiles';
 // 💡 追加: DocumentViewerをインポート
 import DocumentViewer from './DocumentViewer';
+
+// 💡 追加: 変更内容プレビューで表示するフィールド名の日本語ラベル
+const FIELD_LABELS: Record<string, string> = {
+    receivedDate: '受信日', seller: '売主名', name: '顧客名', source: '反響元', portal: 'ポータル',
+    phone: '連絡先(電話)', mail: '連絡先(メール)', staff: '担当', addr1: '住所', addr: '住所',
+    phase: 'フェーズ', endReason: '終了理由', category: '区分', budget: '予算・希望価格', price: '価格',
+    connectDate: '通電日', viewDate: '内見日', visitDate: '訪問査定日', baikaiDate: '媒介契約日',
+    contactDate: '接触日', contractDate: '契約日', followDate: 'フォロー日', fee: '仲介手数料',
+    nextDate: '次回連絡日', nextNote: '次回アクション', note: '備考',
+};
 
 // ==========================================
 // 💡 型定義
@@ -119,6 +129,27 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     // 💡 追加: 契約書モーダルの表示状態
     const [documentShow, setDocumentShow] = useState(false);
 
+    // 💡 追加: 変更内容プレビュー用スナップショット（モーダルを開いた時点の状態）
+    const [snapshot, setSnapshot] = useState<any>({});
+    useEffect(() => {
+        if (isOpen) setSnapshot({ ...customerInfo });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
+
+    const changedFields = useMemo(() => {
+        const out: { field: string; from: string; to: string }[] = [];
+        const keys = new Set([...Object.keys(snapshot || {}), ...Object.keys(customerInfo || {})]);
+        keys.forEach(k => {
+            if (k === 'callDates' || k === 'id') return; // 架電履歴・IDは別UIで扱うため対象外
+            const from = (snapshot as any)?.[k];
+            const to = (customerInfo as any)?.[k];
+            if (String(from ?? '') !== String(to ?? '')) {
+                out.push({ field: FIELD_LABELS[k] || k, from: from === undefined || from === null || from === '' ? '（未設定）' : String(from), to: to === undefined || to === null || to === '' ? '（未設定）' : String(to) });
+            }
+        });
+        return out;
+    }, [snapshot, customerInfo]);
+
     const isSellType = leadCategory === 'sell' || leadCategory === 'sellOpportunity';
     const isOpportunityType = leadCategory === 'buyOpportunity' || leadCategory === 'sellOpportunity';
     const isBasicLead = leadCategory === 'buy' || leadCategory === 'sell';
@@ -224,6 +255,58 @@ const LeadEdit: React.FC<LeadEditProps> = ({
 
     const callCount = sortedCallLogs.filter(log => log.type === 'call').length;
 
+    // ==========================================
+    // 💡 担当変更確認ダイアログ（source.html の担当変更確認と同等）
+    // ==========================================
+    const handleStaffChange = (newStaff: string) => {
+        const prevStaff = removeSpaces(customerInfo.staff);
+        const nextStaffNorm = removeSpaces(newStaff);
+        if (prevStaff && nextStaffNorm && prevStaff !== nextStaffNorm) {
+            if (!window.confirm(`担当を「${customerInfo.staff}」から「${newStaff}」に変更します。よろしいですか？`)) return;
+        }
+        setCustomerInfo({ ...customerInfo, staff: newStaff });
+    };
+
+    // ==========================================
+    // 💡 フェーズ変更（追客終了になったら終了理由をリセット）
+    // ==========================================
+    const handlePhaseChange = (val: string) => {
+        setCustomerInfo((prev: any) => ({ ...prev, phase: val, endReason: val === '追客終了' ? prev.endReason : '' }));
+    };
+
+    // ==========================================
+    // 💡 次回アクション必須化・追客終了理由の必須化（source.html の V12.requireNext() 相当）
+    // ==========================================
+    const handleSaveClick = () => {
+        if (customerInfo.phase === '追客終了') {
+            if (!customerInfo.endReason) {
+                alert('追客終了の理由を選択してください。');
+                return;
+            }
+        } else if (!customerInfo.nextDate || !String(customerInfo.nextNote || '').trim()) {
+            alert('次回アクション（次回連絡日・次回アクション内容）は必須です。');
+            return;
+        }
+        onSave();
+    };
+
+    // 💡 次回連絡日クイック設定ボタン（source.html の nextBar() 相当）
+    const nextQuickButtons = (
+        <div className="col-12" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '-4px' }}>
+            {NEXT_QUICK.map(q => (
+                <button
+                    key={q.label}
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm py-0 px-2"
+                    style={{ fontSize: '10px' }}
+                    onClick={() => setCustomerInfo({ ...customerInfo, nextDate: addDaysISO(null, q.days) })}
+                >
+                    {q.label}
+                </button>
+            ))}
+        </div>
+    );
+
     return (
         <>
             <Modal show={isOpen} onHide={onClose} centered size="lg">
@@ -266,7 +349,7 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                             </div>
                             <div className="col-md-4">
                                 <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>担当</label>
-                                <select style={compactInputStyle} value={removeSpaces(customerInfo.staff)} onChange={e => setCustomerInfo({ ...customerInfo, staff: e.target.value })}>
+                                <select style={compactInputStyle} value={removeSpaces(customerInfo.staff)} onChange={e => handleStaffChange(e.target.value)}>
                                     <option value="">担当を選択</option>
                                     {staffList.map(s => <option key={s} value={removeSpaces(s)}>{s}</option>)}
                                 </select>
@@ -284,12 +367,23 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                         <div className="row g-2 mb-3">
                             <div className="col-md-4">
                                 <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>フェーズ</label>
-                                <select style={compactInputStyle} value={customerInfo.phase || ''} onChange={e => setCustomerInfo({ ...customerInfo, phase: e.target.value })}>
+                                <select style={compactInputStyle} value={customerInfo.phase || ''} onChange={e => handlePhaseChange(e.target.value)}>
                                     <option value="">フェーズを選択</option>
                                     {phaseList.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
                             </div>
-                            
+
+                            {/* ▼ 追客終了の場合は理由を必須入力 ▼ */}
+                            {customerInfo.phase === '追客終了' && (
+                                <div className="col-md-4">
+                                    <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>終了理由 <span className="text-danger">*必須</span></label>
+                                    <select style={compactInputStyle} value={customerInfo.endReason || ''} onChange={e => setCustomerInfo({ ...customerInfo, endReason: e.target.value })}>
+                                        <option value="">理由を選択</option>
+                                        {(isSellType ? LEAD_END_REASONS : BUY_END_REASONS).map(r => <option key={r} value={r}>{r}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
                             {/* ▼ 買い (buy) の場合 ▼ */}
                             {leadCategory === 'buy' && (
                                 <>
@@ -313,9 +407,10 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                         <input type="date" style={compactInputStyle} value={customerInfo.viewDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, viewDate: e.target.value })} />
                                     </div>
                                     <div className="col-md-4">
-                                        <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回連絡日</label>
+                                        <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回連絡日 <span className="text-danger">*必須</span></label>
                                         <input type="date" style={compactInputStyle} value={customerInfo.nextDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextDate: e.target.value })} />
                                     </div>
+                                    {nextQuickButtons}
                                     <div className="col-12">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション(メモ)</label>
                                         <input type="text" style={compactInputStyle} value={customerInfo.nextNote || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextNote: e.target.value })} />
@@ -350,9 +445,10 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                         <input type="date" style={compactInputStyle} value={customerInfo.baikaiDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, baikaiDate: e.target.value })} />
                                     </div>
                                     <div className="col-md-4">
-                                        <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回連絡日</label>
+                                        <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回連絡日 <span className="text-danger">*必須</span></label>
                                         <input type="date" style={compactInputStyle} value={customerInfo.nextDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextDate: e.target.value })} />
                                     </div>
+                                    {nextQuickButtons}
                                     <div className="col-12">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション(メモ)</label>
                                         <input type="text" style={compactInputStyle} value={customerInfo.nextNote || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextNote: e.target.value })} />
@@ -405,9 +501,10 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                         <input type="date" style={compactInputStyle} value={customerInfo.followDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, followDate: e.target.value })} />
                                     </div>
                                     <div className="col-md-4">
-                                        <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション予定日</label>
+                                        <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション予定日 <span className="text-danger">*必須</span></label>
                                         <input type="date" style={compactInputStyle} value={customerInfo.nextDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextDate: e.target.value })} />
                                     </div>
+                                    {nextQuickButtons}
                                     <div className="col-12">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション内容</label>
                                         <input type="text" style={compactInputStyle} value={customerInfo.nextNote || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextNote: e.target.value })} />
@@ -511,15 +608,45 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                 </div>
                             </div>
                         )}
+
+                        {/* 💡 追加: 変更内容プレビュー（保存前の今回セッションの差分。サーバー側の永続履歴ではない） */}
+                        {changedFields.length > 0 && (
+                            <div className="mt-3 border-top pt-3">
+                                <h6 className="fw-bold text-secondary mb-2" style={{ fontSize: '12px' }}>
+                                    <i className="bi bi-clock-history me-1"></i>変更内容
+                                    <span className="ms-2 badge bg-secondary rounded-pill">{changedFields.length}</span>
+                                </h6>
+                                <div className="bg-light rounded border" style={{ maxHeight: '110px', overflowY: 'auto' }}>
+                                    <Table size="sm" className="mb-0 align-middle" style={{ fontSize: '10px' }}>
+                                        <thead className="bg-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                                            <tr>
+                                                <th className="text-muted border-bottom-0 py-1">項目</th>
+                                                <th className="text-muted border-bottom-0 py-1">変更前</th>
+                                                <th className="text-muted border-bottom-0 py-1">変更後</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {changedFields.map((c, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="py-1 fw-bold text-dark">{c.field}</td>
+                                                    <td className="py-1 text-muted">{c.from}</td>
+                                                    <td className="py-1 text-primary fw-bold">{c.to}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </Modal.Body>
-                
+
                 {/* 💡 修正: justify-content-between に変更し、左側に契約書ボタンを配置 */}
                 <Modal.Footer className="bg-light border-top-0 pt-0 pb-3 d-flex justify-content-between align-items-center">
                     <div>
-                        <button 
-                            className="btn btn-outline-primary btn-sm px-3 fw-bold" 
-                            style={{ fontSize: '11px' }} 
+                        <button
+                            className="btn btn-outline-primary btn-sm px-3 fw-bold"
+                            style={{ fontSize: '11px' }}
                             onClick={() => setDocumentShow(true)}
                         >
                             <i className="fa-solid fa-file-contract me-1 text-secondary"></i> 契約書
@@ -527,7 +654,7 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                     </div>
                     <div className="d-flex gap-2">
                         <button className="btn btn-outline-secondary btn-sm px-3 fw-bold" style={{ fontSize: '11px' }} onClick={onClose}>キャンセル</button>
-                        <button className="btn btn-primary btn-sm px-4 fw-bold shadow-sm" style={{ fontSize: '11px' }} onClick={onSave}>保存する</button>
+                        <button className="btn btn-primary btn-sm px-4 fw-bold shadow-sm" style={{ fontSize: '11px' }} onClick={handleSaveClick}>保存する</button>
                     </div>
                 </Modal.Footer>
             </Modal>

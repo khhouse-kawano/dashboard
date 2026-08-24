@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useContext } from 'react';
 import { Table, Spinner, Alert, Modal } from 'react-bootstrap';
-import { styles, positions } from './listUtils';
+import { styles, positions ,formatToYYYYMMDD} from './listUtils';
 import apiClient from '../../utils/apiClient';
 import { generateULID } from '../../utils/createULID';
 import { thisYear } from '../../utils/thisYear';
@@ -77,7 +77,7 @@ const createSyncPayload = (item: CustomerData): Record<string, string> => ({
     id: generateULID(),
     customer_contacts_name: item.name || '',
     full_address: `${item.address || ''}${item.street || ''}`,
-    step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: item.check_in_time?.split(' ')[0] || '',
+    step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: formatToYYYYMMDD(item.check_in_time),
     customer_contacts_mobile_phone_number: item.phone || '',
     customer_contacts_email: item.mail || '',
     postal_code: item.zip || '',
