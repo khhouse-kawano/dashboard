@@ -12,11 +12,15 @@
     "typecheck": "tsc --noEmit --project tsconfig.json"
   },
   "dependencies": {
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "mysql2": "^3.15.3"
+    "helmet": "^8.3.0",
+    "mysql2": "^3.15.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.19.0",

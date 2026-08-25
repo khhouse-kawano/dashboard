@@ -43,6 +43,19 @@ export const env = {
     .map((origin) => origin.trim())
     .filter((origin) => origin !== ''),
 
+  /**
+   * リバースプロキシ（Nginx 等）を何段挟むか。
+   * VPS で Nginx の背後に置く場合は 1。0 だと X-Forwarded-For を信用せず、
+   * クライアントIPが常にプロキシのIPになってしまう。
+   */
+  trustProxy: numberEnv('TRUST_PROXY', 0),
+
+  /** リクエストボディの上限。PDF等のアップロードを見込んで少し大きめ */
+  bodyLimit: process.env.BODY_LIMIT ?? '10mb',
+
+  /** 1リクエストの最大処理時間（ミリ秒）。重い集計SQLを考慮して長めに取る */
+  requestTimeoutMs: numberEnv('REQUEST_TIMEOUT_MS', 120_000),
+
   db: {
     host: requireEnv('DB_HOST'),
     port: numberEnv('DB_PORT', 3306),

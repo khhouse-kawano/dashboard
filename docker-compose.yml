@@ -10,10 +10,15 @@ services:
     volumes:
       - ./backend/src:/var/www/html
     environment:
+      # ローカル開発用のダミー値。漏れても実害がないため直書きしてよい。
       - DB_HOST=mariadb-db
       - DB_NAME=local_db
       - DB_USER=local_user
       - DB_PASS=local_password
+    env_file:
+      # 実際に価値を持つ秘密情報（暗号化マスターキー等）はこちら。
+      # このファイルは .gitignore で保護されており、Gitには入らない。
+      - ./backend/.env
     depends_on:
       mariadb-db:
         condition: service_healthy
@@ -68,12 +73,17 @@ services:
       - ./docker/mariadb/init:/docker-entrypoint-initdb.d
     # DBが「起動した」だけでなく「接続を受け付けられる」状態になるまで待つ。
     # これが無いと、先に立ち上がったAPI側が接続エラーで落ちることがある。
+    #
+    # start_period は「この時間内の失敗を unhealthy とみなさない」猶予期間。
+    # 空ボリュームからの初回起動では docker-entrypoint-initdb.d の初期SQL
+    # （約15MB）を取り込むまで TCP 接続を受け付けず、実測で約5分かかる。
+    # 短すぎると取り込み中に unhealthy 判定となり、依存サービスが起動できない。
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 60s
+      retries: 5
+      start_period: 600s
     restart: unless-stopped
 
 volumes:

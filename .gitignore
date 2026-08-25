@@ -22,6 +22,17 @@
 .env.test.local
 .env.production.local
 
+# サーバー側の秘密情報（APIキー・暗号化マスターキー等）。絶対にコミットしないこと。
+# ※ ルートの .env / .env.development / .env.production は既に追跡済みのため
+#    .gitignore では除外できない（追跡済みファイルには効かない）。
+#    ルートの .env には秘密情報を書かず、必ず下記のいずれかに置くこと。
+/backend/.env
+/backend/.env.*
+!/backend/.env.example
+/backend-express/.env
+/backend-express/.env.*
+!/backend-express/.env.example
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

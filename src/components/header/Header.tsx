@@ -18,6 +18,8 @@ import apiClient from '../../utils/apiClient';
 import CompetitorSummary from './CompetitorSummary';
 import RegisterBrokerageListings from './RegisterBrokerageListings';
 import DailyReports from './DailyReports';
+import ClaudeAnalysis from './ClaudeAnalysis';
+import ClaudeIcon from './ClaudeIcon';
 
 // 型安全のための定義
 type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報';
@@ -30,6 +32,10 @@ const Header = ({ }) => {
     const [callStatusShow, setCallStatusShow] = useState(true);
     const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
+
+    // Claudeによる分析（menuMapping とは独立した導線）
+    const [claudeModal, setClaudeModal] = useState<boolean>(false);
+    const [claudeHover, setClaudeHover] = useState<boolean>(false);
 
     const isSp = useIsSp();
 
@@ -81,6 +87,34 @@ const Header = ({ }) => {
                 className="d-flex align-items-center bg-white border-bottom px-2 position-fixed top-0 start-0 w-100"
                 style={{ zIndex: 1050, height: '30px', userSelect: 'none' }}
             >
+                {/* Claudeによる分析：menuMapping とは別の独立したボタン */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (authority !== 'Master') {
+                            alert('権限がありません');
+                            return;
+                        }
+                        setClaudeModal(true);
+                    }}
+                    onMouseEnter={() => setClaudeHover(true)}
+                    onMouseLeave={() => setClaudeHover(false)}
+                    className="border-0 d-flex align-items-center px-2 py-1 me-2"
+                    style={{
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        // ロゴ画像内の文字が黒のため、続く「による分析」も黒で揃える
+                        color: '#000',
+                        backgroundColor: claudeHover ? '#fdf8f6' : 'transparent',
+                        borderRadius: '4px',
+                        lineHeight: 1,
+                        gap: '2px',
+                    }}
+                    title="Claudeによる分析"
+                >
+                    <ClaudeIcon height={15} />
+                    による分析
+                </button>
                 {menuArray.map((menu) => (
                     <Dropdown key={menu} className="me-1">
                         <Dropdown.Toggle
@@ -116,7 +150,23 @@ const Header = ({ }) => {
                         </Dropdown.Menu>
                     </Dropdown>
                 ))}
+
+
             </div>}
+
+            {/* Claudeによる分析 */}
+            <Modal show={claudeModal} onHide={() => setClaudeModal(false)} size="xl" centered scrollable>
+                <Modal.Header closeButton className="border-bottom-0 pb-0" style={{ fontSize: '15px' }}>
+                    <span className="fw-bold d-flex align-items-center" style={{ color: '#000', gap: '2px' }}>
+                        <ClaudeIcon height={17} />
+                        による分析
+                    </span>
+                </Modal.Header>
+                <Modal.Body className="pt-2" style={{ maxHeight: '80vh' }}>
+                    <ClaudeAnalysis />
+                </Modal.Body>
+            </Modal>
+
             <Modal show={modal} onHide={() => setModal(false)} size={editMenu === '土地情報同期' ? 'sm' : 'xl'} centered>
                 <Modal.Header closeButton className="border-bottom-0 pb-0 fw-bold text-secondary" style={{ fontSize: '15px' }}>
                     {editMenu}
