@@ -6,6 +6,8 @@ import AuthContext from '../../context/AuthContext';
 import LeadEdit from './LeadEdit';
 import DocumentViewer from './DocumentViewer';
 import PlannerGenerator, { PlannerInputState } from './PlannerGenerator';
+import LeadNotifications from './LeadNotifications';
+import { saveBrokerageRecord, recordFieldChanges, isSoftDeleted } from './leadUtiles';
 // ==========================================
 // 💡 型定義
 // ==========================================
@@ -48,6 +50,8 @@ type initialData = {
     addr: string | null;
     price: number | null;
     fee: number | null;
+    recordId?: string | null;   // 下書きの保存先 brokerage_listings.id
+    docDraft?: string | null;   // 保存済みの下書き JSON
 };
 
 // ==========================================
@@ -143,7 +147,9 @@ const LeadOpportunity = () => {
                     const responseLead = response.data.lead
                         .filter((l: any) =>
                             (l.kind === 'ledger' || l.kind === 'buyLead' || l.kind === 'buyLeads') &&
-                            validPhases.includes(l.phase)
+                            validPhases.includes(l.phase) &&
+                            // 論理削除済み（show_dashboard = 0）は一覧に出さない
+                            !isSoftDeleted(l)
                         )
                         .map((l: any) => ({
                             ...l,
@@ -221,13 +227,40 @@ const LeadOpportunity = () => {
         setIsEditModalOpen(true);
     };
 
-    const handleSaveCustomerInfo = () => {
-        console.log(`[API UPDATE] Save Opportunity Info:`, customerInfo);
-        // APIへのダミー関数呼び出し
-        if (customerInfo.id) {
-            setLeads(prev => prev.map(l => l.id === customerInfo.id ? { ...l, ...customerInfo } as OpportunityLead : l));
-        }
+    const handleSaveCustomerInfo = async () => {
         setIsEditModalOpen(false);
+        if (!customerInfo.id) return;
+
+        // 画面を先に更新し、保存に失敗したら元へ戻す（楽観的更新）
+        const snapshot = leads;
+        const targetId = customerInfo.id;
+        setLeads(prev => prev.map(l => l.id === targetId ? { ...l, ...customerInfo } as OpportunityLead : l));
+
+        try {
+            // id は突合キーなので更新値からは除く。
+            // 許可カラムに無いキーは broker_update.php 側で捨てられる。
+            const { id, ...fields } = customerInfo as OpportunityLead;
+            await saveBrokerageRecord(targetId, fields);
+
+            // 保存が成功してから履歴を残す（失敗した変更を履歴に残さないため）
+            const before = snapshot.find(l => l.id === targetId);
+            if (before) {
+                const isSell = before.kind === 'ledger';
+                await recordFieldChanges({
+                    entity: isSell ? 'ledger' : 'buy',
+                    entityId: targetId,
+                    entityNo: before.no ? Number(before.no) : null,
+                    label: (isSell ? before.seller : (before.customer || before.name)) || before.property || targetId,
+                    before,
+                    after: fields,
+                    by: userName || '不明',
+                });
+            }
+        } catch (e) {
+            console.error('[LeadOpportunity] 保存に失敗しました', customerInfo, e);
+            setLeads(snapshot);
+            alert('保存に失敗しました。通信状況を確認して、もう一度お試しください。');
+        }
     };
 
     // 💡 追加: 契約書ボタンクリック時の処理
@@ -254,7 +287,10 @@ const LeadOpportunity = () => {
             mail: lead.mail || null,
             addr: lead.addr1 || lead.addr || null,
             price: actualPrice,
-            fee: fee
+            fee: fee,
+            // 下書きの保存先と、保存済みの下書き
+            recordId: lead.id,
+            docDraft: lead.docDraft ?? null
         };
 
         setCurrentInitialData(data);
@@ -306,6 +342,8 @@ const LeadOpportunity = () => {
                 </div>
 
                 <div className="d-flex align-items-center gap-3 mt-3 mt-md-0">
+                    {/* 担当変更などの通知。自分宛のものだけが表示される */}
+                    <LeadNotifications />
                     <div className="form-check form-switch d-flex align-items-center gap-2">
                         <input
                             className="form-check-input"

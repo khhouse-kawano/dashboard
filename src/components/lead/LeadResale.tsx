@@ -1,8 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
 import { thisYear } from '../../utils/thisYear';
+import AuthContext from '../../context/AuthContext';
 import { COMPANY } from './documentUtils';
+import LeadNotifications from './LeadNotifications';
+import { safeParse, saveBrokerageRecord, softDeleteRecord, logChange, recordFieldChanges, isSoftDeleted } from './leadUtiles';
 
 // ==========================================
 // 💡 型定義
@@ -411,14 +414,16 @@ const newDeal = (no: number): ResaleDeal => ({
     note: '',
 });
 
-// APIレスポンス（kind:'resale'）を防御的に補完する
+// APIレスポンス（kind:'resales'）を防御的に補完する
+// costs は DB 上 LONGTEXT(JSON) のため、文字列で返ってくる場合がある
 const normalizeResaleDeal = (r: any, idx: number): ResaleDeal => {
     const base = newDeal(rsNum(r?.no) || idx + 1);
+    const rawCosts = safeParse(r?.costs);
     return {
         ...base,
         ...r,
         id: r?.id || base.id,
-        costs: Array.isArray(r?.costs) && r.costs.length ? r.costs.map((c: any) => ({ id: c.id || uid(), cat: c.cat || '仕入', label: c.label || '', tax: c.tax ? 1 : 0, key: c.key || '', plan: c.plan ?? '', actual: c.actual ?? '' })) : base.costs,
+        costs: Array.isArray(rawCosts) && rawCosts.length ? rawCosts.map((c: any) => ({ id: c.id || uid(), cat: c.cat || '仕入', label: c.label || '', tax: c.tax ? 1 : 0, key: c.key || '', plan: c.plan ?? '', actual: c.actual ?? '' })) : base.costs,
     };
 };
 
@@ -426,6 +431,7 @@ const normalizeResaleDeal = (r: any, idx: number): ResaleDeal => {
 // 💡 メインコンポーネント
 // ==========================================
 const LeadResale = () => {
+    const { userName } = useContext(AuthContext);
     const [deals, setDeals] = useState<ResaleDeal[]>([]);
     const [ledgerList, setLedgerList] = useState<any[]>([]);
     const [staffList, setStaffList] = useState<string[]>([]);
@@ -445,7 +451,8 @@ const LeadResale = () => {
                 const response = await apiClient.post('', { request: 'planner', roll: 'lead' });
                 if (response.data) {
                     const allLeads: any[] = response.data.lead || [];
-                    const resaleRecords = allLeads.filter((l: any) => l.kind === 'resale');
+                    // 論理削除済み（show_dashboard = 0）は一覧に出さない
+                    const resaleRecords = allLeads.filter((l: any) => l.kind === 'resales' && !isSoftDeleted(l));
                     setDeals(resaleRecords.map((r: any, idx: number) => normalizeResaleDeal(r, idx)));
                     setLedgerList(allLeads.filter((l: any) => l.kind === 'ledger'));
                     if (response.data.staff) {
@@ -521,27 +528,80 @@ const LeadResale = () => {
         setIsEditOpen(true);
     };
 
-    const handleSaveDeal = () => {
+    const handleSaveDeal = async () => {
         if (!editingDeal) return;
         if (!editingDeal.property.trim()) {
             alert('物件名を入力してください');
             return;
         }
-        console.log('[API UPDATE] Save Resale Deal:', editingDeal);
+
+        const snapshot = deals;
         if (editingId) {
             setDeals(prev => prev.map(d => d.id === editingId ? editingDeal : d));
         } else {
             setDeals(prev => [editingDeal, ...prev]);
         }
         setIsEditOpen(false);
+
+        try {
+            // costs は DB 上 LONGTEXT(JSON) のため文字列化して送る。
+            // id は突合キーとして別に渡すので更新値からは除く。
+            const { id, costs, ...rest } = editingDeal;
+            await saveBrokerageRecord(id, {
+                ...rest,
+                kind: 'resales',
+                costs: JSON.stringify(costs ?? []),
+                show_dashboard: 1,
+            });
+
+            // 保存が成功してから履歴を残す（新規登録時は比較対象が無いので差分ログは出ない）
+            const before = snapshot.find(d => d.id === id);
+            if (before) {
+                await recordFieldChanges({
+                    entity: 'resale',
+                    entityId: id,
+                    entityNo: editingDeal.no ?? null,
+                    label: editingDeal.property || id,
+                    before,
+                    after: rest,
+                    by: userName || '不明',
+                });
+            }
+        } catch (e) {
+            console.error('[LeadResale] 保存に失敗しました', editingDeal, e);
+            setDeals(snapshot);
+            alert('保存に失敗しました。通信状況を確認して、もう一度お試しください。');
+        }
     };
 
-    const handleDeleteDeal = () => {
+    const handleDeleteDeal = async () => {
         if (!editingId) return;
-        if (!window.confirm('この買取再販案件を削除しますか？（費目の明細も削除されます）')) return;
-        console.log('[API UPDATE] Delete Resale Deal:', editingId);
+        if (!window.confirm('この買取再販案件を一覧から削除しますか？（費目の明細も表示されなくなります）')) return;
+
+        const snapshot = deals;
+        const target = snapshot.find(d => d.id === editingId);
         setDeals(prev => prev.filter(d => d.id !== editingId));
         setIsEditOpen(false);
+
+        try {
+            // 物理削除ではなく show_dashboard = 0 による論理削除。
+            // DatabaseBroker の非表示処理と同じ方式で、行そのものは DB に残る。
+            await softDeleteRecord(editingId, userName || '不明');
+            await logChange({
+                entity: 'resale',
+                entityId: editingId,
+                entityNo: target?.no ?? null,
+                label: target?.property || editingId,
+                field: '削除',
+                from: '表示',
+                to: '非表示（論理削除）',
+                by: userName || '不明',
+            });
+        } catch (e) {
+            console.error('[LeadResale] 削除に失敗しました', editingId, e);
+            setDeals(snapshot);
+            alert('削除に失敗しました。通信状況を確認して、もう一度お試しください。');
+        }
     };
 
     // ==========================================
@@ -644,6 +704,8 @@ const LeadResale = () => {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* 担当変更などの通知。自分宛のものだけが表示される */}
+                    <LeadNotifications />
                     <label style={{ fontSize: '11px', color: '#6c757d', fontWeight: 'bold' }}>粗利の計算方式</label>
                     <select className="form-select form-select-sm" style={{ width: '260px', fontSize: '11px' }} value={gpMode} onChange={e => setGpMode(e.target.value as RsGpMode)}>
                         <option value="incl">買取提案書と同じ（控除を見ない）</option>

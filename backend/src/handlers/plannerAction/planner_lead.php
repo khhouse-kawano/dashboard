@@ -1,7 +1,9 @@
 <?php
 
 // リード情報
-$sql_lead = "SELECT * FROM brokerage_listings WHERE kind IN ('leads', 'buyLeads');";
+// LeadOpportunity は 'ledger'、LeadResale は 'resales' を参照する。
+// 各コンポーネント側で kind により絞り込むため、まとめて返して問題ない。
+$sql_lead = "SELECT * FROM brokerage_listings WHERE kind IN ('leads', 'buyLeads', 'ledger', 'resales');";
 $stmt_lead = $pdo->prepare($sql_lead);
 $stmt_lead->execute();
 $response_lead = $stmt_lead->fetchAll(PDO::FETCH_ASSOC);

@@ -4,7 +4,7 @@ import { thisYear } from '../../utils/thisYear';
 import Table from 'react-bootstrap/Table';
 import LeadHeader from './LeadHeader';
 import AuthContext from '../../context/AuthContext';
-import { removeSpaces, safeParse, LEAD_END_REASONS } from './leadUtiles';
+import { removeSpaces, safeParse, LEAD_END_REASONS, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from './leadUtiles';
 import LeadEdit from './LeadEdit';
 import LeadCall, { CallLog } from './LeadCall';
 import DocumentViewer from './DocumentViewer';
@@ -70,6 +70,14 @@ export type SellLead = {
   phone: string | null;
   mail: string | null;
   applicationDate: string | null;
+  /** 売却理由・希望時期（ホット度スコアの加点対象） */
+  reason?: string | null;
+  timing?: string | null;
+  /** 契約書フォームの下書き JSON */
+  docDraft?: string | null;
+  /** 論理削除の記録。show_dashboard = 0 のときに埋まる */
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type PeriodSummary = {
@@ -93,6 +101,8 @@ type initialData = {
     addr: string | null;
     price: number | null;
     fee: number | null;
+    recordId?: string | null;   // 下書きの保存先 brokerage_listings.id
+    docDraft?: string | null;   // 保存済みの下書き JSON
 };
 
 const parseCallCounts = (callDatesJson: string | null) => {
@@ -261,7 +271,8 @@ const LeadSell = () => {
       try {
         const response = await apiClient.post('', { request: 'planner', roll: 'lead' });
         if (response.data && response.data.lead) {
-          const responseLead = response.data.lead.filter((l: any) => l.kind === 'leads').map((l: any) => ({
+          // 論理削除済み（show_dashboard = 0）は一覧に出さない
+          const responseLead = response.data.lead.filter((l: any) => l.kind === 'leads' && !isSoftDeleted(l)).map((l: any) => ({
             ...l,
             contactDate: dateFormate(l.contactDate),
             receivedDate: dateFormate(l.receivedDate),
@@ -402,15 +413,49 @@ const LeadSell = () => {
   }, [filteredLeads]);
 
 
+  /**
+   * brokerage_listings の1行を部分更新する。
+   * 画面を先に更新し（楽観的更新）、保存に失敗したら元の値へ戻す。
+   * 戻さないと「画面には反映されたのに DB には入っていない」状態になり、
+   * 次のリロードで消えた理由が分からなくなるため。
+   */
+  const handleApiPatch = async (id: string, fields: Record<string, unknown>) => {
+    let snapshot: SellLead[] = [];
+    setLeads(prev => {
+      snapshot = prev;
+      return prev.map(l => (l.id === id ? { ...l, ...fields } as SellLead : l));
+    });
+    const before = snapshot.find(l => l.id === id);
+    try {
+      await saveBrokerageRecord(id, fields);
+      // 保存が成功してから履歴を残す（失敗した変更を履歴に残さないため）
+      if (before) {
+        await recordFieldChanges({
+          entity: 'lead',
+          entityId: id,
+          entityNo: before.ledgerNo ? Number(before.ledgerNo) : null,
+          label: before.seller || before.name || before.addr || id,
+          before,
+          after: fields,
+          by: userName || '不明',
+        });
+      }
+    } catch (e) {
+      console.error('[LeadSell] 保存に失敗しました', { id, fields }, e);
+      setLeads(snapshot);
+      alert('保存に失敗しました。通信状況を確認して、もう一度お試しください。');
+    }
+  };
+
   const handleApiUpdate = (id: string, field: string, value: string | number) => {
-    console.log(`[API UPDATE SELL] ID: ${id} | Field: ${field} | Value: ${value}`);
+    void handleApiPatch(id, { [field]: value });
   };
 
   const handleAddClick = () => {
     setIsAdding(true);
   };
 
-  const handleSaveNewLead = () => {
+  const handleSaveNewLead = async () => {
     const seller = newSellerRef.current?.value;
     if (!seller) {
       alert('売主名を入力してください');
@@ -418,9 +463,11 @@ const LeadSell = () => {
     }
 
     const newRecord: SellLead = {
-      internal_id: `new_int_${Date.now()}`,
-      kind: 'sellLeads',
-      id: `new_${Date.now()}`,
+      internal_id: '',
+      // 'sellLeads' ではなく 'leads'。brokerage_listings.kind および
+      // 一覧の絞り込み条件（kind === 'leads'）と一致させる必要がある。
+      kind: 'leads',
+      id: newRecordId(),
       no: '',
       freq: '',
       note: null,
@@ -482,6 +529,25 @@ const LeadSell = () => {
 
     setLeads(prev => [newRecord, ...prev]);
     setIsAdding(false);
+
+    try {
+      await saveBrokerageRecord(newRecord.id, {
+        kind: 'leads',
+        seller: newRecord.seller,
+        customer: newRecord.customer,
+        name: newRecord.name,
+        staff: newRecord.staff,
+        source: newRecord.source,
+        phase: newRecord.phase,
+        receivedDate: newRecord.receivedDate,
+        callDates: '[]',
+        show_dashboard: 1,
+      });
+    } catch (e) {
+      console.error('[LeadSell] 新規リードの登録に失敗しました', newRecord, e);
+      setLeads(prev => prev.filter(l => l.id !== newRecord.id));
+      alert('新規リードの登録に失敗しました。もう一度お試しください。');
+    }
   };
 
   const handleQuickCall = (lead: SellLead) => {
@@ -497,7 +563,6 @@ const LeadSell = () => {
     const updatedCallDates = JSON.stringify(logs);
 
     handleApiUpdate(lead.id, 'callDates', updatedCallDates);
-    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, callDates: updatedCallDates } : l));
 
     // 💡 追加: 架電記録の直後に次回連絡日の設定を促す（source.html の V12.askNext 相当）
     setCallTargetLead({ ...lead, callDates: updatedCallDates });
@@ -505,15 +570,12 @@ const LeadSell = () => {
   };
 
   const handleSaveCallLog = (leadId: string, updatedCallDatesJson: string, nextDate?: string, nextNote?: string) => {
-    handleApiUpdate(leadId, 'callDates', updatedCallDatesJson);
-    if (nextDate !== undefined) handleApiUpdate(leadId, 'nextDate', nextDate);
-    if (nextNote !== undefined) handleApiUpdate(leadId, 'nextNote', nextNote);
-    setLeads(prev => prev.map(l => l.id === leadId ? {
-      ...l,
+    // 3項目を1リクエストにまとめる（別々に送ると途中で失敗したとき中途半端に保存される）
+    void handleApiPatch(leadId, {
       callDates: updatedCallDatesJson,
       ...(nextDate !== undefined ? { nextDate } : {}),
       ...(nextNote !== undefined ? { nextNote } : {}),
-    } : l));
+    });
   };
 
   // 💡 追加: 担当変更の確認ダイアログ（source.html の担当変更確認と同等）
@@ -561,7 +623,10 @@ const LeadSell = () => {
 
   const handleSaveCustomerInfo = () => {
     if (customerInfo.id) {
-      setLeads(prev => prev.map(l => l.id === customerInfo.id ? { ...l, ...customerInfo } as SellLead : l));
+      // id / internal_id / created_at / updated_at は DB 側が管理するので送らない。
+      // 残りのうちサーバーの許可カラムに無いキーは broker_update.php 側で捨てられる。
+      const { id, internal_id, created_at, updated_at, ...fields } = customerInfo as SellLead;
+      void handleApiPatch(id, fields);
     }
     setIsEditModalOpen(false);
   };
@@ -584,7 +649,10 @@ const LeadSell = () => {
         mail: lead.mail || null,
         addr: lead.addr1 || lead.addr || null,
         price: actualPrice,
-        fee: parsedFee
+        fee: parsedFee,
+        // 下書きの保存先と、保存済みの下書き
+        recordId: lead.id,
+        docDraft: lead.docDraft ?? null
     };
 
     setCurrentInitialData(data);

@@ -1,4 +1,5 @@
 import React from 'react';
+import LeadNotifications from './LeadNotifications';
 
 // ==========================================
 // 💡 型定義
@@ -140,11 +141,13 @@ const LeadHeader: React.FC<Props> = ({
                 )}
             </div>
             
-            <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                    className="shadow-sm" 
-                    style={{ ...customStyles.primaryBtn, opacity: isAdding ? 0.6 : 1, cursor: isAdding ? 'not-allowed' : 'pointer' }} 
-                    onClick={handleAddClick} 
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {/* 担当変更などの通知。自分宛のものだけが表示される */}
+                <LeadNotifications />
+                <button
+                    className="shadow-sm"
+                    style={{ ...customStyles.primaryBtn, opacity: isAdding ? 0.6 : 1, cursor: isAdding ? 'not-allowed' : 'pointer' }}
+                    onClick={handleAddClick}
                     disabled={isAdding}
                 >
                     <i className="bi bi-plus-lg"></i> 反響を追加

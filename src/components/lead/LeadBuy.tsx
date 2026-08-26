@@ -4,7 +4,7 @@ import { thisYear } from '../../utils/thisYear';
 import Table from 'react-bootstrap/Table';
 import LeadHeader from './LeadHeader';
 import AuthContext from '../../context/AuthContext';
-import { removeSpaces, safeParse, BUY_END_REASONS } from './leadUtiles';
+import { removeSpaces, safeParse, BUY_END_REASONS, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from './leadUtiles';
 import LeadEdit from './LeadEdit';
 import LeadCall, { CallLog } from './LeadCall';
 import DocumentViewer from './DocumentViewer';
@@ -37,6 +37,12 @@ type BuyLead = {
     nextNote: string | null;
     addr: string | null;
     note: string | null;
+    /** 一覧の絞り込みに使う表示フラグ（0 = 論理削除済み） */
+    show_dashboard?: number | string | null;
+    deleted_at?: string | null;
+    deleted_by?: string | null;
+    /** 契約書フォームの下書き JSON */
+    docDraft?: string | null;
 };
 
 type PeriodSummary = {
@@ -60,6 +66,8 @@ type initialData = {
     addr: string | null;
     price: number | null;
     fee: number | null;
+    recordId?: string | null;   // 下書きの保存先 brokerage_listings.id
+    docDraft?: string | null;   // 保存済みの下書き JSON
 };
 
 // ==========================================
@@ -254,7 +262,8 @@ const LeadBuy = () => {
             try {
                 const response = await apiClient.post('', { request: 'planner', roll: 'lead' });
                 if (response.data && response.data.lead) {
-                    const responseLead = response.data.lead.filter((l: any) => l.kind === 'buyLeads').map((l: any) => ({
+                    // 論理削除済み（show_dashboard = 0）は一覧に出さない
+                    const responseLead = response.data.lead.filter((l: any) => l.kind === 'buyLeads' && !isSoftDeleted(l)).map((l: any) => ({
                         ...l,
                         connectDate: l.connectDate || null,
                         receivedDate: l.receivedDate || null,
@@ -395,15 +404,47 @@ const LeadBuy = () => {
         return { sorted, total };
     }, [filteredLeads]);
 
+    /**
+     * brokerage_listings の1行を部分更新する。
+     * 画面を先に更新し（楽観的更新）、保存に失敗したら元の値へ戻す。
+     */
+    const handleApiPatch = async (id: string, fields: Record<string, unknown>) => {
+        let snapshot: BuyLead[] = [];
+        setLeads(prev => {
+            snapshot = prev;
+            return prev.map(l => (l.id === id ? { ...l, ...fields } as BuyLead : l));
+        });
+        const before = snapshot.find(l => l.id === id);
+        try {
+            await saveBrokerageRecord(id, fields);
+            // 保存が成功してから履歴を残す（失敗した変更を履歴に残さないため）
+            if (before) {
+                await recordFieldChanges({
+                    entity: 'buy',
+                    entityId: id,
+                    entityNo: null,
+                    label: before.name || before.targetProperty || id,
+                    before,
+                    after: fields,
+                    by: userName || '不明',
+                });
+            }
+        } catch (e) {
+            console.error('[LeadBuy] 保存に失敗しました', { id, fields }, e);
+            setLeads(snapshot);
+            alert('保存に失敗しました。通信状況を確認して、もう一度お試しください。');
+        }
+    };
+
     const handleApiUpdate = (id: string, field: string, value: string | number) => {
-        console.log(`[API UPDATE] ID: ${id} | Field: ${field} | Value: ${value}`);
+        void handleApiPatch(id, { [field]: value });
     };
 
     const handleAddClick = () => {
         setIsAdding(true);
     };
 
-    const handleSaveNewLead = () => {
+    const handleSaveNewLead = async () => {
         const name = newNameRef.current?.value;
         if (!name) {
             alert('顧客名を入力してください');
@@ -411,7 +452,7 @@ const LeadBuy = () => {
         }
 
         const newRecord: BuyLead = {
-            id: `new_${Date.now()}`,
+            id: newRecordId(),
             receivedDate: newReceivedDateRef.current?.value || formatDate(new Date()),
             portal: newPortalRef.current?.value || '',
             name: name,
@@ -439,6 +480,23 @@ const LeadBuy = () => {
 
         setLeads(prev => [newRecord, ...prev]);
         setIsAdding(false);
+
+        try {
+            await saveBrokerageRecord(newRecord.id, {
+                kind: 'buyLeads',
+                name: newRecord.name,
+                staff: newRecord.staff,
+                portal: newRecord.portal,
+                phase: newRecord.phase,
+                receivedDate: newRecord.receivedDate,
+                callDates: '[]',
+                show_dashboard: 1,
+            });
+        } catch (e) {
+            console.error('[LeadBuy] 新規リードの登録に失敗しました', newRecord, e);
+            setLeads(prev => prev.filter(l => l.id !== newRecord.id));
+            alert('新規リードの登録に失敗しました。もう一度お試しください。');
+        }
     };
 
     const handleQuickCall = (lead: BuyLead) => {
@@ -454,7 +512,6 @@ const LeadBuy = () => {
         const updatedCallDates = JSON.stringify(logs);
 
         handleApiUpdate(lead.id, 'callDates', updatedCallDates);
-        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, callDates: updatedCallDates } : l));
 
         // 💡 追加: 架電記録の直後に次回連絡日の設定を促す（source.html の V12.askNext 相当）
         setCallTargetLead({ ...lead, callDates: updatedCallDates });
@@ -462,15 +519,12 @@ const LeadBuy = () => {
     };
 
     const handleSaveCallLog = (leadId: string, updatedCallDatesJson: string, nextDate?: string, nextNote?: string) => {
-        handleApiUpdate(leadId, 'callDates', updatedCallDatesJson);
-        if (nextDate !== undefined) handleApiUpdate(leadId, 'nextDate', nextDate);
-        if (nextNote !== undefined) handleApiUpdate(leadId, 'nextNote', nextNote);
-        setLeads(prev => prev.map(l => l.id === leadId ? {
-            ...l,
+        // 3項目を1リクエストにまとめる（別々に送ると途中で失敗したとき中途半端に保存される）
+        void handleApiPatch(leadId, {
             callDates: updatedCallDatesJson,
             ...(nextDate !== undefined ? { nextDate } : {}),
             ...(nextNote !== undefined ? { nextNote } : {}),
-        } : l));
+        });
     };
 
     // 💡 追加: 担当変更の確認ダイアログ（source.html の担当変更確認と同等）
@@ -518,7 +572,10 @@ const LeadBuy = () => {
 
     const handleSaveCustomerInfo = () => {
         if (customerInfo.id) {
-            setLeads(prev => prev.map(l => l.id === customerInfo.id ? { ...l, ...customerInfo } as BuyLead : l));
+            // id は DB 側の突合キーなので更新値としては送らない。
+            // 許可カラムに無いキーは broker_update.php 側で捨てられる。
+            const { id, ...fields } = customerInfo as BuyLead;
+            void handleApiPatch(id, fields);
         }
         setIsEditModalOpen(false);
     };
@@ -537,7 +594,10 @@ const LeadBuy = () => {
             mail: lead.mail || null,
             addr: lead.addr || null,
             price: actualPrice,
-            fee: fee
+            fee: fee,
+            // 下書きの保存先と、保存済みの下書き
+            recordId: lead.id,
+            docDraft: lead.docDraft ?? null
         };
 
         setCurrentInitialData(data);

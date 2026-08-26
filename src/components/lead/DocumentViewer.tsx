@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import Modal from 'react-bootstrap/Modal';
+import AuthContext from '../../context/AuthContext';
 import { getYK, COMPANY } from './documentUtils'; // COMPANYは内部で定義されているため除外
+import { safeParse, saveBrokerageRecord, nowDateTime } from './leadUtiles';
 
 // ==========================================
 // 💡 1. ユーティリティ・定数
@@ -79,6 +81,10 @@ type initialData = {
     addr: string | null;
     price: number | null;
     fee: number | null;
+    /** 下書きの保存先となる brokerage_listings.id。未指定だと下書き保存は行えない。 */
+    recordId?: string | null;
+    /** 保存済みの下書き（brokerage_listings.docDraft の JSON 文字列） */
+    docDraft?: string | null;
 };
 
 // ==========================================
@@ -210,7 +216,10 @@ export const DocumentViewer = ({ initialData, documentShow, setDocumentShow }: {
     documentShow: boolean,
     setDocumentShow: React.Dispatch<React.SetStateAction<boolean>>
 }) => {
+    const { userName } = useContext(AuthContext);
     const today = new Date().toISOString().slice(0, 10);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
+    const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
 
     // 💡 フォームの状態管理
     const [form, setForm] = useState<DocumentFormData>({
@@ -302,6 +311,39 @@ export const DocumentViewer = ({ initialData, documentShow, setDocumentShow }: {
         initialData?.price,
         initialData?.fee
     ]);
+
+    // 保存済みの下書きがあれば、リードから組み立てた値の上に重ねる。
+    // 手入力した内容（面積・間取り・特約など）はリード側に存在しないため、
+    // 下書きを後から当てないと毎回入力し直しになる。
+    useEffect(() => {
+        if (!initialData?.docDraft) return;
+        const draft = safeParse(initialData.docDraft);
+        if (!draft || Array.isArray(draft) || typeof draft !== 'object') return;
+        setForm(prev => ({ ...prev, ...(draft as Partial<DocumentFormData>) }));
+    }, [initialData?.docDraft]);
+
+    /** 下書きを brokerage_listings.docDraft に保存する */
+    const handleSaveDraft = async () => {
+        const recordId = initialData?.recordId;
+        if (!recordId) {
+            alert('この画面からは下書きを保存できません（保存先のレコードが特定できません）。');
+            return;
+        }
+        setIsSavingDraft(true);
+        try {
+            await saveBrokerageRecord(recordId, {
+                docDraft: JSON.stringify(form),
+                docDraftAt: nowDateTime(),
+                docDraftBy: userName || '不明',
+            });
+            setDraftSavedAt(nowDateTime());
+        } catch (e) {
+            console.error('[DocumentViewer] 下書きの保存に失敗しました', { recordId }, e);
+            alert('下書きの保存に失敗しました。通信状況を確認して、もう一度お試しください。');
+        } finally {
+            setIsSavingDraft(false);
+        }
+    };
 
     // 契約種別が手動で変わった時の連動処理
     useEffect(() => {
@@ -437,7 +479,17 @@ export const DocumentViewer = ({ initialData, documentShow, setDocumentShow }: {
                     <span style={{ fontWeight: 'bold', fontSize: '16px' }}>📝 {form.ctype}契約書</span>
                     <span style={{ flex: 1 }}></span>
                     <button onClick={handlePrint} style={{ padding: '6px 16px', backgroundColor: '#0d6efd', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ PDF保存（印刷）</button>
-                    <button style={{ padding: '6px 16px', backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer' }}>💾 下書き保存</button>
+                    {draftSavedAt && (
+                        <span style={{ fontSize: '11px', opacity: 0.8 }}>下書き保存済み {draftSavedAt.slice(5, 16)}</span>
+                    )}
+                    <button
+                        onClick={handleSaveDraft}
+                        disabled={isSavingDraft || !initialData?.recordId}
+                        title={initialData?.recordId ? '入力内容をこの案件の下書きとして保存します' : '保存先の案件が特定できないため使用できません'}
+                        style={{ padding: '6px 16px', backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px', cursor: (isSavingDraft || !initialData?.recordId) ? 'not-allowed' : 'pointer', opacity: (isSavingDraft || !initialData?.recordId) ? 0.5 : 1 }}
+                    >
+                        {isSavingDraft ? '保存中…' : '💾 下書き保存'}
+                    </button>
                     <button onClick={() => setDocumentShow(false)} style={{ padding: '6px 16px', backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer' }}>✕ 閉じる</button>
                 </div>
 

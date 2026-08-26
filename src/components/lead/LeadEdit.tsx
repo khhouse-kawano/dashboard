@@ -5,6 +5,8 @@ import AuthContext from '../../context/AuthContext';
 import { removeSpaces, NEXT_QUICK, addDaysISO, LEAD_END_REASONS, BUY_END_REASONS } from './leadUtiles';
 // 💡 追加: DocumentViewerをインポート
 import DocumentViewer from './DocumentViewer';
+// 💡 追加: サーバー保存済みの変更履歴
+import LeadHistory from './LeadHistory';
 
 // 💡 追加: 変更内容プレビューで表示するフィールド名の日本語ラベル
 const FIELD_LABELS: Record<string, string> = {
@@ -48,6 +50,8 @@ export type initialData = {
     addr: string | null;
     price: number | null;
     fee: number | null;
+    recordId?: string | null;   // 下書きの保存先 brokerage_listings.id
+    docDraft?: string | null;   // 保存済みの下書き JSON
 };
 
 // ==========================================
@@ -196,6 +200,9 @@ const LeadEdit: React.FC<LeadEditProps> = ({
             addr: customerInfo.addr1 || customerInfo.addr || null,
             price: parsedPrice,
             fee: feeVal,
+            // 下書きの保存先と、保存済みの下書き
+            recordId: customerInfo.id || null,
+            docDraft: customerInfo.docDraft ?? null,
         };
     }, [customerInfo]);
 
@@ -638,6 +645,9 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                 </div>
                             </div>
                         )}
+
+                        {/* 💡 追加: サーバーに保存済みの変更履歴（上の「変更内容」は保存前のプレビュー） */}
+                        <LeadHistory entityId={customerInfo?.id} enabled={isOpen} />
                     </div>
                 </Modal.Body>
 
