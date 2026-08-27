@@ -83,6 +83,16 @@ const Header = ({ }) => {
         return newEstate !== null && newEstate > 0 && value === '土地情報一覧';
     };
 
+    // 月次日報は日付が横に31列並ぶため、固定の 80vh 枠では縦が足りない。
+    // このメニューだけモーダルを全画面にして、画面の縦をすべて使う。
+    const isFullscreenMenu = editMenu === '月次日報';
+
+    const modalBody = editMapping[editMenu] ?? (
+        <div className="text-muted text-center py-4" style={{ fontSize: '13px' }}>
+            現在、{editMenu} のコンポーネントを準備中です。
+        </div>
+    );
+
     return (
         <>
             {!isSp && <div
@@ -118,9 +128,9 @@ const Header = ({ }) => {
                     による分析
                 </button>
 
-                <div className='bg-primary rounded-pill text-white me-1 shadow-sm' 
-                style={{padding: '2px 10px', fontSize: '10px', cursor: 'pointer'}}
-                onClick={()=>navigate('/market')}
+                <div className='bg-primary rounded-pill text-white me-1 shadow-sm'
+                    style={{ padding: '2px 10px', fontSize: '10px', cursor: 'pointer' }}
+                    onClick={() => navigate('/market')}
                 >
                     マーケット情報
                 </div>
@@ -176,20 +186,54 @@ const Header = ({ }) => {
                 </Modal.Body>
             </Modal>
 
-            <Modal show={modal} onHide={() => setModal(false)} size={editMenu === '土地情報同期' ? 'sm' : 'xl'} centered>
-                <Modal.Header closeButton className="border-bottom-0 pb-0 fw-bold text-secondary" style={{ fontSize: '15px' }}>
-                    {editMenu}
+            <Modal
+                show={modal}
+                onHide={() => setModal(false)}
+                size={editMenu === '土地情報同期' ? 'sm' : isFullscreenMenu ? undefined : 'xl'}
+                // 全画面表示のときに centered を付けると上下に余白が生まれ、縦を使い切れない
+                centered={!isFullscreenMenu}
+                // fullscreen プロパティは型が 'true | string' のため、真偽値を渡せない。
+                // 同じ見た目になる Bootstrap のクラスを直接当てる
+                dialogClassName={isFullscreenMenu ? 'modal-fullscreen' : ''}
+                // ヘッダー以外（Body）を伸ばして縦いっぱいに使うための土台
+                contentClassName={isFullscreenMenu ? 'h-100 d-flex flex-column' : ''}
+            >
+                <Modal.Header
+                    // 全画面では右上の × が本文から遠いため、見出しの隣に閉じるボタンを置く
+                    closeButton={!isFullscreenMenu}
+                    // .modal-header は justify-content: space-between のため、
+                    // そのままだとボタンが右端へ飛ぶ。見出しの隣に並べるため左寄せに上書きする
+                    className={'border-bottom-0 pb-0 fw-bold text-secondary'
+                        + (isFullscreenMenu ? ' d-flex align-items-center gap-3 justify-content-start' : '')}
+                    style={{ fontSize: '15px' }}
+                >
+                    <span>{editMenu}</span>
+                    {isFullscreenMenu && (
+                        <button
+                            type="button"
+                            onClick={() => setModal(false)}
+                            className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 fw-normal"
+                            style={{ fontSize: '12px' }}
+                        >
+                            <i className="fa-solid fa-xmark" aria-hidden="true" />
+                            閉じる
+                        </button>
+                    )}
                 </Modal.Header>
-                <Modal.Body className="pt-2">
-                    <div style={{ overflow: 'auto' }}>
-                        <div style={{ height: '80vh' }}>
-                            {editMapping[editMenu] || (
-                                <div className="text-muted text-center py-4" style={{ fontSize: '13px' }}>
-                                    現在、{editMenu} のコンポーネントを準備中です。
-                                </div>
-                            )}
+
+                {/* 全画面時はBodyを伸ばし、スクロールは中身に持たせる。
+                    それ以外は従来どおり 80vh の枠に収める */}
+                <Modal.Body
+                    className={isFullscreenMenu ? 'p-0 flex-grow-1' : 'pt-2'}
+                    style={isFullscreenMenu ? { overflow: 'hidden', minHeight: 0 } : undefined}
+                >
+                    {isFullscreenMenu ? (
+                        <div style={{ height: '100%', overflow: 'auto' }}>{modalBody}</div>
+                    ) : (
+                        <div style={{ overflow: 'auto' }}>
+                            <div style={{ height: '80vh' }}>{modalBody}</div>
                         </div>
-                    </div>
+                    )}
                 </Modal.Body>
             </Modal>
         </>

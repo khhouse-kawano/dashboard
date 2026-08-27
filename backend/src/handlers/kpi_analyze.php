@@ -129,6 +129,27 @@ monthly は反響取得月ごとの集計です。単なる件数の推移では
 - highlights は4件以内、insights は5件以内、actions は3件以内に収めること。
 PROMPT;
 
+/**
+ * 課・店舗・スタッフで絞り込んだときに追加する前提説明。
+ *
+ * 絞り込むと母数が一桁二桁減る。それを伝えずに渡すと
+ * 「契約率が0%だから壊滅的」といった、件数を無視した結論が返ってくる。
+ */
+const KPI_SCOPED_PROMPT = <<<'PROMPT'
+
+# 対象範囲が絞り込まれている場合（重要）
+- scope_label が示す範囲だけを集計した数値です。全社の数値ではありません。
+- benchmark が付いている場合、それは**部門全体の値**です。
+  絞り込んだ対象を評価する基準として使ってください。
+  例:「この店舗の面談化率は部門平均を8ポイント下回る」
+- **母数が小さくなっている点に必ず注意してください。**
+  数十件規模では、率の差は偶然でも簡単に生じます。
+  件数が少ない指標について断定的な評価をしないこと。
+  そのような場合は「母数が小さく判断には追加期間が必要」と明記してください。
+- 担当者1名まで絞り込まれている場合、それは個人の評価に直結します。
+  数値から確認できる事実と推測を、通常以上に厳密に区別してください。
+PROMPT;
+
 /** 店舗別・媒体別で共通の前提説明 */
 const KPI_FUNNEL_COMMON = <<<'PROMPT'
 
@@ -260,26 +281,65 @@ try {
     $months = (int)($data['months'] ?? 12);
     $months = max(1, min(24, $months));
 
+    // -----------------------------------------------------------------
+    // 4-a. 絞り込み（課 → 店舗 → スタッフ）
+    //      クライアントの値をそのまま信用せず、DBで実在と所属を検証する。
+    // -----------------------------------------------------------------
+    try {
+        $scope = kpiResolveScope(
+            $pdo,
+            $division,
+            isset($data['section']) ? trim((string)$data['section']) : null,
+            isset($data['shop'])    ? trim((string)$data['shop'])    : null,
+            isset($data['staff'])   ? trim((string)$data['staff'])   : null
+        );
+    } catch (KpiScopeException $e) {
+        http_response_code(400);
+        echo json_encode(
+            ['status' => 'error', 'message' => $e->getMessage()],
+            JSON_UNESCAPED_UNICODE
+        );
+        exit;
+    }
+
+    // 店舗を1つに絞ると「店舗別サマリー」は棒グラフが1本になり意味を失う。
+    // 画面側でもメニューを押せなくしているが、APIを直接叩かれた場合に備える。
+    if ($type === 'shop' && $scope['shop'] !== null) {
+        http_response_code(400);
+        echo json_encode([
+            'status'  => 'error',
+            'message' => '店舗・スタッフを絞り込んだ状態では「店舗別サマリー」は実行できません。',
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $scopeIntro = $scope['active'] ? '「' . $scope['label'] . '」' : kpiDivisionLabel($division);
+    // 絞り込み時のみ、母数と benchmark の読み方を system プロンプトに足す
+    $scopeRule  = $scope['active'] ? KPI_SCOPED_PROMPT : '';
+
     switch ($type) {
         case 'inquiry_trend':
-            $snapshot   = buildInquiryTrendSnapshot($pdo, $months, $division);
-            $systemText = KPI_INQUIRY_TREND_PROMPT;
+            $snapshot   = buildInquiryTrendSnapshot($pdo, $months, $division, $scope);
+            $systemText = KPI_INQUIRY_TREND_PROMPT . $scopeRule;
             $schema     = KPI_ANALYSIS_SCHEMA;
-            $intro      = '以下は' . kpiDivisionLabel($division) . '部門の反響推移データです。';
+            $typeLabel  = '反響推移の分析';
+            $intro      = '以下は' . $scopeIntro . 'の反響推移データです。';
             break;
 
         case 'shop':
-            $snapshot   = buildShopSummarySnapshot($pdo, $division);
-            $systemText = KPI_SHOP_PROMPT;
+            $snapshot   = buildShopSummarySnapshot($pdo, $division, $scope);
+            $systemText = KPI_SHOP_PROMPT . $scopeRule;
             $schema     = KPI_ANALYSIS_SCHEMA;
-            $intro      = '以下は' . kpiDivisionLabel($division) . '部門の店舗別・エリア別の営業ファネルデータです。';
+            $typeLabel  = '店舗別サマリーの分析';
+            $intro      = '以下は' . $scopeIntro . 'の店舗別・エリア別の営業ファネルデータです。';
             break;
 
         case 'medium':
-            $snapshot   = buildMediumSummarySnapshot($pdo, $division);
-            $systemText = KPI_MEDIUM_PROMPT;
+            $snapshot   = buildMediumSummarySnapshot($pdo, $division, $scope);
+            $systemText = KPI_MEDIUM_PROMPT . $scopeRule;
             $schema     = KPI_ANALYSIS_SCHEMA;
-            $intro      = '以下は' . kpiDivisionLabel($division) . '部門の販促媒体別の営業ファネルデータです。';
+            $typeLabel  = '販促媒体別サマリーの分析';
+            $intro      = '以下は' . $scopeIntro . 'の販促媒体別の営業ファネルデータです。';
             break;
 
         default:
@@ -324,12 +384,13 @@ try {
     $outputTokens = (int)($usage['output_tokens'] ?? 0);
     $costUsd      = anthropicEstimateCost(KPI_MODEL, $inputTokens, $outputTokens);
 
-    $pdo->prepare('
+    $usageStmt = $pdo->prepare('
         INSERT INTO ai_usage_log
             (credential_id, staff_id, feature, model,
              input_tokens, output_tokens, cost_usd, duration_ms, status, error_message)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ')->execute([
+    ');
+    $usageStmt->execute([
         (int)$credential['id'],
         $staff['id'],
         'kpi_analyze:' . $division,
@@ -341,6 +402,7 @@ try {
         $result['ok'] ? 'ok' : ($result['status'] === 429 ? 'rate_limited' : 'error'),
         $result['error'],
     ]);
+    $usageLogId = (int)$pdo->lastInsertId();
 
     // -----------------------------------------------------------------
     // 7. レスポンス
@@ -372,16 +434,72 @@ try {
         exit;
     }
 
+    // -----------------------------------------------------------------
+    // 8. 結果を保存する
+    //
+    //    1回40〜60秒・十数円かかる結果を、画面を閉じただけで失うのは無駄。
+    //    analysis（Claudeの解釈）と kpi（グラフの元データ）をJSONのまま
+    //    残しておけば、後から課金なしで同じ画面を復元できる。
+    //
+    //    ⚠️ 保存に失敗しても分析結果の返却は妨げない。
+    //      課金は既に発生しており、ここで500を返すと利用者は
+    //      「金だけ取られて何も出ない」ことになる。
+    // -----------------------------------------------------------------
+    $historyId    = null;
+    $historyTitle = null;
+
+    if ($format === 'structured' && is_array($analysis)) {
+        // 例: 2026年8月27日 注文事業_鹿児島営業1課 反響推移の分析
+        $titleScope = implode('_', array_filter([
+            kpiDivisionLabel($division),
+            $scope['section'],
+            $scope['shop'],
+            $scope['staff'],
+        ], static fn(?string $v): bool => $v !== null && $v !== ''));
+
+        $historyTitle = kpiFormatJpDate() . ' ' . $titleScope . ' ' . $typeLabel;
+
+        try {
+            $pdo->prepare('
+                INSERT INTO kpi_analysis_history
+                    (staff_id, usage_log_id, title, headline, analysis_type, division,
+                     scope_section, scope_shop, scope_staff, scope_label,
+                     analysis_json, kpi_json, model)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ')->execute([
+                $staff['id'],
+                $usageLogId ?: null,
+                mb_substr($historyTitle, 0, 255),
+                (string)($analysis['headline'] ?? ''),
+                $type,
+                $division,
+                $scope['section'],
+                $scope['shop'],
+                $scope['staff'],
+                mb_substr((string)$scope['label'], 0, 255),
+                json_encode($analysis, JSON_UNESCAPED_UNICODE),
+                json_encode($snapshot, JSON_UNESCAPED_UNICODE),
+                KPI_MODEL,
+            ]);
+            $historyId = (int)$pdo->lastInsertId();
+        } catch (Throwable $e) {
+            error_log('kpi_analyze: history save failed: ' . $e->getMessage());
+        }
+    }
+
     echo json_encode([
-        'status'   => 'ok',
-        'format'   => $format,
-        'type'     => $type,
-        'division' => $division,
-        'analysis' => $analysis,
+        'status'     => 'ok',
+        'format'     => $format,
+        'type'       => $type,
+        'division'   => $division,
+        'analysis'   => $analysis,
+        'history_id' => $historyId,
+        'title'      => $historyTitle,
         'meta'     => [
             'model'          => KPI_MODEL,
             'period_months'  => $months,
             'division'       => kpiDivisionLabel($division),
+            'scope'          => $scope['label'],
             'input_tokens'   => $inputTokens,
             'output_tokens'  => $outputTokens,
             'cost_usd'       => $costUsd,

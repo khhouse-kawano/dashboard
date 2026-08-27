@@ -48,11 +48,33 @@ export type MonthlyRow = {
     is_maturing: boolean;
 };
 
+/** 全体値と各項目の入力率。絞り込み時は絞り込み後の値になる */
+export type OverallContext = {
+    total: number;
+    interviewed: number;
+    contracted: number;
+    interview_rate_pct: number;
+    contract_rate_pct: number;
+    close_rate_pct: number;
+    avg_days_to_interview: number | null;
+    avg_days_to_contract: number | null;
+    input_coverage_pct: Record<string, number>;
+};
+
+/**
+ * 絞り込み時の比較基準（部門全体の値）。
+ * 絞り込んでいないときはサーバーが null を返す（overall と同じ値になり冗長なため）。
+ */
+export type Benchmark = { label: string; context: OverallContext } | null;
+
 export type InquiryTrendSnapshot = {
     generated_at: string;
     period_months: number;
     source: string;
     note: string;
+    /** 例: 注文事業 › 鹿児島営業1課。絞り込みが無ければ部門名のみ */
+    scope_label?: string;
+    benchmark?: Benchmark;
     monthly: MonthlyRow[];
     by_medium: { medium: string; count: number; share_pct: number; interview_rate_pct: number; contract_rate_pct: number }[];
     medium_monthly: { medium: string; monthly: { month: string; count: number }[] }[];
@@ -98,18 +120,11 @@ export type FunnelRow = {
 export type FunnelSnapshot = {
     generated_at: string;
     scope: string;
+    /** 例: 注文事業 › 鹿児島営業1課。絞り込みが無ければ部門名のみ */
+    scope_label?: string;
     note: string;
-    overall: {
-        total: number;
-        interviewed: number;
-        contracted: number;
-        interview_rate_pct: number;
-        contract_rate_pct: number;
-        close_rate_pct: number;
-        avg_days_to_interview: number | null;
-        avg_days_to_contract: number | null;
-        input_coverage_pct: Record<string, number>;
-    };
+    overall: OverallContext;
+    benchmark?: Benchmark;
     shops?: FunnelRow[];
     media?: FunnelRow[];
     /** 顧客の居住地（都道府県）別。店舗別サマリーにのみ含まれる */
@@ -127,6 +142,13 @@ type Props = {
     type: AnalysisKind;
     snapshot: AnySnapshot;
     analysis: StructuredAnalysis;
+};
+
+/** 部門平均との差。+8.2 のように符号付きで返す */
+const diffText = (value: number, base: number, unit = '%'): string => {
+    const d = Math.round((value - base) * 10) / 10;
+    if (d === 0) return `部門平均と同じ`;
+    return `部門平均 ${base}${unit}（${d > 0 ? '+' : ''}${d}${unit}）`;
 };
 
 // ---------------------------------------------------------------------------
@@ -268,8 +290,16 @@ const InquiryTrendCharts: React.FC<{ snapshot: InquiryTrendSnapshot }> = ({ snap
 /** グラフに載せる件数。多すぎると読めなくなるため上位のみ */
 const FUNNEL_DISPLAY_LIMIT = 12;
 
+/**
+ * これを下回ったら「母数が小さい」と注意書きを出す件数。
+ * 契約日の入力率が2.7%しかないため、数百件あっても契約数は一桁になりうる。
+ */
+const SMALL_SAMPLE_THRESHOLD = 300;
+
 const FunnelCharts: React.FC<{ snapshot: FunnelSnapshot; type: 'shop' | 'medium' }> = ({ snapshot, type }) => {
     const { overall } = snapshot;
+    // 絞り込んでいるときだけ届く。部門全体との比較に使う
+    const bench = snapshot.benchmark ?? null;
     const label = type === 'shop' ? '店舗' : '媒体';
     const rows = (type === 'shop' ? snapshot.shops : snapshot.media) ?? [];
 
@@ -306,20 +336,35 @@ const FunnelCharts: React.FC<{ snapshot: FunnelSnapshot; type: 'shop' | 'medium'
         <>
             <div className="row g-2 mb-3">
                 <div className="col-6 col-md-3">
-                    <StatCard label="対象顧客数" value={overall.total.toLocaleString()} sub="件" />
+                    <StatCard
+                        label="対象顧客数"
+                        value={overall.total.toLocaleString()}
+                        sub={bench !== null
+                            ? `件（部門全体 ${bench.context.total.toLocaleString()}件）`
+                            : '件'}
+                    />
                 </div>
                 <div className="col-6 col-md-3">
                     <StatCard
                         label="面談化率（反響→面談）"
                         value={`${overall.interview_rate_pct}%`}
-                        sub={`${overall.interviewed.toLocaleString()}件`}
+                        // 絞り込み時は件数より「部門平均とどれだけ違うか」が知りたい
+                        sub={bench !== null
+                            ? diffText(overall.interview_rate_pct, bench.context.interview_rate_pct)
+                            : `${overall.interviewed.toLocaleString()}件`}
+                        tone={bench === null ? 'flat'
+                            : overall.interview_rate_pct >= bench.context.interview_rate_pct ? 'up' : 'down'}
                     />
                 </div>
                 <div className="col-6 col-md-3">
                     <StatCard
                         label="クロージング率（面談→契約）"
                         value={`${overall.close_rate_pct}%`}
-                        sub={`${overall.contracted.toLocaleString()}件`}
+                        sub={bench !== null
+                            ? diffText(overall.close_rate_pct, bench.context.close_rate_pct)
+                            : `${overall.contracted.toLocaleString()}件`}
+                        tone={bench === null ? 'flat'
+                            : overall.close_rate_pct >= bench.context.close_rate_pct ? 'up' : 'down'}
                     />
                 </div>
                 <div className="col-6 col-md-3">
@@ -331,7 +376,9 @@ const FunnelCharts: React.FC<{ snapshot: FunnelSnapshot; type: 'shop' | 'medium'
                 </div>
             </div>
 
-            <SectionTitle hint="点線は全体平均。どちらの段階でつまずいているかを見る">
+            <SectionTitle hint={bench !== null
+                ? '点線は絞り込み後の平均。どちらの段階でつまずいているかを見る'
+                : '点線は全体平均。どちらの段階でつまずいているかを見る'}>
                 {label}別 面談化率とクロージング率
             </SectionTitle>
             <div style={{ width: '100%', height: Math.max(220, data.length * 28) }}>
@@ -460,6 +507,14 @@ const FunnelCharts: React.FC<{ snapshot: FunnelSnapshot; type: 'shop' | 'medium'
                 入力率：面談日 {overall.input_coverage_pct.interview_date}%／契約日 {overall.input_coverage_pct.contract_date}%／
                 ランク {overall.input_coverage_pct.customer_rank}%。入力率が低い項目は傾向の参考値としてご覧ください。
             </p>
+
+            {/* 絞り込むと母数が一桁二桁減る。率の差が偶然でも生じることを明示する */}
+            {bench !== null && overall.total < SMALL_SAMPLE_THRESHOLD && (
+                <p className="text-muted mt-1 mb-0" style={{ fontSize: '11px', color: COLORS.red }}>
+                    <i className="fa-solid fa-triangle-exclamation me-1" aria-hidden="true" />
+                    対象が{overall.total.toLocaleString()}件と少ないため、率の差は偶然の可能性があります。
+                </p>
+            )}
         </>
     );
 };
@@ -476,7 +531,7 @@ const ASSESSMENT_STYLE: Record<StructuredAnalysis['highlights'][number]['assessm
 
 const ClaudeAnalysisResult: React.FC<Props> = ({ type, snapshot, analysis }) => (
     <div>
-        {/* 総括 */}
+        {/* 総括。どの範囲を集計した結果かを取り違えないよう、範囲を見出しに添える */}
         <div
             className="px-3 py-2 mb-3"
             style={{
@@ -487,6 +542,12 @@ const ClaudeAnalysisResult: React.FC<Props> = ({ type, snapshot, analysis }) => 
                 lineHeight: 1.8,
             }}
         >
+            {snapshot.scope_label !== undefined && snapshot.scope_label !== '' && (
+                <div className="text-muted mb-1" style={{ fontSize: '11px', lineHeight: 1.4 }}>
+                    <i className="fa-solid fa-filter me-1" aria-hidden="true" />
+                    {snapshot.scope_label}
+                </div>
+            )}
             {analysis.headline}
         </div>
 

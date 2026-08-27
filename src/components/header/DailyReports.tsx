@@ -122,6 +122,15 @@ const authorityMapping: Record<string, string> = {
 
 const positions = ['常務', '部長', '課長', '課長代理', '店長', '店長代理', '一般'];
 
+// 💡 共通の空メトリクス生成関数（集計用と総数計算用で使い回すため外出し）
+const createEmptyMetric = (): DailyMetrics => ({
+    registers: 0, interviews: 0, contracts: 0,
+    totalCalls: 0, connected: 0, unconnected: 0, sms: 0, email: 0, postalMail: 0,
+    firstInterview: 0, subsequentInterview: 0, propertyTour: 0, assessmentApo: 0, assessmentSubmit: 0, visitAssessment: 0,
+    materialSend: 0, zeroCustomer: 0, lineGroup: 0, preExam: 0, interviewContract: 0,
+    contact: 0, application: 0, ownContract: 0, brokerageContract: 0, reformContract: 0, buySellContract: 0, brokerageAcquisition: 0
+});
+
 const DailyReports = () => {
     const { category, shopName } = useContext(AuthContext);
 
@@ -178,7 +187,7 @@ const DailyReports = () => {
                     setInterviewList(response.data.interview || []);
                     
                     setShopList((response.data.shop || []).filter((s: ShopInfo) => Number(s.report_flag) === 1));
-                    const responseStaff = response.data.staff.filter((s: StaffInfo) => Number(s.report) === 1)
+                    const responseStaff = (response.data.staff || []).filter((s: StaffInfo) => Number(s.report) === 1)
                         .sort((a: StaffInfo, b: StaffInfo) => {
                             const positionA = positions.indexOf(a.position) !== -1 ? positions.indexOf(a.position) : 6;
                             const positionB = positions.indexOf(b.position) !== -1 ? positions.indexOf(b.position) : 6;
@@ -235,29 +244,21 @@ const DailyReports = () => {
         const shopData: Record<string, Record<string, DailyMetrics>> = {};
         const staffData: Record<string, Record<string, DailyMetrics>> = {};
 
-        const emptyMetric = (): DailyMetrics => ({
-            registers: 0, interviews: 0, contracts: 0,
-            totalCalls: 0, connected: 0, unconnected: 0, sms: 0, email: 0, postalMail: 0,
-            firstInterview: 0, subsequentInterview: 0, propertyTour: 0, assessmentApo: 0, assessmentSubmit: 0, visitAssessment: 0,
-            materialSend: 0, zeroCustomer: 0, lineGroup: 0, preExam: 0, interviewContract: 0,
-            contact: 0, application: 0, ownContract: 0, brokerageContract: 0, reformContract: 0, buySellContract: 0, brokerageAcquisition: 0
-        });
-
         divisions.forEach(div => {
             divData[div] = {};
-            datesInMonth.forEach(d => divData[div][d] = emptyMetric());
+            datesInMonth.forEach(d => divData[div][d] = createEmptyMetric());
         });
 
         filteredShops.forEach(shop => {
             shopData[shop] = {};
-            datesInMonth.forEach(d => shopData[shop][d] = emptyMetric());
+            datesInMonth.forEach(d => shopData[shop][d] = createEmptyMetric());
         });
 
         const activeStaffs = staffList.filter(s => String(s.period) === '2027');
         activeStaffs.forEach(staff => {
             const sKey = removeSpaces(staff.name);
             staffData[sKey] = {};
-            datesInMonth.forEach(d => staffData[sKey][d] = emptyMetric());
+            datesInMonth.forEach(d => staffData[sKey][d] = createEmptyMetric());
         });
 
         const getStaffKey = (logStaffName: string | null | undefined) => {
@@ -422,14 +423,13 @@ const DailyReports = () => {
         );
     };
 
-    // 💡 セル描画用コンポーネント (条件分岐を修正)
-    const EntityCell = ({ data, division, rowShop }: { data: DailyMetrics, division: string, rowShop: string }) => {
+    // 💡 セル描画用コンポーネント (isTotalフラグを追加して背景色を強調)
+    const EntityCell = ({ data, division, rowShop, isTotal = false }: { data: DailyMetrics, division: string, rowShop: string, isTotal?: boolean }) => {
         const hasKpi = data.registers > 0 || data.contracts > 0;
         
         const showOrder = division === '注文事業';
         const showSpec = division === '建売分譲事業';
         
-        // 💡 修正：マスタの不備を考慮し、様々な条件で「中古リノベ」扱いにする
         const showRenove = division === '中古リノベ' || 
                            rowShop === '中古住宅専門店' || 
                            rowShop === '不動産企画係' || 
@@ -438,11 +438,14 @@ const DailyReports = () => {
 
         const isUnknown = !showOrder && !showSpec && !showRenove;
 
+        // 💡 isTotal の場合は背景色を変えて境界線を強調
+        const cellClass = `text-center align-top text-nowrap ${isTotal ? 'bg-light border-end border-3 border-secondary-subtle' : ''}`;
+
         return (
-            <td className="text-center align-top text-nowrap" style={{ padding: '8px 6px', minWidth: '160px', fontSize: '11px', lineHeight: '1.5' }}>
+            <td className={cellClass} style={{ padding: '8px 6px', minWidth: '160px', fontSize: '11px', lineHeight: '1.5' }}>
                 <div 
                     className={`p-2 mb-2 rounded border ${hasKpi ? 'border-primary' : 'border-light'}`}
-                    style={{ backgroundColor: hasKpi ? '#e7f1ff' : '#f8f9fa' }}
+                    style={{ backgroundColor: hasKpi ? '#e7f1ff' : (isTotal ? '#fff' : '#f8f9fa') }}
                 >
                     <div className={data.registers > 0 ? "text-primary fw-bold" : "text-muted"}>反響数: {data.registers}</div>
                     <div className={data.contracts > 0 ? "text-success fw-bold" : "text-muted"}>契約数: {data.contracts}</div>
@@ -526,6 +529,14 @@ const DailyReports = () => {
             rowShop = staffShop || '';
         }
 
+        // 💡 該当行の全日付分を合算し「総数」を算出する
+        const monthlyTotal = createEmptyMetric();
+        Object.values(data).forEach(dayData => {
+            (Object.keys(monthlyTotal) as (keyof DailyMetrics)[]).forEach(key => {
+                monthlyTotal[key] += dayData[key];
+            });
+        });
+
         return (
             <tr key={name}>
                 <th style={{ position: 'sticky', left: 0, backgroundColor: '#fff', zIndex: 2, boxShadow: 'inset -1px 0 0 #dee2e6', verticalAlign: 'middle' }} className="text-start text-dark fw-bold">
@@ -534,6 +545,10 @@ const DailyReports = () => {
                     {type === 'staff' && <i className="fa-solid fa-user-tie text-muted me-2" style={{ marginLeft: '20px' }}></i>}
                     {name}
                 </th>
+                
+                {/* 💡 総数列をレンダリング（isTotal を true にして背景を調整） */}
+                <EntityCell data={monthlyTotal} division={rowDivision} rowShop={rowShop} isTotal={true} />
+                
                 {datesInMonth.map(d => (
                     <EntityCell key={d} data={data[d]} division={rowDivision} rowShop={rowShop} />
                 ))}
@@ -544,8 +559,14 @@ const DailyReports = () => {
     const displayTitle = targetShop ? `${targetShop} 月次日報` : targetDivision ? `${targetDivision} 月次日報` : '全社 月次日報';
 
     return (
-        <div className="p-3 p-md-4" style={{ backgroundColor: '#fafbfe', minHeight: '100vh' }}>
-            <div className="d-flex flex-wrap justify-content-between align-items-end mb-3 border-bottom pb-3 gap-3">
+        // 全画面モーダルの中で使う想定。100vh を直接指定すると
+        // モーダルのヘッダー分だけはみ出すため、親から与えられた高さいっぱいに広がる。
+        // minHeight: 0 が無いと flex 子要素が縮まず、表の内部スクロールが効かない。
+        <div
+            className="d-flex flex-column p-3 p-md-4"
+            style={{ backgroundColor: '#fafbfe', height: '100%', minHeight: 0 }}
+        >
+            <div className="d-flex flex-wrap justify-content-between align-items-end mb-3 border-bottom pb-3 gap-3 flex-shrink-0">
                 <h4 className="fw-bold text-secondary mb-0" style={{ letterSpacing: '1px' }}>
                     <i className="fa-solid fa-calendar-days me-2 text-primary"></i>{displayTitle}
                 </h4>
@@ -591,15 +612,23 @@ const DailyReports = () => {
                     <div className="mt-2 text-muted">データを集計中...</div>
                 </div>
             ) : (
-                <Card className="shadow-sm border-0 rounded-3">
-                    <Card.Body className="p-0">
-                        <div className="table-responsive" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+                // 残りの縦幅をすべて表に渡す。スクロールは table-responsive が持ち、
+                // thead / 1列目の sticky はこのスクロール枠を基準に効く
+                <Card className="shadow-sm border-0 rounded-3 flex-grow-1 d-flex flex-column" style={{ minHeight: 0 }}>
+                    <Card.Body className="p-0 flex-grow-1 d-flex flex-column" style={{ minHeight: 0 }}>
+                        <div className="table-responsive flex-grow-1" style={{ minHeight: 0 }}>
                             <Table bordered hover className="mb-0 text-center text-nowrap" style={{ fontSize: '12px' }}>
                                 <thead style={{ position: 'sticky', top: 0, zIndex: 3 }}>
                                     <tr>
                                         <th style={{ position: 'sticky', left: 0, top: 0, backgroundColor: '#0f3675', color: '#fff', zIndex: 4, minWidth: '180px', verticalAlign: 'middle' }}>
                                             項目 / 日付
                                         </th>
+                                        
+                                        {/* 💡 総数用のヘッダーを追加 */}
+                                        <th style={{ top: 0, backgroundColor: '#0c2e63', color: '#fff', zIndex: 3, minWidth: '160px', verticalAlign: 'middle' }}>
+                                            合計
+                                        </th>
+                                        
                                         {datesInMonth.map(date => (
                                             <th key={date} style={{ backgroundColor: '#0f3675', color: '#fff', minWidth: '120px', verticalAlign: 'middle' }}>
                                                 {formatDateHeader(date)}
@@ -613,7 +642,8 @@ const DailyReports = () => {
                                     {targetDivision && !targetShop && (
                                         <>
                                             <tr>
-                                                <th colSpan={datesInMonth.length + 1} className="bg-light text-secondary text-start px-3 py-2 border-bottom-0">
+                                                {/* 💡 colSpan を調整 (datesInMonth.length + 2) */}
+                                                <th colSpan={datesInMonth.length + 2} className="bg-light text-secondary text-start px-3 py-2 border-bottom-0">
                                                     <i className="fa-solid fa-folder-open me-2"></i>【{targetDivision}】店舗サマリ
                                                 </th>
                                             </tr>
@@ -624,14 +654,14 @@ const DailyReports = () => {
                                     {targetShop && (
                                         <>
                                             <tr>
-                                                <th colSpan={datesInMonth.length + 1} className="bg-light text-secondary text-start px-3 py-2 border-bottom-0">
+                                                <th colSpan={datesInMonth.length + 2} className="bg-light text-secondary text-start px-3 py-2 border-bottom-0">
                                                     <i className="fa-solid fa-store me-2"></i>【{targetShop}】全体サマリ
                                                 </th>
                                             </tr>
                                             {renderRow(targetShop, aggregatedData.shopData[targetShop], 'shop')}
 
                                             <tr>
-                                                <th colSpan={datesInMonth.length + 1} className="bg-light text-secondary text-start px-3 py-2 mt-2 border-bottom-0" style={{ borderTop: '2px solid #dee2e6' }}>
+                                                <th colSpan={datesInMonth.length + 2} className="bg-light text-secondary text-start px-3 py-2 mt-2 border-bottom-0" style={{ borderTop: '2px solid #dee2e6' }}>
                                                     <i className="fa-solid fa-users me-2"></i>スタッフ別 行動アクション
                                                 </th>
                                             </tr>
