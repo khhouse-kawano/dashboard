@@ -20,6 +20,7 @@ import RegisterBrokerageListings from './RegisterBrokerageListings';
 import DailyReports from './DailyReports';
 import ClaudeAnalysis from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
+import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
 type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報';
@@ -33,6 +34,7 @@ const Header = ({ }) => {
     const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
+    const navigate = useNavigate();
     // Claudeによる分析（menuMapping とは独立した導線）
     const [claudeModal, setClaudeModal] = useState<boolean>(false);
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
@@ -115,6 +117,13 @@ const Header = ({ }) => {
                     <ClaudeIcon height={15} />
                     による分析
                 </button>
+
+                <div className='bg-primary rounded-pill text-white me-1' 
+                style={{padding: '2px 10px', fontSize: '10px', cursor: 'pointer'}}
+                onClick={()=>navigate('/market')}
+                >
+                    市況分析
+                </div>
                 {menuArray.map((menu) => (
                     <Dropdown key={menu} className="me-1">
                         <Dropdown.Toggle
