@@ -118,11 +118,11 @@ const Header = ({ }) => {
                     による分析
                 </button>
 
-                <div className='bg-primary rounded-pill text-white me-1' 
+                <div className='bg-primary rounded-pill text-white me-1 shadow-sm' 
                 style={{padding: '2px 10px', fontSize: '10px', cursor: 'pointer'}}
                 onClick={()=>navigate('/market')}
                 >
-                    市況分析
+                    マーケット情報
                 </div>
                 {menuArray.map((menu) => (
                     <Dropdown key={menu} className="me-1">

@@ -52,15 +52,38 @@ const toNullableString = (value: unknown): string | null => {
   return text === '' ? null : text;
 };
 
+/** サーバーが返した JSON からエラーメッセージを取り出す。無ければ null。 */
+const serverMessage = (body: unknown): string | null => {
+  if (body === null || typeof body !== 'object') return null;
+  if (!('status' in body) || body.status !== 'error') return null;
+  return 'message' in body ? String(body.message) : null;
+};
+
 const post = async <T>(request: string): Promise<T> => {
-  const response = await apiClient.post<T>('', { request });
+  let response;
+  try {
+    response = await apiClient.post<T>('', { request });
+  } catch (error) {
+    // HTTP 500 だと axios がここで throw するため、サーバーが返した本文を
+    // 読まないまま「Request failed with status code 500」で終わってしまう。
+    // 原因が書かれているのは本文のほうなので、必ず取り出して投げ直す。
+    const body = (error as { response?: { data?: unknown } })?.response?.data;
+    const message = serverMessage(body);
+    if (message !== null) throw new Error(message);
+
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    throw new Error(
+      status === undefined
+        ? `${request} に接続できませんでした。APIの向き先を確認してください。`
+        : `${request} が HTTP ${status} を返しました。`
+    );
+  }
+
   const body = response.data as unknown;
 
-  // ルーティングを外すと index.php が JSON でエラーを返す。握りつぶさず表面化させる。
-  if (body !== null && typeof body === 'object' && 'status' in body && body.status === 'error') {
-    const message = 'message' in body ? String(body.message) : `${request} の取得に失敗しました。`;
-    throw new Error(message);
-  }
+  // ルーティングを外すと index.php が 200 で JSON のエラーを返すことがある。
+  const message = serverMessage(body);
+  if (message !== null) throw new Error(message);
 
   // 404 などで HTML が返ると型だけ合って中身が違う。ここで気づけるようにする。
   if (typeof body === 'string') {

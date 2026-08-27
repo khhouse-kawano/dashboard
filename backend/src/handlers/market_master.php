@@ -117,7 +117,5 @@ try {
         'years'   => $column($fetch($pdo, $sqlYear), 'period'),
     ]);
 } catch (PDOException $e) {
-    http_response_code(500);
-    error_log('market_master: ' . $e->getMessage());
-    marketRespond(['status' => 'error', 'message' => 'マスタの取得に失敗しました。']);
+    marketFail('market_master', $e);
 }

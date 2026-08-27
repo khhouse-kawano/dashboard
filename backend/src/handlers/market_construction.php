@@ -78,7 +78,5 @@ try {
         'spec'  => $fetch($pdo, $sqlSpec),
     ]);
 } catch (PDOException $e) {
-    http_response_code(500);
-    error_log('market_construction: ' . $e->getMessage());
-    marketRespond(['status' => 'error', 'message' => '着工データの取得に失敗しました。']);
+    marketFail('market_construction', $e);
 }

@@ -103,3 +103,40 @@ function marketRespond(array $payload): void
 {
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
+
+/**
+ * DBエラーを JSON で返して終了する。
+ *
+ * 「Request failed with status code 500」だけが画面に出ると、
+ * サーバーの設定なのか、テーブルが無いのか、SQLの誤りなのかが分からず
+ * 切り分けに時間がかかる。原因の種類が分かるところまでは返す。
+ *
+ * 詳細（SQL文やテーブル名を含む）は error_log にだけ書き、
+ * レスポンスには SQLSTATE と短い見当だけを載せる。
+ *
+ * @param string       $request ハンドラ名。どの取得で失敗したかを示す
+ * @param PDOException $e
+ */
+function marketFail(string $request, PDOException $e): void
+{
+    error_log("{$request}: " . $e->getMessage());
+
+    $sqlState = $e->getCode();
+
+    // よく踏むものだけ、次に何を確認すればよいかを添える
+    $hint = match ((string) $sqlState) {
+        '42S02' => 'テーブルがありません。マイグレーションSQLが未適用の可能性があります。',
+        '42S22' => '列がありません。テーブル定義が古い可能性があります。',
+        '42000' => 'SQLの構文または権限に問題があります。',
+        '28000', '08006', '08004' => 'データベースに接続できません。',
+        default  => 'データベースの処理に失敗しました。',
+    };
+
+    http_response_code(500);
+    marketRespond([
+        'status'  => 'error',
+        'request' => $request,
+        'code'    => $sqlState,
+        'message' => "{$request} の取得に失敗しました（{$sqlState}）。{$hint}",
+    ]);
+}

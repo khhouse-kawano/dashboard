@@ -66,8 +66,8 @@ const MarketFilterBar: React.FC<Props> = ({ master, filter, onChange }) => {
     filter.section === ''
       ? master.shops
       : master.shops.filter((shop) =>
-          master.staff.some((s) => s.section === filter.section && s.shop === shop.shop)
-        );
+        master.staff.some((s) => s.section === filter.section && s.shop === shop.shop)
+      );
 
   return (
     <div className="d-flex flex-wrap mb-3 align-items-center">

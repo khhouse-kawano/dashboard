@@ -65,7 +65,5 @@ try {
     $stmt->execute();
     marketRespond($stmt->fetchAll(PDO::FETCH_ASSOC));
 } catch (PDOException $e) {
-    http_response_code(500);
-    error_log('market_response: ' . $e->getMessage());
-    marketRespond(['status' => 'error', 'message' => '反響データの取得に失敗しました。']);
+    marketFail('market_response', $e);
 }

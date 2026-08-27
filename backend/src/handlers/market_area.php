@@ -165,7 +165,5 @@ try {
         'buildingYearly'      => $fetch($pdo, $sqlBuildingYearly),
     ]);
 } catch (PDOException $e) {
-    http_response_code(500);
-    error_log('market_area: ' . $e->getMessage());
-    marketRespond(['status' => 'error', 'message' => 'エリアデータの取得に失敗しました。']);
+    marketFail('market_area', $e);
 }
