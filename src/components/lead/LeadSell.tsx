@@ -420,12 +420,13 @@ const LeadSell = () => {
    * 次のリロードで消えた理由が分からなくなるため。
    */
   const handleApiPatch = async (id: string, fields: Record<string, unknown>) => {
-    let snapshot: SellLead[] = [];
-    setLeads(prev => {
-      snapshot = prev;
-      return prev.map(l => (l.id === id ? { ...l, ...fields } as SellLead : l));
-    });
+    // 失敗時に戻すための退避と、履歴の差分を取るための変更前の値。
+    // setState の更新関数の中で拾うと React 18 では次のレンダリングまで
+    // 実行されず、この直後の行では空のままになるためクロージャから取る。
+    const snapshot = leads;
     const before = snapshot.find(l => l.id === id);
+
+    setLeads(prev => prev.map(l => (l.id === id ? { ...l, ...fields } as SellLead : l)));
     try {
       await saveBrokerageRecord(id, fields);
       // 保存が成功してから履歴を残す（失敗した変更を履歴に残さないため）

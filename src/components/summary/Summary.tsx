@@ -4,6 +4,9 @@ import LeadHeader from '../lead/LeadHeader'; // パスは環境に合わせて�
 import { thisYear } from '../../utils/thisYear';
 import { removeSpaces, formatDate } from './summaryUtiles'; // パスは環境に合わせて調整してください
 import AuthContext from '../../context/AuthContext';
+// 💡 追加: タスク一覧の「開く」から顧客情報を編集する
+import LeadEdit, { LeadCategory } from '../lead/LeadEdit';
+import { saveBrokerageRecord, recordFieldChanges } from '../lead/leadUtiles';
 
 // ==========================================
 // 💡 型定義 (推論ベース)
@@ -142,6 +145,11 @@ const Summary = () => {
     const [staffList, setStaffList] = useState<string[]>([]);
     const [selectedMonth, setSelectedMonth] = useState<string>('2026-07');
 
+    // 💡 顧客情報編集モーダル（LeadSell / LeadBuy と同じ LeadEdit を共用する）
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [customerInfo, setCustomerInfo] = useState<Partial<SummaryLead>>({});
+    const [editCategory, setEditCategory] = useState<LeadCategory>('sell');
+
     const realTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
     // 💡 データの取得 (モックの代わりにAPI呼び出しを想定)
@@ -152,7 +160,17 @@ const Summary = () => {
                 // ※ ここは現状のPHPバックエンドのレスポンス構造に合わせて調整が必要です
                 const response = await apiClient.post('', { request: 'planner', roll: 'summary' });
                 if (response.data) {
-                    if (response.data.lead) setLeads(response.data.lead);
+                    // planner_summary.php が返すのは lead / staff の2キーだけで、
+                    // lead には売り(leads)と買い(buyLeads)が kind 混在で入っている。
+                    // 以前はこれをそのまま setLeads していたため buyLeads が常に空になり、
+                    // 歩留まりファネルの「買い」が全て0・「売り」が買いを混ぜて数えていた。
+                    // ここで kind で振り分ける。
+                    if (response.data.lead) {
+                        const allLeads: SummaryLead[] = response.data.lead;
+                        setLeads(allLeads.filter(l => l.kind !== 'buyLeads'));
+                        setBuyLeads(allLeads.filter(l => l.kind === 'buyLeads'));
+                    }
+                    // 将来 API が分けて返すようになった場合はそちらを優先する
                     if (response.data.buyLeads) setBuyLeads(response.data.buyLeads);
                     if (response.data.deals) setDeals(response.data.deals);
                     if (response.data.staff) {
@@ -231,6 +249,68 @@ const Summary = () => {
             }
         }).sort((a, b) => b.diff - a.diff);
     }, [leads, buyLeads, myself, userName, activeTab]);
+
+    // ==========================================
+    // 💡 タスク一覧「開く」→ 顧客情報編集
+    // ==========================================
+
+    /** 一覧の行から元レコードを引き当ててモーダルを開く */
+    const handleOpenLead = (id: string) => {
+        const lead = [...leads, ...buyLeads].find(l => l.id === id);
+        if (!lead) return;
+
+        setCustomerInfo(lead);
+        setEditCategory(lead.kind === 'buyLeads' ? 'buy' : 'sell');
+        setIsEditModalOpen(true);
+    };
+
+    /**
+     * 保存。LeadSell / LeadBuy と同じく楽観的更新にする。
+     * 画面を先に書き換え、保存に失敗したら元に戻して知らせる。
+     */
+    const handleSaveCustomerInfo = async () => {
+        setIsEditModalOpen(false);
+
+        const id = customerInfo.id;
+        if (!id) return;
+
+        // id / internal_id / created_at / updated_at は DB 側が管理するので送らない。
+        // 残りのうちサーバーの許可カラムに無いキーは broker_update.php 側で捨てられる。
+        const {
+            id: _id, internal_id: _internalId, created_at: _createdAt, updated_at: _updatedAt,
+            ...fields
+        } = customerInfo as Record<string, unknown>;
+
+        const isBuy = customerInfo.kind === 'buyLeads';
+        const setTarget = isBuy ? setBuyLeads : setLeads;
+
+        // 失敗時に戻すための退避と、履歴の差分を取るための変更前の値。
+        // setState の更新関数の中で拾うと React 18 では次のレンダリングまで
+        // 実行されず、この直後の行では空のままになるためクロージャから取る。
+        const snapshot = isBuy ? buyLeads : leads;
+        const before = snapshot.find(l => l.id === id);
+
+        setTarget(prev => prev.map(l => (l.id === id ? { ...l, ...fields } as SummaryLead : l)));
+
+        try {
+            await saveBrokerageRecord(id, fields);
+            // 保存が成功してから履歴を残す（失敗した変更を履歴に残さないため）
+            if (before) {
+                await recordFieldChanges({
+                    entity: isBuy ? 'buy' : 'lead',
+                    entityId: id,
+                    label: before.seller || before.name || before.addr || id,
+                    before,
+                    after: fields,
+                    by: userName || '不明',
+                });
+            }
+        } catch (e) {
+            console.error('[Summary] 保存に失敗しました', { id, fields }, e);
+            setTarget(snapshot);
+            alert('保存に失敗しました。通信状況を確認して、もう一度お試しください。');
+        }
+    };
 
     // ==========================================
     // 💡 3. 歩留まりファネル集計
@@ -421,7 +501,10 @@ const sellKpiSummary = { leads: 66, calls: 83, connects: 20, visits: 6, wins: 0,
                                                     ) : '-'}
                                                 </td>
                                                 <td style={{ ...s.td, textAlign: 'center' }}>
-                                                    <button style={{ fontSize: '10px', padding: '2px 8px', border: '1px solid #ced4da', backgroundColor: '#fff', borderRadius: '4px', cursor: 'pointer', color: '#0d6efd' }}>開く</button>
+                                                    <button
+                                                        style={{ fontSize: '10px', padding: '2px 8px', border: '1px solid #ced4da', backgroundColor: '#fff', borderRadius: '4px', cursor: 'pointer', color: '#0d6efd' }}
+                                                        onClick={() => handleOpenLead(t.id)}
+                                                    >開く</button>
                                                 </td>
                                             </tr>
                                         ))
@@ -709,6 +792,20 @@ const sellKpiSummary = { leads: 66, calls: 83, connects: 20, visits: 6, wins: 0,
 
                 </div>
             )}
+
+            {/* ==========================================
+                💡 顧客情報編集モーダル（タスク一覧の「開く」から）
+                売り／買いは元レコードの kind で切り替える
+            ========================================== */}
+            <LeadEdit
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                onSave={handleSaveCustomerInfo}
+                customerInfo={customerInfo}
+                setCustomerInfo={setCustomerInfo}
+                leadCategory={editCategory}
+                staffList={staffList}
+            />
         </div>
     );
 };
