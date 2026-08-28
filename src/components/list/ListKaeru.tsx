@@ -18,7 +18,7 @@ type Shop = { brand: string, shop: string, section: string, area: string };
 
 type InquiryCustomer = Record<string, string | number>;
 
-type Customer = { register: string, shop: string, interview: string, medium: string, tour: string };
+type Customer = { register: string, shop: string, interview: string, medium: string, tour: string, show_dashboard: number };
 
 type Staff = { name: string, shop: string, period: string, section: string, category: number };
 
@@ -171,10 +171,36 @@ const ListKaeru = ({ onReload }: Props) => {
         return filtered;
     }, [originalBeforeList, selectedMonth]);
 
-    const filteredInterview = useMemo(() => {
-        return customerList.filter(c => selectedMonth.includes(monthFormate(c.interview || '')));
-    }, [customerList, selectedMonth]);
+    /**
+     * 集計表（反響合計・来場合計）の母数。
+     *
+     * ⚠️ 顧客動向（CustomerTrendKaeru）の「総反響数」と数値を一致させるため、
+     *   master_data_kaeru（＝取込済み顧客）の show_dashboard = 1 だけを数える。
+     *
+     *   下の一覧は inquiry_customer_kaeru（反響の受信箱）を出しており、こちらとは別物。
+     *   受信箱には名寄せ・重複で非表示にしたレコードも残るため、
+     *   そのまま数えると顧客動向より多くなる（2026/08 実測: 260件 vs 212件）。
+     */
+    const dashboardCustomers = useMemo(() => {
+        // ⚠️ show_dashboard を返さない古いAPIに向いている場合は絞り込まない。
+        //   undefined を弾くと全店舗0件になり、画面が壊れたようにしか見えない。
+        //   数値は合わなくなるが、改修前と同じ値が出るほうが害が小さい。
+        const hasFlag = customerList.some(c => c.show_dashboard !== undefined);
+        if (!hasFlag) return customerList;
 
+        return customerList.filter(c => Number(c.show_dashboard) === 1);
+    }, [customerList]);
+
+    const filteredInterview = useMemo(() => {
+        return dashboardCustomers.filter(c => selectedMonth.includes(monthFormate(c.interview || '')));
+    }, [dashboardCustomers, selectedMonth]);
+
+    /** 反響合計。顧客動向と同じく「反響取得日(register)」で数える */
+    const filteredRegister = useMemo(() => {
+        return dashboardCustomers.filter(c => selectedMonth.includes(monthFormate(c.register || '')));
+    }, [dashboardCustomers, selectedMonth]);
+
+    /** 未同期件数の母数。sync 列は inquiry_customer_kaeru にしか無いのでこちらを使う */
     const filteredInquiry = useMemo(() => {
         return originalList.filter(c => selectedMonth.includes(monthFormate(String(c.inquiry_date || ''))));
     }, [originalList, selectedMonth]);
@@ -396,7 +422,7 @@ const ListKaeru = ({ onReload }: Props) => {
     };
 
     const inquiryFilter = (shopValue: string) => {
-        return filteredInquiry.filter(c => (shopValue ? c.shop === shopValue : true)).length;
+        return filteredRegister.filter(c => (shopValue ? c.shop === shopValue : true)).length;
     };
 
     const unSyncFilter = (shopValue: string) => {
