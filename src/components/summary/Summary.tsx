@@ -15,7 +15,9 @@ type SummaryLead = {
     id: string;
     kind: string;
     receivedDate: string | null;
+    // 反響元。売りリードは source、買いリードは portal に入る（DB上の規約）
     portal: string;
+    source: string | null;
     name: string;
     seller: string | null;
     staff: string | null;
@@ -74,6 +76,47 @@ const isToday = (nextDate: string | null) => {
     return t >= today && t < today + 86400000;
 };
 const isNotNext = (nextDate: string | null) => !nextDate || nextDate.startsWith('0000');
+
+// 💡 アプリ全体設定（planner_summary.php が app_state.settings をそのまま返す）
+type AppSettings = {
+    srcCosts?: Record<string, number>;      // 売り反響元ごとの単価（円/件）
+    portalCosts?: Record<string, number>;   // 買いポータルごとの単価（円/件）
+    staff?: { name?: string; baikaiTarget?: number }[];
+};
+
+// 架電履歴。DBには JSON 文字列で入っているので配列に戻してから数える
+type CallEntry = { date?: string | null; type?: string | null; staff?: string | null };
+
+const parseCallDates = (raw: string | null | undefined): CallEntry[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as CallEntry[];
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+/**
+ * 対象月の架電数（延べ）。
+ * 元HTML版(V12)と同じく **📞架電のみ** を数える（LINE・メールは含めない）。
+ * また「対象月に受信したリード」ではなく「対象月に行われた架電」を数えるため、
+ * 全リードを走査して架電日の年月で絞り込む。
+ */
+const countCalls = (leads: { callDates: string | null }[], month: string) =>
+    leads.reduce((total, lead) => total + parseCallDates(lead.callDates).filter(c => {
+        const type = c?.type ? String(c.type) : 'call';
+        return type === 'call' && String(c?.date ?? '').slice(0, 7) === month;
+    }).length, 0);
+
+/** '2026-08' → '2026-07' */
+const prevMonth = (month: string) => {
+    const [y, m] = month.split('-').map(Number);
+    if (!y || !m) return month;
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
 const isFollow = (phase: string | null) => ['追客中', '通電済み', '内見予約', '内見済み'].includes(phase || '');
 const diffDays = (base: string | null) => {
     if (!base || base.startsWith('0000')) return null;
@@ -143,6 +186,7 @@ const Summary = () => {
     const [deals, setDeals] = useState<any[]>([]); // 商談案件 (今回はanyで仮置き)
 
     const [staffList, setStaffList] = useState<string[]>([]);
+    const [settings, setSettings] = useState<AppSettings>({});
     const [selectedMonth, setSelectedMonth] = useState<string>('2026-07');
 
     // 💡 顧客情報編集モーダル（LeadSell / LeadBuy と同じ LeadEdit を共用する）
@@ -176,6 +220,8 @@ const Summary = () => {
                     if (response.data.staff) {
                         setStaffList(response.data.staff.filter((st: any) => st.period === String(thisYear)).map((st: any) => st.name));
                     }
+                    // 反響単価・媒介受託目標。KPIサマリーの分母になる
+                    if (response.data.settings) setSettings(response.data.settings);
                 }
             } catch (e) {
                 console.error(e);
@@ -377,8 +423,62 @@ const Summary = () => {
         { staff: '（未割当）', todayS: 7, todayB: 0, weekS: 7, weekB: 0, monthS: 26, monthB: 0 },
     ], []);
 
-const sellKpiSummary = { leads: 66, calls: 83, connects: 20, visits: 6, wins: 0, target: 16, lastMonthDiff: -4, cost: 872300 };
-    const buyKpiSummary = { leads: 15, calls: 0, connects: 7, views: 3, offers: 2, wins: 0, lastMonthDiff: 1, cost: 28473 };
+    // ==========================================
+    // 💡 6. 反響KPIサマリー（元HTML版 V12 の leadKpi / buyKpi と同じ定義）
+    //    受信月コホート基準。架電数だけは「その月に行われた架電」を数える。
+    // ==========================================
+    const sellKpiSummary = useMemo(() => {
+        const target = funnelData.sell;                       // リード数・通電・査定・受託は歩留まりファネルと同じ集計
+        const monthLeads = leads.filter(l => l.receivedDate?.startsWith(selectedMonth));
+
+        // 反響費用 = 対象月に受信したリードの反響単価の合計
+        const srcCosts = settings.srcCosts || {};
+        const cost = monthLeads.reduce((sum, l) => sum + (Number(srcCosts[l.source ?? '']) || 0), 0);
+
+        // 月次の媒介受託目標 = 担当者ごとの年間目標の合計 ÷ 12
+        const annualTarget = (settings.staff || []).reduce((sum, st) => sum + (Number(st.baikaiTarget) || 0), 0);
+
+        // 前月比受託数
+        const prev = prevMonth(selectedMonth);
+        const prevWins = leads.filter(l => l.receivedDate?.startsWith(prev) && l.phase === '媒介受託').length;
+
+        return {
+            leads: target.leads,
+            calls: countCalls(leads, selectedMonth),
+            connects: target.connects,
+            visits: target.visits,
+            wins: target.wins,
+            target: Math.round(annualTarget / 12),
+            lastMonthDiff: target.wins - prevWins,
+            cost,
+        };
+    }, [leads, funnelData, selectedMonth, settings]);
+
+    const buyKpiSummary = useMemo(() => {
+        const target = funnelData.buy;
+        const monthLeads = buyLeads.filter(l => l.receivedDate?.startsWith(selectedMonth));
+
+        // 買いリードの反響元は source ではなく portal に入っている
+        const portalCosts = settings.portalCosts || {};
+        const cost = monthLeads.reduce((sum, l) => sum + (Number(portalCosts[l.portal]) || 0), 0);
+
+        // 前月比申込数
+        const prev = prevMonth(selectedMonth);
+        const prevOffers = buyLeads.filter(l =>
+            l.receivedDate?.startsWith(prev) && ['購入申込', '成約'].includes(l.phase || '')
+        ).length;
+
+        return {
+            leads: target.leads,
+            calls: countCalls(buyLeads, selectedMonth),
+            connects: target.connects,
+            views: target.views,
+            offers: target.offers,
+            wins: target.wins,
+            lastMonthDiff: target.offers - prevOffers,
+            cost,
+        };
+    }, [buyLeads, funnelData, selectedMonth, settings]);
 
     return (
         <div style={{ padding: '20px', backgroundColor: '#fafbfe', minHeight: '100vh', width: '100%', overflowX: 'auto' }}>
