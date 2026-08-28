@@ -39,8 +39,16 @@ $response_interview = $stmt_interview->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 顧客一覧
+//
+// gift（ギフト進呈可否）の判定は core/gift.php に集約している。
+// 注文事業（database_order.php）と同じ判定を使うため、条件はそちらを直すこと。
+// ここで取るのは条件①②だけ（gift_base）。残りの条件は
+// giftApplyToCustomers() が突き合わせて gift を確定させる。
+require_once __DIR__ . '/../../core/gift.php';
+
 $sql_customer = "SELECT
   id,
+  " . giftBaseSelectSql() . ",
   COALESCE(customer_contacts_name, '') AS customer,
   COALESCE(customer_contacts_name_kana, '') AS customer_contacts_name_kana,
   COALESCE(in_charge_store, '') AS shop,
@@ -74,6 +82,9 @@ $sql_customer = "SELECT
 $stmt_customer = $pdo->prepare($sql_customer);
 $stmt_customer->execute();
 $response_customer = $stmt_customer->fetchAll(PDO::FETCH_ASSOC);
+
+// ギフト進呈可否を確定させる（条件③④の突き合わせ）
+giftApplyToCustomers($pdo, $response_customer);
 
 
 // 家族情報

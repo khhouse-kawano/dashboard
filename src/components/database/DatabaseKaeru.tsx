@@ -10,6 +10,7 @@ import { useIsSp } from '../../utils/isSp';
 import { PastCustomer } from './PastCustomer';
 import { useDebounce } from './useDebounce';
 import { kataToHira } from './databaseUtils';
+import { GiftDot, GiftLegend } from './GiftMark';
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string };
@@ -502,6 +503,9 @@ const DatabaseKaeru = ({ }: Props) => {
                         </>}
                     </div>
                 </div>
+                <div className="w-100 mb-1">
+                    <GiftLegend />
+                </div>
                 <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <div style={{ width: '1900px' }}>
                         <Table style={{ fontSize: isSp ? '9px' : '11px', textAlign: 'center' }} bordered striped>
@@ -539,7 +543,7 @@ const DatabaseKaeru = ({ }: Props) => {
                                                     setEditId(item.id);
                                                 }}>編集</div></td>
                                             <td>{item.shop}</td>
-                                            <td>{(isDuplicate && item.integration) && <span style={{ cursor: 'pointer' }}
+                                            <td><GiftDot gift={item.gift} />{(isDuplicate && item.integration) && <span style={{ cursor: 'pointer' }}
                                                 onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}{item.customer ?? ''}</td>
                                             <td>{item.staff ?? ''}</td>
                                             <td>{item.status ?? ''}</td>

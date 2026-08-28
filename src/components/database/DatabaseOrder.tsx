@@ -12,6 +12,7 @@ import { useIsSp } from '../../utils/isSp';
 import { useDebounce } from './useDebounce';
 import apiClient from '../../utils/apiClient';
 import { safeParse, hotleadStyle } from './databaseUtils';
+import { GiftDot, GiftLegend } from './GiftMark';
 
 // --- 型定義 ---
 type ShopList = { brand: string; shop: string; section: string };
@@ -41,6 +42,8 @@ interface CustomerItem extends Record<string, any> {
     call_log?: string | number;
     cancel_status?: string;
     hotlead_id?: string;
+    /** ギフト進呈可否。1 = 可 / 0 = 不可。判定条件は backend/src/core/gift.php */
+    gift?: number;
 }
 
 type Props = {
@@ -544,6 +547,9 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                 onClick={() => setSurveyShow(true)}>アンケート集計</div></>}
                     </div>
                 </div>
+                <div className="w-100 mb-1">
+                    <GiftLegend />
+                </div>
                 <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <div style={{ width: '1600px' }}>
                         <Table style={{ fontSize: isSp ? '9px' : '11px', textAlign: 'center' }} bordered striped>
@@ -573,7 +579,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                                     setEditId(item.id);
                                                 }}>編集</div></td>
                                             <td>{safeFormate(item.shop)}</td>
-                                            <td>{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
+                                            <td><GiftDot gift={item.gift} />{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
                                             <td>{safeFormate(item.staff)}</td>
                                             <td>{safeFormate(item.status)}</td>
                                             <td>{safeFormate(item.register)}</td>
