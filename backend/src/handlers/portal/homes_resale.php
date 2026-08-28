@@ -98,6 +98,7 @@ $sqlBroker = "INSERT INTO brokerage_listings
             id,
             extId,
             portal,
+            source,
             category,
             name,
             contact,
@@ -114,11 +115,14 @@ $sqlBroker = "INSERT INTO brokerage_listings
             'buyLeads',
             :broker_id,
             CONCAT('homes:', h.userId),
-            -- 買いリードは反響元を source ではなく portal に入れる規約
-            -- （既存の athome/suumo は全件 portal 側）。広告費の集計キーにもなる。
+            -- ⚠ HOME'S は売り／買いでマスタの表記が違う。取り違えると集計が割れる
+            --   portal … buyPortals マスタ準拠で 大文字S の HOME'S
+            --   source … sources   マスタ準拠で 小文字s の HOME's
+            --             （売りリード31件が既に HOME's なので媒体別集計で合流する）
             -- 既存コードと同じく SQL 標準の '' でエスケープする
             -- （バックスラッシュ escape は NO_BACKSLASH_ESCAPES で壊れるため）
             'HOME''S',
+            'HOME''s',
             -- 物件種別を CRM 側の区分名に寄せる。未知の値はそのまま残す
             CASE h.category
                 WHEN '売買 一戸建て'   THEN '戸建'

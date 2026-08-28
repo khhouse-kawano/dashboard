@@ -98,6 +98,7 @@ $sqlBroker = "INSERT INTO brokerage_listings
             id,
             extId,
             portal,
+            source,
             name,
             contact,
             phone,
@@ -113,8 +114,10 @@ $sqlBroker = "INSERT INTO brokerage_listings
             'buyLeads',
             :broker_id,
             src.extId,
-            -- 買いリードは反響元を source ではなく portal に入れる規約
-            -- （既存115件すべて portal='アットホーム'）。広告費の集計キーにもなる
+            -- portal … 買いリードの反響元。広告費（portalCosts）の集計キー
+            -- source … 売り・買いを通した反響媒体。売りリードは元から入っており、
+            --          買いリードも揃えて媒体別に横断集計できるようにする
+            'アットホーム',
             'アットホーム',
             src.`name`,
             NULLIF(CONCAT_WS(' / ', NULLIF(src.tel, ''), NULLIF(src.email, '')), ''),

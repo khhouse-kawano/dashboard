@@ -131,13 +131,14 @@ $newLeads = $pdo->query($selectNew)->fetchAll(PDO::FETCH_ASSOC);
 
 if ($newLeads) {
     $insert = $pdo->prepare(
-        // 買いリードは反響元を source ではなく portal に入れる規約
-        // （既存17件すべて portal='SUUMO'）。広告費の集計キーにもなる
+        // portal … 買いリードの反響元。広告費（portalCosts）の集計キー
+        // source … 売り・買いを通した反響媒体。売りリードは元から入っており、
+        //          買いリードも揃えて媒体別に横断集計できるようにする
         "INSERT INTO brokerage_listings
-            (kind, id, extId, portal, `name`, contact, phone, mail,
+            (kind, id, extId, portal, source, `name`, contact, phone, mail,
              targetProperty, budget, note, phase, receivedDate, show_dashboard)
          VALUES
-            ('buyLeads', :id, :extId, 'SUUMO', :name, :contact, :phone, :mail,
+            ('buyLeads', :id, :extId, 'SUUMO', 'SUUMO', :name, :contact, :phone, :mail,
              :targetProperty, :budget, :note, '反響受信', :receivedDate, 1)"
     );
 

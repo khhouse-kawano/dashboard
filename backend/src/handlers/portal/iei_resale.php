@@ -74,9 +74,18 @@ $stmt->execute([':id' => $ieiRowId]);
 // ----------------------------------------------------------------------------
 // 2. 不動産CRMの売却リード（brokerage_listings, kind='leads'）
 //
-//   ⚠ extId の形式について
-//     brokerage_listings に 'iei:' 接頭辞の既存レコードは無い（実測0件）ため、
-//     ここで形式を決める。'iei:{システム受付日}:{姓名}' とした。
+//   ⚠ extId の形式と、既存レコードとの突合について
+//     イエイの売りリードは既に31件あり、**'anken:{案件番号}' の形式**で入っている
+//     （source='イエイ'。期間も iei_db と完全に一致）。
+//     ところが案件番号は GAS の抽出対象に無く、iei_db のどこにも残っていないため
+//     同じ形式は再現できない。そこで新規分は 'iei:{システム受付日}:{姓名}' とする。
+//
+//     この結果 extId が2系統になるので、**重複判定は extId ではなく
+//     「氏名 + 反響日」で行う**。'anken:' と 'iei:' の両方に当てることで、
+//     旧・新どちらの重複も防げる。イエウールと同じ考え方。
+//     （実測: iei_db 29件のうち28件が氏名+受付日で既存 anken: と一致する。
+//       extId だけで突合すると、その28件が丸ごと二重登録される）
+//
 //     iei_db.id を使わないのは、iei_resale_update.php が email で突合して
 //     UPDATE し `iei_` の id を使い回すため。同一人物が別物件を再依頼すると
 //     同じ id のまま上書きされ、2件目のリードが作られなくなる。
@@ -146,10 +155,13 @@ $sqlBroker = "INSERT INTO brokerage_listings
             -- extId を組み立てられない行は取り込まない
             AND NULLIF(TRIM(d.`name`), '') IS NOT NULL
             AND STR_TO_DATE(LEFT(d.registered_at, 10), '%Y-%m-%d') IS NOT NULL
+            -- 旧形式(anken:) と新形式(iei:) の両方に当てる。
+            -- 案件番号が取れない以上、氏名+反響日が唯一の突合手段
             AND NOT EXISTS (
                 SELECT 1 FROM brokerage_listings b
-                WHERE b.extId = CONCAT('iei:', LEFT(d.registered_at, 10), ':', d.`name`)
-                      COLLATE utf8mb4_unicode_ci
+                WHERE (b.extId LIKE 'anken:%' OR b.extId LIKE 'iei:%')
+                  AND b.`name` = d.`name` COLLATE utf8mb4_unicode_ci
+                  AND b.receivedDate = STR_TO_DATE(LEFT(d.registered_at, 10), '%Y-%m-%d')
             )";
 
 $stmtBroker = $pdo->prepare($sqlBroker);

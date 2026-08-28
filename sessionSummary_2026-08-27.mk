@@ -296,3 +296,329 @@ dashboard-express-api-1 0.0.0.0:3001->3001/tcp
 
 - `src/components/test.js` に既存のTSエラーが多数あるが、このセッションの変更とは無関係
 - `Header.tsx` はセッション中にユーザー側でも編集されていた（月次日報のフルスクリーン対応の途中版）。最終的に本セッションの実装で置き換え済み
+---
+---
+
+# 改修サマリー（2026-08-28 セッション）
+
+ブランチ: `version2.2.104`
+コミット: `44600cf fix backend php files and lead directry components` / `20ceecc fix lead components`
+**未コミットの変更が残っている（後述「6. 引き継ぎ」参照）**
+
+## 概要
+
+大きく3つ。
+
+1. **ポータル反響6本を `brokerage_listings` へ同期**（不動産CRMのリード）
+2. **Summary.tsx の改修** — 「開く」→LeadEdit / ファネルのバグ修正 / KPIの実データ集計
+3. **調査中に見つかった既存バグの修正** — HOME'S の重複INSERT、`inquiry_id` の接頭辞、楽観的更新の履歴取りこぼし
+
+---
+
+## 1. ポータル同期 → `brokerage_listings`
+
+各ポータルのハンドラは、これまで `inquiry_customer_resale`（反響顧客）にしか同期していなかった。
+そこへ不動産CRMのリード（`brokerage_listings`）への同期を追加した。
+
+| ポータル | 呼び出し元 | `kind` | `extId` |
+|---|---|---|---|
+| すまいステップ | `sumai_step_update.php` | `leads` | `sumai:{管理番号}` |
+| イエウール | `ieuru_resale_update.php` | `leads` | `ieul:{依頼日}:{氏名}` |
+| イエイ | `iei_resale_update.php` | `leads` | `iei:{受付日}:{姓名}` |
+| アットホーム | `athome_resale_update.php` | `buyLeads` | `athome:{物件番号}:{日付}:{氏名}` |
+| HOME'S | `homes_db_resale.php` | `buyLeads` | `homes:{問合せ番号}` |
+| SUUMO | `suumo_db_resale.php` | `buyLeads` | `suumo:{連番}` |
+
+### 全ポータル共通の設計方針
+
+- **INSERT 専用。UPDATE しない。**
+  取り込み後の `phase` / `staff` / `budget` / `note` は担当者が画面で編集するため、
+  再取込のたびに上書きすると手入力が消える。
+- **重複判定は `extId` の `NOT EXISTS`。**
+  `brokerage_listings` の UNIQUE は `id` だけなので `INSERT IGNORE` では防げない。
+- **POSTされた1件だけに絞る**（`WHERE id = :id`）。
+  従来は1件POSTごとに全表を再走査していた。**SUUMOだけは例外**（後述）。
+- `phase` / `staff` は入れない（空欄＝画面上の「リード受信」・未割当）。
+- `$data['id']` 等が空なら `error_log` を出して同期をスキップする。
+
+### 採番ルール（新規 `backend/src/core/brokerage_id.php`）
+
+`brokerage_listings.id` はアプリ（フロント）と同じ書式で作る。実データ1,259件から逆算し、
+後に `source.html`（元HTML版）の実装と完全一致することを確認した。
+
+```
+x  msh5mr0p  69sck  125
+|  |         |      +-- 連番（一括生成時のループ添字）
+|  |         +--------- ランダム5桁（36進）
+|  +------------------- Date.now().toString(36)（8桁のミリ秒）
++---------------------- リテラルの 'x'
+```
+
+```js
+// source.html:4801 の元実装
+function uid() { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2,7) + (_uid++) }
+```
+
+- `base_convert()` は 2^53 超で精度が落ちるため自前で除算している
+- ランダムは `random_int()`（衝突耐性が id の一意性そのもの）
+- **id がランダムなので、重複取込を防いでいるのは各ハンドラの `NOT EXISTS` のみ**
+  → 保険として `brokerage_listings.extId` に UNIQUE を追加した（後述）
+
+### `source` / `portal` の規約（重要）
+
+**売りと買いで使うカラムもマスタ語彙も違う。**
+
+| | `source` | `portal` |
+|---|---|---|
+| 売りリード（`leads`） | 反響元（`sources` マスタ） | NULL |
+| 買いリード（`buyLeads`） | 同上（横断集計用） | ポータル名（`buyPortals` マスタ） |
+
+- `portal` は **広告費 `portalCosts` の引き当てキー**。空だと反響費用が0になる
+- `source` は売り・買いを横断した媒体キー。媒体別集計で合流させるためのもの
+
+**注意: HOME'S は表記が2種類ある。取り違えると集計が割れる。**
+
+```
+売り(sources マスタ)     ... HOME's   小文字s
+買い(buyPortals マスタ)  ... HOME'S   大文字S
+```
+
+`homes_resale.php` は `portal` に大文字S（portalCostsのキー）、
+`source` に小文字s（売り31件と合流）と**意図的に使い分けている**。
+
+### ポータル別の個別事情
+
+#### すまいステップ
+- `sumai_step_db` に `id IS NULL` のゴミ行が30件（CSVの改行入りフィールドでパース崩壊）。除外必須
+- `note` 書式 `{査定理由}／売却希望:{時期}／査定書:{状態}` + `opinion` を改行追記
+- `reason` は複数選択が区切り無しで連結されて届く（例「住み替え金銭的な理由のため」）
+
+#### イエウール
+- **既存437件は `ieul:{7桁の依頼番号}` だが、この番号はGASが抽出しておらず `ieuru_resale` のどこにも無い**
+  （全100件の remarks を既存437件の番号と総当たりして一致0件を確認）
+- そのため `ieul:{依頼日}:{氏名}` の新形式にし、**重複判定は「氏名＋反響日」**で行う（B案）
+- 日付は `requestDate`（依頼日時）基準。`registered` 基準だと既存との一致が88→72件に落ちる
+
+#### イエイ
+- **最大の罠。既存の売りリードは `anken:{案件番号}` で31件ある**（`iei:` は0件）
+  `iei:` が0件なのを見て「既存なし」と誤判断すると、**29件がまるごと二重登録される**
+  （`iei_db` 29件のうち28件が氏名＋受付日で既存 `anken:` と一致。期間も完全一致）
+- 案件番号も抽出されていないため、イエウールと同じく **`anken:` と `iei:` の両方に
+  「氏名＋反響日」で突合**する
+- 修正後は新規1件のみ（`榎田 富美代` は既存の反響日が07-31、`iei_db` は07-30 で1日ずれ）
+
+#### アットホーム
+- **`athome_resale_update.php` は email で突合して UPDATE し `ak_` の id を使い回す。**
+  id を流用して `brokerage_listings.id` を作ると、同一人物の2件目の問合せが
+  `uk_id` に阻まれて作られない
+- `price` は `1,600万円` 形式 → `budget`（円）へ換算
+- `tour_date_1`（第一希望日時）があれば `phase='内見予約'`。`viewDate` には入れない（確定日ではないため）
+- 氏名が空の行はスキップ（extId を組み立てられず個人も特定できない）
+
+#### HOME'S
+- **`homes_db_resale` は同じ userId の行が大量に重複していた**（4,756行 / userId 38種、最大616行）
+  原因は `homes_db_resale.php:40` が **別テーブル `homes_db_kaeru`** を見ていたこと（修正済み）
+  → 同期SQLは必ず `ORDER BY no DESC LIMIT 1` で最新1行に絞る。
+    複数行拾うと同じ extId・同じ採番IDで複数INSERTして `uk_id` 違反で500になる
+- HOME'S は売り・買いの両方の反響がある。`homes_db_resale` は **買い（物件問合せ）**。
+  売りの査定反響は別系統で `mikata:` 接頭辞・`kind='leads'` で31件既存
+
+#### SUUMO
+- **他5本と構造が違う。`runSuumoResale.ts` がCSV全件を500件ずつバルクPOSTする**
+  1件スコープにする意味が無いので全件対象。
+  **候補をSELECTしてPHP側で1行ずつINSERT**する（採番関数を行ごとに呼ぶ必要があるため）。
+  連番ブロックがループ添字という本来の意味を持つ
+- `received_at` は `2026/7/02 12:06:19`（**月が0埋めされない**）→ `%Y/%c/%e %H:%i:%s`
+- 姓名が `last_name_kanji` にまとめて入る行がある（`first_name_kanji` が NULL）
+- 電話が `phone_1/2/3` に3分割の行と `phone_1` に全部入る行が混在 → `CONCAT_WS('-')` で吸収
+- `price_or_rent` は `3490万円`（**カンマ無し**）。他ポータルはカンマ有り
+
+---
+
+## 2. Summary.tsx の改修
+
+### 2-1. タスク一覧の「開く」→ LeadEdit
+
+- `handleOpenLead(id)` で元レコードを引き当て、`kind === 'buyLeads'` なら `'buy'`、
+  それ以外は `'sell'` を `leadCategory` に渡す
+- 保存は `saveBrokerageRecord` + `recordFieldChanges`（LeadSell と同じ楽観的更新）
+
+### 2-2. 歩留まりファネルのバグ修正
+
+`planner_summary.php` が返すのは **`lead` と `staff` の2キーだけ**で、`lead` に売り・買いが
+`kind` 混在で入っている。しかしフロントは `response.data.buyLeads` を期待していた。
+
+```js
+if (response.data.buyLeads) setBuyLeads(...)  // ← 常に実行されない
+```
+
+結果 **買いファネルが常に0、売りファネルは買いを混ぜて数えていた**。取得時に `kind` で振り分けて解消。
+
+### 2-3. KPIサマリーの実データ集計
+
+`sellKpiSummary` / `buyKpiSummary` はハードコードされたモック値だった。
+`source.html` の `leadKpi`(L8311) / `buyKpi`(L9671) / `renderDash`(L6068-6095) と**同一定義**で実装。
+
+- **架電数は 📞架電のみ**（LINE・メールは除外）。かつ「対象月に受信したリード」ではなく
+  **「対象月に行われた架電」**を全リードから数える
+- 反響費用 = 対象月受信リードの単価合計。売りは `source`→`srcCosts`、買いは `portal`→`portalCosts`
+- 月次目標 = `Σ settings.staff[].baikaiTarget ÷ 12`
+
+**裏付け**: 2026-07 の集計が旧ハードコード値と一致（架電 `83`、費用 `872,300`、目標 `16`）。
+
+そのため `planner_summary.php` に **`app_state.settings` を返す処理を追加**した。
+
+### 2-4. 楽観的更新の履歴取りこぼし（LeadSell / LeadBuy）
+
+```js
+setLeads(prev => { snapshot = prev; return ...; });
+const before = snapshot.find(...);   // ← React18では更新関数が次のレンダリングまで走らない
+```
+
+`before` が `undefined` になり **保存は成功するのに変更履歴だけ静かに残らない**。
+クロージャの現在値から取る形に修正（`LeadOpportunity.tsx` は元から正しかった）。
+
+---
+
+## 3. 作成したファイル
+
+| ファイル | 内容 |
+|---|---|
+| `backend/src/core/brokerage_id.php` | `brokerage_listings.id` の採番関数。**ポータル5本の依存先** |
+| `backend-express/scripts/sql/2026-08-28_ieuru_inquiry_id_prefix.sql` | `inquiry_id` の接頭辞修正（100件改名） |
+| `backend-express/scripts/sql/2026-08-28_brokerage_listings_unique_extid.sql` | `extId` に UNIQUE 追加 |
+| `backend-express/scripts/sql/2026-08-28_homes_db_resale_dedupe.sql` | 重複4,718行の削除 |
+| `backend-express/scripts/sql/2026-08-28_buyleads_backfill_source.sql` | `source`/`portal` の穴埋め（**v2**） |
+| `backend-express/scripts/sql/reference_brokerage_source_by_extid.sql` | 媒体の判定・診断（参照専用） |
+
+## 4. 修正した既存バグ
+
+| 箇所 | 内容 |
+|---|---|
+| `homes_db_resale.php:40` | 重複チェックが別テーブル `homes_db_kaeru` を見ていた。両表に共通 userId は0件で判定が常に空振りし、GASが回るたびINSERTされ4,756行に膨張 |
+| `portal/ieuru_resale.php` | `inquiry_id` が `CONCAT('iei_', id)`（イエイからのコピペ）。`ieuru_` に修正＋既存100件を改名 |
+| `planner_summary.php` | `settings` を返していなかった（KPIの費用・目標が出せない） |
+| `Summary.tsx` | 買いファネルが常に0 |
+| `LeadSell.tsx` / `LeadBuy.tsx` | 変更履歴の取りこぼし |
+
+## 5. テーブル変更
+
+- `brokerage_listings` に **`UNIQUE KEY uk_extId (extId)`** を追加
+  - 事前に空文字の `extId` 76件を NULL へ寄せている（NULLは重複可だが空文字は不可）
+  - **注意: `broker_update.php` は UPSERT。UNIQUEキーが2本になると「idは新規だがextIdが既存と同じ」
+    レコードで別の行が更新される。** 新規リードは `extId: null` で作られ、
+    `broker_update.php` は空文字をNULL化するため現状のリスクは低い
+- `homes_db_resale` の重複4,718行を削除（4,756 → 38行）
+
+---
+
+## 6. 引き継ぎ
+
+### 6-1. 【要対応】未コミット・未デプロイの変更
+
+```
+M backend/src/handlers/portal/athome_resale.php   ← portal / source の追加
+M backend/src/handlers/portal/homes_resale.php    ← portal / source の追加
+M backend/src/handlers/portal/suumo_resale.php    ← portal / source の追加
+M backend/src/handlers/portal/iei_resale.php      ← anken: との重複29件を防ぐ突合修正
+?? backend-express/scripts/sql/2026-08-28_buyleads_backfill_source.sql   （v2に差し替え済み）
+?? backend-express/scripts/sql/reference_brokerage_source_by_extid.sql
+```
+
+**本番には `portal` / `source` を入れる前のバージョンがデプロイされている。**
+そのため本番の新規行は両方 NULL（例: `extId='suumo:0140243280'` / `portal=NULL` / `source=NULL`）。
+
+**順序は「PHP再デプロイ → SQL実行」。** 逆だとその間の反響を取りこぼす。
+
+### 6-2. SQLの適用状況
+
+| ファイル | 本番 | ローカル |
+|---|---|---|
+| `2026-08-28_ieuru_inquiry_id_prefix.sql` | 実行済 | **未適用**（`iei_ie_` が100件残存） |
+| `2026-08-28_brokerage_listings_unique_extid.sql` | 実行済 | 実行済 |
+| `2026-08-28_homes_db_resale_dedupe.sql` | 未実行 | 実行済（38行） |
+| `2026-08-28_buyleads_backfill_source.sql` | **未実行（v2で要実行）** | v1のみ適用 |
+| `app_state.portalCosts` に `HOME'S` 追加 | 実行済 | 実行済 |
+
+ローカルで動作確認する際、`ieuru_inquiry_id_prefix.sql` が未適用だと
+`inquiry_customer_resale` に `iei_ie_` と `ieuru_` が混在してイエウール同期で重複が出る。
+
+### 6-3. `buyleads_backfill_source.sql` は v2 に差し替え済み
+
+v1 は `WHERE portal IN (...)` を条件にしていたため、**`portal` もNULLの行を1件も拾えなかった**。
+v2 は **`extId` の接頭辞を第一の判定材料**にし、`portal` はフォールバックに降格。`portal` も一緒に埋める。
+
+検証: 本番と同じ状況を再現して実行 → 残る未判定は21件のみ（すべて `extId` を持たない手入力レコード）。
+
+### 6-4. extId 接頭辞と媒体の対応
+
+```
+ieul   → イエウール      (売り)
+sumai  → すまいステップ   (売り)
+anken  → イエイ          (売り) ← 旧形式。案件番号
+iei    → イエイ          (売り) ← 新形式。受付日:姓名
+mikata → HOME's         (売り) ← 売却査定の反響
+athome → アットホーム     (買い)
+suumo  → SUUMO          (買い)
+homes  → HOME'S         (買い) ← 物件問合せ
+```
+
+**`id` からは媒体を判定できない**（アプリ採番のランダム値）。診断は
+`reference_brokerage_source_by_extid.sql` を使う。
+
+売り/買いの見分けは埋まっている列で判断できる。
+- 売り ... `addr`(物件住所) / `visitDate`(訪問査定日) / `reason`(売却理由)
+- 買い ... `targetProperty`(希望物件) / `budget`(予算) / `viewDate`(内見日)
+
+### 6-5. GASの抽出バグ（PHP側では直せない）
+
+値が空のとき正規表現が**次の項目のラベルを拾う**。汚染された項目はマッピングに使っていない。
+
+**イエイ** — `extractBracket` の後読みが空欄で誤マッチ。**ユーザー修正済み**
+（`if (/^[［▼]/.test(value)) return "";` を追加）。修正後は `賃料`・`ご要望など`・
+`土地面積`・`建物(専有)面積`・`築年` が取れるようになるので、**取り込み項目を増やすか要検討**。
+
+**イエウール** — 未修正。100件中の汚染件数:
+```
+requestsToCompany 100 / replacementFlag 100 / buildingName 100 / totalFloorArea 100
+comment 88 / mansionName 72 / roomNumber 72 / exclusiveArea 72
+assessmentMethod 31 / preferredContactTime 30 / buildingArea 34 / landArea 28
+```
+
+### 6-6. 未対応・要相談
+
+- **`app_state` に書き込むAPI・画面が無い**。`portalCosts` / `srcCosts` / 担当者目標を
+  変更するには毎回SQLが必要。`source.html` の設定画面は **Supabase 保存**なのでMariaDBに届かない
+  - 案A（軽い）: `app_state` の読み書きAPIを足し、「反響単価設定」だけの画面を作る
+  - 案B（本格）: `source.html` の `renderSettings`(L12476-12920 約450行) 相当を移植
+- `Summary.tsx` の `kpiSummaryData`（担当者別KPI・L285付近）と `callStatsData` は**まだモック値**
+- ラベル「反響合計(未同期)」の件（前セッション 5-7）は未着手
+
+### 6-7. 参照した資料
+
+`C:\Users\shinji-kawano\Downloads\source.html`（15,723行）が **React版の移植元**。
+KPIやフェーズ定義で迷ったらここが正。ただし**保存先はSupabase**でMariaDBとは別系統。
+
+```
+L4801  uid()          ... brokerage_listings.id の採番
+L6068  renderDash     ... KPIサマリーの集計と表示
+L8311  leadKpi        ... 売りKPI
+L9671  buyKpi         ... 買いKPI
+L8299  LEAD_AFTER_*   ... フェーズ定数
+L12476 renderSettings ... 設定画面（反響単価・担当者目標）
+```
+
+### 6-8. 検証状況
+
+| 項目 | 状態 |
+|---|---|
+| `php -l`（変更した全PHP） | 通過 |
+| `tsc --noEmit` | 通過（`src/components/test.js` の既存エラーは無関係） |
+| 本番ビルド | 通過。`Summary.tsx` の警告は `formatMan`・`deals` 未使用の2件で改修前から存在 |
+| 6ポータルの同期 | **全て実データでエンドツーエンド検証。冪等性・extId重複0・id重複0・採番形式を確認** |
+| 移行SQL4本 | トランザクション内で実行→結果確認→ロールバックまで実施 |
+| **ブラウザでの実表示** | **未確認**（Summaryの「開く」→LeadEdit、KPIサマリー、ファネル） |
+
+初回同期で入る見込み: leads +41件（すまい2 / イエウール12 / イエイ**1**）、
+buyLeads +63件（アットホーム4 / HOME'S 38 / SUUMO 21）。
+※イエイは `anken:` 突合の修正により29件→1件に減っている

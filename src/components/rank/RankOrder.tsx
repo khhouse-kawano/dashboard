@@ -279,7 +279,7 @@ const RankOrder = () => {
 
         const postData = {
             ...newExpected,
-            demand: 'contract_ex_update'
+            request: 'contract_ex_update'
         };
         const fetchData = async () => {
             try {
