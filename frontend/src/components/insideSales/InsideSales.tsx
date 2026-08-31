@@ -172,7 +172,24 @@ const InsideSales = () => {
     };
 
     return (
-        <div className="p-3 p-md-4" style={{ backgroundColor: '#fafbfe', minHeight: '100vh', width: '100%' }}>
+        // ⚠️ minWidth: 0 が無いと横スクロールが効かない。
+        //   App.tsx の <div className="d-flex pt-4"> の直下に <Routes> があるため、
+        //   この要素は flex アイテムになる。flex アイテムの min-width は既定で auto で、
+        //   中身（週表示の minWidth: 1400px のグリッド）より小さくなれない。
+        //   結果、この要素自体が 1400px 以上に広がってページ全体がはみ出し、
+        //   下の overflowX: 'auto' が働く余地が無くなっていた。
+        //   minWidth: 0 で「中身より小さくなってよい」と明示すると、
+        //   はみ出し分が内側のスクロールに収まる。
+        <div
+            className="p-3 p-md-4"
+            style={{
+                backgroundColor: '#fafbfe',
+                minHeight: '100vh',
+                width: '100%',
+                minWidth: 0,
+                flex: 1,
+            }}
+        >
             {/* ヘッダー・コントロール群 */}
             <div className="d-flex flex-wrap justify-content-between align-items-end mb-4 border-bottom pb-3 gap-3">
                 <h4 className="fw-bold text-secondary mb-0" style={{ letterSpacing: '1px', paddingTop: isSp ? '30px' : '' }}>
