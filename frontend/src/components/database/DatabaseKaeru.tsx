@@ -34,7 +34,11 @@ const DatabaseKaeru = ({ }: Props) => {
     const [selectedRank, setSelectedRank] = useState<string>('')
     const [selectedMedium, setSelectedMedium] = useState<string>('')
     const [selectedStatus, setSelectedStatus] = useState<string>('')
-    const [searchedPastStaff, setSearchedPastStaff] = useState('');
+    // 過去に担当した営業名で絞り込むための、該当顧客IDの一覧。
+    // 以前は架電・面談ログを全件ブラウザに載せて部分一致を取っていたが、
+    // ログだけで約30MBあり、サーバー側が memory_limit を超えて応答できなくなっていた。
+    // 検索は past_staff_search API に任せ、ここではIDだけを持つ。
+    const [pastCustomerIds, setPastCustomerIds] = useState<string[]>([]);
     const [displayLength, setDisplayLength] = useState<number>(20);
     const [callStatus, setCallStatus] = useState<string>('');
     const [activePage, setActivePage] = useState<number>(1);
@@ -47,7 +51,6 @@ const DatabaseKaeru = ({ }: Props) => {
     const skipPageReset = useRef(false);
     const [integrate, setIntegrate] = useState<CustomerList>({});
     const [integrateList, setIntegrateList] = useState<CustomerList[]>([]);
-    const [pastCustomer, setPastCustomer] = useState<Record<string, string>[]>([]);
     const [callStatusShow, setCallStatusShow] = useState(false);
     const [selectedFollow, setSelectedFollow] = useState('');
 
@@ -59,6 +62,8 @@ const DatabaseKaeru = ({ }: Props) => {
     const phoneSearch = useDebounce('', 300);
     const addressSearch = useDebounce('', 300);
     const mailSearch = useDebounce('', 300);
+    // 過去担当者の検索は入力のたびにAPIを叩くため、他の検索と同じくデバウンスする
+    const pastStaffSearch = useDebounce('', 300);
 
     const isSp = useIsSp();
 
@@ -90,9 +95,6 @@ const DatabaseKaeru = ({ }: Props) => {
 
                 const familyId = response.data.family.map(f => f.id);
                 await setFamilyList(familyId);
-                const callList = response.data.call.map(r => ({ id: r.id, log: r.call_log }));
-                const interviewList = response.data.interview.map(r => ({ id: r.id, log: r.call_log }));
-                setPastCustomer([...callList, ...interviewList]);
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
@@ -101,12 +103,36 @@ const DatabaseKaeru = ({ }: Props) => {
         fetchData();
     }, []);
 
-    // 1. 事前計算（useMemoで囲む）
-    const pastCustomerIds = useMemo(() => {
-        return searchedPastStaff
-            ? pastCustomer.filter(p => p.log?.includes(searchedPastStaff)).map(p => p.id)
-            : [];
-    }, [pastCustomer, searchedPastStaff]);
+    // 過去に担当した営業名で該当する顧客IDを取ってくる。
+    // 検索語が空のときはAPIを呼ばず、絞り込み自体を無効にする。
+    useEffect(() => {
+        const staff = pastStaffSearch.debouncedValue;
+
+        if (!staff) {
+            setPastCustomerIds([]);
+            return;
+        }
+
+        // 入力を打ち替えている間は複数のリクエストが並ぶ。
+        // 古い応答が後から届いて新しい検索結果を上書きしないよう、
+        // 検索語が変わった時点で前のリクエストの結果を捨てる。
+        let ignore = false;
+
+        (async () => {
+            try {
+                const response = await apiClient.post("", { request: 'past_staff_search', staff });
+                if (!ignore) setPastCustomerIds(response.data.ids ?? []);
+            } catch (error) {
+                console.error("Error searching past staff:", error);
+                if (!ignore) setPastCustomerIds([]);
+            }
+        })();
+
+        return () => { ignore = true; };
+    }, [pastStaffSearch.debouncedValue]);
+
+    // includes() だと顧客数×ID数の総当たりになるため、集合にしてから引く
+    const pastCustomerIdSet = useMemo(() => new Set(pastCustomerIds), [pastCustomerIds]);
 
     const strIncludes = (val: any, sub: string) => (sub ? String(val ?? '').includes(sub) : true);
     const arrIncludes = (arr: any, v: any) => (v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true);
@@ -139,9 +165,9 @@ const DatabaseKaeru = ({ }: Props) => {
                 && (addressSearch.debouncedValue ? String((item.full_address ?? '').replace(/[\s ]+/g, "")).includes(addressSearch.debouncedValue) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
                 && (familyStatus ? familyList.includes(item.id) : true)
-                && (searchedPastStaff ? pastCustomerIds.includes(item.id) : true)
+                && (pastStaffSearch.debouncedValue ? pastCustomerIdSet.has(item.id) : true)
                 && (selectedFollow === '追客中' ? arrIncludes(['Aランク', 'Bランク', 'Cランク', 'Dランク'], item.rank) : selectedFollow === '追客終了' ? arrIncludes(['Eランク', 'Fランク', 'Gランク', 'Hランク'], item.rank) : true)
-                && (searchedPastStaff ? pastCustomerIds.includes(item.id) : true); // ※既存コードにあった重複の記述をそのまま残しています
+                && (pastStaffSearch.debouncedValue ? pastCustomerIdSet.has(item.id) : true); // ※既存コードにあった重複の記述をそのまま残しています
         });
 
         return result.sort((a, b) => {
@@ -165,11 +191,11 @@ const DatabaseKaeru = ({ }: Props) => {
         addressSearch.debouncedValue,
         mailSearch.debouncedValue,
         callStatus,
-        searchedPastStaff,
+        pastStaffSearch.debouncedValue,
         trash,
         familyList,
         familyStatus,
-        pastCustomerIds
+        pastCustomerIdSet
     ]);
 
     const normalize = (val?: string | null) => (val || '').replace(/[\s ]+/g, '');
@@ -219,7 +245,7 @@ const DatabaseKaeru = ({ }: Props) => {
         addressSearch.debouncedValue,
         mailSearch.debouncedValue,
         callStatus,
-        searchedPastStaff,
+        pastStaffSearch.debouncedValue,
         trash,
         familyList,
         familyStatus,
@@ -436,7 +462,8 @@ const DatabaseKaeru = ({ }: Props) => {
                     </div>
                     {!isSp && <>
                         <div className="m-1">
-                            <input className="target" placeholder='過去に担当した営業名で検索' onChange={(e) => setSearchedPastStaff(e.target.value)} />
+                            <input className="target" placeholder='過去に担当した営業名で検索'
+                                value={pastStaffSearch.inputValue} onChange={pastStaffSearch.onChange} />
                         </div>
                         <div className="m-1">
                             <input className="target" placeholder='電話番号で検索'
