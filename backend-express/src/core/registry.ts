@@ -2,9 +2,11 @@ import { Router } from 'express';
 import type { RequestHandler } from 'express';
 import type { z } from 'zod';
 import { AppError } from '../errors/AppError';
+import { requireAnalysisApiKey } from '../middlewares/apiKeyAuth';
+import { analysisIpRateLimit, analysisKeyRateLimit } from '../middlewares/analysisRateLimit';
 import { requireApiToken } from '../middlewares/auth';
 import type { ErasedRoute, Feature, HttpMethod, RouteKey } from './feature';
-import type { RouteContext } from './route';
+import type { AuthMode, RouteContext } from './route';
 
 /**
  * features を Express の Router に組み立てる。
@@ -108,9 +110,16 @@ export interface RouteSummary {
   feature: string;
   method: HttpMethod;
   path: string;
-  auth: boolean;
+  /** false は認証なし。認証が要る場合は方式名を出す（'staff' / 'analysisKey'） */
+  auth: false | AuthMode;
   summary: string;
 }
+
+/** ルート定義の auth 指定を、一覧に出す表記へ正規化する */
+const toAuthSummary = (auth: ErasedRoute['auth']): false | AuthMode => {
+  if (auth === undefined || auth === false) return false;
+  return auth === true ? 'staff' : auth;
+};
 
 export interface BuiltRouter {
   router: Router;
@@ -138,9 +147,14 @@ export const buildFeatureRouter = (features: Feature[]): BuiltRouter => {
       }
       seen.add(signature);
 
+      // 認証方式ごとに前段のミドルウェアを差し替える。
+      // true は 'staff'（ブラウザ向け）の別名として扱う。
       const middlewares: RequestHandler[] = [];
-      if (definition.auth === true) {
+      if (definition.auth === true || definition.auth === 'staff') {
         middlewares.push(requireApiToken);
+      } else if (definition.auth === 'analysisKey') {
+        // 認証前にIPで粗く、認証後にキーで細かく制限する。この順序に意味がある
+        middlewares.push(analysisIpRateLimit, requireAnalysisApiKey, analysisKeyRateLimit);
       }
 
       // Express 5 は async ハンドラ内の例外も errorHandler へ自動で流す
@@ -151,7 +165,7 @@ export const buildFeatureRouter = (features: Feature[]): BuiltRouter => {
         feature: feature.name,
         method,
         path: `/api/v1${fullPath}`,
-        auth: definition.auth === true,
+        auth: toAuthSummary(definition.auth),
         summary: definition.summary,
       });
     }

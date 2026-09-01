@@ -33,6 +33,16 @@ export interface RouteHandlerArgs<TParams, TQuery, TBody> {
   ctx: RouteContext;
 }
 
+/**
+ * 認証方式。
+ *
+ * 'staff'       … ブラウザ向け。staff.api_token を Token ヘッダで受ける（`auth: true` と同じ）
+ * 'analysisKey' … 機械向け。analysis_api_key を Authorization: Bearer で受ける。
+ *                 Claude Desktop の MCP サーバーのような外部クライアント用で、
+ *                 有効期限と失効を持つ点が staff.api_token と違う。
+ */
+export type AuthMode = 'staff' | 'analysisKey';
+
 export interface RouteDefinition<
   TParams extends z.ZodType | undefined = undefined,
   TQuery extends z.ZodType | undefined = undefined,
@@ -40,8 +50,11 @@ export interface RouteDefinition<
 > {
   /** 何をするルートか。必須。GET /api/v1/_routes の一覧に出る */
   summary: string;
-  /** true にすると Token 認証を要求し、ctx.staff が使えるようになる */
-  auth?: boolean;
+  /**
+   * 認証を要求する。true は 'staff'（ブラウザ向け）と同じ。
+   * 外部クライアント向けのルートでは 'analysisKey' を指定する。
+   */
+  auth?: boolean | AuthMode;
   params?: TParams;
   query?: TQuery;
   body?: TBody;

@@ -1,10 +1,18 @@
-import React, { useState, useEffect, useContext } from 'react'
+import React, { useState, useEffect, useContext, useRef } from 'react'
 import Table from 'react-bootstrap/Table';
 import BsForm from 'react-bootstrap/Form';
-import axios from 'axios';
-import { headers } from '../../utils/headers';
+import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
 import { getYears } from '../../utils/getYears';
+
+/**
+ * 人事マスタ（staff_list テーブル）の編集画面。
+ *
+ * ⚠️ ログイン権限（staff テーブル）は EditAuth.tsx の担当であり、
+ *   ここでは一切触らない。両テーブルは連携していないため、
+ *   ここでスタッフを登録してもログインはできない。
+ *   ログイン用アカウントは EditAuth 側で別途作成する。
+ */
 
 type Staff = Record<string, string>;
 type Section = Record<string, string>;
@@ -23,6 +31,23 @@ const EditStaff = () => {
         const [targetPosition, setTargetPosition] = useState('');
         const [newStaff, setNewStaff] = useState(false);
         const [targetYear, setTargetYear] = useState('');
+        /** 氏名サジェストの候補（staff テーブルの氏名）。入力の手間を省くためだけに使う */
+        const [authNames, setAuthNames] = useState<string[]>([]);
+        const [nameSuggestOpen, setNameSuggestOpen] = useState(false);
+
+        // 氏名 input は非制御（uncontrolled）にして ref から値を読む。
+        // 制御コンポーネントにすると1文字打つたびに state が更新され、
+        // 数千行のテーブル全体が再レンダリングされて入力がもたつく。
+        const nameInputRef = useRef<HTMLInputElement>(null);
+        // サジェストの絞り込みだけは state が必要なので、遅延させて更新する。
+        const [nameKeyword, setNameKeyword] = useState('');
+        const nameKeywordTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+        useEffect(() => {
+                return () => {
+                        if (nameKeywordTimer.current) clearTimeout(nameKeywordTimer.current);
+                };
+        }, []);
         const now = new Date();
         const year = now.getFullYear();
         const thisYear = now.getMonth() <= 4 ? year : year + 1;
@@ -31,7 +56,6 @@ const EditStaff = () => {
                 khg_id: '',
                 name: '',
                 position: '一般',
-                mail: '',
                 status: '在籍',
                 section: '',
                 shop: '',
@@ -40,6 +64,7 @@ const EditStaff = () => {
                 report: '0',
                 multi: '0',
                 estate: '0',
+                inside: '0',
                 period: ''
         });
 
@@ -52,10 +77,11 @@ const EditStaff = () => {
         useEffect(() => {
                 const fetchData = async () => {
                         try {
-                                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "header_staff_edit" }, { headers });
+                                const response = await apiClient.post('', { request: "header_staff_edit" });
                                 setOriginalStaffList(response.data.staff);
                                 setShopList(response.data.shop);
                                 setSectionList(response.data.section);
+                                setAuthNames(response.data.auth_names ?? []);
 
                                 setNewStaffData(prev => ({
                                         ...prev,
@@ -91,7 +117,7 @@ const EditStaff = () => {
                                 request: "header_staff_update"
                         };
                         try {
-                                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+                                const response = await apiClient.post('', postData);
                                 console.log(response.data.status);
                         } catch (err) {
                                 console.error(err);
@@ -102,7 +128,10 @@ const EditStaff = () => {
         };
 
         const handleSaveNewStaff = async () => {
-                if (!newStaffData.name.trim()) {
+                // 氏名は非制御 input のため state ではなく ref から読む
+                const name = (nameInputRef.current?.value ?? '').trim();
+
+                if (!name) {
                         alert('氏名を入力してください。');
                         return;
                 }
@@ -110,23 +139,32 @@ const EditStaff = () => {
                 try {
                         const postData = {
                                 ...newStaffData,
+                                name,
                                 request: "header_staff_insert"
                         };
 
-                        const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+                        const response = await apiClient.post('', postData);
 
                         if (response.data.status === 'success') {
-                                const newId = response.data.id ?? String(Date.now());
-                                const createdRecord = { ...newStaffData, id: newId };
+                                // id はサーバーが採番した実IDでなければならない。
+                                // 仮IDを入れると、登録直後にその行を編集しても
+                                // 存在しないIDで UPDATE され保存されない。
+                                if (!response.data.id) {
+                                        alert('登録は完了しましたが、IDが取得できませんでした。画面を再読み込みしてください。');
+                                        return;
+                                }
+                                const createdRecord = { ...newStaffData, name, id: String(response.data.id) };
 
                                 setOriginalStaffList(prev => [createdRecord, ...prev]);
+                                // 行がアンマウントされるので非制御 input の値は自動的にクリアされる
                                 setNewStaff(false);
+                                setNameSuggestOpen(false);
+                                setNameKeyword('');
 
                                 setNewStaffData({
                                         khg_id: '',
                                         name: '',
                                         position: '一般',
-                                        mail: '',
                                         status: '在籍',
                                         section: sectionList[0]?.name ?? '',
                                         shop: shopList[0]?.shop ?? '',
@@ -135,6 +173,7 @@ const EditStaff = () => {
                                         report: '0',
                                         multi: '0',
                                         estate: '0',
+                                        inside: '0',
                                         period: targetYear
                                 });
                         } else {
@@ -147,6 +186,32 @@ const EditStaff = () => {
         };
 
         const isOrdinary = authority === 'ordinary'
+
+        // 氏名は「山田 太郎」「山田太郎」のように空白の有無がぶれるため、
+        // 空白（半角・全角）を除いた形で照合する。
+        const normalizeName = (value: string) => value.replace(/[\s　]/g, '');
+
+        const normalizedKeyword = normalizeName(nameKeyword);
+        const nameSuggestions = normalizedKeyword
+                ? authNames.filter(n => normalizeName(n).includes(normalizedKeyword)).slice(0, 8)
+                : [];
+
+        /** 入力のたびに再レンダリングしないよう、絞り込み用のキーワードだけを遅延更新する */
+        const handleNameInput = () => {
+                setNameSuggestOpen(true);
+                if (nameKeywordTimer.current) clearTimeout(nameKeywordTimer.current);
+                nameKeywordTimer.current = setTimeout(() => {
+                        setNameKeyword(nameInputRef.current?.value ?? '');
+                }, 200);
+        };
+
+        const applyNameSuggestion = (value: string) => {
+                // 非制御なので DOM に直接書き込む
+                if (nameInputRef.current) nameInputRef.current.value = value;
+                if (nameKeywordTimer.current) clearTimeout(nameKeywordTimer.current);
+                setNameKeyword(value);
+                setNameSuggestOpen(false);
+        };
 
         return (
                 <>
@@ -191,7 +256,7 @@ const EditStaff = () => {
                                                                 <button className="btn btn-success btn-sm px-3" style={{ fontSize: '12px', fontWeight: 'bold' }} onClick={handleSaveNewStaff}>
                                                                         <i className="fa-solid fa-check me-1"></i>登録する
                                                                 </button>
-                                                                <button className="btn btn-secondary btn-sm px-3" style={{ fontSize: '12px' }} onClick={() => setNewStaff(false)}>
+                                                                <button className="btn btn-secondary btn-sm px-3" style={{ fontSize: '12px' }} onClick={() => { setNewStaff(false); setNameSuggestOpen(false); setNameKeyword(''); }}>
                                                                         キャンセル
                                                                 </button>
                                                         </div>
@@ -208,7 +273,7 @@ const EditStaff = () => {
                                 </div>
 
                                 <div className="table-responsive" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                                        <Table hover className="align-middle mb-0" style={{ minWidth: '1870px' }}>
+                                        <Table hover className="align-middle mb-0" style={{ minWidth: '1810px' }}>
                                                 <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                                                         <tr className="text-secondary border-bottom" style={{ fontSize: '12px' }}>
                                                                 {/* 背景色が透過してスクロールした文字が見えないように、各 <th> に背景色を設定します */}
@@ -216,7 +281,6 @@ const EditStaff = () => {
                                                                 <th className="py-3" style={{ width: '120px', backgroundColor: '#f8f9fa' }}>年度</th>
                                                                 <th className="py-3" style={{ width: '140px', backgroundColor: '#f8f9fa' }}>氏名</th>
                                                                 <th className="py-3" style={{ width: '120px', backgroundColor: '#f8f9fa' }}>役職</th>
-                                                                <th className="py-3" style={{ width: '200px', backgroundColor: '#f8f9fa' }}>メールアドレス</th>
                                                                 <th className="py-3" style={{ width: '130px', backgroundColor: '#f8f9fa' }}>ステータス</th>
                                                                 <th className="py-3" style={{ width: '160px', backgroundColor: '#f8f9fa' }}>所属</th>
                                                                 <th className="py-3" style={{ width: '160px', backgroundColor: '#f8f9fa' }}>店舗</th>
@@ -225,6 +289,7 @@ const EditStaff = () => {
                                                                 <th className="py-3 text-center" style={{ width: '160px', backgroundColor: '#f8f9fa' }}>全社報告フォーマット</th>
                                                                 <th className="py-3 text-center" style={{ width: '110px', backgroundColor: '#f8f9fa' }}>併売店スタッフ</th>
                                                                 <th className="py-3 text-center" style={{ width: '130px', backgroundColor: '#f8f9fa' }}>土地新着ネット</th>
+                                                                <th className="py-3 text-center" style={{ width: '140px', backgroundColor: '#f8f9fa' }}>インサイドセールス</th>
                                                         </tr>
                                                 </thead>
                                                 <tbody style={{ fontSize: '13px' }}>
@@ -254,15 +319,60 @@ const EditStaff = () => {
                                                                         </BsForm.Select>
                                                                 </td>
                                                                 <td className="p-2">
-                                                                        <BsForm.Control
-                                                                                size="sm"
-                                                                                type="text"
-                                                                                placeholder="氏名を入力"
-                                                                                value={newStaffData.name}
-                                                                                onChange={(e) => setNewStaffData(prev => ({ ...prev, name: e.target.value }))}
-                                                                                className="fw-bold"
-                                                                                style={{ fontSize: '12px' }}
-                                                                        />
+                                                                        {/* 氏名の予測変換。候補は staff（ログイン権限）テーブルの氏名。
+                                                                            入力の手間を省くだけで、両テーブルを紐付けるものではない。 */}
+                                                                        <div style={{ position: 'relative' }}>
+                                                                                <BsForm.Control
+                                                                                        size="sm"
+                                                                                        type="text"
+                                                                                        placeholder="氏名を入力"
+                                                                                        ref={nameInputRef}
+                                                                                        defaultValue=""
+                                                                                        onChange={handleNameInput}
+                                                                                        onFocus={() => setNameSuggestOpen(true)}
+                                                                                        // 候補のクリックは onMouseDown で拾うため、blur は少し遅らせる必要はない。
+                                                                                        // ここで即座に閉じても onMouseDown の方が先に発火する。
+                                                                                        onBlur={() => setNameSuggestOpen(false)}
+                                                                                        onKeyDown={(e: React.KeyboardEvent) => {
+                                                                                                if (e.key === 'Escape') setNameSuggestOpen(false);
+                                                                                        }}
+                                                                                        autoComplete="off"
+                                                                                        className="fw-bold"
+                                                                                        style={{ fontSize: '12px' }}
+                                                                                />
+                                                                                {nameSuggestOpen && nameSuggestions.length > 0 && (
+                                                                                        <div
+                                                                                                className="bg-white border rounded shadow-sm"
+                                                                                                style={{
+                                                                                                        position: 'absolute',
+                                                                                                        top: '100%',
+                                                                                                        left: 0,
+                                                                                                        zIndex: 20,
+                                                                                                        minWidth: '220px',
+                                                                                                        maxHeight: '200px',
+                                                                                                        overflowY: 'auto',
+                                                                                                        marginTop: '2px'
+                                                                                                }}
+                                                                                        >
+                                                                                                {nameSuggestions.map(suggestion => (
+                                                                                                        <div
+                                                                                                                key={suggestion}
+                                                                                                                // input の blur より先に発火させるため onClick ではなく onMouseDown
+                                                                                                                onMouseDown={(e) => {
+                                                                                                                        e.preventDefault();
+                                                                                                                        applyNameSuggestion(suggestion);
+                                                                                                                }}
+                                                                                                                className="px-2 py-1 text-dark"
+                                                                                                                style={{ fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                                                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f7ff')}
+                                                                                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                                                                        >
+                                                                                                                {suggestion}
+                                                                                                        </div>
+                                                                                                ))}
+                                                                                        </div>
+                                                                                )}
+                                                                        </div>
                                                                 </td>
                                                                 <td className="p-2">
                                                                         <BsForm.Select
@@ -273,16 +383,6 @@ const EditStaff = () => {
                                                                         >
                                                                                 {POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                                                                         </BsForm.Select>
-                                                                </td>
-                                                                <td className="p-2">
-                                                                        <BsForm.Control
-                                                                                size="sm"
-                                                                                type="email"
-                                                                                placeholder="メールアドレスを入力"
-                                                                                value={newStaffData.mail}
-                                                                                onChange={(e) => setNewStaffData(prev => ({ ...prev, mail: e.target.value }))}
-                                                                                style={{ fontSize: '12px' }}
-                                                                        />
                                                                 </td>
                                                                 <td>
                                                                         <BsForm.Select
@@ -376,6 +476,17 @@ const EditStaff = () => {
                                                                                 />
                                                                         </div>
                                                                 </td>
+                                                                <td className="text-center">
+                                                                        <div className="d-flex justify-content-center">
+                                                                                <BsForm.Check
+                                                                                        type="switch"
+                                                                                        checked={newStaffData.inside === "1"}
+                                                                                        onChange={(e) => setNewStaffData(prev => ({ ...prev, inside: e.target.checked ? "1" : "0" }))}
+                                                                                        style={{ cursor: 'pointer' }}
+                                                                                        disabled={isOrdinary}
+                                                                                />
+                                                                        </div>
+                                                                </td>
                                                         </tr>}
 
                                                         {/* 既存スタッフ一覧 */}
@@ -415,8 +526,6 @@ const EditStaff = () => {
                                                                                                 {POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                                                                                         </BsForm.Select>
                                                                                 </td>
-
-                                                                                <td className="text-muted">{safeFormate(item.mail)}</td>
 
                                                                                 <td>
                                                                                         <BsForm.Select
@@ -535,6 +644,21 @@ const EditStaff = () => {
                                                                                                                 const newValue = Number(item.estate) === 1 ? "0" : "1";
                                                                                                                 setStaffList(prev => prev.map(p => p.id === item.id ? { ...p, estate: newValue } : p));
                                                                                                                 handleChange(item.id, 'estate', newValue);
+                                                                                                        }} style={{ cursor: 'pointer' }}
+                                                                                                        disabled={isOrdinary}
+                                                                                                />
+                                                                                        </div>
+                                                                                </td>
+                                                                                <td className="text-center">
+                                                                                        <div className="d-flex justify-content-center">
+                                                                                                <BsForm.Check
+                                                                                                        type="switch"
+                                                                                                        id={`switch-inside-${index}`}
+                                                                                                        checked={Number(item.inside) === 1}
+                                                                                                        onChange={() => {
+                                                                                                                const newValue = Number(item.inside) === 1 ? "0" : "1";
+                                                                                                                setStaffList(prev => prev.map(p => p.id === item.id ? { ...p, inside: newValue } : p));
+                                                                                                                handleChange(item.id, 'inside', newValue);
                                                                                                         }} style={{ cursor: 'pointer' }}
                                                                                                         disabled={isOrdinary}
                                                                                                 />

@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { RouteHandlerArgs } from './route';
+import type { AuthMode, RouteHandlerArgs } from './route';
 
 /**
  * 「機能（feature）」＝ 1つのリソースに対する操作のまとまり。
@@ -22,7 +22,7 @@ export type RouteKey = `${HttpMethod} /${string}`;
  */
 export interface ErasedRoute {
   summary: string;
-  auth?: boolean;
+  auth?: boolean | AuthMode;
   params?: z.ZodType;
   query?: z.ZodType;
   body?: z.ZodType;

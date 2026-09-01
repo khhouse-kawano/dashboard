@@ -466,7 +466,7 @@ const RankOrder = () => {
             <div className="row mt-3 mb-4" >
                 <div className="col d-flex">
                     <select className="target" name="startMonth" onChange={(e) => setTargetMonth(e.target.value)}>
-                        {getYears().map(year => <option key={year} value={year}>{year}年度</option>)}
+                        {getYears().map(year => <option key={year} value={year}>{year}年5月期</option>)}
                         {monthArray.map((month, index) => (
                             <option key={index} value={month} selected={targetMonth === month}>{month}</option>
                         ))}

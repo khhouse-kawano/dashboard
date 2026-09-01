@@ -1,0 +1,105 @@
+# =============================================================
+# 本番（VPS: 162.43.5.127 / api.khg-marketing.info）用の構成。
+#
+# ローカル開発用の docker-compose.yml とは別ファイルにしてある。
+# 中身が大きく違う（DBを持たない・TLS終端がある・SSHトンネルがある）ため、
+# override で差分を当てる書き方だと、どちらの設定が効いているのか
+# 読み取れなくなる。
+#
+# 起動:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# 構成:
+#   インターネット ─443→ caddy ──→ express-api ──→ ssh-tunnel ──SSH──→ エックスサーバーのMySQL
+#
+#   ⚠️ express-api の 3001番と ssh-tunnel の 3306番は ports に書かない。
+#     書くとVPSのグローバルIPに直接口が開き、Caddy を迂回できてしまう。
+#     コンテナ同士はサービス名で通信できるので公開は不要。
+# =============================================================
+
+services:
+  # ------------------------------------------------------------------
+  # TLS終端とリバースプロキシ
+  # ------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"    # Let's Encrypt の HTTP-01 検証と、HTTPSへのリダイレクトに必要
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 取得した証明書。消すと毎回取り直しになり、Let's Encrypt の
+      # レート制限（同一ドメイン週50回）に当たるおそれがある
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL}
+    depends_on:
+      - express-api
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # 分析API本体
+  # ------------------------------------------------------------------
+  express-api:
+    build:
+      context: ./backend-express
+      target: production
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+
+      # DBはSSHトンネル越し。ssh-tunnel コンテナの3306番を指す
+      - DB_HOST=ssh-tunnel
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+
+      # ⚠️ Caddy を1段挟むので必ず 1 にする。
+      #   0 のままだと req.ip が Caddy のIPになり、
+      #   レート制限が全利用者で共有され、監査ログのIPも無意味になる。
+      - TRUST_PROXY=1
+
+      # 分析APIはMCPサーバー（サーバー間通信）から呼ばれる。
+      # ブラウザからの呼び出しは無いので、CORSは許可しない。
+      - CORS_ORIGINS=
+
+      # 重い集計クエリを見込む。Caddy の read_timeout より短くしておくと、
+      # 超過時にExpressのJSONエラーが返る
+      - REQUEST_TIMEOUT_MS=120000
+    depends_on:
+      ssh-tunnel:
+        condition: service_started
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # エックスサーバーのMySQLへのSSHトンネル
+  #
+  # ⚠️ 事前準備（VPS側）
+  #   1. ssh-keygen -t ed25519 で鍵を作り、公開鍵をエックスサーバーの
+  #      サーバーパネル「SSH設定」に登録する
+  #   2. 秘密鍵を ./secrets/id_ed25519 に置き chmod 600
+  #   3. ssh-keyscan -p 10022 <SSH_HOST> > ./secrets/known_hosts
+  #      （StrictHostKeyChecking=yes のため、事前に登録が要る。
+  #        ここを no にすると中間者攻撃を検知できなくなるので必ず登録する）
+  # ------------------------------------------------------------------
+  ssh-tunnel:
+    build:
+      context: ./docker/ssh-tunnel
+    environment:
+      - SSH_HOST=${SSH_HOST}
+      - SSH_PORT=${SSH_PORT:-10022}
+      - SSH_USER=${SSH_USER}
+      - REMOTE_DB_HOST=${REMOTE_DB_HOST}
+      - REMOTE_DB_PORT=${REMOTE_DB_PORT:-3306}
+    volumes:
+      - ./secrets/id_ed25519:/home/tunnel/.ssh/id_ed25519:ro
+      - ./secrets/known_hosts:/home/tunnel/.ssh/known_hosts:ro
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:
+  caddy-logs:

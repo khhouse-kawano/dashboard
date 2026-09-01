@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Form, Badge, ButtonGroup, InputGroup, Row, Col, Spinner, Pagination, Modal } from "react-bootstrap";
-import axios from 'axios';
-import { headers } from '../../utils/headers';
+import apiClient from '../../utils/apiClient';
 
 // 💡 1. 型定義に新しいデータを追加
 type AdData = {
@@ -40,7 +39,7 @@ const MetaAdsDashboard = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "meta_ads" }, { headers });
+                const response = await apiClient.post('', { request: "meta_ads" });
                 const formattedAds = response.data.ads.
                 sort((a, b) => new Date(b.scraped_date).getTime() - new Date(a.scraped_date).getTime())
                 .map((ad: any) => ({
@@ -77,11 +76,11 @@ const MetaAdsDashboard = () => {
         try {
             const targetAd = ads.find(ad => ad.id === id);
             const newBookmarkValue = targetAd?.bookmark === 1 ? 0 : 1;
-            await axios.post('https://khg-marketing.info/dashboard/api/gateway/', {
+            await apiClient.post('', {
                 request: "meta_ads",
                 id: id,
                 bookmark: newBookmarkValue
-            }, { headers });
+            });
         } catch (error) {
             console.error("ブックマークの保存に失敗しました", error);
         }

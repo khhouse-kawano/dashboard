@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Form, Badge, InputGroup, Spinner, Pagination } from "react-bootstrap";
-import axios from 'axios';
-import { headers } from '../../utils/headers';
+import apiClient from '../../utils/apiClient';
 import { safeParse } from '../../utils/safeParse';
 
 type MaterialData = {
@@ -33,7 +32,7 @@ const CompetitorMaterials = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "competitor_pdf" }, { headers });
+                const response = await apiClient.post('', { request: "competitor_pdf" });
                 setShopList(response.data.shop.filter((s: any) => s.show_flag === 1).map((s: any) => ({ shop: s.shop, brand: s.brand })));
                 const targetIdArray = response.data.pdf
                     .filter((p: any) => safeParse(p.pdf_path).length > 0)

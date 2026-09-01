@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import Table from 'react-bootstrap/Table';
 import BsForm from 'react-bootstrap/Form';
-import axios from 'axios';
-import { headers } from '../../utils/headers';
+import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
 
 type BlacklistData = Record<string, string>;
@@ -39,7 +38,7 @@ const EditBlackList = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "header_blacklist_edit" }, { headers });
+                const response = await apiClient.post('', { request: "header_blacklist_edit" });
                 setOriginalBlacklist(response.data.blacklist || []);
             } catch (err) {
                 console.error(err);
@@ -73,7 +72,7 @@ const EditBlackList = () => {
                 request: "header_blacklist_update"
             };
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+                const response = await apiClient.post('', postData);
                 console.log(response.data.status);
             } catch (err) {
                 console.error(err);
@@ -99,7 +98,7 @@ const EditBlackList = () => {
                 request: "header_blacklist_insert"
             };
 
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+            const response = await apiClient.post('', postData);
 
             if (response.data.status === 'success') {
                 // 💡 サーバーでAUTO INCREMENTされた no を受け取ってセットする
