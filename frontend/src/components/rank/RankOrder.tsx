@@ -138,9 +138,12 @@ const RankOrder = () => {
         '鹿児島営業2課': 'table-success ',
         '鹿児島営業3課': 'table-warning ',
         '宮崎営業課': 'table-danger ',
-        '大分・佐賀営業課': 'table-secondary ',
-        '熊本営業課': 'table-info '
+        '大分営業課': 'table-secondary ',
+        '熊本営業課': 'table-info ',
+        '佐賀・久留米営業課': 'table-light ',
     };
+
+    const backgroundColor = ['table-secondary ', 'table-primary ', 'table-success ', 'table-warning ', 'table-danger ', 'table-secondary ', 'table-info ', 'table-light '];
 
     const dateFormate = (value: string) => {
         return (value ?? '').replace(/-/g, '/')
