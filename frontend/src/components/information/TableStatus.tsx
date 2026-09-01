@@ -1,7 +1,9 @@
 import React, { memo, useContext } from 'react';
 import { safeFormate } from '../../utils/informationUtils';
 import { inputStyle } from '../../utils/informationUtils';
+import { dateFormate } from '../../utils/informationUtils';
 import AuthContext from '../../context/AuthContext';
+import TableInput from './TableInput';
 
 type Maker = {
     label: string,
@@ -207,7 +209,15 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                         </>
                     )}
                 </div>
-            )}</>
+            )}
+            {information[idMapping('ステータス')] === '解約' && (
+                <div className="d-flex align-items-center">
+                    <div className="me-1">解約発生日</div>
+                    <TableInput type='date' information={information} setInformation={setInformation}
+                        itemKey='competitor_lost_contract_date' formattedValue={dateFormate(information.competitor_lost_contract_date)} />
+                </div>
+            )}
+        </>
     )
 }
 
@@ -217,6 +227,7 @@ export default memo(TableStatus, (prevProps, nextProps) => {
     const fieldsToCheck = [
         statusKey,
         'competitor_lost_contract_reason',
+        'competitor_lost_contract_date',
         'competitors_text',
         'competitor_name',
         'customized_input_01JRF9CZSW65A151WR30NA4PB3',
