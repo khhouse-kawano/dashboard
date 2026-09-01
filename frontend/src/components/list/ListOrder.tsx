@@ -8,6 +8,7 @@ import { setStyleClass } from '../../utils/setStyleClass';
 import { mediumFormate } from '../../utils/mediumFormate';
 import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
+import { positions } from './listUtils';
 import { monthFormate, handleBlack, toHalfWidth } from './listUtils';
 import { useIsSp } from '../../utils/isSp';
 import OrderModal from './OrderModal';
@@ -26,7 +27,7 @@ type InquiryCustomer = {
 
 type Customer = { register: string, shop: string, interview: string, medium: string };
 
-type Staff = { name: string, pg_id: string, shop: string, category: number, robo_id: string, period: string, section: string };
+type Staff = { name: string, pg_id: string, shop: string, category: number, robo_id: string, period: string, section: string, position: string };
 
 type Survey = { id: number, sync: number, brand: string, dateStr: string, name: string, considerationStart: string, desiredMoveIn: string, visitedCompanies: string, reasonForConsidering: string, reasonOther: string, futurePlan: string, futureOther: string, desiredSize: string, desiredLayout: string, priorityItem: string, expectedResidents: string, totalBudget: string, monthlyRepayment: string, annualIncome: string, yearsOfService: string, otherIncomePerson: string, otherAnnualIncome: string, ownFunds: string, otherLoans: string, thingsToDo: string, thingsToDoOther: string, housingType: string, housingTypeOther: string, landArea: string, referrerName: string, emailAddress: string, campaign: string };
 
@@ -39,7 +40,6 @@ type Black = {
     mail: string
 };
 
-const sections = ['鹿児島営業1課', '鹿児島営業2課', '鹿児島営業3課', '宮崎営業課', '熊本営業課', '大分・佐賀営業課',];
 
 const monthArray = getYearMonthArray(2025, 1);
 
@@ -78,6 +78,7 @@ const ListOrder = ({ onReload }: Props) => {
     const [show, setShow] = useState(false);
     const [editId, setEditId] = useState('');
     const [blackList, setBlackList] = useState<Black[]>([]);
+    const [sections, setSections] = useState<String[]>([]);
 
     const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
@@ -98,11 +99,17 @@ const ListOrder = ({ onReload }: Props) => {
                 const response = await apiClient.post('', { request: 'list', category });
                 setCustomerList(response.data.summary);
                 setShopArray(response.data.shop);
-                setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && sections.includes(s.section)));
+                const responseSection = response.data.section.filter(s => s.division === '注文事業').map(s => s.name);
+                setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && responseSection.includes(s.section))
+            .sort((a, b) => {
+                const positionA = positions.indexOf(a.position) ?? 6;
+                const positionB = positions.indexOf(b.position) ?? 6;
+                return positionA - positionB}));
                 setMediumArray(response.data.medium.filter((m: Medium) => m.list_medium === 1));
                 setOriginalList(response.data.inquiry);
                 setOriginalBeforeList(response.data.survey);
                 setBlackList(response.data.black);
+                setSections(responseSection);
             } catch (error) {
                 console.error("データ取得エラー:", error);
             }
