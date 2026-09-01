@@ -1,4 +1,4 @@
-import { rateLimit } from 'express-rate-limit';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import type { Request } from 'express';
 
 /**
@@ -57,7 +57,15 @@ export const analysisKeyRateLimit = rateLimit({
   keyGenerator: (req: Request): string =>
     // 認証後に挟むため apiKey は必ず入っている。
     // 万一入っていなければIPに退避し、素通りだけはさせない。
-    req.apiKey === undefined ? `ip:${req.ip ?? 'unknown'}` : `key:${req.apiKey.id}`,
+    //
+    // ⚠️ IPへの退避で req.ip をそのまま使ってはならない。
+    //   IPv6 は1契約に /64 が丸ごと割り当てられるため、生のアドレスで数えると
+    //   下位ビットを変えるだけで無限に別キー扱いになり、制限を回避できる。
+    //   ipKeyGenerator() は IPv4 はそのまま、IPv6 はサブネット単位に丸める。
+    //   （これを怠ると起動時に ERR_ERL_KEY_GEN_IPV6 の警告が出る）
+    req.apiKey === undefined
+      ? `ip:${ipKeyGenerator(req.ip ?? 'unknown')}`
+      : `key:${req.apiKey.id}`,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: message(MAX_PER_KEY, 'APIキー'),
