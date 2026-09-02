@@ -53,6 +53,18 @@ function expressProxyRequests(): array
         'header',
         'update_log',
         'callStatusList',
+
+        // 2026-09-02 移植。KPI分析の参照系のみ。
+        //
+        // ⚠️ kpi_analyze（Claude API呼び出し＋INSERT）と
+        //   kpi_analysis_delete（DELETE）は**絶対に追加しないこと。**
+        //   自動フォールバックにより二重課金・履歴の二重INSERTが起きる。
+        //
+        // ⚠️ これらは ② 側で auth: 'master' を宣言しているため、
+        //   Token ヘッダの引き継ぎ（下の forwardToExpress）が必須。
+        'kpi_filter_master',
+        'kpi_analysis_list',
+        'kpi_analysis_get',
     ];
 }
 
