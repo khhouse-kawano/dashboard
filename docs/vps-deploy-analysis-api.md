@@ -451,24 +451,51 @@ ssh -T git@github.com
 
 `Hi <org>/<repo>! You've successfully authenticated, but GitHub does not provide shell access.` が正常。**`does not provide shell access` はエラーではない。**
 
-### 2-5. clone
+### 2-5. ブランチ運用
+
+**② VPS が追うのは `production` ブランチだけ。** バージョンごとのブランチ名を打ち替えさせない。
+
+| ブランチ | 役割 |
+|---|---|
+| `v2.2.***` | 開発用。機能単位で切る |
+| **`production`** | **本番用。② VPS はこれだけを追う** |
+| `main` | 統合先 |
+
+```
+v2.2.110 ─┐
+v2.2.111 ─┼→ merge → production ←── ② VPS
+v2.2.112 ─┘
+```
+
+⚠️ **バージョンブランチを直接 VPS に追わせない。** デプロイのたびにブランチ名を打ち替えることになり、いずれ間違える。加えて「本番で動いているのはどのブランチか」が答えられなくなる。`production` に固定すれば「本番＝`production` の先頭」と断言できる。
+
+### 2-6. clone
 
 ```bash
 # 【② VPS】
-git clone --depth 1 -b <ブランチ名> git@github.com:<org>/<repo>.git ~/dashboard
-cd ~/dashboard && ls && git log --oneline -1
+git clone --depth 1 -b production git@github.com:<org>/<repo>.git ~/dashboard
+cd ~/dashboard && ls && git branch --show-current && git log --oneline -1
 ```
 
 `--depth 1` は「最新1コミットだけ取得」。このリポジトリは過去のビルド成果物（`backup/`）を含み全履歴が重いため。
 
-⚠️ 浅いクローンでは `git pull` が失敗することがある。更新は以下で行う。
+⚠️ 配置先は **`/home/deploy/dashboard`**。`/var/www` や `/opt` に置くと毎回 `sudo` が必要になり、ファイル所有者が root になって扱いにくい。
+
+### 2-7. 既存の clone を production に切り替える（移行時のみ）
+
+バージョンブランチで clone 済みの場合。
 
 ```bash
 # 【② VPS】
-git fetch --depth 1 origin <ブランチ名> && git reset --hard origin/<ブランチ名>
+cd ~/dashboard
+git fetch --depth 1 origin production
+git checkout -B production FETCH_HEAD
+git branch --show-current
 ```
 
-⚠️ 配置先は **`/home/deploy/dashboard`**。`/var/www` や `/opt` に置くと毎回 `sudo` が必要になり、ファイル所有者が root になって扱いにくい。
+`-B` は「そのブランチが無ければ作り、あれば移動する」。これで `git branch --show-current` が実態と一致する。
+
+⚠️ `.env.prod` と `secrets/` は `.gitignore` で除外されているため、この操作では消えない。
 
 ### 2-6. 必要なファイルが揃っているか確認
 
@@ -1001,14 +1028,46 @@ Get-Content "$env:APPDATA\Claude\logs\mcp-server-khg-analysis.log" -Tail 30
 
 ## 更新の反映
 
+### 1. あなたのPC — 開発ブランチを production に取り込む
+
+```powershell
+# 【作業者のPC（PowerShell）】
+git checkout production
+git merge v2.2.111          # ← 一段落した開発ブランチ
+git push origin production
+```
+
+⚠️ **push しないと ② VPS には届かない。** VPS は GitHub からしかコードを取得しない。コミットしただけでは反映されない。
+
+⚠️ `scp` で直接送らないこと。VPS上のコードとGitの履歴がずれ、「本番で動いているのはどのコミットか」が分からなくなる。障害時に切り分け不能になる。
+
+### 2. ② VPS — 常に同じ1行
+
 ```bash
 # 【② VPS】
-cd ~/dashboard
-git fetch --depth 1 origin <ブランチ名> && git reset --hard origin/<ブランチ名>
-dcp build express-api
-dcp up -d --force-recreate express-api
+cd ~/dashboard && git fetch --depth 1 origin production && git reset --hard FETCH_HEAD && dcp build express-api && dcp up -d --force-recreate express-api
+```
+
+```bash
+# 【② VPS】
+git log --oneline -1
 dcp logs --tail 30 express-api
 ```
+
+⚠️ **ブランチ名を打ち替えないこと。** 追うのは常に `production`。
+
+⚠️ `git reset --hard` は追跡中のファイルの変更を捨てるが、`.env.prod` と `secrets/` は `.gitignore` で除外されているため消えない。
+
+### 3. 変更箇所ごとの反映範囲
+
+| 変更したファイル | 反映に必要な作業 |
+|---|---|
+| `backend-express/src/features/analysis/*.ts` | ② VPS で1回 |
+| `backend-express/` のその他 | 同上 |
+| **`mcp-server/src/index.ts`** | **全利用者のPCで再ビルド・再配布** |
+| `frontend/` `backend/`（PHP） | ① レンタルサーバーへ別途デプロイ。VPSとは無関係 |
+
+⚠️⚠️ **Claude への指示・注意事項は `mcp-server` のツール説明文ではなく `meta.ts` に書く。** MCP側に書くと、文言を1文字直すだけで利用者全員のPCを回ることになる。集計の解釈に関する注意（ファネルの非単調性など）はすべて `meta.ts` に集約されている。
 
 ⚠️⚠️ **`--force-recreate` を付ける。** 付けないと「設定が変わっていない」と判断されてコンテナが再利用され、**新しいイメージが使われない**ことがある。
 
