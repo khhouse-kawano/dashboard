@@ -101,6 +101,28 @@ export const createGatewayRouter = (): Router => {
       //   突然 401 になる。認証方針の変更は移植と分けて行う。
       // -------------------------------------------------------------
       if (entry === undefined) {
+        // ⚠️⚠️ ループ検知。
+        //   ① のPHP（core/express_proxy.php）は移植済みのリクエストを
+        //   ここへ転送してくる。そのリクエストが未登録だった場合に
+        //   ① へ転送し返すと、① が再びここへ送って無限ループになる。
+        //
+        //   起こりうるのは「① の許可リストには入れたが ② のビルドが古い」
+        //   という状態。デプロイの順序を間違えると実際に発生する。
+        const forwardedBy = req.header('X-Forwarded-By') ?? '';
+        if (forwardedBy.includes('xserver-php')) {
+          logger.error(
+            `ループ検知: ① から転送された "${request}" が ② に未登録です。` +
+              '① の expressProxyRequests() から外すか、② を再デプロイしてください。'
+          );
+          // 500番台を返すと ① 側が自動でフォールバックし、
+          // ① 自身のPHPで処理される（画面は止まらない）
+          res.status(502).json({
+            status: 'error',
+            message: `"${request}" は Express に未実装です。`,
+          });
+          return;
+        }
+
         await forwardToPhp(req, res);
         return;
       }
