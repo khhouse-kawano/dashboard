@@ -8,6 +8,7 @@ import { buildFeatureRouter } from './core/registry';
 import type { RouteSummary } from './core/registry';
 import { createSystemRouter } from './core/systemRouter';
 import { features } from './features';
+import { createGatewayRouter } from './gateway';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { requestContext } from './middlewares/requestContext';
 import { requestLogger } from './middlewares/requestLogger';
@@ -101,6 +102,18 @@ export const createApp = (): BuiltApp => {
 
   app.use('/api', createSystemRouter(routes));
   app.use('/api/v1', featureRouter);
+
+  // ---------------------------------------------------------------
+  // 6-2. PHP互換ゲートウェイ
+  //
+  //   既存フロントは全ての通信を「1つのURLへのPOST」で行っている。
+  //   その形式をそのまま受ける入口。移植済みは Express が処理し、
+  //   未移植は ① レンタルサーバーの PHP へ転送する。
+  //
+  //   ⚠️ /api/v1 より後に置くこと。前に置くと '/' のマッチが
+  //     features 側のルートを覆ってしまう。
+  // ---------------------------------------------------------------
+  app.use('/api/gateway', createGatewayRouter());
 
   // ---------------------------------------------------------------
   // 7. 後始末（この2つは必ず最後に、この順で置く）
