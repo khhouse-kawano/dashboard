@@ -399,6 +399,26 @@ const UNSYNCED_DIMENSIONS = {
   responseMedium: { label: '反響媒体', sql: 'ic.response_medium' },
 } as const satisfies Record<string, { label: string; sql?: string; basis?: boolean }>;
 
+/**
+ * 追客対象外を表す条件。
+ *
+ * 反響一覧（ダッシュボード）で「重複」「業者」「ブラックリスト」のタグが
+ * 付いたものは、そもそも追客しない前提で運用されている。
+ * これを含めたまま未同期件数を数えると、実際には対応不要なものまで
+ * 「追客漏れ」として計上され、店舗間の比較が歪む。
+ *
+ * ⚠️ ダッシュボード側（frontend/src/components/list/listTags.ts の isExcluded）と
+ *   同じ定義にすること。片方だけ変えると、マネージャーが画面とClaudeの数字を
+ *   見比べたときに食い違う。
+ *
+ * ⚠️ これらのカラムは 2026-09-02 のマイグレーションで追加された。
+ *   それ以前は black_list カラムに文字列を追記し、出現回数の偶奇で
+ *   判定していた（SQLからは実質絞り込めなかった）。
+ *   移行SQL: backend/scripts/sql/2026-09-02_inquiry_tag_flags.sql
+ */
+const EXCLUDED_TAG_SQL =
+  '(ic.duplicate_flag = 1 OR ic.support_flag = 1 OR ic.black_flag = 1)';
+
 export type UnsyncedDimensionKey = keyof typeof UNSYNCED_DIMENSIONS;
 
 export const UNSYNCED_DIMENSION_KEYS = Object.keys(
@@ -420,6 +440,14 @@ export interface UnsyncedOptions {
  * inquiry_customer.sync = 0 の反響は pg_id を持たず master_data に紐づかない。
  * つまり顧客台帳に取り込まれておらず、追客されていない可能性がある。
  * master_data 側からは存在自体が見えないため、専用の集計として切り出している。
+ *
+ * 返す列:
+ *   inquiries      … 全反響数（タグの有無を問わない）
+ *   excludedTag    … 重複 / 業者 / ブラックリストのいずれかが付いた件数
+ *   target         … 追客対象（inquiries - excludedTag）
+ *   unsynced       … 追客対象のうち未同期。これが「追客漏れの可能性」
+ *   synced         … 追客対象のうち同期済み
+ *   unsyncedRatePct… unsynced ÷ target のパーセント
  */
 export const runUnsynced = async (options: UnsyncedOptions): Promise<PivotRow[]> => {
   const inquiryDate = asDate('ic.inquiry_date');
@@ -457,8 +485,10 @@ export const runUnsynced = async (options: UnsyncedOptions): Promise<PivotRow[]>
     SELECT ${[
       ...selects,
       'COUNT(*) AS inquiries',
-      'SUM(ic.sync = 0) AS unsynced',
-      'SUM(ic.sync = 1) AS synced',
+      `SUM(${EXCLUDED_TAG_SQL}) AS excluded_tag`,
+      `SUM(NOT ${EXCLUDED_TAG_SQL}) AS target`,
+      `SUM(ic.sync = 0 AND NOT ${EXCLUDED_TAG_SQL}) AS unsynced`,
+      `SUM(ic.sync = 1 AND NOT ${EXCLUDED_TAG_SQL}) AS synced`,
     ].join(',\n           ')}
       FROM inquiry_customer ic
       JOIN (
@@ -486,13 +516,18 @@ export const runUnsynced = async (options: UnsyncedOptions): Promise<PivotRow[]>
     options.groupBy.forEach((key, i) => {
       row[key] = (raw[`d${i}`] as string | null) ?? UNSET_LABEL;
     });
-    const inquiries = toNumber(raw.inquiries) ?? 0;
+    const target = toNumber(raw.target) ?? 0;
     const unsynced = toNumber(raw.unsynced) ?? 0;
 
-    row.inquiries = inquiries;
+    row.inquiries = toNumber(raw.inquiries) ?? 0;
+    row.excludedTag = toNumber(raw.excluded_tag);
+    row.target = target;
     row.unsynced = unsynced;
     row.synced = toNumber(raw.synced);
-    row.unsyncedRatePct = inquiries === 0 ? null : Math.round((unsynced / inquiries) * 1000) / 10;
+    // ⚠️ 分母は inquiries ではなく target（追客対象）。
+    //   除外分を分母に入れると、業者反響の多い媒体ほど未同期率が
+    //   低く見えてしまい、店舗・媒体の比較にならない。
+    row.unsyncedRatePct = target === 0 ? null : Math.round((unsynced / target) * 1000) / 10;
     return row;
   });
 

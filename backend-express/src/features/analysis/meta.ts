@@ -76,11 +76,25 @@ export const unsyncedCaveats = (): string[] => [
     '追客されていない可能性を示す指標として使う。',
   'sync = 0 のレコードは pg_id を持たないため master_data と結合できない。' +
     'よって pivot / funnel の集計には一切含まれていない。この2つの母数と足し合わせると二重計上になる。',
+
+  // ⚠️ 列の意味を明示しないと、Claude は inquiries を分母だと思い込んで
+  //   率を独自に計算し直し、こちらが返した unsyncedRatePct と食い違う。
+  '返す列の意味: inquiries = 全反響数 / excludedTag = 「重複」「業者」「ブラックリスト」' +
+    'のタグが付いた件数 / target = 追客対象（inquiries − excludedTag）/ ' +
+    'unsynced = 追客対象のうち未同期 / synced = 追客対象のうち同期済み。',
+  'unsyncedRatePct の分母は inquiries ではなく target。' +
+    '除外分を分母に含めると、業者反響の多い媒体ほど未同期率が低く見えてしまい比較にならないため。',
+  '「重複」「業者」「ブラックリスト」のタグが付いた反響は、運用上そもそも追客しない。' +
+    'そのため unsynced / synced からは除外している。これらを追客漏れとして扱ってはならない。',
+  'excludedTag が極端に多い店舗・媒体は、追客漏れではなく反響の質の問題を示す。' +
+    'unsynced と混同せず、別の論点として扱うこと。',
+
   'delete_flag = 1（削除済み）は集計から除外している。',
   `店舗は他のエンドポイントと同じ条件（shop_list.division = ${TARGET_DIVISION} かつ report_flag = 1）で絞っている。`,
   'unsyncedRatePct はパーセント表記（13.7 は 13.7% の意味）。',
-  '未同期であること自体が必ず問題とは限らない（重複反響や明らかな冷やかしも含まれる）。' +
-    '店舗間・媒体間の差を見る指標として使うこと。',
+  'この集計はダッシュボードの反響一覧画面の「未同期件数」と同じ定義にそろえてある。' +
+    '画面の数字と食い違う場合は、期間や店舗の絞り込み条件が違わないかを先に疑うこと。',
+  '未同期であること自体が必ず問題とは限らない。店舗間・媒体間の差を見る指標として使うこと。',
 ];
 
 const fromEntries = <T extends string>(keys: T[], label: (key: T) => string): Record<string, string> =>
@@ -96,7 +110,9 @@ export const buildCatalog = (): Record<string, unknown> => ({
     'GET /api/v1/analysis/pivot': 'groupBy と metrics を指定して自由に集計する。汎用。',
     'GET /api/v1/analysis/funnel':
       '反響→通電→初回面談→第二面談→事前審査→契約 のファネルと転換率を返す。既定は 月 × 営業課。',
-    'GET /api/v1/analysis/unsynced': '顧客台帳に未同期の反響（追客漏れの可能性）を集計する。',
+    'GET /api/v1/analysis/unsynced':
+      '顧客台帳に未同期の反響（追客漏れの可能性）を集計する。' +
+      '重複・業者・ブラックリストのタグが付いたものは追客対象外として除外する。',
   },
   認証: 'Authorization: Bearer <APIキー> が必要。Master権限のスタッフに発行されたキーのみ有効。',
   パラメータ: {
