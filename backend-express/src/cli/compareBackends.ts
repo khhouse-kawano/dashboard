@@ -31,6 +31,10 @@
  * ⚠️ 参照系のみに使うこと。
  *   更新系（insert / update / tag など）を投げると本番データが2回書き換わる。
  *   書き込みを伴うリクエストは自動で拒否している（WRITE_HINTS を参照）。
+ *
+ *   名前に更新系の語を含むが実際は SELECT のみ、という例外がある
+ *   （update_log.php など）。その場合だけ --read-only-verified を付ける。
+ *   ⚠️ 移植元のPHPを実際に読んで確認してから付けること。
  */
 
 import { readFileSync } from 'node:fs';
@@ -42,6 +46,13 @@ interface Options {
   body: Record<string, unknown>;
   /** 差分の表示件数上限。全件出すとログが読めなくなる */
   maxDiffs: number;
+  /**
+   * 名前による更新系の拒否を解除する。
+   *
+   * ⚠️ 移植元のPHPを実際に読んで SELECT のみだと確認できた場合のみ付けること。
+   *   例: update_log.php は名前に update を含むが SELECT しかしていない。
+   */
+  readOnlyVerified: boolean;
 }
 
 /**
@@ -109,6 +120,7 @@ const parseArgs = (): Options => {
     // 同じ原因でまとめて表示するため、内部的には多めに集める。
     // 数万行のレスポンスでも「原因の種類」は数個に収まる
     maxDiffs: Number(valueOf('max-diffs') ?? 5000),
+    readOnlyVerified: argv.includes('--read-only-verified'),
   };
 };
 
@@ -117,19 +129,31 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-const assertReadOnly = (body: Record<string, unknown>): void => {
+const assertReadOnly = (body: Record<string, unknown>, readOnlyVerified: boolean): void => {
   const signature = [body.request, body.roll, body.category]
     .filter((v) => typeof v === 'string')
     .join(' ')
     .toLowerCase();
 
   const hit = WRITE_HINTS.find((hint) => signature.includes(hint));
-  if (hit !== undefined) {
-    fail(
-      `"${hit}" を含むリクエストは更新系の可能性があるため実行しません（${signature}）。\n` +
-        '本番データが2回書き換わる恐れがあります。参照系のみを比較してください。'
+  if (hit === undefined) return;
+
+  // ⚠️ 既定は拒否のまま。付け忘れで本番を二重更新する事故を防ぐため、
+  //   解除は必ず明示的なオプションを要求する。
+  if (readOnlyVerified) {
+    console.log(
+      `⚠️ "${hit}" を含みますが --read-only-verified が指定されたため実行します（${signature}）。\n` +
+        '   移植元のPHPが SELECT のみであることを確認済みという前提です。'
     );
+    console.log('');
+    return;
   }
+
+  fail(
+    `"${hit}" を含むリクエストは更新系の可能性があるため実行しません（${signature}）。\n` +
+      '本番データが2回書き換わる恐れがあります。参照系のみを比較してください。\n' +
+      '移植元のPHPを読んで SELECT のみだと確認できた場合は --read-only-verified を付けてください。'
+  );
 };
 
 const post = async (
@@ -230,7 +254,7 @@ const preview = (value: unknown): string => {
 
 const main = async (): Promise<void> => {
   const options = parseArgs();
-  assertReadOnly(options.body);
+  assertReadOnly(options.body, options.readOnlyVerified);
 
   console.log('');
   console.log('リクエスト:', JSON.stringify(options.body));
