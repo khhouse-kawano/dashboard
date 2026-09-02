@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import type { RequestHandler } from 'express';
 import { env, isProduction } from '../config/env';
-import { AppError } from '../errors/AppError';
-import { requireApiToken } from '../middlewares/auth';
 import { logger } from '../utils/logger';
+import { checkGatewayAuth } from './auth';
 import { forwardToPhp } from './phpFallback';
 import { entryCount, findEntry, listEntries } from './registry';
 import type { GatewayBody, GatewayContext } from './types';
@@ -59,7 +58,9 @@ export const createGatewayRouter = (): Router => {
       res.json({
         移植済み: entryCount(),
         転送先: env.phpGatewayUrl ?? '(未設定)',
-        認証: env.gatewayRequireAuth ? 'Token必須（未移植の転送分を除く）' : 'PHP互換（検証しない）',
+        認証: env.gatewayRequireAuth
+          ? "'none' のエントリにも Token を要求する（一括強化モード）"
+          : "宣言どおり（'staff' / 'master' のみ検証）",
         一覧: listEntries().map(({ key, entry }) => ({
           key,
           summary: entry.summary,
@@ -129,16 +130,18 @@ export const createGatewayRouter = (): Router => {
 
       // -------------------------------------------------------------
       // 移植済み → Express で処理
+      //
+      // ⚠️ 'staff' / 'master' は GATEWAY_REQUIRE_AUTH に関係なく必ず検証する。
+      //   宣言したのに効かない状態が一番危険。
+      //   GATEWAY_REQUIRE_AUTH は 'none' のエントリにも認証を要求する
+      //   将来の一括強化スイッチとして働く。
       // -------------------------------------------------------------
-      if (entry.auth === 'staff' && env.gatewayRequireAuth) {
-        // requireApiToken は失敗時に next(error) を呼ぶ。
-        // ここでは Promise として待ちたいので手動でラップする。
-        await new Promise<void>((resolve, reject) => {
-          void requireApiToken(req, res, (error?: unknown) => {
-            if (error === undefined || error === null) resolve();
-            else reject(error instanceof Error ? error : AppError.unauthorized());
-          });
-        });
+      const authResult = await checkGatewayAuth(req, entry.auth, env.gatewayRequireAuth);
+      if (!authResult.ok) {
+        // ⚠️ PHP と同じステータス・同じ文言で返す。
+        //   フロントは response.data.message を画面に出す。
+        res.status(authResult.status).json(authResult.body);
+        return;
       }
 
       const ctx: GatewayContext = {
@@ -147,6 +150,7 @@ export const createGatewayRouter = (): Router => {
         roll,
         category,
         token: req.header('Token') ?? '',
+        staff: authResult.staff,
         requestId: req.requestId ?? '',
         req,
         res,
@@ -183,6 +187,7 @@ export const logGatewayRoutes = (): void => {
     return;
   }
   for (const { key, entry } of rows) {
-    logger.info(`  ${entry.auth === 'staff' ? '🔒' : '  '} ${key}  — ${entry.summary}`);
+    const mark = entry.auth === 'master' ? '👑' : entry.auth === 'staff' ? '🔒' : '  ';
+    logger.info(`  ${mark} ${key}  — ${entry.summary}`);
   }
 };

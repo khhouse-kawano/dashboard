@@ -1,6 +1,8 @@
 import type { CallStatusCategory } from '../features/callStatusList';
 import { runCallStatusList } from '../features/callStatusList';
 import { runHeader } from '../features/header';
+import { runKpiAnalysisGet, runKpiAnalysisList } from '../features/kpi/history';
+import { runKpiFilterMaster } from '../features/kpi/master';
 import { runMenu } from '../features/menu';
 import { runUpdateLog } from '../features/updateLog';
 import type { GatewayEntry, GatewayKey } from './types';
@@ -154,3 +156,54 @@ for (const category of callStatusCategories) {
     handler: async () => runCallStatusList(category === '' ? undefined : category),
   });
 }
+
+// ---------------------------------------------------------------------------
+// KPI分析（ClaudeAnalysis.tsx）— 参照系のみ
+//
+// ⚠️ auth: 'master' にしている。移植元がいずれも requireMaster() を呼んでおり、
+//   経営数値と分析結果を返すため。'none' にすると認証なしで取得できてしまう。
+//
+// ⚠️ kpi_analyze（Claude API呼び出し＋INSERT）と kpi_analysis_delete（DELETE）は
+//   移植していない。自動フォールバックがあるため、② で完了した直後に応答が
+//   失われると ① でも実行され、**二重課金・履歴の二重INSERT**になる。
+//   これらを移すには「フォールバック禁止」の仕組みが先に必要。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'kpi_filter_master',
+  summary: 'KPI分析の絞り込みマスタ（部門→課→店舗→スタッフ）',
+  phpSource: 'backend/src/handlers/kpi_filter_master.php',
+  auth: 'master',
+  handler: async () => runKpiFilterMaster(),
+});
+
+register({
+  request: 'kpi_analysis_list',
+  summary: '保存済みKPI分析の一覧（本体JSONは含まない）',
+  phpSource: 'backend/src/handlers/kpi_analysis_list.php',
+  auth: 'master',
+  handler: async (ctx) => {
+    const result = await runKpiAnalysisList({
+      limit: ctx.body.limit,
+      offset: ctx.body.offset,
+      division: ctx.body.division,
+      type: ctx.body.type,
+    });
+    // 一覧は常に 200 だが、他と同じ書き方に揃えておく
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'kpi_analysis_get',
+  summary: '保存済みKPI分析の1件取得（結果画面の復元用。課金は発生しない）',
+  phpSource: 'backend/src/handlers/kpi_analysis_get.php',
+  auth: 'master',
+  handler: async (ctx) => {
+    const result = await runKpiAnalysisGet(ctx.body.id);
+    // ⚠️ PHP は 400 / 404 / 422 を出し分けている。同じコードを返す
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});

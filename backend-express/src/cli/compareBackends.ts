@@ -314,6 +314,21 @@ const main = async (): Promise<void> => {
     console.log('');
   }
 
+  // ⚠️ 認証が必要なエンドポイント（auth: 'staff' / 'master'）は
+  //   TOKEN を渡さないと両方が 401 を返し、「差分なし」になってしまう。
+  //   これは合格ではないので明示的に警告する。
+  if (php.status === 401 || express.status === 401) {
+    console.log('⚠️ 401 が返っています。認証が必要なエンドポイントです。');
+    console.log('   TOKEN 環境変数に staff.api_token を設定してください。');
+    console.log('   kpi_* は Master 権限（staff.brand = \'Master\'）のトークンが必要です。');
+    console.log('');
+  }
+  if (php.status === 403 || express.status === 403) {
+    console.log('⚠️ 403 が返っています。トークンは有効ですが権限が足りません。');
+    console.log('   Master 権限のトークンを使ってください。');
+    console.log('');
+  }
+
   let parsedPhp: unknown;
   let parsedExpress: unknown;
 

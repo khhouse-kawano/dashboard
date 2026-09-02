@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from 'react';
 import ReactMarkdown from 'react-markdown';
+import AuthContext from '../../context/AuthContext';
 import { CLAUDE_ORANGE } from './ClaudeIcon';
 import apiClient from '../../utils/apiClient';
 import ClaudeAnalysisResult from './ClaudeAnalysisResult';
+import ClaudeAnalysisPrint from './ClaudeAnalysisPrint';
 import type { AnySnapshot, AnalysisKind, StructuredAnalysis } from './ClaudeAnalysisResult';
 
 /**
@@ -130,6 +132,9 @@ const formatSavedAt = (value: string): string => {
 };
 
 const ClaudeAnalysis: React.FC = () => {
+    // 新規実行のときの「実行者」。保存済みを開いた場合は履歴の staff_name を使う
+    const { userName } = useContext(AuthContext);
+
     const [selected, setSelected] = useState<MenuItem | null>(null);
     const [division, setDivision] = useState<Division>('order');
     const [customText, setCustomText] = useState<string>('');
@@ -158,6 +163,9 @@ const ClaudeAnalysis: React.FC = () => {
     const [restored, setRestored] = useState<RestoredInfo | null>(null);
     // 復元中フラグ。restored は取得後に入るため、待機中の文言の出し分けには使えない
     const [restoring, setRestoring] = useState<boolean>(false);
+
+    // 印刷プレビューを開いているか。開いている間は本体をスクロールさせない
+    const [printing, setPrinting] = useState<boolean>(false);
 
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -285,6 +293,8 @@ const ClaudeAnalysis: React.FC = () => {
         setNotice('');
         setRestored(null);
         setRestoring(false);
+        // 結果が入れ替わるのにプレビューが残ると、古い内容を印刷してしまう
+        setPrinting(false);
     };
 
     const reset = (): void => {
@@ -717,6 +727,25 @@ const ClaudeAnalysis: React.FC = () => {
                         保存済み
                     </span>
                 )}
+
+                {/* 印刷プレビュー。グラフ付きの構造化結果だけが対象。
+                    Markdown のサンプル表示には出さない（印刷する意味がない） */}
+                {structured !== null && snapshot !== null && !loading && (
+                    <button
+                        type="button"
+                        onClick={() => setPrinting(true)}
+                        className="btn btn-sm ms-auto"
+                        style={{
+                            fontSize: '12px',
+                            border: `1px solid ${CLAUDE_ORANGE}`,
+                            color: CLAUDE_ORANGE,
+                            backgroundColor: '#fff',
+                        }}
+                    >
+                        <i className="fa-solid fa-file-pdf me-1" aria-hidden="true" />
+                        プレビュー / PDF
+                    </button>
+                )}
             </div>
 
             {/* 「その他」の入力欄 */}
@@ -831,6 +860,25 @@ const ClaudeAnalysis: React.FC = () => {
                         </p>
                     )}
                 </>
+            )}
+
+            {/* 印刷プレビュー。body 直下のポータルに描画される */}
+            {printing && structured !== null && snapshot !== null && (
+                <ClaudeAnalysisPrint
+                    type={selected.type as AnalysisKind}
+                    snapshot={snapshot}
+                    analysis={structured}
+                    title={restored?.title ?? selected.label}
+                    scopeLabel={
+                        restored !== null
+                            ? ((snapshot as { scope_label?: string }).scope_label ?? scopeLabel)
+                            : scopeLabel
+                    }
+                    model={restored?.model ?? meta?.model ?? ''}
+                    savedAt={restored?.createdAt ?? null}
+                    staffName={restored?.staffName ?? (userName === '' ? null : userName)}
+                    onClose={() => setPrinting(false)}
+                />
             )}
         </div>
     );

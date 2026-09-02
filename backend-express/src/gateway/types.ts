@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { AuthenticatedStaff } from '../types/staff';
 
 /**
  * PHP互換ゲートウェイの型定義。
@@ -48,6 +49,11 @@ export interface GatewayContext {
   category: string;
   /** Token ヘッダの値。未送信なら空文字 */
   token: string;
+  /**
+   * 認証済みスタッフ。auth が 'none' のエントリでは null。
+   * PHP の requireStaff() / requireMaster() が返す1行に相当する。
+   */
+  staff: AuthenticatedStaff | null;
   requestId: string;
   /** 逃げ道。ファイルアップロード等でのみ使う */
   req: Request;
@@ -73,10 +79,19 @@ export type GatewayHandler = (ctx: GatewayContext) => Promise<unknown>;
  *   顧客情報を返す口を Express 側にも作ることになる。
  *   ここを明示的に選べるようにしてある。
  *
- *   'none'  … 認証不要。ログイン前に呼ばれるもの（login / get_token）だけ
- *   'staff' … Token ヘッダでスタッフを特定できることを要求する
+ *   'none'   … 認証不要。移植元のPHPが認証していないもの
+ *   'staff'  … Token ヘッダでスタッフを特定できることを要求する（PHP の requireStaff() 相当）
+ *   'master' … さらに staff.brand === 'Master' を要求する（PHP の requireMaster() 相当）
+ *
+ * ⚠️ 'staff' / 'master' は GATEWAY_REQUIRE_AUTH に関係なく**常に検証する**。
+ *   宣言したのに効かない状態が一番危険なため。
+ *   GATEWAY_REQUIRE_AUTH は「'none' のエントリにも staff 認証を要求する」
+ *   将来の一括強化スイッチとして使う。
+ *
+ * ⚠️ 移植元のPHPが認証していないものは必ず 'none' にすること。
+ *   「せっかくだから厳しくする」をやると、これまで動いていた画面が突然 401 になる。
  */
-export type GatewayAuth = 'none' | 'staff';
+export type GatewayAuth = 'none' | 'staff' | 'master';
 
 /** 登録するエントリ1件 */
 export interface GatewayEntry {
