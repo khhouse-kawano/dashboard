@@ -1,7 +1,10 @@
 <?php
 
 // 反響一覧
-$sql_inquiry = "SELECT inquiry_date, sync, black_list
+// 未同期件数の判定に使う。重複・業者・ブラックは追客対象外なので除外する。
+// ⚠️ 旧 black_list（文字列の偶奇判定）から *_flag カラムへ移行済み。
+//   移行SQL: backend/scripts/sql/2026-09-02_inquiry_tag_flags.sql
+$sql_inquiry = "SELECT inquiry_date, sync, duplicate_flag, support_flag, black_flag
         FROM inquiry_customer;";
 $stmt_inquiry = $pdo->prepare($sql_inquiry);
 $stmt_inquiry->execute();

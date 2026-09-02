@@ -10,6 +10,8 @@ import Modal from 'react-bootstrap/Modal';
 import { setStyleClassSpec } from '../../utils/setStyleClassSpec';
 import { thisYear } from '../../utils/thisYear';
 import { dateFormate, monthFormate, handleBlack, toHalfWidth } from './listUtils';
+import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
+import type { TagKey } from './listTags';
 import { kataToHira } from '../../utils/kataToHira';
 import { extractNumbers } from '../../utils/extraNumbers';
 import { useIsSp } from '../../utils/isSp';
@@ -35,15 +37,7 @@ type Survey = { id: number, sync: number, brand: string, dateStr: string, name: 
 
 const targetSection = ['不動産営業1課', '不動産営業2課'];
 
-const isDup = (item: InquiryCustomer) => {
-    const bl = String(item.black_list || '');
-    return bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 || bl.split('duplicate').length % 2 === 0;
-};
-
-const notNeedSync = (item: InquiryCustomer) => {
-    const bl = String(item.black_list || '');
-    return Number(item.sync) === 1 || bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 || bl.split('duplicate').length % 2 === 0;
-};
+/* 追客対象外の判定は listTags.ts の isExcluded / notNeedSync を使う */
 
 const ListKaeru = ({ onReload }: Props) => {
     const { authority, category, token } = useContext(AuthContext);
@@ -120,10 +114,8 @@ const ListKaeru = ({ onReload }: Props) => {
     }, [isSp]);
 
 
-    const isSync = (list: InquiryCustomer, value: string) => {
-        const bl = String(list.black_list || '');
-        return bl.split(value).length % 2 !== 0
-    };
+    /** そのタグが「立っていない」か。絞り込み条件で使う */
+    const isSync = (list: InquiryCustomer, tag: TagKey) => !isTagOn(list, tag);
 
     const filteredInquiryList = useMemo(() => originalList.filter(item => {
         const mediumValue = targetMedium === '公式LINE' ? 'ALLGRIT' : targetMedium;
@@ -329,49 +321,88 @@ const ListKaeru = ({ onReload }: Props) => {
         setCheckedIds(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]);
     };
 
-    const listChange = async (id: string, listValue: string, demandValue: string) => {
-        const postData = {
-            list: listValue,
-            roll: demandValue,
-            inquiry_id: id,
-            request: 'list',
-            category
-        };
+    /** 店舗・担当営業の変更 */
+    const listChange = async (id: string, listValue: string, demandValue: 'shop_change' | 'staff_change') => {
+        const key = demandValue === 'shop_change' ? 'shop' : 'staff';
 
-        const keyMap = {
-            shop_change: 'shop',
-            staff_change: 'staff',
-            tag: 'black_list',
-        } as const;
-
-        const updatedOriginal = originalList.map(item => {
-            if (item.inquiry_id !== id) return item;
-            const key = keyMap[demandValue as keyof typeof keyMap];
-            if (demandValue === 'tag') {
-                return {
-                    ...item,
-                    [key]: `${item[key] || ''} ${listValue}`.trim(),
-                };
-            }
-            return {
-                ...item,
-                [key]: listValue,
-            };
-        });
-
-        setOriginalList(updatedOriginal);
+        setOriginalList(prev => prev.map(item =>
+            item.inquiry_id === id ? { ...item, [key]: listValue } : item
+        ));
 
         try {
-            const response = await apiClient.post('', postData);
-            if (!response.data || response.data.length === 0) {
-                alert('処理に失敗しました。');
-                return;
+            const response = await apiClient.post('', {
+                list: listValue,
+                roll: demandValue,
+                inquiry_id: id,
+                request: 'list',
+                category
+            });
+            if (response.data?.status === 'error') {
+                alert(response.data.message ?? '処理に失敗しました。');
             }
         } catch (error) {
             console.error('エラー:', error);
         }
+    };
 
-        if (demandValue === 'tag' && (listValue === 'duplicate' || listValue === 'support' || listValue === 'black')) onReload();
+    /**
+     * 顧客タグの ON / OFF。
+     *
+     * ⚠️ 旧実装は black_list に文字列を追記し、出現回数の偶奇で判定していた。
+     *   「押すたびに反転」する仕様のため、通信が二重に走ると状態がずれた。
+     *   次の値を明示して送ることで冪等にしている。
+     */
+    const toggleTag = async (item: InquiryCustomer, tag: TagKey) => {
+        const id = String(item.inquiry_id || '');
+        const nextValue = isTagOn(item, tag) ? 0 : 1;
+        const field = TAG_FIELD[tag];
+
+        const applyValue = (value: number) => {
+            setOriginalList(prev => prev.map(row =>
+                row.inquiry_id === id ? { ...row, [field]: value } : row
+            ));
+        };
+
+        applyValue(nextValue);
+
+        try {
+            const response = await apiClient.post('', {
+                list: tag,
+                value: nextValue,
+                roll: 'tag',
+                inquiry_id: id,
+                request: 'list',
+                category
+            });
+
+            if (response.data?.status !== 'success') {
+                // 失敗したら楽観更新を巻き戻す
+                applyValue(nextValue === 1 ? 0 : 1);
+                alert(response.data?.message ?? 'タグの更新に失敗しました。');
+                return;
+            }
+        } catch (error) {
+            console.error('エラー:', error);
+            applyValue(nextValue === 1 ? 0 : 1);
+            alert('通信エラーが発生しました。');
+            return;
+        }
+
+        // ブラックリストへの登録は名簿テーブル側の更新も伴う
+        if (tag === 'black' && nextValue === 1) {
+            handleBlack(
+                String(item.brand || ''),
+                `${item.first_name || ''}${item.last_name || ''}`,
+                String(item.mobile || ''),
+                String(item.mail || ''),
+                String(item.zip || ''),
+                `${item.pref || ''}${item.city || ''}${item.town || ''}${item.street || ''}${item.building || ''}`,
+                category
+            );
+        }
+
+        // 追客対象の件数が変わるタグは、メニューの未同期件数を数え直す
+        if (tag !== 'gift') onReload();
     };
 
     const modalShow = async (request: string, idValue: number, campaignValue: string) => {
@@ -426,14 +457,9 @@ const ListKaeru = ({ onReload }: Props) => {
     };
 
     const unSyncFilter = (shopValue: string) => {
-        return filteredInquiry.filter(c => {
-            const bl = String(c.black_list || '');
-            return (shopValue ? c.shop === shopValue : true) &&
-                (Number(c.sync) === 0 &&
-                    bl.split('duplicate').length % 2 !== 0 &&
-                    bl.split('support').length % 2 !== 0 &&
-                    bl.split('black').length % 2 !== 0);
-        }).length;
+        return filteredInquiry.filter(c =>
+            (shopValue ? c.shop === shopValue : true) && Number(c.sync) === 0 && !isExcluded(c)
+        ).length;
     };
 
     const achievementFilter = (shopValue: string, value: number) => {
@@ -444,14 +470,17 @@ const ListKaeru = ({ onReload }: Props) => {
         return filteredInterview.filter(c => (shopValue ? c.shop === shopValue : true)).length;
     };
 
-    const isBlack = (mailValue: string, mobileValue: string, blackValue: string) => {
-        const bl = blackValue || '';
-        const safeMail = mailValue || '';
-        const safeMobile = mobileValue || '';
+    /**
+     * ブラックリスト該当か。
+     * 名簿テーブル（black_list）に一致するか、この反響に black タグが立っている場合。
+     */
+    const isBlack = (item: InquiryCustomer) => {
+        const safeMail = String(item.mail || '');
+        const safeMobile = String(item.mobile || '');
         return blackList.some(b =>
             (safeMail && b.mail.includes(safeMail)) ||
             (toHalfWidth(safeMobile) && toHalfWidth(b.mobile).includes(toHalfWidth(safeMobile)))
-        ) || (bl.split('black').length % 2 === 0);
+        ) || isTagOn(item, 'black');
     };
 
     const closeInformationEdit = () => setEditId('');
@@ -592,7 +621,7 @@ const ListKaeru = ({ onReload }: Props) => {
                             {inquiryList.slice(0, displayLength).map((item, index) => {
                                 const formattedValue = shopFormate(String(item.shop || ''), String(item.brand || ''), shopArray) ?? '';
                                 const styleClass = setStyleClassSpec(String(item.shop || ''));
-                                const bl = String(item.black_list || '');
+                                const blacklisted = isBlack(item);
                                 const itemShop = String(item.shop || '');
                                 const itemStaff = String(item.staff || ''); // 💡 nullガード
 
@@ -603,11 +632,11 @@ const ListKaeru = ({ onReload }: Props) => {
 
                                 return (
                                     <tr key={index} style={{ textAlign: 'left' }}
-                                        className={isBlack(String(item.mail || ''), String(item.mobile || ''), bl) ? 'table-danger align-middle' : Number(item.sync) === 1 || bl.split('duplicate').length % 2 === 0 || bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 ? 'table-primary align-middle' : 'align-middle'}>
+                                        className={blacklisted ? 'table-danger align-middle' : notNeedSync(item) ? 'table-primary align-middle' : 'align-middle'}>
 
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }} className={`${isSp ? '' : 'sticky-column'}`}>
                                             <div className="d-flex align-items-center justify-content-center gap-3">
-                                                {Number(item.sync) !== 1 && !isDup(item) && !isBlack(String(item.mail || ''), String(item.mobile || ''), bl) && (
+                                                {Number(item.sync) !== 1 && !isExcluded(item) && !blacklisted && (
                                                     <input
                                                         type="checkbox"
                                                         checked={checkedIds.includes(String(item.inquiry_id))}
@@ -615,7 +644,9 @@ const ListKaeru = ({ onReload }: Props) => {
                                                         style={{ cursor: 'pointer', transform: 'scale(1.3)' }}
                                                     />
                                                 )}
-                                                <>{bl.split('support').length % 2 === 0 || bl.split('black').length % 2 === 0 || itemShop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
+                                                {/* 追客対象外（重複・業者・ブラック）は同期できないので × を出す。
+                                                    ListOrder / ListResale と同じ判定にそろえている */}
+                                                <>{isExcluded(item) || itemShop.includes('重複') ? <i className="fa-solid fa-xmark"></i> :
                                                     Number(item.sync) === 1 ? <span style={{ textDecoration: 'none', backgroundColor: 'blue', padding: '3px 7px', color: '#fff', borderRadius: '3px', cursor: 'pointer' }}
                                                         onClick={() => String(item.pg_id || '').length === 26 ? setEditId(String(item.pg_id)) : null}><i className="fa-solid fa-up-right-from-square"></i></span> :
                                                         <i className='fa-solid fa-arrows-rotate'
@@ -624,7 +655,7 @@ const ListKaeru = ({ onReload }: Props) => {
                                                         ></i>
                                                 }</>
                                             </div>
-                                            {isBlack(String(item.mail || ''), String(item.mobile || ''), bl) &&
+                                            {blacklisted &&
                                                 <div className='text-danger mt-1'><i className="fa-solid fa-triangle-exclamation"></i><span style={{ fontSize: '9px' }}>ブラックリスト</span></div>}
                                         </td>
 
@@ -663,14 +694,13 @@ const ListKaeru = ({ onReload }: Props) => {
                                         <td>{item.area || ''}</td>
                                         <td>
                                             <div className='d-flex'>
-                                                <div className={`bg-primary text-white rounded-pill px-2 me-2 tag ${bl.split('duplicate').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(String(item.inquiry_id), 'duplicate', 'tag')}>重複</div>
-                                                <div className={`bg-danger text-white rounded-pill px-2 me-2 tag ${bl.split('gift').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(String(item.inquiry_id), 'gift', 'tag')}>ギフト券進呈済み</div>
-                                                <div className={`bg-warning text-white rounded-pill px-2 me-2 tag ${bl.split('support').length % 2 === 0 ? 'checked' : ''}`} onClick={() => listChange(String(item.inquiry_id), 'support', 'tag')}>業者</div>
-                                                <div className={`bg-dark text-white rounded-pill px-2 me-2 tag ${bl.split('black').length % 2 === 0 ? 'checked' : ''}`}
-                                                    onClick={() => {
-                                                        listChange(String(item.inquiry_id), 'black', 'tag');
-                                                        handleBlack(String(item.brand || ''), `${item.first_name || ''}${item.last_name || ''}`, String(item.mobile || ''), String(item.mail || ''), String(item.zip || ''), `${item.pref || ''}${item.city || ''}${item.town || ''}${item.street || ''}${item.building || ''}`, category);
-                                                    }}>ブラックリスト</div>
+                                                {TAG_DEFINITIONS.map(tag => (
+                                                    <div
+                                                        key={tag.key}
+                                                        className={`${tag.className} text-white rounded-pill px-2 me-2 tag ${isTagOn(item, tag.key) ? 'checked' : ''}`}
+                                                        onClick={() => toggleTag(item, tag.key)}
+                                                    >{tag.label}</div>
+                                                ))}
                                             </div>
                                         </td>
                                     </tr>);
