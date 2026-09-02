@@ -32,6 +32,20 @@ export const pool = mysql.createPool({
   // Date オブジェクトに変換されるとタイムゾーンずれが起きるため、
   // 既存フロントとの互換性のためにも文字列で統一する。
   dateStrings: true,
+  // ⚠️ JSON 型の列を文字列のまま返す。
+  //
+  //   mysql2 は既定で JSON 列を JSON.parse してオブジェクトにするが、
+  //   PDO は文字列のまま返す。そのため既定のままだと
+  //
+  //     PHP     : "family_info": "[{\"name\":\"...\"}]"   ← 文字列
+  //     mysql2  : "family_info": [{"name":"..."}]          ← 配列
+  //
+  //   となり、フロントが JSON.parse() している箇所が
+  //   「既にオブジェクト」を渡されて壊れる。
+  //
+  //   2026-09-02 の callStatusList の差分比較で
+  //   family_info.family_info の3,086件がこれに該当した。
+  jsonStrings: true,
 });
 
 /**
