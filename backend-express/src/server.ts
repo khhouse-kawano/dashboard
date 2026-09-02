@@ -1,6 +1,7 @@
 import { createApp } from './app';
 import { env } from './config/env';
 import { closePool, pingDatabase } from './db/pool';
+import { gatewaySummary, logGatewayRoutes } from './gateway';
 import { logger } from './utils/logger';
 
 /**
@@ -21,6 +22,11 @@ const bootstrap = async (): Promise<void> => {
     for (const r of routes) {
       logger.info(`  ${r.auth ? '🔒' : '  '} ${r.method.padEnd(6)} ${r.path}  — ${r.summary}`);
     }
+
+    // PHP互換ゲートウェイの状態。転送先が未設定だと未移植のリクエストが
+    // すべて失敗するため、起動時に必ず目に入る場所へ出す
+    logger.info(gatewaySummary());
+    logGatewayRoutes();
   });
 
   // 重い集計SQLの途中で切断されないよう、既定より長めに設定する

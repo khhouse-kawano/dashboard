@@ -56,6 +56,33 @@ export const env = {
   /** 1リクエストの最大処理時間（ミリ秒）。重い集計SQLを考慮して長めに取る */
   requestTimeoutMs: numberEnv('REQUEST_TIMEOUT_MS', 120_000),
 
+  /**
+   * PHP互換ゲートウェイで、未移植のリクエストを転送する先。
+   *
+   * ⚠️ ① レンタルサーバーのゲートウェイURL を設定する。
+   *   例: https://khg-marketing.info/dashboard/api/gateway/
+   *   ② VPS 自身のURLを設定すると無限ループになる。
+   *
+   * 未設定の場合、未移植のリクエストは 400 で失敗する。
+   * 移植が完了して転送が不要になったら空にする。
+   */
+  phpGatewayUrl: (() => {
+    const raw = process.env.PHP_GATEWAY_URL;
+    return raw === undefined || raw.trim() === '' ? undefined : raw.trim();
+  })(),
+
+  /** 転送のタイムアウト。① 側の重い集計を見込んで長めに取る */
+  phpGatewayTimeoutMs: numberEnv('PHP_GATEWAY_TIMEOUT_MS', 120_000),
+
+  /**
+   * ゲートウェイで移植済みエンドポイントに Token 認証を要求するか。
+   *
+   * ⚠️ 現状のPHPは Authorization ヘッダを検証していない（core/db.php を参照）。
+   *   true にすると Express 側だけ厳しくなり、Token を送らない画面が 401 になる。
+   *   移植と認証強化は分けて進めるため、既定は false（PHP互換）。
+   */
+  gatewayRequireAuth: (process.env.GATEWAY_REQUIRE_AUTH ?? 'false') === 'true',
+
   db: {
     host: requireEnv('DB_HOST'),
     port: numberEnv('DB_PORT', 3306),
