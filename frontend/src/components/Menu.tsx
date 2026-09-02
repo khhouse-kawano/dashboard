@@ -8,8 +8,9 @@ import Logo from '../assets/images/logo.png';
 import Estate from './Estate';
 import { useIsSp } from '../utils/isSp';
 import apiClient from "../utils/apiClient";
+import { isPendingSync } from './list/listTags';
 
-type UnSync = { inquiry_date: string, sync: number, black_list: string };
+type UnSync = { inquiry_date: string, sync: number, duplicate_flag: number, support_flag: number, black_flag: number };
 type Cancel = Record<string, string>;
 type Props = {
     key: number,
@@ -61,7 +62,7 @@ const Menu = ({ key, onReload }: Props) => {
 
     useEffect(() => {
         const total = unSyncList.filter(c => {
-            return monthArray.includes(c.inquiry_date.slice(0, 7)) && c.sync === 0 && (c.black_list.split('duplicate').length % 2 !== 0 && c.black_list.split('support').length % 2 !== 0 && c.black_list.split('black').length % 2 !== 0)
+            return monthArray.includes(c.inquiry_date.slice(0, 7)) && isPendingSync(c);
         }).length;
         setSync(total);
     }, [unSyncList, monthArray]);
