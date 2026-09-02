@@ -50,6 +50,13 @@ services:
       - NODE_ENV=production
       - PORT=3001
 
+      # ⚠️ 必須。既定は UTC のため、指定しないと日時が9時間ずれる。
+      #   PHP 側は ① レンタルサーバーのタイムゾーン（JST）で
+      #   date('Y-m-d H:i:s') を書き込んでいる。合わせないと
+      #   staff.timestamp や login_log の時刻が過去になり、
+      #   「最終アクセス日時」「総アクセス時間」が狂う。
+      - TZ=Asia/Tokyo
+
       # DBはSSHトンネル越し。ssh-tunnel コンテナの3306番を指す
       - DB_HOST=ssh-tunnel
       - DB_PORT=3306
@@ -62,13 +69,21 @@ services:
       #   レート制限が全利用者で共有され、監査ログのIPも無意味になる。
       - TRUST_PROXY=1
 
-      # 分析APIはMCPサーバー（サーバー間通信）から呼ばれる。
-      # ブラウザからの呼び出しは無いので、CORSは許可しない。
-      - CORS_ORIGINS=
+      # ⚠️ 分析APIだけならMCPサーバー（サーバー間通信）のみなので空でよいが、
+      #   PHP互換ゲートウェイ経由でダッシュボード（ブラウザ）から叩く場合は
+      #   オリジンを許可しないと全リクエストがCORSでブロックされる。
+      #   .env.prod で設定する。
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
 
       # 重い集計クエリを見込む。Caddy の read_timeout より短くしておくと、
       # 超過時にExpressのJSONエラーが返る
       - REQUEST_TIMEOUT_MS=120000
+
+      # PHP互換ゲートウェイ。未移植のリクエストの転送先（① レンタルサーバー）
+      # ⚠️ ② VPS 自身のURLを設定すると無限ループになる
+      - PHP_GATEWAY_URL=${PHP_GATEWAY_URL:-}
+      - PHP_GATEWAY_TIMEOUT_MS=${PHP_GATEWAY_TIMEOUT_MS:-120000}
+      - GATEWAY_REQUIRE_AUTH=${GATEWAY_REQUIRE_AUTH:-false}
     depends_on:
       ssh-tunnel:
         condition: service_started
