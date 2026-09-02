@@ -183,6 +183,20 @@ const kindOf = (value: unknown): string => {
 };
 
 /**
+ * 差分1件。
+ *
+ * ⚠️ 「どこが」（path）と「何が」（reason）を、具体的な値（detail）と
+ *   分けて持つこと。1本の文字列にまとめると、まとめ表示のときに
+ *   値まで含めてグループ化してしまい、
+ *   「値が違う行の数」＝「原因の種類」になって集計が意味を失う。
+ */
+interface Diff {
+  path: string;
+  reason: string;
+  detail: string;
+}
+
+/**
  * 2つのJSONを再帰的に比較して差分を列挙する。
  *
  * ⚠️ 型の違い（"0" と 0）を必ず差分として報告すること。
@@ -192,7 +206,7 @@ const diff = (
   a: unknown,
   b: unknown,
   path: string,
-  out: string[],
+  out: Diff[],
   limit: number
 ): void => {
   if (out.length >= limit) return;
@@ -201,7 +215,11 @@ const diff = (
   const kindB = kindOf(b);
 
   if (kindA !== kindB) {
-    out.push(`${path}: 型が違う  PHP=${kindA}(${preview(a)})  Express=${kindB}(${preview(b)})`);
+    out.push({
+      path,
+      reason: '型が違う',
+      detail: `PHP=${kindA}(${preview(a)})  Express=${kindB}(${preview(b)})`,
+    });
     return;
   }
 
@@ -209,7 +227,11 @@ const diff = (
     const arrA = a as unknown[];
     const arrB = b as unknown[];
     if (arrA.length !== arrB.length) {
-      out.push(`${path}: 件数が違う  PHP=${arrA.length}  Express=${arrB.length}`);
+      out.push({
+        path,
+        reason: '件数が違う',
+        detail: `PHP=${arrA.length}  Express=${arrB.length}`,
+      });
     }
     const shorter = Math.min(arrA.length, arrB.length);
     for (let i = 0; i < shorter; i += 1) {
@@ -227,10 +249,12 @@ const diff = (
     const keysB = Object.keys(objB);
 
     for (const key of keysA) {
-      if (!(key in objB)) out.push(`${path}.${key}: Express に無い`);
+      if (!(key in objB)) out.push({ path: `${path}.${key}`, reason: 'Express に無い', detail: '' });
     }
     for (const key of keysB) {
-      if (!(key in objA)) out.push(`${path}.${key}: PHP に無い（余分）`);
+      if (!(key in objA)) {
+        out.push({ path: `${path}.${key}`, reason: 'PHP に無い（余分）', detail: '' });
+      }
     }
 
     for (const key of keysA) {
@@ -242,7 +266,11 @@ const diff = (
   }
 
   if (a !== b) {
-    out.push(`${path}: 値が違う  PHP=${preview(a)}  Express=${preview(b)}`);
+    out.push({
+      path,
+      reason: '値が違う',
+      detail: `PHP=${preview(a)}  Express=${preview(b)}`,
+    });
   }
 };
 
@@ -294,7 +322,7 @@ const main = async (): Promise<void> => {
     process.exit(1);
   }
 
-  const diffs: string[] = [];
+  const diffs: Diff[] = [];
   diff(parsedPhp, parsedExpress, '$', diffs, options.maxDiffs);
 
   if (diffs.length === 0) {
@@ -305,13 +333,18 @@ const main = async (): Promise<void> => {
 
   // ⚠️ 生の差分をそのまま並べると、同じ原因の行が数万件出て読めなくなる。
   //   （型違いが1列あるだけで「行数 × 列数」件の差分になる）
-  //   配列の添字を潰してまとめ、原因の種類ごとに1行で見せる。
+  //   配列の添字を潰し、**パスと理由だけ**でまとめる。
+  //
+  // ⚠️ 具体的な値（detail）をキーに含めてはいけない。
+  //   値が行ごとに違うのは当たり前なので、含めると
+  //   「原因の種類」＝「差分の件数」になって集計の意味が消える。
   const groups = new Map<string, { count: number; example: string }>();
 
-  for (const line of diffs) {
-    const key = line.replace(/\[\d+\]/g, '[]');
+  for (const d of diffs) {
+    const key = `${d.path.replace(/\[\d+\]/g, '[]')}: ${d.reason}`;
+    const example = d.detail === '' ? d.path : `${d.path}  ${d.detail}`;
     const existing = groups.get(key);
-    if (existing === undefined) groups.set(key, { count: 1, example: line });
+    if (existing === undefined) groups.set(key, { count: 1, example });
     else existing.count += 1;
   }
 
@@ -323,8 +356,8 @@ const main = async (): Promise<void> => {
 
   const sorted = [...groups.entries()].sort((a, b) => b[1].count - a[1].count);
   for (const [key, { count, example }] of sorted) {
-    console.log(`  ×${String(count).padStart(5)}  ${key}`);
-    if (count > 1) console.log(`         例: ${example}`);
+    console.log(`  ×${String(count).padStart(6)}  ${key}`);
+    console.log(`          例: ${example}`);
   }
   console.log('');
   console.log('よくある原因:');
