@@ -18,7 +18,7 @@ if (!$updateColumn) {
 }
 
 
-$allowedColumns = ['status', 'section', 'shop', 'category', 'rank', 'report', 'estate', 'multi', 'period', 'position'];
+$allowedColumns = ['status', 'section', 'shop', 'category', 'rank', 'report', 'estate', 'multi', 'inside', 'period', 'position'];
 
 if (!in_array($updateColumn, $allowedColumns)) {
     echo json_encode(["status" => "error", "message" => "許可されていないカラム名です: " . $updateColumn]);

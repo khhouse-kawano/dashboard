@@ -1,0 +1,63 @@
+# =============================================================
+# 分析APIの入口。TLS終端とリバースプロキシ。
+#
+# Caddy を選んだ理由
+#   Let's Encrypt の証明書取得と更新を自動でやる。nginx + certbot だと
+#   更新の cron を別に用意することになり、失敗に気づきにくい。
+#
+# ⚠️ このファイルが唯一の公開面になる。
+#   express-api の 3001番はホストにもインターネットにも公開しない
+#   （docker-compose.prod.yml で ports を書かない）。
+# =============================================================
+
+{
+	# 証明書の失効通知や取得失敗の連絡先。実在するアドレスにすること
+	email {$ACME_EMAIL}
+
+	# サーバー種別を隠す
+	servers {
+		protocols h1 h2
+	}
+}
+
+api.khg-marketing.info {
+	# --- ログ ---------------------------------------------------------
+	# 認証情報が載る Authorization ヘッダは出力しない。
+	# Caddy は既定でヘッダを出さないが、将来 format を変えるときに
+	# うっかり含めないよう明示しておく。
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+		format json
+	}
+
+	# --- セキュリティヘッダ -------------------------------------------
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		# APIサーバーなので、ブラウザからフレームに埋める用途は無い
+		X-Frame-Options "DENY"
+		# 使用技術を隠す
+		-Server
+	}
+
+	# --- 転送先 -------------------------------------------------------
+	# express-api はDockerの内部ネットワークにしか居ない。
+	reverse_proxy express-api:3001 {
+		# Express 側で req.ip を正しく取るために必要。
+		# あわせて express-api の TRUST_PROXY=1 を設定すること。
+		# ここを揃えないと、レート制限も監査ログのIPも
+		# すべて Caddy のIPになって意味を成さなくなる。
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+
+		# 重い集計クエリを見込んで長めに取る。
+		# Express 側の REQUEST_TIMEOUT_MS より少し長くしておくと、
+		# タイムアウト時に Express が返すJSONのエラーがそのまま届く。
+		transport http {
+			read_timeout 180s
+		}
+	}
+}

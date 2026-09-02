@@ -1,0 +1,1170 @@
+[
+    {
+        "key": "settings",
+        "data": {
+            "v145": true,
+            "staff": [
+                {
+                    "id": "xmsbtyw0p1",
+                    "abbr": "時任",
+                    "name": "時任聡一朗",
+                    "budget": 36000000,
+                    "monthlyGoal": 3000000,
+                    "baikaiTarget": 36
+                },
+                {
+                    "id": "xmsbtyw0p2",
+                    "abbr": "宮城",
+                    "name": "宮城智一",
+                    "budget": 30000000,
+                    "monthlyGoal": 2500000,
+                    "baikaiTarget": 48
+                },
+                {
+                    "id": "xmsbtyw0p3",
+                    "abbr": "永田",
+                    "name": "永田倫也",
+                    "budget": 30000000,
+                    "monthlyGoal": 2500000,
+                    "baikaiTarget": 60
+                },
+                {
+                    "id": "xmsbtyw0p4",
+                    "abbr": "岡崎",
+                    "name": "岡崎真夕",
+                    "budget": 18000000,
+                    "monthlyGoal": 1500000,
+                    "baikaiTarget": 45
+                },
+                {
+                    "id": "xmscn2kdvlgkfj215",
+                    "abbr": "",
+                    "name": "",
+                    "budget": 0,
+                    "monthlyGoal": 0,
+                    "baikaiTarget": 0
+                }
+            ],
+            "company": {
+                "fax": "099-204-0706",
+                "rep": "古野 伸太郎",
+                "tel": "099-204-0705",
+                "addr": "鹿児島市谷山中央一丁目12番6号",
+                "dept": "鹿児島店",
+                "name": "株式会社国分ハウジング不動産",
+                "agent": "",
+                "assoc": "（公社）鹿児島県宅地建物取引業協会 会員／（公社）全国宅地建物取引業保証協会 社員",
+                "agentNo": "",
+                "license": "国土交通大臣（1）第10321号"
+            },
+            "sources": [
+                "イエウール",
+                "すまいステップ",
+                "HOME's",
+                "イエイ",
+                "カエール",
+                "営業紹介",
+                "営業案件",
+                "自社物件",
+                "問合せ"
+            ],
+            "srcCosts": {
+                "HOME's": 11000,
+                "イエイ": 11000,
+                "イエウール": 11000,
+                "すまいステップ": 18700
+            },
+            "docDrafts": {
+                "lead:xmscify5q375": {
+                    "_by": "時任聡一朗",
+                    "agent": "",
+                    "ctype": "専任媒介",
+                    "price": "17500000",
+                    "staff": "永田倫也",
+                    "madori": "",
+                    "rights": "所有権",
+                    "docDate": "2026-08-11",
+                    "endDate": "2026-11-10",
+                    "feeText": "売買代金の3％＋6万円（別途消費税）　＝ ¥585,000（税込 ¥643,500）",
+                    "feeWhen": "売買契約成立時に50％、残額は引渡完了時",
+                    "purpose": "売却",
+                    "special": "",
+                    "withPre": true,
+                    "_updated": "2026-08-11T22:52",
+                    "bldgArea": "",
+                    "landArea": "",
+                    "propAddr": "南さつま市加世田麓16923-1",
+                    "propKind": "戸建",
+                    "propName": "",
+                    "builtYear": "",
+                    "priceNote": "（消費税等相当額を含む。土地は非課税）",
+                    "reinsTerm": "媒介契約締結の日の翌日から7日以内（休業日を除く）に登録",
+                    "startDate": "2026-08-11",
+                    "clientAddr": "",
+                    "clientName": "坂上忠徳",
+                    "reportFreq": "2週間に1回以上（文書または電子メール）",
+                    "clientContact": ""
+                },
+                "ledger:xmsbtyw0p184": {
+                    "_by": "時任聡一朗",
+                    "agent": "時任聡一朗",
+                    "ctype": "専任媒介",
+                    "price": "41500000",
+                    "staff": "時任聡一朗",
+                    "madori": "",
+                    "rights": "所有権",
+                    "docDate": "2026-08-14",
+                    "endDate": "2026-11-13",
+                    "feeText": "売買代金の3％＋6万円（別途消費税）　＝ ¥1,290,000（税込 ¥1,419,000）",
+                    "feeWhen": "売買契約成立時に50％、残額は引渡完了時",
+                    "purpose": "売却",
+                    "special": "分割・分筆のプランについては随時、買主の条件を考慮した上で、売主と協議を行うものとする。",
+                    "withPre": true,
+                    "_updated": "2026-08-14T18:25",
+                    "bldgArea": "",
+                    "landArea": "305.33",
+                    "propAddr": "鹿児島市 西谷山三丁目13番42",
+                    "propKind": "住宅用地",
+                    "propName": "西谷山4丁目土地",
+                    "builtYear": "",
+                    "priceNote": "（消費税等相当額を含む。土地は非課税）",
+                    "reinsTerm": "媒介契約締結の日の翌日から7日以内（休業日を除く）に登録",
+                    "startDate": "2026-08-14",
+                    "clientAddr": "さいたま市桜区道場2-1-1 サクラディアサークルコート734",
+                    "clientName": "上之園尚也",
+                    "reportFreq": "2週間に1回以上（文書または電子メール）",
+                    "withYakkan": true,
+                    "clientContact": ""
+                },
+                "lead:xmsqzkwwkcwvie14": {
+                    "_by": "時任聡一朗",
+                    "agent": "",
+                    "ctype": "専任媒介",
+                    "price": "",
+                    "staff": "時任聡一朗",
+                    "madori": "",
+                    "rights": "所有権",
+                    "docDate": "2026-08-13",
+                    "endDate": "2026-11-12",
+                    "feeText": "売買代金の3％＋6万円（別途消費税）",
+                    "feeWhen": "売買契約成立時に50％、残額は引渡完了時",
+                    "purpose": "売却",
+                    "special": "",
+                    "withPre": true,
+                    "_updated": "2026-08-13T22:44",
+                    "bldgArea": "",
+                    "landArea": "",
+                    "propAddr": "鹿児島市西千石町11-27",
+                    "propKind": "戸建",
+                    "propName": "",
+                    "builtYear": "",
+                    "priceNote": "（消費税等相当額を含む。土地は非課税）",
+                    "reinsTerm": "媒介契約締結の日の翌日から7日以内（休業日を除く）に登録",
+                    "startDate": "2026-08-13",
+                    "clientAddr": "",
+                    "clientName": "田中 祐一",
+                    "reportFreq": "2週間に1回以上（文書または電子メール）",
+                    "withYakkan": true,
+                    "clientContact": "09033205239 / 19koyana74@gmail.com"
+                },
+                "ledger:xmt1edc863tm821": {
+                    "_by": "宮城智一",
+                    "agent": "",
+                    "ctype": "専任媒介",
+                    "price": "55000000",
+                    "staff": "宮城智一",
+                    "madori": "",
+                    "rights": "所有権",
+                    "docDate": "2026-08-20",
+                    "endDate": "2026-11-19",
+                    "feeText": "売買代金の3％＋6万円（別途消費税）　＝ ¥1,710,000（税込 ¥1,881,000）",
+                    "feeWhen": "売買契約成立時に50％、残額は引渡完了時",
+                    "purpose": "売却",
+                    "special": "",
+                    "withPre": true,
+                    "_updated": "2026-08-20T19:50",
+                    "bldgArea": "",
+                    "landArea": "",
+                    "propAddr": "鹿児島市上本町3-18",
+                    "propKind": "住宅用地",
+                    "propName": "",
+                    "builtYear": "",
+                    "priceNote": "（消費税等相当額を含む。土地は非課税）",
+                    "reinsTerm": "媒介契約締結の日の翌日から7日以内（休業日を除く）に登録",
+                    "startDate": "2026-08-20",
+                    "clientAddr": "",
+                    "clientName": "川津猛・川津雅隆（長男）",
+                    "reportFreq": "2週間に1回以上（文書または電子メール）",
+                    "withYakkan": true,
+                    "clientContact": "080-4088-4732（長男嫁さん携帯）"
+                }
+            },
+            "templates": [
+                {
+                    "id": "xmsoopgiwkensz1",
+                    "body": "{{name}}様\n\nこの度は査定のご依頼をいただき、誠にありがとうございます。\n株式会社国分ハウジング不動産の{{staff}}と申します。\n\n{{addr}}のご査定につきまして、周辺の成約事例をお調べのうえ改めてご連絡いたします。\nお電話が可能なお時間帯がございましたら、お知らせいただけますと幸いです。",
+                    "title": "査定依頼の御礼（初回）"
+                },
+                {
+                    "id": "xmsoopgiw3a1d82",
+                    "body": "{{name}}様\n\nお世話になっております。国分ハウジング不動産の{{staff}}です。\n{{addr}}の訪問査定につきまして、下記のいずれかでご都合はいかがでしょうか。\n\n・○月○日（○）午前／午後\n・○月○日（○）午前／午後\n\n所要時間は30〜40分程度、現地の確認と資料のお渡しをいたします。",
+                    "title": "訪問査定の日程調整"
+                },
+                {
+                    "id": "xmsoopgiwxvvj03",
+                    "body": "{{name}}様\n\n先日は査定書をご確認いただきありがとうございました。国分ハウジング不動産の{{staff}}です。\n\nご提示した内容について、ご不明な点や条件のご希望などございましたらお気軽にお知らせください。\n売出し時期のご相談だけでも承っております。",
+                    "title": "査定書提出後のフォロー"
+                },
+                {
+                    "id": "xmsoopgiwidzk64",
+                    "body": "{{name}}様\n\nお世話になっております。国分ハウジング不動産の{{staff}}です。\n{{property}}のご内見につきまして、下記日程でご案内が可能です。\n\n・○月○日（○）○時〜\n\n現地集合・所要30分程度を予定しております。ご都合をお知らせください。",
+                    "title": "内見のご案内（買主様向け）"
+                }
+            ],
+            "buyPortals": [
+                "SUUMO",
+                "アットホーム",
+                "HOME'S",
+                "自社HP",
+                "その他",
+                "楽待"
+            ],
+            "mailNotify": false,
+            "baikaiTypes": [
+                "専任媒介",
+                "一般媒介",
+                "買取"
+            ],
+            "fiscalStart": "2026-06",
+            "portalCosts": {
+                "SUUMO": 2475,
+                "楽待": 10000,
+                "アットホーム": 1033
+            },
+            "resaleGpMode": "credit",
+            "settlePlaces": [
+                {
+                    "addr": "鹿児島市谷山中央二丁目4番3号",
+                    "name": "鹿児島銀行 谷山支店"
+                }
+            ],
+            "resaleCostSets": {
+                "土地": [
+                    {
+                        "cat": "仕入",
+                        "key": "f_zosei",
+                        "tax": 1,
+                        "label": "造成"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_kaitai",
+                        "tax": 1,
+                        "label": "解体"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_suido",
+                        "tax": 1,
+                        "label": "水道"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_sokuryo",
+                        "tax": 1,
+                        "label": "測量"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_bunpitsu",
+                        "tax": 1,
+                        "label": "分筆"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_5jo",
+                        "tax": 1,
+                        "label": "農地法5条"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_kaihatsu",
+                        "tax": 1,
+                        "label": "開発"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_touki",
+                        "tax": 0,
+                        "label": "登記(登免税等)"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_shutoku",
+                        "tax": 0,
+                        "label": "不動産取得税"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_inshi",
+                        "tax": 0,
+                        "label": "印紙税"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_kotozei",
+                        "tax": 0,
+                        "label": "固都税精算金"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "f_chukai",
+                        "tax": 1,
+                        "label": "仲介手数料"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kotozei",
+                        "tax": 0,
+                        "label": "保有中の固都税"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kinri",
+                        "tax": 0,
+                        "label": "借入金利"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_chukai",
+                        "tax": 1,
+                        "label": "売却仲介手数料"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kokoku",
+                        "tax": 1,
+                        "label": "広告・販促費"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_sokuryo",
+                        "tax": 1,
+                        "label": "確定測量・境界復元"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_shomei",
+                        "tax": 0,
+                        "label": "各種証明書取得"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_yobi",
+                        "tax": 1,
+                        "label": "予備費"
+                    }
+                ],
+                "戸建": [
+                    {
+                        "cat": "仕入",
+                        "key": "c_chukai",
+                        "tax": 1,
+                        "label": "仲介手数料"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_touroku",
+                        "tax": 0,
+                        "label": "登録免許税"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_shutoku",
+                        "tax": 0,
+                        "label": "不動産取得税"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_inshi",
+                        "tax": 0,
+                        "label": "印紙税"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_kotozei",
+                        "tax": 0,
+                        "label": "固都税精算金"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_shiho",
+                        "tax": 1,
+                        "label": "司法書士報酬"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_naiso",
+                        "tax": 1,
+                        "label": "内装(クロス/床)"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_mizu",
+                        "tax": 1,
+                        "label": "水回り(K/B/洗/T)"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_yane",
+                        "tax": 1,
+                        "label": "屋根・外壁・防水"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_setsubi",
+                        "tax": 1,
+                        "label": "設備(給湯/空調/電気)"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_taishin",
+                        "tax": 1,
+                        "label": "耐震・省エネ改修"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_kaitai",
+                        "tax": 1,
+                        "label": "解体・残置撤去"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_yobi",
+                        "tax": 1,
+                        "label": "予備費"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kotozei",
+                        "tax": 0,
+                        "label": "保有中の固都税"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kinri",
+                        "tax": 0,
+                        "label": "借入金利(仕入/工事)"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_chukai",
+                        "tax": 1,
+                        "label": "売却仲介手数料"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kokoku",
+                        "tax": 1,
+                        "label": "広告・販促費"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kashi",
+                        "tax": 0,
+                        "label": "既存住宅瑕疵保険料"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_clean",
+                        "tax": 1,
+                        "label": "ハウスクリーニング"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_shomei",
+                        "tax": 0,
+                        "label": "各種証明書取得"
+                    }
+                ],
+                "マンション": [
+                    {
+                        "cat": "仕入",
+                        "key": "c_chukai",
+                        "tax": 1,
+                        "label": "仲介手数料"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_touroku",
+                        "tax": 0,
+                        "label": "登録免許税"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_shutoku",
+                        "tax": 0,
+                        "label": "不動産取得税"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_inshi",
+                        "tax": 0,
+                        "label": "印紙税"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_kotozei",
+                        "tax": 0,
+                        "label": "固都税精算金"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_shiho",
+                        "tax": 1,
+                        "label": "司法書士報酬"
+                    },
+                    {
+                        "cat": "仕入",
+                        "key": "c_kanri",
+                        "tax": 0,
+                        "label": "管理費等精算金"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_naiso",
+                        "tax": 1,
+                        "label": "内装(クロス/床)"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_mizu",
+                        "tax": 1,
+                        "label": "水回り(K/B/洗/T)"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_haikan",
+                        "tax": 1,
+                        "label": "給排水・電気設備"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_tategu",
+                        "tax": 1,
+                        "label": "建具・内窓(省エネ)"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_madori",
+                        "tax": 1,
+                        "label": "間取り変更・造作"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_zanchi",
+                        "tax": 1,
+                        "label": "残置撤去・清掃"
+                    },
+                    {
+                        "cat": "リフォーム",
+                        "key": "r_yobi",
+                        "tax": 1,
+                        "label": "予備費"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kanri",
+                        "tax": 0,
+                        "label": "保有中の管理費等"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kotozei",
+                        "tax": 0,
+                        "label": "保有中の固都税"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kinri",
+                        "tax": 0,
+                        "label": "借入金利(仕入/工事)"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_chukai",
+                        "tax": 1,
+                        "label": "売却仲介手数料"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kokoku",
+                        "tax": 1,
+                        "label": "広告・販促費"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_kashi",
+                        "tax": 0,
+                        "label": "既存住宅瑕疵保険料"
+                    },
+                    {
+                        "cat": "保有・販売",
+                        "key": "h_shomei",
+                        "tax": 1,
+                        "label": "清掃・証明書取得"
+                    }
+                ]
+            },
+            "showDashAlerts": false
+        }
+    },
+    {
+        "key": "weekly",
+        "data": {
+            "2026-07": [
+                {
+                    "ca": 0,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 1,
+                    "staff": "時任聡一朗"
+                },
+                {
+                    "ca": 1,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 1,
+                    "staff": "宮城智一"
+                },
+                {
+                    "ca": 3,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 1,
+                    "staff": "永田倫也"
+                },
+                {
+                    "ca": 8,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 1,
+                    "staff": "岡崎真夕"
+                },
+                {
+                    "ca": 0,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 2,
+                    "staff": "時任聡一朗"
+                },
+                {
+                    "ca": 4,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 2,
+                    "staff": "宮城智一"
+                },
+                {
+                    "ca": 4,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 2,
+                    "staff": "永田倫也"
+                },
+                {
+                    "ca": 3,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 2,
+                    "staff": "岡崎真夕"
+                },
+                {
+                    "ca": 15,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 3,
+                    "staff": "時任聡一朗"
+                },
+                {
+                    "ca": 2,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 3,
+                    "staff": "宮城智一"
+                },
+                {
+                    "ca": 0,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 3,
+                    "staff": "永田倫也"
+                },
+                {
+                    "ca": 1,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 3,
+                    "staff": "岡崎真夕"
+                },
+                {
+                    "ca": 2,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 4,
+                    "staff": "時任聡一朗"
+                },
+                {
+                    "ca": 3,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 4,
+                    "staff": "宮城智一"
+                },
+                {
+                    "ca": 3,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 4,
+                    "staff": "永田倫也"
+                },
+                {
+                    "ca": 1,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 4,
+                    "staff": "岡崎真夕"
+                }
+            ],
+            "2026-08": [
+                {
+                    "ca": 5,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 1,
+                    "staff": "時任聡一朗"
+                },
+                {
+                    "ca": 5,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 1,
+                    "staff": "宮城智一"
+                },
+                {
+                    "ca": 1,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 1,
+                    "staff": "永田倫也"
+                },
+                {
+                    "ca": 0,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 1,
+                    "staff": "岡崎真夕"
+                },
+                {
+                    "ca": 3,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 2,
+                    "staff": "時任聡一朗"
+                },
+                {
+                    "ca": 1,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 2,
+                    "staff": "宮城智一"
+                },
+                {
+                    "ca": 1,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 2,
+                    "staff": "永田倫也"
+                },
+                {
+                    "ca": 4,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 2,
+                    "staff": "岡崎真夕"
+                },
+                {
+                    "ca": 41,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 3,
+                    "staff": "時任聡一朗"
+                },
+                {
+                    "ca": 11,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 3,
+                    "staff": "宮城智一"
+                },
+                {
+                    "ca": 1,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 3,
+                    "staff": "永田倫也"
+                },
+                {
+                    "ca": 27,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 3,
+                    "staff": "岡崎真夕"
+                },
+                {
+                    "ca": 0,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 4,
+                    "staff": "時任聡一朗"
+                },
+                {
+                    "ca": 14,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 4,
+                    "staff": "宮城智一"
+                },
+                {
+                    "ca": 0,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 4,
+                    "staff": "永田倫也"
+                },
+                {
+                    "ca": 0,
+                    "cg": 0,
+                    "na": 0,
+                    "ng": 0,
+                    "sa": 0,
+                    "sg": 0,
+                    "ta": 0,
+                    "tg": 0,
+                    "week": 4,
+                    "staff": "岡崎真夕"
+                }
+            ]
+        }
+    },
+    {
+        "key": "compliance",
+        "data": [
+            {
+                "id": "xmsbtyw0p200",
+                "no": 1,
+                "date": "",
+                "item": "【重要事項説明】宅建士による重要事項説明を実施したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p201",
+                "no": 2,
+                "date": "",
+                "item": "【重要事項説明】重要事項説明書に記名押印があるか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p202",
+                "no": 3,
+                "date": "",
+                "item": "【契約書】売買契約書に双方の署名・捺印があるか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p203",
+                "no": 4,
+                "date": "",
+                "item": "【手付金】手付金の受領書を交付したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p204",
+                "no": 5,
+                "date": "",
+                "item": "【広告】物件広告に必要な表示事項（面積・価格等）が記載されているか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p205",
+                "no": 6,
+                "date": "",
+                "item": "【広告】未完成物件の広告に開発許可・建築確認番号が記載されているか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p206",
+                "no": 7,
+                "date": "",
+                "item": "【告知義務】心理的瑕疵・物件の欠陥を顧客に説明したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p207",
+                "no": 8,
+                "date": "",
+                "item": "【ローン特約】住宅ローン特約の条件・期限を契約書に記載したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p208",
+                "no": 9,
+                "date": "",
+                "item": "【個人情報】顧客の個人情報取扱いの同意書を取得したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p209",
+                "no": 10,
+                "date": "",
+                "item": "【反社確認】顧客の反社会的勢力チェックを実施したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p210",
+                "no": 11,
+                "date": "",
+                "item": "【登記】所有権移転登記の手続きを司法書士に依頼したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p211",
+                "no": 12,
+                "date": "",
+                "item": "【固定資産税】固定資産税の精算計算を行ったか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p212",
+                "no": 13,
+                "date": "",
+                "item": "【引渡】鍵・書類の引渡しリストを作成し確認したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p213",
+                "no": 14,
+                "date": "",
+                "item": "【アフター】引渡し後の顧客フォロー連絡を実施したか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            },
+            {
+                "id": "xmsbtyw0p214",
+                "no": 15,
+                "date": "",
+                "item": "【記録保存】取引関係書類を7年間保存する準備ができているか",
+                "note": "",
+                "staff": "",
+                "status": "",
+                "target": ""
+            }
+        ]
+    }
+]

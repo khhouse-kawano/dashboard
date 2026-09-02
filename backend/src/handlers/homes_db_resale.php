@@ -36,8 +36,11 @@ try {
     // ==========================================
     // 2. userId で重複チェックと INSERT / UPDATE
     // ==========================================
-    // まず userId がDBに存在するか確認する
-    $checkStmt = $pdo->prepare("SELECT no FROM homes_db_kaeru WHERE userId = :userId LIMIT 1");
+    // まず userId がDBに存在するか確認する。
+    // ※ ここは以前 homes_db_kaeru（かえる側）を見ていた。
+    //    両テーブルに共通の userId は無いため判定が常に空振りし、
+    //    GAS が回るたびに INSERT され続けて重複が積み上がっていた。
+    $checkStmt = $pdo->prepare("SELECT no FROM homes_db_resale WHERE userId = :userId LIMIT 1");
     $checkStmt->execute([':userId' => $data['userId']]);
     $existingRecord = $checkStmt->fetch();
 

@@ -1,13 +1,18 @@
 <?php
 
 
-//来場の状況
-$sql_summary = "SELECT 
+//反響・来場の状況
+//
+// show_dashboard は顧客動向（customerTrendAction/customerTrend_spec.php）と
+// 同じ母数で数えるために必要。この列が無いと名寄せ・重複で非表示にした
+// レコードまで数えてしまい、一覧の「反響合計」と顧客動向の「総反響数」がずれる。
+$sql_summary = "SELECT
 COALESCE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '') as register,
 COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
 COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
 COALESCE(in_charge_store, '') as shop,
-COALESCE(sales_promotion_name, '') as medium
+COALESCE(sales_promotion_name, '') as medium,
+COALESCE(show_dashboard, 0) as show_dashboard
 FROM master_data_kaeru";
 $stmt_summary = $pdo->prepare($sql_summary);
 $stmt_summary->execute();

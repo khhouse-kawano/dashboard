@@ -1,9 +1,18 @@
 <?php
-// 1. 各パラメータの抽出（mail, period に加えて position を追加）
+// 人事マスタ（staff_list）への新規登録。
+//
+// ⚠️ ログイン権限テーブル（staff）には触らない。
+//   以前はここで staff にも 'ordinary' で自動INSERTしていたが、
+//   staff_list（人事マスタ）と staff（ログイン権限）は役割が別であり、
+//   自動連携していると「退職者のログインが残る」「人事登録しただけの人が
+//   ログインできる」といった不整合が起きるため廃止した。
+//   ログイン用アカウントは EditAuth（header_auth_insert）で個別に作成する。
+
+// ⚠️ メールアドレスは受け取らない。ログイン用メールアドレスは staff テーブル側の
+//   情報であり、EditAuth（header_auth_insert）が扱う。
 $khg_id   = $data['khg_id'] ?? '';
 $name     = $data['name'] ?? '';
-$position = $data['position'] ?? '一般'; // ✨ 追加：フロントから届く役職データ
-$mail     = $data['mail'] ?? '';
+$position = $data['position'] ?? '一般';
 $status   = $data['status'] ?? '在籍';
 $section  = $data['section'] ?? '';
 $shop     = $data['shop'] ?? '';
@@ -12,7 +21,8 @@ $rank     = $data['rank'] ?? '0';
 $report   = $data['report'] ?? '0';
 $multi    = $data['multi'] ?? '0';
 $estate   = $data['estate'] ?? '0';
-$period   = $data['period'] ?? ''; 
+$inside   = $data['inside'] ?? '0'; // インサイドセールス担当フラグ
+$period   = $data['period'] ?? '';
 
 if (trim($name) === '') {
     echo json_encode([
@@ -23,25 +33,36 @@ if (trim($name) === '') {
 }
 
 try {
-    // 2. SQL文に position カラムとプレースホルダーを追加
+    // ⚠️ staff_list は id（auto_increment）と inside を除く全カラムが
+    //   NOT NULL かつデフォルト値なしで定義されている。
+    //   1つでも省略すると 1364 (Field doesn't have a default value) で
+    //   INSERT が失敗するため、この画面で扱わないカラムも明示的に埋める。
+    //
+    //   pg_id / robo_id / memo … 外部システムのIDと備考。この画面では扱わない
+    //   mail                   … 人事マスタ側のメール。ログイン用メールアドレス
+    //                            （staff テーブル）とは別物で、UIから削除済み
+    //   sort                   … 表示順。未指定なので 0
+    //
+    //   （DDL で DEFAULT を付けるのが本来の解決だが、本番テーブルの変更に
+    //     なるためここでは行っていない）
     $sql = "
         INSERT INTO `staff_list` (
-            `khg_id`, `name`, `position`, `mail`, `status`, `section`, `shop`, 
-            `category`, `rank`, `report`, `multi`, `estate`, `period`
+            `khg_id`, `pg_id`, `robo_id`, `name`, `position`, `mail`, `memo`, `sort`,
+            `status`, `section`, `shop`,
+            `category`, `rank`, `report`, `multi`, `estate`, `inside`, `period`
         ) VALUES (
-            :khg_id, :name, :position, :mail, :status, :section, :shop, 
-            :category, :rank, :report, :multi, :estate, :period
+            :khg_id, '', '', :name, :position, '', '', 0,
+            :status, :section, :shop,
+            :category, :rank, :report, :multi, :estate, :inside, :period
         )
     ";
 
     $stmt = $pdo->prepare($sql);
-    
-    // 3. 実行配列に :position のバインドを追加
+
     $stmt->execute([
         ':khg_id'   => $khg_id,
         ':name'     => $name,
-        ':position' => $position, // ✨ 追加
-        ':mail'     => $mail,
+        ':position' => $position,
         ':status'   => $status,
         ':section'  => $section,
         ':shop'     => $shop,
@@ -50,23 +71,17 @@ try {
         ':report'   => $report,
         ':multi'    => $multi,
         ':estate'   => $estate,
-        ':period'   => $period 
+        ':inside'   => $inside,
+        ':period'   => $period
     ]);
 
-    // マスター用のベーステーブル
-    $sql_base = "INSERT INTO staff (name, brand, mail) VALUES(:name, :brand, :mail)";
-    $stmt_base = $pdo->prepare($sql_base);
-    $stmt_base->execute([
-        ':name'  => $name,
-        ':brand' => 'ordinary',
-        ':mail'  => $mail,
-        // ※ 共通マスタ側（staffテーブル）にも必要であればカラム拡張をして追加してください
-    ]);
-
+    // フロント側は返した id をそのまま更新API（header_staff_update）に使う。
+    // ここで返さないと存在しないIDで UPDATE され、登録直後の編集が無反応になる。
     echo json_encode([
         "status" => "success",
         "message" => "スタッフを新規登録しました。",
-    ]);
+        "id" => $pdo->lastInsertId(),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 
 } catch (PDOException $e) {

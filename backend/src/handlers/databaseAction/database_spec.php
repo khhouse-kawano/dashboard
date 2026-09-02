@@ -1,5 +1,4 @@
 <?php
-ini_set('memory_limit', '256M');
 
 // 担当営業
 $sql_staff = "SELECT *
@@ -24,23 +23,27 @@ $stmt_medium->execute();
 $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
 
 
-// 架電情報
-$sql_call = "SELECT * FROM call_sheet";
-$stmt_call = $pdo->prepare($sql_call);
-$stmt_call->execute();
-$response_call = $stmt_call->fetchAll(PDO::FETCH_ASSOC);
-
-
-// 架電情報
-$sql_interview = "SELECT * FROM interview_sheet";
-$stmt_interview = $pdo->prepare($sql_interview);
-$stmt_interview->execute();
-$response_interview = $stmt_interview->fetchAll(PDO::FETCH_ASSOC);
+// 架電情報・面談情報はここでは返さない。
+//
+// 以前は call_sheet と interview_sheet を丸ごと返していたが、
+// 画面側での用途は「過去に担当した営業名で顧客を絞り込む」ための部分一致だけだった。
+// ログ本文だけで約30MB（架電23.9MB / 面談6.3MB）あり、これを載せるだけで
+// PHP の memory_limit を超え、このハンドラが Fatal error で応答できなくなっていた。
+//
+// 検索は handlers/past_staff_search.php に移し、該当する顧客のIDだけを返すようにした。
 
 
 // 顧客一覧
+//
+// gift（ギフト進呈可否）の判定は core/gift.php に集約している。
+// 注文事業（database_order.php）と同じ判定を使うため、条件はそちらを直すこと。
+// ここで取るのは条件①②だけ（gift_base）。残りの条件は
+// giftApplyToCustomers() が突き合わせて gift を確定させる。
+require_once __DIR__ . '/../../core/gift.php';
+
 $sql_customer = "SELECT
   id,
+  " . giftBaseSelectSql() . ",
   COALESCE(customer_contacts_name, '') AS customer,
   COALESCE(customer_contacts_name_kana, '') AS customer_contacts_name_kana,
   COALESCE(in_charge_store, '') AS shop,
@@ -75,6 +78,9 @@ $stmt_customer = $pdo->prepare($sql_customer);
 $stmt_customer->execute();
 $response_customer = $stmt_customer->fetchAll(PDO::FETCH_ASSOC);
 
+// ギフト進呈可否を確定させる（条件③④の突き合わせ）
+giftApplyToCustomers($pdo, $response_customer);
+
 
 // 家族情報
 $sql_family = "SELECT * FROM family_info";
@@ -88,8 +94,6 @@ $result = [
         "shop" => $response_shop,
         "medium" => $response_medium,
         "customer" => $response_customer,
-        "call" => $response_call,
-        "interview" => $response_interview,
         "family" => $response_family
 ];
 

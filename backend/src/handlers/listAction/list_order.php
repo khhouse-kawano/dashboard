@@ -21,7 +21,7 @@ $response_shop = $stmt_shop->fetchAll(PDO::FETCH_ASSOC);
 
 
 // スタッフ
-$sql_staff = "SELECT name, pg_id, shop, category, period, section FROM staff_list";
+$sql_staff = "SELECT name, pg_id, shop, category, period, section, position FROM staff_list";
 $stmt_staff = $pdo->prepare($sql_staff);
 $stmt_staff->execute();
 $response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
@@ -58,6 +58,12 @@ $stmt_black->execute();
 $response_black = $stmt_black->fetchAll(PDO::FETCH_ASSOC);
 
 
+// 課リスト
+$sql_section = "SELECT * FROM section_list WHERE division = '注文事業'";
+$stmt_section = $pdo->prepare($sql_section);
+$stmt_section->execute();
+$response_section = $stmt_section->fetchAll(PDO::FETCH_ASSOC);
+
 $result = [
     "summary" => $response_summary,
     "shop" => $response_shop,
@@ -65,7 +71,8 @@ $result = [
     "medium" => $response_medium,
     "inquiry" => $response_inquiry,
     "survey" => $response_survey,
-    "black" => $response_black
+    "black" => $response_black,
+    "section" => $response_section
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
