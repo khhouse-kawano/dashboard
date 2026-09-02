@@ -6,6 +6,7 @@ require_once __DIR__ . '/core/env.php';
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/token.php';
 require_once __DIR__ . '/core/helpers.php';
+require_once __DIR__ . '/core/express_proxy.php';
 
 header("Content-Type: application/json; charset=utf-8");
 
@@ -20,6 +21,20 @@ if ($request === '' || !preg_match('#^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$#', $requ
         ['status' => 'error', 'message' => '不正なリクエストです。'],
         JSON_UNESCAPED_UNICODE
     );
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// Express へ移植済みのリクエストは ② VPS へ転送する。
+//
+// ⚠️ 転送に失敗した場合は何も出力せず false が返り、
+//   そのまま下の ① 自身の処理へ進む（自動フォールバック）。
+//   ② が落ちてもダッシュボードは止まらない。
+//
+// 切り戻しは core/express_proxy.php の expressProxyRequests() から
+// 該当行を消すだけ。デプロイし直す必要もない。
+// ---------------------------------------------------------------------------
+if (shouldProxyToExpress($request) && forwardToExpress($data)) {
     exit;
 }
 

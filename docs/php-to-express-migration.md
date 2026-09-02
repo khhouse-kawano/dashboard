@@ -11,7 +11,7 @@
 | PHPハンドラ（`portal/` 除く） | 186ファイル / 約17,000行 |
 | フロントが使う `request` の種類 | 72 |
 | `roll` / `category` を含む実エンドポイント | 130以上 |
-| Express へ移植済み | **0**（土台のみ完成） |
+| Express へ移植済み | **1**（`menu`。差分比較でバイト単位一致を確認済み） |
 
 ---
 
@@ -101,34 +101,46 @@ POST https://khg-marketing.info/dashboard/api/gateway/
 
 ---
 
-## ⚠️ 最大の技術的落とし穴: 数値が文字列で返る
+## 型の扱い（実測で確認済み）
 
-PHP の PDO は列を文字列として返す。`mysql2` は数値として返す。
+### ⚠️ 値を変換しないこと。そのまま返すのが正しい
 
-```
-PHP     : { "sync": "0", "category": "1", "id": "42" }
-Express : { "sync": 0,   "category": 1,   "id": 42 }
-```
+① レンタルサーバーの `core/db.php` は以下を設定している。
 
-フロントには両方の書き方が混在している。
-
-```ts
-item.sync === 1            // ← 型が変わると常に false になる
-Number(item.category) === 1 // ← こちらは影響を受けない
+```php
+PDO::ATTR_EMULATE_PREPARES => false,
 ```
 
-**前者は画面が静かに壊れる。目視レビューでは気づけない。**
+これにより mysqlnd がネイティブ型を返すため、**PHP側も INT を数値で返す**。`mysql2` と最初から一致している。
 
-対策として `src/gateway/phpCompat.ts` に `toPhpRows()` を用意した。すべての値を文字列 / null に変換する。
+```
+PHP     : { "sync": 0, "duplicate_flag": 0, "id": 42 }
+mysql2  : { "sync": 0, "duplicate_flag": 0, "id": 42 }   ← 一致
+```
 
-⚠️ ただし「文字列にすれば必ず一致する」わけではない。
+⚠️ **`phpCompat.ts` の `toPhpRows()` は使わない。** 当初「PDOは全て文字列で返す」という前提で用意したが誤りだった。`menu` の移植時に文字列化したところ、17,700行 × 4列すべてが差分になった。
 
-| 型 | PHP | Number 経由 |
-|---|---|---|
-| `DECIMAL(10,2)` の `1234.50` | `"1234.50"` | `"1234.5"` |
-| `DATETIME` | `"2026-09-02 10:30:00"` | `toISOString()` だと9時間ずれる |
+`toPhpRows()` を使うのは、PHP側が `number_format()` や `sprintf()` で**明示的に文字列を組み立てている**ハンドラだけ。使う前に必ず移植元のPHPを読むこと。
 
-金額・小数・日付を含む列は必ず差分比較で確認すること。
+### 一致している他の型
+
+| 型 | 扱い |
+|---|---|
+| `DATE` / `DATETIME` | `pool.ts` の `dateStrings: true` により文字列のまま返る。PHPと一致 |
+| `DECIMAL` | mysql2 も PDO も文字列で返す。一致 |
+| `TINYINT(1)` | 両方とも数値（`0` / `1`）。真偽値に変換されない |
+
+⚠️ 自分で `new Date()` を挟むとタイムゾーンでずれる。DBから来た日付文字列はそのまま渡すこと。
+
+### ⚠️ タイムゾーン
+
+コンテナの既定は UTC。`docker-compose.prod.yml` で `TZ=Asia/Tokyo` を設定している。
+
+**これが無いと、日時を書き込むハンドラ（`login` / `get_token` / `heartbeat`）で9時間ずれる。** PHP は ① のタイムゾーン（JST）で `date('Y-m-d H:i:s')` を書き込んでいる。
+
+### 型は推測せず必ず比較する
+
+一致するかどうかは**実測しないと分からない**。上記の結論も、差分比較を実行して初めて判明した。移植のたびに `compareBackends` を通すこと。
 
 ---
 
@@ -153,21 +165,53 @@ backend/src/handlers/<request>Action/<request>_<roll>.php
 
 ### 3. 差分比較（参照系のみ）
 
-⚠️ **必ずローカルの Express と本番の PHP を比較する。** 本番の Express と比較しても、まだ登録前なので転送されて同じ結果になり、意味がない。
+**② VPS のコンテナ内で実行する。これが唯一の正しい方法。**
 
-```powershell
-# 【作業者のPC（PowerShell）】
-$env:PHP_BASE = "https://khg-marketing.info/dashboard/api/gateway/"
-$env:EXPRESS_BASE = "http://localhost:3001/api/gateway"
-$env:TOKEN = "<staff.api_token>"
+⚠️ **作業者のPCから実行してはいけない。** ローカルの Express は `docker-compose.yml` により `local_db`（過去のダンプ）を見ている。本番PHPと比べると**データそのものが違う**ため、件数差が出て移植の正否を判断できない。
 
-cd backend-express
-npm run compare -- --body '{\"request\":\"menu\"}'
+実際に `menu` で PHP=17,743件 / Express=17,700件 という差が出て、原因の切り分けに時間を要した。
+
+```bash
+# 【② VPS】
+dcp exec \
+  -e PHP_BASE=https://khg-marketing.info/dashboard/api/gateway/ \
+  -e EXPRESS_BASE=http://localhost:3001/api/gateway \
+  express-api node dist/cli/compareBackends.js --body '{"request":"menu"}'
 ```
 
-`✅ 差分なし` になるまで直す。
+| 変数 | 値 | 理由 |
+|---|---|---|
+| `PHP_BASE` | ① のゲートウェイURL | 正解となる側 |
+| `EXPRESS_BASE` | `http://localhost:3001/api/gateway` | **コンテナ自身**。Caddy を経由せずCORSの影響を受けない |
+
+⚠️ `tsx` は不要。CLIは `src/cli/` にあるため `npm run build` で `dist/cli/` にコンパイルされる。本番イメージ（`--omit=dev`）でもそのまま実行できる。
+
+⚠️ 比較する前に、そのエンドポイントを `registry.ts` に**登録してビルド・再起動**しておく必要がある。未登録だと Express 側も PHP へ転送してしまい、同じ結果になって比較の意味がない。
+
+`✅ 差分なし` になるまで直す。理想はバイト数まで一致すること（`menu` は 15,792,984 bytes で完全一致した）。
 
 ⚠️ このスクリプトは名前に `insert` `update` `delete` `tag` 等を含むリクエストを自動で拒否する。ただし判定は名前だけなので、**PHPを読んで参照専用だと確認する責任は人間側にある。**
+
+#### 差分が出たときの読み方
+
+同じ原因の差分が数万件出るため、配列の添字を潰して種類ごとに集約表示する。
+
+```
+❌ 差分 5000 件以上（上限に達したため打ち切り） / 原因は 2 種類
+
+  ×    1  $.inquiry: 件数が違う  PHP=17743  Express=17700
+  ×17700  $.inquiry[].sync: 型が違う
+         例: $.inquiry[0].sync: 型が違う  PHP=number(0)  Express=string(0)
+```
+
+**「17,700件の差分」ではなく「原因は1種類」と読む。**
+
+| 差分 | 判断 |
+|---|---|
+| 件数が数件違う | ⚠️ 許容。比較の一瞬に反響が入った場合がある |
+| 件数が数十件以上違う | ❌ 別のDBを見ている |
+| 型が違う | ❌ 値を変換している。変換をやめる |
+| 順序が違う | ⚠️ PHPのSQLに `ORDER BY` が無い。**足さないこと**（PHPと違う並びになりかえって差が広がる）。フロントが順序に依存していないかを確認する |
 
 ### 4. registry.ts に登録する
 
@@ -238,7 +282,7 @@ REACT_APP_XSERVER_API=https://api.khg-marketing.info/api/gateway
 | フェーズ | 内容 | 状態 |
 |---|---|---|
 | **0** | 互換ゲートウェイ / フォールバック / 差分比較 | **完了** |
-| 1 | 参照のみ・単純なもの（`menu` `header` `show_version` `callStatusList`） | 未 |
+| 1 | 参照のみ・単純なもの | `menu` **完了** / `header` `show_version` `callStatusList` 未 |
 | 2 | 一覧系（`list` `database` `inside` `shop`） | 未 |
 | 3 | 集計系（`rank` `shopTrend` `customerTrend` `company` `survey`） | 未 |
 | 4 | 更新系（`information` の add / update）| 未 |
