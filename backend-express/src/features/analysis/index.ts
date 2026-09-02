@@ -255,8 +255,8 @@ export const analysis = defineFeature({
 
     'GET /unsynced': route({
       summary:
-        '顧客台帳に未同期の反響（inquiry_customer.sync = 0）を集計する。追客漏れの可能性を測る指標。' +
-        '重複・業者・ブラックリストのタグが付いたものは追客対象外として除外する',
+        '反響を「同期不要」「未同期」「同期済み」に分けて集計する。' +
+        '重複・業者・ブラックリストは同期不要として別枠にし、未同期（追客漏れの可能性）には数えない',
       auth: 'analysisKey',
       query: unsyncedQuery,
       handler: async ({ query: q, ctx }) => {
@@ -284,15 +284,16 @@ export const analysis = defineFeature({
             },
             集計軸: q.groupBy.map((key) => `${key} = ${unsyncedDimensionLabel(key)}`),
             指標の意味: {
-              inquiries: '反響の総件数（タグの有無を問わない）',
-              excludedTag:
-                '「重複」「業者」「ブラックリスト」のタグが付いた件数。運用上そもそも追客しないもの',
-              target: '追客対象の件数（inquiries − excludedTag）。以降の分母はこれ',
+              inquiries: '反響の総件数。noSyncNeeded + unsynced + synced に一致する',
+              noSyncNeeded:
+                '「同期不要」と判断された件数（重複クリック / 業者 / ブラックリスト）。' +
+                '担当者が意図的に顧客台帳へ取り込まなかったもので、追客漏れではない',
+              syncTarget: '同期すべき件数（inquiries − noSyncNeeded）。以降の分母はこれ',
               unsynced:
-                '追客対象のうち顧客台帳に未同期の件数（sync = 0）。追客されていない可能性がある',
-              synced: '追客対象のうち顧客台帳に同期済みの件数（sync = 1）',
+                '同期すべきなのに未同期の件数（sync = 0）。これだけが「追客漏れの可能性」を示す',
+              synced: '同期すべきもののうち同期済みの件数（sync = 1）',
               unsyncedRatePct:
-                '未同期率（unsynced ÷ target）。単位はパーセント。分母は inquiries ではない',
+                '未同期率（unsynced ÷ syncTarget）。単位はパーセント。分母は inquiries ではない',
             },
             行数: rows.length,
             制約: `1レスポンスの最大行数は ${MAX_ROWS} 行`,
