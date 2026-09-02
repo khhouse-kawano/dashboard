@@ -1,4 +1,8 @@
+import type { CallStatusCategory } from '../features/callStatusList';
+import { runCallStatusList } from '../features/callStatusList';
+import { runHeader } from '../features/header';
 import { runMenu } from '../features/menu';
+import { runUpdateLog } from '../features/updateLog';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -97,3 +101,56 @@ register({
   auth: 'none',
   handler: async () => runMenu(),
 });
+
+/** ヘッダーの新着物件バッジ。件数だけを返す */
+register({
+  request: 'header',
+  summary: 'ヘッダーの新着物件バッジ（直近3日の登録件数）',
+  phpSource: 'backend/src/handlers/header.php',
+  auth: 'none',
+  handler: async () => runHeader(),
+});
+
+/**
+ * 更新履歴と所属店舗。
+ *
+ * ⚠️ 名前に update が入っているが SELECT のみ。
+ *   比較ツールで検証するときは --read-only-verified が必要。
+ */
+register({
+  request: 'update_log',
+  summary: '更新履歴と、ログイン中スタッフの所属店舗',
+  phpSource: 'backend/src/handlers/update_log.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    // ⚠️ PHP は $data['userName'] ?? '' としている。
+    //   未指定でも空文字で検索し、該当なし（shop: false）を返すのが正しい挙動。
+    const userName = typeof ctx.body.userName === 'string' ? ctx.body.userName : '';
+    return runUpdateLog(userName);
+  },
+});
+
+/**
+ * 架電状況一覧の初期データ。
+ *
+ * ⚠️ category ごとに1件ずつ登録する。ワイルドカードは用意していない。
+ *   ここに無い category（想定外の値）は ① の PHP へ転送される。
+ *   PHP は未知の値も master_data として扱うが、Express が黙って
+ *   既定テーブルを返すより、既存の挙動に任せるほうが安全。
+ *
+ * ⚠️ category 空（未指定）も PHP の既定値に合わせて登録する。
+ *   フロント（CallStatusList.tsx）は必ず値を送るが、
+ *   PHP が受け付ける形は残しておく。
+ */
+const callStatusCategories: (CallStatusCategory | '')[] = ['', 'order', 'spec', 'used'];
+
+for (const category of callStatusCategories) {
+  register({
+    request: 'callStatusList',
+    category,
+    summary: `架電状況一覧の初期データ（${category === '' ? '既定=注文' : category}）`,
+    phpSource: 'backend/src/handlers/callStatusList.php',
+    auth: 'none',
+    handler: async () => runCallStatusList(category === '' ? undefined : category),
+  });
+}
