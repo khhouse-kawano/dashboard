@@ -159,11 +159,12 @@ const assertReadOnly = (body: Record<string, unknown>, readOnlyVerified: boolean
 const post = async (
   url: string,
   body: Record<string, unknown>,
-  token: string
+  token: string,
+  extraHeaders: Record<string, string> = {}
 ): Promise<{ status: number; text: string; ms: number }> => {
   const startedAt = Date.now();
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extraHeaders };
   if (token !== '') headers.Token = token;
 
   const response = await fetch(url, {
@@ -288,8 +289,17 @@ const main = async (): Promise<void> => {
   console.log('リクエスト:', JSON.stringify(options.body));
   console.log('');
 
+  // ⚠️⚠️ PHP 側には必ず X-Forwarded-By を付ける。
+  //
+  //   ① の core/express_proxy.php は「移植済み」の request を ② へ転送する。
+  //   その状態で素のまま叩くと、PHP 側の応答が実は Express になり、
+  //   **Express 同士を比較して必ず「差分なし」になる**（偽の合格）。
+  //
+  //   このヘッダが付いていると ① は転送せず自分で処理するため、
+  //   移植済みのものでも本来のPHPの応答と比較できる。
+  //   （② のループ検知と同じヘッダを利用している）
   const [php, express] = await Promise.all([
-    post(options.phpBase, options.body, options.token),
+    post(options.phpBase, options.body, options.token, { 'X-Forwarded-By': 'compare-tool' }),
     post(options.expressBase, options.body, options.token),
   ]);
 
