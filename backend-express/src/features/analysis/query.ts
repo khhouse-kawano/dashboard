@@ -400,12 +400,16 @@ const UNSYNCED_DIMENSIONS = {
 } as const satisfies Record<string, { label: string; sql?: string; basis?: boolean }>;
 
 /**
- * 追客対象外を表す条件。
+ * 「同期不要」を表す条件。
  *
- * 反響一覧（ダッシュボード）で「重複」「業者」「ブラックリスト」のタグが
- * 付いたものは、そもそも追客しない前提で運用されている。
- * これを含めたまま未同期件数を数えると、実際には対応不要なものまで
- * 「追客漏れ」として計上され、店舗間の比較が歪む。
+ * 重複クリック・業者・ブラックリストのタグが付いた反響は、
+ * **そもそも顧客台帳に取り込む必要がない**。担当者が意図的にそう判断した
+ * 結果であって、対応が漏れているわけではない。
+ *
+ * ⚠️ これを「未同期」に数えてはならない。
+ *   数えると、業者反響や重複クリックが多い店舗・媒体ほど
+ *   「追客できていない」ように見え、歩留まりを実態より悪く見せる。
+ *   評価を誤らせるため、必ず別カテゴリとして分離する。
  *
  * ⚠️ ダッシュボード側（frontend/src/components/list/listTags.ts の isExcluded）と
  *   同じ定義にすること。片方だけ変えると、マネージャーが画面とClaudeの数字を
@@ -416,7 +420,7 @@ const UNSYNCED_DIMENSIONS = {
  *   判定していた（SQLからは実質絞り込めなかった）。
  *   移行SQL: backend/scripts/sql/2026-09-02_inquiry_tag_flags.sql
  */
-const EXCLUDED_TAG_SQL =
+const NO_SYNC_NEEDED_SQL =
   '(ic.duplicate_flag = 1 OR ic.support_flag = 1 OR ic.black_flag = 1)';
 
 export type UnsyncedDimensionKey = keyof typeof UNSYNCED_DIMENSIONS;
@@ -441,13 +445,22 @@ export interface UnsyncedOptions {
  * つまり顧客台帳に取り込まれておらず、追客されていない可能性がある。
  * master_data 側からは存在自体が見えないため、専用の集計として切り出している。
  *
+ * 反響は3つに分かれる。
+ *
+ *   inquiries = noSyncNeeded + unsynced + synced
+ *
+ *   noSyncNeeded … 同期不要。重複クリック / 業者 / ブラックリスト。
+ *                  担当者が「取り込まない」と判断済みのもの
+ *   unsynced     … 同期すべきなのに未同期。これだけが「追客漏れの可能性」
+ *   synced       … 同期済み
+ *
  * 返す列:
- *   inquiries      … 全反響数（タグの有無を問わない）
- *   excludedTag    … 重複 / 業者 / ブラックリストのいずれかが付いた件数
- *   target         … 追客対象（inquiries - excludedTag）
- *   unsynced       … 追客対象のうち未同期。これが「追客漏れの可能性」
- *   synced         … 追客対象のうち同期済み
- *   unsyncedRatePct… unsynced ÷ target のパーセント
+ *   inquiries      … 全反響数
+ *   noSyncNeeded   … 同期不要と判断された件数
+ *   syncTarget     … 同期すべき件数（inquiries − noSyncNeeded）
+ *   unsynced       … syncTarget のうち未同期
+ *   synced         … syncTarget のうち同期済み
+ *   unsyncedRatePct… unsynced ÷ syncTarget のパーセント
  */
 export const runUnsynced = async (options: UnsyncedOptions): Promise<PivotRow[]> => {
   const inquiryDate = asDate('ic.inquiry_date');
@@ -485,10 +498,10 @@ export const runUnsynced = async (options: UnsyncedOptions): Promise<PivotRow[]>
     SELECT ${[
       ...selects,
       'COUNT(*) AS inquiries',
-      `SUM(${EXCLUDED_TAG_SQL}) AS excluded_tag`,
-      `SUM(NOT ${EXCLUDED_TAG_SQL}) AS target`,
-      `SUM(ic.sync = 0 AND NOT ${EXCLUDED_TAG_SQL}) AS unsynced`,
-      `SUM(ic.sync = 1 AND NOT ${EXCLUDED_TAG_SQL}) AS synced`,
+      `SUM(${NO_SYNC_NEEDED_SQL}) AS no_sync_needed`,
+      `SUM(NOT ${NO_SYNC_NEEDED_SQL}) AS sync_target`,
+      `SUM(ic.sync = 0 AND NOT ${NO_SYNC_NEEDED_SQL}) AS unsynced`,
+      `SUM(ic.sync = 1 AND NOT ${NO_SYNC_NEEDED_SQL}) AS synced`,
     ].join(',\n           ')}
       FROM inquiry_customer ic
       JOIN (
@@ -516,18 +529,19 @@ export const runUnsynced = async (options: UnsyncedOptions): Promise<PivotRow[]>
     options.groupBy.forEach((key, i) => {
       row[key] = (raw[`d${i}`] as string | null) ?? UNSET_LABEL;
     });
-    const target = toNumber(raw.target) ?? 0;
+    const syncTarget = toNumber(raw.sync_target) ?? 0;
     const unsynced = toNumber(raw.unsynced) ?? 0;
 
     row.inquiries = toNumber(raw.inquiries) ?? 0;
-    row.excludedTag = toNumber(raw.excluded_tag);
-    row.target = target;
+    row.noSyncNeeded = toNumber(raw.no_sync_needed);
+    row.syncTarget = syncTarget;
     row.unsynced = unsynced;
     row.synced = toNumber(raw.synced);
-    // ⚠️ 分母は inquiries ではなく target（追客対象）。
-    //   除外分を分母に入れると、業者反響の多い媒体ほど未同期率が
-    //   低く見えてしまい、店舗・媒体の比較にならない。
-    row.unsyncedRatePct = target === 0 ? null : Math.round((unsynced / target) * 1000) / 10;
+    // ⚠️ 分母は inquiries ではなく syncTarget（同期すべき件数）。
+    //   同期不要のものを分母に入れると、業者反響の多い媒体ほど
+    //   未同期率が低く見えてしまい、店舗・媒体の比較にならない。
+    row.unsyncedRatePct =
+      syncTarget === 0 ? null : Math.round((unsynced / syncTarget) * 1000) / 10;
     return row;
   });
 
