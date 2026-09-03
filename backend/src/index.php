@@ -34,7 +34,7 @@ if ($request === '' || !preg_match('#^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$#', $requ
 // 切り戻しは core/express_proxy.php の expressProxyRequests() から
 // 該当行を消すだけ。デプロイし直す必要もない。
 // ---------------------------------------------------------------------------
-if (shouldProxyToExpress($request) && forwardToExpress($data)) {
+if (shouldProxyToExpress($request, is_array($data) ? $data : []) && forwardToExpress($data)) {
     exit;
 }
 

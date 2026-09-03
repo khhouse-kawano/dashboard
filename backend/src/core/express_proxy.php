@@ -35,7 +35,18 @@
 const EXPRESS_API_URL_DEFAULT = 'https://api.khg-marketing.info/api/gateway';
 
 /**
- * ② へ転送する request の許可リスト。
+ * ② へ転送する許可リスト。
+ *
+ * 書き方は3通り。用途に応じて使い分ける。
+ *
+ *   'menu'                   … request だけで判定する（roll / category を問わない）
+ *   'property:suumo'         … request と roll が一致したときだけ
+ *   'database:gift:order'    … request / roll / category がすべて一致したときだけ
+ *
+ * ⚠️ **roll で分岐するハンドラは、移植した roll だけを書くこと。**
+ *   request だけで書くと、未移植の roll も ② へ送られる。
+ *   ② は未登録として 502 を返し、① が自動フォールバックするので動きはするが、
+ *   **リクエストのたびに無駄な往復とエラーログが発生する**。
  *
  * ⚠️ **参照のみのリクエストだけを書くこと。** 上記の二重実行の理由による。
  *
@@ -65,13 +76,46 @@ function expressProxyRequests(): array
         'kpi_filter_master',
         'kpi_analysis_list',
         'kpi_analysis_get',
+
+        // 2026-09-03 移植。roll = 'suumo' のみ。
+        // ⚠️ 'property' と書かないこと。list / detail は未移植。
+        'property:suumo',
     ];
 }
 
 /**
- * この request を ② へ転送すべきか。
+ * 許可リストの1件が、今回のリクエストに一致するか。
+ *
+ * ⚠️ 部分一致にしないこと。'property' が 'property_db_update' に
+ *   一致してしまうと、更新系が ② へ送られる。必ず区切りごとに比較する。
  */
-function shouldProxyToExpress(string $request): bool
+function matchesProxyRule(string $rule, string $request, string $roll, string $category): bool
+{
+    $parts = explode(':', $rule);
+
+    if (($parts[0] ?? '') !== $request) {
+        return false;
+    }
+    // request だけの指定 → roll / category を問わない
+    if (count($parts) === 1) {
+        return true;
+    }
+    if (($parts[1] ?? '') !== $roll) {
+        return false;
+    }
+    if (count($parts) === 2) {
+        return true;
+    }
+
+    return ($parts[2] ?? '') === $category;
+}
+
+/**
+ * この request を ② へ転送すべきか。
+ *
+ * @param array $data リクエストボディ。roll / category の判定に使う
+ */
+function shouldProxyToExpress(string $request, array $data): bool
 {
     // 明示的に無効化できる逃げ道。障害時に .htaccess へ1行足せば全停止できる
     if (getenv('EXPRESS_PROXY_DISABLED') === '1') {
@@ -95,7 +139,18 @@ function shouldProxyToExpress(string $request): bool
         return false;
     }
 
-    return in_array($request, expressProxyRequests(), true);
+    // ⚠️ 数値や null が来ても落ちないよう文字列に寄せる。
+    //   ② の gateway/index.ts の asString() と同じ考え方。
+    $roll = is_scalar($data['roll'] ?? null) ? (string)$data['roll'] : '';
+    $category = is_scalar($data['category'] ?? null) ? (string)$data['category'] : '';
+
+    foreach (expressProxyRequests() as $rule) {
+        if (matchesProxyRule($rule, $request, $roll, $category)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
