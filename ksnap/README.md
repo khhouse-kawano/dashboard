@@ -5,7 +5,7 @@
 
 | | 場所 |
 |---|---|
-| 公開ギャラリー（顧客向け画面） | **別リポジトリ**（`react/ksnap`） |
+| 公開ギャラリー（顧客向け画面） | **別リポジトリ**（`react/ksnap`）／公開URL **https://k-snap.jp/** |
 | スタッフ向け画面 | このリポジトリ `frontend/src/components/photo/` `frontend/src/components/information/KSnap.tsx` |
 | API（PHP） | このリポジトリ `backend/src/handlers/k-snap*.php` ＋ `backend/src/core/ksnap.php` |
 | API（Express） | このリポジトリ `backend-express/src/features/ksnap/` |
@@ -41,6 +41,26 @@
 | 列を減らす | 表示が空欄になる（エラーにならない） |
 | `SELECT *` を明示列に変える | 列追加時に片方だけ古くなる |
 | `show_flag` / `show_snap` の条件を変える | 非公開の写真が顧客に見える |
+
+## ⚠️ 公開ギャラリーは別ドメイン（クロスオリジン）
+
+```
+https://k-snap.jp/  →  https://khg-marketing.info/dashboard/api/gateway/
+```
+
+配置は ① の `public_html/k-snap/`（`k-snap.jp` のドキュメントルート）。
+同じディレクトリは `https://khg-marketing.info/k-snap/` からも見えるため、
+**リクエストURIがホストによって変わる**（`/` と `/k-snap/`）。
+`.htaccess` でパスを直書きした条件は片方でしか効かない。
+
+| 項目 | 現状 |
+|---|---|
+| CORS | ① の `core/db.php` が `Access-Control-Allow-Origin: *` を返すため動く |
+| ⚠️ フロントを ② へ直接向ける場合 | `CORS_ORIGINS` に `https://k-snap.jp` を追加しないと**顧客側が止まる** |
+| ルーティング | クエリパラメータ（`?id=` `?page=`）。パスは `/` の1つだけ。`basename="/"` が正しい |
+
+⚠️ `k-snap_customer` はパスワードを含む顧客行を返す。**公開ドメインから
+`Access-Control-Allow-Origin: *` で到達できる**状態であることを認識しておくこと。
 
 ## ⚠️ 画像の配信元は3箇所で一致させる
 
