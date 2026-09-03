@@ -80,6 +80,24 @@ function expressProxyRequests(): array
         // 2026-09-03 移植。roll = 'suumo' のみ。
         // ⚠️ 'property' と書かないこと。list / detail は未移植。
         'property:suumo',
+
+        // 2026-09-03 移植。K-SNAP の参照系のみ。
+        //
+        // ⚠️ 'k-snap' は公開ギャラリー向け（owner を暗号化）。
+        //   ② に KSNAP_OWNER_KEY / KSNAP_OWNER_IV が設定されていないと
+        //   owner が空文字になり、顧客側の絞り込みが壊れる。
+        //   鍵を消す・変える場合はこの行も外すこと。
+        //
+        // ⚠️ 以下は**絶対に追加しないこと。** 書き込み系のため、
+        //   自動フォールバックで二重実行される。
+        //     k-snap_update          … 画像アップロード（そもそも ② では動かない）
+        //     k-snap_show            … UPDATE
+        //     k-snap_customer_update … INSERT / UPDATE
+        'k-snap',
+        'k-snap_edit',
+        'k-snap_load',
+        'k-snap_customer',
+        'kSnap',
     ];
 }
 
