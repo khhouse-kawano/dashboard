@@ -98,6 +98,13 @@ function expressProxyRequests(): array
         'k-snap_load',
         'k-snap_customer',
         'kSnap',
+
+        // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
+        // request 形式へ移したもの。
+        //
+        // ⚠️ 公開ギャラリー（顧客向け）も使っている。
+        //   認証を要求すると顧客側が止まる。
+        'shop_list',
     ];
 }
 
