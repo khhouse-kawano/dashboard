@@ -6,17 +6,9 @@ import "./Home.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Logo from "../assets/images/logo.png";
 import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from "jwt-decode";
 import apiClient from '../utils/apiClient';
 
 type Value = { mail: string, password: string, error: string };
-
-type GoogleJwtPayload = {
-  email: string;
-  name: string;
-  picture: string;
-  sub: string;
-};
 
 const Login = () => {
   const [validationMessage, setValidationMessage] = useState<Value>({
@@ -33,11 +25,13 @@ const Login = () => {
     const newValidationMessage: Value = { mail: "", password: "", error: "" };
     const token = credentialResponse.credential;
 
-    const decodedData = jwtDecode<GoogleJwtPayload>(token);
-
     const fetchData = async () => {
       try {
-        const response = await apiClient.post("", { request: 'login', mail: decodedData.email });
+        // ⚠️ IDトークン（JWT）そのものを送る。
+        //   以前はここで jwtDecode してメールアドレスだけを送っていたが、
+        //   jwtDecode は署名を検証しないため、誰でも他人になりすませた。
+        //   検証はサーバー側（backend/src/core/google_auth.php）で行う。
+        const response = await apiClient.post("", { request: 'login', credential: token });
         console.log("API Response:", response);
         if (response.data.message === "success") {
           setAuthority(response.data.authority);
@@ -65,9 +59,14 @@ const Login = () => {
           });
         }
       } catch (err) {
+        // ⚠️ IDトークンの検証に失敗するとサーバーは 401 を返し、axios は例外になる。
+        //   ここでサーバーのメッセージを拾わないと、認証エラーが
+        //   すべて「システムエラー」と表示されて原因が分からなくなる。
+        const details = (err as { response?: { data?: { details?: string } } })
+          ?.response?.data?.details;
         setValidationMessage({
           ...newValidationMessage,
-          error: 'システムエラーが発生しました',
+          error: details ?? 'システムエラーが発生しました',
         });
       }
     };
