@@ -3,6 +3,16 @@ import { runCallStatusList } from '../features/callStatusList';
 import { runHeader } from '../features/header';
 import { runKpiAnalysisGet, runKpiAnalysisList } from '../features/kpi/history';
 import { runKpiFilterMaster } from '../features/kpi/master';
+import {
+  runKSnap,
+  runKSnapCustomer,
+  runKSnapCustomerUpdate,
+  runKSnapEdit,
+  runKSnapLoad,
+  runKSnapLogin,
+  runKSnapPublic,
+  runKSnapShow,
+} from '../features/ksnap';
 import { runMenu } from '../features/menu';
 import { runPropertySuumo } from '../features/property';
 import { runUpdateLog } from '../features/updateLog';
@@ -157,6 +167,116 @@ for (const category of callStatusCategories) {
     handler: async () => runCallStatusList(category === '' ? undefined : category),
   });
 }
+
+/**
+ * K-SNAP の顧客詳細（information/KSnap.tsx）。
+ *
+ * ⚠️ auth: 'none'。移植元の kSnap.php は認証していない。
+ *   ⚠️ ただし顧客のパスワードと閲覧履歴を返すエンドポイントである。
+ *     認証強化の対象として優先度が高い（GATEWAY_REQUIRE_AUTH の一括適用時に効く）。
+ */
+register({
+  request: 'kSnap',
+  summary: 'K-SNAP の顧客1件（パスワード・閲覧ログ・お気に入り）とスナップ写真の全件',
+  phpSource: 'backend/src/handlers/kSnap.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnap(ctx.body.id),
+});
+
+// ---------------------------------------------------------------------------
+// K-SNAP（スナップ写真）
+//
+// ⚠️⚠️ 顧客向け（公開）とスタッフ向けが混在している。
+//   認証を一括で強化するとき、**顧客向けを除外しないと公開ギャラリーが止まる**
+//   （顧客はスタッフのトークンを持たない）。下の各コメントで区分を明記している。
+//
+// ⚠️ k-snap_update（画像アップロード）は登録していない。
+//   画像の保存先が ① のファイルシステムであり、② から書き込めないため。
+// ---------------------------------------------------------------------------
+
+/** 顧客向け（公開）。⚠️ 認証を要求してはいけない */
+register({
+  request: 'k-snap_login',
+  summary: '【公開】ギャラリーのログイン。パスワードから顧客IDを引く',
+  phpSource: 'backend/src/handlers/k-snap_login.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnapLogin(ctx.body.pass),
+});
+
+/** 顧客向け（公開）。⚠️ 認証を要求してはいけない */
+register({
+  request: 'k-snap',
+  summary: '【公開】ギャラリー向けスナップ一覧（show_snap = 1・owner は暗号化）',
+  phpSource: 'backend/src/handlers/k-snap.php',
+  auth: 'none',
+  handler: async () => runKSnapPublic(),
+});
+
+/** 顧客向け（公開）。⚠️ 認証を要求してはいけない */
+register({
+  request: 'k-snap_customer',
+  summary: '【公開】ギャラリー用の顧客1件',
+  phpSource: 'backend/src/handlers/k-snap_customer.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnapCustomer(ctx.body.id),
+});
+
+/**
+ * 顧客向け（公開）。⚠️ 認証を要求してはいけない。
+ *
+ * ⚠️⚠️ **書き込み系。① の expressProxyRequests() に追加してはいけない。**
+ *   自動フォールバックで二重実行される。
+ *   ここに登録しているのは、将来フロントを ② へ直接向けたときのため。
+ */
+register({
+  request: 'k-snap_customer_update',
+  summary: '【公開・書き込み】顧客の閲覧ログ・お気に入り・タグの記録',
+  phpSource: 'backend/src/handlers/k-snap_customer_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    await runKSnapCustomerUpdate(ctx.body);
+    // ⚠️ 移植元は何も出力しない。空文字を返して形を揃える
+    ctx.res.type('application/json').send('');
+    return undefined;
+  },
+});
+
+/**
+ * スタッフ向け。
+ *
+ * ⚠️ auth: 'none' にしているのは、移植元の k-snap_edit.php が
+ *   認証していないため（PHPと挙動を揃える）。本来は認証すべき対象であり、
+ *   一括強化の際は 'staff' に上げること。
+ */
+register({
+  request: 'k-snap_edit',
+  summary: '【スタッフ】スナップ一覧（全件・owner は平文）',
+  phpSource: 'backend/src/handlers/k-snap_edit.php',
+  auth: 'none',
+  handler: async () => runKSnapEdit(),
+});
+
+/** スタッフ向け。⚠️ 上記と同じ理由で 'none'。一括強化の対象 */
+register({
+  request: 'k-snap_load',
+  summary: '【スタッフ】編集画面の初期データ（スナップ1件＋オーナー名一覧）',
+  phpSource: 'backend/src/handlers/k-snap_load.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnapLoad(ctx.body.id),
+});
+
+/**
+ * スタッフ向け。
+ *
+ * ⚠️⚠️ **書き込み系。① の expressProxyRequests() に追加してはいけない。**
+ */
+register({
+  request: 'k-snap_show',
+  summary: '【スタッフ・書き込み】写真の公開/非公開、営業名表示の切り替え',
+  phpSource: 'backend/src/handlers/k-snap_show.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnapShow(ctx.body),
+});
 
 /**
  * SUUMO の掲載順位（SuumoPropertySummary.tsx）。

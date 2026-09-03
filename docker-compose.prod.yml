@@ -84,6 +84,17 @@ services:
       - PHP_GATEWAY_URL=${PHP_GATEWAY_URL:-}
       - PHP_GATEWAY_TIMEOUT_MS=${PHP_GATEWAY_TIMEOUT_MS:-120000}
       - GATEWAY_REQUIRE_AUTH=${GATEWAY_REQUIRE_AUTH:-false}
+
+      # K-SNAP の owner を公開ギャラリー向けに暗号化する鍵。
+      #
+      # ⚠️ ① の .htaccess（SetEnv）と**同じ値**にすること。
+      #   異なると暗号文が変わり、owner による絞り込みが ① 経由と ② 経由で
+      #   食い違う。値を変えると既存の暗号文とも一致しなくなる。
+      #
+      # ⚠️ 未設定だと owner を空文字で返す（平文は返さない）。
+      #   起動ログではなく、リクエスト時に error ログが出る。
+      - KSNAP_OWNER_KEY=${KSNAP_OWNER_KEY:-}
+      - KSNAP_OWNER_IV=${KSNAP_OWNER_IV:-}
     depends_on:
       ssh-tunnel:
         condition: service_started

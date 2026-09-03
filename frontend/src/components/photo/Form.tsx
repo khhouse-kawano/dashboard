@@ -4,6 +4,19 @@ import { areaList } from './AreaList';
 import axios from 'axios';
 import { tagList } from './TagList';
 import AuthContext from '../../context/AuthContext';
+import apiClient from '../../utils/apiClient';
+import { ksnapImageUrl } from '../../utils/ksnapImage';
+
+/**
+ * 画像アップロード（multipart）の送信先。
+ *
+ * ⚠️ apiClient は使えない。既定ヘッダの Content-Type: application/json が
+ *   multipart の boundary を壊し、サーバー側で $_FILES が空になる。
+ *
+ * ⚠️ 2026-09-03 に k-snap/api/ から dashboard の API へ移した。
+ *   apiClient と同じ baseURL を使うことで、環境ごとの向き先が1箇所で決まる。
+ */
+const KSNAP_API = process.env.REACT_APP_XSERVER_API ?? '';
 
 type PostData = {
     id: string,
@@ -16,7 +29,16 @@ type PostData = {
     shop: string,
     note: string,
     tag: string[],
-    image: File | null,
+    /**
+     * 選択された写真。
+     *
+     * ⚠️ 新規登録では複数枚を指定できる。タグ以下の入力内容は共通で、
+     *   1枚ごとに1レコードを作る（バックエンドが1枚ずつしか受け取れないため）。
+     *
+     * ⚠️ 編集時（editId あり）は1枚に固定する。1レコードの更新なので
+     *   複数枚を指定しても意味が成立しない。
+     */
+    images: File[],
     url: string,
     staff: string,
     owner: string,
@@ -80,14 +102,23 @@ const resizeImage = (file: File): Promise<File> => {
 const Form = ({ editId, setEditId, setCategory, category }: Props) => {
     const [form, setForm] = useState<PostData>({
         id: '', detail: '', category: '', plan: '', pref: '', town: '',
-        brand: '', shop: '', note: '', tag: [], image: null, url: '', staff: '', owner: '', staff_show: 1,
+        brand: '', shop: '', note: '', tag: [], images: [], url: '', staff: '', owner: '', staff_show: 1,
         ownerLastName: '', ownerFirstName: ''
     });
     const [towns, setTowns] = useState<string[]>([]);
     const [shops, setShops] = useState<string[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dropRef = useRef<HTMLDivElement>(null);
-    const [preview, setPreview] = useState<string | null>(null);
+    /**
+     * プレビュー用のURL。images と同じ順序で持つ。
+     *
+     * ⚠️ createObjectURL で作ったURLは、破棄しないとページを閉じるまで
+     *   メモリを保持し続ける。取り消し時と差し替え時に revokeObjectURL する。
+     */
+    const [previews, setPreviews] = useState<string[]>([]);
+    /** 連続送信の進捗。null なら送信していない */
+    const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+    const [submitError, setSubmitError] = useState<string>('');
     const { userName } = useContext(AuthContext);
     const [ownerList, setOwnerList] = useState<{ original: string, shop: string, lastName: string, firstName: string }[]>([]);
     const [showOwnerSuggest, setShowOwnerSuggest] = useState(false);
@@ -100,7 +131,7 @@ const Form = ({ editId, setEditId, setCategory, category }: Props) => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const response = await axios.post('https://khg-marketing.info/k-snap/api/', { request: 'k-snap_load', id: editId }, { headers });
+            const response = await apiClient.post('', { request: 'k-snap_load', id: editId });
             const snapData = response.data.snap;
 
             if (editId) {
@@ -127,7 +158,8 @@ const Form = ({ editId, setEditId, setCategory, category }: Props) => {
                     shop: snapData.shop ?? '',
                     note: snapData.note ?? '',
                     tag: JSON.parse(snapData.tag) ?? [],
-                    image: null,
+                    // ⚠️ 直後の loadImageFromServer が既存画像を入れる
+                    images: [],
                     url: snapData.url ?? '',
                     staff: snapData.staff ?? '',
                     owner: snapData.owner ?? '',
@@ -195,84 +227,161 @@ const Form = ({ editId, setEditId, setCategory, category }: Props) => {
     };
 
     const loadImageFromServer = async (imageName: string) => {
-        const url = `https://khg-marketing.info/k-snap/images/${imageName}`;
+        const url = ksnapImageUrl(imageName);
         const file = await urlToFile(url, imageName);
-        handleFile(file, true);
+        // ⚠️ サーバー上の画像は既に縮小済みなのでリサイズしない
+        await handleFiles([file], true);
     };
 
-    const handleFile = async (file: File, skipResize: boolean = false) => {
-        const targetFile = skipResize ? file : await resizeImage(file);
-        const url = URL.createObjectURL(targetFile);
-        setPreview(url);
-        setForm(prev => ({ ...prev, image: targetFile }));
+    const VALID_TYPES = ['image/jpeg', 'image/png'];
+
+    /**
+     * 選択された画像を追加する。
+     *
+     * ⚠️ 編集時は1枚に置き換える。追加ではない。
+     *   1レコードの更新なので、複数枚を持つと「どれを保存するか」が決まらない。
+     *
+     * ⚠️ リサイズは1枚ずつ順番に行う。同時に走らせると、
+     *   高解像度の写真を10枚選んだときに canvas がメモリを食い潰す。
+     */
+    const handleFiles = async (files: File[], skipResize: boolean = false) => {
+        if (files.length === 0) return;
+
+        const targets = editId ? files.slice(0, 1) : files;
+        const processed: File[] = [];
+        for (const file of targets) {
+            processed.push(skipResize ? file : await resizeImage(file));
+        }
+
+        const urls = processed.map(f => URL.createObjectURL(f));
+
+        setPreviews(prev => {
+            if (editId) {
+                prev.forEach(url => URL.revokeObjectURL(url));
+                return urls;
+            }
+            return [...prev, ...urls];
+        });
+        setForm(prev => ({
+            ...prev,
+            images: editId ? processed : [...prev.images, ...processed],
+        }));
+    };
+
+    /** 拡張子が対象外のものを弾く。1枚も残らなければ知らせる */
+    const filterValid = (files: File[]): File[] => {
+        const valid = files.filter(f => VALID_TYPES.includes(f.type));
+        if (valid.length !== files.length) {
+            alert(`JPGまたはPNG形式以外の${files.length - valid.length}件を除外しました。`);
+        }
+        return valid;
     };
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
-        const file = e.dataTransfer.files[0];
-        if (file) {
-            const validTypes = ['image/jpeg', 'image/png'];
-            if (!validTypes.includes(file.type)) {
-                alert('JPGまたはPNG形式の画像を選択してください。');
-                return;
-            }
-            handleFile(file);
-        }
+        const files = filterValid(Array.from(e.dataTransfer.files));
+        void handleFiles(files);
     };
 
     const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const validTypes = ['image/jpeg', 'image/png'];
-            if (!validTypes.includes(file.type)) {
-                alert('JPGまたはPNG形式の画像を選択してください。');
-                e.target.value = '';
-                return;
-            }
-            handleFile(file);
-        }
+        const files = filterValid(Array.from(e.target.files ?? []));
+        void handleFiles(files);
+        // 同じファイルを選び直せるようにする（value が同一だと change が起きない）
+        e.target.value = '';
     };
 
+    /** 選択を1枚取り消す */
+    const removeImage = (index: number) => {
+        setPreviews(prev => {
+            URL.revokeObjectURL(prev[index]);
+            return prev.filter((_, i) => i !== index);
+        });
+        setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
+    };
+
+    const clearImages = () => {
+        previews.forEach(url => URL.revokeObjectURL(url));
+        setPreviews([]);
+        setForm(prev => ({ ...prev, images: [] }));
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    /**
+     * 登録・更新。
+     *
+     * ⚠️ バックエンド（k-snap_update）は**1リクエストにつき1枚**しか受け取れない。
+     *   複数枚のときは1枚ずつ順番に送り、タグ以下の入力内容は全リクエストで共通にする。
+     *
+     * ⚠️ **途中で失敗しても巻き戻せない。** 3枚目で失敗したら1〜2枚目は登録済みで残る。
+     *   どこまで成功したかを必ず利用者に伝えること。黙って止まると、
+     *   同じ写真を選び直して重複が生まれる。
+     *
+     * ⚠️ 並列送信にしないこと。何枚目で失敗したかが分からなくなる。
+     */
     const handleSubmit = async () => {
-        if (!form.image || !form.detail || form.tag.length === 0) {
+        setSubmitError('');
+
+        if (form.images.length === 0 || !form.detail || form.tag.length === 0) {
             alert('必須項目を入力してください');
             return;
         }
+
         const finalOwnerName = `${form.shop || '店舗未定'}_${form.ownerLastName || ''}_${form.ownerFirstName || ''}_様邸`;
-        const fd = new FormData();
-        fd.append('id', form.id);
-        fd.append('detail', form.detail);
-        fd.append('category', form.category);
-        fd.append('plan', form.plan);
-        fd.append('pref', form.pref);
-        fd.append('town', form.town);
-        fd.append('brand', form.brand);
-        fd.append('shop', form.shop);
-        fd.append('note', form.note);
-        fd.append('tag', JSON.stringify(form.tag));
-        fd.append('image', form.image);
-        fd.append('request', 'k-snap_update');
-        fd.append('staff', userName);
-        fd.append('owner', finalOwnerName);
-        fd.append('staff_show', String(form.staff_show)); // 追加
+        const total = form.images.length;
+        let done = 0;
+
+        setProgress({ done: 0, total });
 
         try {
-            const response = await axios.post('https://khg-marketing.info/k-snap/api/', fd);
-            if (response.data.status === 'success') {
-                setForm({
-                    id: '', detail: '', category: '', plan: '', pref: '', town: '',
-                    brand: '', shop: '', note: '', tag: [], image: null, url: '', staff: '', owner: '', staff_show: 1, ownerLastName: '', ownerFirstName: ''
-                });
-                setPreview(null);
-                setEditId('');
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
+            for (const image of form.images) {
+                const fd = new FormData();
+                fd.append('id', form.id);
+                fd.append('detail', form.detail);
+                fd.append('category', form.category);
+                fd.append('plan', form.plan);
+                fd.append('pref', form.pref);
+                fd.append('town', form.town);
+                fd.append('brand', form.brand);
+                fd.append('shop', form.shop);
+                fd.append('note', form.note);
+                fd.append('tag', JSON.stringify(form.tag));
+                fd.append('image', image);
+                fd.append('request', 'k-snap_update');
+                fd.append('staff', userName);
+                fd.append('owner', finalOwnerName);
+                fd.append('staff_show', String(form.staff_show));
+
+                // ⚠️ multipart は apiClient を通さない。既定ヘッダの
+                //   Content-Type: application/json が boundary を壊すため。
+                //   URL は k-snap/api/ から dashboard の API へ移した。
+                const response = await axios.post(KSNAP_API, fd);
+
+                if (response.data.status !== 'success') {
+                    throw new Error(response.data.message ?? 'サーバーがエラーを返しました');
                 }
+
+                done += 1;
+                setProgress({ done, total });
             }
         } catch (err) {
             console.error(err);
+            setProgress(null);
+            setSubmitError(
+                total === 1
+                    ? '登録に失敗しました。時間をおいて再度お試しください。'
+                    : `${done + 1}枚目の登録に失敗しました。${done}枚目までは登録済みです。`
+                        + `残りの${total - done}枚だけを選び直して登録してください（同じ写真を再登録すると重複します）。`
+            );
+            return;
         }
 
+        setProgress(null);
+        setForm({
+            id: '', detail: '', category: '', plan: '', pref: '', town: '',
+            brand: '', shop: '', note: '', tag: [], images: [], url: '', staff: '', owner: '', staff_show: 1, ownerLastName: '', ownerFirstName: ''
+        });
+        clearImages();
+        setEditId('');
         setCategory('edit');
     };
 
@@ -285,9 +394,15 @@ const Form = ({ editId, setEditId, setCategory, category }: Props) => {
                     <BsForm.Group as={Row} className="mb-4 align-items-start">
                         <BsForm.Label column sm={3} className="fw-bold text-secondary">
                             写真を選択 <Badge bg="danger" className="ms-1" style={{ fontSize: '10px' }}>必須</Badge>
+                            {!editId && (
+                                <span className="d-block text-muted fw-normal mt-1" style={{ fontSize: '11px' }}>
+                                    複数まとめて選べます
+                                </span>
+                            )}
                         </BsForm.Label>
                         <Col sm={9}>
-                            {!form.image && (
+                            {/* ⚠️ 編集時は1枚だけ。選択済みなら領域を隠す */}
+                            {(!editId || form.images.length === 0) && (
                                 <div
                                     ref={dropRef}
                                     onDrop={handleDrop}
@@ -300,27 +415,90 @@ const Form = ({ editId, setEditId, setCategory, category }: Props) => {
                                 >
                                     <div className="fs-2 mb-2 text-secondary"><i className="fa-solid fa-cloud-arrow-up"></i></div>
                                     <span className="fw-bold" style={{ fontSize: '13px' }}>
-                                        {isMobile ? 'タップして写真を選択' : 'ここに写真をドラッグ ＆ ドロップ、またはクリックして選択'}
+                                        {isMobile
+                                            ? (editId ? 'タップして写真を選択' : 'タップして写真を選択（複数可）')
+                                            : (editId
+                                                ? 'ここに写真をドラッグ ＆ ドロップ、またはクリックして選択'
+                                                : 'ここに写真をドラッグ ＆ ドロップ、またはクリックして選択（複数可）')}
                                     </span>
+                                    {!editId && form.images.length > 0 && (
+                                        <span className="d-block text-success fw-bold mt-2" style={{ fontSize: '12px' }}>
+                                            追加で選択できます
+                                        </span>
+                                    )}
                                 </div>
                             )}
-                            <input type="file" accept="image/*" ref={fileInputRef} onChange={handleSelect} style={{ display: "none" }} />
+                            <input
+                                type="file"
+                                accept="image/*"
+                                multiple={!editId}
+                                ref={fileInputRef}
+                                onChange={handleSelect}
+                                style={{ display: "none" }}
+                            />
 
-                            {preview && (
-                                <div className="position-relative border rounded-3 overflow-hidden shadow-sm mt-2 bg-light" style={{ maxWidth: '100%' }}>
-                                    <Button
-                                        variant="danger" size="sm" className="position-absolute rounded-circle d-flex justify-content-center align-items-center shadow"
-                                        style={{ right: '12px', top: '12px', width: '28px', height: '28px', zIndex: 10, border: '2px solid white' }}
-                                        onClick={() => {
-                                            setPreview(null);
-                                            setForm(prev => ({ ...prev, image: null }));
-                                            if (fileInputRef.current) fileInputRef.current.value = "";
+                            {form.images.length > 0 && (
+                                <>
+                                    <div className="d-flex align-items-center justify-content-between mt-2 mb-1">
+                                        <span className="fw-bold text-dark" style={{ fontSize: '12px' }}>
+                                            選択中 {form.images.length} 枚
+                                            {!editId && form.images.length > 1 && (
+                                                <span className="text-muted fw-normal ms-2">
+                                                    以下の入力内容が全ての写真に反映されます
+                                                </span>
+                                            )}
+                                        </span>
+                                        <Button variant="outline-secondary" size="sm" style={{ fontSize: '11px' }} onClick={clearImages}>
+                                            すべて取り消す
+                                        </Button>
+                                    </div>
+
+                                    {/* 1枚のときは大きく、複数のときはサムネイルを並べる */}
+                                    <div
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: form.images.length === 1
+                                                ? '1fr'
+                                                : 'repeat(auto-fill, minmax(120px, 1fr))',
+                                            gap: '8px',
                                         }}
                                     >
-                                        <i className="fa-solid fa-xmark"></i>
-                                    </Button>
-                                    <img src={preview} style={{ width: '100%', maxHeight: '380px', objectFit: 'contain' }} alt="preview" />
-                                </div>
+                                        {previews.map((url, index) => (
+                                            <div
+                                                key={url}
+                                                className="position-relative border rounded-3 overflow-hidden shadow-sm bg-light"
+                                            >
+                                                <Button
+                                                    variant="danger" size="sm"
+                                                    className="position-absolute rounded-circle d-flex justify-content-center align-items-center shadow p-0"
+                                                    style={{ right: '6px', top: '6px', width: '24px', height: '24px', zIndex: 10, border: '2px solid white' }}
+                                                    onClick={() => removeImage(index)}
+                                                    title="この写真を取り消す"
+                                                >
+                                                    <i className="fa-solid fa-xmark" style={{ fontSize: '11px' }}></i>
+                                                </Button>
+                                                <img
+                                                    src={url}
+                                                    style={{
+                                                        width: '100%',
+                                                        maxHeight: form.images.length === 1 ? '380px' : '120px',
+                                                        objectFit: form.images.length === 1 ? 'contain' : 'cover',
+                                                        display: 'block',
+                                                    }}
+                                                    alt={`preview ${index + 1}`}
+                                                />
+                                                {form.images.length > 1 && (
+                                                    <span
+                                                        className="position-absolute bg-dark bg-opacity-75 text-white px-1"
+                                                        style={{ left: '4px', bottom: '4px', fontSize: '10px', borderRadius: '3px' }}
+                                                    >
+                                                        {index + 1}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
                             )}
                         </Col>
                     </BsForm.Group>
@@ -645,14 +823,35 @@ const Form = ({ editId, setEditId, setCategory, category }: Props) => {
                         </Col>
                     </BsForm.Group>
 
+                    {/* ⚠️ 部分成功を必ず知らせる。黙って止まると同じ写真を再登録して重複する */}
+                    {submitError !== '' && (
+                        <div className="alert alert-danger mt-4 mb-0" style={{ fontSize: '13px' }}>
+                            <i className="fa-solid fa-triangle-exclamation me-2"></i>
+                            {submitError}
+                        </div>
+                    )}
+
                     <div className="text-center mt-5">
                         <Button
                             variant="success" size="lg" className="rounded-pill px-5 fw-bold shadow-sm"
                             style={{ width: '100%', maxWidth: '340px', letterSpacing: '1px' }}
-                            onClick={() => handleSubmit()}
+                            onClick={() => void handleSubmit()}
+                            disabled={progress !== null}
                         >
-                            {editId ? '掲載情報を更新する' : 'スナップ写真を登録する'}
+                            {progress !== null
+                                ? `登録中… ${progress.done} / ${progress.total} 枚`
+                                : editId
+                                    ? '掲載情報を更新する'
+                                    : form.images.length > 1
+                                        ? `${form.images.length}枚のスナップ写真を登録する`
+                                        : 'スナップ写真を登録する'}
                         </Button>
+
+                        {progress !== null && progress.total > 1 && (
+                            <div className="text-muted mt-2" style={{ fontSize: '12px' }}>
+                                ⚠️ 画面を閉じずにお待ちください
+                            </div>
+                        )}
                     </div>
                 </BsForm>
             </Card>

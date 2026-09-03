@@ -90,6 +90,26 @@ export const env = {
    */
   gatewayRequireAuth: (process.env.GATEWAY_REQUIRE_AUTH ?? 'false') === 'true',
 
+  /**
+   * K-SNAP の owner を公開ギャラリー向けに暗号化する鍵。
+   *
+   * ⚠️ ① の値と**必ず同じ**にすること。異なると暗号文が変わり、
+   *   公開ギャラリーの owner による絞り込みが ① 経由と ② 経由で食い違う。
+   *
+   * ⚠️ 値を変えると既存の暗号文と一致しなくなる。鍵の更新は
+   *   フロントの挙動確認とセットで行うこと（features/ksnap/owner.ts を参照）。
+   */
+  ksnap: {
+    ownerKey: (() => {
+      const raw = process.env.KSNAP_OWNER_KEY;
+      return raw === undefined || raw === '' ? undefined : raw;
+    })(),
+    ownerIv: (() => {
+      const raw = process.env.KSNAP_OWNER_IV;
+      return raw === undefined || raw === '' ? undefined : raw;
+    })(),
+  },
+
   db: {
     host: requireEnv('DB_HOST'),
     port: numberEnv('DB_PORT', 3306),
