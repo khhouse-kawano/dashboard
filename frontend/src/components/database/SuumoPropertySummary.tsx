@@ -48,6 +48,8 @@ const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) 
 
     const [selectedPrefecture, setSelectedPrefecture] = useState<string>('鹿児島県');
     const [selectedCity, setSelectedCity] = useState<string>('');
+    // 表示する取得日（YYYY-MM-DD）。データ取得後に最新日で初期化される
+    const [selectedDate, setSelectedDate] = useState<string>('');
 
     useEffect(() => {
         if (!showSuumoSummary) return; 
@@ -75,29 +77,56 @@ const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) 
         return selectedCity ? [selectedCity] : (AREA_MAPPING[selectedPrefecture] || []);
     }, [selectedPrefecture, selectedCity]);
 
-    const processedData = useMemo(() => {
-        if (!properties || properties.length === 0) {
-            return { latestProperties: [], historyMap: {}, latestDateString: '' };
-        }
-
-        const uniqueDates = [...new Set(properties.map(p => p.registered_at?.split(' ')[0]))].filter(Boolean);
-        uniqueDates.sort((a, b) => (a < b ? 1 : -1));
-        const latestDateString = uniqueDates[0];
-
-        const sortedAllProps = [...properties].sort((a, b) => (a.registered_at < b.registered_at ? 1 : -1));
-        const historyMap: Record<string, number[]> = {};
-        
-        sortedAllProps.forEach(p => {
-            if (!historyMap[p.url]) {
-                historyMap[p.url] = [];
-            }
-            historyMap[p.url].push(Number(p.rank));
-        });
-
-        const latestProperties = properties.filter(p => p.registered_at?.startsWith(latestDateString));
-
-        return { latestProperties, historyMap, latestDateString };
+    /** 取得日の一覧（YYYY-MM-DD）。新しい順 */
+    const availableDates = useMemo(() => {
+        const dates = properties
+            .map(p => p.registered_at?.split(' ')[0])
+            .filter((d): d is string => Boolean(d));
+        return [...new Set(dates)].sort((a, b) => (a < b ? 1 : -1));
     }, [properties]);
+
+    // 初期値は最新の取得日。
+    // ⚠️ 再取得で選択中の日付が消えることがあるため、その場合も最新へ戻す。
+    //   存在しない日付を選んだままだと、表が空になって原因が分からなくなる。
+    useEffect(() => {
+        if (availableDates.length === 0) {
+            setSelectedDate('');
+            return;
+        }
+        if (!availableDates.includes(selectedDate)) {
+            setSelectedDate(availableDates[0]);
+        }
+    }, [availableDates, selectedDate]);
+
+    /**
+     * 物件URLごとの順位の履歴。新しい順に並べる。
+     *
+     * ⚠️ 日付も一緒に持つこと。
+     *   以前は順位だけを配列に入れ、「前回」を history[1]（全体で2番目に新しい行）
+     *   としていた。取得日を選べるようにすると、過去の日付を選んだときに
+     *   **未来の順位を「前回」として表示してしまう**。
+     */
+    const historyMap = useMemo(() => {
+        const map: Record<string, { date: string; rank: number }[]> = {};
+
+        [...properties]
+            .sort((a, b) => (a.registered_at < b.registered_at ? 1 : -1))
+            .forEach(p => {
+                const date = p.registered_at?.split(' ')[0] ?? '';
+                if (!map[p.url]) {
+                    map[p.url] = [];
+                }
+                map[p.url].push({ date, rank: Number(p.rank) });
+            });
+
+        return map;
+    }, [properties]);
+
+    /** 選択中の取得日の物件 */
+    const targetProperties = useMemo(() => {
+        if (selectedDate === '') return [];
+        return properties.filter(p => p.registered_at?.startsWith(selectedDate));
+    }, [properties, selectedDate]);
 
     const { dataMap, maxRank, totalCount, cityCounts } = useMemo(() => {
         const map: Record<string, Record<number, SuumoProperty>> = {};
@@ -105,7 +134,7 @@ const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) 
         let max = 0;
         let total = 0;
 
-        processedData.latestProperties.forEach(p => {
+        targetProperties.forEach(p => {
             if (!targetCities.includes(p.area)) return;
 
             total++;
@@ -118,7 +147,7 @@ const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) 
         });
 
         return { dataMap: map, maxRank: max, totalCount: total, cityCounts: counts };
-    }, [processedData.latestProperties, targetCities]);
+    }, [targetProperties, targetCities]);
 
     const rankArray = Array.from({ length: maxRank }, (_, i) => i + 1);
 
@@ -127,11 +156,21 @@ const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) 
             <Modal.Header closeButton className="border-bottom-0 pb-2 bg-light">
                 <Modal.Title className="fw-bold text-secondary d-flex align-items-center w-100" style={{ fontSize: '18px' }}>
                     
-                    {processedData.latestDateString && (
-                        <span className="text-muted fw-normal" style={{ fontSize: '12px' }}>
-                            <i className="bi bi-clock-history me-1"></i>取得日: {processedData.latestDateString}
-                        </span>
-                    )}
+                    <span className="text-muted fw-normal d-flex align-items-center gap-1" style={{ fontSize: '12px' }}>
+                        <i className="bi bi-clock-history"></i>取得日
+                        <select
+                            className="form-select form-select-sm shadow-sm fw-bold text-secondary"
+                            style={{ width: '150px', cursor: 'pointer', fontSize: '12px' }}
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            disabled={availableDates.length === 0}
+                        >
+                            {availableDates.length === 0 && <option value="">データなし</option>}
+                            {availableDates.map((d, i) => (
+                                <option key={d} value={d}>{d}{i === 0 ? '（最新）' : ''}</option>
+                            ))}
+                        </select>
+                    </span>
                     <div className="bg-danger text-white rounded px-2 py-1 ms-2" style={{fontSize: '12px', cursor: 'pointer'}}
                     onClick={() => setShowSuumoSummary(false)}>
                         × 閉じる
@@ -229,8 +268,12 @@ const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) 
                                             const isOwn = item.company.includes('国分ハウジング');
                                             const bgColor = isOwn ? '#fffbeb' : '#ffffff';
                                             
-                                            const history = processedData.historyMap[item.url] || [];
-                                            const prevRank = history.length > 1 ? history[1] : '-';
+                                            // ⚠️「前回」は選択中の取得日より**前**の記録。
+                                            //   履歴は新しい順なので、最初に見つかった古い日付が前回になる。
+                                            //   過去の日付を選んだときに未来の順位を出さないための条件。
+                                            const history = historyMap[item.url] || [];
+                                            const previous = history.find(h => h.date < selectedDate);
+                                            const prevRank = previous ? previous.rank : '-';
                                             const rankDisplay = `${rank}(${prevRank})`;
 
                                             return (
