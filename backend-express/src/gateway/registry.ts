@@ -15,6 +15,7 @@ import {
 } from '../features/ksnap';
 import { runMenu } from '../features/menu';
 import { runPropertySuumo } from '../features/property';
+import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
@@ -276,6 +277,23 @@ register({
   phpSource: 'backend/src/handlers/k-snap_show.php',
   auth: 'none',
   handler: async (ctx) => runKSnapShow(ctx.body),
+});
+
+/**
+ * 店舗マスタ。
+ *
+ * ⚠️ auth: 'none'。移植元が認証していないため。
+ *   ⚠️ ただし公開ギャラリー（顧客向け）も使っている。
+ *     認証を一括強化するときに 'staff' へ上げると**公開ギャラリーが止まる**。
+ *
+ * ⚠️ 配列そのものを返す。`{ status, ... }` で包むと呼び出し側3箇所が壊れる。
+ */
+register({
+  request: 'shop_list',
+  summary: '店舗マスタ（show_flag = 1 のブランド・課・エリア・事業区分）',
+  phpSource: 'backend/src/handlers/shop_list.php',
+  auth: 'none',
+  handler: async () => runShopList(),
 });
 
 /**

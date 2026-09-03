@@ -212,7 +212,7 @@ const Form = ({ editId, setEditId, setCategory, category }: Props) => {
             'ニーエルホーム': '2L', 'ジャスフィーホーム': 'JH', 'PG HOUSE': 'PGH'
         } as const;
         const fetchData = async () => {
-            const res = await axios.post<{ brand: string, shop: string }[]>("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers });
+            const res = await apiClient.post<{ brand: string, shop: string }[]>('', { request: 'shop_list' });
             const targetBrand = brandMapping[form.brand as keyof typeof brandMapping];
             const filteredShoos = res.data.filter(r => r.brand === targetBrand).map(r => r.shop);
             setShops(filteredShoos);

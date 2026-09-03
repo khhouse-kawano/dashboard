@@ -57,6 +57,40 @@ services:
     restart: unless-stopped
 
   # ------------------------------------------------------------------
+  # 公開ギャラリー（K-SNAP）の開発サーバー
+  #
+  # 顧客がパスワードで入って写真を見る画面。Vite + React 19。
+  # ダッシュボード（frontend/）とは別プロジェクトで、React のバージョンも違う。
+  #
+  # ⚠️ 本番では Docker を使わない。ビルドして ① の public_html/k-snap/ へ
+  #   FTPで上げる運用。このサービスは**開発用**である。
+  #
+  # ⚠️ 取り込み前は開発中も本番APIを直接叩いていた。
+  #   k-snap_customer_update は書き込み系なので、
+  #   **開発中の操作が本番の顧客データを上書きしていた。**
+  #   src/config.ts が開発時は php-web を向くようにして解消している。
+  # ------------------------------------------------------------------
+  ksnap-web:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      # ⚠️ 3000 はダッシュボード、3001 は Express が使っている
+      - "3002:3002"
+    volumes:
+      - ./ksnap-frontend:/app
+      # ホストの node_modules で上書きされないようにする（匿名ボリューム）
+      - /app/node_modules
+    environment:
+      # ⚠️ ブラウザから見た php-web のURL。コンテナ名では解決できない
+      - VITE_API_BASE=http://localhost:8080/
+    # ⚠️ 初回は node_modules が空なので install してから起動する。
+    #   --host はコンテナ外（ホストのブラウザ）から見えるようにするため必須。
+    command: sh -c "[ -d node_modules/vite ] || npm install; npm run dev -- --host 0.0.0.0 --port 3002"
+    depends_on:
+      - php-web
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
   # データベース（PHP / Express の両方が同じDBを参照する）
   # ------------------------------------------------------------------
   mariadb-db:

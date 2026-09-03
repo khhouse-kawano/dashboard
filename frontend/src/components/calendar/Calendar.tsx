@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, useCallback } from 'react'
 import { useLocation } from "react-router-dom";
 import Table from "react-bootstrap/Table";
 import axios from "axios";
+import apiClient from '../../utils/apiClient';
 import { colorCodes } from "../../utils/colors";
 import Modal from 'react-bootstrap/Modal';
 import IceWorld from '../IceWorld';
@@ -126,7 +127,7 @@ const Company = () => {
         const fetchData = async () => {
             const [calendarRes, shopRes, calenderRegisterRes] = await Promise.all([
                 axios.post("https://khg-marketing.info/dashboard/api/", { demand: "event_calendar" }, { headers }),
-                axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list" }, { headers }),
+                apiClient.post('', { request: 'shop_list' }),
                 axios.post("https://khg-marketing.info/dashboard/api/", { demand: "calendar_list" }, { headers }),
             ]);
             setCalendar(calendarRes.data);
