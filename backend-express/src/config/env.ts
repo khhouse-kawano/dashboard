@@ -75,11 +75,18 @@ export const env = {
   phpGatewayTimeoutMs: numberEnv('PHP_GATEWAY_TIMEOUT_MS', 120_000),
 
   /**
-   * ゲートウェイで移植済みエンドポイントに Token 認証を要求するか。
+   * ゲートウェイの認証を一括で強化するスイッチ。
    *
-   * ⚠️ 現状のPHPは Authorization ヘッダを検証していない（core/db.php を参照）。
-   *   true にすると Express 側だけ厳しくなり、Token を送らない画面が 401 になる。
-   *   移植と認証強化は分けて進めるため、既定は false（PHP互換）。
+   * ⚠️ これは「認証を有効にするか」ではない。
+   *   auth: 'staff' / 'master' と宣言したエントリは、この値に関係なく**常に検証する**。
+   *   宣言したのに効かない状態が一番危険なため。
+   *
+   *   このフラグが true になると、auth: 'none' のエントリにも staff 認証を要求する。
+   *
+   * ⚠️ true にすると、移植元のPHPが認証していないエンドポイント
+   *   （menu / header / callStatusList など）が 401 を返すようになる。
+   *   Token を送らずに動いていた画面が止まるため、既定は false。
+   *   一括強化は ① の core/db.php を直すのと同時に行うべきもの。
    */
   gatewayRequireAuth: (process.env.GATEWAY_REQUIRE_AUTH ?? 'false') === 'true',
 

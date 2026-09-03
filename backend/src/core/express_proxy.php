@@ -47,8 +47,24 @@ const EXPRESS_API_URL_DEFAULT = 'https://api.khg-marketing.info/api/gateway';
 function expressProxyRequests(): array
 {
     return [
-        // 2026-09-02 移植。差分比較でバイト単位一致を確認済み
+        // 2026-09-02 移植。いずれも ② のコンテナ内で差分比較を行い、
+        // バイト単位で一致することを確認済み
         'menu',
+        'header',
+        'update_log',
+        'callStatusList',
+
+        // 2026-09-02 移植。KPI分析の参照系のみ。
+        //
+        // ⚠️ kpi_analyze（Claude API呼び出し＋INSERT）と
+        //   kpi_analysis_delete（DELETE）は**絶対に追加しないこと。**
+        //   自動フォールバックにより二重課金・履歴の二重INSERTが起きる。
+        //
+        // ⚠️ これらは ② 側で auth: 'master' を宣言しているため、
+        //   Token ヘッダの引き継ぎ（下の forwardToExpress）が必須。
+        'kpi_filter_master',
+        'kpi_analysis_list',
+        'kpi_analysis_get',
     ];
 }
 
@@ -100,11 +116,25 @@ function forwardToExpress(array $data): bool
 
     $headers = ['Content-Type: application/json'];
 
-    // 認証情報を引き継ぐ。② 側で Token を使う場合に必要になる
+    // 認証情報を引き継ぐ。
+    //
+    // ⚠️ これを落とすと、② 側で auth: 'staff' / 'master' を宣言している
+    //   エンドポイントが必ず 401 になる。転送する側の必須処理。
     $incoming = function_exists('getallheaders') ? getallheaders() : [];
+
     $token = $incoming['Token'] ?? $incoming['token'] ?? '';
     if ($token !== '') {
         $headers[] = 'Token: ' . $token;
+    }
+
+    // ⚠️ フロント（utils/apiClient.ts）が送る Authorization は '4081Kokubu' という
+    //   固定文字列で、認証情報ではない（① でも検証していない）。
+    //   ② 側は 'Bearer xxx' の形のときだけ認証情報として扱うため、
+    //   そのまま引き継いでも誤認証は起きない。
+    //   将来 Bearer を使う経路（MCP など）を通すための備えとして渡しておく。
+    $authorization = $incoming['Authorization'] ?? $incoming['authorization'] ?? '';
+    if ($authorization !== '') {
+        $headers[] = 'Authorization: ' . $authorization;
     }
 
     // ② 側でループ検知に使う。これが付いていると ② は ① へ転送し返さない
