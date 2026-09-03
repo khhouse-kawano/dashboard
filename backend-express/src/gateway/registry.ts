@@ -4,6 +4,7 @@ import { runHeader } from '../features/header';
 import { runKpiAnalysisGet, runKpiAnalysisList } from '../features/kpi/history';
 import { runKpiFilterMaster } from '../features/kpi/master';
 import { runMenu } from '../features/menu';
+import { runPropertySuumo } from '../features/property';
 import { runUpdateLog } from '../features/updateLog';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
@@ -156,6 +157,23 @@ for (const category of callStatusCategories) {
     handler: async () => runCallStatusList(category === '' ? undefined : category),
   });
 }
+
+/**
+ * SUUMO の掲載順位（SuumoPropertySummary.tsx）。
+ *
+ * ⚠️ roll = 'suumo' だけを登録する。'list' / 'detail' は未移植なので
+ *   ① へ転送される。ワイルドカードを作らない方針どおり。
+ *
+ * ⚠️ auth: 'none' にしている。移植元の property.php は認証していない。
+ */
+register({
+  request: 'property',
+  roll: 'suumo',
+  summary: 'SUUMO の掲載順位データ（全期間）',
+  phpSource: 'backend/src/handlers/propertyAction/property_suumo.php',
+  auth: 'none',
+  handler: async () => runPropertySuumo(),
+});
 
 // ---------------------------------------------------------------------------
 // KPI分析（ClaudeAnalysis.tsx）— 参照系のみ
