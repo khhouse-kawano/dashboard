@@ -3,6 +3,8 @@ import { execute, query } from '../../db/pool';
 import type { SqlParam } from '../../db/pool';
 import { logger } from '../../utils/logger';
 import type { AmbassadorResult } from './index';
+import { sendCustomerThanks, sendInternalNotice } from './mail';
+import type { InquiryMailData } from './mail';
 
 /**
  * アンバサダー反響の公開受付。
@@ -50,6 +52,8 @@ const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
 
 interface AmbassadorNoRow extends RowDataPacket {
   no: number;
+  name: string | null;
+  account: string | null;
 }
 
 const clean = (value: unknown, maxLength: number): string => {
@@ -135,13 +139,21 @@ export const runAmbassadorInquiry = async (
   // -------------------------------------------------------------------------
   const ambassadorId = clean(body.id, 64);
   let ambassadorNo: number | null = null;
+  // 社内通知メールに「誰の紹介か」を載せるため、氏名とアカウントも取っておく
+  let ambassadorName = '';
+  let ambassadorAccount = '';
 
   if (/^\d{1,9}$/.test(ambassadorId)) {
     const rows = await query<AmbassadorNoRow>(
-      'SELECT `no` FROM ambassador_list WHERE `no` = ? LIMIT 1',
+      'SELECT `no`, `name`, `account` FROM ambassador_list WHERE `no` = ? LIMIT 1',
       [Number(ambassadorId)]
     );
-    ambassadorNo = rows[0]?.no ?? null;
+    const found = rows[0];
+    if (found !== undefined) {
+      ambassadorNo = found.no;
+      ambassadorName = found.name ?? '';
+      ambassadorAccount = found.account ?? '';
+    }
   }
 
   if (ambassadorNo === null && ambassadorId !== '') {
@@ -153,17 +165,23 @@ export const runAmbassadorInquiry = async (
   // ⚠️ shop / staff / sync / master_data_id はリクエストから受け取らない。
   //   担当店舗は建築希望地を見て社内で割り振る運用のため、
   //   ここでは空のまま保存する（画面側で「未設定」と赤字表示される）。
+  const kana = clean(body.kana, 100);
+  const zip = normalizeZip(clean(body.zip, 20));
+  const address = clean(body.address, 255);
+  const buildArea = clean(body.area, 255);
+  const account = normalizeAccount(clean(body.insta, 100));
+
   const values: SqlParam[] = [
     ambassadorNo,
     orNull(ambassadorId),
     orNull(name),
-    orNull(clean(body.kana, 100)),
-    orNull(normalizeZip(clean(body.zip, 20))),
-    orNull(clean(body.address, 255)),
-    orNull(clean(body.area, 255)),
+    orNull(kana),
+    orNull(zip),
+    orNull(address),
+    orNull(buildArea),
     orNull(phone),
     orNull(mail),
-    orNull(normalizeAccount(clean(body.insta, 100))),
+    orNull(account),
     today(),
     // ⚠️ 同意は真偽値で届く。文字列 'false' が来ても偽として扱う
     body.agree === true || body.agree === 'true' || body.agree === 1 ? 1 : 0,
@@ -187,8 +205,11 @@ export const runAmbassadorInquiry = async (
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
   `;
 
+  let inquiryNo = 0;
+
   try {
-    await execute(INSERT_SQL, values);
+    const result = await execute(INSERT_SQL, values);
+    inquiryNo = result.insertId;
   } catch (error) {
     // ⚠️ 例外メッセージをそのまま返さない。SQLや列名が外部に漏れる。
     //   ⚠️ ログには必ず内容を残す。ここが唯一の記録であり、
@@ -207,8 +228,65 @@ export const runAmbassadorInquiry = async (
   }
 
   logger.info(
-    `ambassador_inquiry を受け付けました name="${name}" ambassador_no=${ambassadorNo ?? '(未照合)'}`
+    `ambassador_inquiry を受け付けました no=${inquiryNo} name="${name}" ` +
+      `ambassador_no=${ambassadorNo ?? '(未照合)'}`
   );
+
+  // -------------------------------------------------------------------------
+  // メール送信
+  //
+  // ⚠️⚠️ **保存を確定させたあとに送る。順序を入れ替えてはいけない。**
+  //   先に送ると、メールサーバーが不調な間の反響が丸ごと失われる。
+  //
+  // ⚠️ 送信に失敗しても 200 を返す。ここで 500 にすると、
+  //   保存済みなのに顧客が「送信に失敗しました」を見て再送し、
+  //   **同じ反響が重複する。**
+  //
+  // ⚠️ 2通は独立して送る（Promise.all で並列。片方の失敗が他方を止めない）。
+  //   顧客宛が失敗しても、社内が気づけることのほうが重要。
+  // -------------------------------------------------------------------------
+  const mailData: InquiryMailData = {
+    name,
+    kana,
+    zip,
+    address,
+    buildArea,
+    mail,
+    phone,
+    account,
+    ambassadorNo,
+    ambassadorName,
+    ambassadorAccount,
+    ambassadorId,
+  };
+
+  const [mailSent, notifySent] = await Promise.all([
+    sendCustomerThanks(mailData),
+    sendInternalNotice(mailData),
+  ]);
+
+  // ⚠️ 記録の失敗で応答を壊さない。メールは既に送られており、
+  //   ここで失敗しても顧客側の体験は変わらない。列が古いままになるだけ。
+  if (inquiryNo > 0) {
+    try {
+      await execute(
+        'UPDATE inquiry_ambassador SET mail_sent = ?, notify_sent = ? WHERE `no` = ?',
+        [mailSent ? 1 : 0, notifySent ? 1 : 0, inquiryNo]
+      );
+    } catch (error) {
+      logger.error(
+        `ambassador_inquiry: メール送信結果の記録に失敗しました no=${inquiryNo}: ${(error as Error).message}`
+      );
+    }
+  }
+
+  if (!notifySent) {
+    // ⚠️ 顧客宛より重い。誰も反響に気づかないまま時間が経つ
+    logger.error(
+      `ambassador_inquiry: 社内通知メールを送れませんでした no=${inquiryNo} name="${name}"。` +
+        'ダッシュボードの反響一覧を直接確認してください。'
+    );
+  }
 
   return { httpStatus: 200, body: { status: 'ok' } };
 };

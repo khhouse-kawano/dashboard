@@ -110,6 +110,43 @@ export const env = {
     })(),
   },
 
+  /**
+   * メール送信（SMTP）。アンバサダー反響のサンクスメールと社内通知に使う。
+   *
+   * ⚠️ **未設定なら送信をスキップする（起動は止めない）。**
+   *   開発環境で誤って顧客へメールを送らないため。requireEnv にしてはいけない。
+   *   スキップしたことは警告ログに残る。
+   *
+   * ⚠️ ① レンタルサーバーのメールアカウントで認証する。
+   *   ② から自前で送ると送信ドメインの SPF / DKIM と合わず、
+   *   ほぼ確実に迷惑メール扱いになる。
+   *
+   * ⚠️ port 465 は SSL（接続直後から暗号化）、587 は STARTTLS。
+   *   secure の値はポートから自動判定する。手で食い違わせると接続できない。
+   */
+  smtp: {
+    host: (() => {
+      const raw = process.env.SMTP_HOST;
+      return raw === undefined || raw.trim() === '' ? undefined : raw.trim();
+    })(),
+    port: numberEnv('SMTP_PORT', 465),
+    user: process.env.SMTP_USER ?? '',
+    pass: process.env.SMTP_PASS ?? '',
+    /** 差出人。例: 国分ハウジング <noreply@kh-house.jp> */
+    from: process.env.SMTP_FROM ?? '',
+    /**
+     * 顧客が返信したときの宛先。
+     * ⚠️ noreply から送るため、これが無いと返信が誰にも届かない。
+     */
+    replyTo: process.env.MAIL_REPLY_TO ?? '',
+  },
+
+  /** アンバサダー反響の社内通知先。カンマ区切りで複数可 */
+  ambassadorNotifyTo: (process.env.AMBASSADOR_NOTIFY_TO ?? '')
+    .split(',')
+    .map((address) => address.trim())
+    .filter((address) => address !== ''),
+
   db: {
     host: requireEnv('DB_HOST'),
     port: numberEnv('DB_PORT', 3306),
