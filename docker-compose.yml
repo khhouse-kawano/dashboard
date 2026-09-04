@@ -15,6 +15,15 @@ services:
       - DB_NAME=local_db
       - DB_USER=local_user
       - DB_PASS=local_password
+      # ⚠️ core/express_proxy.php の転送先。**コンテナ名で解決する。**
+      #
+      #   これを設定しないと、既定値の https://api.khg-marketing.info/... を向き、
+      #   **開発中の操作が本番のDBに書き込まれる。**
+      #   （アンバサダー機能は Express のみで、書き込みも転送されるため）
+      #
+      # ⚠️ localhost ではなく express-api（サービス名）。
+      #   php-web コンテナの中から見た宛先なので、localhost は自分自身になる。
+      - EXPRESS_API_URL=http://express-api:3001/api/gateway
     env_file:
       # 実際に価値を持つ秘密情報（暗号化マスターキー等）はこちら。
       # このファイルは .gitignore で保護されており、Gitには入らない。

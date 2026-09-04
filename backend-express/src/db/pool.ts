@@ -74,6 +74,62 @@ export const execute = async (
   return result;
 };
 
+/**
+ * トランザクション。複数の書き込みを1つにまとめる。
+ *
+ * ⚠️ `query()` / `execute()` はプールから毎回別の接続を取るため、
+ *   それらを並べても**トランザクションにならない**。
+ *   BEGIN した接続と別の接続で INSERT すると、ロールバックが効かない。
+ *   必ずこの関数が渡す `tx` を使うこと。
+ *
+ * @example
+ * await withTransaction(async (tx) => {
+ *   await tx.execute('INSERT INTO master_data ...', [...]);
+ *   await tx.execute('UPDATE inquiry_ambassador SET sync = 1 ...', [...]);
+ * });
+ */
+export interface Tx {
+  query<T extends RowDataPacket>(sql: string, params?: ReadonlyArray<SqlParam>): Promise<T[]>;
+  execute(sql: string, params?: ReadonlyArray<SqlParam>): Promise<ResultSetHeader>;
+}
+
+export const withTransaction = async <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => {
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
+
+  const tx: Tx = {
+    query: async <R extends RowDataPacket>(
+      sql: string,
+      params: ReadonlyArray<SqlParam> = []
+    ) => {
+      const [rows] = await connection.execute<R[]>(sql, normalizeParams(params));
+      return rows;
+    },
+    execute: async (sql: string, params: ReadonlyArray<SqlParam> = []) => {
+      const [result] = await connection.execute<ResultSetHeader>(sql, normalizeParams(params));
+      return result;
+    },
+  };
+
+  try {
+    const result = await fn(tx);
+    await connection.commit();
+    return result;
+  } catch (error) {
+    // ⚠️ ロールバック自体が失敗しても、元の例外を投げること。
+    //   ここで別の例外に差し替えると、本当の原因が消える。
+    try {
+      await connection.rollback();
+    } catch {
+      // 接続が既に切れている場合など。元の例外を優先する
+    }
+    throw error;
+  } finally {
+    // ⚠️ 例外時も必ずプールへ返す。返さないと接続が枯れて全体が止まる
+    connection.release();
+  }
+};
+
 /** 疎通確認。接続できない場合は例外を投げる */
 export const pingDatabase = async (): Promise<void> => {
   const connection = await pool.getConnection();

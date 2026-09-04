@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { RequestHandler } from 'express';
 import { env, isProduction } from '../config/env';
+import { publicFormRateLimit } from '../middlewares/publicFormRateLimit';
 import { logger } from '../utils/logger';
 import { checkGatewayAuth } from './auth';
 import { forwardToPhp } from './phpFallback';
@@ -169,7 +170,11 @@ export const createGatewayRouter = (): Router => {
 
   // フロントは baseURL 直下に POST するため '/' で受ける。
   // 末尾スラッシュの有無を吸収するため両方登録する。
-  router.post('/', handle);
+  //
+  // ⚠️ publicFormRateLimit を handle より前に置くこと。
+  //   認証なしの書き込み口（ambassador_inquiry）だけを対象に流量制限を掛ける。
+  //   他の request は素通りするため、既存の画面には影響しない。
+  router.post('/', publicFormRateLimit, handle);
 
   return router;
 };

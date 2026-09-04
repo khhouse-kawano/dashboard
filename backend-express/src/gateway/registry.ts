@@ -1,3 +1,13 @@
+import {
+  runAmbassadorInsert,
+  runAmbassadorList,
+  runAmbassadorUpdate,
+  runInquiryAmbassadorList,
+  runInquiryAmbassadorSync,
+  runInquiryAmbassadorUpdate,
+} from '../features/ambassador';
+import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
+import { runAmbassadorMaster } from '../features/ambassador/master';
 import type { CallStatusCategory } from '../features/callStatusList';
 import { runCallStatusList } from '../features/callStatusList';
 import { runHeader } from '../features/header';
@@ -182,6 +192,169 @@ register({
   phpSource: 'backend/src/handlers/kSnap.php',
   auth: 'none',
   handler: async (ctx) => runKSnap(ctx.body.id),
+});
+
+// ---------------------------------------------------------------------------
+// Instagram 公式アンバサダー管理
+//
+// ⚠️⚠️ **Express のみで実装している。PHPハンドラは存在しない。**
+//
+//   ・差分比較（cli/compareBackends）は使えない（比較相手が無い）
+//   ・② が落ちるとこの画面だけ動かなくなる（① にフォールバック先が無い）
+//   ・⚠️ ② のDBユーザーに INSERT / UPDATE 権限が必要
+//
+// ⚠️ PHPハンドラが無いおかげで、**書き込み系を ① の転送許可リストに入れても安全**。
+//   ① が自動フォールバックしても実行するPHPが無く、404 になるだけで
+//   二重実行にならない。
+//   （PHPハンドラがある request では二重実行になるため入れてはいけない）
+//
+// ⚠️ auth: 'staff'。新規の機能なので最初から認証を要求する。
+//   移植ではないため「PHPが認証していない」という制約が無い。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'ambassador_list',
+  summary: 'アンバサダー台帳の一覧（反響数・未同期数を集計して付与）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'ambassador_list',
+  roll: 'insert',
+  summary: '【書き込み】アンバサダーの新規追加。採番した no を返す',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorInsert(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'ambassador_list',
+  roll: 'update',
+  summary: '【書き込み】アンバサダーの更新。送られた列だけを更新する',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * アンバサダー画面の店舗・担当営業マスタ。
+ *
+ * ⚠️ 既存の shop_list（show_flag = 1）とは**対象が違う**（report_flag = 1）。
+ *   流用すると report_flag = 1 / show_flag = 0 の店舗が選択肢から消える。
+ *   詳細は features/ambassador/master.ts を参照。
+ */
+register({
+  request: 'ambassador_master',
+  summary: 'アンバサダー画面の店舗（report_flag=1）と営業職（category=1）のマスタ',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorMaster();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inquiry_ambassador',
+  summary: 'アンバサダー経由の反響一覧（台帳の氏名・アカウントを添える）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryAmbassadorList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響の担当店舗・担当営業を割り当てる。
+ *
+ * ⚠️ 更新できるのは shop / staff だけ。氏名や連絡先は顧客本人の入力であり、
+ *   社内で書き換えると原本が失われる。
+ * ⚠️ 同期済みの行は拒否される（features/ambassador/index.ts）。
+ */
+register({
+  request: 'inquiry_ambassador',
+  roll: 'update',
+  summary: '【書き込み】反響の担当店舗・担当営業を更新する（同期前のみ）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryAmbassadorUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響を顧客として取り込む。master_data へ INSERT する。
+ *
+ * トランザクションで囲んでおり、既に sync = 1 の行は拒否する。
+ * 連打や古い画面からのリクエストで顧客が二重に作られないようにするため。
+ */
+register({
+  request: 'inquiry_ambassador',
+  roll: 'sync',
+  summary: '【書き込み】反響を master_data へ取り込み、sync を 1 にする',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryAmbassadorSync(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 公開フォームからの反響受付。
+ *
+ * ⚠️⚠️ **このシステムで唯一の「認証なしの書き込み口」である。**
+ *
+ *   反響元: https://kh-house.jp/ambassador/?id=<ambassador_list.no>
+ *   ブラウザからも curl からも、社外の誰でも叩ける。
+ *
+ * ⚠️ auth: 'none' は**意図的**である。フォームの利用者は顧客であり、
+ *   スタッフのトークンを持たない。'staff' にすると反響が1件も届かなくなる。
+ *
+ * ⚠️ GATEWAY_REQUIRE_AUTH=true（'none' にも認証を要求する一括強化モード）を
+ *   有効にすると、**このエンドポイントも 401 になり反響が止まる。**
+ *   有効化するときは、ここを例外にする仕組みを先に入れること。
+ *
+ * ⚠️ 防御は3段。どれか1つでも外すと穴になる。
+ *     1. middlewares/publicFormRateLimit.ts … IP単位の流量制限
+ *     2. features/ambassador/inquiry.ts     … 全項目の検証・長さ制限
+ *     3. CORS（app.ts）                      … kh-house.jp のみ許可
+ *   ⚠️ ただし CORS はブラウザの仕組みであり、curl には効かない。
+ *     防御として数えてはいけない。
+ *
+ * ⚠️ kh-house.jp は ② から見て別オリジン。本番の CORS_ORIGINS に
+ *   https://kh-house.jp を追加しないとブラウザから送信できない。
+ */
+register({
+  request: 'ambassador_inquiry',
+  summary: '【書き込み・認証なし】公開フォーム（kh-house.jp）からの反響受付',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runAmbassadorInquiry(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
 });
 
 // ---------------------------------------------------------------------------

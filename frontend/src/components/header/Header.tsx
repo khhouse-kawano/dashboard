@@ -20,10 +20,12 @@ import RegisterBrokerageListings from './RegisterBrokerageListings';
 import DailyReports from './DailyReports';
 import ClaudeAnalysis from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
+import AmbassadorList from './AmbassadorList';
+import { InquiryAmbassador } from './InquiryAmbassador';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
-type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報';
+type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー';
 
 const Header = ({ }) => {
     const { authority } = useContext(AuthContext);
@@ -31,7 +33,7 @@ const Header = ({ }) => {
     const [modal, setModal] = useState<boolean>(false);
     const [estateId, setEstateId] = useState('search');
     const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況'];
+    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
@@ -48,7 +50,8 @@ const Header = ({ }) => {
         '土地・物件管理': ['仲介物件登録', '土地情報同期', '土地情報一覧'],
         '他社動向': ['他社広告ライブラリ', '他社資料', '競合サマリー'],
         '架電状況': ['注文営業', '建売営業', '中古営業'],
-        '日報': ['月次日報']
+        '日報': ['月次日報'],
+        '公式アンバサダー': ['アンバサダー管理', '反響一覧']
     };
 
     const editMapping: Record<string, React.ReactNode> = {
@@ -67,7 +70,9 @@ const Header = ({ }) => {
         '事後アンケート': <AfterInterview name={''} staff={''} id={''} shop={''} />,
         '競合サマリー': <CompetitorSummary />,
         '仲介物件登録': <RegisterBrokerageListings setModal={setModal} />,
-        '月次日報': <DailyReports />
+        '月次日報': <DailyReports />,
+        'アンバサダー管理': <AmbassadorList />,
+        '反響一覧': <InquiryAmbassador />
     };
 
     useEffect(() => {
@@ -85,7 +90,7 @@ const Header = ({ }) => {
 
     // 月次日報は日付が横に31列並ぶため、固定の 80vh 枠では縦が足りない。
     // このメニューだけモーダルを全画面にして、画面の縦をすべて使う。
-    const isFullscreenMenu = editMenu === '月次日報';
+    const isFullscreenMenu = editMenu === '月次日報' || editMenu === 'アンバサダー管理' || editMenu === '反響一覧';
 
     const modalBody = editMapping[editMenu] ?? (
         <div className="text-muted text-center py-4" style={{ fontSize: '13px' }}>
