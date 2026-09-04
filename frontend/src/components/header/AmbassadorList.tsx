@@ -297,7 +297,7 @@ const AmbassadorList = () => {
                                 <th className="bg-light text-center" style={{ width: '90px' }}>反響数</th>
                                 <th className="bg-light text-center" style={{ width: '70px' }}>Insta</th>
                                 {/* ⚠️ アンバサダーごとに異なるURL。取り違えると成果が別人に付く */}
-                                <th className="bg-light text-center" style={{ width: '110px' }}>専用LP</th>
+                                <th className="bg-light text-center" style={{ width: '130px' }}>専用LP</th>
                                 <th className="bg-light text-center" style={{ width: '80px' }}>備考</th>
                             </tr>
                         </thead>
@@ -388,21 +388,38 @@ const AmbassadorList = () => {
                                         )}
                                     </td>
 
-                                    {/* アンバサダー専用LPのURLをコピー */}
+                                    {/* アンバサダー専用LP。コピーと、開いて確認する導線 */}
                                     <td className="text-center">
-                                        <Button
-                                            size="sm"
-                                            variant={copiedNo === item.no ? 'success' : 'outline-secondary'}
-                                            style={{ fontSize: '11px' }}
-                                            title={ambassadorLpUrl(item.no)}
-                                            onClick={() => void copyLp(item.no)}
-                                        >
-                                            {copiedNo === item.no ? (
-                                                <><i className="fa-solid fa-check me-1" aria-hidden="true" />コピー済</>
-                                            ) : (
-                                                <><i className="fa-regular fa-copy me-1" aria-hidden="true" />URL</>
-                                            )}
-                                        </Button>
+                                        <div className="btn-group btn-group-sm">
+                                            <Button
+                                                variant={copiedNo === item.no ? 'success' : 'outline-secondary'}
+                                                style={{ fontSize: '11px' }}
+                                                title={`URLをコピー: ${ambassadorLpUrl(item.no)}`}
+                                                onClick={() => void copyLp(item.no)}
+                                            >
+                                                {copiedNo === item.no ? (
+                                                    <><i className="fa-solid fa-check me-1" aria-hidden="true" />済</>
+                                                ) : (
+                                                    <><i className="fa-regular fa-copy me-1" aria-hidden="true" />URL</>
+                                                )}
+                                            </Button>
+
+                                            {/* ⚠️ Button ではなく a にする。中クリックや右クリックからの
+                                                「新しいタブで開く」が効かなくなるため */}
+                                            <a
+                                                href={ambassadorLpUrl(item.no)}
+                                                target="_blank"
+                                                // ⚠️ noopener が無いと、開いた先から window.opener 経由で
+                                                //   このページを操作されうる（タブナビング）
+                                                rel="noopener noreferrer"
+                                                className="btn btn-outline-secondary"
+                                                style={{ fontSize: '11px' }}
+                                                title={`別タブで開く: ${ambassadorLpUrl(item.no)}`}
+                                            >
+                                                <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+                                                <span className="visually-hidden">専用LPを別タブで開く</span>
+                                            </a>
+                                        </div>
                                     </td>
 
                                     <td className="text-center">
@@ -435,7 +452,8 @@ const AmbassadorList = () => {
                 <i className="fa-solid fa-circle-info me-1" aria-hidden="true" />
                 各項目は入力欄からフォーカスを外した時点で保存されます。反響数は自動集計のため編集できません。
                 <br />
-                「専用LP」のURLはアンバサダーごとに異なります。⚠️ 取り違えて配布すると、その紹介の成果が別のアンバサダーに計上されます。
+                「専用LP」はアンバサダーごとに異なるURLです（<i className="fa-regular fa-copy" aria-hidden="true" /> コピー / <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> 別タブで開く）。
+                ⚠️ 取り違えて配布すると、その紹介の成果が別のアンバサダーに計上されます。
             </p>
 
             {/* 新規登録 */}
