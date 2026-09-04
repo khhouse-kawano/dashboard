@@ -85,6 +85,26 @@ services:
       - PHP_GATEWAY_TIMEOUT_MS=${PHP_GATEWAY_TIMEOUT_MS:-120000}
       - GATEWAY_REQUIRE_AUTH=${GATEWAY_REQUIRE_AUTH:-false}
 
+      # メール送信（アンバサダー反響のサンクスメール・社内通知）。
+      #
+      # ⚠️ ① レンタルサーバーのメールアカウントで認証して送る。
+      #   ② から自前の名前で送ると SPF / DKIM が合わず迷惑メールになる。
+      #
+      # ⚠️ **未設定なら送信をスキップする（起動は止まらない）。**
+      #   設定漏れに気づかないまま「反響は保存されるがメールだけ来ない」
+      #   状態になりうる。デプロイ後に必ずテスト送信で確認すること。
+      #
+      # ⚠️ SMTP_PASS は .env.prod にのみ書く。ここに直書きしない
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      # noreply から送るため、これが無いと顧客の返信が誰にも届かない
+      - MAIL_REPLY_TO=${MAIL_REPLY_TO:-}
+      # 社内通知の宛先。カンマ区切りで複数可
+      - AMBASSADOR_NOTIFY_TO=${AMBASSADOR_NOTIFY_TO:-}
+
       # K-SNAP の owner を公開ギャラリー向けに暗号化する鍵。
       #
       # ⚠️ ① の .htaccess（SetEnv）と**同じ値**にすること。

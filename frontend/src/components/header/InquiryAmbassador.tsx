@@ -45,6 +45,10 @@ type Inquiry = {
     sync: number;
     /** 進呈条件への同意。NULL は同意欄が無かった頃の古いデータ */
     agreed: number | null;
+    /** 顧客宛サンクスメール。1=成功 0=失敗 NULL=未送信 */
+    mail_sent: number | null;
+    /** 社内宛通知メール。1=成功 0=失敗 NULL=未送信 */
+    notify_sent: number | null;
     master_data_id: string | null;
     /** 台帳側の現在値（LEFT JOIN） */
     ambassador_name: string | null;
@@ -55,6 +59,23 @@ type Inquiry = {
 type SyncFilter = 'all' | 'unsynced' | 'synced';
 
 const dateLabel = (value: string | null): string => value ?? '—';
+
+/**
+ * メール送信結果の印。
+ *
+ * ⚠️ NULL と 0 を同じ見た目にしない。
+ *     NULL … まだ送っていない（メール機能より前の反響）。対応不要
+ *     0    … 送ろうとして失敗した ← こちらだけが対応の必要な状態
+ *   同じにすると、古い反響に紛れて本当の失敗を見落とす。
+ */
+const mailMark = (label: string, value: number | null) => {
+    if (value === null || value === undefined) {
+        return <span className="text-muted" title={`${label}: 未送信`}>{label}—</span>;
+    }
+    return Number(value) === 1
+        ? <span className="text-success" title={`${label}: 送信済み`}>{label}✓</span>
+        : <span className="text-danger fw-bold" title={`${label}: 送信に失敗しました`}>{label}✕</span>;
+};
 
 /**
  * 紹介アンバサダーの表示名。台帳（ambassador_list）の現在値で `氏名 / アカウント` を作る。
@@ -378,6 +399,8 @@ export const InquiryAmbassador = () => {
                                 <th className="bg-light" style={{ width: '150px' }}>担当営業</th>
                                 <th className="bg-light" style={{ width: '220px' }}>紹介アンバサダー</th>
                                 <th className="bg-light text-center" style={{ width: '70px' }}>同意</th>
+                                {/* ⚠️ 社内通知が飛んでいない反響は、誰も気づいていない可能性がある */}
+                                <th className="bg-light text-center" style={{ width: '90px' }}>メール</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -495,13 +518,22 @@ export const InquiryAmbassador = () => {
                                                     ? <i className="fa-solid fa-circle-check text-success" title="同意あり" aria-hidden="true" />
                                                     : <span className="text-danger" title="同意なし">なし</span>}
                                         </td>
+
+                                        <td className="text-center">
+                                            {/* ⚠️ 顧客宛（顧）と社内宛（社）を分けて出す。
+                                                失敗したときの対応がまったく違う。
+                                                  顧の失敗 … 顧客が受付を確認できていない
+                                                  社の失敗 … 社内が反響に気づいていない ← より重い */}
+                                            <span className="me-1">{mailMark('顧', item.mail_sent)}</span>
+                                            <span>{mailMark('社', item.notify_sent)}</span>
+                                        </td>
                                     </tr>
                                 );
                             })}
 
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={12} className="text-center text-muted py-5">
+                                    <td colSpan={13} className="text-center text-muted py-5">
                                         該当する反響がありません
                                     </td>
                                 </tr>
@@ -518,6 +550,9 @@ export const InquiryAmbassador = () => {
                 <br />
                 「同期」を押すと注文事業の顧客として登録され、販促媒体は「公式アンバサダー」になります。
                 ⚠️ この操作は取り消せません。
+                <br />
+                「メール」の 顧 は顧客宛のサンクスメール、社 は社内宛の通知です。
+                ⚠️ <span className="text-danger fw-bold">社✕</span> の行は通知が届いていないため、他の担当者が気づいていない可能性があります。
             </p>
         </div>
     );
