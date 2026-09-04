@@ -8,6 +8,11 @@ import {
 } from '../features/ambassador';
 import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
 import { runAmbassadorMaster } from '../features/ambassador/master';
+import {
+  runInquiryIntroductoryList,
+  runInquiryIntroductorySync,
+  runInquiryIntroductoryUpdate,
+} from '../features/introductory';
 import type { CallStatusCategory } from '../features/callStatusList';
 import { runCallStatusList } from '../features/callStatusList';
 import { runHeader } from '../features/header';
@@ -251,15 +256,18 @@ register({
 });
 
 /**
- * アンバサダー画面の店舗・担当営業マスタ。
+ * 反響画面の店舗・担当営業マスタ。
  *
- * ⚠️ 既存の shop_list（show_flag = 1）とは**対象が違う**（report_flag = 1）。
- *   流用すると report_flag = 1 / show_flag = 0 の店舗が選択肢から消える。
- *   詳細は features/ambassador/master.ts を参照。
+ * ⚠️ **アンバサダー専用ではない。** 紹介キャンペーン反響一覧も同じものを使う。
+ *   request 名が `ambassador_master` なのは先にアンバサダーで作った経緯による。
+ *   **条件を変えると3画面（台帳・アンバサダー反響・紹介反響）すべてに効く。**
+ *
+ * ⚠️ 2026-09-06 に店舗の条件を report_flag = 1 → show_flag = 1 へ変更した。
+ *   選択肢が5件減り14件増える。詳細は features/ambassador/master.ts を参照。
  */
 register({
   request: 'ambassador_master',
-  summary: 'アンバサダー画面の店舗（report_flag=1）と営業職（category=1）のマスタ',
+  summary: '反響画面の店舗（show_flag=1・division付き）と営業職（category=1）のマスタ',
   phpSource: '(Express のみ。PHPハンドラは無い)',
   auth: 'staff',
   handler: async (ctx) => {
@@ -291,7 +299,7 @@ register({
 register({
   request: 'inquiry_ambassador',
   roll: 'update',
-  summary: '【書き込み】反響の担当店舗・担当営業を更新する（同期前のみ）',
+  summary: '【書き込み】反響の担当店舗・担当営業・事業区分を更新する（同期前のみ）',
   phpSource: '(Express のみ。PHPハンドラは無い)',
   auth: 'staff',
   handler: async (ctx) => {
@@ -302,7 +310,10 @@ register({
 });
 
 /**
- * 反響を顧客として取り込む。master_data へ INSERT する。
+ * 反響を顧客として取り込む。
+ *
+ * ⚠️ 同期先は事業区分で変わる（master_data / master_data_kaeru / master_data_resale）。
+ *   分岐は features/inquirySync.ts にある。
  *
  * トランザクションで囲んでおり、既に sync = 1 の行は拒否する。
  * 連打や古い画面からのリクエストで顧客が二重に作られないようにするため。
@@ -310,7 +321,7 @@ register({
 register({
   request: 'inquiry_ambassador',
   roll: 'sync',
-  summary: '【書き込み】反響を master_data へ取り込み、sync を 1 にする',
+  summary: '【書き込み】反響を顧客テーブル（事業区分で決まる）へ取り込み、sync を 1 にする',
   phpSource: '(Express のみ。PHPハンドラは無い)',
   auth: 'staff',
   handler: async (ctx) => {
@@ -352,6 +363,72 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runAmbassadorInquiry(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// お友達紹介キャンペーン
+//
+// ⚠️⚠️ **反響の受付だけは ① の PHP にある。**
+//   受付:   request 'introductory'        → backend/src/handlers/introductory.php
+//   画面:   request 'inquiry_introductory' → ここ（Express のみ）
+//
+//   受付を ① に置いているのは、GAS からの経路に ② を挟むと
+//   ② が落ちている間の反響が失われるため（GAS は再送しない）。
+//   ⚠️ request 名が似ているので取り違えないこと。
+//
+// ⚠️ 店舗・担当営業のマスタは `ambassador_master` を共用している。
+//   専用のものは作っていない（条件が同じため）。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'inquiry_introductory',
+  summary: 'お友達紹介キャンペーンの反響一覧',
+  phpSource: '(Express のみ。受付の introductory.php とは別物)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductoryList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響の担当店舗・担当営業・事業区分を割り当てる。
+ *
+ * ⚠️ 更新できるのは shop / staff / division だけ。紹介者名や連絡先は
+ *   メール本文から取り込んだ原本であり、社内で書き換えると原本が失われる。
+ * ⚠️ 同期済みの行は拒否される（features/introductory/index.ts）。
+ */
+register({
+  request: 'inquiry_introductory',
+  roll: 'update',
+  summary: '【書き込み】紹介反響の担当店舗・担当営業・事業区分を更新する（同期前のみ）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductoryUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響を顧客として取り込む。
+ *
+ * ⚠️ 同期先は事業区分で変わる（master_data / master_data_kaeru / master_data_resale）。
+ * ⚠️ 顧客として作るのは**お友達（紹介された人）**であり、紹介者ではない。
+ */
+register({
+  request: 'inquiry_introductory',
+  roll: 'sync',
+  summary: '【書き込み】紹介反響のお友達を顧客テーブルへ取り込み、sync を 1 にする',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductorySync(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

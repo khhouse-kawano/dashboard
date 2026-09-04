@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef, useMemo, useContext } from 'react';
 import { Table, Spinner, Alert, Modal } from 'react-bootstrap';
-import { styles, positions ,formatToYYYYMMDD} from './listUtils';
+// ⚠️ 2026-09-06 に list/ から header/ へ移動した。listUtils は list/ に残している
+//   （ListOrder / ListKaeru / ListResale も使っており、こちらへ移すと影響が広い）
+import { styles, positions ,formatToYYYYMMDD} from '../list/listUtils';
 import apiClient from '../../utils/apiClient';
 import { generateULID } from '../../utils/createULID';
 import { thisYear } from '../../utils/thisYear';

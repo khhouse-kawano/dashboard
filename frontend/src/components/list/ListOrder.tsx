@@ -14,7 +14,6 @@ import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './
 import type { TagKey } from './listTags';
 import { useIsSp } from '../../utils/isSp';
 import OrderModal from './OrderModal';
-import EventList from './EventList';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -485,9 +484,9 @@ const ListOrder = ({ onReload }: Props) => {
     const closeInformationEdit = () => setEditId('');
 
 
-    // 特設イベント用
-    const eventTitle = '集客イベント';
-    const [eventSummary, setEventSummary] = useState(false);
+    // ⚠️ 集客イベントの導線は 2026-09-06 にヘッダーへ移した。
+    //   コンポーネントは header/EventList.tsx にあり、
+    //   「集客イベント → 反響一覧」から開く。ここからは呼び出していない。
 
     return (
         <>
@@ -559,8 +558,6 @@ const ListOrder = ({ onReload }: Props) => {
                             <i className="fa-solid fa-check-double me-2"></i> {checkedIds.length}件を一括同期
                         </div>
                     )}
-                    <div className="bg-danger text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-                        onClick={() => setEventSummary(true)}>{eventTitle}</div>
                 </div>
 
                 <div className='p-0 inquiry'>
@@ -714,7 +711,6 @@ const ListOrder = ({ onReload }: Props) => {
             </div>
             <OrderModal show={show} modalClose={modalClose} modalContent={modalContent} modalBeforeContent={modalBeforeContent} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
-            <EventList eventSummary={eventSummary} setEventSummary={setEventSummary} />
         </>
     )
 }

@@ -79,9 +79,13 @@ const AmbassadorList = () => {
     /** コピーした直後の行。ボタンの表示を一時的に変えるだけに使う */
     const [copiedNo, setCopiedNo] = useState<number | null>(null);
 
-    // ⚠️ 店舗は report_flag = 1、担当営業は category = 1 かつ当年度。
-    //   既存の shop_list（show_flag = 1）とは対象が違う。詳細は useAmbassadorMaster.ts
-    const { shopOptions, staffOptionsFor, masterError } = useAmbassadorMaster();
+    // ⚠️ 店舗は report_flag = 1。既存の shop_list（show_flag = 1）とは対象が違う。
+    //   詳細は useAmbassadorMaster.ts
+    //
+    // ⚠️ 担当営業のマスタ（staffOptionsFor）はこの画面では使わない。
+    //   台帳の担当営業は自由入力にする方針のため（staff_list に載らない人を
+    //   書くことがある）。反響一覧側は選択式のままなので、フックは共通のまま。
+    const { shopOptions, masterError } = useAmbassadorMaster();
 
     const [showNew, setShowNew] = useState(false);
     const [newData, setNewData] = useState<Record<EditableKey, string>>({ ...EMPTY_NEW, registered_at: today() });
@@ -110,37 +114,6 @@ const AmbassadorList = () => {
     }, []);
 
     useEffect(() => { void load(); }, [load]);
-
-    /**
-     * その行の担当営業の選択肢。
-     *
-     * ⚠️ 保存済みの担当者が候補に無いことがある（異動・退職・年度替わり）。
-     *   そのまま出すと select の値が空になり、**次にその行の何かを触った瞬間に
-     *   担当が消えたように見える。** 保存済みの値は必ず候補へ補う。
-     */
-    const staffChoices = useCallback((shop: string | null, current: string | null): string[] => {
-        const options = staffOptionsFor(shop);
-        const saved = (current ?? '').trim();
-        if (saved !== '' && !options.includes(saved)) return [saved, ...options];
-        return options;
-    }, [staffOptionsFor]);
-
-    /**
-     * 担当店舗を変更する。
-     *
-     * ⚠️ 店舗を変えたら、その店舗に居ない担当営業は**必ず外す。**
-     *   残すと「A店なのに担当はB店の人」という組み合わせが保存され、
-     *   同期後の顧客の担当がおかしくなる。画面上は正しく見えるため気づけない。
-     */
-    const changeShop = async (item: Ambassador, shop: string) => {
-        const ok = await saveCell(item.no, 'shop', shop);
-        if (!ok) return;
-
-        const saved = (item.staff ?? '').trim();
-        if (saved !== '' && !staffOptionsFor(shop).includes(saved)) {
-            await saveCell(item.no, 'staff', '');
-        }
-    };
 
     /** 専用LPのURLをコピーする */
     const copyLp = async (no: number) => {
@@ -273,7 +246,7 @@ const AmbassadorList = () => {
             {masterError !== '' && (
                 <div className="alert alert-warning d-flex align-items-start gap-2" style={{ fontSize: '13px' }}>
                     <i className="fa-solid fa-triangle-exclamation mt-1" aria-hidden="true" />
-                    <span className="flex-grow-1">{masterError}（担当店舗・担当営業を選べません）</span>
+                    <span className="flex-grow-1">{masterError}（担当店舗を選べません）</span>
                 </div>
             )}
 
@@ -330,7 +303,7 @@ const AmbassadorList = () => {
                                             size="sm"
                                             value={item.shop ?? ''}
                                             style={cellStyle}
-                                            onChange={(e) => void changeShop(item, e.target.value)}
+                                            onChange={(e) => void saveCell(item.no, 'shop', e.target.value)}
                                         >
                                             <option value="">未設定</option>
                                             {shopOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -338,19 +311,21 @@ const AmbassadorList = () => {
                                     </td>
 
                                     <td>
-                                        <Form.Select
+                                        {/* ⚠️ 担当営業は自由入力。マスタから選ばせない。
+                                            アンバサダーの担当は staff_list に載らない人（役職者・
+                                            退職済みの引き継ぎ元など）を書くことがあるため。
+                                            表記ゆれは許容する方針。 */}
+                                        <Form.Control
                                             size="sm"
-                                            value={item.staff ?? ''}
+                                            defaultValue={item.staff ?? ''}
                                             style={cellStyle}
-                                            // ⚠️ 店舗が未選択なら担当も選べない。
-                                            //   全店の担当者を出すと、別店舗の営業を割り当ててしまう
-                                            disabled={(item.shop ?? '') === ''}
-                                            title={(item.shop ?? '') === '' ? '先に担当店舗を選んでください' : ''}
-                                            onChange={(e) => void saveCell(item.no, 'staff', e.target.value)}
-                                        >
-                                            <option value="">未設定</option>
-                                            {staffChoices(item.shop, item.staff).map(n => <option key={n} value={n}>{n}</option>)}
-                                        </Form.Select>
+                                            disabled={saving === `${item.no}_staff`}
+                                            onBlur={(e) => {
+                                                const value = e.target.value;
+                                                if (value === (item.staff ?? '')) return;
+                                                void saveCell(item.no, 'staff', value);
+                                            }}
+                                        />
                                     </td>
 
                                     {/* ⚠️ 反響数はサーバー側の集計値。編集できない */}
@@ -483,9 +458,7 @@ const AmbassadorList = () => {
                         <Form.Select
                             size="sm"
                             value={newData.shop}
-                            // ⚠️ 店舗を変えたら担当営業も外す。別店舗の営業が残ると
-                            //   その組み合わせのまま登録されてしまう
-                            onChange={(e) => setNewData(prev => ({ ...prev, shop: e.target.value, staff: '' }))}
+                            onChange={(e) => setNewData(prev => ({ ...prev, shop: e.target.value }))}
                             style={{ fontSize: '13px' }}
                         >
                             <option value="">未設定</option>
@@ -495,16 +468,14 @@ const AmbassadorList = () => {
 
                     <Form.Group className="mb-2">
                         <Form.Label className="text-muted mb-1" style={{ fontSize: '12px' }}>担当営業</Form.Label>
-                        <Form.Select
+                        {/* ⚠️ 一覧側と同じく自由入力。選択式にしないこと */}
+                        <Form.Control
                             size="sm"
                             value={newData.staff}
-                            disabled={newData.shop === ''}
+                            placeholder="担当者名を入力"
                             onChange={(e) => setNewData(prev => ({ ...prev, staff: e.target.value }))}
                             style={{ fontSize: '13px' }}
-                        >
-                            <option value="">{newData.shop === '' ? '先に担当店舗を選んでください' : '未設定'}</option>
-                            {staffOptionsFor(newData.shop).map(n => <option key={n} value={n}>{n}</option>)}
-                        </Form.Select>
+                        />
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer className="py-2">
