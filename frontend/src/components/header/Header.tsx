@@ -20,18 +20,31 @@ import RegisterBrokerageListings from './RegisterBrokerageListings';
 import DailyReports from './DailyReports';
 import ClaudeAnalysis from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
+import AmbassadorList from './AmbassadorList';
+import { InquiryAmbassador } from './InquiryAmbassador';
+import InquiryIntroductory from './InquiryIntroductory';
+import EventList from './EventList';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
-type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報';
+type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント';
 
 const Header = ({ }) => {
     const { authority } = useContext(AuthContext);
+    /** 表示中のメニュー項目。⚠️ `メニュー/項目` 形式（editMapping のキーと同じ） */
     const [editMenu, setEditMenu] = useState<string>('');
+    /**
+     * 集客イベントの表示。
+     *
+     * ⚠️ EventList は自前の fullscreen モーダルを持っているため、
+     *   共通モーダル（下の modal）には載せず専用の state で開く。
+     *   共通モーダルの中に入れるとモーダルが二重になる。
+     */
+    const [eventSummary, setEventSummary] = useState<boolean>(false);
     const [modal, setModal] = useState<boolean>(false);
     const [estateId, setEstateId] = useState('search');
     const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況'];
+    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
@@ -48,26 +61,46 @@ const Header = ({ }) => {
         '土地・物件管理': ['仲介物件登録', '土地情報同期', '土地情報一覧'],
         '他社動向': ['他社広告ライブラリ', '他社資料', '競合サマリー'],
         '架電状況': ['注文営業', '建売営業', '中古営業'],
-        '日報': ['月次日報']
+        '日報': ['月次日報'],
+        '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
+        '紹介キャンペーン': ['反響一覧'],
+        '集客イベント': ['反響一覧']
     };
 
+    /**
+     * メニュー項目 → 表示するコンポーネント。
+     *
+     * ⚠️⚠️ **キーは `メニュー/項目` にすること。** 項目名だけをキーにすると、
+     *   複数のメニューが同じ項目名を持てなくなる。現に「反響一覧」は
+     *   公式アンバサダー・紹介キャンペーン・集客イベントの3つにあり、
+     *   項目名だけをキーにすると**後から書いたものが前のものを上書きして、
+     *   どのメニューから開いても同じ画面が出る。** エラーにならないため
+     *   気づきにくい（2026-09-06 にこの形へ変更した）。
+     */
     const editMapping: Record<string, React.ReactNode> = {
-        'スタッフ編集・追加': <EditStaff />,
-        '権限編集': <EditAuth />,
-        '店舗編集': <EditShop />,
-        'ブラックリスト設定': <EditBlackList />,
-        '他社広告ライブラリ': <MetaAdsDashboard />,
-        '土地情報同期': <SyncEstate setModal={setModal} />,
-        '他社資料': <CompetitorMaterials />,
-        '土地情報一覧': <Estate estateId={estateId} setEstateId={setEstateId} source='header' />,
-        '注文営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='order' />,
-        '建売営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='spec' />,
-        '中古営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='used' />,
-        '広告費シミュレーター': <BudgetSimulator />,
-        '事後アンケート': <AfterInterview name={''} staff={''} id={''} shop={''} />,
-        '競合サマリー': <CompetitorSummary />,
-        '仲介物件登録': <RegisterBrokerageListings setModal={setModal} />,
-        '月次日報': <DailyReports />
+        'スタッフ管理/スタッフ編集・追加': <EditStaff />,
+        'スタッフ管理/権限編集': <EditAuth />,
+        '店舗管理/店舗編集': <EditShop />,
+        '反響管理/ブラックリスト設定': <EditBlackList />,
+        '他社動向/他社広告ライブラリ': <MetaAdsDashboard />,
+        '土地・物件管理/土地情報同期': <SyncEstate setModal={setModal} />,
+        '他社動向/他社資料': <CompetitorMaterials />,
+        '土地・物件管理/土地情報一覧': <Estate estateId={estateId} setEstateId={setEstateId} source='header' />,
+        '架電状況/注文営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='order' />,
+        '架電状況/建売営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='spec' />,
+        '架電状況/中古営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='used' />,
+        '反響管理/広告費シミュレーター': <BudgetSimulator />,
+        '反響管理/事後アンケート': <AfterInterview name={''} staff={''} id={''} shop={''} />,
+        '他社動向/競合サマリー': <CompetitorSummary />,
+        '土地・物件管理/仲介物件登録': <RegisterBrokerageListings setModal={setModal} />,
+        '日報/月次日報': <DailyReports />,
+        '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
+        '公式アンバサダー/反響一覧': <InquiryAmbassador />,
+        '紹介キャンペーン/反響一覧': <InquiryIntroductory />
+        // ⚠️ '集客イベント/反響一覧' はここに入れない。
+        //   EventList は**自前の fullscreen モーダル**を持っているため、
+        //   下の共通モーダルの中に入れると二重のモーダルになる。
+        //   別の state（eventSummary）で開く。下の JSX を参照。
     };
 
     useEffect(() => {
@@ -84,12 +117,21 @@ const Header = ({ }) => {
     };
 
     // 月次日報は日付が横に31列並ぶため、固定の 80vh 枠では縦が足りない。
-    // このメニューだけモーダルを全画面にして、画面の縦をすべて使う。
-    const isFullscreenMenu = editMenu === '月次日報';
+    // 反響一覧も横に列が多いため同じ扱いにする。
+    // ⚠️ キーは `メニュー/項目` 形式（editMapping と同じ）
+    const isFullscreenMenu = [
+        '日報/月次日報',
+        '公式アンバサダー/アンバサダー管理',
+        '公式アンバサダー/反響一覧',
+        '紹介キャンペーン/反響一覧',
+    ].includes(editMenu);
+
+    // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）
+    const editLabel = editMenu.includes('/') ? editMenu.split('/')[1] : editMenu;
 
     const modalBody = editMapping[editMenu] ?? (
         <div className="text-muted text-center py-4" style={{ fontSize: '13px' }}>
-            現在、{editMenu} のコンポーネントを準備中です。
+            現在、{editLabel} のコンポーネントを準備中です。
         </div>
     );
 
@@ -159,7 +201,15 @@ const Header = ({ }) => {
                                     key={item}
                                     className="py-2 px-3 text-dark position-relative"
                                     onClick={() => {
-                                        setEditMenu(item);
+                                        // ⚠️ 集客イベントだけは共通モーダルを使わない。
+                                        //   EventList が自前の fullscreen モーダルを持っている
+                                        if (menu === '集客イベント') {
+                                            setEventSummary(true);
+                                            return;
+                                        }
+                                        // ⚠️ キーは `メニュー/項目`。項目名だけだと
+                                        //   複数のメニューにある「反響一覧」が区別できない
+                                        setEditMenu(`${menu}/${item}`);
                                         setModal(true);
                                     }}
                                 >
@@ -189,7 +239,7 @@ const Header = ({ }) => {
             <Modal
                 show={modal}
                 onHide={() => setModal(false)}
-                size={editMenu === '土地情報同期' ? 'sm' : isFullscreenMenu ? undefined : 'xl'}
+                size={editMenu === '土地・物件管理/土地情報同期' ? 'sm' : isFullscreenMenu ? undefined : 'xl'}
                 // 全画面表示のときに centered を付けると上下に余白が生まれ、縦を使い切れない
                 centered={!isFullscreenMenu}
                 // fullscreen プロパティは型が 'true | string' のため、真偽値を渡せない。
@@ -207,7 +257,7 @@ const Header = ({ }) => {
                         + (isFullscreenMenu ? ' d-flex align-items-center gap-3 justify-content-start' : '')}
                     style={{ fontSize: '15px' }}
                 >
-                    <span>{editMenu}</span>
+                    <span>{editLabel}</span>
                     {isFullscreenMenu && (
                         <button
                             type="button"
@@ -236,6 +286,12 @@ const Header = ({ }) => {
                     )}
                 </Modal.Body>
             </Modal>
+
+            {/* 集客イベント。⚠️ EventList が自前の fullscreen モーダルを持つため、
+                上の共通モーダルとは別に置く（入れ子にすると二重モーダルになる）。
+                ⚠️ 以前は ListOrder（反響一覧の画面内ボタン）から開いていた。
+                2026-09-06 にヘッダーへ移した */}
+            <EventList eventSummary={eventSummary} setEventSummary={setEventSummary} />
         </>
     );
 };

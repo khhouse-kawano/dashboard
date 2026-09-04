@@ -1,10 +1,36 @@
+import {
+  runAmbassadorInsert,
+  runAmbassadorList,
+  runAmbassadorUpdate,
+  runInquiryAmbassadorList,
+  runInquiryAmbassadorSync,
+  runInquiryAmbassadorUpdate,
+} from '../features/ambassador';
+import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
+import { runAmbassadorMaster } from '../features/ambassador/master';
+import {
+  runInquiryIntroductoryList,
+  runInquiryIntroductorySync,
+  runInquiryIntroductoryUpdate,
+} from '../features/introductory';
 import type { CallStatusCategory } from '../features/callStatusList';
 import { runCallStatusList } from '../features/callStatusList';
 import { runHeader } from '../features/header';
 import { runKpiAnalysisGet, runKpiAnalysisList } from '../features/kpi/history';
 import { runKpiFilterMaster } from '../features/kpi/master';
+import {
+  runKSnap,
+  runKSnapCustomer,
+  runKSnapCustomerUpdate,
+  runKSnapEdit,
+  runKSnapLoad,
+  runKSnapLogin,
+  runKSnapPublic,
+  runKSnapShow,
+} from '../features/ksnap';
 import { runMenu } from '../features/menu';
 import { runPropertySuumo } from '../features/property';
+import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
@@ -157,6 +183,368 @@ for (const category of callStatusCategories) {
     handler: async () => runCallStatusList(category === '' ? undefined : category),
   });
 }
+
+/**
+ * K-SNAP の顧客詳細（information/KSnap.tsx）。
+ *
+ * ⚠️ auth: 'none'。移植元の kSnap.php は認証していない。
+ *   ⚠️ ただし顧客のパスワードと閲覧履歴を返すエンドポイントである。
+ *     認証強化の対象として優先度が高い（GATEWAY_REQUIRE_AUTH の一括適用時に効く）。
+ */
+register({
+  request: 'kSnap',
+  summary: 'K-SNAP の顧客1件（パスワード・閲覧ログ・お気に入り）とスナップ写真の全件',
+  phpSource: 'backend/src/handlers/kSnap.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnap(ctx.body.id),
+});
+
+// ---------------------------------------------------------------------------
+// Instagram 公式アンバサダー管理
+//
+// ⚠️⚠️ **Express のみで実装している。PHPハンドラは存在しない。**
+//
+//   ・差分比較（cli/compareBackends）は使えない（比較相手が無い）
+//   ・② が落ちるとこの画面だけ動かなくなる（① にフォールバック先が無い）
+//   ・⚠️ ② のDBユーザーに INSERT / UPDATE 権限が必要
+//
+// ⚠️ PHPハンドラが無いおかげで、**書き込み系を ① の転送許可リストに入れても安全**。
+//   ① が自動フォールバックしても実行するPHPが無く、404 になるだけで
+//   二重実行にならない。
+//   （PHPハンドラがある request では二重実行になるため入れてはいけない）
+//
+// ⚠️ auth: 'staff'。新規の機能なので最初から認証を要求する。
+//   移植ではないため「PHPが認証していない」という制約が無い。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'ambassador_list',
+  summary: 'アンバサダー台帳の一覧（反響数・未同期数を集計して付与）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'ambassador_list',
+  roll: 'insert',
+  summary: '【書き込み】アンバサダーの新規追加。採番した no を返す',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorInsert(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'ambassador_list',
+  roll: 'update',
+  summary: '【書き込み】アンバサダーの更新。送られた列だけを更新する',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響画面の店舗・担当営業マスタ。
+ *
+ * ⚠️ **アンバサダー専用ではない。** 紹介キャンペーン反響一覧も同じものを使う。
+ *   request 名が `ambassador_master` なのは先にアンバサダーで作った経緯による。
+ *   **条件を変えると3画面（台帳・アンバサダー反響・紹介反響）すべてに効く。**
+ *
+ * ⚠️ 2026-09-06 に店舗の条件を report_flag = 1 → show_flag = 1 へ変更した。
+ *   選択肢が5件減り14件増える。詳細は features/ambassador/master.ts を参照。
+ */
+register({
+  request: 'ambassador_master',
+  summary: '反響画面の店舗（show_flag=1・division付き）と営業職（category=1）のマスタ',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorMaster();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inquiry_ambassador',
+  summary: 'アンバサダー経由の反響一覧（台帳の氏名・アカウントを添える）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryAmbassadorList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響の担当店舗・担当営業を割り当てる。
+ *
+ * ⚠️ 更新できるのは shop / staff だけ。氏名や連絡先は顧客本人の入力であり、
+ *   社内で書き換えると原本が失われる。
+ * ⚠️ 同期済みの行は拒否される（features/ambassador/index.ts）。
+ */
+register({
+  request: 'inquiry_ambassador',
+  roll: 'update',
+  summary: '【書き込み】反響の担当店舗・担当営業・事業区分を更新する（同期前のみ）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryAmbassadorUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響を顧客として取り込む。
+ *
+ * ⚠️ 同期先は事業区分で変わる（master_data / master_data_kaeru / master_data_resale）。
+ *   分岐は features/inquirySync.ts にある。
+ *
+ * トランザクションで囲んでおり、既に sync = 1 の行は拒否する。
+ * 連打や古い画面からのリクエストで顧客が二重に作られないようにするため。
+ */
+register({
+  request: 'inquiry_ambassador',
+  roll: 'sync',
+  summary: '【書き込み】反響を顧客テーブル（事業区分で決まる）へ取り込み、sync を 1 にする',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryAmbassadorSync(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 公開フォームからの反響受付。
+ *
+ * ⚠️⚠️ **このシステムで唯一の「認証なしの書き込み口」である。**
+ *
+ *   反響元: https://kh-house.jp/ambassador/?id=<ambassador_list.no>
+ *   ブラウザからも curl からも、社外の誰でも叩ける。
+ *
+ * ⚠️ auth: 'none' は**意図的**である。フォームの利用者は顧客であり、
+ *   スタッフのトークンを持たない。'staff' にすると反響が1件も届かなくなる。
+ *
+ * ⚠️ GATEWAY_REQUIRE_AUTH=true（'none' にも認証を要求する一括強化モード）を
+ *   有効にすると、**このエンドポイントも 401 になり反響が止まる。**
+ *   有効化するときは、ここを例外にする仕組みを先に入れること。
+ *
+ * ⚠️ 防御は3段。どれか1つでも外すと穴になる。
+ *     1. middlewares/publicFormRateLimit.ts … IP単位の流量制限
+ *     2. features/ambassador/inquiry.ts     … 全項目の検証・長さ制限
+ *     3. CORS（app.ts）                      … kh-house.jp のみ許可
+ *   ⚠️ ただし CORS はブラウザの仕組みであり、curl には効かない。
+ *     防御として数えてはいけない。
+ *
+ * ⚠️ kh-house.jp は ② から見て別オリジン。本番の CORS_ORIGINS に
+ *   https://kh-house.jp を追加しないとブラウザから送信できない。
+ */
+register({
+  request: 'ambassador_inquiry',
+  summary: '【書き込み・認証なし】公開フォーム（kh-house.jp）からの反響受付',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runAmbassadorInquiry(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// お友達紹介キャンペーン
+//
+// ⚠️⚠️ **反響の受付だけは ① の PHP にある。**
+//   受付:   request 'introductory'        → backend/src/handlers/introductory.php
+//   画面:   request 'inquiry_introductory' → ここ（Express のみ）
+//
+//   受付を ① に置いているのは、GAS からの経路に ② を挟むと
+//   ② が落ちている間の反響が失われるため（GAS は再送しない）。
+//   ⚠️ request 名が似ているので取り違えないこと。
+//
+// ⚠️ 店舗・担当営業のマスタは `ambassador_master` を共用している。
+//   専用のものは作っていない（条件が同じため）。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'inquiry_introductory',
+  summary: 'お友達紹介キャンペーンの反響一覧',
+  phpSource: '(Express のみ。受付の introductory.php とは別物)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductoryList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響の担当店舗・担当営業・事業区分を割り当てる。
+ *
+ * ⚠️ 更新できるのは shop / staff / division だけ。紹介者名や連絡先は
+ *   メール本文から取り込んだ原本であり、社内で書き換えると原本が失われる。
+ * ⚠️ 同期済みの行は拒否される（features/introductory/index.ts）。
+ */
+register({
+  request: 'inquiry_introductory',
+  roll: 'update',
+  summary: '【書き込み】紹介反響の担当店舗・担当営業・事業区分を更新する（同期前のみ）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductoryUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響を顧客として取り込む。
+ *
+ * ⚠️ 同期先は事業区分で変わる（master_data / master_data_kaeru / master_data_resale）。
+ * ⚠️ 顧客として作るのは**お友達（紹介された人）**であり、紹介者ではない。
+ */
+register({
+  request: 'inquiry_introductory',
+  roll: 'sync',
+  summary: '【書き込み】紹介反響のお友達を顧客テーブルへ取り込み、sync を 1 にする',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductorySync(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// K-SNAP（スナップ写真）
+//
+// ⚠️⚠️ 顧客向け（公開）とスタッフ向けが混在している。
+//   認証を一括で強化するとき、**顧客向けを除外しないと公開ギャラリーが止まる**
+//   （顧客はスタッフのトークンを持たない）。下の各コメントで区分を明記している。
+//
+// ⚠️ k-snap_update（画像アップロード）は登録していない。
+//   画像の保存先が ① のファイルシステムであり、② から書き込めないため。
+// ---------------------------------------------------------------------------
+
+/** 顧客向け（公開）。⚠️ 認証を要求してはいけない */
+register({
+  request: 'k-snap_login',
+  summary: '【公開】ギャラリーのログイン。パスワードから顧客IDを引く',
+  phpSource: 'backend/src/handlers/k-snap_login.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnapLogin(ctx.body.pass),
+});
+
+/** 顧客向け（公開）。⚠️ 認証を要求してはいけない */
+register({
+  request: 'k-snap',
+  summary: '【公開】ギャラリー向けスナップ一覧（show_snap = 1・owner は暗号化）',
+  phpSource: 'backend/src/handlers/k-snap.php',
+  auth: 'none',
+  handler: async () => runKSnapPublic(),
+});
+
+/** 顧客向け（公開）。⚠️ 認証を要求してはいけない */
+register({
+  request: 'k-snap_customer',
+  summary: '【公開】ギャラリー用の顧客1件',
+  phpSource: 'backend/src/handlers/k-snap_customer.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnapCustomer(ctx.body.id),
+});
+
+/**
+ * 顧客向け（公開）。⚠️ 認証を要求してはいけない。
+ *
+ * ⚠️⚠️ **書き込み系。① の expressProxyRequests() に追加してはいけない。**
+ *   自動フォールバックで二重実行される。
+ *   ここに登録しているのは、将来フロントを ② へ直接向けたときのため。
+ */
+register({
+  request: 'k-snap_customer_update',
+  summary: '【公開・書き込み】顧客の閲覧ログ・お気に入り・タグの記録',
+  phpSource: 'backend/src/handlers/k-snap_customer_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    await runKSnapCustomerUpdate(ctx.body);
+    // ⚠️ 移植元は何も出力しない。空文字を返して形を揃える
+    ctx.res.type('application/json').send('');
+    return undefined;
+  },
+});
+
+/**
+ * スタッフ向け。
+ *
+ * ⚠️ auth: 'none' にしているのは、移植元の k-snap_edit.php が
+ *   認証していないため（PHPと挙動を揃える）。本来は認証すべき対象であり、
+ *   一括強化の際は 'staff' に上げること。
+ */
+register({
+  request: 'k-snap_edit',
+  summary: '【スタッフ】スナップ一覧（全件・owner は平文）',
+  phpSource: 'backend/src/handlers/k-snap_edit.php',
+  auth: 'none',
+  handler: async () => runKSnapEdit(),
+});
+
+/** スタッフ向け。⚠️ 上記と同じ理由で 'none'。一括強化の対象 */
+register({
+  request: 'k-snap_load',
+  summary: '【スタッフ】編集画面の初期データ（スナップ1件＋オーナー名一覧）',
+  phpSource: 'backend/src/handlers/k-snap_load.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnapLoad(ctx.body.id),
+});
+
+/**
+ * スタッフ向け。
+ *
+ * ⚠️⚠️ **書き込み系。① の expressProxyRequests() に追加してはいけない。**
+ */
+register({
+  request: 'k-snap_show',
+  summary: '【スタッフ・書き込み】写真の公開/非公開、営業名表示の切り替え',
+  phpSource: 'backend/src/handlers/k-snap_show.php',
+  auth: 'none',
+  handler: async (ctx) => runKSnapShow(ctx.body),
+});
+
+/**
+ * 店舗マスタ。
+ *
+ * ⚠️ auth: 'none'。移植元が認証していないため。
+ *   ⚠️ ただし公開ギャラリー（顧客向け）も使っている。
+ *     認証を一括強化するときに 'staff' へ上げると**公開ギャラリーが止まる**。
+ *
+ * ⚠️ 配列そのものを返す。`{ status, ... }` で包むと呼び出し側3箇所が壊れる。
+ */
+register({
+  request: 'shop_list',
+  summary: '店舗マスタ（show_flag = 1 のブランド・課・エリア・事業区分）',
+  phpSource: 'backend/src/handlers/shop_list.php',
+  auth: 'none',
+  handler: async () => runShopList(),
+});
 
 /**
  * SUUMO の掲載順位（SuumoPropertySummary.tsx）。

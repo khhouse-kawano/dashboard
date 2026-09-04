@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import apiClient from '../../utils/apiClient';
+import { ksnapImageUrl } from '../../utils/ksnapImage';
 import { Table, Modal, Form as BsForm, Row, Col, Badge, Pagination, Card } from 'react-bootstrap';
 import Form from './Form';
 
@@ -40,15 +41,11 @@ export const Edit = ({ editId, setEditId, setCategory, category }: Props) => {
     const [showLength, setShowLength] = useState(10);
     const [search, setSearch] = useState<Search>({});
 
-    const headers = {
-        Authorization: "4081Kokubu",
-        "Content-Type": "application/json",
-    };
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/k-snap/api/', { request: 'k-snap_edit' }, { headers });
+                const response = await apiClient.post('', { request: 'k-snap_edit' });
                 const safeData: DisplayData[] = (response.data.snaps || [])
                     .sort((a: any, b: any) => b.id - a.id)
                     .map((item: any) => {
@@ -144,7 +141,7 @@ export const Edit = ({ editId, setEditId, setCategory, category }: Props) => {
         if (!id) return;
         try {
             const fetchData = async () => {
-                const response = await axios.post('https://khg-marketing.info/k-snap/api/', { request: 'k-snap_show', id, flag, key }, { headers });
+                const response = await apiClient.post('', { request: 'k-snap_show', id, flag, key });
                 console.log(response.data.status);
             };
             fetchData();
@@ -255,7 +252,7 @@ export const Edit = ({ editId, setEditId, setCategory, category }: Props) => {
                                                 >
                                                     <img
                                                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                        src={`https://khg-marketing.info/k-snap/images/${item.image.replace(/^\//, "")}`}
+                                                        src={ksnapImageUrl(item.image)}
                                                         alt="snap"
                                                     />
                                                 </div>

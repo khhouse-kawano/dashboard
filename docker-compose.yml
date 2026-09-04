@@ -15,6 +15,15 @@ services:
       - DB_NAME=local_db
       - DB_USER=local_user
       - DB_PASS=local_password
+      # ⚠️ core/express_proxy.php の転送先。**コンテナ名で解決する。**
+      #
+      #   これを設定しないと、既定値の https://api.khg-marketing.info/... を向き、
+      #   **開発中の操作が本番のDBに書き込まれる。**
+      #   （アンバサダー機能は Express のみで、書き込みも転送されるため）
+      #
+      # ⚠️ localhost ではなく express-api（サービス名）。
+      #   php-web コンテナの中から見た宛先なので、localhost は自分自身になる。
+      - EXPRESS_API_URL=http://express-api:3001/api/gateway
     env_file:
       # 実際に価値を持つ秘密情報（暗号化マスターキー等）はこちら。
       # このファイルは .gitignore で保護されており、Gitには入らない。
@@ -55,6 +64,25 @@ services:
       mariadb-db:
         condition: service_healthy
     restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # 公開ギャラリー（K-SNAP）について
+  #
+  # ⚠️ このリポジトリには含まれない。別リポジトリで管理している。
+  #   顧客がパスワードで入って写真を見る画面（Vite + React 19）。
+  #
+  #   フロント : 別リポジトリ（react/ksnap）
+  #   API      : **このリポジトリ**
+  #                backend/src/handlers/k-snap*.php
+  #                backend-express/src/features/ksnap/
+  #
+  # ⚠️ k-snap* / kSnap / shop_list のレスポンスの形を変えると、
+  #   別リポジトリの公開ギャラリーが壊れる。型チェックでは検出できない。
+  #   詳細は ksnap/README.md を参照。
+  #
+  # ⚠️ 公開ギャラリー側は開発時に localhost:8080（下の php-web）を叩く。
+  #   このリポジトリの php-web / mariadb-db を起動しておく必要がある。
+  # ------------------------------------------------------------------
 
   # ------------------------------------------------------------------
   # データベース（PHP / Express の両方が同じDBを参照する）
