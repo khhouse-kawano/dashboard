@@ -2,17 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../../utils/apiClient';
 
 /**
- * アンバサダー画面の店舗・担当営業マスタ。台帳と反響一覧の両方で使う。
+ * 反響画面の店舗・担当営業マスタ。
  *
- * ⚠️ **既存の shop_list / callStatusList を使ってはいけない。**
- *   shop_list は `show_flag = 1`（画面に出す店舗）で、ここで欲しいのは
- *   `report_flag = 1`（報告対象の店舗）。この2つは一致せず、
- *   実データには report_flag = 1 なのに show_flag = 0 の店舗が存在する。
- *   流用するとその店舗が選択肢から黙って消える。
- *
- * ⚠️ 2画面で同じ選択肢を出すために共通化している。
+ * ⚠️ **3画面で共用している。** 条件を変えると全部に効く。
+ *     AmbassadorList.tsx      公式アンバサダー台帳
+ *     InquiryAmbassador.tsx   アンバサダー反響一覧
+ *     InquiryIntroductory.tsx 紹介キャンペーン反響一覧
  *   片方だけ別のマスタに戻すと、同じ「担当店舗」なのに画面によって
  *   選べる店舗が違う、という状態になる。
+ *
+ * ⚠️ 店舗の条件は `show_flag = 1`（2026-09-06 に report_flag = 1 から変更）。
+ *   担当を割り振る操作なので「今運用している店舗」が適切という判断。
+ *   条件は backend-express/src/features/ambassador/master.ts にある。
+ *
+ * ⚠️ request 名は `ambassador_master` のままだが、アンバサダー専用ではない。
+ *   先にアンバサダーで作ったという経緯によるもの。
  */
 
 export type MasterShop = {
@@ -20,6 +24,7 @@ export type MasterShop = {
     shop: string | null;
     section: string | null;
     area: string | null;
+    /** 事業区分。⚠️ '注文事業' / '建売分譲事業' / '中古リノベ' 等。表示名とは違う */
     division: string | null;
 };
 
@@ -67,17 +72,38 @@ export const useAmbassadorMaster = () => {
         void fetchMaster();
     }, []);
 
-    /** 選択肢に出す店舗名。⚠️ 並び順はサーバー側（brand_sort）のまま保つ */
-    const shopOptions = useMemo(() => {
+    /** 重複を除いて店舗名を並べる。⚠️ 並び順はサーバー側（brand_sort）のまま保つ */
+    const toShopNames = (rows: MasterShop[]): string[] => {
         const seen = new Set<string>();
         const out: string[] = [];
-        shopList.forEach(s => {
+        rows.forEach(s => {
             const name = (s.shop ?? '').trim();
             if (name === '' || seen.has(name)) return;
             seen.add(name);
             out.push(name);
         });
         return out;
+    };
+
+    /** 全店舗。事業区分を持たない画面（台帳）で使う */
+    const shopOptions = useMemo(() => toShopNames(shopList), [shopList]);
+
+    /**
+     * 指定した事業区分の店舗。
+     *
+     * ⚠️ 引数は `shop_list.division` の値（'注文事業' 等）。表示名（'注文'）ではない。
+     *   変換は divisions.ts の SHOP_DIVISION を使うこと。
+     *
+     * ⚠️ 区分で絞らないと、建売の反響に注文事業の店舗を割り当てられてしまう。
+     *   同期先のテーブルが違うため、担当者の画面に出てこない顧客ができる。
+     *
+     * ⚠️ 一致する店舗が無い場合は空を返す（全店舗にフォールバックしない）。
+     *   フォールバックすると、間違った選択肢が正しい顔をして出てしまう。
+     */
+    const shopOptionsForDivision = useCallback((shopDivision: string): string[] => {
+        const target = shopDivision.trim();
+        if (target === '') return [];
+        return toShopNames(shopList.filter(s => (s.division ?? '').trim() === target));
     }, [shopList]);
 
     /** 当年度の営業職だけに絞ったもの */
@@ -114,5 +140,11 @@ export const useAmbassadorMaster = () => {
         return out;
     }, [currentStaff]);
 
-    return { shopOptions, staffOptionsFor, masterError, thisYear: thisYear() };
+    return {
+        shopOptions,
+        shopOptionsForDivision,
+        staffOptionsFor,
+        masterError,
+        thisYear: thisYear(),
+    };
 };

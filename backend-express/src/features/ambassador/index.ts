@@ -1,8 +1,8 @@
-import { randomBytes } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query, withTransaction } from '../../db/pool';
 import type { SqlParam } from '../../db/pool';
 import { logger } from '../../utils/logger';
+import { DIVISIONS, insertCustomer, parseDivision } from '../inquirySync';
 
 /**
  * Instagram 公式アンバサダー管理。
@@ -195,24 +195,6 @@ export const runInquiryAmbassadorList = async (): Promise<AmbassadorResult> => {
 };
 
 /**
- * ULID。同期で作る master_data.id に使う。
- *
- * ⚠️ フロントの utils/createULID.ts と**同じ形式**にする（先頭 '01' ＋ 32文字）。
- *   既存データと形が違うと、ID の長さや接頭辞を前提にした処理が壊れる。
- *   本来の ULID（時刻順）ではないが、既存の採番に合わせている。
- */
-const ULID_CHARS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-
-const generateUlid = (): string => {
-  const bytes = randomBytes(24);
-  let out = '01';
-  for (const byte of bytes) {
-    out += ULID_CHARS[byte & 31];
-  }
-  return out;
-};
-
-/**
  * 反響の担当店舗・担当営業を更新する。
  *
  * ⚠️ 更新できるのはこの2列だけ。氏名や連絡先は**顧客本人が入力した値**であり、
@@ -223,8 +205,11 @@ const generateUlid = (): string => {
  *   ここを許すと、既に作られた master_data の担当は変わらないまま
  *   反響側の表示だけが変わり、**画面上は正しいのに実態と食い違う**
  *   という最も気づきにくい状態になる。
+ *
+ * ⚠️ `division`（事業区分）も同期前だけ変更できる。同期先のテーブルが
+ *   変わる項目なので、同期後の変更は意味を持たない（顧客は移動しない）。
  */
-const INQUIRY_EDITABLE_COLUMNS = ['shop', 'staff'] as const;
+const INQUIRY_EDITABLE_COLUMNS = ['shop', 'staff', 'division'] as const;
 
 export const runInquiryAmbassadorUpdate = async (
   body: Record<string, unknown>
@@ -237,6 +222,12 @@ export const runInquiryAmbassadorUpdate = async (
   const columns = INQUIRY_EDITABLE_COLUMNS.filter((col) => col in body);
   if (columns.length === 0) {
     return { httpStatus: 400, body: { status: 'error', message: '更新する項目がありません。' } };
+  }
+
+  // ⚠️ division は NOT NULL であり、同期先のテーブルを決める値でもある。
+  //   空や未知の値を通すと INSERT が落ちるか、別の事業の顧客が作られる。
+  if ('division' in body && parseDivision(body.division) === null) {
+    return { httpStatus: 400, body: { status: 'error', message: '事業区分が不正です。' } };
   }
 
   const rows = await query<DynamicRow>(
@@ -269,11 +260,11 @@ export const runInquiryAmbassadorUpdate = async (
 /**
  * 反響を顧客として取り込む（同期）。
  *
- * ⚠️ **master_data（注文事業）へ INSERT する。**
- *   アンバサダー経由の反響は注文事業のみという前提。建売・中古も扱うなら
- *   category を受け取る形に変える必要がある。
+ * ⚠️ **同期先のテーブルは事業区分（division）で変わる。**
+ *     注文 → master_data ／ 建売 → master_data_kaeru ／ 中古 → master_data_resale
+ *   分岐は features/inquirySync.ts に集約している。ここで書き分けないこと。
  *
- * ⚠️ トランザクションで囲む。master_data への INSERT だけ成功して
+ * ⚠️ トランザクションで囲む。顧客テーブルへの INSERT だけ成功して
  *   sync が 0 のまま残ると、次に押したときに**顧客が二重に作られる**。
  *
  * ⚠️ 既に sync = 1 の行は拒否する。画面側でもボタンを隠すが、
@@ -315,44 +306,18 @@ export const runInquiryAmbassadorSync = async (
     };
   }
 
-  // ⚠️ **master_data に `section`（課）の列は存在しない。**
-  //   店舗から課を引いて入れようとして Unknown column で失敗していた。
-  //   課は shop_list を JOIN して求める運用であり、顧客側には持たない。
+  // ⚠️ 事業区分は**保存済みの値**を使う。リクエストからは受け取らない。
+  //   古い画面から送られた値で、画面に見えているのとは違うテーブルへ
+  //   顧客が作られるのを防ぐ。変更は roll: 'update' 側で行う。
+  const division = parseDivision(inquiry.division);
+  if (division === null) {
+    return {
+      httpStatus: 400,
+      body: { status: 'error', message: '事業区分が不正です。担当を再設定してください。' },
+    };
+  }
 
   const staff = asString(inquiry.staff).trim();
-  const id = generateUlid();
-
-  // ⚠️ 列名は master_data の実際の列。step_migration_item_... は反響取得日。
-  //   backend/src/core/kpi.php の KPI_MD_REGISTERED と同じ列であり、
-  //   ここを間違えると分析の反響日がずれる。
-  //
-  // ⚠️ `category` を必ず入れること。ListOrder（information_order_add.php）も
-  //   '注文' を固定で入れている。入れないと注文事業の一覧の絞り込みから漏れ、
-  //   **作られたのに誰の画面にも出てこない顧客**になる。
-  const INSERT_SQL = `
-    INSERT INTO master_data (
-      id,
-      category,
-      in_charge_user,
-      in_charge_store,
-      customer_contacts_name,
-      customer_contacts_name_kana,
-      customer_contacts_mobile_phone_number,
-      customer_contacts_email,
-      postal_code,
-      full_address,
-      sales_promotion_name,
-      status,
-      remarks,
-      step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99,
-      first_interviewed_date
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  const today = new Date();
-  const firstInterviewed =
-    `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
-
   const account = asString(inquiry.account).trim();
 
   // ⚠️ 建築希望地を備考に含める。master_data 側に専用の列が無いため、
@@ -363,34 +328,32 @@ export const runInquiryAmbassadorSync = async (
   const remarksLines = [
     account === '' ? '' : `紹介アンバサダー: ${account}`,
     buildArea === '' ? '' : `建築希望地: ${buildArea}`,
+    // ⚠️ 中古は in_charge_store に取引区分が入り、店舗名が顧客側に残らない。
+    //   どの店舗へ割り振った反響なのかを備考で追えるようにする
+    DIVISIONS[division].storeIsShop ? '' : `担当店舗: ${shop}`,
   ].filter((line) => line !== '');
+
+  let id = '';
 
   try {
     await withTransaction(async (tx) => {
-      await tx.execute(INSERT_SQL, [
-        id,
-        // ⚠️ ListOrder と同じ固定値。'order' ではなく '注文'
-        '注文',
-        // ⚠️ 担当営業が未設定なら「<店舗> 管理」。ListOrder と同じ規則。
-        //   空にすると担当者別の集計から漏れる
-        staff === '' ? `${shop} 管理` : staff,
+      id = await insertCustomer(tx, division, {
         shop,
-        orNull(inquiry.name),
-        orNull(inquiry.kana),
-        orNull(inquiry.mobile),
-        orNull(inquiry.mail),
-        orNull(inquiry.zip),
-        orNull(inquiry.address),
+        staff,
+        name: orNull(inquiry.name),
+        kana: orNull(inquiry.kana),
+        mobile: orNull(inquiry.mobile),
+        mail: orNull(inquiry.mail),
+        zip: orNull(inquiry.zip),
+        address: orNull(inquiry.address),
         // ⚠️ 媒体名。medium_list に同じ名前が無いと媒体別集計に出てこない。
         //   マスタ側の登録を確認すること
-        '公式アンバサダー',
-        '見込み',
+        salesPromotionName: '公式アンバサダー',
         // ⚠️ どのアンバサダー経由かを顧客側にも残す。
         //   これが無いと、顧客だけ見たときに紹介元が分からない
-        remarksLines.length === 0 ? null : remarksLines.join('\n'),
-        orNull(inquiry.inquiry_date),
-        firstInterviewed,
-      ]);
+        remarks: remarksLines.length === 0 ? null : remarksLines.join('\n'),
+        inquiryDate: orNull(inquiry.inquiry_date),
+      });
 
       await tx.execute(
         'UPDATE inquiry_ambassador SET sync = 1, master_data_id = ? WHERE `no` = ?',
@@ -408,6 +371,12 @@ export const runInquiryAmbassadorSync = async (
 
   return {
     httpStatus: 200,
-    body: { status: 'ok', id, message: `${asString(inquiry.name)}様の顧客情報を作成しました。` },
+    // ⚠️ どの事業の顧客になったかを必ず伝える。3つのテーブルに分かれるため、
+    //   区分を出さないと「作ったのに一覧に無い」と誤解される
+    body: {
+      status: 'ok',
+      id,
+      message: `${asString(inquiry.name)}様を${division}事業の顧客として作成しました。`,
+    },
   };
 };

@@ -34,14 +34,19 @@ $summary = portalRunBulkImport(
     $rows,
     'homes_db',
     $allowedColumns,
-    ['id_homes'],
+    'id_homes',
     'portalHomesToInquiry'
 );
 
 header('Content-Type: application/json; charset=utf-8');
+// skipped は「既に取り込み済みだったため何もしなかった件数」。
+// ⚠️ エラーではない。毎回ポータルの全件が送られてくるため、
+//   平常時は skipped のほうが大きくなるのが正常な状態である。
 echo json_encode([
     'ok'               => empty($summary['errors']),
     'inserted'         => $summary['processed'],
+    'skipped'          => $summary['skipped'],
     'inquiry_inserted' => $summary['inquiry_inserted'],
+    'inquiry_skipped'  => $summary['inquiry_skipped'],
     'errors'           => $summary['errors'],
 ], JSON_UNESCAPED_UNICODE);

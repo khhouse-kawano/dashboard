@@ -6,20 +6,30 @@ import { DIVISION_KEYS, SHOP_DIVISION, asDivision } from './divisions';
 import type { DivisionKey } from './divisions';
 
 /**
- * アンバサダー経由の反響一覧。閲覧と同期処理を行う。
+ * お友達紹介キャンペーンの反響一覧。閲覧と同期処理を行う。
  *
- * ⚠️ バックエンドは **Express（② VPS）のみ**。PHPハンドラは存在しない。
- *   ② が落ちるとこの画面は動かない（① にフォールバック先が無い）。
+ * ─────────────────────────────────────────────
+ * 反響の入り口は **① の PHP**、この画面は **② の Express**。
  *
- * 反響の入り口:
- *   https://kh-house.jp/ambassador/?id=<ambassador_list.no> の公開フォームが
- *   ② へ直接 POST する（request: 'ambassador_inquiry' / 認証なし）。
- *   実装は backend-express/src/features/ambassador/inquiry.ts。
+ *   受付: 登録通知メール → GAS（Gmail監視）→ ① handlers/introductory.php
+ *   閲覧・担当割り当て・同期: request 'inquiry_introductory'（② のみ）
  *
- * ⚠️ 担当店舗・担当営業はフォームから受け取っていない（偽装できるため）。
- *   届いた時点では必ず未設定であり、社内で割り振る運用が前提。
+ * ⚠️ ② が落ちるとこの画面は動かない（① にフォールバック先が無い）。
+ *   ただし**反響の受付は止まらない**（受付は ① にあるため）。
+ *   復旧後にここから取り込める。
+ * ─────────────────────────────────────────────
  *
- * ⚠️ 同期は master_data（注文事業）へ顧客を作る**取り消せない操作**である。
+ * ⚠️⚠️ **顧客として登録されるのは「お友達」（紹介された人）である。**
+ *   紹介者（registrantName）は既存のオーナー様・社員・業者様であり、
+ *   顧客として作ってはいけない。紹介者は備考に残す。
+ *
+ * ⚠️ お友達の情報は氏名・かな・電話番号しか届かない。
+ *   メールアドレス・住所は**紹介者のもの**なので顧客には入れない。
+ *   入れるとお友達宛の連絡が紹介者に届く。
+ *
+ * ⚠️ 担当店舗・担当営業・事業区分はメールに含まれない。社内で割り振る運用。
+ *
+ * ⚠️ 同期は顧客テーブルへ INSERT する**取り消せない操作**である。
  *   ・押す前に確認ダイアログを出す
  *   ・成功したら即座にボタンを消す（連打で二重に作らせない）
  *   ・サーバー側もトランザクションと sync = 1 の判定で二重実行を防いでいる
@@ -27,81 +37,67 @@ import type { DivisionKey } from './divisions';
 
 type Inquiry = {
     no: number;
-    /** 台帳と照合できたときだけ入る。集計・JOIN はこちらを使う */
-    ambassador_no: number | null;
-    /** 公開フォームのURL（?id=）から届いた生の値。⚠️ 改ざんされうるので信用しない */
-    ambassador_id: string | null;
-    name: string | null;
-    kana: string | null;
-    zip: string | null;
-    address: string | null;
-    /** ⚠️ address（現住所）とは別物。これから建てたい場所 */
-    build_area: string | null;
-    mobile: string | null;
+    campaignName: string | null;
+    /** owner / employee / partner。⚠️ 生の値。表示は referrerLabel を通す */
+    referrerType: string | null;
+    brand: string | null;
+    /** 紹介者。⚠️ この人を顧客として作るのではない */
+    registrantName: string | null;
+    registrantKana: string | null;
+    /** ⚠️ 紹介者のメールアドレス。お友達のものではない */
     mail: string | null;
-    /** 反響時点のアカウント */
-    account: string | null;
+    companyName: string | null;
+    postalCode: string | null;
+    /** ⚠️ 紹介者の住所 */
+    area: string | null;
+    tel: string | null;
+    mobile: string | null;
+    salesStaff: string | null;
+    /** 紹介されたお友達。⚠️ 顧客になるのはこの人 */
+    friendName: string | null;
+    friendKana: string | null;
+    friendTel: string | null;
+    friendLineId: string | null;
+    note: string | null;
+    guideStaff: string | null;
+    /** メールの受信日時。'YYYY-MM-DD HH:MM:SS' */
+    registered: string | null;
+    /** 事業区分。⚠️ 同期先のテーブルがこれで変わる */
+    division: string | null;
     shop: string | null;
     staff: string | null;
-    /**
-     * 事業区分。'注文' / '建売' / '中古'。
-     *
-     * ⚠️ 同期先のテーブルがこれで変わる（master_data / _kaeru / _resale）。
-     *   間違えると、作られたのに担当者の画面に出てこない顧客になる。
-     */
-    division: string | null;
-    inquiry_date: string | null;
     sync: number;
-    /** 進呈条件への同意。NULL は同意欄が無かった頃の古いデータ */
-    agreed: number | null;
-    /** 顧客宛サンクスメール。1=成功 0=失敗 NULL=未送信 */
-    mail_sent: number | null;
-    /** 社内宛通知メール。1=成功 0=失敗 NULL=未送信 */
-    notify_sent: number | null;
     master_data_id: string | null;
-    /** 台帳側の現在値（LEFT JOIN） */
-    ambassador_name: string | null;
-    ambassador_account: string | null;
-    ambassador_shop: string | null;
 };
 
 type SyncFilter = 'all' | 'unsynced' | 'synced';
 
-const dateLabel = (value: string | null): string => value ?? '—';
+/** ⚠️ 秒まで出すと横に長くなるだけなので日時までにする */
+const dateLabel = (value: string | null): string => (value ?? '—').slice(0, 16);
 
-/**
- * メール送信結果の印。
- *
- * ⚠️ NULL と 0 を同じ見た目にしない。
- *     NULL … まだ送っていない（メール機能より前の反響）。対応不要
- *     0    … 送ろうとして失敗した ← こちらだけが対応の必要な状態
- *   同じにすると、古い反響に紛れて本当の失敗を見落とす。
- */
-const mailMark = (label: string, value: number | null) => {
-    if (value === null || value === undefined) {
-        return <span className="text-muted" title={`${label}: 未送信`}>{label}—</span>;
-    }
-    return Number(value) === 1
-        ? <span className="text-success" title={`${label}: 送信済み`}>{label}✓</span>
-        : <span className="text-danger fw-bold" title={`${label}: 送信に失敗しました`}>{label}✕</span>;
+/** 紹介者区分の表示名。GAS の introductoryReferrerTypeMap と対応する */
+const REFERRER_LABELS: Record<string, string> = {
+    owner: 'オーナー様',
+    employee: '社員',
+    partner: '業者様',
 };
 
-/**
- * 紹介アンバサダーの表示名。台帳（ambassador_list）の現在値で `氏名 / アカウント` を作る。
- *
- * ⚠️ 反響側の `account` ではなく台帳側を使う。
- *   アカウント名は変更されるため、反響時点の値を出すと
- *   「今そのアカウントを探しても見つからない」状態になる。
- *
- * ⚠️ 片方しか無い場合に ' / ' だけが残らないようにする。
- */
-const ambassadorLabel = (item: Inquiry): string =>
-    [item.ambassador_name, item.ambassador_account]
-        .map(v => (v ?? '').trim())
-        .filter(v => v !== '')
-        .join(' / ');
+const referrerLabel = (value: string | null): string => {
+    const key = (value ?? '').trim();
+    return REFERRER_LABELS[key] ?? key;
+};
 
-export const InquiryAmbassador = () => {
+/** 紹介者区分ごとの色。⚠️ 業者様は対応が違うため見分けられるようにする */
+const referrerVariant = (value: string | null): string => {
+    switch ((value ?? '').trim()) {
+        case 'owner': return 'success';
+        case 'employee': return 'primary';
+        case 'partner': return 'warning';
+        default: return 'secondary';
+    }
+};
+
+const InquiryIntroductory = () => {
     const [list, setList] = useState<Inquiry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -111,7 +107,7 @@ export const InquiryAmbassador = () => {
     const [saving, setSaving] = useState('');
 
     // ⚠️ 店舗は show_flag = 1、担当営業は category = 1 かつ当年度。
-    //   紹介キャンペーン反響一覧・台帳と同じマスタを共用している。
+    //   アンバサダー画面と同じマスタを共用している（request も同じ）。
     //   詳細は useAmbassadorMaster.ts
     const { shopOptionsForDivision, staffOptionsFor, masterError } = useAmbassadorMaster();
 
@@ -122,14 +118,14 @@ export const InquiryAmbassador = () => {
     const load = useCallback(async () => {
         setError('');
         try {
-            const res = await apiClient.post('', { request: 'inquiry_ambassador' });
+            const res = await apiClient.post('', { request: 'inquiry_introductory' });
             if (res.data?.status !== 'ok') {
                 setError(res.data?.message ?? '反響一覧の取得に失敗しました。');
                 return;
             }
             setList(res.data.inquiry ?? []);
         } catch (e: unknown) {
-            // ⚠️ この機能は Express のみ。② が落ちていると必ずここに来る
+            // ⚠️ この画面は Express のみ。② が落ちていると必ずここに来る
             const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
             setError(message ?? '反響情報を取得できませんでした。分析サーバーが停止している可能性があります。');
         } finally {
@@ -142,7 +138,7 @@ export const InquiryAmbassador = () => {
     /**
      * 上部の絞り込みに出す店舗。
      *
-     * ⚠️ マスタ（shopOptions）ではなく**実際に届いている反響の店舗**から作る。
+     * ⚠️ マスタではなく**実際に届いている反響の店舗**から作る。
      *   マスタから作ると、1件も反響が無い店舗まで並んで探しにくくなる。
      *   割り当て用の select（行ごと）とは目的が違う。
      */
@@ -164,8 +160,9 @@ export const InquiryAmbassador = () => {
             if (key !== '') {
                 const haystack = normalize(
                     [
-                        i.name, i.kana, i.account, i.mobile, i.mail,
-                        i.ambassador_name, i.ambassador_account, i.build_area,
+                        i.friendName, i.friendKana, i.friendTel, i.friendLineId,
+                        i.registrantName, i.registrantKana, i.mail, i.campaignName,
+                        i.salesStaff, i.guideStaff,
                     ].filter(Boolean).join(' ')
                 );
                 if (!haystack.includes(key)) return false;
@@ -194,17 +191,21 @@ export const InquiryAmbassador = () => {
     }, [staffOptionsFor]);
 
     /**
-     * 担当店舗・担当営業を保存する。
+     * 担当店舗・担当営業・事業区分を保存する。
      *
      * ⚠️ 同期済みの行はサーバー側で拒否される。
      *   既に作られた顧客の担当は変わらないため、反響側だけ変えると食い違う。
      */
-    const saveAssign = useCallback(async (no: number, key: 'shop' | 'staff' | 'division', value: string) => {
+    const saveAssign = useCallback(async (
+        no: number,
+        key: 'shop' | 'staff' | 'division',
+        value: string
+    ) => {
         setSaving(`${no}_${key}`);
         setError('');
         try {
             const res = await apiClient.post('', {
-                request: 'inquiry_ambassador',
+                request: 'inquiry_introductory',
                 roll: 'update',
                 no,
                 [key]: value,
@@ -248,7 +249,6 @@ export const InquiryAmbassador = () => {
      *   店舗の選択肢は区分ごとに入れ替わる（注文事業／建売分譲事業／中古リノベ）。
      *   残すと「中古なのに担当は注文事業の店舗」という組み合わせで同期され、
      *   別のテーブルに、その事業には存在しない店舗名の顧客ができる。
-     *   画面上は値が入っているように見えるため気づけない。
      */
     const changeDivision = async (item: Inquiry, division: string) => {
         const ok = await saveAssign(item.no, 'division', division);
@@ -259,7 +259,7 @@ export const InquiryAmbassador = () => {
     };
 
     /**
-     * 反響を顧客として取り込む。
+     * お友達を顧客として取り込む。
      *
      * ⚠️ 取り消せない操作。確認を必ず挟む。
      * ⚠️ 成功後は一覧を再取得しない。sync だけを手元で 1 にする。
@@ -272,12 +272,14 @@ export const InquiryAmbassador = () => {
             return;
         }
 
-        // ⚠️ 確認文に事業区分を必ず出す。取り込み先のテーブルが変わるため、
-        //   区分を間違えたまま押されると別事業の顧客ができ、取り消せない
+        // ⚠️ 確認文には**お友達の名前と事業区分**を出す。紹介者の名前を出すと
+        //   誰が顧客になるのかを取り違えたまま押されてしまう
         const division = asDivision(item.division);
-        const label = `${item.shop} ${item.name ?? ''}様`;
+        const label = `${item.shop} ${item.friendName ?? ''}様`;
         if (!window.confirm(
-            `${label} を【${division}事業】の顧客として取り込みますか？\n\n※この操作は取り消せません。`
+            `${label} を【${division}事業】の顧客として取り込みますか？\n\n`
+            + `紹介者: ${item.registrantName ?? '（不明）'}\n\n`
+            + '※この操作は取り消せません。'
         )) return;
 
         setSyncing(item.no);
@@ -286,7 +288,7 @@ export const InquiryAmbassador = () => {
 
         try {
             const res = await apiClient.post('', {
-                request: 'inquiry_ambassador',
+                request: 'inquiry_introductory',
                 roll: 'sync',
                 no: item.no,
             });
@@ -320,8 +322,8 @@ export const InquiryAmbassador = () => {
         <div className="py-2">
             <div className="d-flex align-items-center gap-3 flex-wrap mb-3">
                 <span className="fw-bold" style={{ fontSize: '14px' }}>
-                    <i className="fa-brands fa-instagram me-2 text-danger" aria-hidden="true" />
-                    アンバサダー反響一覧
+                    <i className="fa-solid fa-user-group me-2 text-primary" aria-hidden="true" />
+                    紹介キャンペーン反響一覧
                 </span>
 
                 {/* ⚠️ 未同期が残っていることが一目で分かるようにする。
@@ -372,7 +374,7 @@ export const InquiryAmbassador = () => {
                         size="sm"
                         value={keyword}
                         onChange={(e) => setKeyword(e.target.value)}
-                        placeholder="氏名・アカウント・電話番号"
+                        placeholder="お友達・紹介者・電話番号"
                         style={{ width: '220px', fontSize: '12px' }}
                     />
                 </div>
@@ -409,32 +411,31 @@ export const InquiryAmbassador = () => {
 
             {loading ? (
                 <div className="text-center py-5">
-                    <div className="spinner-border text-danger" role="status">
+                    <div className="spinner-border text-primary" role="status">
                         <span className="visually-hidden">読み込み中</span>
                     </div>
                 </div>
             ) : (
                 <div className="table-responsive border rounded" style={{ maxHeight: '65vh' }}>
-                    <Table hover bordered className="mb-0 align-middle text-nowrap" style={{ fontSize: '12px', minWidth: '1800px' }}>
+                    <Table hover bordered className="mb-0 align-middle text-nowrap" style={{ fontSize: '12px', minWidth: '2000px' }}>
                         <thead className="bg-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                             <tr>
                                 <th className="bg-light text-center" style={{ width: '90px' }}>同期</th>
-                                <th className="bg-light" style={{ width: '110px' }}>反響日</th>
-                                <th className="bg-light" style={{ width: '150px' }}>氏名</th>
-                                <th className="bg-light" style={{ width: '140px' }}>ふりがな</th>
-                                <th className="bg-light" style={{ width: '130px' }}>電話番号</th>
-                                <th className="bg-light" style={{ width: '190px' }}>メールアドレス</th>
-                                <th className="bg-light" style={{ width: '260px' }}>住所</th>
-                                {/* ⚠️ 住所とは別。担当店舗の割り振りはここを見て決める */}
-                                <th className="bg-light" style={{ width: '160px' }}>建築希望地</th>
+                                <th className="bg-light" style={{ width: '120px' }}>受付日時</th>
+                                {/* ⚠️ 顧客になるのはお友達。紹介者と並べる順序を入れ替えないこと */}
+                                <th className="bg-light" style={{ width: '150px' }}>お友達（顧客）</th>
+                                <th className="bg-light" style={{ width: '140px' }}>お友達ふりがな</th>
+                                <th className="bg-light" style={{ width: '130px' }}>お友達電話</th>
+                                <th className="bg-light" style={{ width: '130px' }}>お友達LINE ID</th>
+                                <th className="bg-light" style={{ width: '90px' }}>紹介者区分</th>
+                                <th className="bg-light" style={{ width: '150px' }}>紹介者</th>
+                                <th className="bg-light" style={{ width: '190px' }}>紹介者メール</th>
+                                <th className="bg-light" style={{ width: '120px' }}>希望営業</th>
                                 {/* ⚠️ 同期先のテーブルが変わる項目。店舗より先に選ぶ */}
                                 <th className="bg-light" style={{ width: '90px' }}>事業区分</th>
                                 <th className="bg-light" style={{ width: '170px' }}>担当店舗</th>
                                 <th className="bg-light" style={{ width: '150px' }}>担当営業</th>
-                                <th className="bg-light" style={{ width: '220px' }}>紹介アンバサダー</th>
-                                <th className="bg-light text-center" style={{ width: '70px' }}>同意</th>
-                                {/* ⚠️ 社内通知が飛んでいない反響は、誰も気づいていない可能性がある */}
-                                <th className="bg-light text-center" style={{ width: '90px' }}>メール</th>
+                                <th className="bg-light" style={{ width: '260px' }}>ご希望内容</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -453,10 +454,10 @@ export const InquiryAmbassador = () => {
                                             ) : (
                                                 <Button
                                                     size="sm"
-                                                    variant={noShop ? 'outline-secondary' : 'danger'}
+                                                    variant={noShop ? 'outline-secondary' : 'primary'}
                                                     style={{ fontSize: '11px' }}
                                                     disabled={syncing === item.no || noShop}
-                                                    title={noShop ? '担当店舗が未設定のため同期できません' : '顧客として取り込む'}
+                                                    title={noShop ? '担当店舗が未設定のため同期できません' : 'お友達を顧客として取り込む'}
                                                     onClick={() => void handleSync(item)}
                                                 >
                                                     {syncing === item.no ? '処理中…' : '同期'}
@@ -464,17 +465,37 @@ export const InquiryAmbassador = () => {
                                             )}
                                         </td>
 
-                                        <td>{dateLabel(item.inquiry_date)}</td>
-                                        <td className="fw-bold text-dark">{item.name ?? ''}</td>
-                                        <td>{item.kana ?? ''}</td>
-                                        <td>{item.mobile ?? ''}</td>
-                                        <td>{item.mail ?? ''}</td>
-                                        <td style={{ whiteSpace: 'normal' }}>
-                                            {item.zip ? <span className="text-muted me-1">{item.zip}</span> : null}
-                                            {item.address ?? ''}
+                                        <td>{dateLabel(item.registered)}</td>
+
+                                        <td className="fw-bold text-dark">{item.friendName ?? ''}</td>
+                                        <td>{item.friendKana ?? ''}</td>
+                                        <td>{item.friendTel ?? ''}</td>
+                                        <td>{item.friendLineId ?? ''}</td>
+
+                                        <td>
+                                            {/* ⚠️ 業者様経由は謝礼の扱いが違うため見分けられるようにする */}
+                                            <Badge bg={referrerVariant(item.referrerType)} className="fw-normal">
+                                                {referrerLabel(item.referrerType) || '不明'}
+                                            </Badge>
                                         </td>
 
-                                        <td style={{ whiteSpace: 'normal' }}>{item.build_area ?? ''}</td>
+                                        <td>
+                                            {/* ⚠️ 紹介者は顧客として作られない。備考に残るだけ */}
+                                            <span className="text-dark">{item.registrantName ?? ''}</span>
+                                            {item.companyName ? (
+                                                <span className="text-muted ms-1" style={{ fontSize: '11px' }}>
+                                                    ({item.companyName})
+                                                </span>
+                                            ) : null}
+                                        </td>
+
+                                        <td>{item.mail ?? ''}</td>
+
+                                        <td>
+                                            {/* ⚠️ 紹介者がメールで希望した営業。担当営業の初期値には使わない
+                                                （在籍・店舗の確認をせずに割り当てると実在しない担当になる） */}
+                                            {item.salesStaff ?? ''}
+                                        </td>
 
                                         {/* ⚠️ 事業区分。同期先のテーブルがこれで決まる */}
                                         <td>
@@ -537,52 +558,7 @@ export const InquiryAmbassador = () => {
                                             )}
                                         </td>
 
-                                        <td>
-                                            {/* ⚠️ 台帳の現在値で「氏名 / アカウント」を出す。
-                                                反響時点の account とは別物。アカウント名が
-                                                変わっていても、誰の紹介かは台帳側で追える。
-
-                                                ⚠️ 照合できなかった行は必ず警告を出すこと。
-                                                URLからidが落ちた・台帳から削除された等が原因で、
-                                                黙って空欄にすると成果がどのアンバサダーにも
-                                                計上されないまま埋もれる */}
-                                            {item.ambassador_no === null ? (
-                                                <span
-                                                    className="text-warning"
-                                                    title={`台帳に未登録（受信したid: ${item.ambassador_id ?? 'なし'}）`}
-                                                >
-                                                    <i className="fa-solid fa-triangle-exclamation me-1" aria-hidden="true" />
-                                                    {item.account ? `@${item.account}` : '不明'}
-                                                </span>
-                                            ) : (
-                                                <>
-                                                    <span className="text-dark">{ambassadorLabel(item)}</span>
-                                                    <span className="text-muted ms-1" style={{ fontSize: '11px' }}>
-                                                        (ID:{item.ambassador_no})
-                                                    </span>
-                                                </>
-                                            )}
-                                        </td>
-
-                                        <td className="text-center">
-                                            {/* ⚠️ 3万円分のギフトカードの進呈条件への同意。
-                                                NULL は同意欄が無かった頃の古いデータで、
-                                                「未同意」とは意味が違う */}
-                                            {item.agreed === null || item.agreed === undefined
-                                                ? <span className="text-muted">—</span>
-                                                : Number(item.agreed) === 1
-                                                    ? <i className="fa-solid fa-circle-check text-success" title="同意あり" aria-hidden="true" />
-                                                    : <span className="text-danger" title="同意なし">なし</span>}
-                                        </td>
-
-                                        <td className="text-center">
-                                            {/* ⚠️ 顧客宛（顧）と社内宛（社）を分けて出す。
-                                                失敗したときの対応がまったく違う。
-                                                  顧の失敗 … 顧客が受付を確認できていない
-                                                  社の失敗 … 社内が反響に気づいていない ← より重い */}
-                                            <span className="me-1">{mailMark('顧', item.mail_sent)}</span>
-                                            <span>{mailMark('社', item.notify_sent)}</span>
-                                        </td>
+                                        <td style={{ whiteSpace: 'normal' }}>{item.note ?? ''}</td>
                                     </tr>
                                 );
                             })}
@@ -601,15 +577,16 @@ export const InquiryAmbassador = () => {
 
             <p className="text-muted mt-2 mb-0" style={{ fontSize: '11px' }}>
                 <i className="fa-solid fa-circle-info me-1" aria-hidden="true" />
-                反響は <code>https://kh-house.jp/ambassador/?id=&lt;アンバサダーID&gt;</code> のフォームから自動で届きます。
-                担当店舗は建築希望地を見て設定してください（未設定の反響は同期できません）。
+                反響はお友達紹介キャンペーンの登録通知メールから自動で届きます（同じメールが複数通届きますが、重複は自動で除かれます）。
                 <br />
-                「同期」を押すと選択した<strong>事業区分</strong>の顧客として登録され、販促媒体は「公式アンバサダー」になります。
-                ⚠️ 事業区分で登録先が変わります（注文／建売／中古）。この操作は取り消せません。
+                ⚠️ 「同期」で顧客として登録されるのは<strong>お友達（紹介された人）</strong>です。紹介者は備考に残ります。
+                お友達の情報は氏名・ふりがな・電話番号のみで、<strong>メールアドレスと住所は紹介者のもの</strong>なので顧客には入れません。
                 <br />
-                「メール」の 顧 は顧客宛のサンクスメール、社 は社内宛の通知です。
-                ⚠️ <span className="text-danger fw-bold">社✕</span> の行は通知が届いていないため、他の担当者が気づいていない可能性があります。
+                販促媒体は「紹介」になります。事業区分で登録先が変わります（注文／建売／中古）。
+                ⚠️ この操作は取り消せません。
             </p>
         </div>
     );
 };
+
+export default InquiryIntroductory;

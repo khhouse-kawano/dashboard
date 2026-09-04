@@ -3,18 +3,32 @@ import { query } from '../../db/pool';
 import type { AmbassadorResult } from './index';
 
 /**
- * アンバサダー画面で使う店舗・担当営業のマスタ。
+ * 反響画面で使う店舗・担当営業のマスタ。
+ *
+ * ⚠️ **アンバサダー専用ではない。** 次の画面が同じものを使う。
+ *     header/AmbassadorList.tsx      公式アンバサダー台帳
+ *     header/InquiryAmbassador.tsx   アンバサダー反響一覧
+ *     header/InquiryIntroductory.tsx 紹介キャンペーン反響一覧
+ *   request 名が `ambassador_master` のままなのは、先にアンバサダーで
+ *   作ったという経緯によるもの。**条件を変えると3画面すべてに効く。**
  *
  * ─────────────────────────────────────────────
- * ⚠️ **既存の `shop_list` / `callStatusList` を流用してはいけない。**
+ * 店舗の絞り込み条件の変更（2026-09-06）
  *
- *   shop_list      … `WHERE show_flag = 1`（画面に出す店舗）
- *   こちらが欲しいもの … `WHERE report_flag = 1`（報告対象の店舗）
+ *   旧: `WHERE report_flag = 1`（報告対象の店舗）
+ *   新: `WHERE show_flag = 1`（画面に出す店舗）
  *
- *   この2つは一致しない。実データで **report_flag = 1 なのに show_flag = 0 の
- *   店舗が存在する**（ローカルDBで5件）。流用すると、その店舗が選択肢から
- *   黙って消え、担当を割り当てられない反響が生まれる。
- *   エラーにならないので気づけない。
+ *   ⚠️ この2つは一致しない。ローカルDBでの実測は次のとおり。
+ *     report_flag = 1 かつ show_flag = 0 … 5件（不動産企画室4・注文事業1）→ **選択肢から消える**
+ *     show_flag = 1 かつ report_flag = 0 … 14件（注文事業13・区分なし1）→ **選択肢に増える**
+ *
+ *   担当を割り振る操作なので「今運用している店舗」＝ show_flag が適切、
+ *   という判断で切り替えた（report_flag は集計の対象を決めるフラグ）。
+ *   ⚠️ 戻すときは3画面すべてに影響することを前提に判断すること。
+ *
+ *   これで条件が `backend/src/handlers/shop_list.php` と同じになったが、
+ *   統合はしていない。あちらは `{ status }` で包まない**配列そのもの**を返す
+ *   仕様で、呼び出し側が `res.data.filter(...)` と直接扱っているため。
  * ─────────────────────────────────────────────
  *
  * ⚠️ 店舗と担当営業を1回のリクエストで返す。別々にすると、
@@ -22,9 +36,6 @@ import type { AmbassadorResult } from './index';
  *   中途半端な状態になり、原因が分かりにくい。
  *
  * ⚠️ この request に PHP ハンドラは無い。② が落ちたら ① で 404 になる。
- *   意図的にそうしている。① の shop_list（show_flag = 1）へ暗黙に
- *   フォールバックすると、**間違った選択肢が正しい顔をして出てしまう。**
- *   出ないほうが安全である。
  */
 
 interface ShopRow extends RowDataPacket {
@@ -32,6 +43,7 @@ interface ShopRow extends RowDataPacket {
   shop: string | null;
   section: string | null;
   area: string | null;
+  /** 事業区分。⚠️ 画面側で 注文事業／建売分譲事業／中古リノベ を絞るのに使う */
   division: string | null;
 }
 
@@ -46,7 +58,11 @@ interface StaffRow extends RowDataPacket {
 }
 
 /**
- * 報告対象の店舗。
+ * 運用中の店舗。
+ *
+ * ⚠️ `division` を必ず返すこと。事業区分（注文／建売／中古）で
+ *   店舗の選択肢を絞るために使っている。返さないと、建売の反響に
+ *   注文事業の店舗を割り当てられてしまう。
  *
  * ⚠️ 並び順は brand_sort → id。ブランドごとにまとまって出るようにしている。
  *   ORDER BY を外すとDB任せの順になり、選択肢の並びが日によって変わる。
@@ -54,7 +70,7 @@ interface StaffRow extends RowDataPacket {
 const SHOP_SQL = `
   SELECT brand, shop, section, area, division
     FROM shop_list
-   WHERE report_flag = 1
+   WHERE show_flag = 1
    ORDER BY brand_sort, id
 `;
 
