@@ -31,12 +31,25 @@ if ($function && $function === 'update') {
         exit;
     }
 
-    // 更新を許可するカラムのホワイトリスト（追加した remarks なども含む）
+    // 更新を許可するカラムのホワイトリスト。
+    //
+    // ⚠️⚠️ **2026-09-07 に大幅に絞った。**
+    //   来場予約がLPのフォームから直接届くようになったため、氏名・連絡先以外は
+    //   **来場者本人が入力した原本**である。社内で書き換えると
+    //   「本当は何と入力されたのか」が分からなくなる。
+    //   誤りがあれば remarks に書くか、顧客へ取り込んでから顧客情報側で直す。
+    //
+    //   name / phone / mail … 受付で誤記に気づいたときに直す必要があるため残す
+    //   check_in_time       … QRの読み取り（受付）で記録するため必須
+    //   check_out_time      … 退場時刻。受付運用で使う
+    //   remarks             … 社内メモ。原本ではないので自由に書ける
+    //   sync                … 顧客への取り込み済みフラグ
+    //
+    // ⚠️ ここに列を戻すときは EventList.tsx 側の入力欄も合わせること。
+    //   片方だけ変えると、画面では編集できるのに保存されない（無言で消える）。
     $allowed_columns = [
-        'time', 'date', 'name', 'zip', 'address', 'street', 
-        'phone', 'age', 'adult', 'child', 'house', 'interview', 
-        'medium', 'area', 'question', 'status', 
-        'check_in_time', 'check_out_time', 'remarks', 'title', 'shop', 'sync'
+        'name', 'phone', 'mail',
+        'check_in_time', 'check_out_time', 'remarks', 'sync'
     ];
 
     $update_fields = [];
