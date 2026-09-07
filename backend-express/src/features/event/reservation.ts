@@ -238,6 +238,7 @@ export const runEventReservation = async (
     interview: record.interview,
     request: record.request,
     title: record.title,
+    agree: record.agree,
   };
 
   // ⚠️ QRは1回だけ作って両方のメールに渡す。

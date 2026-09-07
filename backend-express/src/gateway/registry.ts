@@ -17,7 +17,10 @@ import { runEventReservation } from '../features/event/reservation';
 import { runEventCheckin } from '../features/event/checkin';
 import type { CallStatusCategory } from '../features/callStatusList';
 import { runCallStatusList } from '../features/callStatusList';
+import { runFamilyInfoShow, runFamilyInfoUpdate } from '../features/familyInfo';
 import { runHeader } from '../features/header';
+import type { InformationCategory } from '../features/information';
+import { runInformationInit } from '../features/information';
 import { runKpiAnalysisGet, runKpiAnalysisList } from '../features/kpi/history';
 import { runKpiFilterMaster } from '../features/kpi/master';
 import {
@@ -711,6 +714,91 @@ register({
   handler: async (ctx) => {
     const result = await runKpiAnalysisGet(ctx.body.id);
     // ⚠️ PHP は 400 / 404 / 422 を出し分けている。同じコードを返す
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 顧客詳細モーダルの初期データ（InformationEdit / Kaeru / Resale）— 参照系のみ
+//
+// ⚠️⚠️ **roll 付きの書き込み系は絶対に登録しないこと。**
+//
+//   この request は ① に PHP ハンドラが**実在する**（information.php）。
+//   ② への転送が失敗すると ① が自動フォールバックして同じ処理を実行するため、
+//   書き込みを登録すると二重登録・二重更新になる。
+//
+//   登録してはいけない roll:
+//     customer_info          … master_data の upsert（さらに multipart のため
+//                              express_proxy.php が転送自体を拒否する）
+//     update_call_log        … call_sheet の upsert
+//     update_interview_log   … interview_sheet の upsert
+//     log                    … master_data_log への INSERT（UNIQUE キーが無い）
+//
+//   これらを移すには「フロントを ② に直接向ける」段階へ進む必要がある
+//   （express_proxy.php の冒頭コメントが想定している次フェーズ）。
+//
+// ⚠️ category ごとに1件ずつ登録する。ワイルドカードは用意していない。
+//   ① の information.php は category に 'common' も許可しているが、
+//   roll 無しの 'common'（information_common.php）は存在しないため登録しない。
+// ---------------------------------------------------------------------------
+
+const informationCategories: InformationCategory[] = ['order', 'spec', 'used'];
+
+for (const category of informationCategories) {
+  register({
+    request: 'information',
+    category,
+    summary: `顧客詳細モーダルの初期データ（${category}）：マスタ＋顧客・架電・面談・競合PDF`,
+    phpSource: `backend/src/handlers/informationAction/information_${category}.php`,
+    auth: 'none',
+    handler: async (ctx) => {
+      // ⚠️ PHP は `$data['id'] ?? ''`。未指定でも空文字で処理を続け、
+      //   マスタだけを返すのが正しい挙動。400 にしない
+      const id = typeof ctx.body.id === 'string' ? ctx.body.id : '';
+      return runInformationInit(category, id);
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 家族情報（FamilyInfo.tsx）
+//
+// ⚠️ 移植元は**旧API**（`/dashboard/api/` の demand 形式）で、
+//   現行 backend/ にPHPハンドラが無い。アンバサダー／紹介キャンペーンと
+//   同じ「Express のみ」の扱いになるため、書き込み（update）も登録してよい。
+//   自動フォールバックしても ① に実行するPHPが無く、二重実行にならない。
+//
+// ⚠️ 逆に、この request に**PHPハンドラを作ってはいけない。**
+//   作った瞬間に二重実行の危険が生まれる。
+//
+// ⚠️ ② が落ちると家族情報モーダルだけが動かなくなる（フォールバック先が無い）。
+//
+// ⚠️ auth: 'none'。旧APIは認証していなかった。'staff' に上げると
+//   移行と同時に挙動が変わり、原因の切り分けが難しくなる。
+//   認証強化は GATEWAY_REQUIRE_AUTH の一括適用で行う。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'family_info',
+  summary: '家族情報の1件取得（該当なしは false を返す）',
+  phpSource: '(旧API demand: show_family_info。現行 backend/ にPHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runFamilyInfoShow(ctx.body.id);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'family_info',
+  roll: 'update',
+  summary: '【書き込み】家族情報の登録・更新（upsert）。保存後の行を返す',
+  phpSource: '(旧API demand: update_family_info。現行 backend/ にPHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runFamilyInfoUpdate(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

@@ -105,6 +105,21 @@ const actionMap = {
     '契約': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'
 };
 
+/**
+ * フッターのボタン共通スタイル。
+ *
+ * ⚠️ 横幅は文字数で決まるため、ここでは詰められない。
+ *   padding（px-2 / px-3）と letterSpacing を 0 にすることで
+ *   ボタンの実寸を縮めている。文字サイズは 12px のまま維持する
+ *   （小さくすると SP の zoom 0.3 で読めなくなる）。
+ */
+const footerButtonStyle = {
+    fontSize: '12px',
+    fontWeight: '500',
+    letterSpacing: '0',
+    whiteSpace: 'nowrap' as const
+};
+
 const steps = [
     '事前審査提出',
     'LINE等で連絡可',
@@ -1117,47 +1132,47 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                         <div className="d-flex justify-content-end w-100 gap-2">
                             {information.k_snap ? (
                                 <button
-                                    className="btn btn-outline-secondary btn-sm rounded-pill px-4 d-flex align-items-center"
-                                    style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                    className="btn btn-outline-secondary btn-sm rounded-pill px-2 d-flex align-items-center"
+                                    style={footerButtonStyle}
                                     onClick={() => setKSnap(information.id)}
                                 >
-                                    <i className="fa-solid fa-camera me-2"></i>K-Snap閲覧ログ
+                                    <i className="fa-solid fa-camera me-1"></i>K-Snap閲覧ログ
                                 </button>
                             ) : (
                                 <button
-                                    className="btn btn-outline-secondary btn-sm rounded-pill px-4 d-flex align-items-center"
-                                    style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                    className="btn btn-outline-secondary btn-sm rounded-pill px-2 d-flex align-items-center"
+                                    style={footerButtonStyle}
                                     onClick={() => registerKSnap(information.id)}
                                 >
-                                    <i className="fa-solid fa-user-plus me-2"></i>K-Snapアカウント発行
+                                    <i className="fa-solid fa-user-plus me-1"></i>K-Snapアカウント発行
                                 </button>
                             )}
 
                             <button
-                                className="btn btn-outline-info btn-sm rounded-pill px-4 d-flex align-items-center"
-                                style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                className="btn btn-outline-info btn-sm rounded-pill px-2 d-flex align-items-center"
+                                style={footerButtonStyle}
                                 onClick={() => {
                                     setEditId(information.id);
                                     setShowIceWorld(true);
                                 }}
                             >
-                                <i className="fa-regular fa-calendar-check me-2"></i>アイスワールド利用予約
+                                <i className="fa-regular fa-calendar-check me-1"></i>アイスワールド利用予約
                             </button>
 
                             <button
-                                className="btn btn-outline-success btn-sm rounded-pill px-4 d-flex align-items-center"
-                                style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                className="btn btn-outline-success btn-sm rounded-pill px-2 d-flex align-items-center"
+                                style={footerButtonStyle}
                                 onClick={() => setEstateId(information.id)}
                             >
-                                <i className="fa-solid fa-map-location-dot me-2"></i>土地コーディネート
+                                <i className="fa-solid fa-map-location-dot me-1"></i>土地コーディネート
                             </button>
 
                             <button
-                                className="btn btn-primary btn-sm rounded-pill px-5 shadow-sm d-flex align-items-center"
-                                style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
+                                className="btn btn-primary btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center"
+                                style={{ ...footerButtonStyle, fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
                                 onClick={handleSave}
                             >
-                                <i className="fa-solid fa-check me-2"></i>保存
+                                <i className="fa-solid fa-check me-1"></i>保存
                             </button>
                         </div>
                     </Modal.Footer>
