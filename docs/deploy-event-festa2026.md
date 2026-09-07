@@ -46,10 +46,49 @@ git commit -m "add the festa2026 reservation form, event check-in and map embed"
 git push origin HEAD
 ```
 
-⚠️ **`git push origin HEAD:production` はしないこと。** production にはマージコミットが
-あり fast-forward できない。ブラウザで
-`https://github.com/khhouse-kawano/dashboard/compare/production...v2.2.120`
-を開いて PR を作り、マージする。
+そのあと **GitHub の PR でマージする。**
+
+```
+https://github.com/khhouse-kawano/dashboard/compare/production...v2.2.120
+```
+
+### ⚠️⚠️ `git push origin HEAD:production` は必ず失敗する
+
+理由は、GitHub の「Merge pull request」ボタンが **production 側にだけ
+マージコミットを作る**ため。
+
+```
+c41f2cb1  ← 共通の分岐点（作業コミット）
+   ├── a1a11a0b  Merge pull request #24   ← production だけにある
+   └── f73fec8c  次の作業コミット          ← ローカルだけにある
+```
+
+ローカルの先端は production の先端を含んでいないので、Git は
+「相手の履歴が消える push」として拒否する（non-fast-forward）。
+
+⚠️ **この差はマージするたびに1コミットずつ開く。** 以降も直 push は成功しない。
+
+確認したいときは次で分かる。
+
+```powershell
+git fetch origin production
+git merge-base --is-ancestor origin/production HEAD
+# 終了コード 0 なら fast-forward 可能、1 なら不可
+```
+
+### ⚠️ やってはいけない2つ
+
+| してはいけないこと | 何が起きるか |
+|---|---|
+| `git pull` してから push | production のマージコミットが作業ブランチに入り込み、履歴が絡む。次のブランチでも同じ問題が続く |
+| `git push --force` | production 側のマージコミットが消える。⚠️ ② の VPS は `git fetch origin production` で取得しているため、**本番の取得元が壊れる** |
+
+### 覚え方
+
+| やること | 手段 |
+|---|---|
+| 自分のブランチを上げる | `git push origin HEAD` |
+| production へ入れる | GitHub の PR（コマンドは使わない） |
 
 ---
 
@@ -260,15 +299,42 @@ curl.exe -s -o NUL -w "HTTP=%{http_code}`n" -X POST https://api.khg-marketing.in
 
 ### 6-2. 受付の合い言葉
 
+⚠️⚠️ **宛先は必ず `https://api.khg-marketing.info`。**
+② の中からでも `http://localhost:3001` では**届かない。**
+express-api は `ports:` を書いていないため、ホストにポートが開いていない
+（`docker-compose.prod.yml` の冒頭に理由が書かれている。⚠️ Docker は ufw を
+迂回するので、`ports:` に書くとインターネットへ露出する）。
+外から見えるのは caddy の 80 / 443 だけであり、そこを通す。
+
+⚠️ PowerShell の `curl` は `Invoke-WebRequest` の別名。`curl.exe` と書かないと動かない。
+⚠️ PowerShell では行継続が `\` ではなくバッククォート。1行で書くのが安全。
+⚠️ PowerShell では JSON の `"` を `\"` にエスケープする。
+
+【② VPS で実行】
+
+```bash
+curl -s -X POST https://api.khg-marketing.info/api/gateway -H "Content-Type: application/json" -d '{"request":"event_checkin","roll":"lookup","id":"festa2026_0000000000000000","passcode":"wrong"}'; echo
+```
+
+⚠️ 何も返らないときは `-s` を外す（`-i` にする）とエラーが見える。
+`-s` はエラーを黙って捨てるため、宛先違いでも空で終わる。
+
+【あなたのPC（PowerShell）で実行】
+
 ```powershell
 curl.exe -s -X POST https://api.khg-marketing.info/api/gateway -H "Content-Type: application/json" -d '{\"request\":\"event_checkin\",\"roll\":\"lookup\",\"id\":\"festa2026_0000000000000000\",\"passcode\":\"wrong\"}'
 ```
 
-⚠️ `{"status":"error","message":"合い言葉が違います。"}` が返ること。
+期待する結果（どちらの場所でも同じ）。
 
-正しい合い言葉だと、存在しないIDなので
-`{"status":"error","message":"該当する予約が見つかりません。"}` になる。
-**これが返れば合い言葉の設定が効いている。**
+| 合い言葉 | 応答 |
+|---|---|
+| 誤り | `{"status":"error","message":"合い言葉が違います。"}` |
+| 正しい | `{"status":"error","message":"該当する予約が見つかりません。"}` |
+
+⚠️ **正しい合い言葉で「見つかりません」が返れば合格**（存在しないIDを指定しているため）。
+ここで「合い言葉が違います。」が返る場合は `.env.prod` が反映されていない。
+手順3-4を `--force-recreate --renew-anon-volumes` 付きでやり直す。
 
 ### 6-3. ダッシュボード
 

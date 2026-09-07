@@ -150,6 +150,51 @@ function expressProxyRequests(): array
         //     inquiry_introductory … ② の Express が処理する（画面）← 入れる
         // -----------------------------------------------------------------
         'inquiry_introductory',
+
+        // -----------------------------------------------------------------
+        // 2026-09-07 移植。顧客詳細モーダルの初期データ（参照のみ）。
+        //
+        // ⚠️⚠️ **category を明示した3件だけを書くこと。**
+        //   `'information'` と request だけで書いてはいけない。
+        //   この request は roll で書き込み系に分岐するため、
+        //   request だけで許可すると以下がすべて ② へ送られる。
+        //
+        //     customer_info        … master_data の upsert
+        //     update_call_log      … call_sheet の upsert
+        //     update_interview_log … interview_sheet の upsert
+        //     log                  … master_data_log への INSERT
+        //
+        //   これらは ① にPHPハンドラが実在するため、② が処理を完了した
+        //   直後に応答が失われると ① でも実行され**二重登録**になる。
+        //
+        // ⚠️ customer_info は multipart/form-data で送られてくるため、
+        //   そもそも上の shouldProxyToExpress() が転送を拒否する。
+        //   ただし「拒否されるから安全」に頼らず、許可リストにも入れない。
+        //
+        // 書き方は 'request:roll:category'。roll 無しは空にする
+        'information::order',
+        'information::spec',
+        'information::used',
+
+        // -----------------------------------------------------------------
+        // 2026-09-07 移植。家族情報（FamilyInfo.tsx）。
+        //
+        // 旧API（dashboard/api/ の demand 形式）から request 形式へ移したもの。
+        //
+        // ⚠️⚠️ 現行 backend/ に **PHPハンドラが存在しない**（旧APIの実体は
+        //   リポジトリ管理外。backup/back/20260625/ にバックアップのみ）。
+        //   そのためアンバサダー／紹介キャンペーンと同じ扱いになり、
+        //   書き込み（roll = 'update'）を含めて request 名だけで許可してよい。
+        //   ① が自動フォールバックしても実行するPHPが無く、404 になるだけで
+        //   二重実行にならない。
+        //
+        // ⚠️ 逆に、`backend/src/handlers/family_info.php` を
+        //   **作ってはいけない。** 作った瞬間に二重実行の危険が生まれる。
+        //
+        // ⚠️ ② が落ちると家族情報モーダルだけが動かなくなる。
+        //   顧客詳細の他の項目には影響しない。
+        // -----------------------------------------------------------------
+        'family_info',
     ];
 }
 

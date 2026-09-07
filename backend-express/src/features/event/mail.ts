@@ -31,6 +31,18 @@ export interface ReservationMailData {
   interview: string;
   request: string;
   title: string;
+  /**
+   * 個人情報の取り扱いへの同意。1 = 同意済み。
+   *
+   * ⚠️ フォームは同意を必須にしているため実際には常に 1 になる。
+   *   それでも 0 の表記を用意しておくこと。フォームを介さず
+   *   直接APIを叩かれた場合に「チェック済み」と誤記録しないため。
+   *
+   * ⚠️ LPの同意文には**写真撮影と広報利用**の了承も含まれる。
+   *   この値はその同意も兼ねている。文面を変えるときは
+   *   LPの .form__privacy と揃えること。
+   */
+  agree: number;
 }
 
 /**
@@ -62,6 +74,15 @@ const bulletize = (value: string): string =>
         .split(',')
         .map((v) => `  ・${v.trim()}`)
         .join('\n');
+
+/**
+ * 同意欄の表記。
+ *
+ * ⚠️ 顧客宛・社内宛で同じ文言を使う。片方だけ変えると、
+ *   問い合わせ対応のときに突き合わせができなくなる。
+ */
+const agreeLabel = (agree: number): string =>
+  agree === 1 ? '【個人情報の同意】チェック済み' : '【個人情報の同意】未同意';
 
 const nowJst = (): string =>
   new Intl.DateTimeFormat('ja-JP', {
@@ -101,6 +122,7 @@ export const sendReservationConfirm = async (
     bulletize(data.interview),
     data.request === '' ? '' : '【マイホームのご検討】',
     data.request === '' ? '' : bulletize(data.request),
+    agreeLabel(data.agree),
     '',
     '──────────────────────',
     '当日の受付について',
@@ -168,6 +190,7 @@ export const sendInternalNotice = async (
     bulletize(data.interview),
     '【マイホームのご検討】',
     bulletize(data.request),
+    agreeLabel(data.agree),
     '',
     'ダッシュボードの「集客イベント → 反響一覧」から確認・編集できます。',
     '',
