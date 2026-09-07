@@ -60,6 +60,14 @@ services:
       - DB_PASS=local_password
       # React開発サーバー(3000)とビルド確認用(3001)からのアクセスを許可
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      # イベント受付の合い言葉。
+      #
+      # ⚠️ **開発用のダミー値である。** 本番の値は ② VPS の .env.prod にのみ書く。
+      #   ここに本番の合い言葉を書いてはいけない（リポジトリに残る）。
+      #
+      # ⚠️ 空にすると受付機能が全て 401 になる。ローカルで受付を試すときは
+      #   この値を使うこと。
+      - EVENT_CHECKIN_PASSCODE=localtest
     depends_on:
       mariadb-db:
         condition: service_healthy

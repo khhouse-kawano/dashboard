@@ -19,11 +19,26 @@ import { logger } from './logger';
  *   ② から自前の名前で送ると SPF / DKIM が合わず迷惑メールになる。
  */
 
+/**
+ * 添付ファイル。
+ *
+ * ⚠️ 大きなものを添付しないこと。受信側の容量制限（多くは10MB前後）に掛かると
+ *   送信そのものが失敗し、本文まで届かなくなる。
+ *   現在の用途はイベント予約のQRコード画像（数KB）のみ。
+ */
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  /** MIMEタイプ。例: 'image/png' */
+  contentType: string;
+}
+
 export interface MailMessage {
   to: string | string[];
   subject: string;
   /** プレーンテキスト本文。⚠️ HTMLメールは使わない（迷惑メール判定が厳しくなる） */
   text: string;
+  attachments?: MailAttachment[];
 }
 
 /**
@@ -105,6 +120,12 @@ export const sendMail = async (message: MailMessage): Promise<boolean> => {
       replyTo: env.smtp.replyTo === '' ? undefined : env.smtp.replyTo,
       subject: sanitizeHeader(message.subject),
       text: message.text,
+      // ⚠️ 添付なしのときは undefined を渡す。空配列でも動くが、
+      //   nodemailer が multipart で組み立てるため無駄に容量が増える
+      attachments:
+        message.attachments === undefined || message.attachments.length === 0
+          ? undefined
+          : message.attachments,
     });
     return true;
   } catch (error) {

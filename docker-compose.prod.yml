@@ -105,6 +105,19 @@ services:
       # 社内通知の宛先。カンマ区切りで複数可
       - AMBASSADOR_NOTIFY_TO=${AMBASSADOR_NOTIFY_TO:-}
 
+      # イベント予約の社内通知先。
+      # ⚠️ 未設定なら AMBASSADOR_NOTIFY_TO が使われる。
+      - EVENT_NOTIFY_TO=${EVENT_NOTIFY_TO:-}
+
+      # イベント受付の合い言葉。
+      #
+      # ⚠️⚠️ **未設定だと当日の受付が一切できない**（全リクエストが 401 になる）。
+      #   素通しにはしていない。設定漏れで来場者の氏名が公開されるより、
+      #   受付が動かないほうが安全という判断。
+      #
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
+      - EVENT_CHECKIN_PASSCODE=${EVENT_CHECKIN_PASSCODE:-}
+
       # K-SNAP の owner を公開ギャラリー向けに暗号化する鍵。
       #
       # ⚠️ ① の .htaccess（SetEnv）と**同じ値**にすること。

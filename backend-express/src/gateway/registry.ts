@@ -13,6 +13,8 @@ import {
   runInquiryIntroductorySync,
   runInquiryIntroductoryUpdate,
 } from '../features/introductory';
+import { runEventReservation } from '../features/event/reservation';
+import { runEventCheckin } from '../features/event/checkin';
 import type { CallStatusCategory } from '../features/callStatusList';
 import { runCallStatusList } from '../features/callStatusList';
 import { runHeader } from '../features/header';
@@ -421,6 +423,106 @@ register({
  * ⚠️ 同期先は事業区分で変わる（master_data / master_data_kaeru / master_data_resale）。
  * ⚠️ 顧客として作るのは**お友達（紹介された人）**であり、紹介者ではない。
  */
+/**
+ * イベント来場予約の公開受付。
+ *
+ * ⚠️⚠️ **認証なしの書き込み口**（ambassador_inquiry に次いで2つ目）。
+ *
+ *   予約元: https://kh-house.jp/festa/ （おうちづくりフェスタ2026 のLP）
+ *   ブラウザからも curl からも、社外の誰でも叩ける。
+ *
+ * ⚠️ auth: 'none' は**意図的**である。予約するのは来場者であり、
+ *   スタッフのトークンを持たない。'staff' にすると予約が1件も入らなくなる。
+ *
+ * ⚠️ GATEWAY_REQUIRE_AUTH=true（'none' にも認証を要求する一括強化モード）を
+ *   有効にすると、**このエンドポイントも 401 になり予約が止まる。**
+ *   ambassador_inquiry と同じ扱いで例外にすること。
+ *
+ * ⚠️ 保存先の event_db は既存イベントと共用。`title` はサーバー側の固定値であり、
+ *   リクエストからは受け取らない（features/event/reservation.ts）。
+ *
+ * ⚠️ 流量制限は middlewares/publicFormRateLimit.ts の GUARDED_REQUESTS で行う。
+ *   ここに登録しただけでは制限が掛からない。
+ */
+register({
+  request: 'event_reservation',
+  summary: '【書き込み・認証なし】おうちづくりフェスタ2026 のLPからの来場予約受付',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runEventReservation(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * イベント当日の受付（チェックイン・退場）。
+ *
+ * ⚠️⚠️ **認証なしの書き込み口**（3つ目）。しかも来場者の氏名を返す。
+ *
+ *   スタッフがスマホの標準カメラで来場者のQRを読むと
+ *   https://kh-house.jp/festa/reservation/?id=... が開き、その画面から叩かれる。
+ *   ダッシュボードからは使わない（スマホではヘッダーが表示されないため）。
+ *
+ * ⚠️ auth: 'none' だが**無防備ではない。** 合い言葉（EVENT_CHECKIN_PASSCODE）を
+ *   検証するまで氏名を返さない。実装は features/event/checkin.ts。
+ *
+ * ⚠️ **合い言葉が未設定なら全て拒否される。** 素通しにはしていない。
+ *   ② の .env.prod に設定しないと当日の受付ができない。
+ *
+ * ⚠️ 流量制限は失敗回数のみを数える専用の設定を使う
+ *   （middlewares/publicFormRateLimit.ts）。フォームと同じ制限にすると
+ *   1台のスマホで連続して受付したときに止まる。
+ *
+ * ⚠️⚠️ **roll ごとに1件ずつ登録すること。** ゲートウェイは request + roll の
+ *   完全一致で引くため、登録の無い roll は「未移植」として ① へ転送されてしまう
+ *   （① には対応するPHPが無いので 404 になり、当日の受付が動かない）。
+ */
+const eventCheckinHandler = async (
+  ctx: { body: Record<string, unknown>; res: { status: (code: number) => unknown } }
+): Promise<unknown> => {
+  const result = await runEventCheckin(ctx.body);
+  if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+  return result.body;
+};
+
+// roll 省略（＝照会）。⚠️ 記録はしない
+register({
+  request: 'event_checkin',
+  summary: '【合い言葉】イベント受付：予約内容の照会（記録しない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: eventCheckinHandler,
+});
+
+register({
+  request: 'event_checkin',
+  roll: 'lookup',
+  summary: '【合い言葉】イベント受付：予約内容の照会（記録しない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: eventCheckinHandler,
+});
+
+register({
+  request: 'event_checkin',
+  roll: 'checkin',
+  summary: '【書き込み・合い言葉】イベント受付：来場時刻を記録する',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: eventCheckinHandler,
+});
+
+register({
+  request: 'event_checkin',
+  roll: 'checkout',
+  summary: '【書き込み・合い言葉】イベント受付：退場時刻を記録する',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: eventCheckinHandler,
+});
+
 register({
   request: 'inquiry_introductory',
   roll: 'sync',
