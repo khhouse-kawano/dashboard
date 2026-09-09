@@ -62,6 +62,21 @@ const ShopTrendKaeru = () => {
     const [targetShop, setTargetShop] = useState('');
     const [mediumArray, setMediumArray] = useState<Medium[]>([]);
     const [sectionArray, setSectionArray] = useState<string[]>([]);
+    /**
+     * 対象事業の課名の一覧（section_list 由来）。
+     *
+     * ⚠️⚠️ **担当営業の人数（(N名)）の絞り込みに使う。** setStaffLength.ts へ渡す。
+     *   2026-09-09 まで setStaffLength.ts の中に直書きしており、
+     *   実データとずれて**大分営業課・佐賀・久留米営業課の担当営業が
+     *   全員除外**されていた（人数が過少に表示されていた）。
+     *
+     * ⚠️ 変数名を `sections` にしないこと。この画面の `sections` は
+     *   **店舗配列（Shop[]）**として既に使われている（別物）。
+     *
+     * ⚠️ `sectionArray` とも別物。あちらは shop_list.section を一意化したもので、
+     *   店舗の登録状況に依存する。こちらはマスタ（section_list）が正。
+     */
+    const [sectionNames, setSectionNames] = useState<string[]>([]);
     const [staff, setStaff] = useState<Staff[]>([]);
     const [show, setShow] = useState(false);
     const [gemini, setGemini] = useState('');
@@ -97,6 +112,10 @@ const ShopTrendKaeru = () => {
                 await setMediumArray(response.data.medium);
                 await setOriginalMonthArray(getYearMonthArray(2025, 1));
                 await setStaff(response.data.staff.filter(s => s.rank === 1 && s.period === String(thisYear)));
+                // ⚠️ サーバは section_list を division で絞って `[{name: '...'}]` で返す
+                //   （shopTrendAction/shopTrend_{category}.php:20）。
+                //   ⚠️ 追加のDBアクセスは無い。元々実行されていた結果を受け取るだけ
+                await setSectionNames((response.data.section ?? []).map((s: { name: string }) => s.name));
                 await setBudget(response.data.budget);
             } catch (error) {
                 console.error("データ取得エラー:", error);
@@ -648,7 +667,7 @@ const ShopTrendKaeru = () => {
                     ]
                         .filter(shop => !shop.shop.includes('店舗未設定') && !shop.shop.includes('FH'))
                         .map((target, targetIndex) => {
-                            const staffLength = setStaffLength(staff, targetSection, target.section, target.shop, targetIndex, category).length;
+                            const staffLength = setStaffLength(staff, targetSection, target.section, target.shop, targetIndex, sectionNames).length;
 
                             return (
                                 <React.Fragment key={`shop-${targetIndex}`}>

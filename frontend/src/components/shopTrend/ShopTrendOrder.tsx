@@ -69,6 +69,21 @@ const ShopTrendOrder = () => {
     const [targetShop, setTargetShop] = useState('');
     const [mediumArray, setMediumArray] = useState<Medium[]>([]);
     const [sectionArray, setSectionArray] = useState<string[]>([]);
+    /**
+     * 対象事業の課名の一覧（section_list 由来）。
+     *
+     * ⚠️⚠️ **担当営業の人数（(N名)）の絞り込みに使う。** setStaffLength.ts へ渡す。
+     *   2026-09-09 まで setStaffLength.ts の中に直書きしており、
+     *   実データとずれて**大分営業課・佐賀・久留米営業課の担当営業が
+     *   全員除外**されていた（人数が過少に表示されていた）。
+     *
+     * ⚠️ 変数名を `sections` にしないこと。この画面の `sections` は
+     *   **店舗配列（Shop[]）**として既に使われている（別物）。
+     *
+     * ⚠️ `sectionArray` とも別物。あちらは shop_list.section を一意化したもので、
+     *   店舗の登録状況に依存する。こちらはマスタ（section_list）が正。
+     */
+    const [sectionNames, setSectionNames] = useState<string[]>([]);
     const [staff, setStaff] = useState<Staff[]>([]);
     const [show, setShow] = useState(false);
     const [gemini, setGemini] = useState('');
@@ -105,6 +120,10 @@ const ShopTrendOrder = () => {
                 await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
                 await setOriginalMonthArray(getYearMonthArray(2025, 1));
                 await setStaff(response.data.staff.filter(s => s.rank === 1 && s.period === String(thisYear)));
+                // ⚠️ サーバは section_list を division で絞って `[{name: '...'}]` で返す
+                //   （shopTrendAction/shopTrend_{category}.php:20）。
+                //   ⚠️ 追加のDBアクセスは無い。元々実行されていた結果を受け取るだけ
+                await setSectionNames((response.data.section ?? []).map((s: { name: string }) => s.name));
                 await setBudget(response.data.budget);
             } catch (error) {
                 console.error("データ取得エラー:", error);
@@ -148,63 +167,6 @@ const ShopTrendOrder = () => {
         });
         setSectionArray(filteredSectionArray);
     }, [originalCustomerList, originalMonthArray, originalShopArray, startMonth, endMonth, targetMedium, targetSection, targetBrand, mediumChecked]);
-
-    useEffect(() => {
-        if (!geminiApi) return;
-        setGemini('');
-        const sectionShops = shopArray.filter(s => s.section === targetSection).map(s => s.shop);
-        const data = monthArray.map(month => {
-            const formattedMedium = mediumArray.filter(m => m.list_medium === 1 && (targetMedium ? m.medium === targetMedium : true)).map(m => m.medium);
-            formattedMedium.push('合計');
-            const periodSummary = formattedMedium.map(medium => {
-                const totalValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.register).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const interviewValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const cancelValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && !item.interview && formate(item.reserved_interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const reserveValue = cancelValue + interviewValue;
-                const appointmentValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && (item.appointment || item.screening || item.contract) && formate(item.interview).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                const contractValue = customerList.filter(item => (targetSection ? sectionShops.includes(item.shop) : true) && (targetBrand ? item.shop.includes(modalTitle) : true) && ((targetBrand === '' && targetSection === '' && shopArray.map(s => s.shop).includes(modalTitle)) ? item.shop === modalTitle : true) && formate(item.contract).includes(month) && (medium !== '合計' ? item.medium === medium : true)).length;
-                return {
-                    medium: medium,
-                    total: totalValue,
-                    interview: interviewValue,
-                    cancel: cancelValue,
-                    reserve: reserveValue,
-                    appointment: appointmentValue,
-                    contract: contractValue,
-                }
-            });
-            const areaValue = originalShopArray.filter(s => modalTitle ? s.shop === modalTitle : true).map(s => s.area).join();
-            let shopValue;
-            if (shopArray.map(s => s.shop).includes(modalTitle)) {
-                shopValue = modalTitle;
-            } else if (targetBrand) {
-                shopValue = shopArray.filter(s => s.brand === targetBrand).map(s => s.shop).join();
-            } else if (targetSection) {
-                shopValue = targetSection;
-            } else {
-                shopValue = '注文営業';
-            }
-            return {
-                period: month,
-                shop: shopValue,
-                area: modalTitle ? areaValue : '',
-                medium: targetMedium ? `${targetMedium}のみ` : mediumArray.map(m => m.medium).join(),
-                amount: periodSummary
-            }
-        });
-
-        const fetchData = async () => {
-            try {
-                const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-                const response = await axios.post("https://sync-pg-cloud-9f739ab131ed.herokuapp.com/api/summary", { data }, { headers });
-
-                setGemini(response.data);
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        };
-        fetchData();
-    }, [geminiApi]);
 
     useEffect(() => {
         if (targetMedium !== 'all') return;
@@ -534,7 +496,7 @@ const ShopTrendOrder = () => {
                                             },
                                             ...(targetSection !== 'all' ? shopArray : sections)
                                         ].filter(shop => !shop.shop.includes('店舗未設定') && !shop.shop.includes('FH')).map((target, targetIndex) => {
-                                            const staffLength = setStaffLength(staff, targetSection, target.section, target.shop, targetIndex, category).length;
+                                            const staffLength = setStaffLength(staff, targetSection, target.section, target.shop, targetIndex, sectionNames).length;
                                             return <>
                                                 <tr>
                                                     <td className='align-middle  sticky-column text-center' rowSpan={checked.budget.show ? 2 : 1}>
@@ -652,25 +614,6 @@ const ShopTrendOrder = () => {
                     <Modal.Title></Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    {geminiApi ? <div>{gemini ?
-                        <>
-                            <div className="text-center my-3">
-                                <div className="rounded-pill mt-2 aiButton" style={{ fontSize: '11px', cursor: 'pointer' }}
-                                    onClick={() => {
-                                        setGeminiApi(false);
-                                        setGeminiApi(true);
-                                    }}>AIによる分析開始</div>
-                            </div>
-                            <div className='mt-1 mb-2 text-center'>AIによる市場分析結果
-                                <div className="comment mt-4" dangerouslySetInnerHTML={{ __html: gemini }}></div>
-                            </div>
-                        </> :
-                        <div className="text-center mt-1 mb-5" style={{ fontSize: '12px' }}>
-                            <div className='rounded-pill mt-2 aiButton'><i className="fa-solid fa-rotate spinning me-2"></i>AIがデータの分析中...</div>
-                            <div className='mt-3' style={{ fontSize: '12px' }}>データ分析には最大30秒ほど必要です</div>
-                        </div>}</div>
-                        : <div className="text-center mt-1 mb-5"><div className="rounded-pill mt-2 aiButton" style={{ fontSize: '11px', cursor: 'pointer' }}
-                            onClick={() => setGeminiApi(true)}>AIによる分析開始</div></div>}
                     <div className="mb-5">
                         <div className="text-center mb-3" style={{ fontSize: '12px' }}>{modalTitle} 反響推移</div>
                         <div style={{ width: "95%", height: '350px' }}>

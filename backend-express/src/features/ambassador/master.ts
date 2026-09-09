@@ -39,12 +39,27 @@ import type { AmbassadorResult } from './index';
  */
 
 interface ShopRow extends RowDataPacket {
+  /**
+   * shop_list.id。
+   * ⚠️ 画面側の並び替えの最終キーに使う。返さないと同じブランド内の
+   *   並びがDB任せになり、選択肢の順が日によって変わる。
+   */
+  id: number | null;
   brand: string | null;
   shop: string | null;
   section: string | null;
   area: string | null;
   /** 事業区分。⚠️ 画面側で 注文事業／建売分譲事業／中古リノベ を絞るのに使う */
   division: string | null;
+  /**
+   * 報告対象か。
+   * ⚠️⚠️ **絞り込みは画面側で行う。ここでは絞らない。**
+   *   `report_flag <> 1` の店舗には「KH店舗未設定」「DJH全店舗管理」のような
+   *   管理用の擬似店舗が含まれる（実測: show_flag=1 の53件中14件）。
+   *   反響の担当に割り当ててはいけないため画面側で外すが、
+   *   SQL で落とすと他の用途で使えなくなるので返すだけにする。
+   */
+  report_flag: number | null;
 }
 
 interface StaffRow extends RowDataPacket {
@@ -55,6 +70,16 @@ interface StaffRow extends RowDataPacket {
   /** 年度。'2026' のような文字列。⚠️ 絞り込みは画面側で行う */
   period: string;
   status: string;
+  /**
+   * 社員番号。
+   *
+   * ⚠️ 型は text で NOT NULL だが**空文字が入る**（実測: 当年度の営業職207件中36件）。
+   *   空なのはすべて「◯◯店 管理」という店舗管理用の擬似担当者だった。
+   *
+   * ⚠️⚠️ 値は 100007〜100480 の6桁。**画面側で並べるとき、空を「10」のような
+   *   小さい値に置き換えると先頭に来てしまう。** 末尾に回すこと。
+   */
+  khg_id: string | null;
 }
 
 /**
@@ -68,7 +93,7 @@ interface StaffRow extends RowDataPacket {
  *   ORDER BY を外すとDB任せの順になり、選択肢の並びが日によって変わる。
  */
 const SHOP_SQL = `
-  SELECT brand, shop, section, area, division
+  SELECT id, brand, shop, section, area, division, report_flag
     FROM shop_list
    WHERE show_flag = 1
    ORDER BY brand_sort, id
@@ -87,7 +112,7 @@ const SHOP_SQL = `
  *   画面側でキーを作るときは name だけでなく shop と組み合わせること。
  */
 const STAFF_SQL = `
-  SELECT name, shop, section, position, period, status
+  SELECT name, shop, section, position, period, status, khg_id
     FROM staff_list
    WHERE category = 1
    ORDER BY sort, id

@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
-import axios from "axios";
 import Table from "react-bootstrap/Table";
 import "../SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -8,7 +7,6 @@ import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
-import { headers } from '../../utils/headers';
 import { getFiscalYearMonthsFromJune } from '../../utils/getFiscalYearMonthsFromJune';
 import InformationEdit from '../information/InformationEdit';
 import InterviewLog from '../InterviewLog';
@@ -378,7 +376,13 @@ const RankOrder = () => {
 
         const fetchData = async () => {
             try {
-                await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: "rank", staff, memo: text, shop }, { headers });
+                // ⚠️⚠️ 2026-09-09 まで、ここは本番URL（https://khg-marketing.info/...）を
+                //   直書きしていた。そのため
+                //     ・ローカル開発環境から**本番DBへ書き込んでいた**
+                //     ・apiClient を通らないので Token ヘッダーが付かない
+                //     ・① へ直行するため ② への転送（Express化）が効かない
+                //   URL を直書きに戻さないこと。
+                await apiClient.post('', { request: 'rank', staff, memo: text, shop });
             } catch (err) {
                 console.error(err);
             }

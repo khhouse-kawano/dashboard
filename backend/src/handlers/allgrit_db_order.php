@@ -24,6 +24,11 @@ $allowedColumns = [
     'city_allGrit',
     'city_allGrit2',
     'city_allGrit3',
+    // ⚠️ 建築予定地（市区町村）。2026-09-08 追加。
+    //   これが無かったため、sync が送っていた建築予定地は
+    //   ここで黙って捨てられ、店舗判定にも使われていなかった。
+    //   列の追加は backend/scripts/sql/2026-09-08_allgrit_place.sql
+    'place_allGrit',
     'shop_allGrit',
 ];
 

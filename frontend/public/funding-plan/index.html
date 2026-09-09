@@ -1,0 +1,2741 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIデジタル資金計画書｜国分ハウジンググループ</title>
+<style>
+:root{
+  --navy:#0F3675; --navy2:#1d4f96; --yellow:#F4D722; --yellow2:#fbeb8a;
+  --ink:#1f2937; --mu:#6b7280; --line:#d8dee8; --bg:#eef1f6; --paper:#fff;
+  --inbg:#fffdf2; --inline:#d9cfa0;
+  --f:"Yu Gothic UI","Meiryo UI",Meiryo,"Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:var(--f);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+
+.appbar{position:sticky;top:0;z-index:60;background:linear-gradient(100deg,#0b2a5c,#0F3675 55%,#1d4f96);color:#fff;
+  padding:8px 14px;box-shadow:0 2px 12px rgba(8,25,55,.3)}
+.abrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;flex:none}
+.klogo{display:inline-block;background-repeat:no-repeat;background-position:center;background-size:contain;flex:none}
+.klogo{background-image:url(data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAFNAfMDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD9U6KKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAoooo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+807gRhPUqWPPCmvyx+M3xe1745/ETVPF/iGRftl4wWK2jJMVrCvCQpn+FR37kse9cTmtXwr4T1rxzr1tovh7SrvW9WuDiKzsYTLI3vgdFHdjgAck17uX5RhcqvUi9erf9aHBiMXVxVotadkaXwv+H978V/iJ4d8Haf5gutZvUtN8Yy0UZOZJOh+4gd/otfvpo+k2+h6TZadZxiK0s4Ut4Yx0VEUKo/AAV8p/sO/sY/8KB09/Ffiry7nx1qMAi8mNg0emQNgmJWHDSEgbnHHG1eMlvrmvz7iLMoY+uoUXeEOvd9T38vwzw9NuW7Ciiivkz1QooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKa1OpKAPmvxd/wT5+D/AI48Vav4h1XTdUfU9UupLy5aLU5EUyOxZiFHQZJ4rI/4dn/A/wD6Besf+DaX/GvquivUjmuOilFVpWXmzmeGovVwR8x2H/BOL4FWagSeGLy8wc5n1a6/9lkWvWPAX7PPw0+GMiy+GPA2haTdqMfbIbFDckehmYFz+LV6LSYrCrjsVWVqlST+bLjRpw+GKQirilopa4jY8U/aS/ZY8P8A7TkfhyDxFq2p6Za6LNLMqaWY1aYuFBDM6NgfL2Gead8Hf2Q/hb8DrtL/AMOeGopNZVdq6tqTm6ul4wdjPxHnvsC5717RijaK7PrmIVH6uptQ7dDH2NPn57aiL+lcj8RPhF4O+LVlZ2njHw7Y+IbazkM0EV9HvWNyMFgPXFdfS1yxlKnJSg7PyNWk1Znin/DF3wP/AOiZeH//AAF/+vW34c/Zh+EfhO7iu9J+GnhWzvITmO6XSYGlQ+ocqWH516hSV0PF4iSs6j+9kKnBbRGQxJDGqRoqIowFUYAHpipKSlrlNAooooAKKKKACiiigBDXjPx//ZT8G/tJXGiy+LJtVibSVlW3/s25SEHzChbdlGz9wY6d69moxWtGtUoTVSlKzXVEShGa5ZK6Pj//AIdbfB3/AJ+/FH/gxj/+M0f8Otfg5/z9+KD/ANxGP/4zX2BS16P9rZh/z/l97Of6rQ/kR8taH/wTa+B2kMpn0PUtWK4P+narNg/URlBXvXgP4W+EPhfp7WPhLwzpXhy2Y5kXTbRITIcY3OwGXPuxJrqqK5a2MxOIVq1Ry9WzaFKnT+GKQYpaKK4zUKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/2Q==)}
+.brand .klogo{width:60px;height:34px;background-color:#fff;border-radius:6px}
+.brand .tt{font-size:15px;font-weight:800;letter-spacing:.03em;line-height:1.25}
+.brand .tt small{display:block;font-size:10px;font-weight:500;color:#b9c9e8;letter-spacing:.1em}
+.abrow .sp{flex:1}
+.cust{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);
+  border-radius:8px;padding:4px 8px}
+.cust label{font-size:11px;color:#cfdcf5;letter-spacing:.06em}
+.cust select{background:#fff;color:#111;border:0;border-radius:5px;padding:4px 6px;min-width:180px;font-size:12.5px}
+.btn{border:0;border-radius:7px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;transition:.15s}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:translateY(1px)}
+.b-y{background:var(--yellow);color:#25324a}
+.b-w{background:rgba(255,255,255,.92);color:#0F3675}
+.b-o{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)}
+.b-r{background:#c0392b;color:#fff}
+.b-n{background:var(--navy);color:#fff}
+.b-sm{padding:3px 9px;font-size:11.5px;border-radius:6px}
+
+.tabs{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:8px}
+@media(max-width:1180px){.tabs{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:620px){.tabs{grid-template-columns:repeat(3,1fr)}}
+.tab{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:8px 8px 3px 3px;
+  color:#dbe5f6;padding:6px 4px;font-size:11.5px;font-weight:700;cursor:pointer;text-align:center;line-height:1.35;
+  display:flex;flex-direction:column;align-items:center;transition:.15s}
+.tab:hover{background:rgba(255,255,255,.2);color:#fff}
+.tab .n{font-size:10px;font-weight:900;color:var(--yellow)}
+.tab.on{background:#fff;color:var(--navy);border-color:#fff;box-shadow:0 -3px 0 var(--yellow) inset}
+.tab.on .n{color:var(--navy2)}
+
+.wrap{max-width:1240px;margin:0 auto;padding:16px 14px 90px}
+.page{display:none}
+.page.on{display:block;animation:fi .18s}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+h2.sec{font-size:19px;font-weight:900;color:var(--navy);display:flex;align-items:center;gap:10px;margin:0 0 4px;flex-wrap:wrap}
+h2.sec .num{background:var(--navy);color:#fff;font-size:12px;border-radius:6px;padding:2px 9px;font-weight:900}
+.lead{font-size:12.5px;color:var(--mu);margin-bottom:14px}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:15px 17px;margin-bottom:14px;
+  box-shadow:0 1px 3px rgba(15,54,117,.06)}
+.card>h3{font-size:14.5px;font-weight:900;color:var(--navy);margin:-2px 0 12px;padding-bottom:7px;
+  border-bottom:2px solid var(--yellow);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card>h3 .sub{font-size:11px;font-weight:500;color:var(--mu)}
+.card>h3 .rt{margin-left:auto;display:flex;gap:6px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:900px){.g2,.g3{grid-template-columns:1fr}}
+
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px 14px}
+.fg.w2{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.f{display:flex;flex-direction:column;gap:3px}
+.f.full{grid-column:1/-1}
+.f>label{font-size:11px;font-weight:700;color:var(--navy2)}
+.f .hint{font-size:10.5px;color:var(--mu)}
+input[type=text],input[type=number],input[type=date],select,textarea{
+  background:var(--inbg);border:1px solid var(--inline);border-radius:6px;padding:6px 8px;width:100%;font-size:13px}
+input:focus,select:focus,textarea:focus{outline:2px solid rgba(29,79,150,.35);outline-offset:-1px;background:#fff}
+input[readonly],.ro{background:#eef2f7 !important;border-color:#cfd8e5 !important;font-weight:700}
+textarea{resize:vertical;min-height:54px;line-height:1.55}
+.unit{display:flex;align-items:center;gap:5px}
+.unit input,.unit select{text-align:right}
+.unit .u{font-size:11.5px;color:var(--mu);white-space:nowrap;flex:none}
+.chk{display:flex;flex-wrap:wrap;gap:4px 12px;padding-top:3px}
+.chk label{display:flex;align-items:center;gap:4px;font-size:12.5px;cursor:pointer}
+.chk input{accent-color:var(--navy2);width:15px;height:15px}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{border:1px solid var(--line);padding:5px 7px;vertical-align:middle}
+thead th{background:#e8eef8;color:var(--navy);font-weight:800;font-size:11.5px;text-align:center}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.ctr,th.ctr{text-align:center}
+tbody tr:nth-child(even){background:#fafbfd}
+tr.tot{background:#e8eef8 !important;font-weight:900}
+tr.tot td{color:var(--navy)}
+table input,table select{background:var(--inbg);border:1px solid var(--inline);border-radius:4px;padding:3px 5px;font-size:12.5px}
+table input[type=number]{text-align:right}
+.tw{overflow-x:auto}
+.tw table{min-width:660px}
+.xbtn{background:#f3f4f6;border:1px solid #d4d9e2;border-radius:5px;color:#9aa1ad;cursor:pointer;width:22px;height:22px;line-height:1;font-weight:900}
+.xbtn:hover{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}
+.kpi{background:linear-gradient(160deg,#fff,#f4f7fc);border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center}
+.kpi .l{font-size:10.5px;color:var(--navy2);font-weight:700}
+.kpi .v{font-size:21px;font-weight:900;color:var(--navy);font-variant-numeric:tabular-nums;line-height:1.25;margin-top:2px}
+.kpi .v small{font-size:12px;font-weight:700;margin-left:2px}
+.kpi .s{font-size:10.5px;color:var(--mu)}
+.kpi.hi{background:linear-gradient(160deg,#fffbe6,#fdf3c4);border-color:#e6cf5a}
+.kpi.hi .v{color:#8a6d00}
+.kpi.dk{background:linear-gradient(160deg,#123a7a,#0b2a5c);border-color:#0b2a5c}
+.kpi.dk .l,.kpi.dk .s{color:#c3d3ef}
+.kpi.dk .v{color:#fff}
+.kpi.gr{background:linear-gradient(160deg,#f0fdf4,#dcfce7);border-color:#86efac}
+.kpi.gr .v{color:#15803d}
+
+.note{font-size:11px;color:var(--mu);line-height:1.7;margin-top:8px}
+.pill{display:inline-block;background:#e8eef8;color:var(--navy);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:800}
+.pill.y{background:var(--yellow2);color:#7a6200}
+.pill.g{background:#dcfce7;color:#15803d}
+.pill.r{background:#fee2e2;color:#b91c1c}
+.msg{border-radius:8px;padding:9px 13px;font-size:12.5px;margin:10px 0;line-height:1.7}
+.msg.i{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+.msg.w{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
+.msg.g{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+.arrowdown{text-align:center;color:var(--navy2);font-size:19px;line-height:1;margin:1px 0}
+
+.hero{background:linear-gradient(120deg,#0b2a5c,#1d4f96);color:#fff;border-radius:14px;padding:24px;margin-bottom:14px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-70px;top:-70px;width:250px;height:250px;border-radius:50%;
+  background:radial-gradient(circle,rgba(244,215,34,.4),transparent 65%)}
+.hero .in{position:relative;z-index:1}
+.hero .kw{display:inline-block;background:var(--yellow);color:#25324a;font-weight:900;font-size:12px;border-radius:6px;padding:3px 12px}
+.hero h3{font-size:clamp(19px,3.2vw,29px);font-weight:900;margin:10px 0 6px;line-height:1.35}
+.hero p{font-size:13px;color:#d3ddf2;max-width:660px}
+.vpx{background:#fff;border:1px solid var(--line);border-left:5px solid var(--navy);border-radius:10px;padding:13px 16px}
+.vpx .en{font-size:21px;font-weight:900;color:var(--navy);font-style:italic}
+.vpx .jp{font-size:11px;color:var(--navy2);font-weight:700;letter-spacing:.14em;margin-bottom:7px}
+.vpx p{font-size:13.5px;font-weight:700;line-height:1.85}
+.brands{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:900px){.brands{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.brands{grid-template-columns:1fr}}
+.bd{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fdfdfb}
+.bd .bn{font-weight:900;color:var(--navy);font-size:13.5px;margin-bottom:3px}
+.bd .bt{font-size:11.5px;color:#4b5563;line-height:1.65}
+.tl{position:relative;padding-left:20px;margin-top:4px}
+.tl::before{content:"";position:absolute;left:5px;top:4px;bottom:4px;width:2px;background:var(--navy2);opacity:.35}
+.tli{position:relative;padding:3px 0 9px}
+.tli::before{content:"";position:absolute;left:-19px;top:9px;width:9px;height:9px;border-radius:50%;background:var(--navy);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--navy)}
+.tli .y{font-weight:900;color:var(--navy);font-size:13px}
+.tli .t{font-size:12px;color:#374151;line-height:1.7}
+.bar{display:flex;align-items:flex-end;gap:3px;height:120px;margin:20px 0 22px}
+.bar .b{flex:1;background:linear-gradient(180deg,#3a68b0,#0F3675);border-radius:3px 3px 0 0;position:relative;min-height:3px}
+.bar .b.hl{background:linear-gradient(180deg,#f7e469,#e3c31a)}
+.bar .b span{position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;color:var(--navy);white-space:nowrap}
+.bar .b i{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--mu);font-style:normal}
+.shops td:first-child{font-weight:700;color:var(--navy);white-space:nowrap}
+table.xs{font-size:11.5px}
+table.xs th,table.xs td{padding:2px 5px}
+table.xs input[type=number]{width:100%;padding:2px 4px;font-size:11.5px}
+table.xs input[type=text]{width:100%;padding:2px 4px;font-size:11.5px}
+table.xs td:first-child{background:#f6f2f2;text-align:center;font-size:11px;color:#7a4a4a;vertical-align:middle}
+.tw table.xs{min-width:340px}
+#tblBank input[type=number]{width:100%;padding:2px 4px}
+#tblBank td{font-size:11.5px;padding:3px 5px}
+#tblBank .gh td{background:#0F3675;color:#fff;font-weight:900;letter-spacing:.06em;font-size:11px}
+.lnfil{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:11px}
+.lnf{background:#eef2f8;border:1px solid var(--line);border-radius:99px;padding:3px 12px;font-size:11.5px;font-weight:700;color:var(--navy2);cursor:pointer}
+.lnf:hover{background:#dde6f4}
+.lnf.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.lngrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(262px,1fr));gap:11px}
+.lncard{border:1.5px solid var(--line);border-radius:11px;padding:11px 12px;background:#fff;display:flex;flex-direction:column;gap:3px;position:relative;transition:.15s}
+.lncard:hover{border-color:var(--navy2);box-shadow:0 4px 14px rgba(15,54,117,.1)}
+.lncard.cmp{border-color:var(--navy);box-shadow:0 0 0 2px rgba(15,54,117,.15);background:#fbfcfe}
+.lc-asof{position:absolute;top:8px;right:10px;font-size:9px;color:var(--mu);font-family:ui-monospace,monospace}
+.lc-type{display:inline-block;font-size:9.5px;font-weight:800;border-radius:5px;padding:1px 8px;align-self:flex-start}
+.lct-v{background:#e0f0e6;color:#15803d}
+.lct-f{background:#fdeee0;color:#9a5b17}
+.lc-fi{font-size:13px;font-weight:900;color:var(--navy);line-height:1.25;margin-top:2px}
+.lc-pn{font-size:10.5px;color:var(--mu);line-height:1.45}
+.lc-rate{display:flex;align-items:baseline;gap:3px;margin-top:2px}
+.lc-rate input{font-size:23px;font-weight:800;color:var(--navy);width:98px;padding:1px 5px;text-align:right;font-variant-numeric:tabular-nums;background:var(--inbg);border:1px solid var(--inline);border-radius:6px}
+.lc-rate small{font-size:12px;color:var(--mu);font-weight:700}
+.lc-meta{font-size:10px;color:var(--mu);line-height:1.6;border-top:1px dashed var(--line);padding-top:5px;margin-top:3px}
+.lc-meta b{color:#333;font-weight:700}
+.lc-warn{color:#c0392b;font-weight:700}
+.lc-btns{display:flex;gap:5px;align-items:center;margin-top:7px;flex-wrap:wrap}
+summary::-webkit-details-marker{display:none}
+code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
+.rank{display:inline-block;min-width:20px;text-align:center;border-radius:5px;font-weight:900;font-size:11px;padding:1px 4px;background:#e8eef8;color:var(--navy)}
+.rank.r1{background:#F4D722;color:#6b5500}
+.rank.r2{background:#d7dde7;color:#3d4756}
+.rank.r3{background:#e8d3bd;color:#6b4a2a}
+.exlink{color:var(--navy2);font-size:11px;text-decoration:none;font-weight:700}
+.exlink:hover{text-decoration:underline}
+
+.stepgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.step{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;position:relative}
+.step .sn{position:absolute;top:-9px;left:10px;background:var(--navy);color:#fff;font-size:10.5px;font-weight:900;border-radius:5px;padding:1px 7px}
+.step.ph2{background:#fffdf3;border-color:#e6d98a}
+.step.ph3{background:#f4f9f5;border-color:#a8d5b5}
+.step .st{font-weight:900;color:var(--navy);font-size:13px;margin-top:5px}
+.step .sd{font-size:11.5px;color:#4b5563;line-height:1.6;margin-top:3px;white-space:pre-line}
+.step .sdate{font-size:11.5px;font-weight:800;color:#8a6d00;background:var(--yellow2);border-radius:4px;padding:1px 7px;display:inline-block;margin-top:5px}
+
+.pbar{position:fixed;left:0;right:0;bottom:0;z-index:70;background:rgba(15,54,117,.96);color:#fff;padding:7px 14px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -2px 12px rgba(8,25,55,.3)}
+.pbar .t{font-size:11.5px;color:#c3d3ef;font-weight:700}
+.pbar .chk label{font-size:11.5px;color:#eaf0fb}
+.toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#0F3675;color:#fff;padding:9px 20px;
+  border-radius:99px;font-size:13px;font-weight:700;z-index:99;box-shadow:0 6px 20px rgba(8,25,55,.4);opacity:0;pointer-events:none;transition:.25s}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-6px)}
+.phead{display:none}
+
+/* ===== PRINT ===== */
+@media print{
+  @page{size:A4 portrait;margin:11mm 10mm}
+  html{font-size:10.2px}
+  body{background:#fff}
+  .appbar,.pbar,.noprint,.toast{display:none !important}
+  .wrap{max-width:none;padding:0}
+  body.pr .page{display:none !important}
+  body.pr .page.pon{display:block !important;break-after:page;page-break-after:always}
+  body.pr .page.pon.plast{break-after:auto;page-break-after:auto}
+  .phead{display:flex;align-items:center;gap:8px;border-bottom:2px solid var(--navy);padding-bottom:4px;margin-bottom:8px}
+  .phead .klogo{width:36px;height:22px}
+  .phead .pt{font-size:12px;font-weight:900;color:var(--navy)}
+  .phead .pc{margin-left:auto;font-size:10px;color:#444}
+  .card{break-inside:avoid;page-break-inside:avoid;box-shadow:none;margin-bottom:8px;padding:9px 11px}
+  .kpi{break-inside:avoid}
+  input,select,textarea{background:#fff !important;border:1px solid #bbb !important;padding:2px 4px}
+  input[readonly],.ro{background:#f1f4f9 !important}
+  .hero{background:#0F3675 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tw{overflow:visible}
+  .tw table{min-width:0}
+  .xbtn,.addrow{display:none !important}
+  h2.sec{font-size:15px}
+  .lngrid{grid-template-columns:repeat(3,1fr);gap:5px}
+  .lncard{padding:6px 7px;break-inside:avoid;box-shadow:none}
+  .lc-rate input{font-size:16px;width:70px;border:0 !important;background:transparent !important;padding:0}
+  .lc-meta{font-size:8.5px}
+  .lnfil{display:none}
+  details{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="appbar noprint">
+  <div class="abrow">
+    <div class="brand">
+      <span class="klogo" role="img" aria-label="国分ハウジンググループ"></span>
+      <div class="tt">AIデジタル資金計画書<small>KOKUBU HOUSING GROUP</small></div>
+    </div>
+    <div class="cust">
+      <label>お客様</label>
+      <!-- ⚠️ 顧客は URL の ?id= で決まる。ここは切り替え用ではなく確認用。
+           Dashboard の顧客詳細から開く前提なので、別の顧客に切り替える手段は
+           持たせていない（顧客一覧をここに出すと閲覧権限の話になる）。 -->
+      <select id="custSel" disabled></select>
+    </div>
+    <button class="btn b-w" id="saveBtn" onclick="saveCustomer()">💾 保存</button>
+    <button class="btn b-r" onclick="delCustomer()">削除</button>
+    <div class="sp"></div>
+    <button class="btn b-o" onclick="exportJson()">書出</button>
+    <button class="btn b-o" onclick="document.getElementById('impf').click()">読込</button>
+    <input type="file" id="impf" accept=".json" style="display:none" onchange="importJson(this)">
+    <button class="btn b-y" onclick="openPrint()">🖨 印刷</button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+</div>
+
+<div class="wrap">
+
+<!-- ========== ① お客様カルテ ========== -->
+<section class="page" id="p1">
+  <div class="phead"><span class="klogo"></span><div class="pt">① お客様カルテ</div><div class="pc" data-o="ph_name"></div></div>
+  <h2 class="sec noprint"><span class="num">①</span>お客様カルテ</h2>
+  <p class="lead noprint">ヒアリング内容を入力してください。ここで入力した年収・家賃・光熱費は「③デジシキ」「⑤ローン控除」「⑧FPシュミレーション」に自動連動します。</p>
+
+  <div class="card">
+    <h3>お客様情報<span class="sub">※お名前は保存時のリスト名になります</span></h3>
+    <div class="fg">
+      <div class="f"><label>お客様名（様邸）</label><input type="text" data-k="k_name" placeholder="例）国分 太郎"></div>
+      <div class="f"><label>ふりがな</label><input type="text" data-k="k_kana"></div>
+      <div class="f"><label>作成日</label><input type="date" data-k="k_date"></div>
+      <div class="f"><label>担当店舗</label>
+        <select data-k="k_shop">
+          <option value=""></option><option>鹿児島店</option><option>霧島店</option><option>鹿屋店</option><option>薩摩川内店</option>
+          <option>出水阿久根店</option><option>加世田店</option><option>姶良店</option><option>宮崎店</option><option>延岡店</option>
+          <option>都城店</option><option>八代店</option><option>大分店</option><option>熊本店</option><option>佐賀店</option>
+          <option>なごみ工務店</option><option>フルコミホーム</option><option>DAY JUST HOUSE</option><option>JUSFY HOME</option><option>2Lhome</option>
+        </select></div>
+      <div class="f"><label>担当者</label><input type="text" data-k="k_staff"></div>
+      <div class="f full"><label>ご住所（現住所）</label><input type="text" data-k="k_addr"></div>
+      <div class="f"><label>お電話番号</label><input type="text" data-k="k_tel"></div>
+      <div class="f"><label>メールアドレス</label><input type="text" data-k="k_mail"></div>
+      <div class="f"><label>現在のお住まい</label>
+        <select data-k="k_now"><option value=""></option><option>賃貸アパート・マンション</option><option>賃貸戸建</option><option>ご実家</option><option>社宅・寮</option><option>持ち家</option></select></div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <h3>ご家族構成</h3>
+      <div class="fg">
+        <div class="f"><label>ご主人様 お名前</label><input type="text" data-k="k_h_name"></div>
+        <div class="f"><label>ご主人様 生年月日</label><input type="date" data-k="k_h_birth"></div>
+        <div class="f"><label>ご主人様 年齢</label><div class="unit"><input type="number" data-k="k_h_age" data-calc><span class="u">歳</span></div></div>
+        <div class="f"><label>ご主人様 お勤め先</label><input type="text" data-k="k_h_work"></div>
+        <div class="f"><label>奥様 お名前</label><input type="text" data-k="k_w_name"></div>
+        <div class="f"><label>奥様 生年月日</label><input type="date" data-k="k_w_birth"></div>
+        <div class="f"><label>奥様 年齢</label><div class="unit"><input type="number" data-k="k_w_age" data-calc><span class="u">歳</span></div></div>
+        <div class="f"><label>奥様 お勤め先</label><input type="text" data-k="k_w_work"></div>
+      </div>
+      <h3 style="margin-top:14px">お子様<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('kids')">＋ 追加</button></span></h3>
+      <div class="tw"><table id="tblKids"><thead><tr><th style="width:34%">お名前</th><th style="width:20%">現在年齢</th><th style="width:34%">進学プラン（⑧FPに連動）</th><th class="noprint" style="width:34px"></th></tr></thead><tbody></tbody></table></div>
+      <p class="note">※お子様の年齢と進学プランは「⑧FPシュミレーション」の教育費計算に使用します。</p>
+    </div>
+
+    <div class="card">
+      <h3>ご年収・ご自己資金</h3>
+      <div class="fg">
+        <div class="f"><label>ご主人様 年収</label><div class="unit"><input type="number" data-k="k_inc1" data-calc><span class="u">万円</span></div></div>
+        <div class="f"><label>奥様 年収</label><div class="unit"><input type="number" data-k="k_inc2" data-calc><span class="u">万円</span></div></div>
+        <div class="f"><label>年収合計</label><div class="unit"><input class="ro" readonly data-o="o_incTotal" data-fmt="m0"><span class="u">万円</span></div></div>
+        <div class="f"><label>ご自己資金（頭金）</label><div class="unit"><input type="number" data-k="k_jiko" data-calc><span class="u">万円</span></div></div>
+        <div class="f"><label>ご援助資金</label><div class="unit"><input type="number" data-k="k_enjo" data-calc><span class="u">万円</span></div></div>
+        <div class="f"><label>現在の貯蓄額</label><div class="unit"><input type="number" data-k="k_chochiku" data-calc><span class="u">万円</span></div></div>
+      </div>
+      <h3 style="margin-top:14px">現在の毎月のお支払い<span class="sub">③デジシキの比較に使用</span></h3>
+      <div class="fg">
+        <div class="f"><label>家賃</label><div class="unit"><input type="number" data-k="k_rent" data-calc><span class="u">円</span></div></div>
+        <div class="f"><label>駐車場</label><div class="unit"><input type="number" data-k="k_park" data-calc><span class="u">円</span></div></div>
+        <div class="f"><label>電気代</label><div class="unit"><input type="number" data-k="k_elec" data-calc><span class="u">円</span></div></div>
+        <div class="f"><label>ガス代</label><div class="unit"><input type="number" data-k="k_gas" data-calc><span class="u">円</span></div></div>
+        <div class="f"><label>その他お借入①（車等）</label><div class="unit"><input type="number" data-k="k_l1" data-calc><span class="u">円/月</span></div></div>
+        <div class="f"><label>その他お借入②</label><div class="unit"><input type="number" data-k="k_l2" data-calc><span class="u">円/月</span></div></div>
+        <div class="f"><label>その他お借入③</label><div class="unit"><input type="number" data-k="k_l3" data-calc><span class="u">円/月</span></div></div>
+        <div class="f"><label>お借入ボーナス払い</label><div class="unit"><input type="number" data-k="k_lb" data-calc><span class="u">円/回</span></div></div>
+      </div>
+      <div class="kpis" style="margin-top:12px">
+        <div class="kpi"><div class="l">現在の住居関連 総支出</div><div class="v" data-o="o_nowTotal" data-fmt="y">0<small>円/月</small></div></div>
+        <div class="kpi"><div class="l">他社お借入 返済額（月換算）</div><div class="v" data-o="o_otherLoan" data-fmt="y">0<small>円/月</small></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>ヒアリングシート<span class="sub">グループ共通デジタル資金計画「スタート」シート準拠</span></h3>
+    <div class="fg w2">
+      <div class="f full"><label>お家づくりを検討されるきっかけ</label>
+        <div class="chk" id="chkTrigger"></div>
+        <input type="text" data-k="k_trigger_etc" placeholder="その他・具体的に" style="margin-top:5px"></div>
+      <div class="f"><label>計画時期</label><div class="unit"><input type="number" step="0.5" data-k="k_timing" data-calc><span class="u">年後</span></div></div>
+      <div class="f"><label>建築ご希望地</label><input type="text" data-k="k_area" placeholder="例）姶良市"></div>
+      <div class="f"><label>ご希望の建て方</label>
+        <select data-k="k_style" data-calc><option value="">未定</option><option>平屋建て</option><option>2階建て</option></select></div>
+      <div class="f"><label>土地の目安坪数</label><div class="unit"><input type="number" data-k="k_tsubo" data-calc><span class="u">坪</span></div>
+        <div class="hint">平屋70坪／2階建て50坪あれば駐車場2台＋小さなお庭が可能</div></div>
+      <div class="f"><label>ご希望の延床面積</label><div class="unit"><input type="number" data-k="k_yuka" data-calc><span class="u">坪</span></div></div>
+      <div class="f"><label>ご希望の月々お支払額</label><div class="unit"><input type="number" data-k="k_hope" data-calc><span class="u">円</span></div></div>
+      <div class="f"><label>土地の有無</label>
+        <select data-k="k_landhave"><option value="">未定</option><option>土地から探す</option><option>お持ちの土地に建てる</option><option>ご実家の敷地</option></select></div>
+      <div class="f full"><label>気になる住宅メーカーさん</label><input type="text" data-k="k_makers"></div>
+      <div class="f full"><label>土地選びでここだけは外せないという部分（例：お子さんの学校区・ご実家が近く・通勤時間…）</label>
+        <textarea data-k="k_landwish"></textarea></div>
+      <div class="f full"><label>お家づくりで心配なこと・本日聞いておきたいこと（例：建築費、住宅ローン、土地探し、賃貸との違い）</label>
+        <textarea data-k="k_worry"></textarea></div>
+      <div class="f full"><label>ご要望・こだわり（間取り／設備／デザイン等）</label><textarea data-k="k_youbou"></textarea></div>
+      <div class="f full"><label>次回アポイント・商談メモ</label><textarea data-k="k_memo"></textarea></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== ② 国分ハウジング会社紹介 ========== -->
+<section class="page" id="p2">
+  <div class="phead"><span class="klogo"></span><div class="pt">② 国分ハウジンググループのご紹介</div><div class="pc" data-o="ph_name2"></div></div>
+  <h2 class="sec noprint"><span class="num">②</span>国分ハウジング 会社紹介</h2>
+  <p class="lead noprint">会社カタログ（KOKUBU HOUSING COMPANY PROFILE 2版／2025年6月発行）より</p>
+
+  <div class="hero"><div class="in">
+    <span class="kw">地域 No.1</span>
+    <h3>年間1,000棟受注を目標に、<br>鹿児島No.1から 九州No.1へ！</h3>
+    <p>2023年度 鹿児島県内住宅着工棟数 第1位（株式会社住宅産業研究所調べ）。2018〜2023年と6年連続No.1をいただきました。</p>
+  </div></div>
+
+  <div class="g2">
+    <div class="vpx"><div class="en">VISION</div><div class="jp">ビジョン</div>
+      <p>九州で一番コストを抑え品質の高い住宅を提供する</p></div>
+    <div class="vpx"><div class="en">PHILOSOPHY</div><div class="jp">経営理念</div>
+      <p>住宅・不動産を通じて地域社会と真心でお付き合い。<br>常にお客様目線でご提案し<br>綺麗な現場で品質の高い家づくりをしていきます。</p></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>DATA｜数字で見る国分ハウジング</h3>
+    <div class="kpis">
+      <div class="kpi dk"><div class="l">2024-2025年 グループ年間受注実績</div><div class="v">782<small>棟</small></div><div class="s">過去最高受注棟数更新中!!</div></div>
+      <div class="kpi hi"><div class="l">鹿児島県 住宅着工棟数</div><div class="v">No.1</div><div class="s">2018〜2023年 6年連続</div></div>
+      <div class="kpi"><div class="l">連結売上高（2025年5月期）</div><div class="v">148<small>億円</small></div><div class="s">10期以上連続で成長中</div></div>
+      <div class="kpi"><div class="l">着工棟数伸び率（2018-2023）</div><div class="v">199<small>%</small></div><div class="s">多くのお客様に選ばれています</div></div>
+      <div class="kpi"><div class="l">創業</div><div class="v">1988</div><div class="s">創業から35年を越える歴史と実績</div></div>
+      <div class="kpi"><div class="l">事業所数／モデルハウス</div><div class="v">33<small>店舗</small></div><div class="s">モデルハウス 25箇所</div></div>
+    </div>
+    <h3 style="margin-top:16px">連結売上高の推移<span class="sub">単位：億円　※2022年は8ヶ月決算／2025年は見込み</span></h3>
+    <div class="bar" id="barSales"></div>
+    <p class="note">2011年 9.8億円 → 2024年 148億円。10年前の7倍以上に成長。2025年期は新店舗の展開もあり220億円の見込みです。</p>
+  </div>
+
+  <div class="card">
+    <h3>9 BRAND｜理想の住まいを、多彩なブランドと抜群のコスパで実現</h3>
+    <p style="font-size:12.5px;color:#4b5563;margin-bottom:11px">国分ハウジンググループは、仕様・価格帯や暮らし方など、幅広い客層・ご要望に対応した9ブランドを展開。高い専門性を身に付けた各ブランドの専任スタッフが、多彩なお客様ニーズにピンポイントでお応えできるお家づくりをご提案しています。土地探しから建築・リフォームまで、住まいのすべてをワンストップでサポート！</p>
+    <div class="brands">
+      <div class="bd"><div class="bn">国分ハウジング</div><div class="bt">お支払いは月々5万円から。自己資金ゼロでも叶う理想の注文住宅。</div></div>
+      <div class="bd"><div class="bn">DAY JUST HOUSE</div><div class="bt">お好みのプランやライフスタイルを選び、驚きの低価格で理想の住まいを実現。</div></div>
+      <div class="bd"><div class="bn">なごみ工務店</div><div class="bt">暮らしにやさしい、自然素材の家。趣味や子育ても楽しめる憧れの住まい。</div></div>
+      <div class="bd"><div class="bn">フルコミホーム</div><div class="bt">プレミアムな装備を標準仕様でリーズナブルに。よくばりフルオプション。</div></div>
+      <div class="bd"><div class="bn">JUSFY HOME <span class="pill y">NEW</span></div><div class="bt">価格も性能もデザインもちょうどいい Just Fitなブランド。</div></div>
+      <div class="bd"><div class="bn">2Lhome</div><div class="bt">2人暮らしに特化したプランや価格設定。保証やアフターサービスも充実。</div></div>
+      <div class="bd"><div class="bn">国分ハウジング不動産</div><div class="bt">賃貸・売買・管理・リフォーム・新築相談・老人ホームまで幅広く対応。</div></div>
+      <div class="bd"><div class="bn">かえるホーム</div><div class="bt">無理なく自分らしく、一生涯幸せで安心な暮らしを実現する建売専門ブランド。</div></div>
+      <div class="bd"><div class="bn">中古住宅専門店</div><div class="bt">中古住宅を専門に、ニーズやライフスタイルに合わせた販売・リフォームをご提案。</div></div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <h3>HISTORY｜国分ハウジングのあゆみ</h3>
+      <div class="tl" id="tlHistory"></div>
+    </div>
+    <div class="card">
+      <h3>会社概要</h3>
+      <table class="shops">
+        <tr><td>設立</td><td>1988年10月</td></tr>
+        <tr><td>代表者</td><td>久保 範和</td></tr>
+        <tr><td>売上高</td><td>148億円（グループ計・2025年5月度）</td></tr>
+        <tr><td>従業員数</td><td>268名（グループ計）</td></tr>
+        <tr><td>関連会社</td><td>株式会社国分ハウジングホールディングス<br>株式会社国分ハウジング<br>株式会社国分ハウジング不動産</td></tr>
+        <tr><td>保証等</td><td>瑕疵保険・完成保証</td></tr>
+        <tr><td>事業エリア</td><td>鹿児島／宮崎／熊本／大分／佐賀</td></tr>
+        <tr><td>お問合せ先</td><td>国分ハウジンググループ 管理本部<br>鹿児島県鹿児島市武1-2-10 JR鹿児島中央ビル AMU WE 10F</td></tr>
+      </table>
+      <h3 style="margin-top:14px">BUSINESS FIELD｜国分ハウジング 店舗一覧</h3>
+      <div class="tw"><table class="shops" id="tblShops"><tbody></tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== ③ デジシキ ========== -->
+<section class="page" id="p3">
+  <div class="phead"><span class="klogo"></span><div class="pt">③ デジシキ（デジタル資金計画）</div><div class="pc" data-o="ph_name3"></div></div>
+  <h2 class="sec noprint"><span class="num">③</span>デジシキ（デジタル資金計画）</h2>
+  <p class="lead noprint">グループ共通デジタル資金計画「資金計画」シート準拠。総額から借入額・月々返済額・返済比率を算出し、住宅ローン減税・光熱費削減・売電収入を差し引いた<b>実質の月々ローン負担額</b>を求めます。</p>
+
+  <div class="card">
+    <h3>ご年収・ご自己資金<span class="sub">①お客様カルテと相互連動（どちらで入力してもOK）</span></h3>
+    <div class="fg">
+      <div class="f"><label>ご主人様 年収</label><div class="unit"><input type="number" data-k="k_inc1" data-calc><span class="u">万円</span></div></div>
+      <div class="f"><label>奥様 年収</label><div class="unit"><input type="number" data-k="k_inc2" data-calc><span class="u">万円</span></div></div>
+      <div class="f"><label>年収合計</label><div class="unit"><input class="ro" readonly data-o="o_incTotal3" data-fmt="m0"><span class="u">万円</span></div></div>
+      <div class="f"><label>ご自己資金（頭金）</label><div class="unit"><input type="number" data-k="k_jiko" data-calc><span class="u">万円</span></div></div>
+      <div class="f"><label>ご援助資金</label><div class="unit"><input type="number" data-k="k_enjo" data-calc><span class="u">万円</span></div></div>
+      <div class="f"><label>現在の貯蓄額</label><div class="unit"><input type="number" data-k="k_chochiku" data-calc><span class="u">万円</span></div></div>
+    </div>
+    <h3 style="margin-top:15px">現在の毎月のお支払い<span class="sub">①お客様カルテと相互連動</span></h3>
+    <div class="fg">
+      <div class="f"><label>家賃</label><div class="unit"><input type="number" data-k="k_rent" data-calc><span class="u">円</span></div></div>
+      <div class="f"><label>駐車場</label><div class="unit"><input type="number" data-k="k_park" data-calc><span class="u">円</span></div></div>
+      <div class="f"><label>電気代</label><div class="unit"><input type="number" data-k="k_elec" data-calc><span class="u">円</span></div></div>
+      <div class="f"><label>ガス代</label><div class="unit"><input type="number" data-k="k_gas" data-calc><span class="u">円</span></div></div>
+      <div class="f"><label>ご希望の月々お支払額</label><div class="unit"><input type="number" data-k="k_hope" data-calc><span class="u">円</span></div></div>
+      <div class="f"><label>その他お借入①（車等）</label><div class="unit"><input type="number" data-k="k_l1" data-calc><span class="u">円/月</span></div></div>
+      <div class="f"><label>その他お借入②</label><div class="unit"><input type="number" data-k="k_l2" data-calc><span class="u">円/月</span></div></div>
+      <div class="f"><label>その他お借入③</label><div class="unit"><input type="number" data-k="k_l3" data-calc><span class="u">円/月</span></div></div>
+      <div class="f"><label>お借入ボーナス払い</label><div class="unit"><input type="number" data-k="k_lb" data-calc><span class="u">円/回</span></div></div>
+    </div>
+    <div class="kpis" style="margin-top:12px">
+      <div class="kpi"><div class="l">現在の住居関連 総支出</div><div class="v" data-o="o_nowTotal3" data-fmt="y">0<small>円/月</small></div></div>
+      <div class="kpi"><div class="l">他社お借入 返済額（月換算）</div><div class="v" data-o="o_otherLoan3" data-fmt="y">0<small>円/月</small></div></div>
+      <div class="kpi"><div class="l">ご自己資金 合計</div><div class="v" data-o="o_jikoAll2" data-fmt="m0">0<small>万円</small></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>国分ハウジングの資金計画をしてみましょう！<span class="sub">単位：万円</span></h3>
+    <div class="fg">
+      <div class="f"><label>① 建物本体価格</label><div class="unit"><input type="number" data-k="d_tatemono" data-calc><span class="u">万円</span></div>
+        <div class="hint"><span data-o="o_tsuboTanka">－</span> 万円/坪（延床<span data-o="o_yukaEcho">0</span>坪）</div></div>
+      <div class="f"><label>② 付帯工事費</label><div class="unit"><input type="number" data-k="d_futai" data-calc><span class="u">万円</span></div></div>
+      <div class="f"><label>③ 太陽光</label><div class="unit"><input type="number" step="0.1" data-k="d_solarKw" data-calc><span class="u">kW</span></div>
+        <div class="hint">＝ <b data-o="o_solarCost" data-fmt="m1">0</b> 万円（1kW＝23.6318万円）</div></div>
+      <div class="f"><label>④ 諸費用</label><div class="unit"><input type="number" data-k="d_shohi" data-calc><span class="u">万円</span></div></div>
+      <div class="f"><label>⑤ 土地購入費</label><div class="unit"><input type="number" data-k="d_tochi" data-calc><span class="u">万円</span></div></div>
+      <div class="f"><label>⑥ 予備費</label><div class="unit"><input type="number" data-k="d_yobi" data-calc><span class="u">万円</span></div></div>
+    </div>
+    <div class="kpis" style="margin-top:13px">
+      <div class="kpi"><div class="l">①〜③の合計（建物合計）</div><div class="v" data-o="o_tatemonoTotal" data-fmt="m1">0<small>万円</small></div></div>
+      <div class="kpi dk"><div class="l">①〜⑥の総合計</div><div class="v" data-o="o_grandTotal" data-fmt="m1">0<small>万円</small></div></div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <h3>お借入条件</h3>
+      <div class="fg">
+        <div class="f"><label>自己資金（頭金＋ご援助）</label><div class="unit"><input class="ro" readonly data-o="o_jikoAll" data-fmt="m0"><span class="u">万円</span></div>
+          <div class="hint">①お客様カルテから自動反映</div></div>
+        <div class="f"><label>ボーナス月加算額</label><div class="unit"><input type="number" step="0.5" data-k="d_bonus" data-calc><span class="u">万円/回</span></div></div>
+        <div class="f"><label>ボーナス返済総金額</label><div class="unit"><input class="ro" readonly data-o="o_bonusTotal" data-fmt="m1"><span class="u">万円</span></div></div>
+        <div class="f"><label>返済期間</label><div class="unit"><input type="number" data-k="d_years" data-calc><span class="u">年</span></div></div>
+        <div class="f"><label>金利（年利）</label><div class="unit"><input type="number" step="0.001" data-k="d_rate" data-calc><span class="u">％</span></div></div>
+        <div class="f"><label>お借入金額</label><div class="unit"><input class="ro" readonly data-o="o_shakuiri" data-fmt="m1"><span class="u">万円</span></div>
+          <div class="hint">総合計 − 自己資金 − ボーナス返済総額</div></div>
+      </div>
+      <div class="kpis" style="margin-top:12px">
+        <div class="kpi dk"><div class="l">住宅ローンの月々のお支払金額</div><div class="v" data-o="o_monthly" data-fmt="y">0<small>円</small></div></div>
+        <div class="kpi"><div class="l">ボーナス月の合計</div><div class="v" data-o="o_monthlyBonus" data-fmt="y">0<small>円</small></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>返済比率チェック<span class="sub">※審査の土台に乗るかの目安</span></h3>
+      <div class="fg">
+        <div class="f"><label>ご主人様年収</label><div class="unit"><input class="ro" readonly data-o="o_inc1" data-fmt="m0"><span class="u">万円</span></div></div>
+        <div class="f"><label>奥様年収</label><div class="unit"><input class="ro" readonly data-o="o_inc2" data-fmt="m0"><span class="u">万円</span></div></div>
+        <div class="f"><label>年収合計</label><div class="unit"><input class="ro" readonly data-o="o_incTotal2" data-fmt="m0"><span class="u">万円</span></div></div>
+        <div class="f"><label>年間返済額（他社借入込）</label><div class="unit"><input class="ro" readonly data-o="o_annualPay" data-fmt="m1"><span class="u">万円</span></div></div>
+        <div class="f"><label>返済比率</label><div class="unit"><input class="ro" readonly data-o="o_hensaiRatio" data-fmt="p1"><span class="u">％</span></div></div>
+        <div class="f"><label>基準（年収400万円以上は35％）</label><div class="unit"><input class="ro" readonly data-o="o_hensaiStd" data-fmt="p0"><span class="u">％以内</span></div></div>
+      </div>
+      <div id="msgHensai"></div>
+      <h3 style="margin-top:14px">ご希望のお支払額からの借入可能額</h3>
+      <div class="fg">
+        <div class="f"><label>月々希望支払額</label><div class="unit"><input class="ro" readonly data-o="o_hopeM" data-fmt="y"><span class="u">円</span></div>
+          <div class="hint">①お客様カルテから反映</div></div>
+        <div class="f"><label>希望支払い金額の借入可能額</label><div class="unit"><input class="ro" readonly data-o="o_hopeKari" data-fmt="m0"><span class="u">万円</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>住宅ローン減税を活用して月々のローン負担額を軽減！</h3>
+    <div class="g3">
+      <div class="f"><label>住宅ローン減税（月あたり）</label><div class="unit"><input class="ro" readonly data-o="o_genzeiM" data-fmt="y"><span class="u">円/月</span></div>
+        <div class="hint">⑤ローン控除タブの計算結果を月割</div></div>
+      <div class="f"><label>団体信用生命保険による死亡保険の見直し</label><div class="unit"><input type="number" data-k="d_danshin" data-calc><span class="u">円/月</span></div></div>
+      <div class="f"><label>減額合計</label><div class="unit"><input class="ro" readonly data-o="o_genkakuTotal" data-fmt="y"><span class="u">円/月</span></div></div>
+    </div>
+    <h3 style="margin-top:16px">LED照明・オール電化が標準！ガス代と電気代が軽減できて、負担額をさらに削減！</h3>
+    <div class="g3">
+      <div class="f"><label>現在の光熱費（電気＋ガス）</label><div class="unit"><input class="ro" readonly data-o="o_kounetsuNow" data-fmt="y"><span class="u">円/月</span></div></div>
+      <div class="f"><label>国分ハウジングの光熱費</label><div class="unit"><input class="ro" readonly data-o="o_kounetsuNew" data-fmt="y"><span class="u">円/月</span></div>
+        <div class="hint">現在の <input type="number" data-k="d_kounetsuRate" data-calc style="width:56px;display:inline-block;padding:1px 4px">％ で試算</div></div>
+      <div class="f"><label>削減できる光熱費</label><div class="unit"><input class="ro" readonly data-o="o_kounetsuCut" data-fmt="y"><span class="u">円/月</span></div></div>
+    </div>
+    <h3 style="margin-top:16px">さらに太陽光を設置して売電収入を得ることで月々のローン負担額を軽減できる！</h3>
+    <div class="tw"><table>
+      <thead><tr><th>出力量(W)</th><th>パネル数</th><th>容量(kW)</th><th>年間売電量(kWh)</th><th>単価(円)</th><th>年間売電金額</th><th>月々の売電収入</th></tr></thead>
+      <tbody><tr>
+        <td class="num" data-o="o_panelW" data-fmt="n0">0</td>
+        <td class="num" data-o="o_panelN" data-fmt="n0">0</td>
+        <td class="num" data-o="o_solarKwEcho" data-fmt="n2">0</td>
+        <td class="num" data-o="o_baidenKwh" data-fmt="n0">0</td>
+        <td class="num" data-o="o_baidenTankaE" data-fmt="n0">0</td>
+        <td class="num" data-o="o_baidenYear" data-fmt="y">0</td>
+        <td class="num" data-o="o_baidenMonth" data-fmt="y" style="font-weight:900;color:var(--navy)">0</td>
+      </tr></tbody></table></div>
+    <p class="note">※発電量・自家消費率・売電単価は「⑥太陽光・蓄電池」タブの入力値と連動しています。あくまでシミュレーションであり、売電額を保証するものではありません。</p>
+  </div>
+
+  <div class="card">
+    <h3>実質の月々ローン負担額</h3>
+    <div class="tw"><table>
+      <thead><tr><th>月々支払い額</th><th class="ctr">−</th><th>減額合計</th><th class="ctr">−</th><th>削減できる光熱費</th><th class="ctr">−</th><th>太陽光の売電収入</th><th class="ctr">＝</th><th>実質の月々ローン負担額</th></tr></thead>
+      <tbody><tr class="tot">
+        <td class="num" data-o="o_monthly2" data-fmt="y">0</td><td class="ctr">−</td>
+        <td class="num" data-o="o_genkakuTotal2" data-fmt="y">0</td><td class="ctr">−</td>
+        <td class="num" data-o="o_kounetsuCut2" data-fmt="y">0</td><td class="ctr">−</td>
+        <td class="num" data-o="o_baidenMonth2" data-fmt="y">0</td><td class="ctr">＝</td>
+        <td class="num" data-o="o_jisshitsu" data-fmt="y" style="font-size:16px">0</td>
+      </tr></tbody></table></div>
+    <div class="g2" style="margin-top:14px">
+      <div>
+        <h3>現在のお支払い（毎月）</h3>
+        <table>
+          <tr><td>家賃</td><td class="num" data-o="o_rent" data-fmt="y">0</td>
+              <td>駐車場</td><td class="num" data-o="o_park" data-fmt="y">0</td></tr>
+          <tr><td>ガス</td><td class="num" data-o="o_gas" data-fmt="y">0</td>
+              <td>電気代</td><td class="num" data-o="o_elec" data-fmt="y">0</td></tr>
+          <tr><td>お借入返済額</td><td class="num" data-o="o_otherLoan2" data-fmt="y">0</td>
+              <td>—</td><td class="num">—</td></tr>
+          <tr class="tot"><td>総計</td><td class="num" colspan="3" data-o="o_nowTotal2" data-fmt="y">0</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>比較結果</h3>
+        <div class="kpis">
+          <div class="kpi hi"><div class="l">実質の月々ローン負担額</div><div class="v" data-o="o_jisshitsu2" data-fmt="y">0<small>円</small></div></div>
+          <div class="kpi" id="kpiSagaku"><div class="l">現在のお支払いとの差額</div><div class="v" data-o="o_sagaku" data-fmt="ys">0<small>円</small></div><div class="s" data-o="o_sagakuNote">－</div></div>
+        </div>
+        <div id="msgSagaku"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== ④ 資金計画 ========== -->
+<section class="page" id="p4">
+  <div class="phead"><span class="klogo"></span><div class="pt">④ 概算資金計画書</div><div class="pc" data-o="ph_name4"></div></div>
+  <h2 class="sec noprint"><span class="num">④</span>資金計画（概算資金計画書）</h2>
+  <p class="lead noprint">概算資金計画書（最新）準拠。各明細を入力すると税別・税込・総額・自己資金が自動計算されます。行の追加・削除ができます。</p>
+
+  <div class="card">
+    <h3>建築計画の概要</h3>
+    <div class="fg">
+      <div class="f"><label>建築地</label><input type="text" data-k="s_kenchikuchi"></div>
+      <div class="f"><label>土地面積（㎡）</label><div class="unit"><input type="number" step="0.01" data-k="s_landM2" data-calc><span class="u">㎡</span></div>
+        <div class="hint">＝ <b data-o="o_landTsubo" data-fmt="n2">0</b> 坪</div></div>
+      <div class="f"><label>延床面積 1F（㎡）</label><div class="unit"><input type="number" step="0.01" data-k="s_f1" data-calc><span class="u">㎡</span></div></div>
+      <div class="f"><label>延床面積 2F（㎡）</label><div class="unit"><input type="number" step="0.01" data-k="s_f2" data-calc><span class="u">㎡</span></div></div>
+      <div class="f"><label>延床面積 合計</label><div class="unit"><input class="ro" readonly data-o="o_fTotal" data-fmt="n2"><span class="u">㎡</span></div>
+        <div class="hint">＝ <b data-o="o_fTotalTsubo" data-fmt="n2">0</b> 坪</div></div>
+      <div class="f"><label>施工面積 合計（㎡）</label><div class="unit"><input type="number" step="0.01" data-k="s_sekou" data-calc><span class="u">㎡</span></div>
+        <div class="hint">＝ <b data-o="o_sekouTsubo" data-fmt="n2">0</b> 坪</div></div>
+    </div>
+    <p class="note">※㎡×0.3025＝坪</p>
+  </div>
+
+  <div class="card">
+    <h3>① 建物関係明細<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('s1')">＋ 行追加</button></span></h3>
+    <div class="tw"><table id="tblS1"><thead><tr>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
+      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+    </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
+      <td class="num" data-o="o_s1in" data-fmt="y">0</td><td class="num" data-o="o_s1ex" data-fmt="y">0</td>
+      <td colspan="5"></td></tr></tfoot></table></div>
+  </div>
+
+  <div class="card">
+    <h3>② 付帯工事明細<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('s2')">＋ 行追加</button></span></h3>
+    <div class="tw"><table id="tblS2"><thead><tr>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
+      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+    </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
+      <td class="num" data-o="o_s2in" data-fmt="y">0</td><td class="num" data-o="o_s2ex" data-fmt="y">0</td>
+      <td colspan="5"></td></tr></tfoot></table></div>
+  </div>
+
+  <div class="card">
+    <h3>③ 土地関連明細<span class="rt noprint">
+      <button class="btn b-w b-sm addrow" style="border:1px solid var(--line)" onclick="autoChukai()">仲介手数料を自動計算</button>
+      <button class="btn b-n b-sm addrow" onclick="addRow('s3')">＋ 行追加</button></span></h3>
+    <div class="tw"><table id="tblS3"><thead><tr>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
+      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+    </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
+      <td class="num" data-o="o_s3in" data-fmt="y">0</td><td class="num" data-o="o_s3ex" data-fmt="y">0</td>
+      <td colspan="5"></td></tr></tfoot></table></div>
+    <p class="note">仲介手数料＝（土地代金×3％＋60,000円）×1.1／外構工事の目安＝土地坪数×230,000円</p>
+  </div>
+
+  <div class="card">
+    <h3>④ 諸経費明細<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('s4')">＋ 行追加</button></span></h3>
+    <div class="tw"><table id="tblS4"><thead><tr>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
+      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+    </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
+      <td class="num" data-o="o_s4in" data-fmt="y">0</td><td class="num" data-o="o_s4ex" data-fmt="y">0</td>
+      <td colspan="5"></td></tr></tfoot></table></div>
+  </div>
+
+  <div class="card">
+    <h3>⑤ ローン経費<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('s5')">＋ 行追加</button></span></h3>
+    <div class="tw"><table id="tblS5"><thead><tr>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
+      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+    </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
+      <td class="num" data-o="o_s5in" data-fmt="y">0</td><td class="num" data-o="o_s5ex" data-fmt="y">0</td>
+      <td colspan="5"></td></tr></tfoot></table></div>
+  </div>
+
+  <div class="card">
+    <h3>総額とお支払い</h3>
+    <div class="kpis">
+      <div class="kpi"><div class="l">弊社請負金額（①＋②−地盤改良）</div><div class="v" data-o="o_ukeoi" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi dk"><div class="l">総額（①＋②＋③＋④＋⑤・税込）</div><div class="v" data-o="o_sokei" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">お借入金額 合計</div><div class="v" data-o="o_kariTotal" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi hi"><div class="l">ご自己資金</div><div class="v" data-o="o_sJiko" data-fmt="ys">0<small>円</small></div></div>
+    </div>
+    <div id="msgJiko"></div>
+  </div>
+
+  <div class="card">
+    <h3>⑥ 住宅ローンシミュレーション</h3>
+    <div class="tw"><table>
+      <thead><tr><th>内訳</th><th>お借入金額</th><th>うちボーナス充当</th><th>期間(年)</th><th>金利(％)</th><th>毎月返済</th><th>ボーナス月加算</th><th>金融機関</th></tr></thead>
+      <tbody>
+        <tr><td>借入金額（メイン）</td>
+          <td class="num"><input type="number" data-k="s_m_kari" data-calc style="width:110px"></td>
+          <td class="num"><input type="number" data-k="s_m_bonus" data-calc style="width:100px"></td>
+          <td class="num"><input type="number" data-k="s_m_years" data-calc style="width:60px"></td>
+          <td class="num"><input type="number" step="0.001" data-k="s_m_rate" data-calc style="width:70px"></td>
+          <td class="num" data-o="o_sm_monthly" data-fmt="y">0</td>
+          <td class="num" data-o="o_sm_bonusPay" data-fmt="y">0</td>
+          <td><input type="text" data-k="s_m_bank" style="width:96px"></td></tr>
+        <tr><td>プラスワン</td>
+          <td class="num"><input type="number" data-k="s_p_kari" data-calc style="width:110px"></td>
+          <td class="num"><input type="number" data-k="s_p_bonus" data-calc style="width:100px"></td>
+          <td class="num"><input type="number" data-k="s_p_years" data-calc style="width:60px"></td>
+          <td class="num"><input type="number" step="0.001" data-k="s_p_rate" data-calc style="width:70px"></td>
+          <td class="num" data-o="o_sp_monthly" data-fmt="y">0</td>
+          <td class="num" data-o="o_sp_bonusPay" data-fmt="y">0</td>
+          <td><input type="text" data-k="s_p_bank" style="width:96px"></td></tr>
+        <tr class="tot"><td>合計</td><td class="num" data-o="o_kariTotal2" data-fmt="y">0</td>
+          <td class="num" data-o="o_bonusTotal2" data-fmt="y">0</td><td colspan="2"></td>
+          <td class="num" data-o="o_sTotalMonthly" data-fmt="y">0</td>
+          <td class="num" data-o="o_sTotalBonus" data-fmt="y">0</td><td></td></tr>
+      </tbody></table></div>
+    <div class="kpis" style="margin-top:12px">
+      <div class="kpi"><div class="l">月々返済額</div><div class="v" data-o="o_sTotalMonthly2" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">⑦ 太陽光 月額按分（売電）</div><div class="v" data-o="o_sSolarMonth" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi hi"><div class="l">（実質的な）お支払金額</div><div class="v" data-o="o_sJisshitsu" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">総返済額（利息含む）</div><div class="v" data-o="o_sSoHensai" data-fmt="y">0<small>円</small></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>⑦ 太陽光シミュレーション ／ ⑧ 備考</h3>
+    <div class="tw"><table>
+      <thead><tr><th>売電単価</th><th>出力数(kW)</th><th>年間発電量(kWh)</th><th>年間予想売電金額</th><th>月額按分</th></tr></thead>
+      <tbody><tr>
+        <td class="num" data-o="o_sTanka" data-fmt="n0">0</td>
+        <td class="num" data-o="o_sKw" data-fmt="n2">0</td>
+        <td class="num" data-o="o_sHatsuden" data-fmt="n0">0</td>
+        <td class="num" data-o="o_sBaidenYear" data-fmt="y">0</td>
+        <td class="num" data-o="o_sSolarMonth2" data-fmt="y">0</td>
+      </tr></tbody></table></div>
+    <p class="note">※上記はあくまでもシミュレーションであり、売電額を保証するものではございません。（⑥太陽光・蓄電池タブの入力値と連動します）</p>
+    <div class="f" style="margin-top:12px"><label>⑧ 備考</label><textarea data-k="s_bikou" style="min-height:92px"></textarea></div>
+  </div>
+</section>
+
+<!-- ========== ⑤ ローン控除 ========== -->
+<section class="page" id="p5">
+  <div class="phead"><span class="klogo"></span><div class="pt">⑤ 住宅ローン控除（住宅ローン減税）</div><div class="pc" data-o="ph_name5"></div></div>
+  <h2 class="sec noprint"><span class="num">⑤</span>ローン控除（住宅ローン減税）</h2>
+  <p class="lead noprint">年末ローン残高×0.7％が所得税・住民税から控除されます。住宅の性能区分と世帯区分で借入限度額が変わります。</p>
+
+  <div class="card">
+    <h3>控除の条件</h3>
+    <div class="fg">
+      <div class="f"><label>住宅の性能区分</label>
+        <select data-k="g_type" data-calc>
+          <option value="chouki">認定長期優良住宅・低炭素住宅</option>
+          <option value="zeh">ZEH水準省エネ住宅</option>
+          <option value="shoene">省エネ基準適合住宅</option>
+          <option value="sonota">その他の住宅（省エネ基準未適合）</option>
+        </select></div>
+      <div class="f"><label>世帯区分</label>
+        <select data-k="g_setai" data-calc>
+          <option value="kosodate">子育て世帯・若者夫婦世帯</option>
+          <option value="ippan">一般世帯</option>
+        </select>
+        <div class="hint">19歳未満の子を有する世帯／夫婦のいずれかが40歳未満</div></div>
+      <div class="f"><label>借入限度額</label><div class="unit"><input class="ro" readonly data-o="o_gGendo" data-fmt="y"><span class="u">円</span></div></div>
+      <div class="f"><label>控除率</label><div class="unit"><input class="ro" readonly value="0.7" ><span class="u">％</span></div></div>
+      <div class="f"><label>控除期間</label><div class="unit"><input class="ro" readonly data-o="o_gKikan" data-fmt="n0"><span class="u">年</span></div></div>
+      <div class="f"><label>お借入金額</label><div class="unit"><input class="ro" readonly data-o="o_gKari" data-fmt="y"><span class="u">円</span></div>
+        <div class="hint">③デジシキから自動反映</div></div>
+      <div class="f"><label>金利（年利）</label><div class="unit"><input class="ro" readonly data-o="o_gRate" data-fmt="p3"><span class="u">％</span></div></div>
+      <div class="f"><label>返済期間</label><div class="unit"><input class="ro" readonly data-o="o_gYears" data-fmt="n0"><span class="u">年</span></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>所得税・住民税の目安<span class="sub">※概算です。正確な金額は源泉徴収票をご確認ください</span></h3>
+    <div class="fg">
+      <div class="f"><label>算定方法</label>
+        <select data-k="g_mode" data-calc><option value="auto">年収から自動概算</option><option value="manual">手入力</option></select></div>
+      <div class="f"><label>控除対象の年収（世帯主）</label><div class="unit"><input type="number" data-k="g_income" data-calc><span class="u">万円</span></div>
+        <div class="hint">空欄の場合はご主人様年収を使用</div></div>
+      <div class="f"><label>扶養親族の人数</label><div class="unit"><input type="number" data-k="g_fuyou" data-calc><span class="u">人</span></div></div>
+      <div class="f"><label>所得税額（年額）</label><div class="unit"><input type="number" data-k="g_shotoku" data-calc><span class="u">円</span></div></div>
+      <div class="f"><label>住民税所得割額（年額）</label><div class="unit"><input type="number" data-k="g_juumin" data-calc><span class="u">円</span></div></div>
+      <div class="f"><label>住民税からの控除上限</label><div class="unit"><input class="ro" readonly data-o="o_gJuuminMax" data-fmt="y"><span class="u">円</span></div>
+        <div class="hint">課税総所得×5％（上限97,500円）</div></div>
+      <div class="f"><label>年間の控除可能上限</label><div class="unit"><input class="ro" readonly data-o="o_gZeiMax" data-fmt="y"><span class="u">円</span></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>控除額シミュレーション</h3>
+    <div class="kpis">
+      <div class="kpi dk"><div class="l">控除額 総額</div><div class="v" data-o="o_gTotal" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi hi"><div class="l">1年あたり平均</div><div class="v" data-o="o_gAvgYear" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">月あたり平均（③に連動）</div><div class="v" data-o="o_gAvgMonth" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">初年度の控除額</div><div class="v" data-o="o_gFirst" data-fmt="y">0<small>円</small></div></div>
+    </div>
+    <div class="tw" style="margin-top:13px"><table id="tblGenzei">
+      <thead><tr><th>年目</th><th>年末ローン残高</th><th>控除対象残高</th><th>残高×0.7％</th><th>税額による上限</th><th>実際の控除額</th><th>累計</th></tr></thead>
+      <tbody></tbody></table></div>
+    <div class="msg i" style="margin-top:12px"><b>【主な要件】</b><br>
+      ・床面積の2分の1以上が自分が居住するための住宅　・引渡しまたは工事完了から6カ月以内に入居<br>
+      ・住宅ローンの返済期間が10年以上　・床面積が50平方メートル以上（※40㎡以上50㎡未満は所得1,000万円以下の特例あり）<br>
+      ・合計所得金額が2,000万円以下</div>
+    <p class="note">※特定条件に基づいて計算された参考数値であり、控除やその金額を保証するものではありません。詳細は税務署または金融機関にご確認ください。</p>
+  </div>
+</section>
+
+<!-- ========== ⑥ 太陽光・蓄電池 ========== -->
+<section class="page" id="p6">
+  <div class="phead"><span class="klogo"></span><div class="pt">⑥ 太陽光発電・蓄電池シミュレーション</div><div class="pc" data-o="ph_name6"></div></div>
+  <h2 class="sec noprint"><span class="num">⑥</span>太陽光・蓄電池</h2>
+  <p class="lead noprint">「自分達で使う電力は自分達でまかないましょう」。お昼間に使う電力が多いほどお得になります。</p>
+
+  <div class="g2">
+    <div class="card">
+      <h3>太陽光発電システム</h3>
+      <div class="fg">
+        <div class="f"><label>モジュール出力</label><div class="unit"><input type="number" data-k="v_panelW" data-calc><span class="u">W</span></div></div>
+        <div class="f"><label>モジュール枚数</label><div class="unit"><input class="ro" readonly data-o="o_vPanelN" data-fmt="n0"><span class="u">枚</span></div>
+          <div class="hint">容量÷モジュール出力で自動計算</div></div>
+        <div class="f"><label>システム出力（容量）</label><div class="unit"><input class="ro" readonly data-o="o_vKw" data-fmt="n2"><span class="u">kW</span></div>
+          <div class="hint">③デジシキの「③太陽光(kW)」で変更</div></div>
+        <div class="f"><label>設置条件（方位）</label>
+          <select data-k="v_houi"><option>南</option><option>南東</option><option>南西</option><option>東</option><option>西</option></select></div>
+        <div class="f"><label>屋根勾配</label><div class="unit"><input type="number" data-k="v_koubai"><span class="u">寸</span></div></div>
+        <div class="f"><label>年間発電量係数</label><div class="unit"><input type="number" data-k="v_keisu" data-calc><span class="u">kWh/kW</span></div>
+          <div class="hint">標準1,150（概算資金計画書準拠）</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>電気料金・売電単価</h3>
+      <div class="fg">
+        <div class="f"><label>売電単価（FIT）</label><div class="unit"><input type="number" data-k="v_baiden" data-calc><span class="u">円/kWh</span></div></div>
+        <div class="f"><label>買電単価（電気料金＋基本料金）</label><div class="unit"><input type="number" data-k="v_kaiden" data-calc><span class="u">円/kWh</span></div></div>
+        <div class="f"><label>差額（買電−売電）</label><div class="unit"><input class="ro" readonly data-o="o_vSagaku" data-fmt="n0"><span class="u">円</span></div></div>
+        <div class="f"><label>自家消費率</label><div class="unit"><input type="number" data-k="v_jika" data-calc><span class="u">％</span></div>
+          <div class="hint">お昼間に使う電力の割合。標準30％</div></div>
+        <div class="f"><label>現在の光熱費（①より）</label><div class="unit"><input class="ro" readonly data-o="o_vKounetsu" data-fmt="y"><span class="u">円/月</span></div></div>
+        <div class="f"><label>売電に消費税を上乗せする</label>
+          <select data-k="v_tax" data-calc><option value="1.1">上乗せする（×1.1）</option><option value="1">上乗せしない</option></select></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>年間の効果</h3>
+    <div class="tw"><table>
+      <thead><tr><th>項目</th><th>年間発電量</th><th>自家消費分</th><th>売電分</th><th>単価</th><th>年間金額</th><th>月あたり</th></tr></thead>
+      <tbody>
+        <tr><td>売電収入</td><td class="num" data-o="o_vHatsuden" data-fmt="n0">0</td><td class="num">—</td>
+            <td class="num" data-o="o_vBaidenKwh" data-fmt="n0">0</td><td class="num" data-o="o_vBaiden2" data-fmt="n0">0</td>
+            <td class="num" data-o="o_vBaidenYear" data-fmt="y">0</td><td class="num" data-o="o_vBaidenMonth" data-fmt="y">0</td></tr>
+        <tr><td>電気代の削減（自家消費）</td><td class="num">—</td><td class="num" data-o="o_vJikaKwh" data-fmt="n0">0</td>
+            <td class="num">—</td><td class="num" data-o="o_vKaiden2" data-fmt="n0">0</td>
+            <td class="num" data-o="o_vJikaYear" data-fmt="y">0</td><td class="num" data-o="o_vJikaMonth" data-fmt="y">0</td></tr>
+        <tr class="tot"><td>合計メリット</td><td colspan="4"></td>
+            <td class="num" data-o="o_vMeritYear" data-fmt="y">0</td><td class="num" data-o="o_vMeritMonth" data-fmt="y">0</td></tr>
+      </tbody></table></div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <h3>設置費用と収支</h3>
+      <div class="fg">
+        <div class="f"><label>ソーラーパネル費用（税込）</label><div class="unit"><input type="number" data-k="v_cost" data-calc><span class="u">円</span></div></div>
+        <div class="f"><label>住宅ローンに組込む年数</label><div class="unit"><input type="number" data-k="v_years" data-calc><span class="u">年</span></div></div>
+        <div class="f"><label>月々の本体代</label><div class="unit"><input class="ro" readonly data-o="o_vMonthCost" data-fmt="y"><span class="u">円</span></div>
+          <div class="hint">※利息は含んでおりません</div></div>
+        <div class="f"><label>本体代を抜いても</label><div class="unit"><input class="ro" readonly data-o="o_vNetMerit" data-fmt="ys"><span class="u">円/月</span></div></div>
+      </div>
+      <div id="msgSolar"></div>
+      <div class="kpis" style="margin-top:11px">
+        <div class="kpi"><div class="l">10年間の累計メリット</div><div class="v" data-o="o_vMerit10" data-fmt="y">0<small>円</small></div></div>
+        <div class="kpi"><div class="l">投資回収年数（概算）</div><div class="v" data-o="o_vKaishu" data-fmt="n1">0<small>年</small></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>蓄電池</h3>
+      <div class="fg">
+        <div class="f"><label>導入する</label>
+          <select data-k="v_batUse" data-calc><option value="1">導入する</option><option value="0">導入しない</option></select></div>
+        <div class="f"><label>蓄電池容量</label><div class="unit"><input type="number" step="0.1" data-k="v_batKwh" data-calc><span class="u">kWh</span></div></div>
+        <div class="f"><label>導入費用（税込）</label><div class="unit"><input type="number" data-k="v_batCost" data-calc><span class="u">円</span></div></div>
+        <div class="f"><label>補助金</label><div class="unit"><input type="number" data-k="v_batHojo" data-calc><span class="u">円</span></div></div>
+        <div class="f"><label>実効利用率</label><div class="unit"><input type="number" data-k="v_batEff" data-calc><span class="u">％</span></div>
+          <div class="hint">充放電ロス・季節変動を考慮。標準85％</div></div>
+        <div class="f"><label>夜間電力単価</label><div class="unit"><input type="number" data-k="v_batNight" data-calc><span class="u">円/kWh</span></div></div>
+      </div>
+      <div class="tw" style="margin-top:11px"><table>
+        <tr><td>年間シフト量</td><td class="num" data-o="o_vBatKwhY" data-fmt="n0">0</td><td>kWh</td></tr>
+        <tr><td>年間削減額</td><td class="num" data-o="o_vBatYear" data-fmt="y">0</td><td>円</td></tr>
+        <tr><td>月あたり削減額</td><td class="num" data-o="o_vBatMonth" data-fmt="y">0</td><td>円</td></tr>
+        <tr class="tot"><td>実質導入費用</td><td class="num" data-o="o_vBatNet" data-fmt="y">0</td><td>円</td></tr>
+      </table></div>
+      <div class="msg g">停電時にも冷蔵庫・照明・スマホ充電などの生活電力を確保できます。太陽光と組み合わせれば、日中に発電した電気をためて夜間に使うことで、電気を「買わない暮らし」に近づけます。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>総合メリット（太陽光＋蓄電池）</h3>
+    <div class="kpis">
+      <div class="kpi"><div class="l">月あたり合計メリット</div><div class="v" data-o="o_vAllMonth" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">年間合計メリット</div><div class="v" data-o="o_vAllYear" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi dk"><div class="l">10年間の累計</div><div class="v" data-o="o_vAll10" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi hi"><div class="l">実質導入費用（太陽光＋蓄電池−補助金）</div><div class="v" data-o="o_vAllCost" data-fmt="y">0<small>円</small></div></div>
+    </div>
+    <p class="note">固定価格買取制度（FIT）…太陽光発電による電力を、一定価格で10年間買い取ることを国が約束する制度です。※火力発電などに用いる燃料費高騰のため、電気料金は少しずつ上がっています。上記はシミュレーションであり発電量・売電額を保証するものではありません。</p>
+  </div>
+</section>
+
+<!-- ========== ⑦ 建て時比較 ========== -->
+<section class="page" id="p7">
+  <div class="phead"><span class="klogo"></span><div class="pt">⑦ 建て時比較</div><div class="pc" data-o="ph_name7"></div></div>
+  <h2 class="sec noprint"><span class="num">⑦</span>建て時比較</h2>
+  <p class="lead noprint">「今建てる」場合と「◯年後に建てる」場合を比較します。あわせて35年ローンと40年ローンの違いもご確認ください。</p>
+
+  <div class="card">
+    <h3>比較条件</h3>
+    <div class="fg">
+      <div class="f"><label>何年後と比較しますか</label><div class="unit"><input type="number" data-k="t_wait" data-calc><span class="u">年後</span></div></div>
+      <div class="f"><label>現在の家賃＋駐車場</label><div class="unit"><input class="ro" readonly data-o="o_tRent" data-fmt="y"><span class="u">円/月</span></div></div>
+      <div class="f"><label>建築費の上昇率（想定）</label><div class="unit"><input type="number" step="0.1" data-k="t_upRate" data-calc><span class="u">％/年</span></div></div>
+      <div class="f"><label>◯年後の想定金利</label><div class="unit"><input type="number" step="0.01" data-k="t_futureRate" data-calc><span class="u">％</span></div></div>
+      <div class="f"><label>現在の金利（③より）</label><div class="unit"><input class="ro" readonly data-o="o_tNowRate" data-fmt="p3"><span class="u">％</span></div></div>
+      <div class="f"><label>ご主人様の現在年齢</label><div class="unit"><input class="ro" readonly data-o="o_tAge" data-fmt="n0"><span class="u">歳</span></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>今建てる場合 と <span data-o="o_tWaitEcho">0</span>年後に建てる場合</h3>
+    <div class="tw"><table>
+      <thead><tr><th style="width:30%">項目</th><th>今 建てる</th><th><span data-o="o_tWaitEcho2">0</span>年後に建てる</th><th>差額</th></tr></thead>
+      <tbody>
+        <tr><td>建築総額（①〜⑥の総合計）</td><td class="num" data-o="o_tCostNow" data-fmt="y">0</td><td class="num" data-o="o_tCostLater" data-fmt="y">0</td><td class="num" data-o="o_tCostDiff" data-fmt="ys">0</td></tr>
+        <tr><td>適用金利</td><td class="num" data-o="o_tRateNow" data-fmt="p3">0</td><td class="num" data-o="o_tRateLater" data-fmt="p3">0</td><td class="num" data-o="o_tRateDiff" data-fmt="p3">0</td></tr>
+        <tr><td>お借入金額</td><td class="num" data-o="o_tKariNow" data-fmt="y">0</td><td class="num" data-o="o_tKariLater" data-fmt="y">0</td><td class="num" data-o="o_tKariDiff" data-fmt="ys">0</td></tr>
+        <tr><td>毎月返済額</td><td class="num" data-o="o_tMonNow" data-fmt="y">0</td><td class="num" data-o="o_tMonLater" data-fmt="y">0</td><td class="num" data-o="o_tMonDiff" data-fmt="ys">0</td></tr>
+        <tr><td>総返済額（利息含む）</td><td class="num" data-o="o_tSumNow" data-fmt="y">0</td><td class="num" data-o="o_tSumLater" data-fmt="y">0</td><td class="num" data-o="o_tSumDiff" data-fmt="ys">0</td></tr>
+        <tr><td>待機期間中の家賃支払（戻らないお金）</td><td class="num">0</td><td class="num" data-o="o_tRentLoss" data-fmt="y">0</td><td class="num" data-o="o_tRentLoss2" data-fmt="ys">0</td></tr>
+        <tr><td>完済時のご年齢</td><td class="num" data-o="o_tEndAgeNow" data-fmt="n0">0</td><td class="num" data-o="o_tEndAgeLater" data-fmt="n0">0</td><td class="num" data-o="o_tEndAgeDiff" data-fmt="n0">0</td></tr>
+        <tr class="tot"><td>生涯の住居費 総負担</td><td class="num" data-o="o_tLifeNow" data-fmt="y">0</td><td class="num" data-o="o_tLifeLater" data-fmt="y">0</td><td class="num" data-o="o_tLifeDiff" data-fmt="ys">0</td></tr>
+      </tbody></table></div>
+    <div id="msgTate"></div>
+    <p class="note">※建築費上昇率・将来金利は想定値です。住宅ローン控除等の制度は年度により変更されます。</p>
+  </div>
+
+  <div class="card">
+    <h3>35年ローン と 40年ローン の比較<span class="sub">「40年ローンの活用の仕方」シート準拠</span></h3>
+    <div class="fg">
+      <div class="f"><label>お借入金額</label><div class="unit"><input class="ro" readonly data-o="o_yKari" data-fmt="y"><span class="u">円</span></div></div>
+      <div class="f"><label>金利</label><div class="unit"><input type="number" step="0.01" data-k="t_yRate" data-calc><span class="u">％</span></div></div>
+      <div class="f"><label>短い方の期間</label><div class="unit"><input type="number" data-k="t_y1" data-calc><span class="u">年</span></div></div>
+      <div class="f"><label>長い方の期間</label><div class="unit"><input type="number" data-k="t_y2" data-calc><span class="u">年</span></div></div>
+    </div>
+    <div class="tw" style="margin-top:12px"><table>
+      <thead><tr><th>項目</th><th><span data-o="o_y1e">35</span>年ローン</th><th><span data-o="o_y2e">40</span>年ローン</th><th>差</th></tr></thead>
+      <tbody>
+        <tr><td>毎月返済額</td><td class="num" data-o="o_yMon1" data-fmt="y">0</td><td class="num" data-o="o_yMon2" data-fmt="y">0</td><td class="num" data-o="o_yMonDiff" data-fmt="y">0</td></tr>
+        <tr><td>総返済額</td><td class="num" data-o="o_ySum1" data-fmt="y">0</td><td class="num" data-o="o_ySum2" data-fmt="y">0</td><td class="num" data-o="o_ySumDiff" data-fmt="y">0</td></tr>
+        <tr><td>利息総額</td><td class="num" data-o="o_yInt1" data-fmt="y">0</td><td class="num" data-o="o_yInt2" data-fmt="y">0</td><td class="num" data-o="o_yIntDiff" data-fmt="y">0</td></tr>
+        <tr><td><span data-o="o_y1e2">35</span>年後の残債</td><td class="num">0</td><td class="num" data-o="o_yZansai" data-fmt="y">0</td><td class="num" data-o="o_yZansai2" data-fmt="y">0</td></tr>
+      </tbody></table></div>
+    <div class="g2" style="margin-top:13px">
+      <div>
+        <h3>差額を貯蓄した場合</h3>
+        <div class="fg">
+          <div class="f"><label>お子様の現在のご年齢</label><div class="unit"><input type="number" data-k="t_kidAge" data-calc><span class="u">歳</span></div></div>
+          <div class="f"><label>成人後に増額するお支払い</label><div class="unit"><input type="number" data-k="t_addPay" data-calc><span class="u">円/月</span></div></div>
+          <div class="f"><label>成人した時のローン残年数</label><div class="unit"><input class="ro" readonly data-o="o_yNokori" data-fmt="n0"><span class="u">年</span></div></div>
+          <div class="f"><label>ローン期間まで貯蓄した場合</label><div class="unit"><input class="ro" readonly data-o="o_yChochiku" data-fmt="y"><span class="u">円</span></div></div>
+        </div>
+        <div id="msgY40"></div>
+      </div>
+      <div>
+        <h3>メリット・デメリット</h3>
+        <div class="msg g"><b>メリット</b><br>40年ローンは銀行が、銀行の定めた決まり（返済比率）の中でも、お客様が住宅ローンを組みやすいように作られた金融商品です。毎月の返済額を抑えられ、繰上返済で早期完済も可能です。</div>
+        <div class="msg w"><b>デメリット・ご注意</b><br>・35年ローンから40年ローンには変更できません<br>・41歳以上の方は、基本的に40年ローンはかけられません<br>・返済期間が長くなる分、利息総額は増加します</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== ⑧ FPシュミレーション ========== -->
+<section class="page" id="p8">
+  <div class="phead"><span class="klogo"></span><div class="pt">⑧ FPシュミレーション（ライフプラン）</div><div class="pc" data-o="ph_name8"></div></div>
+  <h2 class="sec noprint"><span class="num">⑧</span>FPシュミレーション</h2>
+  <p class="lead noprint">ご家族のライフイベントを踏まえた長期キャッシュフロー表です。①お客様カルテ・③デジシキの入力内容と連動します。</p>
+
+  <div class="g2">
+    <div class="card">
+      <h3>ご収入</h3>
+      <div class="fg">
+        <div class="f"><label>ご主人様 現在年齢</label><div class="unit"><input class="ro" readonly data-o="o_fAge1" data-fmt="n0"><span class="u">歳</span></div></div>
+        <div class="f"><label>ご主人様 年収（手取り換算前）</label><div class="unit"><input class="ro" readonly data-o="o_fInc1" data-fmt="m0"><span class="u">万円</span></div></div>
+        <div class="f"><label>奥様 現在年齢</label><div class="unit"><input class="ro" readonly data-o="o_fAge2" data-fmt="n0"><span class="u">歳</span></div></div>
+        <div class="f"><label>奥様 年収</label><div class="unit"><input class="ro" readonly data-o="o_fInc2" data-fmt="m0"><span class="u">万円</span></div></div>
+        <div class="f"><label>昇給率</label><div class="unit"><input type="number" step="0.1" data-k="f_up" data-calc><span class="u">％/年</span></div></div>
+        <div class="f"><label>手取り率</label><div class="unit"><input type="number" data-k="f_tedori" data-calc><span class="u">％</span></div>
+          <div class="hint">額面に対する手取りの目安。標準78％</div></div>
+        <div class="f"><label>定年年齢</label><div class="unit"><input type="number" data-k="f_teinen" data-calc><span class="u">歳</span></div></div>
+        <div class="f"><label>再雇用（65歳まで）の年収</label><div class="unit"><input type="number" data-k="f_saikoyo" data-calc><span class="u">万円</span></div></div>
+        <div class="f"><label>退職金</label><div class="unit"><input type="number" data-k="f_taishoku" data-calc><span class="u">万円</span></div></div>
+        <div class="f"><label>65歳以降の年金（世帯計）</label><div class="unit"><input type="number" data-k="f_nenkin" data-calc><span class="u">万円/年</span></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>ご支出</h3>
+      <div class="fg">
+        <div class="f"><label>基本生活費</label><div class="unit"><input type="number" data-k="f_seikatsu" data-calc><span class="u">万円/月</span></div></div>
+        <div class="f"><label>住宅ローン返済（③より）</label><div class="unit"><input class="ro" readonly data-o="o_fLoan" data-fmt="y"><span class="u">円/月</span></div></div>
+        <div class="f"><label>返済期間（③より）</label><div class="unit"><input class="ro" readonly data-o="o_fLoanY" data-fmt="n0"><span class="u">年</span></div></div>
+        <div class="f"><label>固定資産税</label><div class="unit"><input type="number" data-k="f_kotei" data-calc><span class="u">万円/年</span></div></div>
+        <div class="f"><label>火災保険・修繕積立</label><div class="unit"><input type="number" data-k="f_shuzen" data-calc><span class="u">万円/年</span></div></div>
+        <div class="f"><label>生命保険等</label><div class="unit"><input type="number" data-k="f_hoken" data-calc><span class="u">万円/年</span></div></div>
+        <div class="f"><label>自動車 買替周期</label><div class="unit"><input type="number" data-k="f_carCycle" data-calc><span class="u">年ごと</span></div></div>
+        <div class="f"><label>自動車 買替金額</label><div class="unit"><input type="number" data-k="f_carCost" data-calc><span class="u">万円</span></div></div>
+        <div class="f"><label>その他のご支出</label><div class="unit"><input type="number" data-k="f_other" data-calc><span class="u">万円/年</span></div></div>
+        <div class="f"><label>光熱費（③反映後）</label><div class="unit"><input class="ro" readonly data-o="o_fKounetsu" data-fmt="y"><span class="u">円/月</span></div></div>
+        <div class="f"><label>太陽光の売電収入</label><div class="unit"><input class="ro" readonly data-o="o_fBaiden" data-fmt="y"><span class="u">円/月</span></div></div>
+        <div class="f"><label>現在の貯蓄（①より）</label><div class="unit"><input class="ro" readonly data-o="o_fChochiku" data-fmt="m0"><span class="u">万円</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>支出算出シート<span class="sub">ソニー生命「支出算出シート」準拠／単位：円・月額（自動車税のみ年額）</span>
+      <span class="rt noprint">
+        <button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="applySheetToKarte()">貯蓄総額を①へ反映</button>
+      </span></h3>
+    <label class="chk" style="margin-bottom:10px"><input type="checkbox" data-k="x_auto" data-calc>
+      <span style="font-size:12.5px">このシートの合計から上記の「基本生活費」「生命保険等」を自動反映する<span class="pill y" style="margin-left:6px">シート入力後にON</span></span></label>
+
+    <div class="g2">
+      <div>
+        <div class="tw"><table class="xs">
+          <thead><tr><th style="width:22%">区分</th><th style="width:44%">項目</th><th style="width:34%">金額</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="1"><b>食費</b></td><td>食費・日用雑貨</td><td><input type="number" data-k="x_shokuhi" data-calc></td></tr>
+            <tr><td rowspan="4"><b>光熱費</b></td><td>電気</td><td><input type="number" data-k="k_elec" data-calc></td></tr>
+            <tr><td>水道</td><td><input type="number" data-k="x_suido" data-calc></td></tr>
+            <tr><td>ガス</td><td><input type="number" data-k="k_gas" data-calc></td></tr>
+            <tr><td>ウォーターサーバー等</td><td><input type="number" data-k="x_water" data-calc></td></tr>
+            <tr><td rowspan="2"><b>通信費</b></td><td>固定電話</td><td><input type="number" data-k="x_tel" data-calc></td></tr>
+            <tr><td>その他（インターネット等）</td><td><input type="number" data-k="x_net" data-calc></td></tr>
+            <tr><td><b>医療費</b></td><td>医療費等</td><td><input type="number" data-k="x_iryo" data-calc></td></tr>
+            <tr><td rowspan="2"><b>住まい</b></td><td>家賃・住宅ローン</td><td><input type="number" data-k="k_rent" data-calc></td></tr>
+            <tr><td>共益費・駐車場</td><td><input type="number" data-k="k_park" data-calc></td></tr>
+            <tr><td><b>レジャー</b></td><td>レジャー・旅行</td><td><input type="number" data-k="x_leisure" data-calc></td></tr>
+            <tr><td rowspan="3"><b>借入</b></td><td>奨学金返済</td><td><input type="number" data-k="k_l1" data-calc></td></tr>
+            <tr><td>カーローン</td><td><input type="number" data-k="k_l2" data-calc></td></tr>
+            <tr><td>その他のローン</td><td><input type="number" data-k="k_l3" data-calc></td></tr>
+            <tr><td rowspan="3"><b>雑費</b></td><td>新聞・定期購読</td><td><input type="number" data-k="x_shinbun" data-calc></td></tr>
+            <tr><td>衣料品</td><td><input type="number" data-k="x_ifuku" data-calc></td></tr>
+            <tr><td>NHK等</td><td><input type="number" data-k="x_nhk" data-calc></td></tr>
+            <tr><td rowspan="3"><b>その他</b></td>
+                <td><input type="text" data-k="x_e1n" placeholder="項目名"></td><td><input type="number" data-k="x_e1" data-calc></td></tr>
+            <tr><td><input type="text" data-k="x_e2n" placeholder="項目名"></td><td><input type="number" data-k="x_e2" data-calc></td></tr>
+            <tr><td><input type="text" data-k="x_e3n" placeholder="項目名"></td><td><input type="number" data-k="x_e3" data-calc></td></tr>
+            <tr class="tot"><td colspan="2">生活費 小計</td><td class="num" data-o="o_xLifeSub" data-fmt="y">0</td></tr>
+          </tbody></table></div>
+
+        <div class="tw" style="margin-top:12px"><table class="xs">
+          <thead><tr><th style="width:22%">区分</th><th style="width:44%">項目</th><th style="width:34%">金額</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="3"><b>貯蓄・積立</b></td><td>現在の貯蓄総額</td><td><input type="number" data-k="x_choSou" data-calc></td></tr>
+            <tr><td>月々の貯蓄額</td><td><input type="number" data-k="x_choTsuki" data-calc></td></tr>
+            <tr><td>ボーナスの貯蓄額</td><td><input type="number" data-k="x_choBonus" data-calc></td></tr>
+            <tr><td rowspan="3"><b>収入<br><span style="font-size:10px;font-weight:400">（手取り月額）</span></b></td>
+                <td>旦那様の収入</td><td><input type="number" data-k="x_incH" data-calc></td></tr>
+            <tr><td>奥様の収入</td><td><input type="number" data-k="x_incW" data-calc></td></tr>
+            <tr><td>その他</td><td><input type="number" data-k="x_incE" data-calc></td></tr>
+            <tr class="tot"><td colspan="2">手取り月収 合計</td><td class="num" data-o="o_xIncTotal" data-fmt="y">0</td></tr>
+          </tbody></table></div>
+      </div>
+
+      <div>
+        <div class="tw"><table class="xs">
+          <thead><tr><th style="width:22%">区分</th><th style="width:44%">項目</th><th style="width:34%">金額</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="10"><b>旦那様の<br>固有支出</b></td><td>お小遣い</td><td><input type="number" data-k="x_h1" data-calc></td></tr>
+            <tr><td>携帯電話</td><td><input type="number" data-k="x_h2" data-calc></td></tr>
+            <tr><td>趣味</td><td><input type="number" data-k="x_h3" data-calc></td></tr>
+            <tr><td>美容代</td><td><input type="number" data-k="x_h4" data-calc></td></tr>
+            <tr><td>生命保険</td><td><input type="number" data-k="x_h5" data-calc></td></tr>
+            <tr><td>自動車税 <span class="pill">年額</span></td><td><input type="number" data-k="x_h6" data-calc></td></tr>
+            <tr><td>自動車保険</td><td><input type="number" data-k="x_h7" data-calc></td></tr>
+            <tr><td>ガソリン代</td><td><input type="number" data-k="x_h8" data-calc></td></tr>
+            <tr><td><input type="text" data-k="x_h9n" placeholder="その他"></td><td><input type="number" data-k="x_h9" data-calc></td></tr>
+            <tr><td><input type="text" data-k="x_h10n" placeholder="その他"></td><td><input type="number" data-k="x_h10" data-calc></td></tr>
+            <tr class="tot"><td colspan="2">旦那様 小計（月額換算）</td><td class="num" data-o="o_xHSub" data-fmt="y">0</td></tr>
+          </tbody></table></div>
+
+        <div class="tw" style="margin-top:12px"><table class="xs">
+          <thead><tr><th style="width:22%">区分</th><th style="width:44%">項目</th><th style="width:34%">金額</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="10"><b>奥様の<br>固有支出</b></td><td>お小遣い</td><td><input type="number" data-k="x_w1" data-calc></td></tr>
+            <tr><td>携帯電話</td><td><input type="number" data-k="x_w2" data-calc></td></tr>
+            <tr><td>趣味</td><td><input type="number" data-k="x_w3" data-calc></td></tr>
+            <tr><td>美容室・化粧品</td><td><input type="number" data-k="x_w4" data-calc></td></tr>
+            <tr><td>生命保険</td><td><input type="number" data-k="x_w5" data-calc></td></tr>
+            <tr><td>自動車税 <span class="pill">年額</span></td><td><input type="number" data-k="x_w6" data-calc></td></tr>
+            <tr><td>自動車保険</td><td><input type="number" data-k="x_w7" data-calc></td></tr>
+            <tr><td>ガソリン代</td><td><input type="number" data-k="x_w8" data-calc></td></tr>
+            <tr><td><input type="text" data-k="x_w9n" placeholder="その他"></td><td><input type="number" data-k="x_w9" data-calc></td></tr>
+            <tr><td><input type="text" data-k="x_w10n" placeholder="その他"></td><td><input type="number" data-k="x_w10" data-calc></td></tr>
+            <tr class="tot"><td colspan="2">奥様 小計（月額換算）</td><td class="num" data-o="o_xWSub" data-fmt="y">0</td></tr>
+          </tbody></table></div>
+
+        <div class="tw" style="margin-top:12px"><table class="xs">
+          <thead><tr><th style="width:22%">区分</th><th style="width:44%">項目</th><th style="width:34%">金額</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="2"><b>お子様の<br>固有支出</b></td><td>塾・習い事など</td><td><input type="number" data-k="x_c1" data-calc></td></tr>
+            <tr><td><input type="text" data-k="x_c2n" placeholder="その他"></td><td><input type="number" data-k="x_c2" data-calc></td></tr>
+            <tr class="tot"><td colspan="2">お子様 小計</td><td class="num" data-o="o_xCSub" data-fmt="y">0</td></tr>
+          </tbody></table></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:16px">集計</h3>
+    <div class="tw"><table>
+      <thead><tr><th>生活費<br><span style="font-size:10px;font-weight:400">住居費・借入・保険を除く</span></th><th>保険料<br><span style="font-size:10px;font-weight:400">生命保険＋自動車保険</span></th><th>住居費</th><th>借入返済</th><th>支出 合計</th><th>手取り月収</th><th>月々の収支</th></tr></thead>
+      <tbody><tr class="tot">
+        <td class="num" data-o="o_xSeikatsu" data-fmt="y">0</td>
+        <td class="num" data-o="o_xHoken" data-fmt="y">0</td>
+        <td class="num" data-o="o_xJutaku" data-fmt="y">0</td>
+        <td class="num" data-o="o_xKariire" data-fmt="y">0</td>
+        <td class="num" data-o="o_xShishutsu" data-fmt="y">0</td>
+        <td class="num" data-o="o_xIncTotal2" data-fmt="y">0</td>
+        <td class="num" data-o="o_xShushi" data-fmt="ys" style="font-size:15px">0</td>
+      </tr></tbody></table></div>
+    <div id="msgSheet"></div>
+    <p class="note">※「生活費」＝食費・光熱費・通信費・医療費・レジャー・雑費・その他＋ご主人様／奥様／お子様の固有支出（生命保険・自動車保険を除く／自動車税は年額÷12）。<br>
+      ※家賃・共益費・駐車場・電気・ガス・借入は「①お客様カルテ」「③デジシキ」と同じ項目です（どこで入力しても連動します）。</p>
+  </div>
+
+  <div class="card">
+    <h3>教育費の前提<span class="sub">文部科学省「子供の学習費調査」等をもとにした年額目安（万円）</span></h3>
+    <div class="tw"><table>
+      <thead><tr><th>進学プラン</th><th>幼稚園</th><th>小学校</th><th>中学校</th><th>高校</th><th>大学（初年度）</th><th>大学（2年目以降）</th></tr></thead>
+      <tbody>
+        <tr><td>すべて公立・大学は国公立</td><td class="num">17</td><td class="num">35</td><td class="num">54</td><td class="num">51</td><td class="num">82</td><td class="num">54</td></tr>
+        <tr><td>高校まで公立・大学は私立文系</td><td class="num">17</td><td class="num">35</td><td class="num">54</td><td class="num">51</td><td class="num">137</td><td class="num">116</td></tr>
+        <tr><td>高校から私立・大学は私立文系</td><td class="num">31</td><td class="num">35</td><td class="num">54</td><td class="num">105</td><td class="num">137</td><td class="num">116</td></tr>
+        <tr><td>中学から私立・大学は私立理系</td><td class="num">31</td><td class="num">35</td><td class="num">144</td><td class="num">105</td><td class="num">164</td><td class="num">154</td></tr>
+        <tr><td>すべて私立・大学は私立理系</td><td class="num">31</td><td class="num">167</td><td class="num">144</td><td class="num">105</td><td class="num">164</td><td class="num">154</td></tr>
+      </tbody></table></div>
+    <p class="note">※お子様ごとの進学プランは「①お客様カルテ」で選択してください。年齢に応じて自動で教育費を計上します。</p>
+  </div>
+
+  <div class="card">
+    <h3>キャッシュフロー推移</h3>
+    <div class="kpis">
+      <div class="kpi"><div class="l">貯蓄残高 最小値</div><div class="v" data-o="o_fMin" data-fmt="ms">0<small>万円</small></div><div class="s" data-o="o_fMinYear">－</div></div>
+      <div class="kpi"><div class="l">10年後の貯蓄残高</div><div class="v" data-o="o_f10" data-fmt="ms">0<small>万円</small></div></div>
+      <div class="kpi"><div class="l">ローン完済時の貯蓄残高</div><div class="v" data-o="o_fEnd" data-fmt="ms">0<small>万円</small></div></div>
+      <div class="kpi dk"><div class="l">65歳時点の貯蓄残高</div><div class="v" data-o="o_f65" data-fmt="ms">0<small>万円</small></div></div>
+    </div>
+    <div id="msgFp"></div>
+    <div id="fpChart" style="margin-top:14px"></div>
+    <div class="tw" style="margin-top:12px"><table id="tblFp">
+      <thead><tr><th>年</th><th>ご主人</th><th>奥様</th><th>お子様</th><th>収入(手取)</th><th>生活費</th><th>住宅費</th><th>教育費</th><th>その他</th><th>支出計</th><th>年間収支</th><th>貯蓄残高</th></tr></thead>
+      <tbody></tbody></table></div>
+    <p class="note">単位：万円　※あくまで概算のシミュレーションです。実際の収支を保証するものではありません。</p>
+  </div>
+</section>
+
+<!-- ========== ⑨ 家づくりの流れ ========== -->
+<section class="page" id="p9">
+  <div class="phead"><span class="klogo"></span><div class="pt">⑨ 家づくりの流れ</div><div class="pc" data-o="ph_name9"></div></div>
+  <h2 class="sec noprint"><span class="num">⑨</span>家づくりの流れ</h2>
+  <p class="lead noprint">工期設定シート準拠。起点日を入力すると、各ステップの予定日が自動で計算されます（日数は変更できます）。</p>
+
+  <div class="card">
+    <h3><span data-o="o_wName">〇〇</span>様邸 お家づくりストーリー</h3>
+    <div class="fg">
+      <div class="f"><label>起点日（初回ご来店日）</label><input type="date" data-k="w_start" data-calc></div>
+      <div class="f"><label>ご契約予定日</label><div class="unit"><input class="ro" readonly data-o="o_wKeiyaku"><span class="u"></span></div></div>
+      <div class="f"><label>着工予定日</label><div class="unit"><input class="ro" readonly data-o="o_wChakkou"><span class="u"></span></div></div>
+      <div class="f"><label>お引渡し予定日</label><div class="unit"><input class="ro" readonly data-o="o_wHikiwatashi"><span class="u"></span></div></div>
+      <div class="f"><label>ご契約〜お引渡し</label><div class="unit"><input class="ro" readonly data-o="o_wDays" data-fmt="n0"><span class="u">日</span></div></div>
+      <div class="f"><label>全体期間</label><div class="unit"><input class="ro" readonly data-o="o_wAllDays" data-fmt="n0"><span class="u">日</span></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>スケジュール一覧<span class="sub">「日数」は前のステップからの日数です</span></h3>
+    <div class="tw"><table id="tblFlow">
+      <thead><tr><th class="ctr" style="width:44px">No</th><th style="width:20%">ステップ</th><th class="ctr" style="width:74px">日数</th><th class="ctr" style="width:110px">予定日</th><th>内容</th><th class="ctr" style="width:60px">完了</th></tr></thead>
+      <tbody></tbody></table></div>
+  </div>
+
+  <div class="card">
+    <h3>ステップ図</h3>
+    <div class="stepgrid" id="stepGrid"></div>
+    <div class="msg i" style="margin-top:12px"><b>ワンストップでサポートします</b><br>国分ハウジンググループは、土地探しから資金計画・設計・施工・アフターサービスまで、住まいのすべてをワンストップでサポート。専任スタッフがお客様のお家づくりに最後まで寄り添います。</div>
+  </div>
+</section>
+
+<!-- ========== ⑩ 銀行金利比較 ========== -->
+<section class="page" id="p10">
+  <div class="phead"><span class="klogo"></span><div class="pt">⑩ 銀行金利比較（住宅ローン商品カタログ）</div><div class="pc" data-o="ph_name10"></div></div>
+  <h2 class="sec noprint"><span class="num">⑩</span>銀行金利比較
+    <span class="pill y" data-o="o_lnAsofBadge">－</span></h2>
+  <p class="lead noprint">九州一円で使える住宅ローンを金融機関別に比較。地銀・信金・労金・JA・ネット銀行・メガバンク・フラット35を横断します。商品を選んで「この金利で試算」を押すと、<b>③デジシキの金利に反映</b>され、月々返済・総返済額・⑤ローン控除の試算に連動します。</p>
+
+  <div id="lnStale"></div>
+
+  <div class="card noprint" id="cardFeed">
+    <h3>金利データの自動更新<span class="sub">住宅ローン金利は毎月見直されます</span>
+      <span class="rt">
+        <button class="btn b-n b-sm" onclick="feedFetch()">🔄 今すぐ取得</button>
+        <button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="document.getElementById('feedFile').click()">📂 データファイルを読込</button>
+        <input type="file" id="feedFile" accept=".js,.json" style="display:none" onchange="feedFromFile(this)">
+        <button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="feedExport()">💾 金利データ.js を書出</button>
+      </span></h3>
+    <div class="fg">
+      <div class="f"><label>現在の金利データ 基準日</label><input type="date" data-k="ln_asof" data-calc></div>
+      <div class="f"><label>出典・メモ</label><input type="text" data-k="ln_source" placeholder="例）各金融機関公式サイト"></div>
+      <div class="f full"><label>金利データ配信URL（任意）</label>
+        <input type="text" data-k="ln_feedUrl" placeholder="https://…/kinri.json　※社内サーバー等に置いた場合">
+        <div class="hint">URLを設定すると、起動時に自動で取得します（取得できない場合は現在のデータのまま動作します）</div></div>
+    </div>
+    <div id="feedStatus"></div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--navy2)">▸ 金利をまとめて更新する（テキスト貼り付け）</summary>
+      <p class="note" style="margin-top:6px">1行につき「金融機関名＝金利」または「ID＝金利」の形式でご入力ください。例：<code>鹿児島銀行=1.75</code> / <code>jibun=1.284</code></p>
+      <textarea id="bulkRate" style="min-height:110px;font-family:ui-monospace,monospace;font-size:12px" placeholder="鹿児島銀行=1.75&#10;宮崎銀行=1.10&#10;jibun=1.284"></textarea>
+      <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
+        <button class="btn b-n b-sm" onclick="bulkApply()">この内容で反映</button>
+        <button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="bulkFill()">現在の金利を一覧で書き出す</button>
+      </div>
+    </details>
+    <div class="msg i" style="margin-top:11px"><b>自動更新のしくみ</b><br>
+      ① このHTMLと同じフォルダに <b>金利データ.js</b> を置くと、起動時に自動で読み込みます（毎月このファイルを差し替えるだけで全社員のアプリが最新になります）。<br>
+      ② 社内サーバー等に置いた場合は上の「配信URL」を設定すると起動時に自動取得します。<br>
+      ③ 手元で直した金利は「💾 金利データ.js を書出」で配布用ファイルにできます。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🏦 金融機関別 住宅ローン商品<span class="sub">「比較に追加」した商品が下の比較表に並びます</span>
+      <span class="rt noprint">
+        <button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="lnCmpClear()">比較をクリア</button>
+      </span></h3>
+    <div class="lnfil noprint" id="lnFilter"></div>
+    <div class="lngrid" id="lnGrid"></div>
+    <p class="note">※ 金利は各金融機関の公表値をもとにした参考値で、各カードに取得時点を表示しています。実際の適用金利は借入時点・審査・優遇条件で変わります。「要確認」表示の数値は確定値ではありません。事務手数料の「定率型」は借入額×2.2%等、「定額型」は各行の定額。保証料は外枠一括の金融機関では別途かかります。最新値は各金融機関公式・担当者にご確認ください。</p>
+  </div>
+
+  <div class="card">
+    <h3>比較条件</h3>
+    <div class="fg">
+      <div class="f"><label>お借入金額</label><div class="unit"><input type="number" data-k="bk_kari" data-calc><span class="u">円</span></div>
+        <div class="hint noprint"><button class="btn b-w b-sm addrow" style="border:1px solid var(--line)" onclick="pullKari()">③デジシキから取込</button></div></div>
+      <div class="f"><label>返済期間</label><div class="unit"><input type="number" data-k="bk_years" data-calc><span class="u">年</span></div></div>
+      <div class="f"><label>諸費用を比較に含める</label>
+        <select data-k="bk_incFee" data-calc><option value="1">含める（事務手数料＋保証料）</option><option value="0">金利のみで比較</option></select></div>
+      <div class="f"><label>比較件数</label><div class="unit"><input class="ro" readonly data-o="o_bkCount" data-fmt="n0"><span class="u">件</span></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>比較結果<span class="sub">総支払額の少ない順</span></h3>
+    <div class="kpis">
+      <div class="kpi dk"><div class="l">最も総支払額が少ない</div><div class="v" data-o="o_bkBest" style="font-size:15px">－</div><div class="s" data-o="o_bkBestRate">－</div></div>
+      <div class="kpi hi"><div class="l">最安の毎月返済額</div><div class="v" data-o="o_bkBestMon" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">最安と最高の総支払額差</div><div class="v" data-o="o_bkSpread" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">金利データ基準日</div><div class="v" data-o="o_lnAsof" style="font-size:15px">－</div><div class="s" data-o="o_lnSource">－</div></div>
+    </div>
+    <div class="tw" style="margin-top:12px"><table id="tblBkResult">
+      <thead><tr>
+        <th class="ctr" style="width:42px">順位</th><th style="width:17%">金融機関</th><th style="width:20%">商品名</th>
+        <th class="num">金利</th><th class="num">毎月返済</th><th class="num">総返済額</th>
+        <th class="num">諸費用</th><th class="num">総支払額</th><th class="num">最安との差</th>
+        <th class="ctr noprint" style="width:34px"></th>
+      </tr></thead><tbody></tbody></table></div>
+    <div id="msgBk"></div>
+    <p class="note">総返済額＝毎月返済額×返済回数（元利均等・ボーナス返済なしで試算）。諸費用＝事務手数料＋保証料。団信保険料が金利に上乗せとなる商品は、上乗せ後の金利でご確認ください。</p>
+  </div>
+
+  <div class="card">
+    <h3>お客様へのご提案メモ</h3>
+    <div class="fg w2">
+      <div class="f full"><label>ご提案する金融機関と理由</label><textarea data-k="bk_memo" style="min-height:74px"></textarea></div>
+      <div class="f"><label>事前審査の提出先①</label><input type="text" data-k="bk_apply1"></div>
+      <div class="f"><label>事前審査の提出先②</label><input type="text" data-k="bk_apply2"></div>
+      <div class="f"><label>事前審査の提出先③</label><input type="text" data-k="bk_apply3"></div>
+    </div>
+    <div class="msg i"><b>金利以外にもご確認ください</b><br>
+      ・団体信用生命保険の保障内容（がん50％・100％、三大疾病、八大疾病、全疾病など）と金利上乗せの有無<br>
+      ・事務手数料の方式（定率2.2％前後／定額）と保証料の有無 ── 総支払額に大きく影響します<br>
+      ・繰上返済手数料、固定期間終了後の優遇幅、つなぎ融資・分割実行の可否（注文住宅では重要です）<br>
+      ・変動金利は将来上昇する可能性があります。金利が上がった場合の返済額も併せてご確認ください。</div>
+  </div>
+</section>
+
+</div><!-- /wrap -->
+
+<div class="pbar noprint" id="pbar" style="display:none">
+  <span class="t">印刷する項目</span>
+  <div class="chk" id="printChk"></div>
+  <button class="btn b-w b-sm" onclick="prAll(true)">全選択</button>
+  <button class="btn b-o b-sm" onclick="prAll(false)">全解除</button>
+  <div class="sp" style="flex:1"></div>
+  <button class="btn b-y" onclick="doPrint()">この内容で印刷</button>
+  <button class="btn b-o" onclick="closePrint()">閉じる</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="金利データ.js" onerror="window.__noFeed=1"></script>
+<script>
+"use strict";
+/* ============================================================
+   AIデジタル資金計画書 ｜ 国分ハウジンググループ
+   出典: グループ共通デジタル資金計画240830.xlsm ／ 概算資金計画書(最新).xlsx
+         会社カタログ.pdf (KOKUBU HOUSING COMPANY PROFILE 2版)
+   ============================================================ */
+
+/* ---------- 定数 ---------- */
+var TABS = [
+  ["①","お客様カルテ"],["②","会社紹介"],["③","デジシキ"],["④","資金計画"],["⑤","ローン控除"],
+  ["⑥","太陽光・蓄電池"],["⑦","建て時比較"],["⑧","FPシュミレーション"],["⑨","家づくりの流れ"],
+  ["⑩","銀行金利比較"]
+];
+var TRIGGERS = ["ご結婚","ご出産・お子様の成長","家賃がもったいない","今が手狭になった",
+  "住宅ローン金利","補助金・税制","ご実家の土地活用","転勤・転職","ペットとの暮らし",
+  "ご両親との同居","現在のお住まいの老朽化"];
+var PAYEE = ["","弊社","売主","仲介会社","外構業者","司法書士","金融機関","保険代理店","各自治体","その他"];
+var METHOD = ["","見積書","予算","他社見積書"];
+var EDU = [
+  {n:"すべて公立・大学は国公立",       v:[17,35,54,51,82,54]},
+  {n:"高校まで公立・大学は私立文系",   v:[17,35,54,51,137,116]},
+  {n:"高校から私立・大学は私立文系",   v:[31,35,54,105,137,116]},
+  {n:"中学から私立・大学は私立理系",   v:[31,35,144,105,164,154]},
+  {n:"すべて私立・大学は私立理系",     v:[31,167,144,105,164,154]}
+];
+var HISTORY = [
+  ["1988","現霧島市（当時・国分市）に国分ハウジング開業。不動産売買仲介業を主に展開"],
+  ["1994","国分ハウジング法人化（有限会社）へ／国分ハウジング姶良店オープン"],
+  ["2007","株式会社へ組織変更／本社屋を現在地（国分中央3丁目3番3号）へ移転"],
+  ["2010","宅建情報センター（株）をロイヤルホーム（株）へ商号変更 ※2024年（株）国分ハウジングへ吸収合併"],
+  ["2015","MBC与次郎住宅展示場にエス・バイ・エルのモデルハウスオープン"],
+  ["2016","国分ハウジング鹿児島店オープン"],
+  ["2017","新事業「かえるホーム」始動"],
+  ["2018","新事業「リノベホーム（株）」始動 ※現（株）国分ハウジング不動産"],
+  ["2019","新事業「DAY JUST HOUSE」始動／エス・バイ・エルから「フルコミホーム」へ名称変更"],
+  ["2020","国分ハウジング鹿屋店オープン"],
+  ["2021","新事業「2Lhome」始動／DAY JUST HOUSE鹿児島北店オープン"],
+  ["2022","新事業「なごみ工務店」始動／DAY JUST HOUSE都城店オープン（宮崎県初進出）／国分ハウジング薩摩川内店・都城店オープン"],
+  ["2023","国分ハウジング宮崎店・出水阿久根店・大分店オープン（大分県初進出）／DAY JUST HOUSE宮崎店オープン"],
+  ["2024","新事業「中古住宅専門店」始動／なごみ工務店姶良霧島店オープン／国分ハウジング延岡店オープン"],
+  ["2025","国分ハウジング八代店オープン（熊本県初進出）／加世田店オープン／新事業「JUSFY HOME」始動／熊本店・佐賀店オープン（佐賀県初進出）"]
+];
+var SHOPS = [
+  ["国分ハウジング 鹿児島店","鹿児島県鹿児島市宇宿 2-13-3"],
+  ["国分ハウジング 霧島店","鹿児島県霧島市国分中央 3-3-3"],
+  ["国分ハウジング 鹿屋店","鹿児島県鹿屋市札元 2-3662-3"],
+  ["国分ハウジング 薩摩川内店","鹿児島県薩摩川内市御陵下町 13-58"],
+  ["国分ハウジング 出水阿久根店","鹿児島県出水市緑町 13-18"],
+  ["国分ハウジング 加世田店","鹿児島県南さつま市加世田麓町 15-18"],
+  ["国分ハウジング 姶良店","鹿児島県姶良市脇元 491-1"],
+  ["国分ハウジング 宮崎店","宮崎県宮崎市南花ケ島町 326-7"],
+  ["国分ハウジング 延岡店","宮崎県延岡市出北 4-3201-1"],
+  ["国分ハウジング 都城店","宮崎県都城市太郎坊町 6083-1"],
+  ["国分ハウジング 八代店","熊本県八代市長田町 3225-1"],
+  ["国分ハウジング 大分店","大分県大分市花津留 1-1-3"],
+  ["国分ハウジング 熊本店","熊本県熊本市東区御領 2-28-16"],
+  ["国分ハウジング 佐賀店","佐賀県佐賀市栄町 2-8-304"],
+  ["なごみ工務店","鹿児島店／姶良霧島店／薩摩川内店"],
+  ["フルコミホーム","鹿児島店／霧島店"],
+  ["DAY JUST HOUSE","鹿児島北店／薩摩川内店／霧島店／都城店／宮崎店"],
+  ["JUSFY HOME","八代店／熊本店"],
+  ["2Lhome","鹿児島店（南日本ハウジングプラザ エコスクエアII内）"],
+  ["国分ハウジング不動産・かえるホーム","鹿児島店／宮崎店／大分店／熊本店"],
+  ["中古住宅専門店","鹿児島店（鹿児島市谷山中央 1-4132-2）"],
+  ["管理本部","鹿児島県鹿児島市武 1-2-10 JR鹿児島中央ビル AMU WE 10F"]
+];
+var SALES = [[2011,9.8],[2012,11.8],[2013,15.5],[2014,19.6],[2015,25.2],[2016,30.5],[2017,36.3],
+  [2018,40.2],[2019,56.7],[2020,70.6],[2021,84.2],[2022,85.1],[2023,120],[2024,148],[2025,220]];
+var FLOW = [
+  ["ご来店",0,"初回のご来場\n国分ハウジングのご説明\n性能構造説明"],
+  ["資金概算提案",7,"家づくり資金計画実施"],
+  ["モデルハウス",7,"リアルサイズのモデルハウスへご案内"],
+  ["事前審査提出",7,"事前審査を提出"],
+  ["土地案内・土地買付",14,"土地のご案内\n土地買付申込"],
+  ["プラン提案",14,"お見積り提出\n資金計画を固める\nプランのご提案"],
+  ["ローン事前審査承認",7,"事前審査の承認を受ける"],
+  ["ご契約",14,"建物のご契約\n土地のご契約"],
+  ["設計打ち合わせ・図面確定",25,"図面を確定させます"],
+  ["仕様打合せ・融資本申込み",7,"仕様打合せ、色決\n銀行に本申込みを提出"],
+  ["ローン本承認",21,"融資承認後、つなぎ融資の申込と土地決済を行う"],
+  ["仕様確定",31,"住宅設備／仕様を確定します"],
+  ["地鎮祭",7,"工事中の安全、工事後の家内安全を祈願します"],
+  ["着工",7,"地盤調査\n配筋"],
+  ["上棟",31,"上棟式もしくはお清め\n上棟検査"],
+  ["施主様検査",62,"完工・完了検査\n社内検査\n施主様立会い検査"],
+  ["お引渡し",10,"お引渡し式\n保証書お渡し"]
+];
+/* ── 九州一円 住宅ローン商品カタログ ──
+   出典: AIデジシキ_国分ハウジング.html 収録データ（各社公式・比較サイト 2026年8月時点）
+   type: 'v'=変動 / 'f'=固定・フラット35   feeMode: 'rate'(借入額×%) / 'fixed'(円) */
+var LN_ASOF_DEFAULT = "2026-08-20";
+var LN_SOURCE_DEFAULT = "各金融機関公式サイト・比較サイト（2026年8月時点）";
+var LOANS = [
+ {id:"kagin",g:"鹿児島",fi:"鹿児島銀行",pn:"かぎん住宅ローン プレミアム（変動）",type:"v",rate:1.600,asof:"2026/8",
+  fee:"借入額×2.2% or 定額55,000円",feeMode:"rate",feeVal:2.2,hosho:"0円（手数料型）",hoshoVal:0,
+  dan:"がん保障付団信 上乗せなし・3大疾病+0.1%",note:"2026年7月返済分から変動+0.25%改定済。10年固定3.10%",warn:"比較サイト値・最新は公式要確認",url:"https://www.kagin.co.jp/kojin/loan/102_301.html"},
+ {id:"nangin",g:"鹿児島",fi:"南日本銀行",pn:"なんぎん住宅ローン（変動）",type:"v",rate:1.300,asof:"2026/8",
+  fee:"要確認",feeMode:"fixed",feeVal:0,hosho:"別途あり",hoshoVal:0,
+  dan:"がん保証付団信無料・8大疾病+0.1%",note:"公式金利ボードの最優遇。店頭基準4.15%。10年固定2.55%",warn:"",url:"https://www.nangin.jp/"},
+ {id:"kasooshin",g:"鹿児島",fi:"鹿児島相互信用金庫",pn:"しんきん住宅ローン（変動）",type:"v",rate:1.100,asof:"2026/8",
+  fee:"窓口照会",feeMode:"fixed",feeVal:0,hosho:"別途あり",hoshoVal:0,
+  dan:"要確認",note:"公式（2026年8月1日現在）の引下げ後最優遇。10年固定3.00%（最大▲0.3%引下げあり）",warn:"",url:"https://www.kasooshin.co.jp/"},
+ {id:"kashin",g:"鹿児島",fi:"鹿児島信用金庫",pn:"かしん住宅ローン（全国保証付・変動）",type:"v",rate:1.300,asof:"2026/8",
+  fee:"窓口照会",feeMode:"fixed",feeVal:0,hosho:"別途あり",hoshoVal:0,
+  dan:"一般・がん団信 上乗せなし、3大疾病+0.1%",note:"公式は金利非公開（窓口照会）。表示は参考推定値。夫婦連生団信あり",warn:"金利は窓口で要確認",url:"https://www.kashin.co.jp/"},
+
+ {id:"miyagin",g:"九州の地銀",fi:"宮崎銀行",pn:"みやぎん住宅ローン「満額快答」プレミアム（変動）",type:"v",rate:0.975,asof:"2026/8",
+  fee:"融資手数料型（定率2.2%）／定額型1.600%",feeMode:"rate",feeVal:2.2,hosho:"0円（手数料型）",hoshoVal:0,
+  dan:"要確認",note:"公式（2026/8/3現在）。定率型1.410%・定額型1.600%",warn:"",url:"https://www.miyagin.co.jp/kojin/loan/housing/"},
+ {id:"taiyo",g:"九州の地銀",fi:"宮崎太陽銀行",pn:"住宅ローン（変動）",type:"v",rate:1.075,asof:"2026/7",
+  fee:"保証料 一括 or 金利+0.10〜0.40%",feeMode:"fixed",feeVal:0,hosho:"別途あり",hoshoVal:0,
+  dan:"がん・3大疾病・8大疾病タイプあり",note:"移住者応援で▲0.1%あり",warn:"最新値 要確認",url:"https://www.taiyobank.co.jp/individual/loan/housing/lineup/"},
+ {id:"higo",g:"九州の地銀",fi:"肥後銀行",pn:"住宅ローンプレミアムプラン（手数料定率型・変動）",type:"v",rate:1.125,asof:"2026/8",
+  fee:"借入額×2.2% or 定額55,000円",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"がん保障プラン無料付帯・3大疾病+0.30%",note:"10年固定3.50%（手数料定額型）",warn:"比較サイト値・最新は公式要確認",url:"https://www.higobank.co.jp/"},
+ {id:"kumamoto",g:"九州の地銀",fi:"熊本銀行",pn:"プレミアム住宅ローン（融資手数料型・変動）",type:"v",rate:1.275,asof:"2026/8",
+  fee:"借入額×2.2%（保証会社手数料5.5万円含む）",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"がん保障付団信無料（診断で残高0円）・8大疾病+0.1%",note:"FFG（福岡銀行・十八親和銀行）と同水準",warn:"",url:"https://www.kumamotobank.co.jp/"},
+ {id:"oita",g:"九州の地銀",fi:"大分銀行",pn:"夢ホーム100% プレミアム金利（変動）",type:"v",rate:1.145,asof:"2026/8",
+  fee:"要確認",feeMode:"fixed",feeVal:0,hosho:"要確認",hoshoVal:0,
+  dan:"要確認",note:"公式（2026/8/3現在）。特別金利1.300%・通常3.375%。10年固定プレミアム2.40%",warn:"",url:"https://www.oitabank.co.jp/"},
+ {id:"howa",g:"九州の地銀",fi:"豊和銀行",pn:"さわやかスーパー住宅ローン（変動）",type:"v",rate:1.200,asof:"2026/8",
+  fee:"93,500円（定額）",feeMode:"fixed",feeVal:93500,hosho:"一括 or 分割",hoshoVal:0,
+  dan:"基本団信 銀行負担・がん特約+0.1%",note:"一部繰上返済は22,000〜44,000円",warn:"参考値・最新は公式要確認",url:"https://www.howabank.co.jp/"},
+
+ {id:"fukuoka",g:"福岡・佐賀・長崎",fi:"福岡銀行",pn:"プレミアム住宅ローン（融資手数料型・変動）",type:"v",rate:1.275,asof:"2026/8",
+  fee:"借入額×2.2%（保証会社手数料5.5万円含む）",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信＋がん保障特約 無料・8大疾病+0.1%",note:"10年固定3.65%（保証料一括型）",warn:"",url:"https://www.fukuokabank.co.jp/"},
+ {id:"ncb",g:"福岡・佐賀・長崎",fi:"西日本シティ銀行",pn:"住宅ローン アドバンス プレミア（変動）",type:"v",rate:1.125,asof:"2026/8",
+  fee:"55,000円（定額）",feeMode:"fixed",feeVal:55000,hosho:"別途あり（分割は金利+0.2〜0.5%）",hoshoVal:0,
+  dan:"一般団信無料・11疾病保障+0.1%",note:"金利優遇割 最大適用・物件価格80%以内等の条件（〜1.625%）",warn:"",url:"https://www.ncbank.co.jp/"},
+ {id:"kitakyushu",g:"福岡・佐賀・長崎",fi:"北九州銀行",pn:"融資手数料型住宅ローン（変動）",type:"v",rate:1.020,asof:"2026/8",
+  fee:"55,000円（定額）",feeMode:"fixed",feeVal:55000,hosho:"年0.1〜0.6%",hoshoVal:0,
+  dan:"がん保障特約付 上乗せなし",note:"変動1.02〜1.15%（2026/8/1〜8/31適用）",warn:"",url:"https://www.kitakyushubank.co.jp/"},
+ {id:"fukuokachuo",g:"福岡・佐賀・長崎",fi:"福岡中央銀行",pn:"ふくちゅうプレミアム住宅ローン（変動）",type:"v",rate:0.775,asof:"2026/8",
+  fee:"借入額×2.2%（保証会社手数料5.5万円含む）",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信無料・8大疾病+0.1%",note:"子どもの人数に応じ最大▲0.2%等の割引あり",warn:"旧値の可能性・公式要確認",url:"https://www.fukuokachuo-bank.co.jp/"},
+ {id:"saga",g:"福岡・佐賀・長崎",fi:"佐賀銀行",pn:"住宅ローン 手数料型（変動）",type:"v",rate:1.000,asof:"2026/8",
+  fee:"融資時に手数料一括",feeMode:"fixed",feeVal:0,hosho:"0円（手数料型）",hoshoVal:0,
+  dan:"要確認",note:"公式（2026/8/1現在）。保証料型は1.05%〜。10年固定3.60%",warn:"",url:"https://www.sagabank.co.jp/"},
+ {id:"kyoei",g:"福岡・佐賀・長崎",fi:"佐賀共栄銀行",pn:"住宅ローン（変動）",type:"v",rate:1.382,asof:"2026/8",
+  fee:"要確認",feeMode:"fixed",feeVal:0,hosho:"別途あり",hoshoVal:0,
+  dan:"3大疾病保障特約付は+0.4%",note:"公式（2026/8/1現在）一般団信付の適用金利",warn:"",url:"https://www.kyogin.co.jp/"},
+ {id:"shinwa18",g:"福岡・佐賀・長崎",fi:"十八親和銀行",pn:"プレミアム住宅ローン（融資手数料型・変動）",type:"v",rate:1.275,asof:"2026/8",
+  fee:"借入額×2.2%（保証会社手数料5.5万円含む）",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信＋がん保障特約 無料・8大疾病+0.1%",note:"給振・アプリ登録等が優遇条件（2026/8/1〜8/31適用）",warn:"",url:"https://www.18shinwabank.co.jp/"},
+ {id:"nagasaki",g:"福岡・佐賀・長崎",fi:"長崎銀行",pn:"ながさき住宅ローン アドバンス プレミア（変動）",type:"v",rate:1.125,asof:"2026/8",
+  fee:"要確認",feeMode:"fixed",feeVal:0,hosho:"保証料込",hoshoVal:0,
+  dan:"要確認",note:"公式（2026/8/10現在）。一般住宅ローンの基準は変動3.775%",warn:"",url:"https://www.nagasakibank.co.jp/"},
+
+ {id:"rokin",g:"労金・JA",fi:"九州労働金庫",pn:"住宅ローン（不動産担保・変動）",type:"v",rate:0.625,asof:"2026/8",
+  fee:"定率型／定額型 選択制",feeMode:"fixed",feeVal:0,hosho:"金利+0.10〜0.20% or 一括前払い",hoshoVal:0,
+  dan:"要確認",note:"公式（2026/8/20現在）の最優遇。会員条件等で変動。10年固定1.65%＝九州最低水準クラス",warn:"",url:"https://kyusyu.rokin.or.jp/"},
+ {id:"ja_kagoshima",g:"労金・JA",fi:"JAバンク鹿児島",pn:"JA住宅ローン（変動）",type:"v",rate:1.300,asof:"2026/8",
+  fee:"JAにより異なる",feeMode:"fixed",feeVal:0,hosho:"JAにより異なる",hoshoVal:0,
+  dan:"3大疾病・9大疾病プランあり",note:"金利は所属JA（お住まい・お勤め先）で異なるため県域一律の公表なし。表示は参考推定値",warn:"金利は各JAで要確認",url:"https://www.kagoshima.ja-bank.jp/"},
+
+ {id:"docomo_smtb",g:"ネット銀行",fi:"ドコモSMTBネット銀行（旧住信SBI）",pn:"通期引下げプラン（変動）",type:"v",rate:1.200,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"スゴ団信（40歳未満 3大疾病50%無料）",note:"2026年8月に商号変更・8月実行分は+0.25%。環境配慮型 or 融資率80%以下",warn:"",url:"https://www.netbk.co.jp/"},
+ {id:"jibun",g:"ネット銀行",fi:"auじぶん銀行",pn:"全期間引下げプラン（変動）",type:"v",rate:1.134,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"がん50%保障団信 無料",note:"一般団信限定なら1.080%。au金利優遇割で最大▲0.15%",warn:"",url:"https://www.jibunbank.co.jp/"},
+ {id:"aeon",g:"ネット銀行",fi:"イオン銀行",pn:"定率型手数料コース（変動）",type:"v",rate:0.990,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信無料",note:"物件価格80%以内。九州各地のイオン店舗で相談可",warn:"",url:"https://www.aeonbank.co.jp/"},
+ {id:"sbi_shinsei",g:"ネット銀行",fi:"SBI新生銀行",pn:"変動フォーカス（変動）",type:"v",rate:1.060,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信無料",note:"SBIハイパー預金連携で▲0.09%優遇あり",warn:"",url:"https://www.sbishinseibank.co.jp/"},
+ {id:"paypay",g:"ネット銀行",fi:"PayPay銀行",pn:"全期間引下げ（変動）",type:"v",rate:1.330,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信無料＋がん先進医療特約",note:"ネット完結",warn:"",url:"https://www.paypay-bank.co.jp/"},
+ {id:"sony",g:"ネット銀行",fi:"ソニー銀行",pn:"変動セレクト住宅ローン（変動）",type:"v",rate:1.347,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"がん団信50 無料",note:"",warn:"",url:"https://moneykit.net/"},
+ {id:"rakuten",g:"ネット銀行",fi:"楽天銀行",pn:"金利選択型（変動）",type:"v",rate:1.543,asof:"2026/8",
+  fee:"330,000円（定額）",feeMode:"fixed",feeVal:330000,hosho:"0円",hoshoVal:0,
+  dan:"一般団信無料（がん50%保障付）",note:"手数料定額＝大型借入で有利。8月に+0.043%",warn:"",url:"https://www.rakuten-bank.co.jp/"},
+
+ {id:"mufg",g:"メガ・フラット35",fi:"三菱UFJ銀行",pn:"住宅ローン（変動・最優遇）",type:"v",rate:0.945,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信無料",note:"8月は据え置き。メガバンク最低水準。福岡・熊本・鹿児島に拠点",warn:"",url:"https://www.bk.mufg.jp/"},
+ {id:"resona",g:"メガ・フラット35",fi:"りそな銀行",pn:"住宅ローン（融資手数料型・変動）",type:"v",rate:0.950,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信無料（団信革命は上乗せ）",note:"",warn:"",url:"https://www.resonabank.co.jp/"},
+ {id:"mizuho",g:"メガ・フラット35",fi:"みずほ銀行",pn:"住宅ローン（ネット借入・変動）",type:"v",rate:1.025,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"別途あり",hoshoVal:0,
+  dan:"一般団信無料",note:"福岡・熊本・鹿児島に支店あり",warn:"",url:"https://www.mizuhobank.co.jp/"},
+ {id:"smbc",g:"メガ・フラット35",fi:"三井住友銀行",pn:"住宅ローン（WEB申込専用・変動）",type:"v",rate:1.275,asof:"2026/8",
+  fee:"借入額×2.2%",feeMode:"rate",feeVal:2.2,hosho:"0円",hoshoVal:0,
+  dan:"一般団信無料",note:"WEB申込は全国対応",warn:"",url:"https://www.smbc.co.jp/"},
+ {id:"flat35",g:"メガ・フラット35",fi:"フラット35（住宅金融支援機構）",pn:"フラット35 買取型（全期間固定）",type:"f",rate:3.290,asof:"2026/8",
+  fee:"借入額×1.1〜2.2%",feeMode:"rate",feeVal:1.1,hosho:"0円",hoshoVal:0,
+  dan:"新機構団信込みが標準",note:"21〜35年・融資率9割以下の最頻（前月比+0.15%）。子育てプラス＝子1人▲0.25%・2人▲0.50%・3人▲0.75%（当初5年）、若年夫婦▲0.25%、S等併用で最大▲1.0%。九州窓口＝各地銀・JA・ARUHI等",warn:"手数料は取扱金融機関で異なる",url:"https://www.flat35.com/"},
+ {id:"flat20",g:"メガ・フラット35",fi:"フラット20（住宅金融支援機構）",pn:"フラット20 買取型（15〜20年固定）",type:"f",rate:2.970,asof:"2026/8",
+  fee:"借入額×1.1〜2.2%",feeMode:"rate",feeVal:1.1,hosho:"0円",hoshoVal:0,
+  dan:"新機構団信込み",note:"返済期間20年以内の全期間固定",warn:"",url:"https://www.flat35.com/"}
+];
+// ⚠️ LNLS（localStorage の金利マスタ）は廃止した。loanMaster() のコメント参照
+function defaultLoans(){ return JSON.parse(JSON.stringify(LOANS)).map(function(p){ p.cmp=false; return p; }); }
+function loanMaster(){
+  // ⚠️⚠️ 以前は localStorage("khg_loans_v1") から金利マスタを読んでいた。
+  //   端末ごとに違う金利が残り、同じ顧客を別のPCで開くと数字が変わるため
+  //   読み込みをやめた。金利は
+  //     ・アプリ内蔵の LOANS（既定）
+  //     ・同梱の 金利データ.js / ln_feedUrl からのフィード
+  //     ・保存済みなら funding_plan.loans（その計画書を作った時点の値）
+  //   の順で決まる。
+  return null;
+}
+
+var GENDO = {
+  chouki:{kosodate:50000000, ippan:45000000, k:13},
+  zeh:   {kosodate:45000000, ippan:35000000, k:13},
+  shoene:{kosodate:40000000, ippan:30000000, k:13},
+  sonota:{kosodate:20000000, ippan:20000000, k:10}
+};
+
+/* ---------- 既定値 ---------- */
+function DEF(){
+  var t = new Date(), iso = t.toISOString().slice(0,10);
+  var _lm = loanMaster();
+  return {
+    id:"", k_name:"", k_kana:"", k_date:iso, k_shop:"", k_staff:"", k_addr:"", k_tel:"", k_mail:"", k_now:"",
+    k_h_name:"", k_h_birth:"", k_h_age:35, k_h_work:"", k_w_name:"", k_w_birth:"", k_w_age:33, k_w_work:"",
+    kids:[{name:"",age:3,plan:1}],
+    k_inc1:500, k_inc2:100, k_jiko:0, k_enjo:0, k_chochiku:200,
+    k_rent:70000, k_park:0, k_elec:18000, k_gas:12000, k_l1:0, k_l2:0, k_l3:0, k_lb:0,
+    k_trigger:[], k_trigger_etc:"", k_timing:1, k_area:"", k_style:"", k_tsubo:60, k_yuka:33,
+    k_hope:80000, k_landhave:"", k_makers:"", k_landwish:"", k_worry:"", k_youbou:"", k_memo:"",
+
+    d_tatemono:2348, d_futai:350, d_solarKw:4, d_shohi:200, d_tochi:1200, d_yobi:350,
+    d_bonus:0, d_years:35, d_rate:0.9, d_danshin:2000, d_kounetsuRate:60,
+
+    s_kenchikuchi:"", s_landM2:0, s_f1:0, s_f2:0, s_sekou:0, s_bikou:
+      "・家具家電費用、カーテン工事費用、引っ越し費用等は本件資金計画外です。\n"+
+      "・地盤改良工事は、改良有となった場合に、変更合意契約書or追加工事契約書にて実際にかかった経費をご負担頂きます。",
+    s1:[{i:"建物本体",a:0,t:1,p:"弊社",m:"見積書",n:"当初契約"},
+        {i:"一変追加",a:0,t:1,p:"弊社",m:"見積書",n:"一部変更契約時"},
+        {i:"追加工事",a:0,t:1,p:"弊社",m:"見積書",n:""}],
+    s2:[{i:"水道引込",a:0,t:1,p:"弊社",m:"見積書",n:""},
+        {i:"浄化槽",a:0,t:1,p:"弊社",m:"見積書",n:""},
+        {i:"地盤改良",a:0,t:1,p:"弊社",m:"予算",n:"改良無の場合、0円"}],
+    s3:[{i:"土地代金",a:0,t:0,p:"売主",m:"予算",n:"無税の為、税込欄は総額表示"},
+        {i:"仲介手数料",a:0,t:1,p:"仲介会社",m:"予算",n:""},
+        {i:"固定資産税",a:0,t:0,p:"売主",m:"予算",n:"日割精算"},
+        {i:"外構工事",a:0,t:1,p:"外構業者",m:"予算",n:"土地・外構プランによる"}],
+    s4:[{i:"印紙代",a:20000,t:0,p:"各自治体",m:"予算",n:"土地・建物"},
+        {i:"登記費用",a:404000,t:1,p:"司法書士",m:"予算",n:"所有権移転・表示・保存・設定"},
+        {i:"火災保険料",a:150000,t:1,p:"保険代理店",m:"予算",n:""},
+        {i:"地鎮祭・上棟式",a:55000,t:1,p:"その他",m:"予算",n:""}],
+    s5:[{i:"印紙税",a:20600,t:0,p:"金融機関",m:"予算",n:"手形等"},
+        {i:"融資手数料",a:55000,t:1,p:"金融機関",m:"予算",n:""},
+        {i:"ローン保証料",a:0,t:0,p:"金融機関",m:"予算",n:""},
+        {i:"つなぎ費用",a:300000,t:0,p:"金融機関",m:"予算",n:""}],
+    s_m_kari:0, s_m_bonus:0, s_m_years:35, s_m_rate:0.9, s_m_bank:"",
+    s_p_kari:0, s_p_bonus:0, s_p_years:35, s_p_rate:1.0, s_p_bank:"",
+
+    g_type:"zeh", g_setai:"kosodate", g_mode:"auto", g_income:0, g_fuyou:1, g_shotoku:0, g_juumin:0,
+
+    v_panelW:335, v_keisu:1150, v_houi:"南", v_koubai:4, v_baiden:15, v_kaiden:31, v_jika:30, v_tax:"1.1",
+    v_cost:1000000, v_years:35,
+    v_batUse:"0", v_batKwh:6.5, v_batCost:1500000, v_batHojo:0, v_batEff:85, v_batNight:20,
+
+    t_wait:3, t_upRate:2, t_futureRate:1.6, t_yRate:0.95, t_y1:35, t_y2:40, t_kidAge:3, t_addPay:30000,
+
+    x_auto:false, x_shokuhi:0, x_suido:0, x_water:0, x_tel:0, x_net:0, x_iryo:0, x_leisure:0,
+    x_shinbun:0, x_ifuku:0, x_nhk:0, x_e1n:"", x_e1:0, x_e2n:"", x_e2:0, x_e3n:"", x_e3:0,
+    x_h1:0,x_h2:0,x_h3:0,x_h4:0,x_h5:0,x_h6:0,x_h7:0,x_h8:0,x_h9n:"",x_h9:0,x_h10n:"",x_h10:0,
+    x_w1:0,x_w2:0,x_w3:0,x_w4:0,x_w5:0,x_w6:0,x_w7:0,x_w8:0,x_w9n:"",x_w9:0,x_w10n:"",x_w10:0,
+    x_c1:0, x_c2n:"", x_c2:0,
+    x_choSou:0, x_choTsuki:0, x_choBonus:0, x_incH:0, x_incW:0, x_incE:0,
+
+    bk_kari:0, bk_years:35, bk_incFee:"1",
+    bk_memo:"", bk_apply1:"", bk_apply2:"", bk_apply3:"",
+    ln_asof: (_lm && _lm.asof) ? _lm.asof : LN_ASOF_DEFAULT,
+    ln_source: (_lm && _lm.source) ? _lm.source : LN_SOURCE_DEFAULT,
+    ln_feedUrl: (_lm && _lm.feedUrl) ? _lm.feedUrl : "",
+    loans: (_lm && _lm.list) ? JSON.parse(JSON.stringify(_lm.list)) : defaultLoans(),
+
+    f_up:1.5, f_tedori:78, f_teinen:60, f_saikoyo:350, f_taishoku:1000, f_nenkin:240,
+    f_seikatsu:20, f_kotei:12, f_shuzen:6, f_hoken:18, f_carCycle:10, f_carCost:200, f_other:24,
+
+    w_start: iso, w_days: FLOW.map(function(f){return f[1];}), w_done: FLOW.map(function(){return false;})
+  };
+}
+var S = DEF();
+var OUT = {};
+var DIRTY = false;
+
+/* ---------- 人が編集した項目の記録 ----------
+ *
+ * ⚠️⚠️ **顧客台帳（master_data / family_info）への書き戻しに使う。**
+ *
+ *   保存時は S を丸ごと送るため、未入力の項目にも DEF()（既定値）が
+ *   入っている。サーバがそれを区別できないと、
+ *   「顧客を開いて保存しただけ」で d_years=35 のような既定値が
+ *   顧客台帳に書き込まれてしまう。
+ *
+ * ⚠️ 記録するのは onInput（人が入力欄を触ったとき）だけ。
+ *   setKeyVal() は「③デジシキの借入条件を取り込む」など
+ *   **プログラムからの代入**にも使われるので、そこには入れない。
+ *
+ * ⚠️ お子様は [data-k] ではなく setK/addRow/delKid 経由なので、
+ *   それぞれで "kids" として記録する。
+ *
+ * ⚠️ 保存が成功したら空にする。次の保存で同じ項目をもう一度
+ *   書き戻さないため（無害だが履歴が無駄に増える）。
+ */
+var TOUCHED = {};
+function touch(k){ if(k) TOUCHED[k] = 1; }
+
+function mark(d){ DIRTY=!!d; var b=$("#saveBtn"); if(b) b.textContent = d ? "💾 保存 *" : "💾 保存"; }
+
+/* ---------- ユーティリティ ---------- */
+function $(s,r){return (r||document).querySelector(s);}
+function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
+function n(k){var v=parseFloat(S[k]);return isFinite(v)?v:0;}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function pmt(r,np,pv){ if(np<=0)return 0; return r ? pv*r/(1-Math.pow(1+r,-np)) : pv/np; }
+function pv(r,np,pay){ if(np<=0)return 0; return r ? pay*(1-Math.pow(1+r,-np))/r : pay*np; }
+function bal(pvv,r,np,k){ if(k<=0)return pvv; var p=pmt(r,np,pvv); if(!r)return Math.max(0,pvv-p*k);
+  var f=Math.pow(1+r,k); return Math.max(0, pvv*f - p*(f-1)/r); }
+function addDays(d,x){var t=new Date(d.getTime()); t.setDate(t.getDate()+x); return t;}
+function fmtDate(d){ if(!d||isNaN(d))return "－";
+  var w=["日","月","火","水","木","金","土"][d.getDay()];
+  return d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日("+w+")"; }
+function ageFrom(bd){ if(!bd)return null; var b=new Date(bd); if(isNaN(b))return null;
+  var t=new Date(), a=t.getFullYear()-b.getFullYear();
+  var m=t.getMonth()-b.getMonth(); if(m<0||(m===0&&t.getDate()<b.getDate()))a--; return a; }
+function cm(x){ return (Math.round(x)||0).toLocaleString("ja-JP"); }
+function fmt(v,f){
+  if(v===null||v===undefined||(typeof v==="number"&&!isFinite(v))) return "－";
+  switch(f){
+    case "y": return cm(v);
+    case "ys": return (v>0?"+":v<0?"−":"")+cm(Math.abs(v));
+    case "m0": return cm(v);
+    case "m1": return (Math.round(v*10)/10).toLocaleString("ja-JP",{minimumFractionDigits:1,maximumFractionDigits:1});
+    case "ms": return (v>0?"":v<0?"−":"")+cm(Math.abs(v));
+    case "n0": return cm(v);
+    case "n1": return (Math.round(v*10)/10).toLocaleString("ja-JP");
+    case "n2": return (Math.round(v*100)/100).toLocaleString("ja-JP");
+    case "p0": return String(Math.round(v));
+    case "p1": return (Math.round(v*10)/10).toFixed(1);
+    case "p3": return (Math.round(v*1000)/1000).toFixed(3).replace(/0+$/,"").replace(/\.$/,"");
+    default: return String(v);
+  }
+}
+function toast(m){var t=$("#toast");t.textContent=m;t.classList.add("on");
+  clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("on");},1900);}
+
+/* ---------- 静的コンテンツ描画 ---------- */
+function renderStatic(){
+  $("#tabs").innerHTML = TABS.map(function(t,i){
+    return '<div class="tab'+(i===0?" on":"")+'" data-p="'+(i+1)+'" onclick="go('+(i+1)+')"><span class="n">'+t[0]+'</span>'+t[1]+'</div>';
+  }).join("");
+  $("#p1").classList.add("on");
+
+  $("#chkTrigger").innerHTML = TRIGGERS.map(function(t,i){
+    return '<label><input type="checkbox" data-trg="'+esc(t)+'"> '+esc(t)+'</label>';
+  }).join("");
+  $$("#chkTrigger input").forEach(function(c){
+    c.addEventListener("change",function(){
+      var v=this.dataset.trg, a=S.k_trigger||[];
+      if(this.checked){ if(a.indexOf(v)<0)a.push(v); } else { a=a.filter(function(x){return x!==v;}); }
+      S.k_trigger=a; calc();
+    });
+  });
+
+  $("#tlHistory").innerHTML = HISTORY.map(function(h){
+    return '<div class="tli"><div class="y">'+h[0]+'</div><div class="t">'+esc(h[1])+'</div></div>';
+  }).join("");
+  $("#tblShops").querySelector("tbody").innerHTML = SHOPS.map(function(s){
+    return "<tr><td>"+esc(s[0])+"</td><td>"+esc(s[1])+"</td></tr>";
+  }).join("");
+  var mx = 220;
+  $("#barSales").innerHTML = SALES.map(function(s){
+    return '<div class="b'+(s[0]>=2025?" hl":"")+'" style="height:'+Math.max(3,s[1]/mx*100)+'%">'+
+      '<span>'+s[1]+'</span><i>'+String(s[0]).slice(2)+'</i></div>';
+  }).join("");
+
+  $("#printChk").innerHTML = TABS.map(function(t,i){
+    return '<label><input type="checkbox" data-pr="'+(i+1)+'" checked> '+t[0]+t[1]+'</label>';
+  }).join("");
+}
+
+/* ---------- 明細テーブル ---------- */
+function selOpts(list,cur){return list.map(function(o){
+  return '<option'+(o===cur?" selected":"")+'>'+esc(o)+'</option>';}).join("");}
+
+function renderDetail(key){
+  var tb = $("#tbl"+key.toUpperCase()).querySelector("tbody"), rows = S[key]||[];
+  tb.innerHTML = rows.map(function(r,i){
+    var ex = r.t ? Math.round((r.a||0)/1.1) : (r.a||0);
+    return "<tr>"+
+      '<td><input type="text" value="'+esc(r.i)+'" oninput="setD(\''+key+'\','+i+',\'i\',this.value)"></td>'+
+      '<td class="num"><input type="number" value="'+(r.a||0)+'" oninput="setD(\''+key+'\','+i+',\'a\',this.value)" style="width:100%"></td>'+
+      '<td class="num">'+cm(ex)+'</td>'+
+      '<td class="ctr"><input type="checkbox" '+(r.t?"checked":"")+' onchange="setD(\''+key+'\','+i+',\'t\',this.checked?1:0)"></td>'+
+      '<td><select onchange="setD(\''+key+'\','+i+',\'p\',this.value)">'+selOpts(PAYEE,r.p)+'</select></td>'+
+      '<td><select onchange="setD(\''+key+'\','+i+',\'m\',this.value)">'+selOpts(METHOD,r.m)+'</select></td>'+
+      '<td><input type="text" value="'+esc(r.n)+'" oninput="setD(\''+key+'\','+i+',\'n\',this.value)"></td>'+
+      '<td class="ctr noprint"><button class="xbtn" onclick="delRow(\''+key+'\','+i+')">×</button></td>'+
+    "</tr>";
+  }).join("");
+}
+function setD(key,i,f,v){ S[key][i][f] = (f==="a")?(parseFloat(v)||0):v;
+  if(f==="a"||f==="t"){ renderDetail(key); } mark(true); calc(); }
+function delRow(key,i){ S[key].splice(i,1); mark(true); renderDetail(key); calc(); }
+function addRow(key){
+  if(key==="kids"){ S.kids.push({name:"",age:0,plan:1}); touch("kids"); renderKids(); }
+  else { S[key].push({i:"",a:0,t:1,p:"",m:"",n:""}); renderDetail(key); }
+  mark(true); calc();
+}
+function renderKids(){
+  $("#tblKids").querySelector("tbody").innerHTML = (S.kids||[]).map(function(k,i){
+    return "<tr>"+
+      '<td><input type="text" value="'+esc(k.name)+'" oninput="setK('+i+',\'name\',this.value)"></td>'+
+      '<td class="num"><input type="number" value="'+(k.age||0)+'" oninput="setK('+i+',\'age\',this.value)" style="width:80px"> 歳</td>'+
+      '<td><select onchange="setK('+i+',\'plan\',this.value)">'+EDU.map(function(e,j){
+          return '<option value="'+j+'"'+(j==k.plan?" selected":"")+'>'+esc(e.n)+'</option>';}).join("")+'</select></td>'+
+      '<td class="ctr noprint"><button class="xbtn" onclick="delKid('+i+')">×</button></td></tr>';
+  }).join("");
+}
+// ⚠️ お子様は [data-k] ではないので onInput を通らない。ここで記録する。
+//   氏名（f==="name"）だけが family_info へ書き戻される（age は派生値）。
+function setK(i,f,v){ S.kids[i][f] = (f==="age"||f==="plan")?(parseFloat(v)||0):v; touch("kids"); mark(true); calc(); }
+// ⚠️ 計画書から消しても family_info の行は消さない（サーバ側の仕様）
+function delKid(i){ S.kids.splice(i,1); touch("kids"); mark(true); renderKids(); calc(); }
+
+function autoChukai(){
+  var land=0; (S.s3||[]).forEach(function(r){ if(/土地代金/.test(r.i)) land+=r.a||0; });
+  var f=(S.s3||[]).filter(function(r){return /仲介手数料/.test(r.i);})[0];
+  var val = Math.round((land*0.03+60000)*1.1);
+  if(f){ f.a=val; } else { S.s3.push({i:"仲介手数料",a:val,t:1,p:"仲介会社",m:"予算",n:""}); }
+  renderDetail("s3"); mark(true); calc(); toast("仲介手数料を "+cm(val)+" 円で計算しました");
+}
+
+/* ---------- 家づくりの流れ ---------- */
+function flowDates(){
+  var st = new Date(S.w_start||new Date()); if(isNaN(st)) st = new Date();
+  var d = new Date(st.getTime()), out=[];
+  for(var i=0;i<FLOW.length;i++){
+    var off = parseFloat((S.w_days||[])[i]); if(!isFinite(off)) off = FLOW[i][1];
+    d = addDays(d, i===0?0:off);
+    out.push(new Date(d.getTime()));
+  }
+  return out;
+}
+function renderFlow(){
+  var ds = flowDates();
+  $("#tblFlow").querySelector("tbody").innerHTML = FLOW.map(function(f,i){
+    var ph = i<7?1:(i<12?2:3);
+    return "<tr>"+
+      '<td class="ctr"><b style="color:var(--navy)">'+(i+1)+'</b></td>'+
+      "<td><b>"+esc(f[0])+"</b></td>"+
+      '<td class="num">'+(i===0?"起点":'<input type="number" value="'+((S.w_days||[])[i]||f[1])+'" oninput="setFlowDay('+i+',this.value)" style="width:56px">')+'</td>'+
+      '<td class="ctr">'+fmtDate(ds[i]).replace(/^\d+年/,"")+"</td>"+
+      '<td style="white-space:pre-line;font-size:11.5px">'+esc(f[2])+"</td>"+
+      '<td class="ctr"><input type="checkbox" '+((S.w_done||[])[i]?"checked":"")+' onchange="setFlowDone('+i+',this.checked)"></td>'+
+    "</tr>";
+  }).join("");
+  $("#stepGrid").innerHTML = FLOW.map(function(f,i){
+    var ph = i<7?"":(i<12?" ph2":" ph3");
+    return '<div class="step'+ph+'"><span class="sn">STEP '+(i+1)+'</span>'+
+      '<div class="st">'+esc(f[0])+((S.w_done||[])[i]?' <span class="pill g">完了</span>':"")+"</div>"+
+      '<div class="sd">'+esc(f[2])+"</div>"+
+      '<div class="sdate">'+fmtDate(ds[i])+"</div></div>";
+  }).join("");
+}
+function setFlowDay(i,v){ S.w_days[i]=parseFloat(v)||0; mark(true); renderFlow(); calc(); }
+function setFlowDone(i,v){ S.w_done[i]=!!v; mark(true); renderFlow(); }
+
+/* ---------- バインド ---------- */
+function bindInputs(){
+  $$("[data-k]").forEach(function(el){
+    el.addEventListener("input", onInput);
+    el.addEventListener("change", onInput);
+  });
+}
+function setKeyVal(k,v,skip){
+  S[k]=v;
+  $$('[data-k="'+k+'"]').forEach(function(el){
+    if(el===skip) return;
+    if(el.type==="checkbox") el.checked=!!v; else el.value=(v===undefined||v===null)?"":v;
+  });
+}
+function onInput(e){
+  var el=e.target, k=el.dataset.k;
+  setKeyVal(k, (el.type==="checkbox") ? el.checked : el.value, el);
+  // ⚠️ ここが「人が編集した」唯一の経路。TOUCHED の説明は宣言箇所を参照
+  touch(k);
+  mark(true); calc();
+}
+function fillInputs(){
+  $$("[data-k]").forEach(function(el){
+    var v=S[el.dataset.k];
+    if(el.type==="checkbox") el.checked=!!v; else el.value = (v===undefined||v===null)?"":v;
+  });
+  $$("#chkTrigger input").forEach(function(c){
+    c.checked = (S.k_trigger||[]).indexOf(c.dataset.trg)>=0;
+  });
+}
+function paint(){
+  $$("[data-o]").forEach(function(el){
+    var k=el.dataset.o, f=el.dataset.fmt, v=OUT[k];
+    if(v===undefined) return;
+    var txt = f ? fmt(v,f) : String(v);
+    if(el.tagName==="INPUT"){ el.value = txt; return; }
+    if(el._sm===undefined){ var sm=el.querySelector("small"); el._sm = sm?sm.outerHTML:""; }
+    el.innerHTML = txt + el._sm;
+  });
+}
+function setMsg(id,cls,html){ var e=$("#"+id); if(e) e.innerHTML = html?('<div class="msg '+cls+'">'+html+"</div>"):""; }
+
+/* ---------- 税額概算 ---------- */
+function estimateTax(manIncome, fuyou){
+  var sy = manIncome*10000, kk;
+  if(sy<=1625000) kk=550000;
+  else if(sy<=1800000) kk=sy*0.4-100000;
+  else if(sy<=3600000) kk=sy*0.3+80000;
+  else if(sy<=6600000) kk=sy*0.2+440000;
+  else if(sy<=8500000) kk=sy*0.1+1100000;
+  else kk=1950000;
+  var sha = sy*0.145;
+  var ks = Math.max(0, Math.floor((sy-kk-sha-480000-380000*fuyou)/1000)*1000);
+  var it;
+  if(ks<=1950000) it=ks*0.05;
+  else if(ks<=3300000) it=ks*0.10-97500;
+  else if(ks<=6950000) it=ks*0.20-427500;
+  else if(ks<=9000000) it=ks*0.23-636000;
+  else if(ks<=18000000) it=ks*0.33-1536000;
+  else it=ks*0.40-2796000;
+  it = Math.max(0, Math.floor(it*1.021));
+  var jk = Math.max(0, sy-kk-sha-430000-330000*fuyou);
+  var jz = Math.max(0, Math.floor(jk*0.10)-2500);
+  return {shotoku:it, juumin:jz, kazei:ks};
+}
+
+/* ---------- 教育費 ---------- */
+function eduCost(age, planIdx){
+  var v = (EDU[planIdx]||EDU[0]).v;
+  if(age>=3&&age<=5) return v[0];
+  if(age>=6&&age<=11) return v[1];
+  if(age>=12&&age<=14) return v[2];
+  if(age>=15&&age<=17) return v[3];
+  if(age===18) return v[4];
+  if(age>=19&&age<=21) return v[5];
+  return 0;
+}
+
+/* ---------- メイン計算 ---------- */
+function calc(){
+  var O={};
+
+  /* --- ① カルテ --- */
+  var a1=ageFrom(S.k_h_birth); if(a1!==null) setKeyVal("k_h_age",a1);
+  var a2=ageFrom(S.k_w_birth); if(a2!==null) setKeyVal("k_w_age",a2);
+  var inc1=n("k_inc1"), inc2=n("k_inc2"), incT=inc1+inc2;
+  var otherLoan = n("k_l1")+n("k_l2")+n("k_l3")+n("k_lb")*2/12;
+  var kounetsuNow = n("k_elec")+n("k_gas");
+  var nowTotal = n("k_rent")+n("k_park")+kounetsuNow+otherLoan;
+  O.o_incTotal=incT; O.o_incTotal2=incT; O.o_inc1=inc1; O.o_inc2=inc2;
+  O.o_otherLoan=otherLoan; O.o_otherLoan2=otherLoan;
+  O.o_nowTotal=nowTotal; O.o_nowTotal2=nowTotal; O.o_nowTotal3=nowTotal;
+  O.o_incTotal3=incT; O.o_otherLoan3=otherLoan;
+  O.o_rent=n("k_rent"); O.o_park=n("k_park"); O.o_gas=n("k_gas"); O.o_elec=n("k_elec");
+  var nm = (S.k_name||"").trim();
+  var phn = (nm?nm+" 様邸":"（お客様名未入力）")+"　作成日 "+(S.k_date||"")+(S.k_staff?"　担当 "+S.k_staff:"");
+  for(var i=1;i<=10;i++) O["ph_name"+(i===1?"":i)] = phn;
+  O.o_wName = nm||"〇〇";
+
+  /* --- ⑥ 太陽光（マスター） --- */
+  var kw=n("d_solarKw"), panelW=n("v_panelW")||335, keisu=n("v_keisu")||1150;
+  var panelN = panelW>0 ? kw*1000/panelW : 0;
+  var hatsuden = kw*keisu;
+  var jikaR = n("v_jika")/100;
+  var jikaKwh = hatsuden*jikaR, baidenKwh = hatsuden*(1-jikaR);
+  var taxM = parseFloat(S.v_tax)||1;
+  var baidenYear = baidenKwh*n("v_baiden")*taxM;
+  var jikaYear = jikaKwh*n("v_kaiden");
+  var meritYear = baidenYear+jikaYear;
+  O.o_vKw=kw; O.o_vPanelN=Math.round(panelN); O.o_vHatsuden=hatsuden;
+  O.o_vJikaKwh=jikaKwh; O.o_vBaidenKwh=baidenKwh;
+  O.o_vBaiden2=n("v_baiden"); O.o_vKaiden2=n("v_kaiden"); O.o_vSagaku=n("v_kaiden")-n("v_baiden");
+  O.o_vBaidenYear=baidenYear; O.o_vBaidenMonth=baidenYear/12;
+  O.o_vJikaYear=jikaYear; O.o_vJikaMonth=jikaYear/12;
+  O.o_vMeritYear=meritYear; O.o_vMeritMonth=meritYear/12;
+  O.o_vKounetsu=kounetsuNow;
+  var vCost=n("v_cost"), vY=n("v_years")||35;
+  var vMonthCost = vY>0 ? vCost/(vY*12) : 0;
+  O.o_vMonthCost=vMonthCost;
+  O.o_vNetMerit = meritYear/12 - vMonthCost;
+  O.o_vMerit10 = meritYear*10;
+  O.o_vKaishu = meritYear>0 ? vCost/meritYear : null;
+  setMsg("msgSolar", O.o_vNetMerit>=0?"g":"w",
+    kw<=0 ? "" :
+    (O.o_vNetMerit>=0
+      ? "月々の本体代を差し引いても <b>"+cm(O.o_vNetMerit)+" 円／月</b> お得になります。（売電 "+cm(baidenYear/12)+" 円＋電気代削減 "+cm(jikaYear/12)+" 円 − 本体代 "+cm(vMonthCost)+" 円）"
+      : "現在の条件では月々 <b>"+cm(Math.abs(O.o_vNetMerit))+" 円</b> の持ち出しとなります。容量・費用・自家消費率をご確認ください。"));
+
+  /* 蓄電池 */
+  var batOn = S.v_batUse==="1";
+  var batKwhY = batOn ? n("v_batKwh")*(n("v_batEff")/100)*365 : 0;
+  var batYear = batOn ? batKwhY*Math.max(0, n("v_kaiden")-n("v_batNight")) : 0;
+  O.o_vBatKwhY=batKwhY; O.o_vBatYear=batYear; O.o_vBatMonth=batYear/12;
+  O.o_vBatNet = batOn ? Math.max(0, n("v_batCost")-n("v_batHojo")) : 0;
+  O.o_vAllYear = meritYear+batYear; O.o_vAllMonth=(meritYear+batYear)/12;
+  O.o_vAll10 = (meritYear+batYear)*10;
+  O.o_vAllCost = vCost + O.o_vBatNet;
+
+  /* --- ③ デジシキ --- */
+  var solarCost = kw*23.6318;
+  var tateT = n("d_tatemono")+n("d_futai")+solarCost;
+  var grand = tateT+n("d_shohi")+n("d_tochi")+n("d_yobi");
+  var jikoAll = n("k_jiko")+n("k_enjo");
+  var rate = n("d_rate")/100, years=n("d_years")||35;
+  var bonusTotal = pv(rate/2, years*2, n("d_bonus"));
+  var kari = Math.max(0, grand-jikoAll-bonusTotal);
+  var monthly = Math.floor(pmt(rate/12, years*12, kari*10000));
+  var annualPay = (monthly*12)/10000 + (otherLoan*12)/10000 + n("d_bonus")*2;
+  var ratio = incT>0 ? annualPay/incT*100 : 0;
+  var std = incT>=400?35:30;
+  O.o_solarCost=solarCost; O.o_tatemonoTotal=tateT; O.o_grandTotal=grand;
+  O.o_jikoAll=jikoAll; O.o_jikoAll2=jikoAll; O.o_bonusTotal=bonusTotal; O.o_shakuiri=kari;
+  O.o_monthly=monthly; O.o_monthly2=monthly; O.o_monthlyBonus=monthly+n("d_bonus")*10000;
+  O.o_annualPay=annualPay; O.o_hensaiRatio=ratio; O.o_hensaiStd=std;
+  O.o_hopeM=n("k_hope"); O.o_hopeKari = pv(rate/12, years*12, n("k_hope"))/10000;
+  O.o_yukaEcho=n("k_yuka");
+  O.o_tsuboTanka = n("k_yuka")>0 ? Math.round(n("d_tatemono")/n("k_yuka")*10)/10 : "－";
+  setMsg("msgHensai", ratio<=std?"g":"w",
+    incT<=0 ? "①お客様カルテに年収をご入力ください。" :
+    (ratio<=std
+      ? "返済比率は <b>"+ratio.toFixed(1)+"％</b>。基準の "+std+"％以内におさまっており、審査の土台に乗ります。"
+      : "返済比率が <b>"+ratio.toFixed(1)+"％</b> と基準の "+std+"％を超えています。借入額・期間・自己資金の見直しをご検討ください。"));
+
+  O.o_panelW=panelW; O.o_panelN=Math.round(panelN); O.o_solarKwEcho=kw;
+  O.o_baidenKwh=baidenKwh; O.o_baidenTankaE=n("v_baiden");
+  O.o_baidenYear=baidenYear; O.o_baidenMonth=baidenYear/12; O.o_baidenMonth2=baidenYear/12;
+
+  var kounetsuNew = kounetsuNow*(n("d_kounetsuRate")/100);
+  var kounetsuCut = kounetsuNow-kounetsuNew;
+  O.o_kounetsuNow=kounetsuNow; O.o_kounetsuNew=kounetsuNew;
+  O.o_kounetsuCut=kounetsuCut; O.o_kounetsuCut2=kounetsuCut;
+
+  /* --- ⑤ ローン控除（③の借入で計算） --- */
+  var gt = GENDO[S.g_type]||GENDO.zeh;
+  var gendo = gt[S.g_setai==="kosodate"?"kosodate":"ippan"], gk = gt.k;
+  var gIncome = n("g_income")||inc1;
+  var est = estimateTax(gIncome, n("g_fuyou"));
+  if(S.g_mode==="auto"){
+    setKeyVal("g_shotoku",est.shotoku); setKeyVal("g_juumin",est.juumin);
+  }
+  var juuminMax = Math.min(97500, Math.floor(est.kazei*0.05));
+  var zeiMax = n("g_shotoku") + Math.min(n("g_juumin"), juuminMax);
+  O.o_gGendo=gendo; O.o_gKikan=gk; O.o_gKari=kari*10000; O.o_gRate=n("d_rate"); O.o_gYears=years;
+  O.o_gJuuminMax=juuminMax; O.o_gZeiMax=zeiMax;
+
+  var gRows=[], gSum=0, pvv=kari*10000, r12=rate/12, np=years*12;
+  for(var y=1;y<=gk;y++){
+    var b = bal(pvv, r12, np, Math.min(y*12,np));
+    var ta = Math.min(b, gendo);
+    var ko = Math.floor(ta*0.007);
+    var ac = Math.min(ko, zeiMax);
+    gSum += ac;
+    gRows.push([y,b,ta,ko,zeiMax,ac,gSum]);
+  }
+  O.o_gTotal=gSum; O.o_gAvgYear=gk?gSum/gk:0; O.o_gAvgMonth=gk?gSum/gk/12:0;
+  O.o_gFirst=gRows.length?gRows[0][5]:0;
+  var gtb=$("#tblGenzei").querySelector("tbody");
+  gtb.innerHTML = gRows.map(function(g){
+    return '<tr><td class="ctr">'+g[0]+'年目</td><td class="num">'+cm(g[1])+'</td><td class="num">'+cm(g[2])+
+      '</td><td class="num">'+cm(g[3])+'</td><td class="num">'+cm(g[4])+
+      '</td><td class="num" style="font-weight:800;color:var(--navy)">'+cm(g[5])+'</td><td class="num">'+cm(g[6])+"</td></tr>";
+  }).join("");
+
+  var genzeiM = O.o_gAvgMonth;
+  var genkaku = genzeiM + n("d_danshin");
+  O.o_genzeiM=genzeiM; O.o_genkakuTotal=genkaku; O.o_genkakuTotal2=genkaku;
+  var jisshitsu = monthly - genkaku - kounetsuCut - baidenYear/12;
+  O.o_jisshitsu=jisshitsu; O.o_jisshitsu2=jisshitsu;
+  var sagaku = jisshitsu - nowTotal;
+  O.o_sagaku=sagaku;
+  O.o_sagakuNote = sagaku<=0 ? "今よりお得になります" : "今より負担が増えます";
+  setMsg("msgSagaku", sagaku<=0?"g":"w",
+    nowTotal<=0 ? "①お客様カルテに現在の家賃・光熱費をご入力ください。" :
+    (sagaku<=0
+      ? "現在のお支払い <b>"+cm(nowTotal)+" 円</b> に対し、実質の月々ローン負担額は <b>"+cm(jisshitsu)+" 円</b>。<b>毎月 "+cm(Math.abs(sagaku))+" 円お得</b>にマイホームが手に入ります。"
+      : "現在のお支払いより <b>"+cm(sagaku)+" 円／月</b> 増えます。ご予算・仕様の調整をご相談ください。"));
+
+  /* --- ④ 概算資金計画書 --- */
+  function sum(key){ var si=0,se=0,jiban=0;
+    (S[key]||[]).forEach(function(r){ var a=r.a||0; si+=a; se += r.t?Math.round(a/1.1):a;
+      if(/地盤改良/.test(r.i)) jiban+=a; });
+    return {in:si, ex:se, jiban:jiban}; }
+  var S1=sum("s1"),S2=sum("s2"),S3=sum("s3"),S4=sum("s4"),S5=sum("s5");
+  O.o_s1in=S1.in;O.o_s1ex=S1.ex;O.o_s2in=S2.in;O.o_s2ex=S2.ex;O.o_s3in=S3.in;O.o_s3ex=S3.ex;
+  O.o_s4in=S4.in;O.o_s4ex=S4.ex;O.o_s5in=S5.in;O.o_s5ex=S5.ex;
+  O.o_ukeoi = S1.in+S2.in-S2.jiban;
+  var sokei = S1.in+S2.in+S3.in+S4.in+S5.in;
+  O.o_sokei=sokei;
+  var landTsubo=n("s_landM2")*0.3025, fT=n("s_f1")+n("s_f2");
+  O.o_landTsubo=landTsubo; O.o_fTotal=fT; O.o_fTotalTsubo=fT*0.3025; O.o_sekouTsubo=n("s_sekou")*0.3025;
+
+  var mKari=n("s_m_kari"), mBon=Math.min(n("s_m_bonus"),mKari), mY=n("s_m_years")||35, mR=n("s_m_rate")/100;
+  var pKari=n("s_p_kari"), pBon=Math.min(n("s_p_bonus"),pKari), pY=n("s_p_years")||35, pR=n("s_p_rate")/100;
+  var mMon=Math.floor(pmt(mR/12,mY*12,mKari-mBon)), mBonP=Math.floor(pmt(mR/2,mY*2,mBon));
+  var pMon=Math.floor(pmt(pR/12,pY*12,pKari-pBon)), pBonP=Math.floor(pmt(pR/2,pY*2,pBon));
+  O.o_sm_monthly=mMon;O.o_sm_bonusPay=mBonP;O.o_sp_monthly=pMon;O.o_sp_bonusPay=pBonP;
+  var kariTot=mKari+pKari;
+  O.o_kariTotal=kariTot;O.o_kariTotal2=kariTot;O.o_bonusTotal2=mBon+pBon;
+  O.o_sTotalMonthly=mMon+pMon;O.o_sTotalMonthly2=mMon+pMon;O.o_sTotalBonus=mBonP+pBonP;
+  O.o_sSoHensai = (mMon+pMon)*Math.max(mY,pY)*12 + (mBonP+pBonP)*Math.max(mY,pY)*2;
+  var sJiko = sokei-kariTot;
+  O.o_sJiko=sJiko;
+  setMsg("msgJiko", sJiko>=0?"i":"w",
+    sokei<=0 ? "" :
+    (sJiko>=0
+      ? "総額 "+cm(sokei)+" 円に対しお借入 "+cm(kariTot)+" 円。<b>ご自己資金は "+cm(sJiko)+" 円</b>必要です。"
+      : "お借入額が総額を <b>"+cm(Math.abs(sJiko))+" 円</b> 上回っています。お借入金額をご確認ください。"));
+  O.o_sTanka=n("v_baiden");O.o_sKw=kw;O.o_sHatsuden=hatsuden;
+  O.o_sBaidenYear=baidenYear;O.o_sSolarMonth=baidenYear/12;O.o_sSolarMonth2=baidenYear/12;
+  O.o_sJisshitsu = (mMon+pMon) - baidenYear/12;
+
+  /* --- ⑦ 建て時比較 --- */
+  var wait=n("t_wait"), up=n("t_upRate")/100;
+  var costNow=grand*10000, costLater=costNow*Math.pow(1+up,wait);
+  var rNow=n("d_rate"), rLater=n("t_futureRate");
+  var kariNow=kari*10000, kariLater=Math.max(0, costLater-jikoAll*10000-bonusTotal*10000);
+  var monNow=Math.floor(pmt(rNow/100/12, years*12, kariNow));
+  var monLater=Math.floor(pmt(rLater/100/12, years*12, kariLater));
+  var bonusPayY = n("d_bonus")*10000*2*years;
+  var sumNow=monNow*years*12+bonusPayY, sumLater=monLater*years*12+bonusPayY;
+  var rentLoss=(n("k_rent")+n("k_park"))*12*wait;
+  var age=n("k_h_age");
+  O.o_tWaitEcho=wait;O.o_tWaitEcho2=wait;O.o_tRent=n("k_rent")+n("k_park");O.o_tNowRate=rNow;O.o_tAge=age;
+  O.o_tCostNow=costNow;O.o_tCostLater=costLater;O.o_tCostDiff=costLater-costNow;
+  O.o_tRateNow=rNow;O.o_tRateLater=rLater;O.o_tRateDiff=rLater-rNow;
+  O.o_tKariNow=kariNow;O.o_tKariLater=kariLater;O.o_tKariDiff=kariLater-kariNow;
+  O.o_tMonNow=monNow;O.o_tMonLater=monLater;O.o_tMonDiff=monLater-monNow;
+  O.o_tSumNow=sumNow;O.o_tSumLater=sumLater;O.o_tSumDiff=sumLater-sumNow;
+  O.o_tRentLoss=rentLoss;O.o_tRentLoss2=rentLoss;
+  O.o_tEndAgeNow=age+years;O.o_tEndAgeLater=age+wait+years;O.o_tEndAgeDiff=wait;
+  O.o_tLifeNow=sumNow;O.o_tLifeLater=sumLater+rentLoss;O.o_tLifeDiff=(sumLater+rentLoss)-sumNow;
+  setMsg("msgTate", O.o_tLifeDiff>0?"w":"i",
+    wait<=0 ? "比較する年数をご入力ください。" :
+    (O.o_tLifeDiff>0
+      ? wait+"年お待ちになると、生涯の住居費が <b>"+cm(O.o_tLifeDiff)+" 円</b> 多くかかる試算です。内訳は 建築費の上昇 "+cm(O.o_tCostDiff)+" 円、待機中の家賃 "+cm(rentLoss)+" 円、金利上昇による返済増 "+cm(O.o_tSumDiff-O.o_tCostDiff)+" 円。完済時のご年齢も "+(age+wait+years)+"歳 になります。"
+      : wait+"年後に建てる方が試算上は有利です。ただし家賃は戻らないお金であること、完済時のご年齢が "+(age+wait+years)+"歳 になることもご確認ください。"));
+
+  var yR=n("t_yRate")/100, y1=n("t_y1")||35, y2=n("t_y2")||40;
+  var yKari=kari*10000;
+  var ym1=Math.floor(pmt(yR/12,y1*12,yKari)), ym2=Math.floor(pmt(yR/12,y2*12,yKari));
+  O.o_yKari=yKari;O.o_y1e=y1;O.o_y1e2=y1;O.o_y2e=y2;
+  O.o_yMon1=ym1;O.o_yMon2=ym2;O.o_yMonDiff=ym1-ym2;
+  O.o_ySum1=ym1*y1*12;O.o_ySum2=ym2*y2*12;O.o_ySumDiff=ym2*y2*12-ym1*y1*12;
+  O.o_yInt1=ym1*y1*12-yKari;O.o_yInt2=ym2*y2*12-yKari;O.o_yIntDiff=(ym2*y2*12)-(ym1*y1*12);
+  var zan=bal(yKari,yR/12,y2*12,y1*12);
+  O.o_yZansai=zan;O.o_yZansai2=zan;
+  var nokori=Math.max(0, y1-(20-n("t_kidAge")));
+  var cho=nokori*12*n("t_addPay");
+  O.o_yNokori=nokori;O.o_yChochiku=cho;
+  setMsg("msgY40", cho>=zan?"g":"i",
+    "毎月の差額 <b>"+cm(ym1-ym2)+" 円</b>を"+y1+"年間ためると <b>"+cm((ym1-ym2)*y1*12)+" 円</b>。"+
+    "お子様が成人された後に月々"+cm(n("t_addPay"))+"円を増額して"+nokori+"年間ためると <b>"+cm(cho)+" 円</b>となり、"+
+    (cho>=zan?"40年ローンの"+y1+"年後の残債 "+cm(zan)+" 円を上回ります。繰上返済で"+y1+"年程度での完済も可能です。"
+             :"40年ローンの"+y1+"年後の残債 "+cm(zan)+" 円に対して "+cm(zan-cho)+" 円不足します。"));
+
+  /* --- 支出算出シート --- */
+  var xLifeSub = n("x_shokuhi")+n("k_elec")+n("x_suido")+n("k_gas")+n("x_water")
+    +n("x_tel")+n("x_net")+n("x_iryo")+n("k_rent")+n("k_park")+n("x_leisure")
+    +n("k_l1")+n("k_l2")+n("k_l3")+n("x_shinbun")+n("x_ifuku")+n("x_nhk")+n("x_e1")+n("x_e2")+n("x_e3");
+  var xH = n("x_h1")+n("x_h2")+n("x_h3")+n("x_h4")+n("x_h5")+n("x_h6")/12+n("x_h7")+n("x_h8")+n("x_h9")+n("x_h10");
+  var xW = n("x_w1")+n("x_w2")+n("x_w3")+n("x_w4")+n("x_w5")+n("x_w6")/12+n("x_w7")+n("x_w8")+n("x_w9")+n("x_w10");
+  var xC = n("x_c1")+n("x_c2");
+  var xHoken = n("x_h5")+n("x_h7")+n("x_w5")+n("x_w7");
+  var xJutaku = n("k_rent")+n("k_park");
+  var xKariire = n("k_l1")+n("k_l2")+n("k_l3");
+  var xSeikatsu = (xLifeSub - xJutaku - xKariire) + (xH+xW+xC) - xHoken;
+  var xShishutsu = xSeikatsu + xHoken + xJutaku + xKariire;
+  var xInc = n("x_incH")+n("x_incW")+n("x_incE");
+  O.o_xLifeSub=xLifeSub; O.o_xHSub=xH; O.o_xWSub=xW; O.o_xCSub=xC;
+  O.o_xSeikatsu=xSeikatsu; O.o_xHoken=xHoken; O.o_xJutaku=xJutaku; O.o_xKariire=xKariire;
+  O.o_xShishutsu=xShishutsu; O.o_xIncTotal=xInc; O.o_xIncTotal2=xInc; O.o_xShushi=xInc-xShishutsu;
+  var xAuto = (S.x_auto===true||S.x_auto==="true");
+  $$('[data-k="f_seikatsu"],[data-k="f_hoken"]').forEach(function(el){ el.readOnly=xAuto; el.classList.toggle("ro",xAuto); });
+  if(xAuto && xSeikatsu>0){ setKeyVal("f_seikatsu", Math.round(xSeikatsu/10000*10)/10); }
+  if(xAuto && xHoken>0){ setKeyVal("f_hoken", Math.round(xHoken*12/10000*10)/10); }
+  if(n("x_choSou")>0) O.o_xChoEcho=n("x_choSou");
+  setMsg("msgSheet", (xInc-xShishutsu)>=0?"g":"w",
+    xInc<=0 ? "手取り月収をご入力いただくと、毎月の収支をチェックできます。" :
+    ((xInc-xShishutsu)>=0
+      ? "毎月の収支は <b>"+cm(xInc-xShishutsu)+" 円のプラス</b>です。"+
+        (n("x_choTsuki")>0 ? "月々の貯蓄額 "+cm(n("x_choTsuki"))+" 円との差は "+cm(xInc-xShishutsu-n("x_choTsuki"))+" 円です。":"")
+      : "毎月の収支が <b>"+cm(Math.abs(xInc-xShishutsu))+" 円のマイナス</b>です。ご記入内容をもう一度ご確認ください。"));
+
+  /* --- ⑧ FP --- */
+  O.o_fAge1=n("k_h_age");O.o_fAge2=n("k_w_age");O.o_fInc1=inc1;O.o_fInc2=inc2;
+  O.o_fLoan=monthly;O.o_fLoanY=years;O.o_fKounetsu=kounetsuNew;O.o_fBaiden=baidenYear/12;
+  O.o_fChochiku=n("k_chochiku");
+  buildFp(O, monthly, years, kounetsuNew, baidenYear/12);
+
+  /* --- ⑨ --- */
+  var ds=flowDates();
+  O.o_wKeiyaku=fmtDate(ds[7]);O.o_wChakkou=fmtDate(ds[13]);O.o_wHikiwatashi=fmtDate(ds[16]);
+  O.o_wDays=Math.round((ds[16]-ds[7])/86400000);
+  O.o_wAllDays=Math.round((ds[16]-ds[0])/86400000);
+
+  calcBank(O);
+
+  OUT=O; paint(); renderFlow(); renderLoans();
+}
+
+/* ---------- ⑩ 銀行金利比較（住宅ローン商品カタログ） ---------- */
+var lnFilter = "すべて";
+
+function lnGroups(){
+  var gs=["すべて"], seen={};
+  (S.loans||[]).forEach(function(p){ if(!seen[p.g]){ seen[p.g]=1; gs.push(p.g); } });
+  gs.push("比較中のみ");
+  return gs;
+}
+function lnFee(p, kari){
+  return (p.feeMode==="rate") ? kari*(parseFloat(p.feeVal)||0)/100 : (parseFloat(p.feeVal)||0);
+}
+function rateTxt(r){ return (Math.round(r*1000)/1000).toFixed(3); }
+
+function renderLoans(){
+  var fl=$("#lnFilter"), gd=$("#lnGrid");
+  if(!gd) return;
+  if(fl) fl.innerHTML = lnGroups().map(function(g){
+    return '<button class="lnf'+(g===lnFilter?" on":"")+'" onclick="setLnFilter(this.dataset.g)" data-g="'+esc(g)+'">'+esc(g)+"</button>";
+  }).join("");
+  var html = (S.loans||[]).map(function(p,i){
+    if(lnFilter==="比較中のみ"){ if(!p.cmp) return ""; }
+    else if(lnFilter!=="すべて" && p.g!==lnFilter) return "";
+    var isFlat = p.fi.indexOf("フラット")>=0;
+    var tcl = isFlat?"lct-f":(p.type==="f"?"lct-f":"lct-v");
+    var tlbl = isFlat?"全期間固定（フラット）":(p.type==="f"?"固定":"変動");
+    return '<div class="lncard'+(p.cmp?" cmp":"")+'">'+
+      '<span class="lc-asof">'+esc(p.asof)+"時点</span>"+
+      '<span class="lc-type '+tcl+'">'+tlbl+"</span>"+
+      '<div class="lc-fi">'+esc(p.fi)+"</div>"+
+      '<div class="lc-pn">'+esc(p.pn)+"</div>"+
+      '<div class="lc-rate"><input type="number" step="0.001" value="'+p.rate+'" oninput="setL('+i+',\'rate\',this.value)"><small>％</small></div>'+
+      '<div class="lc-meta">事務手数料：<b>'+esc(p.fee)+"</b>／保証料：<b>"+esc(p.hosho)+"</b><br>団信："+esc(p.dan)+
+        (p.note?"<br>"+esc(p.note):"")+(p.warn?'<br><span class="lc-warn">⚠ '+esc(p.warn)+"</span>":"")+"</div>"+
+      '<div class="lc-btns noprint">'+
+        '<button class="btn b-n b-sm" onclick="applyLoanRate('+i+')">この金利で試算</button>'+
+        '<button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="setL('+i+',\'cmp\','+(p.cmp?"false":"true")+')">'+(p.cmp?"✓ 比較中":"＋ 比較に追加")+"</button>"+
+        '<a class="exlink" href="'+esc(p.url)+'" target="_blank" rel="noopener">公式</a>'+
+      "</div></div>";
+  }).join("");
+  gd.innerHTML = html || '<div class="note" style="padding:10px">該当する商品がありません。</div>';
+}
+function setLnFilter(g){ lnFilter=g; renderLoans(); }
+function setL(i,f,v){
+  var p=S.loans[i]; if(!p) return;
+  if(f==="cmp") p.cmp = (v===true||v==="true");
+  else if(f==="rate") p.rate = parseFloat(v)||0;
+  else p[f]=v;
+  mark(true);
+  if(f==="cmp"){ calc(); } else { calcBank(OUT); paint(); }
+}
+function lnCmpClear(){ (S.loans||[]).forEach(function(p){ p.cmp=false; }); mark(true); calc(); }
+function applyLoanRate(i){
+  var p=S.loans[i]; if(!p) return;
+  setKeyVal("d_rate", p.rate);
+  p.cmp = true;
+  mark(true); calc();
+  toast(p.fi+" の金利 "+rateTxt(p.rate)+"％ を③デジシキに反映しました");
+}
+function pullKari(){
+  setKeyVal("bk_kari", Math.round((OUT.o_shakuiri||0)*10000));
+  setKeyVal("bk_years", n("d_years")||35);
+  mark(true); calc(); toast("③デジシキの借入条件を取り込みました");
+}
+
+function calcBank(O){
+  if(n("bk_kari")<=0 && (O.o_shakuiri||0)>0) setKeyVal("bk_kari", Math.round(O.o_shakuiri*10000));
+  var kari=n("bk_kari"), yy=n("bk_years")||35, incFee=(S.bk_incFee!=="0");
+  var rows=[];
+  (S.loans||[]).forEach(function(p,i){
+    if(!p.cmp) return;
+    var r=parseFloat(p.rate)||0; if(r<=0 || kari<=0) return;
+    var mon=Math.floor(pmt(r/100/12, yy*12, kari));
+    var tot=mon*yy*12;
+    var fee=lnFee(p,kari)+(parseFloat(p.hoshoVal)||0);
+    rows.push({i:i,p:p,r:r,mon:mon,tot:tot,fee:fee,grand:tot+(incFee?fee:0)});
+  });
+  rows.sort(function(a,c){return a.grand-c.grand;});
+  var best=rows[0], worst=rows[rows.length-1];
+  O.o_bkBest = best?best.p.fi:"－";
+  O.o_bkBestRate = best?(rateTxt(best.r)+"％／毎月 "+cm(best.mon)+"円"):"－";
+  O.o_bkBestMon = best?best.mon:0;
+  O.o_bkSpread = (best&&worst)?worst.grand-best.grand:0;
+  O.o_bkCount = rows.length;
+  O.o_lnAsof = S.ln_asof||"－";
+  O.o_lnSource = S.ln_source||"－";
+  O.o_lnAsofBadge = (S.ln_asof||"－")+" 時点の金利";
+
+  var tb=$("#tblBkResult");
+  if(tb) tb.querySelector("tbody").innerHTML = rows.length ? rows.map(function(x,k){
+    var d=x.grand-best.grand;
+    return "<tr><td class=\"ctr\"><span class=\"rank"+(k<3?" r"+(k+1):"")+"\">"+(k+1)+"</span></td>"+
+      "<td><b>"+esc(x.p.fi)+"</b></td><td style=\"font-size:11px\">"+esc(x.p.pn)+"</td>"+
+      "<td class=\"num\"><b>"+rateTxt(x.r)+"</b> ％</td>"+
+      "<td class=\"num\">"+cm(x.mon)+"</td><td class=\"num\">"+cm(x.tot)+"</td>"+
+      "<td class=\"num\">"+cm(x.fee)+"</td>"+
+      "<td class=\"num\" style=\"font-weight:900;color:var(--navy)\">"+cm(x.grand)+"</td>"+
+      "<td class=\"num\" style=\"color:"+(d>0?"#b91c1c":"#15803d")+"\">"+(d>0?"+"+cm(d):"－")+"</td>"+
+      "<td class=\"ctr noprint\"><button class=\"xbtn\" onclick=\"setL("+x.i+",'cmp',false)\">×</button></td></tr>";
+  }).join("") : '<tr><td colspan="10" class="ctr" style="color:var(--mu);padding:14px">上のカタログで「＋ 比較に追加」を押すと、ここに並びます。</td></tr>';
+
+  setMsg("msgBk", "i", rows.length<2 ? "" :
+    "最も総支払額が少ないのは <b>"+esc(best.p.fi)+"</b>（"+esc(best.p.pn)+"／年"+rateTxt(best.r)+"％・毎月 "+cm(best.mon)+"円）。"+
+    "最も高い <b>"+esc(worst.p.fi)+"</b> との総支払額の差は <b>"+cm(worst.grand-best.grand)+" 円</b>です。"+
+    (S.bk_incFee!=="0"?"（事務手数料・保証料を含む）":"（金利のみの比較）"));
+
+  /* 金利データの鮮度チェック */
+  var st=$("#lnStale");
+  if(st){
+    var d=new Date(S.ln_asof||""), now=new Date(), html="";
+    if(!isNaN(d)){
+      var months=(now.getFullYear()-d.getFullYear())*12+(now.getMonth()-d.getMonth());
+      if(months>=1){
+        html='<div class="msg w"><b>⚠ 金利データが '+months+'ヶ月前（'+S.ln_asof+'）のものです。</b>'+
+          '住宅ローン金利は毎月見直されます。お客様にご提示の前に「金利データの自動更新」で最新にしてください。</div>';
+      } else {
+        html='<div class="msg g">金利データは最新です（基準日 '+S.ln_asof+'）。</div>';
+      }
+    }
+    st.innerHTML=html;
+  }
+}
+
+/* ---------- 金利データの自動読込 ---------- */
+function applyFeed(feed, src){
+  if(!feed || !feed.rates) return 0;
+  var byId={}, byName={};
+  (S.loans||[]).forEach(function(p){ byId[p.id]=p; byName[p.fi]=p; });
+  var cnt=0;
+  Object.keys(feed.rates).forEach(function(k){
+    var p=byId[k]||byName[k]; if(!p) return;
+    var v=feed.rates[k];
+    if(typeof v==="number"){ p.rate=v; cnt++; }
+    else if(v && typeof v==="object"){
+      ["rate","fee","feeMode","feeVal","hosho","hoshoVal","dan","note","warn","asof"].forEach(function(f){
+        if(v[f]!==undefined) p[f]=v[f];
+      });
+      cnt++;
+    }
+  });
+  if(feed.asof) setKeyVal("ln_asof", feed.asof);
+  if(feed.source) setKeyVal("ln_source", feed.source);
+  feedMsg("g", "✅ "+esc(src)+" から <b>"+cnt+"件</b> の金利を読み込みました（基準日 "+esc(feed.asof||"-")+"）");
+  return cnt;
+}
+function feedMsg(cls, html){ var e=$("#feedStatus"); if(e) e.innerHTML='<div class="msg '+cls+'">'+html+"</div>"; }
+function feedFetch(){
+  var url=(S.ln_feedUrl||"").trim();
+  if(!url){ feedMsg("w","配信URLが設定されていません。上の「金利データ配信URL」をご入力ください。"); return; }
+  feedMsg("i","取得中… "+esc(url));
+  fetch(url, {cache:"no-store"}).then(function(r){
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return r.text();
+  }).then(function(txt){
+    var feed=parseFeed(txt);
+    if(!feed) throw new Error("形式が正しくありません");
+    applyFeed(feed, url); mark(true); calc();
+  }).catch(function(e){
+    feedMsg("w","取得できませんでした（"+esc(String(e.message||e))+"）。<br>"+
+      "ファイルをローカルに保存して「📂 データファイルを読込」からお試しください。"+
+      "（ブラウザのセキュリティ制限により、file:// で開いている場合はURL取得ができないことがあります）");
+  });
+}
+function parseFeed(txt){
+  txt=String(txt).trim();
+  try{ return JSON.parse(txt); }catch(e){}
+  var m=txt.match(/=\s*(\{[\s\S]*\})\s*;?\s*$/);
+  if(m){ try{ return JSON.parse(m[1]); }catch(e){} }
+  return null;
+}
+function feedFromFile(input){
+  var f=input.files[0]; if(!f) return;
+  var r=new FileReader();
+  r.onload=function(){
+    var feed=parseFeed(r.result);
+    if(!feed){ feedMsg("w","ファイルの形式が正しくありません。JSON または <code>window.KHG_RATE_FEED = {…};</code> の形式でご用意ください。"); }
+    else { applyFeed(feed, f.name); mark(true); calc(); }
+    input.value="";
+  };
+  r.readAsText(f);
+}
+function feedExport(){
+  var rates={};
+  (S.loans||[]).forEach(function(p){
+    rates[p.id]={rate:p.rate, asof:p.asof, fee:p.fee, feeMode:p.feeMode, feeVal:p.feeVal,
+      hosho:p.hosho, hoshoVal:p.hoshoVal, dan:p.dan, note:p.note, warn:p.warn};
+  });
+  var obj={asof:S.ln_asof||"", source:S.ln_source||"", rates:rates};
+  var body="/* 国分ハウジンググループ AIデジタル資金計画書 住宅ローン金利データ */\n"+
+    "/* このファイルをHTMLと同じフォルダに置くと、起動時に自動で読み込まれます。 */\n"+
+    "window.KHG_RATE_FEED = "+JSON.stringify(obj,null,2)+";\n";
+  var blob=new Blob([body],{type:"text/javascript;charset=utf-8"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="金利データ.js"; a.click();
+  toast("金利データ.js を書き出しました");
+}
+function bulkFill(){
+  var t=$("#bulkRate"); if(!t) return;
+  t.value=(S.loans||[]).map(function(p){ return p.fi+"="+p.rate; }).join("\n");
+}
+function bulkApply(){
+  var t=$("#bulkRate"); if(!t) return;
+  var byId={}, byName={};
+  (S.loans||[]).forEach(function(p){ byId[p.id]=p; byName[p.fi]=p; });
+  var cnt=0, ng=[];
+  t.value.split(/\r?\n/).forEach(function(line){
+    line=line.trim(); if(!line||line.charAt(0)==="#") return;
+    var m=line.split(/[=＝:：\t]/);
+    if(m.length<2) return;
+    var key=m[0].trim(), val=parseFloat(String(m[1]).replace(/[%％\s]/g,""));
+    var p=byId[key]||byName[key];
+    if(p && isFinite(val)){ p.rate=val; cnt++; } else { ng.push(key); }
+  });
+  mark(true); calc();
+  feedMsg(cnt?"g":"w", cnt+"件の金利を更新しました。"+(ng.length?"<br>照合できなかった行："+esc(ng.join("、")):""));
+}
+function loanSaveMaster(){
+  // ⚠️ 何もしない。金利は funding_plan.loans に
+  //   「この計画書を作った時点の値」として顧客ごとに保存される。
+  //   共通マスタに書くと、後から金利が変わって過去の計画書の数字が動く。
+  //   ⚠️ 呼び出し元（saveCustomer）を消さずに残しているのは、
+  //     金利マスタの保存先を将来DBに移すときの差し込み口にするため。
+}
+function applySheetToKarte(){
+  if(n("x_choSou")<=0){ alert("「現在の貯蓄総額」をご入力ください。"); return; }
+  if(!confirm("支出算出シートの「現在の貯蓄総額」を①お客様カルテの貯蓄額（万円）へ反映します。よろしいですか？")) return;
+  setKeyVal("k_chochiku", Math.round(n("x_choSou")/10000));
+  mark(true); calc(); toast("①お客様カルテへ反映しました");
+}
+
+/* ---------- FPキャッシュフロー ---------- */
+function buildFp(O, loanMonthly, loanYears, kounetsu, baiden){
+  var a1=n("k_h_age"), a2=n("k_w_age");
+  var teinen=n("f_teinen")||60, up=n("f_up")/100, ted=n("f_tedori")/100;
+  var N = Math.max(30, Math.min(45, (70-a1)));
+  var rows=[], bl=n("k_chochiku"), minB=bl, minY=0, y0=new Date().getFullYear();
+  var b10=null, bEnd=null, b65=null;
+  for(var t=0;t<=N;t++){
+    var A1=a1+t, A2=a2+t;
+    var i1 = A1<teinen ? n("k_inc1")*Math.pow(1+up,t) : (A1<65 ? n("f_saikoyo") : 0);
+    var i2 = A2<teinen ? n("k_inc2")*Math.pow(1+up,t) : 0;
+    var nen = A1>=65 ? n("f_nenkin") : 0;
+    var inc = (i1+i2)*ted + nen + (A1===teinen ? n("f_taishoku") : 0);
+
+    var sei = n("f_seikatsu")*12;
+    var jyu = (t<loanYears ? loanMonthly*12/10000 : 0) + n("f_kotei") + n("f_shuzen")
+              + kounetsu*12/10000 - baiden*12/10000;
+    var edu = 0, kidsAges=[];
+    (S.kids||[]).forEach(function(k){
+      var ka=(parseFloat(k.age)||0)+t; kidsAges.push(ka);
+      edu += eduCost(ka, parseInt(k.plan)||0);
+    });
+    var oth = n("f_hoken")+n("f_other")+((n("f_carCycle")>0 && t>0 && t%n("f_carCycle")===0) ? n("f_carCost") : 0);
+    var exp = sei+jyu+edu+oth;
+    var net = inc-exp;
+    bl += net;
+    if(bl<minB){minB=bl;minY=y0+t;}
+    if(t===10)b10=bl;
+    if(t===loanYears)bEnd=bl;
+    if(A1===65)b65=bl;
+    rows.push([y0+t,A1,A2,kidsAges.join("/")||"－",inc,sei,jyu,edu,oth,exp,net,bl]);
+  }
+  O.o_fMin=minB;O.o_fMinYear=minY?(minY+"年 ("+(minY-y0)+"年後)"):"－";
+  O.o_f10=b10;O.o_fEnd=bEnd;O.o_f65=b65;
+  setMsg("msgFp", minB<0?"w":"g",
+    minB<0 ? "シミュレーション上、<b>"+minY+"年ごろに貯蓄残高がマイナス</b>になります（最小 "+cm(minB)+" 万円）。生活費・教育費・お借入条件の見直しをご相談ください。"
+           : "シミュレーション期間中、貯蓄残高は <b>最小 "+cm(minB)+" 万円</b>を維持できる試算です。");
+
+  $("#tblFp").querySelector("tbody").innerHTML = rows.map(function(r){
+    var neg = r[11]<0;
+    return "<tr"+(neg?' style="background:#fef2f2"':"")+'><td class="ctr">'+r[0]+'</td><td class="ctr">'+r[1]+'</td><td class="ctr">'+r[2]+
+      '</td><td class="ctr" style="font-size:11px">'+esc(r[3])+'</td><td class="num">'+cm(r[4])+'</td><td class="num">'+cm(r[5])+
+      '</td><td class="num">'+cm(r[6])+'</td><td class="num">'+cm(r[7])+'</td><td class="num">'+cm(r[8])+
+      '</td><td class="num">'+cm(r[9])+'</td><td class="num" style="color:'+(r[10]<0?"#b91c1c":"#15803d")+'">'+fmt(r[10],"ms")+
+      '</td><td class="num" style="font-weight:800;color:'+(neg?"#b91c1c":"var(--navy)")+'">'+cm(r[11])+"</td></tr>";
+  }).join("");
+  drawChart(rows);
+}
+
+function drawChart(rows){
+  var W=1000,H=230,pad={l:56,r:14,t:14,b:24};
+  var vals=rows.map(function(r){return r[11];});
+  var mx=Math.max.apply(null,vals.concat([0])), mn=Math.min.apply(null,vals.concat([0]));
+  var span=(mx-mn)||1;
+  function X(i){return pad.l+(W-pad.l-pad.r)*i/Math.max(1,rows.length-1);}
+  function Y(v){return pad.t+(H-pad.t-pad.b)*(1-(v-mn)/span);}
+  var zero=Y(0);
+  var bars=rows.map(function(r,i){
+    var h=Math.abs(r[10])/span*(H-pad.t-pad.b), y=r[10]>=0?Y(r[10]):zero;
+    var w=Math.max(2,(W-pad.l-pad.r)/rows.length*0.55);
+    return '<rect x="'+(X(i)-w/2)+'" y="'+y+'" width="'+w+'" height="'+Math.max(0.5,h)+
+      '" fill="'+(r[10]>=0?"#a9c3e8":"#f0b3ae")+'"/>';
+  }).join("");
+  var path=rows.map(function(r,i){return (i?"L":"M")+X(i).toFixed(1)+" "+Y(r[11]).toFixed(1);}).join(" ");
+  var ticks="";
+  for(var g=0;g<=4;g++){ var v=mn+span*g/4, y=Y(v);
+    ticks += '<line x1="'+pad.l+'" y1="'+y+'" x2="'+(W-pad.r)+'" y2="'+y+'" stroke="#e3e8f0"/>'+
+      '<text x="'+(pad.l-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#6b7280">'+cm(v)+"</text>"; }
+  var lbl=rows.map(function(r,i){ return (i%5===0||i===rows.length-1)
+    ? '<text x="'+X(i)+'" y="'+(H-6)+'" text-anchor="middle" font-size="9.5" fill="#6b7280">'+r[0]+"</text>" : ""; }).join("");
+  $("#fpChart").innerHTML =
+    '<div style="overflow-x:auto"><svg viewBox="0 0 '+W+' '+H+'" style="width:100%;min-width:640px;height:'+H+'px;background:#fff;border:1px solid var(--line);border-radius:8px">'+
+    ticks+bars+
+    '<line x1="'+pad.l+'" y1="'+zero+'" x2="'+(W-pad.r)+'" y2="'+zero+'" stroke="#9aa1ad" stroke-dasharray="3 3"/>'+
+    '<path d="'+path+'" fill="none" stroke="#0F3675" stroke-width="2.2"/>'+lbl+
+    '</svg></div><div style="font-size:11px;color:var(--mu);margin-top:4px">'+
+    '<span style="display:inline-block;width:11px;height:11px;background:#a9c3e8;vertical-align:-1px"></span> 年間収支　'+
+    '<span style="display:inline-block;width:16px;height:3px;background:#0F3675;vertical-align:4px"></span> 貯蓄残高（万円）</div>';
+}
+
+/* ---------- タブ ---------- */
+function go(i){
+  $$(".tab").forEach(function(t){t.classList.toggle("on", t.dataset.p==String(i));});
+  $$(".page").forEach(function(p){p.classList.toggle("on", p.id==="p"+i);});
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+/* ---------- 保存（Dashboard の API） ----------
+   ⚠️⚠️ 以前は localStorage("khg_aidsk_v1") に顧客ごとのデータを保持していた。
+     端末を変えると消え、他の営業からも見えないため DB へ移した。
+
+   ⚠️ localStorage は**トークンの読み取りだけ**に使う。Dashboard 本体と
+     同一オリジン（/dashboard/ 配下）なので共有されている。
+------------------------------------------------- */
+
+/**
+ * ゲートウェイの URL。
+ *
+ * ⚠️⚠️ **URL をクエリパラメータで受け取ってはいけない。**
+ *   このページは localStorage のトークンを送るため、宛先を外部から
+ *   指定できるようにするとトークンを盗まれる。
+ *
+ * ⚠️ 本番: /dashboard/funding-plan/index.html から見て ../api/gateway/
+ *   → https://khg-marketing.info/dashboard/api/gateway/
+ *   相対で解決しているので、配置先が変わっても追従する。
+ */
+var API = (function(){
+  // CRA の開発サーバ（:3000）からは PHP（:8080）を直接叩く
+  if(location.port === "3000") return "http://localhost:8080/";
+  return new URL("../api/gateway/", location.href).href;
+})();
+
+/** URL の ?id=。⚠️ これが無いと何も読み込めない */
+var CUSTOMER_ID = (new URLSearchParams(location.search)).get("id") || "";
+
+var SHOP_OPTIONS = [];
+var PLAN_EXISTS = false;
+
+function apiPost(body, done, fail){
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", API, true);
+  xhr.setRequestHeader("Content-Type", "application/json");
+  xhr.setRequestHeader("Authorization", "4081Kokubu");
+  var tok = "";
+  try { tok = localStorage.getItem("token") || ""; } catch(e){}
+  if(tok) xhr.setRequestHeader("Token", tok);
+  xhr.onload = function(){
+    var j = null;
+    try { j = JSON.parse(xhr.responseText); } catch(e){}
+    // ⚠️ 200 以外も j を渡す。API はエラー時に message を返すため
+    if(xhr.status >= 200 && xhr.status < 300 && j) done(j);
+    else fail((j && j.message) ? j.message : ("通信に失敗しました（" + xhr.status + "）"));
+  };
+  xhr.onerror = function(){ fail("通信に失敗しました。"); };
+  xhr.send(JSON.stringify(body));
+}
+
+/** 画面上部に固定の帯でエラーを出す。⚠️ alert は面談中に邪魔になるので使わない */
+function fatal(msg){
+  var w = document.createElement("div");
+  w.className = "msg w noprint";
+  w.style.cssText = "margin:10px 14px 0;max-width:1240px;margin-left:auto;margin-right:auto";
+  w.innerHTML = msg;
+  document.body.insertBefore(w, $(".wrap"));
+}
+
+/** お客様セレクタ（確認用。1件だけ入れる） */
+function refreshList(){
+  var sel = $("#custSel");
+  if(!sel) return;
+  sel.innerHTML = '<option>' + esc(S.k_name || "（お客様名なし）") + '</option>';
+}
+
+/**
+ * 担当店舗の選択肢を shop_list（API）の内容に差し替える。
+ *
+ * ⚠️⚠️ 元は19件のハードコードだった。master_data の in_charge_store は
+ *   「KH鹿児島店」の形なので、そのままでは一致しない。
+ *   value=保存する値（KH鹿児島店）／表示=お客様向けの表記 に分ける。
+ */
+function applyShopOptions(){
+  var sel = document.querySelector('[data-k="k_shop"]');
+  if(!sel || !SHOP_OPTIONS.length) return;
+  sel.innerHTML = '<option value=""></option>' + SHOP_OPTIONS.map(function(o){
+    return '<option value="' + esc(o.value) + '">' + esc(o.pickerLabel) + '</option>';
+  }).join("");
+  // ⚠️ 選択肢を作り直した後で値を戻す。順序を逆にすると選択が外れる
+  sel.value = S.k_shop || "";
+}
+
+/** 印刷・見出しに出す店舗名。⚠️ 略称（KH/DJH）はお客様に見せない */
+function shopLabelOf(value){
+  for(var i=0;i<SHOP_OPTIONS.length;i++){
+    if(SHOP_OPTIONS[i].value === value) return SHOP_OPTIONS[i].label;
+  }
+  return value || "";
+}
+
+function saveCustomer(){
+  if(!CUSTOMER_ID){ alert("顧客が指定されていません。Dashboard の顧客詳細から開いてください。"); return; }
+
+  var body = { request:"funding_plan", roll:"save", id: CUSTOMER_ID };
+  try { body.staff = localStorage.getItem("userName") || ""; } catch(e){ body.staff = ""; }
+
+  // ⚠️ S を丸ごと送る。サーバ側で「列として存在するものだけ」採用される
+  //   （リクエストのキーをそのまま列名にすると SQL インジェクションになるため）。
+  for(var k in S){ if(k !== "id") body[k] = S[k]; }
+
+  // ⚠️⚠️ **人が編集した項目を併せて送る。** これが無いと、サーバは
+  //   未入力の既定値と入力値を区別できず、顧客台帳に既定値を書き込む。
+  //   TOUCHED の説明は宣言箇所を参照。
+  body.touched = Object.keys(TOUCHED);
+
+  var btn = $("#saveBtn");
+  if(btn) btn.disabled = true;
+
+  apiPost(body, function(j){
+    if(btn) btn.disabled = false;
+    PLAN_EXISTS = true;
+    mark(false);
+    // ⚠️ 保存できた項目だけ記録を消す。失敗時に消すと、
+    //   再保存しても顧客台帳へ反映されなくなる
+    TOUCHED = {};
+    refreshList();
+
+    var n = (j.masterDataUpdated ? j.masterDataUpdated.length : 0)
+          + (j.familyInfoUpdated ? j.familyInfoUpdated.length : 0);
+    var extra = n ? "（顧客台帳の" + n + "項目にも反映）" : "";
+    toast((j.message || "保存しました") + extra);
+
+    // ⚠️ 続柄が未設定のお子様など、営業が手当てしないと消えて見えるものは
+    //   toast では流れてしまうので alert で確実に伝える
+    if(j.notices && j.notices.length) alert(j.notices.join("\n"));
+  }, function(msg){
+    if(btn) btn.disabled = false;
+    // ⚠️ 保存の失敗は必ず気づかせる。面談中に消えると聞き取りが無駄になる
+    alert("保存できませんでした。\n" + msg);
+  });
+}
+
+function delCustomer(){
+  if(!CUSTOMER_ID) return;
+  if(!PLAN_EXISTS){ alert("まだ保存されていません。"); return; }
+  if(!confirm((S.k_name||"") + " 様の資金計画書を削除します。よろしいですか？\n※顧客台帳（Dashboard）の情報は消えません。")) return;
+
+  apiPost({ request:"funding_plan", roll:"delete", id: CUSTOMER_ID }, function(j){
+    PLAN_EXISTS = false;
+    // ⚠️ 削除後は master_data からの初期値に戻す（空にはしない）。
+    //   「作り直したい」が削除の動機なので、白紙より初期値のほうが役に立つ
+    bootLoad(function(){ toast(j.message || "削除しました"); });
+  }, function(msg){ alert("削除できませんでした。\n" + msg); });
+}
+
+/**
+ * 起動時／削除後の読み込み。
+ *
+ * ⚠️ 保存済みが無いときはサーバが master_data と family_info から
+ *   初期値を組み立てて返す（plan に取り込めた項目だけが入る）。
+ *   DEF() の既定値にマージすること。plan を丸ごと S にすると
+ *   既定値（金利・生活費の前提など）が全部消える。
+ */
+function bootLoad(done){
+  if(!CUSTOMER_ID){
+    fatal("<b>顧客が指定されていません。</b> Dashboard の顧客詳細にある「デジシキ作成」から開いてください。");
+    return;
+  }
+  apiPost({ request:"funding_plan", id: CUSTOMER_ID }, function(j){
+    SHOP_OPTIONS = j.shopOptions || [];
+    PLAN_EXISTS = !!j.exists;
+
+    var base = DEF();
+    var plan = j.plan || {};
+
+    /* ⚠️⚠️ null の扱いが保存済みかどうかで変わる。
+         未作成（exists=false）… null は読み飛ばし、DEF() の既定値を残す。
+             取り込めなかった項目に既定値（年収500万円など）が入っていたほうが
+             たたき台として役に立つ。
+         保存済み（exists=true）… null も**そのまま反映する**。
+             ⚠️ 読み飛ばすと「年収を空にして保存 → 開き直すと 500 に戻る」
+               という状態になり、消したはずの値が復活する。
+               保存済みの行が唯一の正であって、DEF() は初期値でしかない。
+
+       ⚠️ ただし配列項目（JSON列）は null にしてはいけない。
+         setFlowDay() が S.w_days[i] に代入するため、null だと例外になる。
+         null なら DEF() の配列を残す。 */
+    var JSON_KEYS = ["kids","k_trigger","s1","s2","s3","s4","s5","loans","w_days","w_done"];
+
+    for(var k in plan){
+      var v = plan[k];
+      var isJson = JSON_KEYS.indexOf(k) >= 0;
+
+      if(v === null || v === undefined){
+        if(isJson) continue;            // 配列は DEF() のものを残す
+        if(!j.exists) continue;         // 未作成なら既定値を残す
+        base[k] = "";                   // 保存済みなら「空」を反映する
+        continue;
+      }
+      // ⚠️ JSON 列は文字列で返る（MariaDB の JSON は LONGTEXT）。ここで戻す
+      if(typeof v === "string" && (v.charAt(0) === "[" || v.charAt(0) === "{")){
+        try { v = JSON.parse(v); } catch(e){ if(isJson) continue; }
+      }
+      // ⚠️ 空配列で上書きしないこと。w_days/w_done は FLOW と同じ長さが前提
+      if(isJson && (!v || !v.length) && base[k] && base[k].length) continue;
+      base[k] = v;
+    }
+    // ⚠️ 未作成のときは顧客台帳の値で埋める（k_shop は必ず入れる）
+    if(!j.exists && j.customer){
+      if(!base.k_name)  base.k_name  = j.customer.name || "";
+      if(!base.k_shop)  base.k_shop  = j.customer.shop || "";
+      if(!base.k_staff) base.k_staff = j.customer.staff || "";
+    }
+    S = base;
+
+    reloadAll();
+    applyShopOptions();
+    mark(false);
+    refreshList();
+
+    if(!j.exists){
+      var n = Object.keys(plan).length;
+      feedMsg("i", "この顧客の資金計画書は未作成です。<b>顧客台帳から " + n +
+        " 項目を取り込みました。</b>内容を確認し、「保存」を押すと登録されます。");
+    }
+    if(done) done();
+  }, function(msg){
+    fatal("<b>読み込みに失敗しました。</b> " + esc(msg) +
+      "<br>Dashboard にログインした状態で開いているか確認してください。");
+  });
+}
+
+function reloadAll(){
+  fillInputs(); renderKids(); renderLoans();
+  ["s1","s2","s3","s4","s5"].forEach(renderDetail);
+  renderFlow(); calc();
+}
+function exportJson(){
+  // ⚠️ 元は localStorage の全顧客を書き出していた。DB へ移したので
+  //   「開いているお客様1件」だけにする（他の顧客の情報を持ち出させない）。
+  var blob=new Blob([JSON.stringify({id:CUSTOMER_ID, data:S},null,2)],{type:"application/json"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="資金計画書_"+(S.k_name||"お客様")+"_"+new Date().toISOString().slice(0,10)+".json";
+  a.click(); toast("このお客様のデータを書き出しました");
+}
+function importJson(input){
+  var f=input.files[0]; if(!f) return;
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var j=JSON.parse(r.result);
+      if(!j.data) throw 0;
+      // ⚠️ 読み込んでも自動では保存しない。上書きの確認を挟む。
+      //   別のお客様のファイルを誤って読み込んだときに気づけるようにする。
+      if(!confirm("画面の内容をファイルの内容で置き換えます。よろしいですか？\n※「保存」を押すまでDBには反映されません。")){ input.value=""; return; }
+      var base=DEF();
+      for(var k in j.data) base[k]=j.data[k];
+      S=base; reloadAll(); applyShopOptions(); mark(true); refreshList();
+      toast("ファイルを読み込みました。内容を確認して「保存」してください");
+    }catch(e){ alert("ファイルの形式が正しくありません。"); }
+    input.value="";
+  };
+  r.readAsText(f);
+}
+
+/* ---------- 印刷 ---------- */
+function openPrint(){ $("#pbar").style.display="flex"; }
+function closePrint(){ $("#pbar").style.display="none"; }
+function prAll(v){ $$("#printChk input").forEach(function(c){c.checked=v;}); }
+function doPrint(){
+  var sel=$$("#printChk input").filter(function(c){return c.checked;}).map(function(c){return c.dataset.pr;});
+  if(!sel.length){ alert("印刷する項目を1つ以上選択してください。"); return; }
+  $$(".page").forEach(function(p){ p.classList.remove("plast");
+    p.classList.toggle("pon", sel.indexOf(p.id.slice(1))>=0); });
+  var pons=$$(".page.pon"); if(pons.length) pons[pons.length-1].classList.add("plast");
+  document.body.classList.add("pr");
+  setTimeout(function(){ window.print(); },60);
+}
+window.addEventListener("afterprint", function(){
+  document.body.classList.remove("pr");
+  $$(".page").forEach(function(p){p.classList.remove("pon");p.classList.remove("plast");});
+});
+
+/* ---------- 起動 ---------- */
+renderStatic();
+bindInputs();
+// ⚠️ 顧客の読み込みは非同期。reloadAll() は bootLoad() の中で呼ぶ。
+//   ここで先に reloadAll() すると、一瞬 DEF() の既定値が表示されてから
+//   顧客の値に差し替わり、お客様の前でちらつく。
+bootLoad();
+/* 金利データの自動読込 */
+(function(){
+  if(window.KHG_RATE_FEED){ applyFeed(window.KHG_RATE_FEED, "金利データ.js"); mark(false); calc(); }
+  else { feedMsg("i","同梱の <b>金利データ.js</b> は見つかりませんでした。アプリ内蔵の金利（基準日 "+(S.ln_asof||"-")+"）で動作しています。毎月このファイルを差し替えると自動で最新になります。"); }
+  if((S.ln_feedUrl||"").trim()) feedFetch();
+})();
+
+window.addEventListener("beforeunload", function(e){
+  if(DIRTY){ e.preventDefault(); e.returnValue=""; }
+});
+</script>
+</body>
+</html>

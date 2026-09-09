@@ -25,8 +25,22 @@ if ($exists_active) {
 
         $response_update = $success ? 'reactivate_success' : 'reactivate_error';
     } else {
-        $sql_insert = 'INSERT INTO black_list (name, mobile, mail, brand, date, zip, full_address)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)';
+        // ⚠️⚠️ **`note` を必ず含めること。**
+        //   black_list.note は NOT NULL で **DEFAULT が無い**。
+        //   接続は STRICT_TRANS_TABLES なので、省略すると
+        //     Field 'note' doesn't have a default value
+        //   で PDOException になり、**新規登録が必ず失敗する**。
+        //
+        // ⚠️ 2026-09-09 まで note を省略していたため、
+        //   ブラックリストの**新規登録は動いていなかった**
+        //   （既存行の解除・再登録＝UPDATE は動いていた）。
+        //   handleBlack は status を console.log するだけなので、
+        //   利用者には成功したように見えていた。
+        //
+        // ⚠️ ② Express（backend-express/src/features/list/save.ts）と
+        //   同じ列・同じ値にすること。片方だけ直すと差分比較が合わなくなる。
+        $sql_insert = 'INSERT INTO black_list (name, mobile, mail, brand, date, zip, full_address, note)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
         $stmt_insert = $pdo->prepare($sql_insert);
 
         $success = $stmt_insert->execute([
@@ -37,6 +51,7 @@ if ($exists_active) {
             date('Y/m/d'),
             $data['zip'],
             $data['address'],
+            $data['note'] ?? '',
         ]);
         $response_update = $success ? 'insert_success' : 'insert_error';
     }
