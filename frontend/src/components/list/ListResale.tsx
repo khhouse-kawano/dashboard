@@ -10,7 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import { setStyleClassUsed } from '../../utils/setStyleClassUsed';
 import { thisYear } from '../../utils/thisYear';
 import { useIsSp } from '../../utils/isSp';
-import { dateFormate, monthFormate, handleBlack, toHalfWidth, positions } from './listUtils';
+import { dateFormate, monthFormate, handleBlack, toHalfWidth, positions, previousMonthValue, currentMonthValue, summaryTableWidth, SUMMARY_COLUMN_WIDTH } from './listUtils';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 
@@ -89,9 +89,18 @@ const ListResale = ({ onReload }: Props) => {
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
-        setMonthArray(getYearMonthArray(2025, 1));
-        setStartMonth(`${year}/${month}`);
-        setEndMonth(`${year}/${month}`);
+        // ⚠️ 開始月の初期値の判定にも使うので、一度変数に受ける
+        const months = getYearMonthArray(2025, 1);
+        setMonthArray(months);
+        /**
+         * ⚠️⚠️ **開始月は当月の1か月前**（2026-09-09 変更）。
+         *   両方を当月にしていたため、月初に開くと当月の数件しか見えなかった。
+         *
+         * ⚠️ months を渡している。1か月前が選択肢に無い場合は先頭が返る。
+         *   選択肢に無い値を入れると、select の表示と絞り込みが食い違う。
+         */
+        setStartMonth(previousMonthValue({ monthArray: months }));
+        setEndMonth(currentMonthValue());
         setSelectedMonth([`${year}/${month}`]);
 
         const fetchData = async () => {
@@ -476,15 +485,23 @@ const ListResale = ({ onReload }: Props) => {
             <div className='inquiry_table spec bg-white p-2'>
                 <div className="d-flex flex-wrap mb-3 align-items-center" style={{ paddingTop: isSp ? '30px' : '' }}>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
+                        {/*
+                          ⚠️⚠️ **value で制御する。** 以前は <option selected> で
+                            常に末尾（当月）を選んでいたため、開始月の初期値を
+                            1か月前にすると**表示は当月・絞り込みは前月**という
+                            食い違いが起きる。
+                          ⚠️ React は <option selected> に警告を出す作法違反でもある。
+                        */}
+                        <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <div>~</div>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
+                        {/* ⚠️ 開始月と同じ理由で value 制御にする */}
+                        <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
@@ -539,11 +556,17 @@ const ListResale = ({ onReload }: Props) => {
                 </div>
                 <div className='p-0 inquiry'>
                     {!isSp &&
-                        <Table striped bordered hover style={{ width: '800px' }}>
+                        <Table
+                            striped bordered hover
+                            style={{
+                                tableLayout: 'fixed',
+                                width: `${summaryTableWidth(categoryList.length + 1, 100)}px`
+                            }}
+                        >
                             <thead className='sticky-header' style={{ fontSize: "10px" }}>
                                 <tr className='sticky-header' style={{ textAlign: 'center' }}>
                                     <td style={{ width: '100px' }}>カテゴリー</td>
-                                    {['中専全体', ...categoryList].map((value, index) => (<td key={index} className='text-center' style={{ width: '90px' }}>{value}</td>))}
+                                    {['中専全体', ...categoryList].map((value, index) => (<td key={index} className='text-center' style={{ width: `${SUMMARY_COLUMN_WIDTH}px` }}>{value}</td>))}
                                 </tr>
                             </thead>
                             <tbody style={{ fontSize: "12px" }}>

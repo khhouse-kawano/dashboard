@@ -17,6 +17,7 @@ import { calculateAge } from '../../utils/informationUtils';
 import { dateFormate } from '../../utils/informationUtils';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
 import PropertyRegister from '../database/PropertyRegister';
 import { BrokerData } from '../database/PropertyRegister';
 import { generateNewId } from '../database/databaseUtils';
@@ -390,45 +391,46 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
 
         console.log("送信するマスタデータ:", updatedMasterData);
 
-        const masterFormData = new FormData();
-
-        const postData = {
-            ...updatedMasterData,
-            request: 'information',
-            roll: 'customer_info',
-            call_log: callLength,
-            category,
-        };
-
-        Object.keys(postData).forEach(key => {
-            const value = postData[key];
-            masterFormData.append(key, value !== null && value !== undefined ? value : '');
-        });
-
-        if (competitorPdfFile) {
-            const existingFiles = competitorPdfFile
-                .filter(item => !item.file && item.path)
-                .map(item => ({ name: item.name, path: item.path, staff: item.staff }));
-
-            masterFormData.append('existing_pdfs', JSON.stringify(existingFiles));
-
-            competitorPdfFile.forEach((item) => {
-                if (item.file) {
-                    masterFormData.append('competitor_pdf_files[]', item.file);
-                    masterFormData.append('competitor_pdf_names[]', item.name);
-                    masterFormData.append('competitor_pdf_staff[]', item.staff ?? '');
-                }
+        // ⚠️⚠️ **保存を2リクエストに分けている。**
+        //
+        //   ① 顧客情報（master_data）… JSON でゲートウェイへ → ② の Express が処理
+        //   ② 競合PDF                … multipart で ① へ直接
+        //
+        //   PDF の実体は ① の uploads/competitors/ に置き、① の URL で配信して
+        //   いる。② から ① のファイルシステムへは書けない。
+        //   また multipart は core/express_proxy.php が転送しない設計である。
+        //
+        // ⚠️ **顧客情報を先に送る。** 新規顧客のときに master_data の行が
+        //   無い状態で PDF だけ登録されるのを避けるため。
+        //
+        // ⚠️⚠️ 顧客情報の保存が失敗したら**利用者に見せて中断する。**
+        //   以前は catch で console.error に流していたため、保存できていない
+        //   のに閉じてしまい、面談で聞き取った内容が消えていた。
+        //   ② が落ちている間はゲートウェイが 502 を返す（フォールバック禁止の
+        //   仕組み。core/express_proxy.php の expressProxyExclusive を参照）。
+        try {
+            await apiClient.post("", {
+                ...updatedMasterData,
+                request: 'information',
+                roll: 'customer_info',
+                call_log: callLength,
+                category,
             });
-        }
-
-        for (let [key, value] of (masterFormData as any).entries()) {
-            console.log(`FormDataの中身 - ${key}:`, value);
+        } catch (error) {
+            console.error("データ保存エラー:", error);
+            alert('顧客情報の保存に失敗しました。\n通信状態を確認して、もう一度保存してください。');
+            // ⚠️ 保存ボタンを押せる状態に戻す。戻さないと閉じるしかなくなる
+            setSending(true);
+            return;
         }
 
         try {
-            await apiClient.post("", masterFormData);
+            await uploadCompetitorPdf(information.id, competitorPdfFile, token);
         } catch (error) {
-            console.error("データ保存エラー:", error);
+            // ⚠️ PDF の失敗では中断しない。顧客情報は保存済みである。
+            //   ただし黙って捨てず、何が保存できていないかを伝える。
+            console.error("競合PDFの保存エラー:", error);
+            alert('顧客情報は保存しました。\nただし競合資料(PDF)の保存に失敗しました。\nPDFのみ、もう一度添付して保存してください。');
         }
 
         const logJson = JSON.stringify(information);
@@ -1040,7 +1042,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>予算総額</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='budget'
-                                                defaultValue='予算総額' formattedValue={(information.budget ?? '').replace('万円', '')} />
+                                                defaultValue='予算総額' moneyManYen={true} />
                                             万円
                                         </td>
                                     </tr>
@@ -1048,7 +1050,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>月々支払予算</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='monthly_repayment_amount'
-                                                defaultValue='月々支払予算' formattedValue={(information.monthly_repayment_amount ?? '').replace('0000', '')} />
+                                                defaultValue='月々支払予算' moneyManYen={true} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>返済希望年数</td>
@@ -1060,7 +1062,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>現居家賃</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_rent'
-                                                defaultValue='現居家賃' formattedValue={safeFormate(information.current_rent).replace('0000', '')} />
+                                                defaultValue='現居家賃' moneyManYen={true} />
                                             万円
                                         </td>
                                     </tr>
@@ -1068,19 +1070,19 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>自己資金</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='self_budget'
-                                                defaultValue='自己資金' formattedValue={safeFormate(information.self_budget).replace('0000', '')} />
+                                                defaultValue='自己資金' moneyManYen={true} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>現居光熱費</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_utility_costs'
-                                                defaultValue='現居光熱費' formattedValue={safeFormate(information.current_utility_costs).replace('万円', '')} />
+                                                defaultValue='現居光熱費' moneyManYen={true} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>負債総額</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_loan_balance'
-                                                defaultValue='自己資金' formattedValue={safeFormate(information.current_loan_balance).replace('0000', '')} />
+                                                defaultValue='自己資金' moneyManYen={true} />
                                             万円
                                         </td>
                                     </tr>
@@ -1116,7 +1118,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>年収</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_annual_income'
-                                                defaultValue='年収' />
+                                                defaultValue='年収' moneyManYen={true} />
                                             万円
                                         </td>
                                     </tr>

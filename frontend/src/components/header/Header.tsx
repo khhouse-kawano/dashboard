@@ -24,6 +24,8 @@ import AmbassadorList from './AmbassadorList';
 import { InquiryAmbassador } from './InquiryAmbassador';
 import InquiryIntroductory from './InquiryIntroductory';
 import EventList from './EventList';
+import EventSummary from './EventSummary';
+import EventBudget from './EventBudget';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
@@ -41,6 +43,17 @@ const Header = ({ }) => {
      *   共通モーダルの中に入れるとモーダルが二重になる。
      */
     const [eventSummary, setEventSummary] = useState<boolean>(false);
+    /**
+     * 広告費入力の表示。
+     *
+     * ⚠️ EventBudget も自前のモーダルを持つため、共通モーダル（modal）とは
+     *   別の state で開く。⚠️ 共通モーダルの中に入れると二重モーダルになる。
+     *
+     * ⚠️ 集客サマリーを共通モーダルで開いたまま、その上に重ねて開く経路がある
+     *   （サマリー右上の「広告費入力」）。react-bootstrap はモーダルの重ねに
+     *   対応しているが、閉じる順を変えないこと。
+     */
+    const [eventBudget, setEventBudget] = useState<boolean>(false);
     const [modal, setModal] = useState<boolean>(false);
     const [estateId, setEstateId] = useState('search');
     const [callStatusShow, setCallStatusShow] = useState(true);
@@ -64,7 +77,7 @@ const Header = ({ }) => {
         '日報': ['月次日報'],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
         '紹介キャンペーン': ['反響一覧'],
-        '集客イベント': ['反響一覧']
+        '集客イベント': ['反響一覧', '集客サマリー', '広告費入力']
     };
 
     /**
@@ -96,11 +109,15 @@ const Header = ({ }) => {
         '日報/月次日報': <DailyReports />,
         '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
         '公式アンバサダー/反響一覧': <InquiryAmbassador />,
-        '紹介キャンペーン/反響一覧': <InquiryIntroductory />
+        '紹介キャンペーン/反響一覧': <InquiryIntroductory />,
         // ⚠️ '集客イベント/反響一覧' はここに入れない。
         //   EventList は**自前の fullscreen モーダル**を持っているため、
         //   下の共通モーダルの中に入れると二重のモーダルになる。
         //   別の state（eventSummary）で開く。下の JSX を参照。
+        //
+        // ⚠️ 一方 '集客サマリー' は自前のモーダルを持たないので、
+        //   共通モーダルに載せる（EventList とは扱いが違う）。
+        '集客イベント/集客サマリー': <EventSummary />
     };
 
     useEffect(() => {
@@ -124,6 +141,8 @@ const Header = ({ }) => {
         '公式アンバサダー/アンバサダー管理',
         '公式アンバサダー/反響一覧',
         '紹介キャンペーン/反響一覧',
+        // 集客サマリーは KPI が5列＋広告費で横に広く、行も伸びるため同じ扱い
+        '集客イベント/集客サマリー',
     ].includes(editMenu);
 
     // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）
@@ -201,10 +220,24 @@ const Header = ({ }) => {
                                     key={item}
                                     className="py-2 px-3 text-dark position-relative"
                                     onClick={() => {
-                                        // ⚠️ 集客イベントだけは共通モーダルを使わない。
-                                        //   EventList が自前の fullscreen モーダルを持っている
-                                        if (menu === '集客イベント') {
+                                        // ⚠️⚠️ 集客イベントの「反響一覧」だけは共通モーダルを
+                                        //   使わない。EventList が自前の fullscreen モーダルを
+                                        //   持っているため、共通モーダルに入れると二重になる。
+                                        //
+                                        // ⚠️ 以前は menu === '集客イベント' だけで判定しており、
+                                        //   項目に関係なく必ず EventList を開いていた。
+                                        //   2026-09-09 に「集客サマリー」を追加したため、
+                                        //   **項目まで見て分岐する**必要がある。
+                                        //   item を見ない条件に戻すと、集客サマリーを選んでも
+                                        //   反響一覧が開く（エラーにならないので気づきにくい）。
+                                        if (menu === '集客イベント' && item === '反響一覧') {
                                             setEventSummary(true);
+                                            return;
+                                        }
+                                        // ⚠️ 広告費入力も自前のモーダルを持つ。
+                                        //   共通モーダルに入れず専用の state で開く
+                                        if (menu === '集客イベント' && item === '広告費入力') {
+                                            setEventBudget(true);
                                             return;
                                         }
                                         // ⚠️ キーは `メニュー/項目`。項目名だけだと
@@ -258,6 +291,20 @@ const Header = ({ }) => {
                     style={{ fontSize: '15px' }}
                 >
                     <span>{editLabel}</span>
+                    {/* ⚠️ 集客サマリーのときだけ。閉じるボタンの**左隣**に置く
+                        （.modal-header は左寄せに上書きしてあるので、
+                          閉じるボタンより前に書けば左に並ぶ） */}
+                    {editMenu === '集客イベント/集客サマリー' && (
+                        <button
+                            type="button"
+                            onClick={() => setEventBudget(true)}
+                            className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 fw-normal"
+                            style={{ fontSize: '12px' }}
+                        >
+                            <i className="fa-solid fa-yen-sign" aria-hidden="true" />
+                            広告費入力
+                        </button>
+                    )}
                     {isFullscreenMenu && (
                         <button
                             type="button"
@@ -292,6 +339,10 @@ const Header = ({ }) => {
                 ⚠️ 以前は ListOrder（反響一覧の画面内ボタン）から開いていた。
                 2026-09-06 にヘッダーへ移した */}
             <EventList eventSummary={eventSummary} setEventSummary={setEventSummary} />
+
+            {/* 広告費入力。⚠️ 集客サマリーの上に重ねて開くこともあるため、
+                共通モーダルの外（ここ）に置く */}
+            <EventBudget show={eventBudget} setShow={setEventBudget} />
         </>
     );
 };

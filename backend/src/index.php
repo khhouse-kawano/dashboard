@@ -34,8 +34,38 @@ if ($request === '' || !preg_match('#^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$#', $requ
 // 切り戻しは core/express_proxy.php の expressProxyRequests() から
 // 該当行を消すだけ。デプロイし直す必要もない。
 // ---------------------------------------------------------------------------
-if (shouldProxyToExpress($request, is_array($data) ? $data : []) && forwardToExpress($data)) {
-    exit;
+$proxyData = is_array($data) ? $data : [];
+
+if (shouldProxyToExpress($request, $proxyData)) {
+    if (forwardToExpress($data)) {
+        exit;
+    }
+
+    // ⚠️⚠️ **書き込み系は ① で実行してはいけない。**
+    //
+    //   ② が処理を完了した直後に応答が失われた場合、ここで ① の PHP を
+    //   動かすと二重登録・二重更新になる。転送できなかったのか、
+    //   処理済みで応答だけ失われたのかは呼び出し側から区別できない。
+    //   そのため「実行しない」を選び、502 を返して利用者に再操作を委ねる。
+    //
+    // ⚠️ フロント（apiClient）は 5xx を例外として扱う。
+    //   保存ボタンを押した利用者にはエラーが見える。黙って失敗しない。
+    //
+    // ⚠️ 障害時の切り戻しは core/express_proxy.php の
+    //   expressProxyExclusive() から該当行を消すだけ。
+    //   消せば ① 自身の PHP が処理する（PHPハンドラは残してある）。
+    if (isExclusiveToExpress($request, $proxyData)) {
+        error_log("express_proxy: {$request} は転送専用のため ① では処理しません（502）");
+        http_response_code(502);
+        echo json_encode(
+            [
+                'status' => 'error',
+                'message' => '保存処理に接続できませんでした。時間をおいて再度お試しください。',
+            ],
+            JSON_UNESCAPED_UNICODE
+        );
+        exit;
+    }
 }
 
 $handler = __DIR__ . "/handlers/" . $request . ".php";
