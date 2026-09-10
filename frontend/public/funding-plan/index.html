@@ -30,6 +30,9 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   border-radius:8px;padding:4px 8px}
 .cust label{font-size:11px;color:#cfdcf5;letter-spacing:.06em}
 .cust select{background:#fff;color:#111;border:0;border-radius:5px;padding:4px 6px;min-width:180px;font-size:12.5px}
+.cust .cin{background:#fff;color:#111;border:0;border-radius:5px;padding:4px 6px;width:132px;font-size:12.5px}
+.cust .cin.sm{width:76px}
+.pbar .psel{background:#fff;color:#111;border:0;border-radius:5px;padding:3px 6px;font-size:11.5px;width:auto}
 .btn{border:0;border-radius:7px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;transition:.15s}
 .btn:hover{filter:brightness(1.08)}
 .btn:active{transform:translateY(1px)}
@@ -40,8 +43,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .b-n{background:var(--navy);color:#fff}
 .b-sm{padding:3px 9px;font-size:11.5px;border-radius:6px}
 
-.tabs{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:8px}
-@media(max-width:1180px){.tabs{grid-template-columns:repeat(5,1fr)}}
+.tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:8px}
+@media(max-width:820px){.tabs{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:620px){.tabs{grid-template-columns:repeat(3,1fr)}}
 .tab{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:8px 8px 3px 3px;
   color:#dbe5f6;padding:6px 4px;font-size:11.5px;font-weight:700;cursor:pointer;text-align:center;line-height:1.35;
@@ -237,14 +240,92 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   .tw table{min-width:0}
   .xbtn,.addrow{display:none !important}
   h2.sec{font-size:15px}
+
+  /* ============ A3横 1枚モード ============ */
+  body.pr.a3{font-size:10.6px}
+  body.pr.a3 .page.pon{columns:2;column-gap:6mm}
+  body.pr.a3 .phead{column-span:all;-webkit-column-span:all;padding-bottom:3px;margin-bottom:6px;border-bottom-width:2.5px}
+  body.pr.a3 .phead .klogo{width:46px;height:28px}
+  body.pr.a3 .phead .pt{font-size:18px}
+  body.pr.a3 .phead .pc{font-size:12px}
+  body.pr.a3 .card{padding:5px 7px;margin-bottom:5px;border-radius:5px;break-inside:avoid;
+    -webkit-column-break-inside:avoid;page-break-inside:avoid}
+  body.pr.a3 .card>h3{font-size:12.1px;margin:0 0 5px;padding-bottom:2px;border-bottom-width:1.5px;line-height:1.3}
+  body.pr.a3 .card>h3 .sub{display:none}
+  body.pr.a3 h3[style]{font-size:12.1px !important;margin:9px 0 5px !important}
+  body.pr.a3 .g2,body.pr.a3 .g3{display:block}
+  body.pr.a3 .fg,body.pr.a3 .fg.w2{grid-template-columns:1fr 1fr !important;gap:2px 6px}
+  body.pr.a3 .f>label{font-size:9.5px;line-height:1.25}
+  body.pr.a3 input,body.pr.a3 select,body.pr.a3 textarea{padding:0 3px !important;font-size:10.6px !important;
+    border-radius:2px;min-height:0}
+  body.pr.a3 textarea{min-height:30px !important}
+  body.pr.a3 .unit .u{font-size:9.1px}
+  body.pr.a3 .kpis{grid-template-columns:1fr 1fr !important;gap:4px;margin-top:5px !important}
+  body.pr.a3 .kpi{padding:4px 5px;border-radius:5px;border-width:1px;break-inside:avoid}
+  body.pr.a3 .kpi .l{font-size:8.8px;line-height:1.2}
+  body.pr.a3 .kpi .v{font-size:16px;margin-top:0}
+  body.pr.a3 .kpi .v small{font-size:9.4px}
+  body.pr.a3 .kpi .s{font-size:8.6px}
+  body.pr.a3 th,body.pr.a3 td{padding:1.5px 4px;font-size:9.9px;line-height:1.4}
+  body.pr.a3 thead th{font-size:9.1px}
+  body.pr.a3 .tw{overflow:visible}
+  body.pr.a3 .tw table{min-width:0}
+  body.pr.a3 .a3hide{display:none !important}
+  body.pr.a3 .note{font-size:8.4px;margin-top:5px;line-height:1.55}
+  body.pr.a3 .msg{font-size:9.9px;padding:6px 9px;margin:6px 0;line-height:1.6}
+  body.pr.a3 .pill{font-size:8.6px;padding:1px 7px}
+  body.pr.a3 .arrowdown{display:none}
+
+  /* ⑧家づくりの流れ：ステップ図だけをA3 1枚に */
+  body.pr.a3 #p9.pon{columns:auto}
+  body.pr.a3 #p9 > .card:not(#cardSteps){display:none !important}
+  body.pr.a3 #p9 .stepgrid{grid-template-columns:repeat(4,1fr);gap:9px}
+  body.pr.a3 #p9 .step{padding:12px 15px 13px;border-radius:9px;border-width:1.5px}
+  body.pr.a3 #p9 .step .sn{font-size:13px;padding:1px 10px;top:-10px;left:13px}
+  body.pr.a3 #p9 .step .st{font-size:16.7px;margin-top:8px;line-height:1.3}
+  body.pr.a3 #p9 .step .sd{font-size:13px;line-height:1.6;margin-top:6px}
+  body.pr.a3 #p9 .step .sdate{font-size:13.8px;padding:2px 9px;margin-top:8px}
+  body.pr.a3 #p9 #cardSteps{padding:12px 14px}
+  body.pr.a3 #p9 #cardSteps > h3{font-size:16px}
   .lngrid{grid-template-columns:repeat(3,1fr);gap:5px}
   .lncard{padding:6px 7px;break-inside:avoid;box-shadow:none}
   .lc-rate input{font-size:16px;width:70px;border:0 !important;background:transparent !important;padding:0}
   .lc-meta{font-size:8.5px}
   .lnfil{display:none}
   details{display:none}
+  #landMap{height:300px;break-inside:avoid}
+  .hzrow,.mtool{display:none}
+  .lnkgrid{grid-template-columns:repeat(4,1fr);gap:4px}
+  .lnk{padding:4px 6px;box-shadow:none}
+  .lnk .tx i{display:none}
 }
+
+/* ===== ⑪ 土地検索 ===== */
+#landMap{height:480px;border:1px solid var(--line);border-radius:10px;z-index:0}
+@media(max-width:700px){#landMap{height:360px}}
+.mapatt{font-size:9.5px;color:var(--mu);margin-top:4px;text-align:right}
+.mapatt a{color:var(--navy2)}
+.lnkh{font-size:11.5px;font-weight:900;color:var(--navy);letter-spacing:.04em;margin:13px 0 6px;
+  padding:2px 0 2px 9px;border-left:4px solid var(--yellow)}
+.lnkh:first-child{margin-top:2px}
+.lnkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));gap:8px}
+.lnk{display:flex;align-items:center;gap:9px;border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;
+  background:#fff;text-decoration:none;transition:.15s}
+.lnk:hover{border-color:var(--navy2);box-shadow:0 3px 10px rgba(15,54,117,.1);transform:translateY(-1px)}
+.lnk .ic{font-size:18px;flex:none;width:26px;text-align:center}
+.lnk .tx{display:flex;flex-direction:column;min-width:0}
+.lnk .tx b{font-size:12.5px;color:var(--navy);font-weight:800;line-height:1.3}
+.lnk .tx i{font-size:10.5px;color:var(--mu);font-style:normal;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hzrow{display:flex;flex-wrap:wrap;gap:5px 14px;align-items:center;background:#f4f7fc;border:1px solid var(--line);
+  border-radius:9px;padding:8px 11px;margin-bottom:9px}
+.hzrow .hzlbl{font-size:12px;font-weight:900;color:var(--navy);flex:none}
+.hzrow label{display:flex;align-items:center;gap:4px;font-size:11.5px;cursor:pointer}
+.hzrow input{accent-color:#c0392b;width:15px;height:15px}
+.mtool{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.mtool .mtip{font-size:11px;color:var(--mu);margin-left:4px}
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
 
@@ -261,6 +342,18 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
            持たせていない（顧客一覧をここに出すと閲覧権限の話になる）。 -->
       <select id="custSel" disabled></select>
     </div>
+    <div class="cust">
+      <label>お名前</label>
+      <input type="text" class="cin" data-k="k_name" placeholder="例）国分 太郎">
+      <label>担当</label>
+      <input type="text" class="cin sm" data-k="k_staff">
+    </div>
+    <!-- ⚠️⚠️ 「＋ 新規作成」「複製保存」は連携版では出さない。
+         顧客は ?id= で一意に決まるため、原本（localStorage 版）の
+         newCustomer() / saveAsCustomer() は成立しない。
+           newCustomer()   … 別の顧客に切り替わってしまう
+           saveAsCustomer()… S.id を空にするだけで、保存先は同じ ?id= のまま
+         原本を取り込み直すたびに復活するので、毎回外すこと。 -->
     <button class="btn b-w" id="saveBtn" onclick="saveCustomer()">💾 保存</button>
     <button class="btn b-r" onclick="delCustomer()">削除</button>
     <div class="sp"></div>
@@ -274,111 +367,10 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
 
 <div class="wrap">
 
-<!-- ========== ① お客様カルテ ========== -->
-<section class="page" id="p1">
-  <div class="phead"><span class="klogo"></span><div class="pt">① お客様カルテ</div><div class="pc" data-o="ph_name"></div></div>
-  <h2 class="sec noprint"><span class="num">①</span>お客様カルテ</h2>
-  <p class="lead noprint">ヒアリング内容を入力してください。ここで入力した年収・家賃・光熱費は「③デジシキ」「⑤ローン控除」「⑧FPシュミレーション」に自動連動します。</p>
-
-  <div class="card">
-    <h3>お客様情報<span class="sub">※お名前は保存時のリスト名になります</span></h3>
-    <div class="fg">
-      <div class="f"><label>お客様名（様邸）</label><input type="text" data-k="k_name" placeholder="例）国分 太郎"></div>
-      <div class="f"><label>ふりがな</label><input type="text" data-k="k_kana"></div>
-      <div class="f"><label>作成日</label><input type="date" data-k="k_date"></div>
-      <div class="f"><label>担当店舗</label>
-        <select data-k="k_shop">
-          <option value=""></option><option>鹿児島店</option><option>霧島店</option><option>鹿屋店</option><option>薩摩川内店</option>
-          <option>出水阿久根店</option><option>加世田店</option><option>姶良店</option><option>宮崎店</option><option>延岡店</option>
-          <option>都城店</option><option>八代店</option><option>大分店</option><option>熊本店</option><option>佐賀店</option>
-          <option>なごみ工務店</option><option>フルコミホーム</option><option>DAY JUST HOUSE</option><option>JUSFY HOME</option><option>2Lhome</option>
-        </select></div>
-      <div class="f"><label>担当者</label><input type="text" data-k="k_staff"></div>
-      <div class="f full"><label>ご住所（現住所）</label><input type="text" data-k="k_addr"></div>
-      <div class="f"><label>お電話番号</label><input type="text" data-k="k_tel"></div>
-      <div class="f"><label>メールアドレス</label><input type="text" data-k="k_mail"></div>
-      <div class="f"><label>現在のお住まい</label>
-        <select data-k="k_now"><option value=""></option><option>賃貸アパート・マンション</option><option>賃貸戸建</option><option>ご実家</option><option>社宅・寮</option><option>持ち家</option></select></div>
-    </div>
-  </div>
-
-  <div class="g2">
-    <div class="card">
-      <h3>ご家族構成</h3>
-      <div class="fg">
-        <div class="f"><label>ご主人様 お名前</label><input type="text" data-k="k_h_name"></div>
-        <div class="f"><label>ご主人様 生年月日</label><input type="date" data-k="k_h_birth"></div>
-        <div class="f"><label>ご主人様 年齢</label><div class="unit"><input type="number" data-k="k_h_age" data-calc><span class="u">歳</span></div></div>
-        <div class="f"><label>ご主人様 お勤め先</label><input type="text" data-k="k_h_work"></div>
-        <div class="f"><label>奥様 お名前</label><input type="text" data-k="k_w_name"></div>
-        <div class="f"><label>奥様 生年月日</label><input type="date" data-k="k_w_birth"></div>
-        <div class="f"><label>奥様 年齢</label><div class="unit"><input type="number" data-k="k_w_age" data-calc><span class="u">歳</span></div></div>
-        <div class="f"><label>奥様 お勤め先</label><input type="text" data-k="k_w_work"></div>
-      </div>
-      <h3 style="margin-top:14px">お子様<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('kids')">＋ 追加</button></span></h3>
-      <div class="tw"><table id="tblKids"><thead><tr><th style="width:34%">お名前</th><th style="width:20%">現在年齢</th><th style="width:34%">進学プラン（⑧FPに連動）</th><th class="noprint" style="width:34px"></th></tr></thead><tbody></tbody></table></div>
-      <p class="note">※お子様の年齢と進学プランは「⑧FPシュミレーション」の教育費計算に使用します。</p>
-    </div>
-
-    <div class="card">
-      <h3>ご年収・ご自己資金</h3>
-      <div class="fg">
-        <div class="f"><label>ご主人様 年収</label><div class="unit"><input type="number" data-k="k_inc1" data-calc><span class="u">万円</span></div></div>
-        <div class="f"><label>奥様 年収</label><div class="unit"><input type="number" data-k="k_inc2" data-calc><span class="u">万円</span></div></div>
-        <div class="f"><label>年収合計</label><div class="unit"><input class="ro" readonly data-o="o_incTotal" data-fmt="m0"><span class="u">万円</span></div></div>
-        <div class="f"><label>ご自己資金（頭金）</label><div class="unit"><input type="number" data-k="k_jiko" data-calc><span class="u">万円</span></div></div>
-        <div class="f"><label>ご援助資金</label><div class="unit"><input type="number" data-k="k_enjo" data-calc><span class="u">万円</span></div></div>
-        <div class="f"><label>現在の貯蓄額</label><div class="unit"><input type="number" data-k="k_chochiku" data-calc><span class="u">万円</span></div></div>
-      </div>
-      <h3 style="margin-top:14px">現在の毎月のお支払い<span class="sub">③デジシキの比較に使用</span></h3>
-      <div class="fg">
-        <div class="f"><label>家賃</label><div class="unit"><input type="number" data-k="k_rent" data-calc><span class="u">円</span></div></div>
-        <div class="f"><label>駐車場</label><div class="unit"><input type="number" data-k="k_park" data-calc><span class="u">円</span></div></div>
-        <div class="f"><label>電気代</label><div class="unit"><input type="number" data-k="k_elec" data-calc><span class="u">円</span></div></div>
-        <div class="f"><label>ガス代</label><div class="unit"><input type="number" data-k="k_gas" data-calc><span class="u">円</span></div></div>
-        <div class="f"><label>その他お借入①（車等）</label><div class="unit"><input type="number" data-k="k_l1" data-calc><span class="u">円/月</span></div></div>
-        <div class="f"><label>その他お借入②</label><div class="unit"><input type="number" data-k="k_l2" data-calc><span class="u">円/月</span></div></div>
-        <div class="f"><label>その他お借入③</label><div class="unit"><input type="number" data-k="k_l3" data-calc><span class="u">円/月</span></div></div>
-        <div class="f"><label>お借入ボーナス払い</label><div class="unit"><input type="number" data-k="k_lb" data-calc><span class="u">円/回</span></div></div>
-      </div>
-      <div class="kpis" style="margin-top:12px">
-        <div class="kpi"><div class="l">現在の住居関連 総支出</div><div class="v" data-o="o_nowTotal" data-fmt="y">0<small>円/月</small></div></div>
-        <div class="kpi"><div class="l">他社お借入 返済額（月換算）</div><div class="v" data-o="o_otherLoan" data-fmt="y">0<small>円/月</small></div></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>ヒアリングシート<span class="sub">グループ共通デジタル資金計画「スタート」シート準拠</span></h3>
-    <div class="fg w2">
-      <div class="f full"><label>お家づくりを検討されるきっかけ</label>
-        <div class="chk" id="chkTrigger"></div>
-        <input type="text" data-k="k_trigger_etc" placeholder="その他・具体的に" style="margin-top:5px"></div>
-      <div class="f"><label>計画時期</label><div class="unit"><input type="number" step="0.5" data-k="k_timing" data-calc><span class="u">年後</span></div></div>
-      <div class="f"><label>建築ご希望地</label><input type="text" data-k="k_area" placeholder="例）姶良市"></div>
-      <div class="f"><label>ご希望の建て方</label>
-        <select data-k="k_style" data-calc><option value="">未定</option><option>平屋建て</option><option>2階建て</option></select></div>
-      <div class="f"><label>土地の目安坪数</label><div class="unit"><input type="number" data-k="k_tsubo" data-calc><span class="u">坪</span></div>
-        <div class="hint">平屋70坪／2階建て50坪あれば駐車場2台＋小さなお庭が可能</div></div>
-      <div class="f"><label>ご希望の延床面積</label><div class="unit"><input type="number" data-k="k_yuka" data-calc><span class="u">坪</span></div></div>
-      <div class="f"><label>ご希望の月々お支払額</label><div class="unit"><input type="number" data-k="k_hope" data-calc><span class="u">円</span></div></div>
-      <div class="f"><label>土地の有無</label>
-        <select data-k="k_landhave"><option value="">未定</option><option>土地から探す</option><option>お持ちの土地に建てる</option><option>ご実家の敷地</option></select></div>
-      <div class="f full"><label>気になる住宅メーカーさん</label><input type="text" data-k="k_makers"></div>
-      <div class="f full"><label>土地選びでここだけは外せないという部分（例：お子さんの学校区・ご実家が近く・通勤時間…）</label>
-        <textarea data-k="k_landwish"></textarea></div>
-      <div class="f full"><label>お家づくりで心配なこと・本日聞いておきたいこと（例：建築費、住宅ローン、土地探し、賃貸との違い）</label>
-        <textarea data-k="k_worry"></textarea></div>
-      <div class="f full"><label>ご要望・こだわり（間取り／設備／デザイン等）</label><textarea data-k="k_youbou"></textarea></div>
-      <div class="f full"><label>次回アポイント・商談メモ</label><textarea data-k="k_memo"></textarea></div>
-    </div>
-  </div>
-</section>
-
-<!-- ========== ② 国分ハウジング会社紹介 ========== -->
+<!-- ========== ① 国分ハウジング会社紹介 ========== -->
 <section class="page" id="p2">
-  <div class="phead"><span class="klogo"></span><div class="pt">② 国分ハウジンググループのご紹介</div><div class="pc" data-o="ph_name2"></div></div>
-  <h2 class="sec noprint"><span class="num">②</span>国分ハウジング 会社紹介</h2>
+  <div class="phead"><span class="klogo"></span><div class="pt">① 国分ハウジンググループのご紹介</div><div class="pc" data-o="ph_name2"></div></div>
+  <h2 class="sec noprint"><span class="num">①</span>国分ハウジング 会社紹介</h2>
   <p class="lead noprint">会社カタログ（KOKUBU HOUSING COMPANY PROFILE 2版／2025年6月発行）より</p>
 
   <div class="hero"><div class="in">
@@ -448,14 +440,14 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   </div>
 </section>
 
-<!-- ========== ③ デジシキ ========== -->
+<!-- ========== ② デジシキ ========== -->
 <section class="page" id="p3">
-  <div class="phead"><span class="klogo"></span><div class="pt">③ デジシキ（デジタル資金計画）</div><div class="pc" data-o="ph_name3"></div></div>
-  <h2 class="sec noprint"><span class="num">③</span>デジシキ（デジタル資金計画）</h2>
+  <div class="phead"><span class="klogo"></span><div class="pt">② デジシキ（デジタル資金計画）</div><div class="pc" data-o="ph_name3"></div></div>
+  <h2 class="sec noprint"><span class="num">②</span>デジシキ（デジタル資金計画）</h2>
   <p class="lead noprint">グループ共通デジタル資金計画「資金計画」シート準拠。総額から借入額・月々返済額・返済比率を算出し、住宅ローン減税・光熱費削減・売電収入を差し引いた<b>実質の月々ローン負担額</b>を求めます。</p>
 
-  <div class="card">
-    <h3>ご年収・ご自己資金<span class="sub">①お客様カルテと相互連動（どちらで入力してもOK）</span></h3>
+<div class="card">
+    <h3>ご年収・ご自己資金<span class="sub">⑦FPシュミレーション・④ローン控除に自動連動します</span></h3>
     <div class="fg">
       <div class="f"><label>ご主人様 年収</label><div class="unit"><input type="number" data-k="k_inc1" data-calc><span class="u">万円</span></div></div>
       <div class="f"><label>奥様 年収</label><div class="unit"><input type="number" data-k="k_inc2" data-calc><span class="u">万円</span></div></div>
@@ -464,7 +456,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       <div class="f"><label>ご援助資金</label><div class="unit"><input type="number" data-k="k_enjo" data-calc><span class="u">万円</span></div></div>
       <div class="f"><label>現在の貯蓄額</label><div class="unit"><input type="number" data-k="k_chochiku" data-calc><span class="u">万円</span></div></div>
     </div>
-    <h3 style="margin-top:15px">現在の毎月のお支払い<span class="sub">①お客様カルテと相互連動</span></h3>
+    <h3 style="margin-top:15px">現在の毎月のお支払い<span class="sub">⑦FPの支出算出シートと相互連動</span></h3>
     <div class="fg">
       <div class="f"><label>家賃</label><div class="unit"><input type="number" data-k="k_rent" data-calc><span class="u">円</span></div></div>
       <div class="f"><label>駐車場</label><div class="unit"><input type="number" data-k="k_park" data-calc><span class="u">円</span></div></div>
@@ -506,7 +498,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       <h3>お借入条件</h3>
       <div class="fg">
         <div class="f"><label>自己資金（頭金＋ご援助）</label><div class="unit"><input class="ro" readonly data-o="o_jikoAll" data-fmt="m0"><span class="u">万円</span></div>
-          <div class="hint">①お客様カルテから自動反映</div></div>
+          <div class="hint">上の「ご年収・ご自己資金」から自動反映</div></div>
         <div class="f"><label>ボーナス月加算額</label><div class="unit"><input type="number" step="0.5" data-k="d_bonus" data-calc><span class="u">万円/回</span></div></div>
         <div class="f"><label>ボーナス返済総金額</label><div class="unit"><input class="ro" readonly data-o="o_bonusTotal" data-fmt="m1"><span class="u">万円</span></div></div>
         <div class="f"><label>返済期間</label><div class="unit"><input type="number" data-k="d_years" data-calc><span class="u">年</span></div></div>
@@ -534,7 +526,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       <h3 style="margin-top:14px">ご希望のお支払額からの借入可能額</h3>
       <div class="fg">
         <div class="f"><label>月々希望支払額</label><div class="unit"><input class="ro" readonly data-o="o_hopeM" data-fmt="y"><span class="u">円</span></div>
-          <div class="hint">①お客様カルテから反映</div></div>
+          <div class="hint">上の「現在の毎月のお支払い」から反映</div></div>
         <div class="f"><label>希望支払い金額の借入可能額</label><div class="unit"><input class="ro" readonly data-o="o_hopeKari" data-fmt="m0"><span class="u">万円</span></div></div>
       </div>
     </div>
@@ -544,7 +536,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
     <h3>住宅ローン減税を活用して月々のローン負担額を軽減！</h3>
     <div class="g3">
       <div class="f"><label>住宅ローン減税（月あたり）</label><div class="unit"><input class="ro" readonly data-o="o_genzeiM" data-fmt="y"><span class="u">円/月</span></div>
-        <div class="hint">⑤ローン控除タブの計算結果を月割</div></div>
+        <div class="hint">④ローン控除タブの計算結果を月割</div></div>
       <div class="f"><label>団体信用生命保険による死亡保険の見直し</label><div class="unit"><input type="number" data-k="d_danshin" data-calc><span class="u">円/月</span></div></div>
       <div class="f"><label>減額合計</label><div class="unit"><input class="ro" readonly data-o="o_genkakuTotal" data-fmt="y"><span class="u">円/月</span></div></div>
     </div>
@@ -567,7 +559,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
         <td class="num" data-o="o_baidenYear" data-fmt="y">0</td>
         <td class="num" data-o="o_baidenMonth" data-fmt="y" style="font-weight:900;color:var(--navy)">0</td>
       </tr></tbody></table></div>
-    <p class="note">※発電量・自家消費率・売電単価は「⑥太陽光・蓄電池」タブの入力値と連動しています。あくまでシミュレーションであり、売電額を保証するものではありません。</p>
+    <p class="note">※発電量・自家消費率・売電単価は「⑤太陽光・蓄電池」タブの入力値と連動しています。あくまでシミュレーションであり、売電額を保証するものではありません。</p>
   </div>
 
   <div class="card">
@@ -604,12 +596,13 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       </div>
     </div>
   </div>
+
 </section>
 
-<!-- ========== ④ 資金計画 ========== -->
+<!-- ========== ③ 資金計画 ========== -->
 <section class="page" id="p4">
-  <div class="phead"><span class="klogo"></span><div class="pt">④ 概算資金計画書</div><div class="pc" data-o="ph_name4"></div></div>
-  <h2 class="sec noprint"><span class="num">④</span>資金計画（概算資金計画書）</h2>
+  <div class="phead"><span class="klogo"></span><div class="pt">③ 概算資金計画書</div><div class="pc" data-o="ph_name4"></div></div>
+  <h2 class="sec noprint"><span class="num">③</span>資金計画（概算資金計画書）</h2>
   <p class="lead noprint">概算資金計画書（最新）準拠。各明細を入力すると税別・税込・総額・自己資金が自動計算されます。行の追加・削除ができます。</p>
 
   <div class="card">
@@ -631,21 +624,21 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   <div class="card">
     <h3>① 建物関係明細<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('s1')">＋ 行追加</button></span></h3>
     <div class="tw"><table id="tblS1"><thead><tr>
-      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
-      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr a3hide">課税</th>
+      <th style="width:12%" class="a3hide">支払先</th><th style="width:11%" class="a3hide">見積方法</th><th class="a3hide">備考</th><th class="noprint" style="width:34px"></th>
     </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
       <td class="num" data-o="o_s1in" data-fmt="y">0</td><td class="num" data-o="o_s1ex" data-fmt="y">0</td>
-      <td colspan="5"></td></tr></tfoot></table></div>
+      <td colspan="5" class="a3hide"></td></tr></tfoot></table></div>
   </div>
 
   <div class="card">
     <h3>② 付帯工事明細<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('s2')">＋ 行追加</button></span></h3>
     <div class="tw"><table id="tblS2"><thead><tr>
-      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
-      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr a3hide">課税</th>
+      <th style="width:12%" class="a3hide">支払先</th><th style="width:11%" class="a3hide">見積方法</th><th class="a3hide">備考</th><th class="noprint" style="width:34px"></th>
     </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
       <td class="num" data-o="o_s2in" data-fmt="y">0</td><td class="num" data-o="o_s2ex" data-fmt="y">0</td>
-      <td colspan="5"></td></tr></tfoot></table></div>
+      <td colspan="5" class="a3hide"></td></tr></tfoot></table></div>
   </div>
 
   <div class="card">
@@ -653,32 +646,32 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       <button class="btn b-w b-sm addrow" style="border:1px solid var(--line)" onclick="autoChukai()">仲介手数料を自動計算</button>
       <button class="btn b-n b-sm addrow" onclick="addRow('s3')">＋ 行追加</button></span></h3>
     <div class="tw"><table id="tblS3"><thead><tr>
-      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
-      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr a3hide">課税</th>
+      <th style="width:12%" class="a3hide">支払先</th><th style="width:11%" class="a3hide">見積方法</th><th class="a3hide">備考</th><th class="noprint" style="width:34px"></th>
     </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
       <td class="num" data-o="o_s3in" data-fmt="y">0</td><td class="num" data-o="o_s3ex" data-fmt="y">0</td>
-      <td colspan="5"></td></tr></tfoot></table></div>
+      <td colspan="5" class="a3hide"></td></tr></tfoot></table></div>
     <p class="note">仲介手数料＝（土地代金×3％＋60,000円）×1.1／外構工事の目安＝土地坪数×230,000円</p>
   </div>
 
   <div class="card">
     <h3>④ 諸経費明細<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('s4')">＋ 行追加</button></span></h3>
     <div class="tw"><table id="tblS4"><thead><tr>
-      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
-      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr a3hide">課税</th>
+      <th style="width:12%" class="a3hide">支払先</th><th style="width:11%" class="a3hide">見積方法</th><th class="a3hide">備考</th><th class="noprint" style="width:34px"></th>
     </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
       <td class="num" data-o="o_s4in" data-fmt="y">0</td><td class="num" data-o="o_s4ex" data-fmt="y">0</td>
-      <td colspan="5"></td></tr></tfoot></table></div>
+      <td colspan="5" class="a3hide"></td></tr></tfoot></table></div>
   </div>
 
   <div class="card">
     <h3>⑤ ローン経費<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('s5')">＋ 行追加</button></span></h3>
     <div class="tw"><table id="tblS5"><thead><tr>
-      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr">課税</th>
-      <th style="width:12%">支払先</th><th style="width:11%">見積方法</th><th>備考</th><th class="noprint" style="width:34px"></th>
+      <th style="width:19%">項目</th><th style="width:12%">税込金額</th><th style="width:12%">税別金額</th><th style="width:7%" class="ctr a3hide">課税</th>
+      <th style="width:12%" class="a3hide">支払先</th><th style="width:11%" class="a3hide">見積方法</th><th class="a3hide">備考</th><th class="noprint" style="width:34px"></th>
     </tr></thead><tbody></tbody><tfoot><tr class="tot"><td>合計</td>
       <td class="num" data-o="o_s5in" data-fmt="y">0</td><td class="num" data-o="o_s5ex" data-fmt="y">0</td>
-      <td colspan="5"></td></tr></tfoot></table></div>
+      <td colspan="5" class="a3hide"></td></tr></tfoot></table></div>
   </div>
 
   <div class="card">
@@ -737,15 +730,15 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
         <td class="num" data-o="o_sBaidenYear" data-fmt="y">0</td>
         <td class="num" data-o="o_sSolarMonth2" data-fmt="y">0</td>
       </tr></tbody></table></div>
-    <p class="note">※上記はあくまでもシミュレーションであり、売電額を保証するものではございません。（⑥太陽光・蓄電池タブの入力値と連動します）</p>
+    <p class="note">※上記はあくまでもシミュレーションであり、売電額を保証するものではございません。（⑤太陽光・蓄電池タブの入力値と連動します）</p>
     <div class="f" style="margin-top:12px"><label>⑧ 備考</label><textarea data-k="s_bikou" style="min-height:92px"></textarea></div>
   </div>
 </section>
 
-<!-- ========== ⑤ ローン控除 ========== -->
+<!-- ========== ④ ローン控除 ========== -->
 <section class="page" id="p5">
-  <div class="phead"><span class="klogo"></span><div class="pt">⑤ 住宅ローン控除（住宅ローン減税）</div><div class="pc" data-o="ph_name5"></div></div>
-  <h2 class="sec noprint"><span class="num">⑤</span>ローン控除（住宅ローン減税）</h2>
+  <div class="phead"><span class="klogo"></span><div class="pt">④ 住宅ローン控除（住宅ローン減税）</div><div class="pc" data-o="ph_name5"></div></div>
+  <h2 class="sec noprint"><span class="num">④</span>ローン控除（住宅ローン減税）</h2>
   <p class="lead noprint">年末ローン残高×0.7％が所得税・住民税から控除されます。住宅の性能区分と世帯区分で借入限度額が変わります。</p>
 
   <div class="card">
@@ -768,7 +761,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       <div class="f"><label>控除率</label><div class="unit"><input class="ro" readonly value="0.7" ><span class="u">％</span></div></div>
       <div class="f"><label>控除期間</label><div class="unit"><input class="ro" readonly data-o="o_gKikan" data-fmt="n0"><span class="u">年</span></div></div>
       <div class="f"><label>お借入金額</label><div class="unit"><input class="ro" readonly data-o="o_gKari" data-fmt="y"><span class="u">円</span></div>
-        <div class="hint">③デジシキから自動反映</div></div>
+        <div class="hint">②デジシキから自動反映</div></div>
       <div class="f"><label>金利（年利）</label><div class="unit"><input class="ro" readonly data-o="o_gRate" data-fmt="p3"><span class="u">％</span></div></div>
       <div class="f"><label>返済期間</label><div class="unit"><input class="ro" readonly data-o="o_gYears" data-fmt="n0"><span class="u">年</span></div></div>
     </div>
@@ -795,7 +788,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
     <div class="kpis">
       <div class="kpi dk"><div class="l">控除額 総額</div><div class="v" data-o="o_gTotal" data-fmt="y">0<small>円</small></div></div>
       <div class="kpi hi"><div class="l">1年あたり平均</div><div class="v" data-o="o_gAvgYear" data-fmt="y">0<small>円</small></div></div>
-      <div class="kpi"><div class="l">月あたり平均（③に連動）</div><div class="v" data-o="o_gAvgMonth" data-fmt="y">0<small>円</small></div></div>
+      <div class="kpi"><div class="l">月あたり平均（②に連動）</div><div class="v" data-o="o_gAvgMonth" data-fmt="y">0<small>円</small></div></div>
       <div class="kpi"><div class="l">初年度の控除額</div><div class="v" data-o="o_gFirst" data-fmt="y">0<small>円</small></div></div>
     </div>
     <div class="tw" style="margin-top:13px"><table id="tblGenzei">
@@ -809,10 +802,10 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   </div>
 </section>
 
-<!-- ========== ⑥ 太陽光・蓄電池 ========== -->
+<!-- ========== ⑤ 太陽光・蓄電池 ========== -->
 <section class="page" id="p6">
-  <div class="phead"><span class="klogo"></span><div class="pt">⑥ 太陽光発電・蓄電池シミュレーション</div><div class="pc" data-o="ph_name6"></div></div>
-  <h2 class="sec noprint"><span class="num">⑥</span>太陽光・蓄電池</h2>
+  <div class="phead"><span class="klogo"></span><div class="pt">⑤ 太陽光発電・蓄電池シミュレーション</div><div class="pc" data-o="ph_name6"></div></div>
+  <h2 class="sec noprint"><span class="num">⑤</span>太陽光・蓄電池</h2>
   <p class="lead noprint">「自分達で使う電力は自分達でまかないましょう」。お昼間に使う電力が多いほどお得になります。</p>
 
   <div class="g2">
@@ -823,7 +816,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
         <div class="f"><label>モジュール枚数</label><div class="unit"><input class="ro" readonly data-o="o_vPanelN" data-fmt="n0"><span class="u">枚</span></div>
           <div class="hint">容量÷モジュール出力で自動計算</div></div>
         <div class="f"><label>システム出力（容量）</label><div class="unit"><input class="ro" readonly data-o="o_vKw" data-fmt="n2"><span class="u">kW</span></div>
-          <div class="hint">③デジシキの「③太陽光(kW)」で変更</div></div>
+          <div class="hint">②デジシキの「③太陽光(kW)」欄で変更</div></div>
         <div class="f"><label>設置条件（方位）</label>
           <select data-k="v_houi"><option>南</option><option>南東</option><option>南西</option><option>東</option><option>西</option></select></div>
         <div class="f"><label>屋根勾配</label><div class="unit"><input type="number" data-k="v_koubai"><span class="u">寸</span></div></div>
@@ -839,7 +832,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
         <div class="f"><label>差額（買電−売電）</label><div class="unit"><input class="ro" readonly data-o="o_vSagaku" data-fmt="n0"><span class="u">円</span></div></div>
         <div class="f"><label>自家消費率</label><div class="unit"><input type="number" data-k="v_jika" data-calc><span class="u">％</span></div>
           <div class="hint">お昼間に使う電力の割合。標準30％</div></div>
-        <div class="f"><label>現在の光熱費（①より）</label><div class="unit"><input class="ro" readonly data-o="o_vKounetsu" data-fmt="y"><span class="u">円/月</span></div></div>
+        <div class="f"><label>現在の光熱費（②より）</label><div class="unit"><input class="ro" readonly data-o="o_vKounetsu" data-fmt="y"><span class="u">円/月</span></div></div>
         <div class="f"><label>売電に消費税を上乗せする</label>
           <select data-k="v_tax" data-calc><option value="1.1">上乗せする（×1.1）</option><option value="1">上乗せしない</option></select></div>
       </div>
@@ -912,10 +905,10 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   </div>
 </section>
 
-<!-- ========== ⑦ 建て時比較 ========== -->
+<!-- ========== ⑥ 建て時比較 ========== -->
 <section class="page" id="p7">
-  <div class="phead"><span class="klogo"></span><div class="pt">⑦ 建て時比較</div><div class="pc" data-o="ph_name7"></div></div>
-  <h2 class="sec noprint"><span class="num">⑦</span>建て時比較</h2>
+  <div class="phead"><span class="klogo"></span><div class="pt">⑥ 建て時比較</div><div class="pc" data-o="ph_name7"></div></div>
+  <h2 class="sec noprint"><span class="num">⑥</span>建て時比較</h2>
   <p class="lead noprint">「今建てる」場合と「◯年後に建てる」場合を比較します。あわせて35年ローンと40年ローンの違いもご確認ください。</p>
 
   <div class="card">
@@ -925,7 +918,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       <div class="f"><label>現在の家賃＋駐車場</label><div class="unit"><input class="ro" readonly data-o="o_tRent" data-fmt="y"><span class="u">円/月</span></div></div>
       <div class="f"><label>建築費の上昇率（想定）</label><div class="unit"><input type="number" step="0.1" data-k="t_upRate" data-calc><span class="u">％/年</span></div></div>
       <div class="f"><label>◯年後の想定金利</label><div class="unit"><input type="number" step="0.01" data-k="t_futureRate" data-calc><span class="u">％</span></div></div>
-      <div class="f"><label>現在の金利（③より）</label><div class="unit"><input class="ro" readonly data-o="o_tNowRate" data-fmt="p3"><span class="u">％</span></div></div>
+      <div class="f"><label>現在の金利（②より）</label><div class="unit"><input class="ro" readonly data-o="o_tNowRate" data-fmt="p3"><span class="u">％</span></div></div>
       <div class="f"><label>ご主人様の現在年齢</label><div class="unit"><input class="ro" readonly data-o="o_tAge" data-fmt="n0"><span class="u">歳</span></div></div>
     </div>
   </div>
@@ -984,11 +977,28 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   </div>
 </section>
 
-<!-- ========== ⑧ FPシュミレーション ========== -->
+<!-- ========== ⑦ FPシュミレーション ========== -->
 <section class="page" id="p8">
-  <div class="phead"><span class="klogo"></span><div class="pt">⑧ FPシュミレーション（ライフプラン）</div><div class="pc" data-o="ph_name8"></div></div>
-  <h2 class="sec noprint"><span class="num">⑧</span>FPシュミレーション</h2>
-  <p class="lead noprint">ご家族のライフイベントを踏まえた長期キャッシュフロー表です。①お客様カルテ・③デジシキの入力内容と連動します。</p>
+  <div class="phead"><span class="klogo"></span><div class="pt">⑦ FPシュミレーション（ライフプラン）</div><div class="pc" data-o="ph_name8"></div></div>
+  <h2 class="sec noprint"><span class="num">⑦</span>FPシュミレーション</h2>
+  <p class="lead noprint">ご家族のライフイベントを踏まえた長期キャッシュフロー表です。ご家族構成とお子様の進学プランはこのページで入力し、年収・お借入条件は②デジシキと連動します。</p>
+
+  <div class="card">
+      <h3>ご家族構成</h3>
+      <div class="fg">
+        <div class="f"><label>ご主人様 お名前</label><input type="text" data-k="k_h_name"></div>
+        <div class="f"><label>ご主人様 生年月日</label><input type="date" data-k="k_h_birth"></div>
+        <div class="f"><label>ご主人様 年齢</label><div class="unit"><input type="number" data-k="k_h_age" data-calc><span class="u">歳</span></div></div>
+        <div class="f"><label>ご主人様 お勤め先</label><input type="text" data-k="k_h_work"></div>
+        <div class="f"><label>奥様 お名前</label><input type="text" data-k="k_w_name"></div>
+        <div class="f"><label>奥様 生年月日</label><input type="date" data-k="k_w_birth"></div>
+        <div class="f"><label>奥様 年齢</label><div class="unit"><input type="number" data-k="k_w_age" data-calc><span class="u">歳</span></div></div>
+        <div class="f"><label>奥様 お勤め先</label><input type="text" data-k="k_w_work"></div>
+      </div>
+      <h3 style="margin-top:14px">お子様<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('kids')">＋ 追加</button></span></h3>
+      <div class="tw"><table id="tblKids"><thead><tr><th style="width:34%">お名前</th><th style="width:20%">現在年齢</th><th style="width:34%">進学プラン</th><th class="noprint" style="width:34px"></th></tr></thead><tbody></tbody></table></div>
+      <p class="note">※お子様の現在年齢と進学プランから、下のキャッシュフロー表の教育費を自動計算します。進学プランの年額目安は下の「教育費の前提」の表をご覧ください。</p>
+    </div>
 
   <div class="g2">
     <div class="card">
@@ -1011,17 +1021,17 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       <h3>ご支出</h3>
       <div class="fg">
         <div class="f"><label>基本生活費</label><div class="unit"><input type="number" data-k="f_seikatsu" data-calc><span class="u">万円/月</span></div></div>
-        <div class="f"><label>住宅ローン返済（③より）</label><div class="unit"><input class="ro" readonly data-o="o_fLoan" data-fmt="y"><span class="u">円/月</span></div></div>
-        <div class="f"><label>返済期間（③より）</label><div class="unit"><input class="ro" readonly data-o="o_fLoanY" data-fmt="n0"><span class="u">年</span></div></div>
+        <div class="f"><label>住宅ローン返済（②より）</label><div class="unit"><input class="ro" readonly data-o="o_fLoan" data-fmt="y"><span class="u">円/月</span></div></div>
+        <div class="f"><label>返済期間（②より）</label><div class="unit"><input class="ro" readonly data-o="o_fLoanY" data-fmt="n0"><span class="u">年</span></div></div>
         <div class="f"><label>固定資産税</label><div class="unit"><input type="number" data-k="f_kotei" data-calc><span class="u">万円/年</span></div></div>
         <div class="f"><label>火災保険・修繕積立</label><div class="unit"><input type="number" data-k="f_shuzen" data-calc><span class="u">万円/年</span></div></div>
         <div class="f"><label>生命保険等</label><div class="unit"><input type="number" data-k="f_hoken" data-calc><span class="u">万円/年</span></div></div>
         <div class="f"><label>自動車 買替周期</label><div class="unit"><input type="number" data-k="f_carCycle" data-calc><span class="u">年ごと</span></div></div>
         <div class="f"><label>自動車 買替金額</label><div class="unit"><input type="number" data-k="f_carCost" data-calc><span class="u">万円</span></div></div>
         <div class="f"><label>その他のご支出</label><div class="unit"><input type="number" data-k="f_other" data-calc><span class="u">万円/年</span></div></div>
-        <div class="f"><label>光熱費（③反映後）</label><div class="unit"><input class="ro" readonly data-o="o_fKounetsu" data-fmt="y"><span class="u">円/月</span></div></div>
+        <div class="f"><label>光熱費（②反映後）</label><div class="unit"><input class="ro" readonly data-o="o_fKounetsu" data-fmt="y"><span class="u">円/月</span></div></div>
         <div class="f"><label>太陽光の売電収入</label><div class="unit"><input class="ro" readonly data-o="o_fBaiden" data-fmt="y"><span class="u">円/月</span></div></div>
-        <div class="f"><label>現在の貯蓄（①より）</label><div class="unit"><input class="ro" readonly data-o="o_fChochiku" data-fmt="m0"><span class="u">万円</span></div></div>
+        <div class="f"><label>現在の貯蓄（②より）</label><div class="unit"><input class="ro" readonly data-o="o_fChochiku" data-fmt="m0"><span class="u">万円</span></div></div>
       </div>
     </div>
   </div>
@@ -1029,7 +1039,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   <div class="card">
     <h3>支出算出シート<span class="sub">ソニー生命「支出算出シート」準拠／単位：円・月額（自動車税のみ年額）</span>
       <span class="rt noprint">
-        <button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="applySheetToKarte()">貯蓄総額を①へ反映</button>
+        <button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="applySheetToKarte()">貯蓄総額を②デジシキへ反映</button>
       </span></h3>
     <label class="chk" style="margin-bottom:10px"><input type="checkbox" data-k="x_auto" data-calc>
       <span style="font-size:12.5px">このシートの合計から上記の「基本生活費」「生命保険等」を自動反映する<span class="pill y" style="margin-left:6px">シート入力後にON</span></span></label>
@@ -1134,7 +1144,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       </tr></tbody></table></div>
     <div id="msgSheet"></div>
     <p class="note">※「生活費」＝食費・光熱費・通信費・医療費・レジャー・雑費・その他＋ご主人様／奥様／お子様の固有支出（生命保険・自動車保険を除く／自動車税は年額÷12）。<br>
-      ※家賃・共益費・駐車場・電気・ガス・借入は「①お客様カルテ」「③デジシキ」と同じ項目です（どこで入力しても連動します）。</p>
+      ※家賃・共益費・駐車場・電気・ガス・借入は「②デジシキ」と同じ項目です（どちらで入力しても連動します）。</p>
   </div>
 
   <div class="card">
@@ -1148,7 +1158,7 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
         <tr><td>中学から私立・大学は私立理系</td><td class="num">31</td><td class="num">35</td><td class="num">144</td><td class="num">105</td><td class="num">164</td><td class="num">154</td></tr>
         <tr><td>すべて私立・大学は私立理系</td><td class="num">31</td><td class="num">167</td><td class="num">144</td><td class="num">105</td><td class="num">164</td><td class="num">154</td></tr>
       </tbody></table></div>
-    <p class="note">※お子様ごとの進学プランは「①お客様カルテ」で選択してください。年齢に応じて自動で教育費を計上します。</p>
+    <p class="note">※お子様ごとの進学プランは、このページ上部の「ご家族構成」で選択してください。年齢に応じて自動で教育費を計上します。</p>
   </div>
 
   <div class="card">
@@ -1168,10 +1178,10 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   </div>
 </section>
 
-<!-- ========== ⑨ 家づくりの流れ ========== -->
+<!-- ========== ⑧ 家づくりの流れ ========== -->
 <section class="page" id="p9">
-  <div class="phead"><span class="klogo"></span><div class="pt">⑨ 家づくりの流れ</div><div class="pc" data-o="ph_name9"></div></div>
-  <h2 class="sec noprint"><span class="num">⑨</span>家づくりの流れ</h2>
+  <div class="phead"><span class="klogo"></span><div class="pt">⑧ 家づくりの流れ</div><div class="pc" data-o="ph_name9"></div></div>
+  <h2 class="sec noprint"><span class="num">⑧</span>家づくりの流れ</h2>
   <p class="lead noprint">工期設定シート準拠。起点日を入力すると、各ステップの予定日が自動で計算されます（日数は変更できます）。</p>
 
   <div class="card">
@@ -1193,19 +1203,19 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
       <tbody></tbody></table></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="cardSteps">
     <h3>ステップ図</h3>
     <div class="stepgrid" id="stepGrid"></div>
     <div class="msg i" style="margin-top:12px"><b>ワンストップでサポートします</b><br>国分ハウジンググループは、土地探しから資金計画・設計・施工・アフターサービスまで、住まいのすべてをワンストップでサポート。専任スタッフがお客様のお家づくりに最後まで寄り添います。</div>
   </div>
 </section>
 
-<!-- ========== ⑩ 銀行金利比較 ========== -->
+<!-- ========== ⑨ 銀行金利比較 ========== -->
 <section class="page" id="p10">
-  <div class="phead"><span class="klogo"></span><div class="pt">⑩ 銀行金利比較（住宅ローン商品カタログ）</div><div class="pc" data-o="ph_name10"></div></div>
-  <h2 class="sec noprint"><span class="num">⑩</span>銀行金利比較
+  <div class="phead"><span class="klogo"></span><div class="pt">⑨ 銀行金利比較（住宅ローン商品カタログ）</div><div class="pc" data-o="ph_name10"></div></div>
+  <h2 class="sec noprint"><span class="num">⑨</span>銀行金利比較
     <span class="pill y" data-o="o_lnAsofBadge">－</span></h2>
-  <p class="lead noprint">九州一円で使える住宅ローンを金融機関別に比較。地銀・信金・労金・JA・ネット銀行・メガバンク・フラット35を横断します。商品を選んで「この金利で試算」を押すと、<b>③デジシキの金利に反映</b>され、月々返済・総返済額・⑤ローン控除の試算に連動します。</p>
+  <p class="lead noprint">九州一円で使える住宅ローンを金融機関別に比較。地銀・信金・労金・JA・ネット銀行・メガバンク・フラット35を横断します。商品を選んで「この金利で試算」を押すと、<b>②デジシキの金利に反映</b>され、月々返済・総返済額・④ローン控除の試算に連動します。</p>
 
   <div id="lnStale"></div>
 
@@ -1252,10 +1262,10 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   </div>
 
   <div class="card">
-    <h3>比較条件</h3>
+    <h3>比較条件<span class="sub">②デジシキの借入条件が初期値です</span></h3>
     <div class="fg">
       <div class="f"><label>お借入金額</label><div class="unit"><input type="number" data-k="bk_kari" data-calc><span class="u">円</span></div>
-        <div class="hint noprint"><button class="btn b-w b-sm addrow" style="border:1px solid var(--line)" onclick="pullKari()">③デジシキから取込</button></div></div>
+        <div class="hint noprint"><button class="btn b-w b-sm addrow" style="border:1px solid var(--line)" onclick="pullKari()">②デジシキから取込</button></div></div>
       <div class="f"><label>返済期間</label><div class="unit"><input type="number" data-k="bk_years" data-calc><span class="u">年</span></div></div>
       <div class="f"><label>諸費用を比較に含める</label>
         <select data-k="bk_incFee" data-calc><option value="1">含める（事務手数料＋保証料）</option><option value="0">金利のみで比較</option></select></div>
@@ -1298,9 +1308,153 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   </div>
 </section>
 
+<!-- ========== ⑩ 土地検索 ========== -->
+<section class="page" id="p11">
+  <div class="phead"><span class="klogo"></span><div class="pt">⑩ 土地検索</div><div class="pc" data-o="ph_name11"></div></div>
+  <h2 class="sec noprint"><span class="num">⑩</span>土地検索</h2>
+  <p class="lead noprint">物件ポータルへの一括検索、防災マップ・用途地域の確認、学校・駅までの距離、面積の計測までを1画面で行えます。土地の目安は<b>平屋 約70坪</b>・<b>2階建て 約50坪</b>（駐車場2台＋小さなお庭）です。</p>
+
+  <div class="card">
+    <h3>検索条件<span class="sub">②デジシキと連動</span></h3>
+    <div class="fg">
+      <div class="f"><label>県</label>
+        <select data-k="t_pref" data-calc>
+          <option value="kagoshima">鹿児島県</option><option value="miyazaki">宮崎県</option>
+          <option value="kumamoto">熊本県</option><option value="oita">大分県</option>
+          <option value="fukuoka">福岡県</option><option value="saga">佐賀県</option>
+          <option value="nagasaki">長崎県</option>
+        </select></div>
+      <div class="f"><label>市区町村・エリア</label><input type="text" data-k="t_city" data-calc placeholder="例）姶良市／鹿児島市宇宿"></div>
+      <div class="f"><label>土地のご予算</label><div class="unit"><input type="number" data-k="t_budget" data-calc><span class="u">万円</span></div>
+        <div class="hint">②デジシキの土地購入費：<b data-o="o_tdTochi" data-fmt="m0">0</b> 万円</div></div>
+      <div class="f"><label>必要坪数</label><div class="unit"><input type="number" data-k="t_needTsubo" data-calc><span class="u">坪</span></div>
+        <div class="hint noprint">
+          <button class="btn b-w b-sm addrow" style="border:1px solid var(--line)" onclick="setKeyVal('t_needTsubo',70);mark(true);calc()">平屋70坪</button>
+          <button class="btn b-w b-sm addrow" style="border:1px solid var(--line)" onclick="setKeyVal('t_needTsubo',50);mark(true);calc()">2階建て50坪</button></div></div>
+      <div class="f"><label>上限坪単価（自動計算）</label><div class="unit"><input class="ro" readonly data-o="o_tdTanka" data-fmt="n1"><span class="u">万円/坪</span></div>
+        <div class="hint">ご予算 ÷ 必要坪数</div></div>
+      <div class="f"><label>沿線・最寄駅（任意）</label><input type="text" data-k="t_station" placeholder="例）JR宇宿"></div>
+    </div>
+    <h3 style="margin-top:15px">ポータルサイトを開く<span class="sub">新しいタブで開きます</span></h3>
+    <div id="portalLinks"></div>
+    <p class="note">※「県別ページに直接ジャンプ」の4サイトは、選択した県の土地一覧が開きます（市区町村は各サイト内で絞り込んでください）。その他はトップページまたは検索窓が開きます。<b>ハトマークサイト・不動産ジャパン・ラビーネット</b>は宅建協会・全日本不動産協会など業界団体のサイトで、地元の不動産会社が登録した物件を横断的に探せます。</p>
+  </div>
+
+  <div class="card">
+    <h3>地図で調べる<span class="sub">地理院タイル・ハザードマップポータル</span>
+      <span class="rt noprint">
+        <button class="btn b-n b-sm" id="btnMapInit" onclick="landMapInit(true)">地図を表示</button>
+      </span></h3>
+    <div id="mapWrap">
+      <div class="fg" style="margin-bottom:9px">
+        <div class="f" style="grid-column:span 2"><label>住所・地名で検索</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="geoQ" placeholder="例）鹿児島市宇宿2-13-3　姶良市脇元" onkeydown="if(event.key==='Enter'){geoSearch();return false}">
+            <button class="btn b-n b-sm noprint" style="flex:none" onclick="geoSearch()">🔍 検索</button>
+          </div>
+          <div class="hint" id="geoMsg">国土地理院の住所検索を使用します</div></div>
+        <div class="f"><label>背景地図</label>
+          <select id="baseSel" onchange="setBase(this.value)">
+            <option value="pale">地理院 淡色地図</option>
+            <option value="std">地理院 標準地図</option>
+            <option value="photo">航空写真</option>
+            <option value="osm">OpenStreetMap</option>
+          </select></div>
+        <div class="f"><label>重ねる地図の濃さ</label>
+          <input type="range" id="opa" min="10" max="100" value="60" oninput="setOpa(this.value)">
+          <div class="hint"><span id="opaEcho">60</span>％</div></div>
+      </div>
+
+      <div class="hzrow noprint">
+        <span class="hzlbl">🌊 防災マップ</span>
+        <label><input type="checkbox" data-hz="flood"> 洪水浸水想定（想定最大規模）</label>
+        <label><input type="checkbox" data-hz="tsunami"> 津波浸水想定</label>
+        <label><input type="checkbox" data-hz="hightide"> 高潮浸水想定</label>
+        <label><input type="checkbox" data-hz="dosekiryu"> 土石流警戒区域</label>
+        <label><input type="checkbox" data-hz="kyukeisha"> 急傾斜地崩壊警戒区域</label>
+        <label><input type="checkbox" data-hz="jisuberi"> 地すべり警戒区域</label>
+      </div>
+
+      <div class="mtool noprint">
+        <button class="btn b-n b-sm" id="tbPoint" onclick="setMode('point')">📍 地点を選ぶ</button>
+        <button class="btn b-w b-sm" id="tbArea" style="border:1px solid var(--line)" onclick="setMode('area')">📐 面積を測る</button>
+        <button class="btn b-w b-sm" id="tbDist" style="border:1px solid var(--line)" onclick="setMode('dist')">📏 距離を測る</button>
+        <button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="clearDraw()">🗑 描画をクリア</button>
+        <span class="mtip" id="mTip">地図をクリックすると地点が決まります</span>
+      </div>
+
+      <div id="landMap"></div>
+      <div class="mapatt">出典：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院タイル</a>／<a href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">ハザードマップポータルサイト</a>／<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></div>
+
+      <div class="kpis" style="margin-top:11px">
+        <div class="kpi"><div class="l">選択地点の住所</div><div class="v" data-o="o_tdAddr" style="font-size:13px">－</div><div class="s" data-o="o_tdLatLng">－</div></div>
+        <div class="kpi hi"><div class="l">計測した面積</div><div class="v" data-o="o_tdArea" data-fmt="n1">0<small>㎡</small></div><div class="s"><b data-o="o_tdTsubo" data-fmt="n1">0</b> 坪</div></div>
+        <div class="kpi"><div class="l">計測した距離</div><div class="v" data-o="o_tdDist" data-fmt="n0">0<small>m</small></div><div class="s">徒歩約 <b data-o="o_tdWalk" data-fmt="n0">0</b> 分</div></div>
+        <div class="kpi gr"><div class="l">この面積での土地代金</div><div class="v" data-o="o_tdKingaku" data-fmt="m0">0<small>万円</small></div><div class="s">坪単価 <b data-o="o_tdTanka2" data-fmt="n1">0</b> 万円で計算</div></div>
+      </div>
+      <div id="msgLand"></div>
+    </div>
+    <div id="mapOff" class="msg w" style="display:none">
+      地図ライブラリを読み込めませんでした。インターネットに接続してから「地図を表示」を押してください。<br>
+      オフラインでも、下の「公式サイトで確認する」のリンクと「土地候補リスト」はご利用いただけます。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>周辺施設と距離<span class="sub">OpenStreetMapのデータを検索します</span>
+      <span class="rt noprint">
+        <button class="btn b-n b-sm" onclick="poiSearch()">🔍 この地点の周辺を検索</button>
+      </span></h3>
+    <div class="fg">
+      <div class="f"><label>検索半径</label><div class="unit"><input type="number" data-k="t_radius" data-calc><span class="u">m</span></div></div>
+      <div class="f" style="grid-column:span 3"><label>探す施設</label>
+        <div class="chk" id="poiChk"></div></div>
+    </div>
+    <div class="kpis" style="margin-top:11px">
+      <div class="kpi dk"><div class="l">最寄りの小学校（学校区の目安）</div><div class="v" data-o="o_tdSho" style="font-size:13px">－</div><div class="s" data-o="o_tdShoD">－</div></div>
+      <div class="kpi dk"><div class="l">最寄りの中学校（学校区の目安）</div><div class="v" data-o="o_tdChu" style="font-size:13px">－</div><div class="s" data-o="o_tdChuD">－</div></div>
+      <div class="kpi"><div class="l">最寄り駅</div><div class="v" data-o="o_tdEki" style="font-size:13px">－</div><div class="s" data-o="o_tdEkiD">－</div></div>
+      <div class="kpi"><div class="l">最寄りスーパー</div><div class="v" data-o="o_tdSuper" style="font-size:13px">－</div><div class="s" data-o="o_tdSuperD">－</div></div>
+    </div>
+    <div id="msgPoi"></div>
+    <div class="tw" style="margin-top:11px"><table id="tblPoi">
+      <thead><tr><th style="width:15%">種別</th><th>名称</th><th class="num" style="width:14%">直線距離</th><th class="num" style="width:13%">徒歩（目安）</th><th class="ctr noprint" style="width:52px">地図</th></tr></thead>
+      <tbody></tbody></table></div>
+    <p class="note">※直線距離です。実際の道のりは長くなります。徒歩時間は分速80mで換算（不動産公正競争規約の目安）。データはOpenStreetMapのため、施設の登録漏れ・名称の相違がある場合があります。<b>通学区域は必ず自治体の公式情報でご確認ください。</b></p>
+  </div>
+
+  <div class="card">
+    <h3>公式サイトで確認する<span class="sub">用途地域・学校区・地番・ハザードマップ</span></h3>
+    <div class="msg i" style="margin-top:0">選択中の市区町村：<b data-o="o_tdMuni">－</b>　地点：<b data-o="o_tdLatLng2">－</b><br>
+      下のボタンは、この市区町村名を入れて公式ページを検索します。</div>
+    <div id="officialLinks"></div>
+    <p class="note">※用途地域・建ぺい率・容積率・通学区域・地番は、必ず自治体の都市計画課・教育委員会、法務局、または重要事項説明でご確認ください。本アプリの表示・リンクは調査の入口としてご利用ください。</p>
+  </div>
+
+  <div class="card">
+    <h3>土地候補リスト<span class="rt noprint"><button class="btn b-n b-sm addrow" onclick="addRow('lands')">＋ 候補を追加</button>
+      <button class="btn b-w b-sm addrow" style="border:1px solid var(--line)" onclick="landFromMap()">📍 選択地点から追加</button></span></h3>
+    <div class="tw"><table id="tblLands"><thead><tr>
+      <th style="width:13%">物件名</th><th style="width:16%">所在地</th>
+      <th class="num" style="width:8%">面積(坪)</th><th class="num" style="width:9%">坪単価<br>(万円)</th><th class="num" style="width:10%">土地価格<br>(万円)</th>
+      <th style="width:11%">用途地域</th><th style="width:8%">建ぺい/<br>容積</th><th style="width:10%">ハザード</th><th>所見・学校区</th>
+      <th class="ctr noprint" style="width:74px"></th>
+    </tr></thead><tbody></tbody>
+    <tfoot><tr class="tot"><td colspan="4">候補件数 <span data-o="o_tdCount" data-fmt="n0">0</span> 件／最安</td>
+      <td class="num" data-o="o_tdMin" data-fmt="m0">0</td><td colspan="5"></td></tr></tfoot></table></div>
+    <div id="msgLands"></div>
+    <p class="note">「②③に反映」を押すと、その土地価格が②デジシキの「⑤土地購入費」と③資金計画の「土地代金」に入ります。坪単価または土地価格のどちらかを入力すると、もう一方が自動計算されます。</p>
+  </div>
+</section>
+
 </div><!-- /wrap -->
 
 <div class="pbar noprint" id="pbar" style="display:none">
+  <span class="t">用紙</span>
+  <select id="prPaper" onchange="prPaperChange()" class="psel">
+    <option value="a4">A4 縦（項目ごとに1ページ）</option>
+    <option value="a3">A3 横（項目ごとに1枚）</option>
+  </select>
   <span class="t">印刷する項目</span>
   <div class="chk" id="printChk"></div>
   <button class="btn b-w b-sm" onclick="prAll(true)">全選択</button>
@@ -1323,9 +1477,9 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
 
 /* ---------- 定数 ---------- */
 var TABS = [
-  ["①","お客様カルテ"],["②","会社紹介"],["③","デジシキ"],["④","資金計画"],["⑤","ローン控除"],
-  ["⑥","太陽光・蓄電池"],["⑦","建て時比較"],["⑧","FPシュミレーション"],["⑨","家づくりの流れ"],
-  ["⑩","銀行金利比較"]
+  ["①","会社紹介","p2"],["②","デジシキ","p3"],["③","資金計画","p4"],["④","ローン控除","p5"],
+  ["⑤","太陽光・蓄電池","p6"],["⑥","建て時比較","p7"],["⑦","FPシュミレーション","p8"],
+  ["⑧","家づくりの流れ","p9"],["⑨","銀行金利比較","p10"],["⑩","土地検索","p11"]
 ];
 var TRIGGERS = ["ご結婚","ご出産・お子様の成長","家賃がもったいない","今が手狭になった",
   "住宅ローン金利","補助金・税制","ご実家の土地活用","転勤・転職","ペットとの暮らし",
@@ -1512,16 +1666,10 @@ var LOANS = [
   fee:"借入額×1.1〜2.2%",feeMode:"rate",feeVal:1.1,hosho:"0円",hoshoVal:0,
   dan:"新機構団信込み",note:"返済期間20年以内の全期間固定",warn:"",url:"https://www.flat35.com/"}
 ];
-// ⚠️ LNLS（localStorage の金利マスタ）は廃止した。loanMaster() のコメント参照
+var LNLS = "khg_loans_v1";
 function defaultLoans(){ return JSON.parse(JSON.stringify(LOANS)).map(function(p){ p.cmp=false; return p; }); }
 function loanMaster(){
-  // ⚠️⚠️ 以前は localStorage("khg_loans_v1") から金利マスタを読んでいた。
-  //   端末ごとに違う金利が残り、同じ顧客を別のPCで開くと数字が変わるため
-  //   読み込みをやめた。金利は
-  //     ・アプリ内蔵の LOANS（既定）
-  //     ・同梱の 金利データ.js / ln_feedUrl からのフィード
-  //     ・保存済みなら funding_plan.loans（その計画書を作った時点の値）
-  //   の順で決まる。
+  try{ var m=JSON.parse(localStorage.getItem(LNLS)); if(m && m.list && m.list.length) return m; }catch(e){}
   return null;
 }
 
@@ -1594,6 +1742,10 @@ function DEF(){
     ln_feedUrl: (_lm && _lm.feedUrl) ? _lm.feedUrl : "",
     loans: (_lm && _lm.list) ? JSON.parse(JSON.stringify(_lm.list)) : defaultLoans(),
 
+    t_pref:"kagoshima", t_city:"", t_budget:1200, t_needTsubo:60, t_station:"",
+    t_lat:"", t_lng:"", t_addr:"", t_muni:"", t_area:0, t_dist:0, t_radius:2000,
+    lands:[],
+
     f_up:1.5, f_tedori:78, f_teinen:60, f_saikoyo:350, f_taishoku:1000, f_nenkin:240,
     f_seikatsu:20, f_kotei:12, f_shuzen:6, f_hoken:18, f_carCycle:10, f_carCost:200, f_other:24,
 
@@ -1614,7 +1766,7 @@ var DIRTY = false;
  *   顧客台帳に書き込まれてしまう。
  *
  * ⚠️ 記録するのは onInput（人が入力欄を触ったとき）だけ。
- *   setKeyVal() は「③デジシキの借入条件を取り込む」など
+ *   setKeyVal() は「②デジシキの借入条件を取り込む」など
  *   **プログラムからの代入**にも使われるので、そこには入れない。
  *
  * ⚠️ お子様は [data-k] ではなく setK/addRow/delKid 経由なので、
@@ -1622,6 +1774,14 @@ var DIRTY = false;
  *
  * ⚠️ 保存が成功したら空にする。次の保存で同じ項目をもう一度
  *   書き戻さないため（無害だが履歴が無駄に増える）。
+ *
+ * ⚠️⚠️ 2026-09-10 に原本から「① お客様カルテ」のページが削除された。
+ *   k_addr / k_tel / k_mail / k_kana / k_area / k_makers / k_worry / k_memo
+ *   などの入力欄が無くなったため、これらは touch() されず、
+ *   **書き戻しは自然に起きなくなる**。DEF() にキーの定義は残っているので、
+ *   funding_plan への保存と読み込みはそのまま動く。
+ *   サーバ側（fundingPlan/mapping.ts）のマッピングは消していない。
+ *   カルテが戻ったときにそのまま動くようにするため。
  */
 var TOUCHED = {};
 function touch(k){ if(k) TOUCHED[k] = 1; }
@@ -1670,11 +1830,13 @@ function renderStatic(){
   $("#tabs").innerHTML = TABS.map(function(t,i){
     return '<div class="tab'+(i===0?" on":"")+'" data-p="'+(i+1)+'" onclick="go('+(i+1)+')"><span class="n">'+t[0]+'</span>'+t[1]+'</div>';
   }).join("");
-  $("#p1").classList.add("on");
+  $("#"+TABS[0][2]).classList.add("on");
 
-  $("#chkTrigger").innerHTML = TRIGGERS.map(function(t,i){
-    return '<label><input type="checkbox" data-trg="'+esc(t)+'"> '+esc(t)+'</label>';
-  }).join("");
+  if($("#chkTrigger")){
+    $("#chkTrigger").innerHTML = TRIGGERS.map(function(t,i){
+      return '<label><input type="checkbox" data-trg="'+esc(t)+'"> '+esc(t)+'</label>';
+    }).join("");
+  }
   $$("#chkTrigger input").forEach(function(c){
     c.addEventListener("change",function(){
       var v=this.dataset.trg, a=S.k_trigger||[];
@@ -1695,8 +1857,8 @@ function renderStatic(){
       '<span>'+s[1]+'</span><i>'+String(s[0]).slice(2)+'</i></div>';
   }).join("");
 
-  $("#printChk").innerHTML = TABS.map(function(t,i){
-    return '<label><input type="checkbox" data-pr="'+(i+1)+'" checked> '+t[0]+t[1]+'</label>';
+  $("#printChk").innerHTML = TABS.map(function(t){
+    return '<label><input type="checkbox" data-pr="'+t[2]+'" checked> '+t[0]+t[1]+'</label>';
   }).join("");
 }
 
@@ -1712,10 +1874,10 @@ function renderDetail(key){
       '<td><input type="text" value="'+esc(r.i)+'" oninput="setD(\''+key+'\','+i+',\'i\',this.value)"></td>'+
       '<td class="num"><input type="number" value="'+(r.a||0)+'" oninput="setD(\''+key+'\','+i+',\'a\',this.value)" style="width:100%"></td>'+
       '<td class="num">'+cm(ex)+'</td>'+
-      '<td class="ctr"><input type="checkbox" '+(r.t?"checked":"")+' onchange="setD(\''+key+'\','+i+',\'t\',this.checked?1:0)"></td>'+
-      '<td><select onchange="setD(\''+key+'\','+i+',\'p\',this.value)">'+selOpts(PAYEE,r.p)+'</select></td>'+
-      '<td><select onchange="setD(\''+key+'\','+i+',\'m\',this.value)">'+selOpts(METHOD,r.m)+'</select></td>'+
-      '<td><input type="text" value="'+esc(r.n)+'" oninput="setD(\''+key+'\','+i+',\'n\',this.value)"></td>'+
+      '<td class="ctr a3hide"><input type="checkbox" '+(r.t?"checked":"")+' onchange="setD(\''+key+'\','+i+',\'t\',this.checked?1:0)"></td>'+
+      '<td class="a3hide"><select onchange="setD(\''+key+'\','+i+',\'p\',this.value)">'+selOpts(PAYEE,r.p)+'</select></td>'+
+      '<td class="a3hide"><select onchange="setD(\''+key+'\','+i+',\'m\',this.value)">'+selOpts(METHOD,r.m)+'</select></td>'+
+      '<td class="a3hide"><input type="text" value="'+esc(r.n)+'" oninput="setD(\''+key+'\','+i+',\'n\',this.value)"></td>'+
       '<td class="ctr noprint"><button class="xbtn" onclick="delRow(\''+key+'\','+i+')">×</button></td>'+
     "</tr>";
   }).join("");
@@ -1725,6 +1887,7 @@ function setD(key,i,f,v){ S[key][i][f] = (f==="a")?(parseFloat(v)||0):v;
 function delRow(key,i){ S[key].splice(i,1); mark(true); renderDetail(key); calc(); }
 function addRow(key){
   if(key==="kids"){ S.kids.push({name:"",age:0,plan:1}); touch("kids"); renderKids(); }
+  else if(key==="lands"){ S.lands.push({n:"",ad:"",ts:0,tk:0,pr:0,yt:"",bk:"",hz:"",me:""}); renderLands(); }
   else { S[key].push({i:"",a:0,t:1,p:"",m:"",n:""}); renderDetail(key); }
   mark(true); calc();
 }
@@ -1738,10 +1901,7 @@ function renderKids(){
       '<td class="ctr noprint"><button class="xbtn" onclick="delKid('+i+')">×</button></td></tr>';
   }).join("");
 }
-// ⚠️ お子様は [data-k] ではないので onInput を通らない。ここで記録する。
-//   氏名（f==="name"）だけが family_info へ書き戻される（age は派生値）。
 function setK(i,f,v){ S.kids[i][f] = (f==="age"||f==="plan")?(parseFloat(v)||0):v; touch("kids"); mark(true); calc(); }
-// ⚠️ 計画書から消しても family_info の行は消さない（サーバ側の仕様）
 function delKid(i){ S.kids.splice(i,1); touch("kids"); mark(true); renderKids(); calc(); }
 
 function autoChukai(){
@@ -1869,7 +2029,7 @@ function eduCost(age, planIdx){
 function calc(){
   var O={};
 
-  /* --- ① カルテ --- */
+  /* --- お客様情報・ご年収など --- */
   var a1=ageFrom(S.k_h_birth); if(a1!==null) setKeyVal("k_h_age",a1);
   var a2=ageFrom(S.k_w_birth); if(a2!==null) setKeyVal("k_w_age",a2);
   var inc1=n("k_inc1"), inc2=n("k_inc2"), incT=inc1+inc2;
@@ -1883,10 +2043,10 @@ function calc(){
   O.o_rent=n("k_rent"); O.o_park=n("k_park"); O.o_gas=n("k_gas"); O.o_elec=n("k_elec");
   var nm = (S.k_name||"").trim();
   var phn = (nm?nm+" 様邸":"（お客様名未入力）")+"　作成日 "+(S.k_date||"")+(S.k_staff?"　担当 "+S.k_staff:"");
-  for(var i=1;i<=10;i++) O["ph_name"+(i===1?"":i)] = phn;
+  for(var i=2;i<=11;i++) O["ph_name"+i] = phn;
   O.o_wName = nm||"〇〇";
 
-  /* --- ⑥ 太陽光（マスター） --- */
+  /* --- ⑤ 太陽光（マスター） --- */
   var kw=n("d_solarKw"), panelW=n("v_panelW")||335, keisu=n("v_keisu")||1150;
   var panelN = panelW>0 ? kw*1000/panelW : 0;
   var hatsuden = kw*keisu;
@@ -1925,7 +2085,7 @@ function calc(){
   O.o_vAll10 = (meritYear+batYear)*10;
   O.o_vAllCost = vCost + O.o_vBatNet;
 
-  /* --- ③ デジシキ --- */
+  /* --- ② デジシキ --- */
   var solarCost = kw*23.6318;
   var tateT = n("d_tatemono")+n("d_futai")+solarCost;
   var grand = tateT+n("d_shohi")+n("d_tochi")+n("d_yobi");
@@ -1945,7 +2105,7 @@ function calc(){
   O.o_yukaEcho=n("k_yuka");
   O.o_tsuboTanka = n("k_yuka")>0 ? Math.round(n("d_tatemono")/n("k_yuka")*10)/10 : "－";
   setMsg("msgHensai", ratio<=std?"g":"w",
-    incT<=0 ? "①お客様カルテに年収をご入力ください。" :
+    incT<=0 ? "「ご年収・ご自己資金」に年収をご入力ください。" :
     (ratio<=std
       ? "返済比率は <b>"+ratio.toFixed(1)+"％</b>。基準の "+std+"％以内におさまっており、審査の土台に乗ります。"
       : "返済比率が <b>"+ratio.toFixed(1)+"％</b> と基準の "+std+"％を超えています。借入額・期間・自己資金の見直しをご検討ください。"));
@@ -1959,7 +2119,7 @@ function calc(){
   O.o_kounetsuNow=kounetsuNow; O.o_kounetsuNew=kounetsuNew;
   O.o_kounetsuCut=kounetsuCut; O.o_kounetsuCut2=kounetsuCut;
 
-  /* --- ⑤ ローン控除（③の借入で計算） --- */
+  /* --- ④ ローン控除（②の借入で計算） --- */
   var gt = GENDO[S.g_type]||GENDO.zeh;
   var gendo = gt[S.g_setai==="kosodate"?"kosodate":"ippan"], gk = gt.k;
   var gIncome = n("g_income")||inc1;
@@ -1999,12 +2159,12 @@ function calc(){
   O.o_sagaku=sagaku;
   O.o_sagakuNote = sagaku<=0 ? "今よりお得になります" : "今より負担が増えます";
   setMsg("msgSagaku", sagaku<=0?"g":"w",
-    nowTotal<=0 ? "①お客様カルテに現在の家賃・光熱費をご入力ください。" :
+    nowTotal<=0 ? "「現在の毎月のお支払い」に家賃・光熱費をご入力ください。" :
     (sagaku<=0
       ? "現在のお支払い <b>"+cm(nowTotal)+" 円</b> に対し、実質の月々ローン負担額は <b>"+cm(jisshitsu)+" 円</b>。<b>毎月 "+cm(Math.abs(sagaku))+" 円お得</b>にマイホームが手に入ります。"
       : "現在のお支払いより <b>"+cm(sagaku)+" 円／月</b> 増えます。ご予算・仕様の調整をご相談ください。"));
 
-  /* --- ④ 概算資金計画書 --- */
+  /* --- ③ 概算資金計画書 --- */
   function sum(key){ var si=0,se=0,jiban=0;
     (S[key]||[]).forEach(function(r){ var a=r.a||0; si+=a; se += r.t?Math.round(a/1.1):a;
       if(/地盤改良/.test(r.i)) jiban+=a; });
@@ -2038,7 +2198,7 @@ function calc(){
   O.o_sBaidenYear=baidenYear;O.o_sSolarMonth=baidenYear/12;O.o_sSolarMonth2=baidenYear/12;
   O.o_sJisshitsu = (mMon+pMon) - baidenYear/12;
 
-  /* --- ⑦ 建て時比較 --- */
+  /* --- ⑥ 建て時比較 --- */
   var wait=n("t_wait"), up=n("t_upRate")/100;
   var costNow=grand*10000, costLater=costNow*Math.pow(1+up,wait);
   var rNow=n("d_rate"), rLater=n("t_futureRate");
@@ -2110,7 +2270,7 @@ function calc(){
         (n("x_choTsuki")>0 ? "月々の貯蓄額 "+cm(n("x_choTsuki"))+" 円との差は "+cm(xInc-xShishutsu-n("x_choTsuki"))+" 円です。":"")
       : "毎月の収支が <b>"+cm(Math.abs(xInc-xShishutsu))+" 円のマイナス</b>です。ご記入内容をもう一度ご確認ください。"));
 
-  /* --- ⑧ FP --- */
+  /* --- ⑦ FP --- */
   O.o_fAge1=n("k_h_age");O.o_fAge2=n("k_w_age");O.o_fInc1=inc1;O.o_fInc2=inc2;
   O.o_fLoan=monthly;O.o_fLoanY=years;O.o_fKounetsu=kounetsuNew;O.o_fBaiden=baidenYear/12;
   O.o_fChochiku=n("k_chochiku");
@@ -2123,11 +2283,12 @@ function calc(){
   O.o_wAllDays=Math.round((ds[16]-ds[0])/86400000);
 
   calcBank(O);
+  calcLand(O);
 
-  OUT=O; paint(); renderFlow(); renderLoans();
+  OUT=O; paint(); renderFlow(); renderLoans(); renderLands();
 }
 
-/* ---------- ⑩ 銀行金利比較（住宅ローン商品カタログ） ---------- */
+/* ---------- ⑨ 銀行金利比較（住宅ローン商品カタログ） ---------- */
 var lnFilter = "すべて";
 
 function lnGroups(){
@@ -2184,12 +2345,12 @@ function applyLoanRate(i){
   setKeyVal("d_rate", p.rate);
   p.cmp = true;
   mark(true); calc();
-  toast(p.fi+" の金利 "+rateTxt(p.rate)+"％ を③デジシキに反映しました");
+  toast(p.fi+" の金利 "+rateTxt(p.rate)+"％ を②デジシキに反映しました");
 }
 function pullKari(){
   setKeyVal("bk_kari", Math.round((OUT.o_shakuiri||0)*10000));
   setKeyVal("bk_years", n("d_years")||35);
-  mark(true); calc(); toast("③デジシキの借入条件を取り込みました");
+  mark(true); calc(); toast("②デジシキの借入条件を取り込みました");
 }
 
 function calcBank(O){
@@ -2344,17 +2505,463 @@ function bulkApply(){
   feedMsg(cnt?"g":"w", cnt+"件の金利を更新しました。"+(ng.length?"<br>照合できなかった行："+esc(ng.join("、")):""));
 }
 function loanSaveMaster(){
-  // ⚠️ 何もしない。金利は funding_plan.loans に
+  // ⚠️⚠️ **何もしない。** 金利は funding_plan.loans に
   //   「この計画書を作った時点の値」として顧客ごとに保存される。
-  //   共通マスタに書くと、後から金利が変わって過去の計画書の数字が動く。
+  //   共通マスタ（localStorage）に書くと、後から金利が変わったときに
+  //   過去の計画書の数字が動いてしまう。
   //   ⚠️ 呼び出し元（saveCustomer）を消さずに残しているのは、
   //     金利マスタの保存先を将来DBに移すときの差し込み口にするため。
 }
 function applySheetToKarte(){
   if(n("x_choSou")<=0){ alert("「現在の貯蓄総額」をご入力ください。"); return; }
-  if(!confirm("支出算出シートの「現在の貯蓄総額」を①お客様カルテの貯蓄額（万円）へ反映します。よろしいですか？")) return;
+  if(!confirm("支出算出シートの「現在の貯蓄総額」を②デジシキの「現在の貯蓄額（万円）」へ反映します。よろしいですか？")) return;
   setKeyVal("k_chochiku", Math.round(n("x_choSou")/10000));
-  mark(true); calc(); toast("①お客様カルテへ反映しました");
+  mark(true); calc(); toast("②デジシキへ反映しました");
+}
+
+var MUNI = {"40100":"福岡県北九州市","40101":"福岡県北九州市門司区","40103":"福岡県北九州市若松区","40105":"福岡県北九州市戸畑区","40106":"福岡県北九州市小倉北区","40107":"福岡県北九州市小倉南区","40108":"福岡県北九州市八幡東区","40109":"福岡県北九州市八幡西区","40130":"福岡県福岡市","40131":"福岡県福岡市東区","40132":"福岡県福岡市博多区","40133":"福岡県福岡市中央区","40134":"福岡県福岡市南区","40135":"福岡県福岡市西区","40136":"福岡県福岡市城南区","40137":"福岡県福岡市早良区","40202":"福岡県大牟田市","40203":"福岡県久留米市","40204":"福岡県直方市","40205":"福岡県飯塚市","40206":"福岡県田川市","40207":"福岡県柳川市","40210":"福岡県八女市","40211":"福岡県筑後市","40212":"福岡県大川市","40213":"福岡県行橋市","40214":"福岡県豊前市","40215":"福岡県中間市","40216":"福岡県小郡市","40217":"福岡県筑紫野市","40218":"福岡県春日市","40219":"福岡県大野城市","40220":"福岡県宗像市","40221":"福岡県太宰府市","40223":"福岡県古賀市","40224":"福岡県福津市","40225":"福岡県うきは市","40226":"福岡県宮若市","40227":"福岡県嘉麻市","40228":"福岡県朝倉市","40229":"福岡県みやま市","40230":"福岡県糸島市","40231":"福岡県那珂川市","40341":"福岡県宇美町","40342":"福岡県篠栗町","40343":"福岡県志免町","40344":"福岡県須恵町","40345":"福岡県新宮町","40348":"福岡県久山町","40349":"福岡県粕屋町","40381":"福岡県芦屋町","40382":"福岡県水巻町","40383":"福岡県岡垣町","40384":"福岡県遠賀町","40401":"福岡県小竹町","40402":"福岡県鞍手町","40421":"福岡県桂川町","40447":"福岡県筑前町","40448":"福岡県東峰村","40503":"福岡県大刀洗町","40522":"福岡県大木町","40544":"福岡県広川町","40601":"福岡県香春町","40602":"福岡県添田町","40604":"福岡県糸田町","40605":"福岡県川崎町","40608":"福岡県大任町","40609":"福岡県赤村","40610":"福岡県福智町","40621":"福岡県苅田町","40625":"福岡県みやこ町","40642":"福岡県吉富町","40646":"福岡県上毛町","40647":"福岡県築上町","41201":"佐賀県佐賀市","41202":"佐賀県唐津市","41203":"佐賀県鳥栖市","41204":"佐賀県多久市","41205":"佐賀県伊万里市","41206":"佐賀県武雄市","41207":"佐賀県鹿島市","41208":"佐賀県小城市","41209":"佐賀県嬉野市","41210":"佐賀県神埼市","41327":"佐賀県吉野ヶ里町","41341":"佐賀県基山町","41345":"佐賀県上峰町","41346":"佐賀県みやき町","41387":"佐賀県玄海町","41401":"佐賀県有田町","41423":"佐賀県大町町","41424":"佐賀県江北町","41425":"佐賀県白石町","41441":"佐賀県太良町","42201":"長崎県長崎市","42202":"長崎県佐世保市","42203":"長崎県島原市","42204":"長崎県諫早市","42205":"長崎県大村市","42207":"長崎県平戸市","42208":"長崎県松浦市","42209":"長崎県対馬市","42210":"長崎県壱岐市","42211":"長崎県五島市","42212":"長崎県西海市","42213":"長崎県雲仙市","42214":"長崎県南島原市","42307":"長崎県長与町","42308":"長崎県時津町","42321":"長崎県東彼杵町","42322":"長崎県川棚町","42323":"長崎県波佐見町","42383":"長崎県小値賀町","42391":"長崎県佐々町","42411":"長崎県新上五島町","43100":"熊本県熊本市","43101":"熊本県熊本市中央区","43102":"熊本県熊本市東区","43103":"熊本県熊本市西区","43104":"熊本県熊本市南区","43105":"熊本県熊本市北区","43202":"熊本県八代市","43203":"熊本県人吉市","43204":"熊本県荒尾市","43205":"熊本県水俣市","43206":"熊本県玉名市","43208":"熊本県山鹿市","43210":"熊本県菊池市","43211":"熊本県宇土市","43212":"熊本県上天草市","43213":"熊本県宇城市","43214":"熊本県阿蘇市","43215":"熊本県天草市","43216":"熊本県合志市","43348":"熊本県美里町","43364":"熊本県玉東町","43367":"熊本県南関町","43368":"熊本県長洲町","43369":"熊本県和水町","43403":"熊本県大津町","43404":"熊本県菊陽町","43423":"熊本県南小国町","43424":"熊本県小国町","43425":"熊本県産山村","43428":"熊本県高森町","43432":"熊本県西原村","43433":"熊本県南阿蘇村","43441":"熊本県御船町","43442":"熊本県嘉島町","43443":"熊本県益城町","43444":"熊本県甲佐町","43447":"熊本県山都町","43468":"熊本県氷川町","43482":"熊本県芦北町","43484":"熊本県津奈木町","43501":"熊本県錦町","43505":"熊本県多良木町","43506":"熊本県湯前町","43507":"熊本県水上村","43510":"熊本県相良村","43511":"熊本県五木村","43512":"熊本県山江村","43513":"熊本県球磨村","43514":"熊本県あさぎり町","43531":"熊本県苓北町","44201":"大分県大分市","44202":"大分県別府市","44203":"大分県中津市","44204":"大分県日田市","44205":"大分県佐伯市","44206":"大分県臼杵市","44207":"大分県津久見市","44208":"大分県竹田市","44209":"大分県豊後高田市","44210":"大分県杵築市","44211":"大分県宇佐市","44212":"大分県豊後大野市","44213":"大分県由布市","44214":"大分県国東市","44322":"大分県姫島村","44341":"大分県日出町","44461":"大分県九重町","44462":"大分県玖珠町","45201":"宮崎県宮崎市","45202":"宮崎県都城市","45203":"宮崎県延岡市","45204":"宮崎県日南市","45205":"宮崎県小林市","45206":"宮崎県日向市","45207":"宮崎県串間市","45208":"宮崎県西都市","45209":"宮崎県えびの市","45341":"宮崎県三股町","45361":"宮崎県高原町","45382":"宮崎県国富町","45383":"宮崎県綾町","45401":"宮崎県高鍋町","45402":"宮崎県新富町","45403":"宮崎県西米良村","45404":"宮崎県木城町","45405":"宮崎県川南町","45406":"宮崎県都農町","45421":"宮崎県門川町","45429":"宮崎県諸塚村","45430":"宮崎県椎葉村","45431":"宮崎県美郷町","45441":"宮崎県高千穂町","45442":"宮崎県日之影町","45443":"宮崎県五ヶ瀬町","46201":"鹿児島県鹿児島市","46203":"鹿児島県鹿屋市","46204":"鹿児島県枕崎市","46206":"鹿児島県阿久根市","46208":"鹿児島県出水市","46210":"鹿児島県指宿市","46213":"鹿児島県西之表市","46214":"鹿児島県垂水市","46215":"鹿児島県薩摩川内市","46216":"鹿児島県日置市","46217":"鹿児島県曽於市","46218":"鹿児島県霧島市","46219":"鹿児島県いちき串木野市","46220":"鹿児島県南さつま市","46221":"鹿児島県志布志市","46222":"鹿児島県奄美市","46223":"鹿児島県南九州市","46224":"鹿児島県伊佐市","46225":"鹿児島県姶良市","46303":"鹿児島県三島村","46304":"鹿児島県十島村","46392":"鹿児島県さつま町","46404":"鹿児島県長島町","46452":"鹿児島県湧水町","46468":"鹿児島県大崎町","46482":"鹿児島県東串良町","46490":"鹿児島県錦江町","46491":"鹿児島県南大隅町","46492":"鹿児島県肝付町","46501":"鹿児島県中種子町","46502":"鹿児島県南種子町","46505":"鹿児島県屋久島町","46523":"鹿児島県大和村","46524":"鹿児島県宇検村","46525":"鹿児島県瀬戸内町","46527":"鹿児島県龍郷町","46529":"鹿児島県喜界町","46530":"鹿児島県徳之島町","46531":"鹿児島県天城町","46532":"鹿児島県伊仙町","46533":"鹿児島県和泊町","46534":"鹿児島県知名町","46535":"鹿児島県与論町","47201":"沖縄県那覇市","47205":"沖縄県宜野湾市","47207":"沖縄県石垣市","47208":"沖縄県浦添市","47209":"沖縄県名護市","47210":"沖縄県糸満市","47211":"沖縄県沖縄市","47212":"沖縄県豊見城市","47213":"沖縄県うるま市","47214":"沖縄県宮古島市","47215":"沖縄県南城市","47301":"沖縄県国頭村","47302":"沖縄県大宜味村","47303":"沖縄県東村","47306":"沖縄県今帰仁村","47308":"沖縄県本部町","47311":"沖縄県恩納村","47313":"沖縄県宜野座村","47314":"沖縄県金武町","47315":"沖縄県伊江村","47324":"沖縄県読谷村","47325":"沖縄県嘉手納町","47326":"沖縄県北谷町","47327":"沖縄県北中城村","47328":"沖縄県中城村","47329":"沖縄県西原町","47348":"沖縄県与那原町","47350":"沖縄県南風原町","47353":"沖縄県渡嘉敷村","47354":"沖縄県座間味村","47355":"沖縄県粟国村","47356":"沖縄県渡名喜村","47357":"沖縄県南大東村","47358":"沖縄県北大東村","47359":"沖縄県伊平屋村","47360":"沖縄県伊是名村","47361":"沖縄県久米島町","47362":"沖縄県八重瀬町","47375":"沖縄県多良間村","47381":"沖縄県竹富町","47382":"沖縄県与那国町"};
+
+/* ---------- ⑩ 土地検索 ---------- */
+var PREF_JP = {kagoshima:"鹿児島県",miyazaki:"宮崎県",kumamoto:"熊本県",oita:"大分県",
+               fukuoka:"福岡県",saga:"佐賀県",nagasaki:"長崎県"};
+var PREF_CENTER = {kagoshima:[31.5602,130.5581],miyazaki:[31.9077,131.4202],kumamoto:[32.8032,130.7079],
+  oita:[33.2382,131.6126],fukuoka:[33.5902,130.4017],saga:[33.2494,130.2988],nagasaki:[32.7448,129.8737]};
+
+var POI_CATS = [
+  {k:"station", n:"駅",            q:'node(around:%R%,%LAT%,%LON%)["railway"="station"];'},
+  {k:"school",  n:"小・中・高校",   q:'nwr(around:%R%,%LAT%,%LON%)["amenity"="school"];'},
+  {k:"kinder",  n:"保育園・幼稚園", q:'nwr(around:%R%,%LAT%,%LON%)["amenity"~"^(kindergarten|childcare)$"];'},
+  {k:"super",   n:"スーパー",       q:'nwr(around:%R%,%LAT%,%LON%)["shop"="supermarket"];'},
+  {k:"conveni", n:"コンビニ",       q:'nwr(around:%R%,%LAT%,%LON%)["shop"="convenience"];'},
+  {k:"drug",    n:"ドラッグストア", q:'nwr(around:%R%,%LAT%,%LON%)["shop"~"^(chemist|drugstore)$"];'},
+  {k:"hospital",n:"病院・医院",     q:'nwr(around:%R%,%LAT%,%LON%)["amenity"~"^(hospital|clinic|doctors)$"];'},
+  {k:"pharmacy",n:"薬局",           q:'nwr(around:%R%,%LAT%,%LON%)["amenity"="pharmacy"];'},
+  {k:"park",    n:"公園",           q:'nwr(around:%R%,%LAT%,%LON%)["leisure"="park"];'},
+  {k:"post",    n:"郵便局",         q:'nwr(around:%R%,%LAT%,%LON%)["amenity"="post_office"];'},
+  {k:"bank",    n:"銀行",           q:'nwr(around:%R%,%LAT%,%LON%)["amenity"="bank"];'}
+];
+
+var HZ_LAYERS = {
+  flood:    {n:"洪水浸水想定（想定最大規模）", u:"https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin_data/{z}/{x}/{y}.png", max:17},
+  tsunami:  {n:"津波浸水想定",                 u:"https://disaportaldata.gsi.go.jp/raster/04_tsunami_newlegend_data/{z}/{x}/{y}.png", max:17},
+  hightide: {n:"高潮浸水想定",                 u:"https://disaportaldata.gsi.go.jp/raster/03_hightide_l2_shinsuishin_data/{z}/{x}/{y}.png", max:17},
+  dosekiryu:{n:"土石流警戒区域",               u:"https://disaportaldata.gsi.go.jp/raster/05_dosekiryukeikaikuiki/{z}/{x}/{y}.png", max:17},
+  kyukeisha:{n:"急傾斜地崩壊警戒区域",         u:"https://disaportaldata.gsi.go.jp/raster/05_kyukeishakeikaikuiki/{z}/{x}/{y}.png", max:17},
+  jisuberi: {n:"地すべり警戒区域",             u:"https://disaportaldata.gsi.go.jp/raster/05_jisuberikeikaikuiki/{z}/{x}/{y}.png", max:17}
+};
+var BASES = {
+  pale:  {u:"https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", max:18, a:"国土地理院"},
+  std:   {u:"https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",  max:18, a:"国土地理院"},
+  photo: {u:"https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg", max:18, a:"国土地理院"},
+  osm:   {u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png", max:19, a:"OpenStreetMap contributors"}
+};
+
+var LMAP=null, LBASE=null, LHZ={}, LMODE="point", LPT=null, LPOLY=null, LPTS=[], LPOI=[], LPOIMK=[];
+
+/* ===== 幾何 ===== */
+function hav(a,b){
+  var R=6378137, t=Math.PI/180;
+  var dLat=(b[0]-a[0])*t, dLon=(b[1]-a[1])*t;
+  var s=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
+}
+function geoArea(cs){
+  if(!cs || cs.length<3) return 0;
+  var R=6378137, t=Math.PI/180, a=0;
+  for(var i=0;i<cs.length;i++){
+    var p1=cs[i], p2=cs[(i+1)%cs.length];
+    a += (p2[1]-p1[1])*t * (2 + Math.sin(p1[0]*t) + Math.sin(p2[0]*t));
+  }
+  return Math.abs(a*R*R/2);
+}
+function pathLen(cs){ var d=0; for(var i=1;i<cs.length;i++) d+=hav(cs[i-1],cs[i]); return d; }
+
+/* ===== 地図 ===== */
+function landMapInit(force){
+  if(LMAP) { setTimeout(function(){LMAP.invalidateSize();},60); return true; }
+  if(typeof L === "undefined"){
+    $("#mapWrap").style.display="none"; $("#mapOff").style.display="block";
+    if(force) toast("地図ライブラリを読み込めませんでした");
+    return false;
+  }
+  $("#mapWrap").style.display=""; $("#mapOff").style.display="none";
+  var c = (S.t_lat&&S.t_lng) ? [+S.t_lat,+S.t_lng] : (PREF_CENTER[S.t_pref]||PREF_CENTER.kagoshima);
+  LMAP = L.map("landMap",{center:c, zoom:(S.t_lat?17:12), zoomControl:true, attributionControl:false});
+  setBase($("#baseSel").value||"pale");
+  L.control.scale({imperial:false}).addTo(LMAP);
+  LMAP.on("click", onMapClick);
+  $$("[data-hz]").forEach(function(cb){
+    cb.addEventListener("change", function(){ toggleHz(this.dataset.hz, this.checked); });
+  });
+  if(S.t_lat&&S.t_lng) putPoint([+S.t_lat,+S.t_lng], true);
+  setTimeout(function(){LMAP.invalidateSize();},80);
+  return true;
+}
+function setBase(k){
+  if(!LMAP) return;
+  var b=BASES[k]||BASES.pale;
+  if(LBASE) LMAP.removeLayer(LBASE);
+  LBASE = L.tileLayer(b.u,{maxZoom:b.max, maxNativeZoom:b.max, attribution:b.a}).addTo(LMAP);
+  LBASE.setZIndex(1);
+}
+function toggleHz(k,on){
+  if(!LMAP) return;
+  var h=HZ_LAYERS[k]; if(!h) return;
+  if(on){
+    if(!LHZ[k]) LHZ[k]=L.tileLayer(h.u,{maxZoom:18, maxNativeZoom:h.max, opacity:(+($("#opa").value||60))/100, errorTileUrl:"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"});
+    LHZ[k].addTo(LMAP); LHZ[k].setZIndex(5);
+  } else if(LHZ[k]) LMAP.removeLayer(LHZ[k]);
+  hzMsg();
+}
+function setOpa(v){
+  $("#opaEcho").textContent=v;
+  Object.keys(LHZ).forEach(function(k){ if(LMAP&&LMAP.hasLayer(LHZ[k])) LHZ[k].setOpacity(v/100); });
+}
+function hzMsg(){
+  var on=$$("[data-hz]").filter(function(c){return c.checked;}).map(function(c){return HZ_LAYERS[c.dataset.hz].n;});
+  setMsg("msgLand", on.length?"w":"i", on.length
+    ? "<b>表示中の防災情報：</b>"+esc(on.join("／"))+"<br>色が付いている場所は該当区域です。着色がなくても安全を意味するものではありません。正式には自治体のハザードマップ・重要事項説明でご確認ください。"
+    : "地図をクリックすると地点が決まり、住所・周辺施設・学校区の確認ができます。防災マップのチェックを入れると浸水想定区域などを重ねて表示します。");
+}
+function setMode(m){
+  LMODE=m;
+  [["point","tbPoint"],["area","tbArea"],["dist","tbDist"]].forEach(function(x){
+    var b=$("#"+x[1]); if(!b) return;
+    b.className = "btn b-sm " + (x[0]===m ? "b-n" : "b-w");
+    if(x[0]!==m) b.style.border="1px solid var(--line)"; else b.style.border="";
+  });
+  $("#mTip").textContent = m==="point" ? "地図をクリックすると地点が決まります"
+    : m==="area" ? "土地の角を順にクリックしてください（3点以上で面積が出ます）"
+    : "経路の点を順にクリックしてください（距離が出ます）";
+  if(m!=="point") clearDraw(true);
+}
+function clearDraw(keepMode){
+  LPTS=[];
+  if(LPOLY&&LMAP){ LMAP.removeLayer(LPOLY); LPOLY=null; }
+  setKeyVal("t_area",0); setKeyVal("t_dist",0);
+  if(!keepMode){ mark(true); }
+  calc();
+}
+function onMapClick(e){
+  var ll=[e.latlng.lat, e.latlng.lng];
+  if(LMODE==="point"){ putPoint(ll); return; }
+  LPTS.push(ll);
+  if(LPOLY) LMAP.removeLayer(LPOLY);
+  if(LMODE==="area"){
+    LPOLY = L.polygon(LPTS,{color:"#0F3675",weight:2,fillColor:"#F4D722",fillOpacity:.28}).addTo(LMAP);
+    setKeyVal("t_area", Math.round(geoArea(LPTS)*10)/10); setKeyVal("t_dist",0);
+  } else {
+    LPOLY = L.polyline(LPTS,{color:"#c0392b",weight:3,dashArray:"6 4"}).addTo(LMAP);
+    setKeyVal("t_dist", Math.round(pathLen(LPTS))); setKeyVal("t_area",0);
+  }
+  LPTS.forEach(function(p){ L.circleMarker(p,{radius:3,color:"#0F3675",fillColor:"#fff",fillOpacity:1,weight:2}).addTo(LPOLY?LMAP:LMAP); });
+  mark(true); calc();
+}
+function putPoint(ll, quiet){
+  if(!LMAP) return;
+  if(LPT) LMAP.removeLayer(LPT);
+  LPT = L.marker(ll,{icon:L.divIcon({className:"",html:'<div style="width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#c0392b;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>',iconSize:[0,0]})}).addTo(LMAP);
+  setKeyVal("t_lat", ll[0].toFixed(6)); setKeyVal("t_lng", ll[1].toFixed(6));
+  mark(true); calc();
+  if(!quiet) revGeo(ll);
+}
+function geoSearch(){
+  var q=($("#geoQ").value||"").trim();
+  if(!q){ $("#geoMsg").textContent="住所や地名をご入力ください"; return; }
+  if(!landMapInit(true)) return;
+  $("#geoMsg").textContent="検索中…";
+  fetch("https://msearch.gsi.go.jp/address-search/AddressSearch?q="+encodeURIComponent(q))
+    .then(function(r){return r.json();})
+    .then(function(a){
+      if(!a || !a.length){ $("#geoMsg").textContent="見つかりませんでした。市区町村名から入力し直してみてください。"; return; }
+      var f=a[0], c=f.geometry.coordinates;
+      $("#geoMsg").innerHTML="✅ "+esc(f.properties.title)+(a.length>1?"（他 "+(a.length-1)+"件）":"");
+      LMAP.setView([c[1],c[0]],17);
+      putPoint([c[1],c[0]]);
+    })
+    .catch(function(){ $("#geoMsg").textContent="検索できませんでした（インターネット接続をご確認ください）"; });
+}
+function revGeo(ll){
+  fetch("https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat="+ll[0]+"&lon="+ll[1])
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var r=(d&&d.results)||{}, mn=MUNI[r.muniCd]||"";
+      setKeyVal("t_muni", mn);
+      setKeyVal("t_addr", mn + (r.lv01Nm||""));
+      mark(true); calc();
+    }).catch(function(){});
+}
+
+/* ===== 周辺施設 ===== */
+function poiSearch(){
+  if(!S.t_lat||!S.t_lng){ alert("先に地図で地点を選んでください（「📍 地点を選ぶ」→地図をクリック）。"); return; }
+  var cats=$$("#poiChk input").filter(function(c){return c.checked;}).map(function(c){return c.dataset.poi;});
+  if(!cats.length){ alert("探す施設を1つ以上選んでください。"); return; }
+  var r=n("t_radius")||1500, lat=+S.t_lat, lon=+S.t_lng;
+  setMsg("msgPoi","i","検索中… OpenStreetMapに問い合わせています。");
+  var body="[out:json][timeout:25];(";
+  POI_CATS.forEach(function(c){
+    if(cats.indexOf(c.k)>=0) body += c.q.replace(/%R%/g,r).replace(/%LAT%/g,lat).replace(/%LON%/g,lon);
+  });
+  body+=");out center tags;";
+  fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(body),
+    headers:{"Content-Type":"application/x-www-form-urlencoded"}})
+    .then(function(x){ if(!x.ok) throw new Error("HTTP "+x.status); return x.json(); })
+    .then(function(d){ renderPoi(d.elements||[], [lat,lon]); })
+    .catch(function(e){ setMsg("msgPoi","w","検索できませんでした（"+esc(String(e.message||e))+"）。インターネット接続をご確認のうえ、少し時間をおいて再度お試しください。"); });
+}
+function poiKind(t){
+  var nm=t.name||"";
+  if(t.railway==="station") return "駅";
+  if(t.amenity==="school"){
+    if(/小学校|小学部/.test(nm)) return "小学校";
+    if(/中学校|中学部/.test(nm)) return "中学校";
+    if(/高等学校|高校/.test(nm)) return "高校";
+    if(/特別支援/.test(nm)) return "特別支援学校";
+    return "学校";
+  }
+  if(t.amenity==="kindergarten"||t.amenity==="childcare") return "保育園・幼稚園";
+  if(t.shop==="supermarket") return "スーパー";
+  if(t.shop==="convenience") return "コンビニ";
+  if(t.shop==="chemist"||t.shop==="drugstore") return "ドラッグストア";
+  if(t.amenity==="hospital") return "病院";
+  if(t.amenity==="clinic"||t.amenity==="doctors") return "医院・クリニック";
+  if(t.amenity==="pharmacy") return "薬局";
+  if(t.leisure==="park") return "公園";
+  if(t.amenity==="post_office") return "郵便局";
+  if(t.amenity==="bank") return "銀行";
+  return "施設";
+}
+function renderPoi(els, org){
+  LPOIMK.forEach(function(m){ if(LMAP) LMAP.removeLayer(m); }); LPOIMK=[];
+  var seen={}, rows=[];
+  els.forEach(function(e){
+    var t=e.tags||{}; if(!t.name) return;
+    var la=e.lat!=null?e.lat:(e.center&&e.center.lat), lo=e.lon!=null?e.lon:(e.center&&e.center.lon);
+    if(la==null||lo==null) return;
+    var key=t.name+"@"+la.toFixed(4)+lo.toFixed(4); if(seen[key]) return; seen[key]=1;
+    rows.push({k:poiKind(t), n:t.name, d:hav(org,[la,lo]), la:la, lo:lo});
+  });
+  rows.sort(function(a,b){return a.d-b.d;});
+  LPOI=rows;
+  var tb=$("#tblPoi").querySelector("tbody");
+  tb.innerHTML = rows.length ? rows.map(function(p,i){
+    return "<tr><td><span class='pill'>"+esc(p.k)+"</span></td><td>"+esc(p.n)+"</td>"+
+      '<td class="num">'+cm(p.d)+" m</td>"+
+      '<td class="num">約 '+Math.ceil(p.d/80)+" 分</td>"+
+      '<td class="ctr noprint"><button class="btn b-w b-sm" style="border:1px solid var(--line)" onclick="poiZoom('+i+')">表示</button></td></tr>';
+  }).join("") : '<tr><td colspan="5" class="ctr" style="color:var(--mu);padding:12px">この半径では見つかりませんでした。半径を広げてお試しください。</td></tr>';
+  rows.slice(0,40).forEach(function(p){
+    if(!LMAP) return;
+    var m=L.circleMarker([p.la,p.lo],{radius:5,color:"#1d4f96",fillColor:"#fff",fillOpacity:1,weight:2})
+      .bindTooltip(p.k+"："+p.n+"（"+cm(p.d)+"m）");
+    m.addTo(LMAP); LPOIMK.push(m);
+  });
+  function near(re){ for(var i=0;i<rows.length;i++) if(re.test(rows[i].k)) return rows[i]; return null; }
+  var sho=near(/^小学校$/), chu=near(/^中学校$/), eki=near(/^駅$/), sup=near(/^スーパー$/);
+  function put(o,kn,kd){
+    OUT[kn]=o?o.n:"－"; OUT[kd]=o?(cm(o.d)+"m／徒歩約"+Math.ceil(o.d/80)+"分"):"－";
+  }
+  put(sho,"o_tdSho","o_tdShoD"); put(chu,"o_tdChu","o_tdChuD");
+  put(eki,"o_tdEki","o_tdEkiD"); put(sup,"o_tdSuper","o_tdSuperD");
+  paint();
+  setMsg("msgPoi","g", rows.length+"件が見つかりました。"+
+    (sho?"最寄りの小学校は <b>"+esc(sho.n)+"</b>（"+cm(sho.d)+"m）です。":"")+
+    "<br><b>※最寄り校は「学校区の目安」です。</b>通学区域は境界で分かれるため、下の「公式サイトで確認する」から自治体の通学区域をご確認ください。");
+}
+function poiZoom(i){
+  var p=LPOI[i]; if(!p||!LMAP) return;
+  LMAP.setView([p.la,p.lo],17);
+  $("#landMap").scrollIntoView({behavior:"smooth",block:"center"});
+}
+
+/* ===== リンク生成 ===== */
+function lnkHtml(list){
+  return list.map(function(x){
+    if(x.length===1) return '<div class="lnkh">'+esc(x[0])+"</div>";
+    return '<div class="lnkgrid">'+x[1].map(function(y){
+      return '<a class="lnk" href="'+esc(y[2])+'" target="_blank" rel="noopener">'+
+        '<span class="ic">'+y[0]+'</span><span class="tx"><b>'+esc(y[1])+"</b><i>"+esc(y[3])+"</i></span></a>";
+    }).join("")+"</div>";
+  }).join("");
+}
+function buildLinks(){
+  var pref=S.t_pref||"kagoshima", pj=PREF_JP[pref], city=(S.t_city||"").trim();
+  var bud=n("t_budget"), tsu=n("t_needTsubo"), q=encodeURIComponent;
+  var area = city || pj;
+  var kw = area+" 土地"+(bud?(" "+bud+"万円以下"):"");
+  var G=[
+   ["まず自社の土地情報から"],
+   ["",[
+     ["🏡","国分ハウジング不動産","https://www.kagoshimafudousan.jp/", "鹿児島市・姶良市・霧島市・県内全域と都城の土地情報"],
+     ["🏡","国分ハウジング 公式サイト","https://kh-house.jp/", "分譲地・建売・イベント情報"]
+   ]],
+   ["県別ページに直接ジャンプ（"+pj+"の売土地）"],
+   ["",[
+     ["🔎","アットホーム", "https://www.athome.co.jp/tochi/"+pref+"/city/", pj+"の土地・市区町村から選ぶ"],
+     ["🔎","SUUMO",       "https://suumo.jp/tochi/"+pref+"/",              pj+"の土地一覧"],
+     ["🔎","LIFULL HOME'S","https://www.homes.co.jp/tochi/"+pref+"/city/", pj+"の土地・市区町村から選ぶ"],
+     ["🔎","ニフティ不動産","https://myhome.nifty.com/tochi/"+pref+"/",     pj+"の土地（複数サイト横断）"]
+   ]],
+   ["総合ポータル・新着物件"],
+   ["",[
+     ["🏠","土地新着ネット","https://www.tochi-shinchaku.net/estaterobo/", "新着の売土地情報を検索"],
+     ["🔎","Yahoo!不動産","https://realestate.yahoo.co.jp/land/",          "土地を探す"],
+     ["🔎","スマイティ",   "https://sumaity.com/",                          "土地・住宅情報"],
+     ["🔎","いえらぶ",     "https://ielove.co.jp/tochi/",                   "土地を探す"],
+     ["🔎","オウチーノ",   "https://o-uccino.com/",                         "土地・不動産情報"]
+   ]],
+   ["業界団体サイト（地元の不動産会社の物件を横断）"],
+   ["",[
+     ["🤝","ハトマークサイト","https://www.hatomarksite.com/",              "全国宅地建物取引業協会（全宅連）"],
+     ["🤝","不動産ジャパン",  "https://www.fudousan.or.jp/",                "不動産流通推進センター"],
+     ["🤝","ラビーネット",    "https://rabbynet.zennichi.or.jp/",           "全日本不動産協会"],
+     ["🤝","全日本不動産協会","https://www.zennichi.or.jp/",                "協会本部・会員検索"]
+   ]],
+   ["地図・地番・相場をしらべる"],
+   ["",[
+     ["🗺","ZIP-Site（REOS）","https://app.zip-site.com/reos/app/index.htm","地番・公図の確認"],
+     ["🗺","kenzkenz oh3",     "https://kenzkenz.jp/oh3/",                   "各種GISレイヤを重ねる地図"],
+     ["💰","全国地価マップ",   "https://www.chikamap.jp/chikamap/Portal",    "相続税路線価・固定資産税路線価"],
+     ["💰","不動産情報ライブラリ","https://www.reinfolib.mlit.go.jp/",       "国交省・取引価格と地価公示"]
+   ]],
+   ["公有地・空き家・オークション"],
+   ["",[
+     ["🏚","空き家・空き地バンク","https://www.akiya-athome.jp/",            "アットホーム版・全国の空き家空き地"],
+     ["🏛","全国版 空き家・空き地バンク","https://www.mlit.go.jp/totikensangyo/totikensangyo_fr4_000043.html","国土交通省の案内ページ"],
+     ["🔨","KSI官公庁オークション","https://kankocho.jp/",                   "自治体の公有地入札・公売"]
+   ]],
+   ["キーワードで探す"],
+   ["",[
+     ["🔍","Googleで検索","https://www.google.com/search?q="+q(kw),         "「"+kw+"」"],
+     ["🔍","売地を検索",  "https://www.google.com/search?q="+q(area+" 売地 "+(tsu?tsu+"坪 ":"")+"不動産"), "「"+area+" 売地」"],
+     ["🗺","Googleマップで探す","https://www.google.com/maps/search/"+q(area+" 売土地"), "地図から周辺の売土地を見る"]
+   ]]
+  ];
+  $("#portalLinks").innerHTML = lnkHtml(G);
+
+  var muni=(S.t_muni||"").trim(), base=muni||area;
+  var lat=S.t_lat, lng=S.t_lng, ll=(lat&&lng)?(lat+","+lng):"";
+  var O=[
+   ["用途地域・都市計画"],
+   ["",[
+     ["🏙","用途地域を調べる","https://www.google.com/search?q="+q(base+" 用途地域 都市計画情報 建ぺい率 容積率"), base+" の都市計画情報"],
+     ["🏙","都市計画情報の地図","https://www.google.com/search?q="+q(base+" 都市計画情報 マップ GIS"), base+" のGIS公開サイト"]
+   ]],
+   ["学校区（通学区域）"],
+   ["",[
+     ["🎒","小学校の通学区域","https://www.google.com/search?q="+q(base+" 小学校 通学区域"), base+" の通学区域"],
+     ["🎒","中学校の通学区域","https://www.google.com/search?q="+q(base+" 中学校 通学区域"), base+" の通学区域"],
+     ["🏫","学校一覧・教育委員会","https://www.google.com/search?q="+q(base+" 小学校 中学校 一覧 教育委員会"), base+" の学校情報"]
+   ]],
+   ["地番・公図・登記"],
+   ["",[
+     ["📐","地番を調べる（ブルーマップ）","https://www.google.com/search?q="+q(base+" ブルーマップ 地番 公図"), base+" の地番"],
+     ["📜","登記情報提供サービス","https://www1.touki.or.jp/", "登記事項・地図の閲覧（有料）"],
+     ["🗺","登記所備付地図（法務省）","https://front.geospatial.jp/moj-chiseki-view/", "公図・地番のデータを見る"]
+   ]],
+   ["防災・ハザードマップ"],
+   ["",[
+     ["🌊","重ねるハザードマップ", ll?("https://disaportal.gsi.go.jp/maps/index.html?ll="+lat+","+lng+"&z=16"):"https://disaportal.gsi.go.jp/", ll?"この地点を開く":"全国のハザード情報"],
+     ["🏛","自治体のハザードマップ","https://www.google.com/search?q="+q(base+" ハザードマップ"), base+" のハザードマップ"],
+     ["⛰","地形分類・液状化","https://www.google.com/search?q="+q(base+" 地形分類 液状化 ハザード"), base+" の地盤情報"]
+   ]],
+   ["地図で開く"],
+   ["",[
+     ["🧭","地理院地図", ll?("https://maps.gsi.go.jp/#17/"+lat+"/"+lng+"/&base=pale&ls=pale&disp=1"):"https://maps.gsi.go.jp/", ll?"この地点を開く":"地理院地図"],
+     ["🚗","Googleマップ", ll?("https://www.google.com/maps/search/?api=1&query="+lat+","+lng):"https://www.google.com/maps", ll?"ルート・ストリートビュー":"Googleマップ"]
+   ]]
+  ];
+  $("#officialLinks").innerHTML = lnkHtml(O);
+}
+
+/* ===== 土地候補リスト ===== */
+function renderLands(){
+  var tb=$("#tblLands"); if(!tb) return;
+  tb.querySelector("tbody").innerHTML = (S.lands||[]).map(function(r,i){
+    return "<tr>"+
+      '<td><input type="text" value="'+esc(r.n)+'" oninput="setLd('+i+',\'n\',this.value)"></td>'+
+      '<td><input type="text" value="'+esc(r.ad)+'" oninput="setLd('+i+',\'ad\',this.value)"></td>'+
+      '<td class="num"><input type="number" step="0.1" value="'+(r.ts||"")+'" oninput="setLd('+i+',\'ts\',this.value)"></td>'+
+      '<td class="num"><input type="number" step="0.1" value="'+(r.tk||"")+'" oninput="setLd('+i+',\'tk\',this.value)"></td>'+
+      '<td class="num"><input type="number" value="'+(r.pr||"")+'" oninput="setLd('+i+',\'pr\',this.value)"></td>'+
+      '<td><input type="text" value="'+esc(r.yt)+'" oninput="setLd('+i+',\'yt\',this.value)" placeholder="第一種低層など"></td>'+
+      '<td><input type="text" value="'+esc(r.bk)+'" oninput="setLd('+i+',\'bk\',this.value)" placeholder="60/200"></td>'+
+      '<td><input type="text" value="'+esc(r.hz)+'" oninput="setLd('+i+',\'hz\',this.value)" placeholder="浸水0.5m等"></td>'+
+      '<td><input type="text" value="'+esc(r.me)+'" oninput="setLd('+i+',\'me\',this.value)"></td>'+
+      '<td class="ctr noprint">'+
+        '<button class="btn b-n b-sm" onclick="landApply('+i+')">②③に反映</button> '+
+        '<button class="xbtn" onclick="delLand('+i+')">×</button></td>'+
+    "</tr>";
+  }).join("") || '<tr><td colspan="10" class="ctr" style="color:var(--mu);padding:12px">「＋ 候補を追加」または「📍 選択地点から追加」で登録してください。</td></tr>';
+}
+function setLd(i,f,v){
+  var r=S.lands[i]; if(!r) return;
+  if(f==="n"||f==="ad"||f==="yt"||f==="bk"||f==="hz"||f==="me"){ r[f]=v; }
+  else {
+    r[f]=parseFloat(v)||0;
+    if(f==="ts"||f==="tk"){ if(r.ts>0&&r.tk>0) r.pr=Math.round(r.ts*r.tk); }
+    else if(f==="pr"){ if(r.ts>0) r.tk=Math.round(r.pr/r.ts*10)/10; }
+    renderLands();
+  }
+  mark(true); calc();
+}
+function delLand(i){ S.lands.splice(i,1); renderLands(); mark(true); calc(); }
+function landFromMap(){
+  var ts = n("t_area")>0 ? Math.round(n("t_area")*0.3025*10)/10 : n("t_needTsubo");
+  var tk = n("t_tanka")>0 ? n("t_tanka") : (n("o_tdTanka")||0);
+  S.lands.push({n:"", ad:(S.t_addr||""), ts:ts, tk:0, pr:0, yt:"", bk:"", hz:"", me:
+    (S.t_lat?("緯度経度 "+S.t_lat+","+S.t_lng):"")});
+  renderLands(); mark(true); calc();
+  toast("選択地点を候補に追加しました");
+}
+function landApply(i){
+  var r=S.lands[i]; if(!r) return;
+  if(!(r.pr>0)){ alert("土地価格（万円）をご入力ください。"); return; }
+  if(!confirm("「"+(r.n||r.ad||"この土地")+"」の土地価格 "+cm(r.pr)+" 万円を、②デジシキの土地購入費と③資金計画の土地代金に反映します。よろしいですか？")) return;
+  setKeyVal("d_tochi", r.pr);
+  var t=(S.s3||[]).filter(function(x){return /土地代金/.test(x.i);})[0];
+  if(t) t.a = Math.round(r.pr*10000); else S.s3.push({i:"土地代金",a:Math.round(r.pr*10000),t:0,p:"売主",m:"予算",n:""});
+  if(r.ts>0) setKeyVal("k_tsubo", Math.round(r.ts));
+  if(r.ad) setKeyVal("s_kenchikuchi", r.ad);
+  renderDetail("s3"); mark(true); calc();
+  toast("②デジシキ・③資金計画に反映しました");
+  goPage("p3");
+}
+
+/* ===== 計算 ===== */
+function calcLand(O){
+  var need=n("t_needTsubo")||0, bud=n("t_budget")||0;
+  O.o_tdTochi=n("d_tochi");
+  O.o_tdTanka = need>0 ? Math.round(bud/need*10)/10 : null;
+  var ar=n("t_area"), ts=ar*0.3025;
+  O.o_tdArea=ar; O.o_tdTsubo=ts;
+  O.o_tdDist=n("t_dist"); O.o_tdWalk=n("t_dist")>0?Math.ceil(n("t_dist")/80):0;
+  var tanka = O.o_tdTanka||0;
+  O.o_tdTanka2=tanka;
+  O.o_tdKingaku = ts>0 ? Math.round(ts*tanka) : 0;
+  O.o_tdAddr = S.t_addr || "－";
+  O.o_tdMuni = S.t_muni || "－";
+  O.o_tdLatLng = (S.t_lat&&S.t_lng) ? ("緯度 "+S.t_lat+" ／ 経度 "+S.t_lng) : "－";
+  O.o_tdLatLng2 = O.o_tdLatLng;
+  if(O.o_tdSho===undefined){ O.o_tdSho="－";O.o_tdShoD="－";O.o_tdChu="－";O.o_tdChuD="－";
+    O.o_tdEki="－";O.o_tdEkiD="－";O.o_tdSuper="－";O.o_tdSuperD="－"; }
+  var ls=(S.lands||[]).filter(function(r){return r.pr>0;});
+  O.o_tdCount=(S.lands||[]).length;
+  O.o_tdMin= ls.length ? Math.min.apply(null, ls.map(function(r){return r.pr;})) : 0;
+  if(ls.length>=2){
+    var mn=ls.slice().sort(function(a,b){return a.pr-b.pr;});
+    setMsg("msgLands","i","最も安い候補は <b>"+esc(mn[0].n||mn[0].ad||"（名称未入力）")+"</b>（"+cm(mn[0].pr)+"万円"+
+      (mn[0].ts?"／"+mn[0].ts+"坪・坪単価"+mn[0].tk+"万円":"")+"）。最も高い候補との差は <b>"+cm(mn[mn.length-1].pr-mn[0].pr)+" 万円</b>です。");
+  } else setMsg("msgLands","","");
+  buildLinks();
+}
+function renderPoiChk(){
+  var e=$("#poiChk"); if(!e||e.children.length) return;
+  e.innerHTML = POI_CATS.map(function(c,i){
+    var on = ["station","school","super","conveni","hospital"].indexOf(c.k)>=0;
+    return '<label><input type="checkbox" data-poi="'+c.k+'"'+(on?" checked":"")+"> "+esc(c.n)+"</label>";
+  }).join("");
 }
 
 /* ---------- FPキャッシュフロー ---------- */
@@ -2439,14 +3046,18 @@ function drawChart(rows){
 
 /* ---------- タブ ---------- */
 function go(i){
-  $$(".tab").forEach(function(t){t.classList.toggle("on", t.dataset.p==String(i));});
-  $$(".page").forEach(function(p){p.classList.toggle("on", p.id==="p"+i);});
+  var t=TABS[i-1]; if(!t) return;
+  if(t[2]==="p11") setTimeout(function(){ landMapInit(false); },120);
+  $$(".tab").forEach(function(x){x.classList.toggle("on", x.dataset.p==String(i));});
+  $$(".page").forEach(function(p){p.classList.toggle("on", p.id===t[2]);});
   window.scrollTo({top:0,behavior:"smooth"});
 }
+function goPage(id){ for(var i=0;i<TABS.length;i++) if(TABS[i][2]===id){ go(i+1); return; } }
 
 /* ---------- 保存（Dashboard の API） ----------
-   ⚠️⚠️ 以前は localStorage("khg_aidsk_v1") に顧客ごとのデータを保持していた。
+   ⚠️⚠️ 原本は localStorage("khg_aidsk_v1") に顧客ごとのデータを持っている。
      端末を変えると消え、他の営業からも見えないため DB へ移した。
+     ⚠️ 原本を取り込み直すたびに localStorage 版に戻るので、毎回ここを当て直すこと。
 
    ⚠️ localStorage は**トークンの読み取りだけ**に使う。Dashboard 本体と
      同一オリジン（/dashboard/ 配下）なので共有されている。
@@ -2472,7 +3083,6 @@ var API = (function(){
 /** URL の ?id=。⚠️ これが無いと何も読み込めない */
 var CUSTOMER_ID = (new URLSearchParams(location.search)).get("id") || "";
 
-var SHOP_OPTIONS = [];
 var PLAN_EXISTS = false;
 
 function apiPost(body, done, fail){
@@ -2510,31 +3120,6 @@ function refreshList(){
   sel.innerHTML = '<option>' + esc(S.k_name || "（お客様名なし）") + '</option>';
 }
 
-/**
- * 担当店舗の選択肢を shop_list（API）の内容に差し替える。
- *
- * ⚠️⚠️ 元は19件のハードコードだった。master_data の in_charge_store は
- *   「KH鹿児島店」の形なので、そのままでは一致しない。
- *   value=保存する値（KH鹿児島店）／表示=お客様向けの表記 に分ける。
- */
-function applyShopOptions(){
-  var sel = document.querySelector('[data-k="k_shop"]');
-  if(!sel || !SHOP_OPTIONS.length) return;
-  sel.innerHTML = '<option value=""></option>' + SHOP_OPTIONS.map(function(o){
-    return '<option value="' + esc(o.value) + '">' + esc(o.pickerLabel) + '</option>';
-  }).join("");
-  // ⚠️ 選択肢を作り直した後で値を戻す。順序を逆にすると選択が外れる
-  sel.value = S.k_shop || "";
-}
-
-/** 印刷・見出しに出す店舗名。⚠️ 略称（KH/DJH）はお客様に見せない */
-function shopLabelOf(value){
-  for(var i=0;i<SHOP_OPTIONS.length;i++){
-    if(SHOP_OPTIONS[i].value === value) return SHOP_OPTIONS[i].label;
-  }
-  return value || "";
-}
-
 function saveCustomer(){
   if(!CUSTOMER_ID){ alert("顧客が指定されていません。Dashboard の顧客詳細から開いてください。"); return; }
 
@@ -2556,6 +3141,7 @@ function saveCustomer(){
   apiPost(body, function(j){
     if(btn) btn.disabled = false;
     PLAN_EXISTS = true;
+    loanSaveMaster();
     mark(false);
     // ⚠️ 保存できた項目だけ記録を消す。失敗時に消すと、
     //   再保存しても顧客台帳へ反映されなくなる
@@ -2604,7 +3190,6 @@ function bootLoad(done){
     return;
   }
   apiPost({ request:"funding_plan", id: CUSTOMER_ID }, function(j){
-    SHOP_OPTIONS = j.shopOptions || [];
     PLAN_EXISTS = !!j.exists;
 
     var base = DEF();
@@ -2621,8 +3206,11 @@ function bootLoad(done){
 
        ⚠️ ただし配列項目（JSON列）は null にしてはいけない。
          setFlowDay() が S.w_days[i] に代入するため、null だと例外になる。
-         null なら DEF() の配列を残す。 */
-    var JSON_KEYS = ["kids","k_trigger","s1","s2","s3","s4","s5","loans","w_days","w_done"];
+         null なら DEF() の配列を残す。
+
+       ⚠️ 2026-09-10 追加の土地検索（t_pref 等）は JSON 列ではないので
+         ここに足す必要は無い。lands は配列なので JSON_KEYS に入れる。 */
+    var JSON_KEYS = ["kids","k_trigger","s1","s2","s3","s4","s5","loans","lands","w_days","w_done"];
 
     for(var k in plan){
       var v = plan[k];
@@ -2642,7 +3230,10 @@ function bootLoad(done){
       if(isJson && (!v || !v.length) && base[k] && base[k].length) continue;
       base[k] = v;
     }
-    // ⚠️ 未作成のときは顧客台帳の値で埋める（k_shop は必ず入れる）
+    /* ⚠️ 未作成のときは顧客台帳の値で埋める。
+       ⚠️⚠️ k_shop は入力欄が無くなった（原本から「① お客様カルテ」が消えた）が、
+         DEF() にキーは残っており funding_plan にも保存されるので、
+         ここで入れておく。印刷や台帳との突き合わせで使える。 */
     if(!j.exists && j.customer){
       if(!base.k_name)  base.k_name  = j.customer.name || "";
       if(!base.k_shop)  base.k_shop  = j.customer.shop || "";
@@ -2651,7 +3242,6 @@ function bootLoad(done){
     S = base;
 
     reloadAll();
-    applyShopOptions();
     mark(false);
     refreshList();
 
@@ -2667,13 +3257,19 @@ function bootLoad(done){
   });
 }
 
+/**
+ * 画面全体の再描画。
+ * ⚠️ 原本と同じ並びを保つこと。renderLands / renderPoiChk は
+ *   2026-09-10 に追加された⑧土地検索のためのもので、
+ *   落とすと地図タブが白紙になる。
+ */
 function reloadAll(){
-  fillInputs(); renderKids(); renderLoans();
+  fillInputs(); renderKids(); renderLoans(); renderLands(); renderPoiChk();
   ["s1","s2","s3","s4","s5"].forEach(renderDetail);
   renderFlow(); calc();
 }
 function exportJson(){
-  // ⚠️ 元は localStorage の全顧客を書き出していた。DB へ移したので
+  // ⚠️ 原本は localStorage の全顧客を書き出す。DB へ移したので
   //   「開いているお客様1件」だけにする（他の顧客の情報を持ち出させない）。
   var blob=new Blob([JSON.stringify({id:CUSTOMER_ID, data:S},null,2)],{type:"application/json"});
   var a=document.createElement("a");
@@ -2693,7 +3289,7 @@ function importJson(input){
       if(!confirm("画面の内容をファイルの内容で置き換えます。よろしいですか？\n※「保存」を押すまでDBには反映されません。")){ input.value=""; return; }
       var base=DEF();
       for(var k in j.data) base[k]=j.data[k];
-      S=base; reloadAll(); applyShopOptions(); mark(true); refreshList();
+      S=base; reloadAll(); mark(true); refreshList();
       toast("ファイルを読み込みました。内容を確認して「保存」してください");
     }catch(e){ alert("ファイルの形式が正しくありません。"); }
     input.value="";
@@ -2702,29 +3298,55 @@ function importJson(input){
 }
 
 /* ---------- 印刷 ---------- */
-function openPrint(){ $("#pbar").style.display="flex"; }
+function openPrint(){ $("#pbar").style.display="flex"; prPaperChange(); }
+function prPaperChange(){
+  var a3 = $("#prPaper") && $("#prPaper").value==="a3";
+  var m=$("#prPaperNote");
+  if(!m){
+    m=document.createElement("div"); m.id="prPaperNote";
+    m.style.cssText="font-size:11px;color:#c3d3ef;flex-basis:100%";
+    $("#pbar").appendChild(m);
+  }
+  m.innerHTML = a3
+    ? "A3横 1枚＝1項目で印刷します。<b>②デジシキ</b>・<b>③資金計画</b>・<b>⑧家づくりの流れ（ステップ図のみ）</b>はA3横1枚に収まるよう最適化しています。印刷ダイアログで用紙 <b>A3</b>・向き <b>横</b> をご確認ください。"
+    : "A4縦 1ページ＝1項目で印刷します。";
+}
+function pageStyle(css){
+  var st=$("#pgStyle");
+  if(!st){ st=document.createElement("style"); st.id="pgStyle"; document.head.appendChild(st); }
+  st.textContent=css;
+}
 function closePrint(){ $("#pbar").style.display="none"; }
 function prAll(v){ $$("#printChk input").forEach(function(c){c.checked=v;}); }
 function doPrint(){
   var sel=$$("#printChk input").filter(function(c){return c.checked;}).map(function(c){return c.dataset.pr;});
   if(!sel.length){ alert("印刷する項目を1つ以上選択してください。"); return; }
+  var a3 = $("#prPaper") && $("#prPaper").value==="a3";
+  pageStyle(a3 ? "@page{size:A3 landscape;margin:7mm}" : "@page{size:A4 portrait;margin:11mm 10mm}");
+  document.body.classList.toggle("a3", !!a3);
   $$(".page").forEach(function(p){ p.classList.remove("plast");
-    p.classList.toggle("pon", sel.indexOf(p.id.slice(1))>=0); });
+    p.classList.toggle("pon", sel.indexOf(p.id)>=0); });
   var pons=$$(".page.pon"); if(pons.length) pons[pons.length-1].classList.add("plast");
   document.body.classList.add("pr");
-  setTimeout(function(){ window.print(); },60);
+  setTimeout(function(){ window.print(); },80);
 }
 window.addEventListener("afterprint", function(){
   document.body.classList.remove("pr");
+  document.body.classList.remove("a3");
   $$(".page").forEach(function(p){p.classList.remove("pon");p.classList.remove("plast");});
 });
 
 /* ---------- 起動 ---------- */
 renderStatic();
 bindInputs();
-// ⚠️ 顧客の読み込みは非同期。reloadAll() は bootLoad() の中で呼ぶ。
-//   ここで先に reloadAll() すると、一瞬 DEF() の既定値が表示されてから
-//   顧客の値に差し替わり、お客様の前でちらつく。
+/* ⚠️⚠️ 原本にあった以下は連携版では入れない。毎回外すこと。
+     ・LSOK（localStorage が使えないときの警告）… 保存先は DB なので不要
+     ・#custSel の change で loadCustomer()   … 顧客は ?id= で固定
+     ・ここでの reloadAll() / refreshList()   … bootLoad() の中で呼ぶ
+
+   ⚠️ 顧客の読み込みは非同期。ここで先に reloadAll() すると、
+     一瞬 DEF() の既定値が表示されてから顧客の値に差し替わり、
+     お客様の前でちらつく。 */
 bootLoad();
 /* 金利データの自動読込 */
 (function(){
