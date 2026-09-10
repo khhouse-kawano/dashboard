@@ -8,12 +8,28 @@ import { generateULID } from '../../utils/createULID';
 import { thisYear } from '../../utils/thisYear';
 import AuthContext from '../../context/AuthContext';
 
+/**
+ * イベント予約1件。
+ *
+ * ⚠️ 2つの経路で作られる。
+ *     1. LPのフォーム（おうちづくりフェスタ2026）→ ② Express の event_reservation
+ *     2. 受付での手入力（既存の運用）
+ *   `title` でイベントを区別している。
+ *
+ * ⚠️ **編集できるのは name / phone / mail の3つだけ**（2026-09-07）。
+ *   それ以外は来場者本人が入力した原本であり、社内で書き換えると
+ *   「本当は何と入力されたのか」が分からなくなる。
+ *   サーバー側（listAction/list_event.php）でも同じ制限を掛けている。
+ *   受付運用のための check_in_time / check_out_time / remarks は例外。
+ */
 type CustomerData = {
     no: string;
     id: string;
     time: string;
     date: string;
     name: string;
+    /** ふりがな。⚠️ LPのフォームから届いた予約にのみ入る */
+    kana: string;
     zip: string;
     address: string;
     street: string;
@@ -24,9 +40,15 @@ type CustomerData = {
     child: string;
     house: string;
     interview: string;
+    /** マイホームのご検討。⚠️ カンマ区切り。LPのフォームから届いた予約にのみ入る */
+    request: string;
     medium: string;
     area: string;
     question: string;
+    /** 個人情報の取り扱いへの同意。⚠️ NULL は同意欄が無かった頃の予約 */
+    agree: number | null;
+    /** 予約を受け付けた日時。⚠️ 手入力で作られた行には入らない */
+    reserved_at: string | null;
     status: string;
     check_in_time: string | null;
     check_out_time: string | null;
@@ -44,16 +66,11 @@ type Staff = {
     rank: string;
 };
 
-// --- セレクトボックスの選択肢 ---
-const OPTIONS = {
-    time: ['10:00~', '10:30~', '11:00~', '11:30~', '12:00~', '12:30~', '13:00~', '13:30~', '14:00~', '14:30~', '15:00~', '15:30~'],
-    age: ['20～25歳代', '26～30歳代', '31～35歳代', '36～40歳代', '41～45歳代', '46～50歳代', '51～55歳代', '55～60歳代', '61～65歳代', '65～70歳代', '71歳以上'],
-    adult: ['1人', '2人', '3人', '4人以上'],
-    child: ['0人', '1人', '2人', '3人', '4人以上'],
-    house: ['賃貸', '持ち家（マンション含む）', 'その他'],
-    medium: ['チラシ', '紹介', 'SNS広告', 'インターネット検索'],
-    interview: ['注文住宅の相談', '建売住宅の相談', '不動産売却・相続の相談', '中古住宅の相談', '資金計画・ライフプランの相談', 'ブースで遊びたい'],
-};
+// ⚠️ セレクトボックスの選択肢（OPTIONS）は 2026-09-07 に削除した。
+//   来場予定・世帯情報・相談内容・きっかけを編集できなくしたため使い道が無い。
+//   選択肢はイベントごとに違い（LPのフォームと旧イベントで別物）、
+//   固定の一覧で描くと、そのイベントにしか無い値が画面から消える。
+//   復活させるなら listAction/list_event.php の $allowed_columns も戻すこと。
 
 const brands: Record<string, string> = {
     'KH': '国分ハウジング',
@@ -65,12 +82,66 @@ const brands: Record<string, string> = {
     'PG': 'PG HOUSE'
 };
 
-// 行の配色(inline styleでは .table のセル背景に負けるため Bootstrap の配色クラスを使用)
+/**
+ * 相談意向のある来場者と判定する `interview` の値。
+ *
+ * ⚠️ 部分一致（includes）で判定してよい。似た値と衝突しないことを実データで確認済み。
+ *   `interview` には「注文住宅の相談」「中古住宅の相談」もあるが、これらは
+ *   **「住宅の相談」であって「住宅相談」を含まない**（「の」が入る）。
+ *
+ * ⚠️ 完全一致にはしないこと。`interview` はカンマ区切りの複数選択で、
+ *   実データは「住宅相談,資金・ローン相談,キッチンカー,マルシェ,…」のように連なる。
+ *
+ * ⚠️ 選択肢はイベントごとに違う（LPのフォームと旧イベントで別物）。
+ *   将来この文言が変わったら、ここを直すこと。
+ */
+const CONSULTATION_KEYWORDS = ['住宅相談', '資金・ローン相談'];
+
+/**
+ * 相談意向のある行か。**どちらか一方でも満たせば真（OR）。**
+ *
+ * ⚠️ AND ではない。ロジックを変えるときは注意。
+ *   ローカルの実データでは `request` が入っている行が2件しか無く、
+ *   その2件はどちらも `interview` 側にも該当するため、
+ *   **AND と OR で件数の差が出ず、テストでは違いに気づけない。**
+ *   本番では `request` 未入力でも相談内容だけで着色される行が出る。
+ */
+const hasConsultationIntent = (item: CustomerData): boolean => {
+    const interview = item.interview || '';
+    if (CONSULTATION_KEYWORDS.some(keyword => interview.includes(keyword))) return true;
+
+    /**
+     * マイホームのご検討（`request`）が入力済みか。
+     * ⚠️ 空文字・NULL は「未入力」。LPのフォーム由来の予約にしか入らない。
+     * ⚠️ trim している。空白だけの値は未入力として扱う
+     *   （表示側も `.filter(v => v)` で空を落としており、そちらと揃える）。
+     */
+    return (item.request || '').trim() !== '';
+};
+
+/**
+ * 行の配色。
+ * inline style では .table のセル背景に負けるため Bootstrap の配色クラスを使用。
+ *
+ * ⚠️⚠️ **判定の順序に意味がある。先に返した色が勝つ。**
+ *
+ *   1. sync === 1（同期済み）が最優先。顧客取込の済み／未済は作業判断に直結するため、
+ *      相談意向の色で塗り潰さないこと。
+ *   2. house（賃貸／持ち家）は既存の挙動をそのまま残す。
+ *   3. 相談意向は最後。⚠️ **意図的に一番弱くしている。**
+ *      ここより上に置くと、既に色が付いている行の色が変わってしまう。
+ *
+ * ⚠️ 2 と 3 は実質ぶつからない。`house` は手入力の行にしか入らず、
+ *   `interview` / `request` が埋まる LP フォーム由来の行は `house` が全件空である
+ *   （2026-09-10 時点の実データで確認）。順序は将来の値の追加に対する保険。
+ */
 const getRowClass = (item: CustomerData) => {
     if (item.sync === 1) return 'table-primary';
     const house = item.house || '';
     if (house.includes('賃貸')) return 'table-info';
     if (house.includes('持ち家')) return 'table-warning';
+    // ⚠️ 上の3色（青・水色・黄）と区別が付く薄い色にする
+    if (hasConsultationIntent(item)) return 'table-success';
     return '';
 };
 
@@ -132,6 +203,12 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
     const [syncShow, setSyncShow] = useState(false);
     const [syncTarget, setSyncTarget] = useState<CustomerData | null>(null);
     const [targetStaff, setTargetStaff] = useState('');
+
+    // ⚠️ QRコードの読み取り（受付）は 2026-09-07 にこの画面から外した。
+    //   受付はスタッフが自分のスマホで来場者のQRを読み、
+    //   kh-house.jp/festa/reservation/?id=... を開いて行う運用に変えたため。
+    //   スマホではヘッダーのメニューが出ないので、この画面はそもそも開けない。
+    //   サーバー側の実装は backend-express/src/features/event/checkin.ts。
     const rowRefs = useRef<{ [key: string]: { [field: string]: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null } }>({});
 
     const fetchData = async () => {
@@ -179,10 +256,11 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
             const refs = rowRefs.current[item.id];
             if (!refs) return;
 
+            // ⚠️ 入力欄として描画している項目だけを列挙すること。
+            //   表示のみの項目を書くと ref が無く、毎回空振りする
             const fields: (keyof CustomerData)[] = [
-                'time', 'name', 'phone', 'zip', 'address', 'street',
-                'age', 'adult', 'child', 'house', 'medium', 'area',
-                'check_in_time', 'check_out_time', 'question', 'remarks'
+                'name', 'phone', 'mail',
+                'check_in_time', 'check_out_time', 'remarks'
             ];
 
             fields.forEach(field => {
@@ -222,6 +300,53 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
         return [...filteredData].sort((a, b) => Number(b.no) - Number(a.no));
     }, [filteredData]);
 
+    // ==========================================
+    // 段階的なレンダリング（スクロールで20件ずつ増やす）
+    //
+    // ⚠️ 1行あたりの要素数が多く、全件を一度に描くと数百件で目に見えて重くなる。
+    //   ListOrder.tsx と同じ IntersectionObserver 方式に揃えている。
+    //
+    // ⚠️ **QRの受付は描画件数の影響を受けない。** 検索対象は data（全件）であり、
+    //   画面に出ていない予約でもチェックインできる。ここを slice 済みの
+    //   配列に変えてはいけない（下までスクロールしないと受付できなくなる）。
+    // ==========================================
+    const PAGE_SIZE = 20;
+    const [displayLength, setDisplayLength] = useState<number>(PAGE_SIZE);
+    const loaderRef = useRef<HTMLTableRowElement>(null);
+
+    // ⚠️ 絞り込みが変わったら先頭に戻す。戻さないと、少ない結果に絞ったあとで
+    //   「前に読み込んだ件数」が残り、次に絞り込みを外したとき一気に描画される
+    useEffect(() => {
+        setDisplayLength(PAGE_SIZE);
+    }, [targetEvent, targetShop, isVisited]);
+
+    useEffect(() => {
+        const total = sortedData.length;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setDisplayLength((prev) => (prev < total ? prev + PAGE_SIZE : prev));
+                }
+            },
+            // ⚠️ 表(.table-responsive)が縦スクロールするわけではなくモーダル全体が
+            //   スクロールするため、root は既定（ビューポート）でよい。
+            //   先読みして体感の待ちを減らす
+            { rootMargin: '200px' }
+        );
+
+        const current = loaderRef.current;
+        if (current) observer.observe(current);
+
+        return () => {
+            if (current) observer.unobserve(current);
+        };
+    }, [sortedData.length]);
+
+    const visibleData = useMemo(
+        () => sortedData.slice(0, displayLength),
+        [sortedData, displayLength]
+    );
+
     // 1項目のみを更新するAPI呼び出し(handleBlur / チェックボックス / 同期完了で共用)
     const updateField = async (id: string, field: string, value: string | number) => {
         try {
@@ -251,23 +376,10 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
         updateField(id, field, newValue);
     };
 
-    const handleCheckboxChange = (id: string, option: string, isChecked: boolean) => {
-        const currentData = data.find(item => item.id === id);
-        if (!currentData) return;
-
-        const currentInterviews = currentData.interview ? currentData.interview.split(',') : [];
-        let newInterviews = [...currentInterviews];
-
-        if (isChecked) {
-            if (!newInterviews.includes(option)) newInterviews.push(option);
-        } else {
-            newInterviews = newInterviews.filter(item => item !== option);
-        }
-
-        const newValue = newInterviews.join(',');
-        setData(prev => prev.map(item => item.id === id ? { ...item, interview: newValue } : item));
-        updateField(id, 'interview', newValue);
-    };
+    // ⚠️ 相談内容（interview）のチェックボックス編集は 2026-09-07 に廃止した。
+    //   選択肢がイベントごとに違い、固定の選択肢で描くと
+    //   「そのイベントにしか無い値」が画面から消えたうえ、
+    //   触った瞬間に保存されて**原本が失われる**ため。
 
     const setRef = (id: string, field: string) => (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null) => {
         if (!rowRefs.current[id]) {
@@ -276,9 +388,26 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
         rowRefs.current[id][field] = el;
     };
 
-    const openUrl = () => {
-        window.open('https://kh-house.jp/lp/smilefes_akune_2025/', '_blank');
+    /**
+     * イベントの特設ページ。
+     *
+     * ⚠️ イベントごとにURLが違う。絞り込みで選んでいるイベントのものを開く。
+     *   1つに固定すると、イベントが変わるたびに古いページへ飛ぶ
+     *   （実際に 2026-09-07 まで前年の住まいるフェス2025を指したままだった）。
+     */
+    const EVENT_URLS: Record<string, string> = {
+        'おうちづくりフェスタ2026': 'https://kh-house.jp/festa/',
+        '住まいるフェスティバル2026': 'https://kh-house.jp/lp/smilefes_akune_2025/',
     };
+
+    /** ⚠️ 未選択・未登録のイベントのときは最新のものを開く */
+    const currentEventUrl = EVENT_URLS[targetEvent] ?? 'https://kh-house.jp/festa/';
+
+    const openUrl = () => {
+        window.open(currentEventUrl, '_blank');
+    };
+
+
 
     const reload = () => {
         fetchData();
@@ -337,7 +466,9 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
         <>
             <Modal show={eventSummary} onHide={() => setEventSummary(false)} fullscreen>
                 <Modal.Header closeButton className="py-2">
-                    <Modal.Title style={{ fontSize: '14px', fontWeight: 'bold', color: '#32325d' }}>住まいるフェスティバル予約状況</Modal.Title>
+                    {/* ⚠️ 複数のイベントを扱うため、特定のイベント名を書かない。
+                        どのイベントを見ているかは右上の絞り込みで示す */}
+                    <Modal.Title style={{ fontSize: '14px', fontWeight: 'bold', color: '#32325d' }}>イベント予約状況</Modal.Title>
                 </Modal.Header>
                 <Modal.Body className="p-2" style={{ backgroundColor: '#f8f9fe' }}>
 
@@ -381,13 +512,16 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                             <thead>
                                 <tr>
                                     <th style={{ ...thStyle, width: '40px' }}>同期</th>
-                                    <th style={{ ...thStyle, width: '80px' }}>来場予定</th>
-                                    <th style={{ ...thStyle, width: '100px' }}>お名前</th>
+                                    <th style={{ ...thStyle, width: '110px' }}>来場予定</th>
+                                    {/* ⚠️ ここから3列だけが編集できる。他は来場者の入力した原本 */}
+                                    <th style={{ ...thStyle, width: '110px' }}>お名前</th>
                                     <th style={{ ...thStyle, width: '100px' }}>電話番号</th>
+                                    <th style={{ ...thStyle, width: '180px' }}>メールアドレス</th>
                                     <th style={{ ...thStyle, width: '80px' }}>郵便番号</th>
-                                    <th style={{ ...thStyle, width: '250px' }}>住所</th>
-                                    <th style={{ ...thStyle, width: '250px' }}>世帯情報</th>
-                                    <th style={{ ...thStyle, width: '250px', whiteSpace: 'normal' }}>相談内容</th>
+                                    <th style={{ ...thStyle, width: '220px' }}>住所</th>
+                                    <th style={{ ...thStyle, width: '200px' }}>世帯情報</th>
+                                    <th style={{ ...thStyle, width: '220px', whiteSpace: 'normal' }}>相談内容</th>
+                                    <th style={{ ...thStyle, width: '160px', whiteSpace: 'normal' }}>ご検討</th>
                                     <th style={{ ...thStyle, width: '100px' }}>きっかけ</th>
                                     <th style={{ ...thStyle, width: '120px' }}>希望エリア</th>
                                     <th style={{ ...thStyle, width: '130px' }}>チェックイン</th>
@@ -397,7 +531,7 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedData.map((item, index) => {
+                                {visibleData.map((item, index) => {
                                     const hasCheckIn = !!item.check_in_time && item.check_in_time !== '';
                                     const hasCheckOut = !!item.check_out_time && item.check_out_time !== '';
                                     let statusIcon;
@@ -419,78 +553,56 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                                                         : <i className='fa-solid fa-arrows-rotate pointer' onClick={() => handleSync(item)}></i>}
                                                 </div>
                                             </td>
-                                            <td className="p-1 align-middle">
-                                                <select style={compactInputStyle} ref={setRef(item.id, 'time')} defaultValue={item.time} onBlur={() => handleBlur(item.id, 'time')}>
-                                                    {OPTIONS.time.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                </select>
+                                            {/* ⚠️ ここから下、編集できるのは お名前 / 電話番号 / メールアドレス の3つだけ。
+                                                他は来場者本人が入力した原本のため表示のみにしている（2026-09-07）。
+                                                サーバー側（listAction/list_event.php）でも同じ制限を掛けているので、
+                                                入力欄に戻すだけでは保存されない。 */}
+                                            <td className="p-1 align-middle" style={{ fontSize: '11px' }}>
+                                                <div>{item.date || ''}</div>
+                                                <div className="fw-bold">{item.time || ''}</div>
                                             </td>
                                             <td className="p-1 align-middle">
                                                 <input type="text" style={compactInputStyle} ref={setRef(item.id, 'name')} defaultValue={item.name} onBlur={() => handleBlur(item.id, 'name')} />
+                                                {/* ⚠️ ふりがなは編集させない。読み仮名は本人の申告が正 */}
+                                                {item.kana && <div style={{ fontSize: '10px', color: '#8898aa' }}>{item.kana}</div>}
                                             </td>
                                             <td className="p-1 align-middle">
                                                 <input type="text" style={compactInputStyle} ref={setRef(item.id, 'phone')} defaultValue={item.phone} onBlur={() => handleBlur(item.id, 'phone')} />
                                             </td>
                                             <td className="p-1 align-middle">
-                                                <input type="text" style={compactInputStyle} ref={setRef(item.id, 'zip')} defaultValue={item.zip} onBlur={() => handleBlur(item.id, 'zip')} />
+                                                <input type="text" style={compactInputStyle} ref={setRef(item.id, 'mail')} defaultValue={item.mail} onBlur={() => handleBlur(item.id, 'mail')} />
                                             </td>
-                                            <td className="p-1 align-middle">
-                                                <div className="d-flex gap-1">
-                                                    <input type="text" style={{ ...compactInputStyle, width: '40%' }} placeholder="市区町村" ref={setRef(item.id, 'address')} defaultValue={item.address} onBlur={() => handleBlur(item.id, 'address')} />
-                                                    <input type="text" style={{ ...compactInputStyle, width: '60%' }} placeholder="番地・建物" ref={setRef(item.id, 'street')} defaultValue={item.street} onBlur={() => handleBlur(item.id, 'street')} />
-                                                </div>
+                                            <td className="p-1 align-middle" style={{ fontSize: '11px' }}>{item.zip || ''}</td>
+                                            <td className="p-1 align-middle" style={{ fontSize: '11px', whiteSpace: 'normal' }}>
+                                                {`${item.address || ''}${item.street || ''}`}
                                             </td>
-                                            <td className="p-1 align-middle">
-                                                <div className="d-flex gap-1">
-                                                    <select style={{ ...compactInputStyle, padding: '0 2px' }} ref={setRef(item.id, 'age')} defaultValue={item.age} onBlur={() => handleBlur(item.id, 'age')}>
-                                                        {OPTIONS.age.map(opt => <option key={opt} value={opt}>{opt.replace('歳代', '代')}</option>)}
-                                                    </select>
-                                                    <select style={{ ...compactInputStyle, padding: '0 2px' }} ref={setRef(item.id, 'adult')} defaultValue={item.adult} onBlur={() => handleBlur(item.id, 'adult')}>
-                                                        <option value="">大人</option>
-                                                        {OPTIONS.adult.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                    </select>
-                                                    <select style={{ ...compactInputStyle, padding: '0 2px' }} ref={setRef(item.id, 'child')} defaultValue={item.child} onBlur={() => handleBlur(item.id, 'child')}>
-                                                        <option value="">子</option>
-                                                        {OPTIONS.child.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                    </select>
-                                                    <select style={{ ...compactInputStyle, padding: '0 2px' }} ref={setRef(item.id, 'house')} defaultValue={item.house} onBlur={() => handleBlur(item.id, 'house')}>
-                                                        {OPTIONS.house.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                    </select>
-                                                </div>
+                                            <td className="p-1 align-middle" style={{ fontSize: '11px', whiteSpace: 'normal' }}>
+                                                {/* ⚠️ 手入力で作られた行にしか入らない項目。LPのフォームには無い */}
+                                                {[item.age, item.adult, item.child, item.house].filter(v => v).join(' / ')}
                                             </td>
-                                            <td className="p-1 align-middle" style={{ whiteSpace: 'normal', lineHeight: '1.2' }}>
-                                                <div className="d-flex flex-wrap gap-1" style={{ fontSize: '10px', color: '#303030' }}>
-                                                    {OPTIONS.interview.map(opt => {
-                                                        const isChecked = item.interview ? item.interview.split(',').includes(opt) : false;
-                                                        return (
-                                                            <label key={opt} className="d-flex align-items-center m-0" style={{ cursor: 'pointer' }}>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    style={{ transform: 'scale(0.8)', margin: '0 2px 0 0' }}
-                                                                    checked={isChecked}
-                                                                    onChange={(e) => handleCheckboxChange(item.id, opt, e.target.checked)}
-                                                                />
-                                                                {opt.replace('の相談', '')}
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
+                                            <td className="p-1 align-middle" style={{ whiteSpace: 'normal', lineHeight: '1.3', fontSize: '10px' }}>
+                                                {/* ⚠️ 選択肢はイベントごとに違う（LPのフォームと旧イベントで別物）。
+                                                    固定のチェックボックスにすると、知らない値が黙って消える */}
+                                                {(item.interview || '').split(',').filter(v => v).map(v => (
+                                                    <span key={v} className="badge bg-light text-dark border me-1 mb-1 fw-normal">{v}</span>
+                                                ))}
                                             </td>
-                                            <td className="p-1 align-middle">
-                                                <select style={compactInputStyle} ref={setRef(item.id, 'medium')} defaultValue={item.medium} onBlur={() => handleBlur(item.id, 'medium')}>
-                                                    {OPTIONS.medium.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                </select>
+                                            <td className="p-1 align-middle" style={{ whiteSpace: 'normal', lineHeight: '1.3', fontSize: '10px' }}>
+                                                {(item.request || '').split(',').filter(v => v).map(v => (
+                                                    <span key={v} className="badge bg-light text-dark border me-1 mb-1 fw-normal">{v}</span>
+                                                ))}
                                             </td>
-                                            <td className="p-1 align-middle">
-                                                <input type="text" style={compactInputStyle} ref={setRef(item.id, 'area')} defaultValue={item.area} onBlur={() => handleBlur(item.id, 'area')} />
-                                            </td>
+                                            <td className="p-1 align-middle" style={{ fontSize: '11px' }}>{item.medium || ''}</td>
+                                            <td className="p-1 align-middle" style={{ fontSize: '11px', whiteSpace: 'normal' }}>{item.area || ''}</td>
                                             <td className="p-1 align-middle">
                                                 <input type="text" style={compactInputStyle} placeholder="2026/03/21 10:05" ref={setRef(item.id, 'check_in_time')} defaultValue={item.check_in_time || ''} onBlur={() => handleBlur(item.id, 'check_in_time')} />
                                             </td>
                                             <td className="p-1 align-middle">
                                                 <input type="text" style={compactInputStyle} placeholder="2026/03/21 11:30" ref={setRef(item.id, 'check_out_time')} defaultValue={item.check_out_time || ''} onBlur={() => handleBlur(item.id, 'check_out_time')} />
                                             </td>
-                                            <td className="p-1 align-middle">
-                                                <textarea style={{ ...compactInputStyle, height: '40px', resize: 'none' }} ref={setRef(item.id, 'question')} defaultValue={item.question} onBlur={() => handleBlur(item.id, 'question')}></textarea>
+                                            <td className="p-1 align-middle" style={{ fontSize: '11px', whiteSpace: 'normal' }}>
+                                                {/* ⚠️ 事前質問も本人の入力。書き換えると原本が失われる */}
+                                                {item.question || ''}
                                             </td>
                                             <td className="p-1 align-middle">
                                                 <textarea
@@ -506,9 +618,20 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                                 })}
                                 {sortedData.length === 0 && !loading && (
                                     <tr>
-                                        <td colSpan={14} className="text-center p-4 text-muted" style={{ fontSize: '11px' }}>データがありません</td>
+                                        <td colSpan={16} className="text-center p-4 text-muted" style={{ fontSize: '11px' }}>データがありません</td>
                                     </tr>
                                 )}
+
+                                {/* ⚠️ 追加読み込みの目印。tbody の中なので tr / td で置くこと。
+                                    div を直接入れるとブラウザが table の外へ弾き出し、
+                                    交差判定が働かずスクロールしても増えなくなる */}
+                                <tr ref={loaderRef}>
+                                    <td colSpan={16} className="text-center text-muted p-2" style={{ fontSize: '11px' }}>
+                                        {sortedData.length > displayLength
+                                            ? `読み込み中…（${displayLength} / ${sortedData.length} 件）`
+                                            : sortedData.length > 0 ? `全 ${sortedData.length} 件` : ''}
+                                    </td>
+                                </tr>
                             </tbody>
                         </Table>
                     </div>
@@ -535,6 +658,7 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                     </button>
                 </Modal.Body>
             </Modal>
+
         </>
     );
 };

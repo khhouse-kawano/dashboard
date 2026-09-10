@@ -9,7 +9,7 @@ import { generateULID } from '../../utils/createULID';
 import Modal from 'react-bootstrap/Modal';
 import { setStyleClassSpec } from '../../utils/setStyleClassSpec';
 import { thisYear } from '../../utils/thisYear';
-import { dateFormate, monthFormate, handleBlack, toHalfWidth } from './listUtils';
+import { dateFormate, monthFormate, handleBlack, toHalfWidth, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH } from './listUtils';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { kataToHira } from '../../utils/kataToHira';
@@ -74,13 +74,44 @@ const ListKaeru = ({ onReload }: Props) => {
     const loaderRef = useRef<HTMLDivElement>(null);
     const isSp = useIsSp();
 
+    /**
+     * 上部サマリーの列（店舗）。
+     *
+     * ⚠️⚠️ **判定を1箇所にまとめた。** 2026-09-09 まで
+     *   `!未設定 && !FH && !JH八代店` を見出しと本文で**別々に書いて**いた。
+     *   片方だけ直すと見出しと数値の列がずれる。条件は listUtils の
+     *   isSummaryShop に移しただけで、中身は変えていない。
+     */
+    const summaryShops = useMemo(
+        () => shopArray.filter(item => isSummaryShop(item.shop)),
+        [shopArray]
+    );
+
+    /**
+     * 本文の行で回す列。⚠️ 先頭に「グループ全体」の擬似店舗を足す。
+     *   見出し側（summaryShops）より1つ多くなるので、幅の計算では +1 する。
+     */
+    const summaryRows = useMemo(
+        () => [{ brand: '', shop: 'グループ全体', section: '', area: '' }, ...summaryShops],
+        [summaryShops]
+    );
+
     useEffect(() => {
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
-        setMonthArray(getYearMonthArray(2025, 1));
-        setStartMonth(`${year}/${month}`);
-        setEndMonth(`${year}/${month}`);
+        // ⚠️ 開始月の初期値の判定にも使うので、一度変数に受ける
+        const months = getYearMonthArray(2025, 1);
+        setMonthArray(months);
+        /**
+         * ⚠️⚠️ **開始月は当月の1か月前**（2026-09-09 変更）。
+         *   両方を当月にしていたため、月初に開くと当月の数件しか見えなかった。
+         *
+         * ⚠️ months を渡している。1か月前が選択肢に無い場合は先頭が返る。
+         *   選択肢に無い値を入れると、select の表示と絞り込みが食い違う。
+         */
+        setStartMonth(previousMonthValue({ monthArray: months }));
+        setEndMonth(currentMonthValue());
         setSelectedMonth([`${year}/${month}`]);
 
         const fetchData = async () => {
@@ -145,7 +176,40 @@ const ListKaeru = ({ onReload }: Props) => {
             (targetMobile === '' || formattedMobile.includes(normalizedTargetMobile)) &&
             (targetAddress === '' || fullAddress.includes(targetAddress))
         );
-    }), [originalList, selectedMonth, targetShop, targetMedium, targetSync, targetName, targetKana, targetAddress, targetMobile]);
+    })
+        /**
+         * 反響日（inquiry_date）の降順に並べる。新しい反響を上に出す。
+         *
+         * ⚠️⚠️ **inquiry_date は書式が混在している。**
+         *   inquiry_customer_kaeru の実測（2,153件）
+         *     YYYY/MM/DD … 1,792件
+         *     YYYY-MM-DD …   361件
+         *   取り込み元のポータルによって区切り文字が違う。
+         *   そのまま文字列比較すると `2026-09-01` < `2026/09/01` のように
+         *   **区切り文字のコード順**で比較され、同じ日でも並びが分かれる。
+         *
+         * ⚠️ 区切りを揃えるのに既存の dateFormate（- を / に変換）を使う。
+         *   ここで独自の正規化を書くと、表示（687行目の dateFormate）と
+         *   並び替えで別の規則を持つことになる。
+         *
+         * ⚠️ 揃えたあとは `YYYY/MM/DD` で0埋めされているため、
+         *   文字列の大小比較がそのまま日付の前後になる（Date に変換しなくてよい）。
+         *   ⚠️ 逆に 1桁月日（YYYY/M/D）が現れたらこの前提が崩れる。
+         *     実測では0件だが、増えたら 0 埋めしてから比較すること。
+         *
+         * ⚠️ 空文字は末尾に回る（'' はどの日付より小さいため降順で最後）。
+         *
+         * ⚠️ filter が新しい配列を返すので、ここで sort しても
+         *   originalList（state）は壊れない。
+         */
+        .sort((a, b) => {
+            const da = dateFormate(String(a.inquiry_date || ''));
+            const db = dateFormate(String(b.inquiry_date || ''));
+            if (da === db) return 0;
+            // ⚠️ localeCompare は使わない。ロケールによって記号の扱いが変わる
+            return da < db ? 1 : -1;
+        }),
+    [originalList, selectedMonth, targetShop, targetMedium, targetSync, targetName, targetKana, targetAddress, targetMobile]);
 
     useEffect(() => {
         setInquiryList(filteredInquiryList);
@@ -504,15 +568,23 @@ const ListKaeru = ({ onReload }: Props) => {
             <div className='inquiry_table spec bg-white p-2'>
                 <div className="d-flex flex-wrap mb-3 align-items-center" style={{ paddingTop: isSp ? '30px' : '' }}>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
+                        {/*
+                          ⚠️⚠️ **value で制御する。** 以前は <option selected> で
+                            常に末尾（当月）を選んでいたため、開始月の初期値を
+                            1か月前にすると**表示は当月・絞り込みは前月**という
+                            食い違いが起きる。
+                          ⚠️ React は <option selected> に警告を出す作法違反でもある。
+                        */}
+                        <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <div>~</div>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
+                        {/* ⚠️ 開始月と同じ理由で value 制御にする */}
+                        <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
@@ -571,18 +643,24 @@ const ListKaeru = ({ onReload }: Props) => {
 
                 <div className='p-0 inquiry'>
                     {!isSp &&
-                        <Table striped bordered hover className='inquiry_table'>
+                        <Table
+                            striped bordered hover
+                            style={{
+                                tableLayout: 'fixed',
+                                width: `${summaryTableWidth(summaryShops.length + 1, 130)}px`
+                            }}
+                        >
                             <thead className='sticky-header' style={{ fontSize: "10px" }}>
                                 <tr className='sticky-header' style={{ textAlign: 'center' }}>
                                     <td className="sticky-column" style={{ width: '130px' }}>店舗名</td>
-                                    <td style={{ width: '70px' }}>グループ全体</td>
-                                    {shopArray.filter(item => !item.shop.includes('未設定') && !item.shop.includes('FH') && !item.shop.includes('JH八代店')).map((value, index) => (<td key={index} className='text-center' style={{ width: '90px' }}>{value.shop.replace('店', '')}</td>))}
+                                    <td style={{ width: `${SUMMARY_COLUMN_WIDTH}px` }}>グループ全体</td>
+                                    {summaryShops.map((value, index) => (<td key={index} className='text-center' style={{ width: `${SUMMARY_COLUMN_WIDTH}px` }}>{value.shop.replace('店', '')}</td>))}
                                 </tr>
                             </thead>
                             <tbody style={{ fontSize: "12px" }}>
                                 {['反響合計(未同期)', '反響目標(単月)', '来場合計', '来場目標(単月)'].map((category, cIndex) => <tr key={cIndex} className='text-center'>
                                     <td className="sticky-column">{category}</td>
-                                    {[{ brand: '', shop: 'グループ全体', section: '', area: '' }, ...shopArray].filter(item => !item.shop.includes('未設定') && !item.shop.includes('FH') && !item.shop.includes('JH八代店'))
+                                    {summaryRows
                                         .map((value, sIndex) => {
                                             let totalValue;
                                             if (cIndex === 0) {
@@ -592,7 +670,7 @@ const ListKaeru = ({ onReload }: Props) => {
                                             } else {
                                                 totalValue = reserveFilter(sIndex === 0 ? '' : value.shop);
                                             }
-                                            return <td key={sIndex} className='text-center' style={{ width: '90px' }}>{totalValue}</td>
+                                            return <td key={sIndex} className='text-center' style={{ width: `${SUMMARY_COLUMN_WIDTH}px` }}>{totalValue}</td>
                                         })}
                                 </tr>
                                 )}

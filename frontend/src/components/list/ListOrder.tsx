@@ -9,7 +9,7 @@ import { mediumFormate } from '../../utils/mediumFormate';
 import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
 import { positions } from './listUtils';
-import { monthFormate, handleBlack, toHalfWidth } from './listUtils';
+import { monthFormate, handleBlack, toHalfWidth, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH } from './listUtils';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { useIsSp } from '../../utils/isSp';
@@ -80,12 +80,43 @@ const ListOrder = ({ onReload }: Props) => {
     const isSp = useIsSp();
     const loaderRef = useRef<HTMLDivElement>(null);
 
+    /**
+     * 上部サマリーの列（店舗）。
+     *
+     * ⚠️⚠️ **判定を1箇所にまとめた。** 2026-09-09 まで
+     *   `!未設定 && !FH && !JH八代店` を見出しと本文で**別々に書いて**いた。
+     *   片方だけ直すと見出しと数値の列がずれる。条件は listUtils の
+     *   isSummaryShop に移しただけで、中身は変えていない。
+     */
+    const summaryShops = useMemo(
+        () => shopArray.filter(item => isSummaryShop(item.shop)),
+        [shopArray]
+    );
+
+    /**
+     * 本文の行で回す列。⚠️ 先頭に「グループ全体」の擬似店舗を足す。
+     *   見出し側（summaryShops）より1つ多くなるので、幅の計算では +1 する。
+     */
+    const summaryRows = useMemo(
+        () => [{ brand: '', shop: 'グループ全体', section: '', area: '' }, ...summaryShops],
+        [summaryShops]
+    );
+
     useEffect(() => {
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
-        setStartMonth(`${year}/${month}`);
-        setEndMonth(`${year}/${month}`);
+        // ⚠️ monthArray はモジュール直下の const（この画面だけ持ち方が違う）
+        const months = monthArray;
+        /**
+         * ⚠️⚠️ **開始月は当月の1か月前**（2026-09-09 変更）。
+         *   両方を当月にしていたため、月初に開くと当月の数件しか見えなかった。
+         *
+         * ⚠️ months を渡している。1か月前が選択肢に無い場合は先頭が返る。
+         *   選択肢に無い値を入れると、select の表示と絞り込みが食い違う。
+         */
+        setStartMonth(previousMonthValue({ monthArray: months }));
+        setEndMonth(currentMonthValue());
         setSelectedMonth([`${year}/${month}`]);
         const thisYear = now.getMonth() <= 4 ? year : year + 1;
 
@@ -493,15 +524,23 @@ const ListOrder = ({ onReload }: Props) => {
             <div className='inquiry_table spec bg-white p-2'>
                 <div className="d-flex flex-wrap mb-3 align-items-center" style={{ paddingTop: isSp ? '30px' : '' }}>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
+                        {/*
+                          ⚠️⚠️ **value で制御する。** 以前は <option selected> で
+                            常に末尾（当月）を選んでいたため、開始月の初期値を
+                            1か月前にすると**表示は当月・絞り込みは前月**という
+                            食い違いが起きる。
+                          ⚠️ React は <option selected> に警告を出す作法違反でもある。
+                        */}
+                        <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <div>~</div>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month} selected={index === monthArray.length - 1}>{month}</option>
+                        {/* ⚠️ 開始月と同じ理由で value 制御にする */}
+                        <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
@@ -562,18 +601,24 @@ const ListOrder = ({ onReload }: Props) => {
 
                 <div className='p-0 inquiry'>
                     {!isSp &&
-                        <Table striped bordered hover className='inquiry_table'>
+                        <Table
+                            striped bordered hover
+                            style={{
+                                tableLayout: 'fixed',
+                                width: `${summaryTableWidth(summaryShops.length + 1, 130)}px`
+                            }}
+                        >
                             <thead className='sticky-header' style={{ fontSize: "10px" }}>
                                 <tr className='sticky-header' style={{ textAlign: 'center' }}>
                                     <td className="sticky-column" style={{ width: '130px' }}>店舗名</td>
-                                    <td style={{ width: '70px' }}>グループ全体</td>
-                                    {shopArray.filter(item => !item.shop.includes('未設定') && !item.shop.includes('FH') && !item.shop.includes('JH八代店')).map((value, index) => (<td key={index} className='text-center' style={{ width: '90px' }}>{value.shop.replace('店', '')}</td>))}
+                                    <td style={{ width: `${SUMMARY_COLUMN_WIDTH}px` }}>グループ全体</td>
+                                    {summaryShops.map((value, index) => (<td key={index} className='text-center' style={{ width: `${SUMMARY_COLUMN_WIDTH}px` }}>{value.shop.replace('店', '')}</td>))}
                                 </tr>
                             </thead>
                             <tbody style={{ fontSize: "12px" }}>
                                 {['反響合計(未同期)', '反響目標(単月)', '来場合計', '来場目標(単月)'].map((category, cIndex) => <tr key={cIndex} className='text-center'>
                                     <td className="sticky-column">{category}</td>
-                                    {[{ brand: '', shop: 'グループ全体', section: '', area: '' }, ...shopArray].filter(item => !item.shop.includes('未設定') && !item.shop.includes('FH') && !item.shop.includes('JH八代店'))
+                                    {summaryRows
                                         .map((value, sIndex) => {
                                             let totalValue;
                                             if (cIndex === 0) {
@@ -583,7 +628,7 @@ const ListOrder = ({ onReload }: Props) => {
                                             } else {
                                                 totalValue = reserveFilter(sIndex === 0 ? '' : value.shop);
                                             }
-                                            return <td key={sIndex} className='text-center' style={{ width: '90px' }}>{totalValue}</td>
+                                            return <td key={sIndex} className='text-center' style={{ width: `${SUMMARY_COLUMN_WIDTH}px` }}>{totalValue}</td>
                                         })}
                                 </tr>
                                 )}

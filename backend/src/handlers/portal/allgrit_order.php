@@ -46,6 +46,33 @@ function portalAllgritToInquiry(array $row): ?array
         'building'         => (string)($row['address1_allGrit'] ?? ''),
         'brand'            => (string)($row['shop_allGrit'] ?? ''),
         'shop'             => (string)($row['shop'] ?? ''),
-        'area'             => (string)($row['pref_allGrit'] ?? '') . (string)($row['city_allGrit'] ?? ''),
+        'area'             => portalAllgritArea($row),
     ];
+}
+
+/**
+ * inquiry_customer.area に入れる値を決める。
+ *
+ * ⚠️⚠️ **他のポータルと意味を揃える。** area には「建築予定地」が入る。
+ *
+ *     Homes        place_homes            （建築予定地）
+ *     SUUMO        place_suumo            （建設予定地）
+ *     タウンライフ  place_detail_townlife （建設予定地詳細）
+ *     ALLGRIT      place_allGrit          （建築予定地）← 2026-09-08 から
+ *
+ *   それまで ALLGRIT だけ「都道府県 + 希望エリア第1希望」を入れていた。
+ *   建築予定地が保存されていなかったためで、意味が違っていた。
+ *
+ * ⚠️ 建築予定地が空のときは従来どおり「都道府県 + 希望エリア第1希望」を返す。
+ *   ALLGRIT の CSV では建築予定地が未入力のことがあり、
+ *   空を返すと area が空欄の反響が増えてしまう。
+ */
+function portalAllgritArea(array $row): string
+{
+    $place = trim((string)($row['place_allGrit'] ?? ''));
+    if ($place !== '') {
+        return $place;
+    }
+
+    return (string)($row['pref_allGrit'] ?? '') . (string)($row['city_allGrit'] ?? '');
 }

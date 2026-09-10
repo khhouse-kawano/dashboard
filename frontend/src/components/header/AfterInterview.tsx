@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Table from 'react-bootstrap/Table';
 import Badge from 'react-bootstrap/Badge';
 import apiClient from '../../utils/apiClient';
@@ -32,6 +32,121 @@ type Props = {
     staff: string,
     id: string,
     shop: string
+};
+
+/**
+ * 2行で省略しているテキストに「全て表示」を付けて、その場で展開できるようにする。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **文字数で判定しないこと。**
+ *
+ *   省略しているのは `-webkit-line-clamp`（2行）で、**文字数ではなく行数**である。
+ *   何文字で2行を超えるかは列幅とフォント次第で、この列は `<th>` に幅指定が無く
+ *   残り幅を分け合う。「◯文字を超えたらボタンを出す」にすると、
+ *   幅の広い画面では切れていない行にまでボタンが出る。
+ *
+ *   そのため **実際に切れているか（scrollHeight > clientHeight）をDOMで測る**。
+ *
+ * ⚠️ after_interview の各列は `text` 型（上限65KB）である。
+ *   2026-09-10 時点の実データは最長105文字（平均50文字、改行は0件）だが、
+ *   長い回答が入りうる前提で作ること。
+ * ─────────────────────────────────────────────
+ */
+type ClampedTextProps = {
+    text: string;
+    /** 省略するまでの行数。既定の2は元の実装のまま */
+    lines?: number;
+};
+
+const ClampedText = ({ text, lines = 2 }: ClampedTextProps) => {
+    const ref = useRef<HTMLDivElement | null>(null);
+    const [isClipped, setIsClipped] = useState<boolean>(false);
+    const [isOpen, setIsOpen] = useState<boolean>(false);
+
+    const measure = useCallback(() => {
+        const el = ref.current;
+        if (!el) return;
+
+        /**
+         * ⚠️⚠️ **展開中は測らない。**
+         *   展開中は clamp を外しているので必ず scrollHeight === clientHeight になる。
+         *   ここで測ると「切れていない」と誤判定し、**「折りたたむ」ボタンが消えて
+         *   元に戻せなくなる**。
+         */
+        if (isOpen) return;
+
+        // ⚠️ 1px 未満の差で誤判定するため、しきい値を設ける（端数の丸めやズーム対策）
+        setIsClipped(el.scrollHeight - el.clientHeight > 1);
+    }, [isOpen]);
+
+    useEffect(() => {
+        measure();
+
+        const el = ref.current;
+        if (!el) return;
+
+        /**
+         * 列幅の変化（モーダルのリサイズ、他列の内容による幅の取り合い）で
+         * 切れるかどうかが変わるため、測り直す。
+         * ⚠️ ResizeObserver が無い環境では初回の測定だけで諦める。落とさないこと。
+         */
+        if (typeof ResizeObserver === 'undefined') return;
+        const observer = new ResizeObserver(() => measure());
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [measure, text]);
+
+    useEffect(() => {
+        /**
+         * ⚠️ Webフォント（Noto Sans JP）の読み込み後に文字幅が変わる。
+         *   初回の測定はフォールバックフォントでの結果になりうるので測り直す。
+         *   ⚠️ 高さが変わらない場合 ResizeObserver は発火しないため、これが必要。
+         */
+        const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+        if (!fonts) return;
+        let alive = true;
+        fonts.ready.then(() => { if (alive) measure(); });
+        return () => { alive = false; };
+    }, [measure]);
+
+    // ⚠️ 元の実装の style をそのまま維持し、展開時だけ clamp を外す
+    const clampStyle: React.CSSProperties = isOpen
+        ? {
+            lineHeight: '1.4',
+            // ⚠️ 展開時のみ。長い連続文字で表がはみ出すのを防ぐ
+            wordBreak: 'break-word'
+        }
+        : {
+            display: '-webkit-box',
+            WebkitLineClamp: lines,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            lineHeight: '1.4'
+        };
+
+    return (
+        <>
+            <div ref={ref} className="text-dark" style={clampStyle}>
+                {text || '-'}
+            </div>
+            {/* ⚠️ 切れている行だけに出す。2文字の回答に無意味なボタンを出さないため。
+                ⚠️ isOpen も条件に入れる。展開後は isClipped を測っていないが、
+                  measure() が早期 return するので isClipped は true のまま残る。
+                  それでも保険として明示しておく（消えると戻せなくなる） */}
+            {(isClipped || isOpen) && (
+                <button
+                    type="button"
+                    className="btn btn-link btn-sm p-0 mt-1 shadow-none text-decoration-none"
+                    style={{ fontSize: '10px', lineHeight: 1.2 }}
+                    onClick={() => setIsOpen(prev => !prev)}
+                    aria-expanded={isOpen}
+                >
+                    <i className={`fa-solid ${isOpen ? 'fa-chevron-up' : 'fa-chevron-down'} me-1`}></i>
+                    {isOpen ? '折りたたむ' : '全て表示'}
+                </button>
+            )}
+        </>
+    );
 };
 
 const AfterInterview = ({ name, staff, shop, id }: Props) => {
@@ -234,9 +349,9 @@ const AfterInterview = ({ name, staff, shop, id }: Props) => {
                                     </td>
                                     <td className="px-2 py-2">
                                         <div className="text-secondary mb-1" style={{ fontSize: '10px', fontWeight: 'bold' }}>説明した内容:</div>
-                                        <div className="text-dark" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.4' }}>
-                                            {item.InterviewFeedback || '-'}
-                                        </div>
+                                        {/* ⚠️ ページ送りで同じ位置に別の行が来ても展開状態を持ち越さないよう、
+                                            key に item.no を入れて作り直させる */}
+                                        <ClampedText key={item.no} text={item.InterviewFeedback} />
                                         {item.priorityCondition && (
                                             <div className="mt-1 text-primary" style={{ fontSize: '11px' }}>
                                                 <i className="fa-solid fa-star me-1"></i>重視: {item.priorityCondition}

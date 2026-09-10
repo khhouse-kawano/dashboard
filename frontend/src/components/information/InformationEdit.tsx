@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext, useRef, useMemo } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import axios from 'axios';
 import { headers } from '../../utils/headers';
@@ -25,8 +25,10 @@ import TableCompetitorPdf from './TableCompetitorPdf';
 import TableShop from './TableShop';
 import TableTextarea from './TableTextarea';
 import TableCheckboxGroup from './TableCheckboxGroup';
+import FundingPlan from './FundingPlan';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
 
 type Staff = { name: string; shop: string; category: number, section: string, period: string };
 type Customer = Record<string, string>;
@@ -105,6 +107,21 @@ const actionMap = {
     '契約': 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'
 };
 
+/**
+ * フッターのボタン共通スタイル。
+ *
+ * ⚠️ 横幅は文字数で決まるため、ここでは詰められない。
+ *   padding（px-2 / px-3）と letterSpacing を 0 にすることで
+ *   ボタンの実寸を縮めている。文字サイズは 12px のまま維持する
+ *   （小さくすると SP の zoom 0.3 で読めなくなる）。
+ */
+const footerButtonStyle = {
+    fontSize: '12px',
+    fontWeight: '500',
+    letterSpacing: '0',
+    whiteSpace: 'nowrap' as const
+};
+
 const steps = [
     '事前審査提出',
     'LINE等で連絡可',
@@ -179,6 +196,34 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
     const [competitorsInput, setCompetitorsInput] = useState('');
     const [originalMakerList, setOriginalMakerList] = useState<Maker[]>([]);
     const [makerList, setMakerList] = useState<Maker[]>([]);
+
+    /**
+     * 「デジシキ作成」ボタンを出すか。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️ 2026-09-10 より、開発者権限に加えて **KH久留米店の担当者**にも開放している。
+     *   店舗を増やすときは KH久留米店 の代わりに配列にすること。
+     *
+     * ⚠️⚠️ **`staffArray` は取得時に絞り込まれている。**
+     *   `category === 1 && period === String(thisYear)`（233行目付近）。
+     *   そのため period の条件はここでは実質重複だが、絞り込みの前提が
+     *   変わったときに壊れないよう明示して残す。
+     *   ⚠️ KH久留米店の在籍者5名は全員 category = 1 なので漏れない
+     *     （2026-09-10 に staff_list で確認）。category が違う職種を
+     *     対象に加えるなら、取得側の絞り込みから見直す必要がある。
+     *
+     * ⚠️ `staffArray` は API 取得後に埋まる。読み込み中の一瞬だけ
+     *   ボタンが出ないが、他の項目も同じ挙動なので許容する。
+     * ─────────────────────────────────────────────
+     */
+    const canUseFundingPlan = useMemo(() => {
+        if (authority === 'Master') return true;
+        return staffArray.some(item =>
+            item.name === userName &&
+            item.period === String(thisYear) &&
+            item.shop === 'KH久留米店'
+        );
+    }, [authority, staffArray, userName, thisYear]);
 
 
     const [kSnap, setKSnap] = useState('');
@@ -379,58 +424,47 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
 
         console.log("送信するマスタデータ:", updatedMasterData);
 
-        const masterFormData = new FormData();
-
-        const postData: Record<string, any> = {
-            ...updatedMasterData,
-            request: 'information',
-            roll: 'customer_info',
-            call_log: callLength,
-            category,
-        };
-
-        // マスターデータの追加
-        Object.keys(postData).forEach(key => {
-            const value = postData[key];
-            // nullやundefinedは空文字に、それ以外はStringにして追加
-            masterFormData.append(key, value !== null && value !== undefined ? String(value) : '');
-        });
-
-        // 💡 修正: existingFilesはファイルがない場合でも必ず送信する（PHP側のisset判定をクリアするため）
-        const existingFiles = (competitorPdfFile || [])
-            .filter(item => !item.file && item.path)
-            .map(item => ({ name: item.name, path: item.path, staff: item.staff }));
-
-        masterFormData.append('existing_pdfs', JSON.stringify(existingFiles));
-
-        // 💡 修正: 新規アップロードファイル（fileプロパティがあるもの）をappend
-        if (competitorPdfFile && competitorPdfFile.length > 0) {
-            competitorPdfFile.forEach((item) => {
-                if (item.file) {
-                    masterFormData.append('competitor_pdf_files[]', item.file);
-                    masterFormData.append('competitor_pdf_names[]', item.name);
-                    masterFormData.append('competitor_pdf_staff[]', item.staff ?? '');
-                }
-            });
-        }
-
-        // デバッグ用: FormDataの中身を確認
-        for (let [key, value] of (masterFormData as any).entries()) {
-            console.log(`FormDataの中身 - ${key}:`, value instanceof File ? value.name : value);
-        }
-
+        // ⚠️⚠️ **保存を2リクエストに分けている。**
+        //
+        //   ① 顧客情報（master_data）… JSON でゲートウェイへ → ② の Express が処理
+        //   ② 競合PDF                … multipart で ① へ直接
+        //
+        //   PDF の実体は ① の uploads/competitors/ に置き、① の URL で配信して
+        //   いる。② から ① のファイルシステムへは書けない。
+        //   また multipart は core/express_proxy.php が転送しない設計である。
+        //
+        // ⚠️ **顧客情報を先に送る。** 新規顧客のときに master_data の行が
+        //   無い状態で PDF だけ登録されるのを避けるため。
+        //
+        // ⚠️⚠️ 顧客情報の保存が失敗したら**利用者に見せて中断する。**
+        //   以前は catch で console.error に流していたため、保存できていない
+        //   のに閉じてしまい、面談で聞き取った内容が消えていた。
+        //   ② が落ちている間はゲートウェイが 502 を返す（フォールバック禁止の
+        //   仕組み。core/express_proxy.php の expressProxyExclusive を参照）。
         try {
-            // FormDataを送信
-            await axios.post(process.env.REACT_APP_XSERVER_API as string, masterFormData, {
-                headers: {
-                    'Authorization': '4081Kokubu',
-                    'Token': token || '',
-                }
+            await apiClient.post("", {
+                ...updatedMasterData,
+                request: 'information',
+                roll: 'customer_info',
+                call_log: callLength,
+                category,
             });
         } catch (error) {
             console.error("データ保存エラー:", error);
+            alert('顧客情報の保存に失敗しました。\n通信状態を確認して、もう一度保存してください。');
+            // ⚠️ 保存ボタンを押せる状態に戻す。戻さないと閉じるしかなくなる
+            setSending(true);
+            return;
         }
 
+        try {
+            await uploadCompetitorPdf(information.id, competitorPdfFile, token);
+        } catch (error) {
+            // ⚠️ PDF の失敗では中断しない。顧客情報は保存済みである。
+            //   ただし黙って捨てず、何が保存できていないかを伝える。
+            console.error("競合PDFの保存エラー:", error);
+            alert('顧客情報は保存しました。\nただし競合資料(PDF)の保存に失敗しました。\nPDFのみ、もう一度添付して保存してください。');
+        }
 
         const logJson = JSON.stringify(information);
 
@@ -1012,13 +1046,13 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>予算<br />総額</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='budget'
-                                                defaultValue='予算総額' formattedValue={(information.budget ?? '').replace('万円', '')} />
+                                                defaultValue='予算総額' moneyManYen={true} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>月々支<br />払予算</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='monthly_repayment_amount'
-                                                defaultValue='月々支払予算' formattedValue={(information.monthly_repayment_amount ?? '').replace('0000', '')} />
+                                                defaultValue='月々支払予算' moneyManYen={true} />
                                             万円
                                         </td>
                                     </tr>
@@ -1032,19 +1066,19 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>現居家賃</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_rent'
-                                                defaultValue='現居家賃' formattedValue={safeFormate(information.current_rent).replace('0000', '')} />
+                                                defaultValue='現居家賃' moneyManYen={true} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>自己<br />資金</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='self_budget'
-                                                defaultValue='自己資金' formattedValue={safeFormate(information.self_budget).replace('0000', '')} />
+                                                defaultValue='自己資金' moneyManYen={true} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>現居<br />光熱費</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_utility_costs'
-                                                defaultValue='現居光熱費' formattedValue={safeFormate(information.current_utility_costs).replace('万円', '')} />
+                                                defaultValue='現居光熱費' moneyManYen={true} />
                                             万円
                                         </td>
                                     </tr>
@@ -1054,7 +1088,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>負債<br />総額</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='current_loan_balance'
-                                                defaultValue='自己資金' formattedValue={safeFormate(information.current_loan_balance).replace('0000', '')} />
+                                                defaultValue='自己資金' moneyManYen={true} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>現居契<br />約形態</td>
@@ -1088,7 +1122,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>年収</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_annual_income'
-                                                defaultValue='年収' />
+                                                defaultValue='年収' moneyManYen={true} />
                                             万円
                                         </td>
                                         <td style={labelStyle}>希望土<br />地面積</td>
@@ -1103,7 +1137,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={labelStyle}>土地の予算</td>
                                         <td style={valueStyle}>
                                             <TableInput information={information} setInformation={setInformation} itemKey='land_budget'
-                                                defaultValue='土地の予算' />
+                                                defaultValue='土地の予算' moneyManYen={true} />
                                             万円
                                         </td>
                                         {[...Array(6)].map((_, index) => <td key={index}></td>
@@ -1115,49 +1149,65 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                     </div>
                     <Modal.Footer className="bg-light border-top pb-3 pt-3" style={{ zoom: isSp ? 0.3 : 1 }}>
                         <div className="d-flex justify-content-end w-100 gap-2">
+                            {/*
+                              ⚠️ 並びの一番左。指示どおり isSp（スマートフォン）では表示しない。
+                                別ウインドウで10タブ分の表を扱う画面なので、
+                                スマートフォンでは実用にならない。
+                              ⚠️ ボタン自体を出さない（disabled にしない）。
+                                出すと押されて「開けません」と言われるだけになる。
+                              ⚠️ 表示条件は canUseFundingPlan（宣言箇所のコメント参照）。
+                            */}
+                            {!isSp && canUseFundingPlan && (
+                                <FundingPlan
+                                    id={information.id}
+                                    customerName={information.customer_contacts_name}
+                                    isNew={id === 'new'}
+                                />
+                            )}
+
                             {information.k_snap ? (
                                 <button
-                                    className="btn btn-outline-secondary btn-sm rounded-pill px-4 d-flex align-items-center"
-                                    style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                    className="btn btn-outline-secondary btn-sm rounded-pill px-2 d-flex align-items-center"
+                                    style={footerButtonStyle}
                                     onClick={() => setKSnap(information.id)}
                                 >
-                                    <i className="fa-solid fa-camera me-2"></i>K-Snap閲覧ログ
+                                    <i className="fa-solid fa-camera me-1"></i>K-Snap閲覧ログ
                                 </button>
                             ) : (
                                 <button
-                                    className="btn btn-outline-secondary btn-sm rounded-pill px-4 d-flex align-items-center"
-                                    style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                    className="btn btn-outline-secondary btn-sm rounded-pill px-2 d-flex align-items-center"
+                                    style={footerButtonStyle}
                                     onClick={() => registerKSnap(information.id)}
                                 >
-                                    <i className="fa-solid fa-user-plus me-2"></i>K-Snapアカウント発行
+                                    <i className="fa-solid fa-user-plus me-1"></i>K-Snapアカウント発行
                                 </button>
                             )}
 
                             <button
-                                className="btn btn-outline-info btn-sm rounded-pill px-4 d-flex align-items-center"
-                                style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                className="btn btn-outline-info btn-sm rounded-pill px-2 d-flex align-items-center"
+                                style={footerButtonStyle}
                                 onClick={() => {
                                     setEditId(information.id);
                                     setShowIceWorld(true);
                                 }}
                             >
-                                <i className="fa-regular fa-calendar-check me-2"></i>アイスワールド利用予約
+                                <i className="fa-regular fa-calendar-check me-1"></i>アイスワールド利用予約
                             </button>
 
                             <button
-                                className="btn btn-outline-success btn-sm rounded-pill px-4 d-flex align-items-center"
-                                style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '0.5px' }}
+                                className="btn btn-outline-success btn-sm rounded-pill px-2 d-flex align-items-center"
+                                style={footerButtonStyle}
                                 onClick={() => setEstateId(information.id)}
                             >
-                                <i className="fa-solid fa-map-location-dot me-2"></i>土地コーディネート
+                                <i className="fa-solid fa-map-location-dot me-1"></i>土地コーディネート
                             </button>
 
                             <button
-                                className="btn btn-primary btn-sm rounded-pill px-5 shadow-sm d-flex align-items-center"
-                                style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
+                                className="btn btn-primary btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center"
+                                style={{ ...footerButtonStyle, fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
                                 onClick={handleSave}
                             >
-                                <i className="fa-solid fa-check me-2"></i>保存
+                                <i className="fa-solid fa-check me-1"></i>保存
                             </button>
                         </div>
                     </Modal.Footer>
@@ -1292,7 +1342,6 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                 }}>
                                     保存
                                 </div>
-                                <div className="">閉じる</div>
                             </div>
 
                         </div></>}

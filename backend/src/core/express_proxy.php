@@ -150,7 +150,279 @@ function expressProxyRequests(): array
         //     inquiry_introductory … ② の Express が処理する（画面）← 入れる
         // -----------------------------------------------------------------
         'inquiry_introductory',
+
+        // -----------------------------------------------------------------
+        // 2026-09-07 移植。顧客詳細モーダルの初期データ（参照のみ）。
+        //
+        // ⚠️⚠️ **category を明示した3件だけを書くこと。**
+        //   `'information'` と request だけで書いてはいけない。
+        //   この request は roll で書き込み系に分岐するため、
+        //   request だけで許可すると以下がすべて ② へ送られる。
+        //
+        //     customer_info        … master_data の upsert
+        //     update_call_log      … call_sheet の upsert
+        //     update_interview_log … interview_sheet の upsert
+        //     log                  … master_data_log への INSERT
+        //
+        //   これらは ① にPHPハンドラが実在するため、② が処理を完了した
+        //   直後に応答が失われると ① でも実行され**二重登録**になる。
+        //
+        // ⚠️ customer_info は multipart/form-data で送られてくるため、
+        //   そもそも上の shouldProxyToExpress() が転送を拒否する。
+        //   ただし「拒否されるから安全」に頼らず、許可リストにも入れない。
+        //
+        // 書き方は 'request:roll:category'。roll 無しは空にする
+        'information::order',
+        'information::spec',
+        'information::used',
+
+        // -----------------------------------------------------------------
+        // 2026-09-07 移植。家族情報（FamilyInfo.tsx）。
+        //
+        // 旧API（dashboard/api/ の demand 形式）から request 形式へ移したもの。
+        //
+        // ⚠️⚠️ 現行 backend/ に **PHPハンドラが存在しない**（旧APIの実体は
+        //   リポジトリ管理外。backup/back/20260625/ にバックアップのみ）。
+        //   そのためアンバサダー／紹介キャンペーンと同じ扱いになり、
+        //   書き込み（roll = 'update'）を含めて request 名だけで許可してよい。
+        //   ① が自動フォールバックしても実行するPHPが無く、404 になるだけで
+        //   二重実行にならない。
+        //
+        // ⚠️ 逆に、`backend/src/handlers/family_info.php` を
+        //   **作ってはいけない。** 作った瞬間に二重実行の危険が生まれる。
+        //
+        // ⚠️ ② が落ちると家族情報モーダルだけが動かなくなる。
+        //   顧客詳細の他の項目には影響しない。
+        // -----------------------------------------------------------------
+        'family_info',
+
+        // -----------------------------------------------------------------
+        // 2026-09-08 新規。AIデジタル資金計画書。
+        //
+        // 家族情報と同じく ① に **PHPハンドラが存在しない**ため、
+        // 書き込み（roll = 'save'）を含めて request 名だけで許可してよい。
+        //
+        // ⚠️ `backend/src/handlers/funding_plan.php` を**作ってはいけない。**
+        //
+        // ⚠️⚠️ save は **master_data も更新する**（年収・自己資金・家賃・
+        //   光熱費・月々支払・土地予算・希望坪数の7項目）。
+        //   ② が処理を完了した直後に応答が失われても、① には実行するPHPが
+        //   無いため二重実行にはならない。
+        //   ⚠️ ただし将来 ① 側に同名のハンドラを作ると、
+        //     **顧客台帳が二重に書き換わる**経路ができる。
+        // -----------------------------------------------------------------
+        'funding_plan',
+
+        // -----------------------------------------------------------------
+        // 2026-09-09 新規。集客サマリー（header/EventSummary.tsx）。
+        //
+        // ⚠️ 参照のみ（event_calendar / event_db / master_data / budget）。
+        // ⚠️ ① に PHPハンドラが存在しないため、転送に失敗すると 404 になる。
+        //   `backend/src/handlers/event_summary.php` を**作ってはいけない。**
+        // -----------------------------------------------------------------
+        'event_summary',
+
+        // -----------------------------------------------------------------
+        // 2026-09-09 移植。反響一覧の初期データ（ListOrder / ListKaeru / ListResale）。
+        //
+        // ⚠️ 参照のみ。転送に失敗したら ① で処理してよい。
+        //
+        // ⚠️⚠️ `list` は roll でも分岐する（insert / black / tag / shop_change /
+        //   staff_change / event）。**それらは ② に未登録**なので、
+        //   ゲートウェイが「未移植」と判断して ① へ転送する。
+        //   ⚠️ 書き込み系を移植したら expressProxyExclusive() にも追加すること。
+        //   入れないと、転送失敗時に ① でも実行され二重登録になる。
+        // -----------------------------------------------------------------
+        'list',
+
+        // -----------------------------------------------------------------
+        // 2026-09-09 移植。店舗別動向（ShopTrendOrder / ShopTrendKaeru /
+        // ShopTrendResale）。
+        //
+        // ⚠️ 参照のみ。roll で分岐しないので request 名だけで書いてよい。
+        // -----------------------------------------------------------------
+        'shopTrend',
+
+        // -----------------------------------------------------------------
+        // 2026-09-09 新規。集客イベントの広告費入力（header/EventBudget.tsx）。
+        //
+        // ⚠️ ① に PHP ハンドラが存在しない。書き込み（roll = 'save'）も
+        //   request 名だけで許可してよい（転送失敗時は 404 になるだけ）。
+        // ⚠️ `backend/src/handlers/event_budget.php` を**作ってはいけない。**
+        //   budget には UNIQUE キーが無く、二重実行で同じ行が2組できる。
+        // -----------------------------------------------------------------
+        'event_budget',
+
+        // -----------------------------------------------------------------
+        // 2026-09-09 移植。ランク管理（RankOrder / RankKaeru / RankResale）と
+        // 商談ステップ（InterviewLog）。
+        //
+        // ⚠️⚠️ いずれも ① に PHP ハンドラが**実在する**（消していない）。
+        //   この配列から外せば即座に ① の処理へ戻る。
+        //
+        // ⚠️⚠️ `rank` は**1つの request で参照と書き込みを兼ねる**。
+        //   書き込みのときだけフォールバックを禁止する仕組みを
+        //   isExclusiveToExpress() に入れている（rankRequestIsWrite）。
+        //   参照は ① にフォールバックしてよい。
+        // -----------------------------------------------------------------
+        'rank',
+        'interviewLog',
+        'interviewLog_update_interview',
+        'contract_ex_update',
     ];
+}
+
+/**
+ * ⚠️⚠️ **フォールバック禁止リスト（書き込み専用の経路）**
+ *
+ * ここに書いた request は
+ *
+ *   ・② へ転送する（expressProxyRequests() と同じ扱い）
+ *   ・**転送に失敗しても ① 自身の処理を実行しない。** 502 を返して終わる
+ *
+ * ─────────────────────────────────────────────
+ * なぜ必要か
+ *
+ *   通常の許可リストは「転送に失敗したら ① で処理する」自動フォールバックを
+ *   持つ。参照系なら2回実行されても害はないが、**書き込み系では
+ *   二重登録・二重更新になる**（② が処理を完了した直後に応答が失われた場合）。
+ *
+ *   そのため今までは「書き込み系は許可リストに入れない」という運用で
+ *   避けていた。しかしそれでは書き込みを Express へ移植できない。
+ *   移植するには「失敗しても ① では実行しない」保証が要る。
+ *
+ * ⚠️ 代償: ② が落ちている間、これらの request は **502 で失敗する**。
+ *   参照系は動き続けるので画面は開けるが、保存ができなくなる。
+ *   ② の死活監視が前提の仕組みである。
+ *
+ * ⚠️ 障害時の切り戻しは、この配列から該当行を消すだけでよい。
+ *   消せば ① 自身の PHP が処理する（PHPハンドラは削除していない）。
+ *
+ * ⚠️ 書き方は expressProxyRequests() と同じ 'request:roll:category'。
+ *   **roll / category まで必ず指定すること。** request だけで書くと
+ *   未移植の roll も 502 になり、その機能が丸ごと止まる。
+ *
+ * @return string[]
+ */
+function expressProxyExclusive(): array
+{
+    return [
+        // -----------------------------------------------------------------
+        // 2026-09-08 移植。顧客詳細モーダルの保存系。
+        //
+        // ⚠️ いずれも ① に PHP ハンドラが**実在する**（消していない）。
+        //   この配列から外せば即座に ① の処理へ戻る。
+        //
+        // ⚠️ customer_info は multipart では来ない。
+        //   競合PDFのアップロードだけ ① への別リクエストに分離したため、
+        //   ここへ来るのは master_data の upsert（JSON）だけである。
+        //   （multipart は shouldProxyToExpress() が転送自体を拒否する）
+        // -----------------------------------------------------------------
+        'information:customer_info:order',
+        'information:customer_info:spec',
+        'information:customer_info:used',
+        'information:update_call_log:common',
+        'information:update_interview_log:common',
+        'information:log:common',
+
+        // -----------------------------------------------------------------
+        // 2026-09-09 移植。ランク管理と商談ステップの書き込み。
+        //
+        // ⚠️ いずれも ① に PHP ハンドラが**実在する**。
+        //   転送に失敗したまま ① で実行されると
+        //     interviewLog_update_interview … interview_sheet と
+        //       master_data の KPI 列が二重に更新される
+        //     contract_ex_update            … contract_expected に
+        //       UNIQUE キーが無い場合、行が2つできる
+        //   ため、フォールバックを禁止する。
+        //
+        // ⚠️ `rank` はここに書かない。参照と書き込みを兼ねているため、
+        //   isExclusiveToExpress() の中で本文を見て判定している。
+        // -----------------------------------------------------------------
+        'interviewLog_update_interview',
+        'contract_ex_update',
+
+        // -----------------------------------------------------------------
+        // 2026-09-09 移植。反響一覧の書き込み。
+        //
+        // ⚠️ いずれも ① に PHP ハンドラが**実在する**。
+        //   転送に失敗したまま ① で実行されると
+        //     shop_change / staff_change / tag … 同じ値で2回 UPDATE（無害）
+        //     black                            … ⚠️ **トグルなので2回で元に戻る**
+        //     insert                           … ⚠️ **顧客台帳へ2回 upsert し、
+        //                                          反響も2回 sync 済みにする**
+        //   black と insert は実害があるため、まとめて禁止する。
+        //
+        // ⚠️ black も category ごとに書く。フロント（handleBlack）は
+        //   category を送っており、① の list.php は roll で分岐する**前に**
+        //   category を検証するため、category 無しでは 400 になる。
+        // -----------------------------------------------------------------
+        'list:shop_change:order',
+        'list:shop_change:spec',
+        'list:shop_change:used',
+        'list:staff_change:order',
+        'list:staff_change:spec',
+        'list:staff_change:used',
+        'list:tag:order',
+        'list:tag:spec',
+        'list:tag:used',
+        'list:insert:order',
+        'list:insert:spec',
+        'list:insert:used',
+        'list:black:order',
+        'list:black:spec',
+        'list:black:used',
+    ];
+}
+
+/**
+ * この request は「転送に失敗しても ① で実行してはいけない」ものか。
+ */
+/**
+ * `rank` が書き込みの分岐に入るかどうか。
+ *
+ * ⚠️⚠️ **backend-express/src/features/rank/index.ts の rankIsWrite() と
+ *   同じ条件にすること。** 片方だけ変えると
+ *   ・② が書き込むのに ① がフォールバックを許す → **二重更新**
+ *   ・② が参照なのに ① が 502 を返す → 画面が開かない
+ *   のどちらかが起きる。
+ *
+ * ⚠️ `rank` は1つの request で3つの処理を兼ねている（rank.php の分岐）。
+ *     memo あり          → 担当営業メモの保存   【書き込み】
+ *     rank / rank_period → 顧客のランク更新     【書き込み】
+ *     どちらも無し        → 画面の初期データ     【参照】
+ *   参照はフォールバックしてよいので、request 名だけで
+ *   フォールバック禁止にはできない。
+ */
+function rankRequestIsWrite(array $data): bool
+{
+    foreach (['memo', 'rank', 'rank_period'] as $key) {
+        $value = $data[$key] ?? null;
+        if (is_scalar($value) && (string)$value !== '') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function isExclusiveToExpress(string $request, array $data): bool
+{
+    $roll = is_scalar($data['roll'] ?? null) ? (string)$data['roll'] : '';
+    $category = is_scalar($data['category'] ?? null) ? (string)$data['category'] : '';
+
+    // ⚠️ request 名だけでは判定できない特例（上のコメント参照）
+    if ($request === 'rank') {
+        return rankRequestIsWrite($data);
+    }
+
+    foreach (expressProxyExclusive() as $rule) {
+        if (matchesProxyRule($rule, $request, $roll, $category)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -215,6 +487,14 @@ function shouldProxyToExpress(string $request, array $data): bool
     $category = is_scalar($data['category'] ?? null) ? (string)$data['category'] : '';
 
     foreach (expressProxyRequests() as $rule) {
+        if (matchesProxyRule($rule, $request, $roll, $category)) {
+            return true;
+        }
+    }
+
+    // ⚠️ フォールバック禁止リストのものも「転送する」対象である。
+    //   違いは失敗したときの扱いだけ（index.php を参照）。
+    foreach (expressProxyExclusive() as $rule) {
         if (matchesProxyRule($rule, $request, $roll, $category)) {
             return true;
         }

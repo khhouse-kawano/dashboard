@@ -141,8 +141,39 @@ export const env = {
     replyTo: process.env.MAIL_REPLY_TO ?? '',
   },
 
+  /**
+   * イベント受付の合い言葉。
+   *
+   * ⚠️⚠️ **未設定なら受付機能は全て拒否される**（features/event/checkin.ts）。
+   *   「未設定なら素通し」にしてはいけない。設定を忘れた瞬間に、
+   *   URLを知っている誰もが来場者の氏名を見られる状態になる。
+   *
+   * ⚠️ requireEnv にはしない。合い言葉が無くても他の機能は動くべきであり、
+   *   起動そのものを止めると障害の範囲が無駄に広がる。
+   *
+   * ⚠️ 値はイベントごとに変える運用。⚠️ **リポジトリに書かないこと。**
+   *   設定先は ② VPS の .env.prod のみ。
+   */
+  eventCheckinPasscode: (process.env.EVENT_CHECKIN_PASSCODE ?? '').trim(),
+
   /** アンバサダー反響の社内通知先。カンマ区切りで複数可 */
   ambassadorNotifyTo: (process.env.AMBASSADOR_NOTIFY_TO ?? '')
+    .split(',')
+    .map((address) => address.trim())
+    .filter((address) => address !== ''),
+
+  /**
+   * イベント予約の社内通知先。カンマ区切りで複数可。
+   *
+   * ⚠️ 未設定なら AMBASSADOR_NOTIFY_TO を使う（どちらも同じ担当部署のため）。
+   *   ただし**別の変数に分けてある**のは、アンバサダー反響の通知先を
+   *   変えたときにイベントの通知先まで黙って変わるのを防ぐため。
+   */
+  eventNotifyTo: (
+    (process.env.EVENT_NOTIFY_TO ?? '').trim() === ''
+      ? (process.env.AMBASSADOR_NOTIFY_TO ?? '')
+      : (process.env.EVENT_NOTIFY_TO ?? '')
+  )
     .split(',')
     .map((address) => address.trim())
     .filter((address) => address !== ''),

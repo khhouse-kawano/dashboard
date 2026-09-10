@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { headers } from '../utils/headers';
 import Table from "react-bootstrap/Table";
 import Modal from "react-bootstrap/Modal";
+import apiClient from '../utils/apiClient';
 
 type Props = {
     idValue: string,
@@ -42,7 +41,9 @@ const FamilyInfo = ({ idValue, shopValue, nameValue, modalClose }: Props) => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "show_family_info", id: idValue }, { headers });
+            // ⚠️ 該当なしのとき API は `false` を返す（旧APIの挙動をそのまま維持）。
+            //   下の useEffect が `!family` で弾くため、そのまま入れてよい。
+            const response = await apiClient.post("", { request: 'family_info', id: idValue });
 
             await setFamily(response.data);
         };
@@ -90,13 +91,16 @@ const FamilyInfo = ({ idValue, shopValue, nameValue, modalClose }: Props) => {
             id: idValue,
             shop: shopValue,
             name: nameValue,
+            // ⚠️ 配列のまま送る。サーバー側で JSON 文字列に変換して保存している。
+            //   ここで JSON.stringify すると二重エンコードになる。
             family_info: familyMember,
-            demand: 'update_family_info'
+            request: 'family_info',
+            roll: 'update'
         };
 
         console.log(postData)
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/", postData, { headers });
+            const response = await apiClient.post("", postData);
             await setFamily(response.data);
         };
         fetchData();
