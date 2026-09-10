@@ -1,12 +1,14 @@
-# バックエンド改修
-* dashboard/frontend/src/components/shopTrendディレクトリの
-    ShopTrendOrder.tsx
-    ShopTrendKaeru.tsx
-    ShopTrendResale.tsx
-の3コンポネントを*Express*にも移行
+# デジシキ機能の改修
 
-* 移行処理後にブランチv2.2.122へpush productionへマージ
+## 元ファイルの修正確認
+* C:Users\shinji-kawano\Downloads\AIデジタル資金計画書.htmlに改修が入った
+* それにともなうUIの変更及びデータ連携の変更
 
-* ビルドしたあと必要なphpのアップロード及びsqlの実行、vpsでのデプロイ予定
+### 主な変更点
+* 顧客情報が表示されなくなった => 連携が不要になった項目が増えた
+* 印刷機能にA3拡張追加
 
-* vpsでのデプロイの際は再度ひとつずつ手順を明記せよ
+### 権限の編集
+* authority === 'Master'にくわえてuserNameで条件を満たせば表示できるようにしたい
+    * const targetStaff = staff_list.find(item => item.name === userName && item.period === String(thisYear) && item.shop === 'KH久留米店');
+    * targetStaffが真の場合にもデジシキ作成ボタンを設置したい

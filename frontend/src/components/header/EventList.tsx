@@ -82,12 +82,66 @@ const brands: Record<string, string> = {
     'PG': 'PG HOUSE'
 };
 
-// 行の配色(inline styleでは .table のセル背景に負けるため Bootstrap の配色クラスを使用)
+/**
+ * 相談意向のある来場者と判定する `interview` の値。
+ *
+ * ⚠️ 部分一致（includes）で判定してよい。似た値と衝突しないことを実データで確認済み。
+ *   `interview` には「注文住宅の相談」「中古住宅の相談」もあるが、これらは
+ *   **「住宅の相談」であって「住宅相談」を含まない**（「の」が入る）。
+ *
+ * ⚠️ 完全一致にはしないこと。`interview` はカンマ区切りの複数選択で、
+ *   実データは「住宅相談,資金・ローン相談,キッチンカー,マルシェ,…」のように連なる。
+ *
+ * ⚠️ 選択肢はイベントごとに違う（LPのフォームと旧イベントで別物）。
+ *   将来この文言が変わったら、ここを直すこと。
+ */
+const CONSULTATION_KEYWORDS = ['住宅相談', '資金・ローン相談'];
+
+/**
+ * 相談意向のある行か。**どちらか一方でも満たせば真（OR）。**
+ *
+ * ⚠️ AND ではない。ロジックを変えるときは注意。
+ *   ローカルの実データでは `request` が入っている行が2件しか無く、
+ *   その2件はどちらも `interview` 側にも該当するため、
+ *   **AND と OR で件数の差が出ず、テストでは違いに気づけない。**
+ *   本番では `request` 未入力でも相談内容だけで着色される行が出る。
+ */
+const hasConsultationIntent = (item: CustomerData): boolean => {
+    const interview = item.interview || '';
+    if (CONSULTATION_KEYWORDS.some(keyword => interview.includes(keyword))) return true;
+
+    /**
+     * マイホームのご検討（`request`）が入力済みか。
+     * ⚠️ 空文字・NULL は「未入力」。LPのフォーム由来の予約にしか入らない。
+     * ⚠️ trim している。空白だけの値は未入力として扱う
+     *   （表示側も `.filter(v => v)` で空を落としており、そちらと揃える）。
+     */
+    return (item.request || '').trim() !== '';
+};
+
+/**
+ * 行の配色。
+ * inline style では .table のセル背景に負けるため Bootstrap の配色クラスを使用。
+ *
+ * ⚠️⚠️ **判定の順序に意味がある。先に返した色が勝つ。**
+ *
+ *   1. sync === 1（同期済み）が最優先。顧客取込の済み／未済は作業判断に直結するため、
+ *      相談意向の色で塗り潰さないこと。
+ *   2. house（賃貸／持ち家）は既存の挙動をそのまま残す。
+ *   3. 相談意向は最後。⚠️ **意図的に一番弱くしている。**
+ *      ここより上に置くと、既に色が付いている行の色が変わってしまう。
+ *
+ * ⚠️ 2 と 3 は実質ぶつからない。`house` は手入力の行にしか入らず、
+ *   `interview` / `request` が埋まる LP フォーム由来の行は `house` が全件空である
+ *   （2026-09-10 時点の実データで確認）。順序は将来の値の追加に対する保険。
+ */
 const getRowClass = (item: CustomerData) => {
     if (item.sync === 1) return 'table-primary';
     const house = item.house || '';
     if (house.includes('賃貸')) return 'table-info';
     if (house.includes('持ち家')) return 'table-warning';
+    // ⚠️ 上の3色（青・水色・黄）と区別が付く薄い色にする
+    if (hasConsultationIntent(item)) return 'table-success';
     return '';
 };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext, useRef, useMemo } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import axios from 'axios';
 import { headers } from '../../utils/headers';
@@ -196,6 +196,34 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
     const [competitorsInput, setCompetitorsInput] = useState('');
     const [originalMakerList, setOriginalMakerList] = useState<Maker[]>([]);
     const [makerList, setMakerList] = useState<Maker[]>([]);
+
+    /**
+     * 「デジシキ作成」ボタンを出すか。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️ 2026-09-10 より、開発者権限に加えて **KH久留米店の担当者**にも開放している。
+     *   店舗を増やすときは KH久留米店 の代わりに配列にすること。
+     *
+     * ⚠️⚠️ **`staffArray` は取得時に絞り込まれている。**
+     *   `category === 1 && period === String(thisYear)`（233行目付近）。
+     *   そのため period の条件はここでは実質重複だが、絞り込みの前提が
+     *   変わったときに壊れないよう明示して残す。
+     *   ⚠️ KH久留米店の在籍者5名は全員 category = 1 なので漏れない
+     *     （2026-09-10 に staff_list で確認）。category が違う職種を
+     *     対象に加えるなら、取得側の絞り込みから見直す必要がある。
+     *
+     * ⚠️ `staffArray` は API 取得後に埋まる。読み込み中の一瞬だけ
+     *   ボタンが出ないが、他の項目も同じ挙動なので許容する。
+     * ─────────────────────────────────────────────
+     */
+    const canUseFundingPlan = useMemo(() => {
+        if (authority === 'Master') return true;
+        return staffArray.some(item =>
+            item.name === userName &&
+            item.period === String(thisYear) &&
+            item.shop === 'KH久留米店'
+        );
+    }, [authority, staffArray, userName, thisYear]);
 
 
     const [kSnap, setKSnap] = useState('');
@@ -1127,8 +1155,9 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                 スマートフォンでは実用にならない。
                               ⚠️ ボタン自体を出さない（disabled にしない）。
                                 出すと押されて「開けません」と言われるだけになる。
+                              ⚠️ 表示条件は canUseFundingPlan（宣言箇所のコメント参照）。
                             */}
-                            {!isSp && (
+                            {!isSp && canUseFundingPlan && (
                                 <FundingPlan
                                     id={information.id}
                                     customerName={information.customer_contacts_name}

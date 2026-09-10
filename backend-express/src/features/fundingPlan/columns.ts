@@ -1,14 +1,21 @@
 /**
  * funding_plan の列定義。
  *
- * ⚠️⚠️ **このファイルは自動生成である。手で編集しないこと。**
- *   元データ: C:/Users/shinji-kawano/Downloads/AIデジタル資金計画書.html の data-k 属性
- *   生成物  : backend/scripts/sql/2026-09-08_funding_plan.sql と同じ列・同じ型
+ * ⚠️⚠️ **原本の HTML と1対1で対応させること。**
+ *   原本    : C:/Users/shinji-kawano/Downloads/AIデジタル資金計画書.html の data-k 属性
+ *             ＋ DEF() でしか定義されない項目（地図の操作から代入されるものなど）
+ *   対応SQL : backend/scripts/sql/2026-09-08_funding_plan.sql（初版）
+ *             backend/scripts/sql/2026-09-10_funding_plan_land_search.sql（⑩土地検索）
  *
  *   HTMLの入力欄を増やしたら
  *     1. SQL に ALTER TABLE で列を足す
  *     2. このファイルの配列に列名を足す
- *   の両方が必要。片方だけだと「画面では入力できるのに保存されない」状態になる。
+ *   の両方が必要。⚠️ 片方だけだと「画面では入力できるのに保存されない」状態になる。
+ *   ⚠️ しかもエラーは出ない。保存処理は funding_plan に存在する列だけを採用し、
+ *     知らないキーは黙って捨てる（キーをそのまま列名にすると SQL インジェクションになるため）。
+ *
+ * ⚠️ 当初は data-k から自動生成していたが、data-k を持たない項目
+ *   （t_lat / t_lng など、プログラムが代入するもの）が出たため手で保守している。
  *
  * ⚠️ 列名は HTML の data-k と1文字も違わない。変換表を持たないための設計。
  */
@@ -21,6 +28,15 @@ export const TEXT_COLUMNS = [
   's_p_bank', 's_bikou', 'g_type', 'g_setai', 'g_mode', 'v_houi', 'v_tax', 'v_batUse', 'x_e1n',
   'x_e2n', 'x_e3n', 'x_h9n', 'x_h10n', 'x_w9n', 'x_w10n', 'x_c2n', 'ln_source', 'ln_feedUrl',
   'bk_incFee', 'bk_memo', 'bk_apply1', 'bk_apply2', 'bk_apply3',
+  /**
+   * ⑩ 土地検索（2026-09-10 追加）。
+   * ⚠️ t_lat / t_lng は数値に見えるが**文字列**で持つ。
+   *   DEF() の既定値が "" で、未選択を空文字で表すため。
+   *   DECIMAL にすると空文字が 0 になり、緯度経度 0（アフリカ沖）の
+   *   地点を選んだことになってしまう。
+   * ⚠️ t_addr / t_muni は国土地理院の応答をそのまま入れる。
+   */
+  't_pref', 't_city', 't_station', 't_lat', 't_lng', 't_addr', 't_muni',
 ] as const;
 
 /**
@@ -46,6 +62,12 @@ export const NUMBER_COLUMNS = [
   'x_incW', 'x_incE', 'x_h1', 'x_h2', 'x_h3', 'x_h4', 'x_h5', 'x_h6', 'x_h7', 'x_h8', 'x_h9',
   'x_h10', 'x_w1', 'x_w2', 'x_w3', 'x_w4', 'x_w5', 'x_w6', 'x_w7', 'x_w8', 'x_w9', 'x_w10',
   'x_c1', 'x_c2', 'bk_kari', 'bk_years',
+  /**
+   * ⑩ 土地検索（2026-09-10 追加）。
+   * ⚠️ 接頭辞 t_ は「⑦ 今建てる／待つ の比較」と共用である
+   *   （上の t_wait / t_upRate 等）。接頭辞で画面を判断しないこと。
+   */
+  't_budget', 't_needTsubo', 't_radius', 't_area', 't_dist',
 ] as const;
 
 /**
@@ -73,6 +95,8 @@ export const BOOL_COLUMNS = [
  */
 export const JSON_COLUMNS = [
   'kids', 'k_trigger', 's1', 's2', 's3', 's4', 's5', 'loans', 'w_days', 'w_done',
+  // ⑩ 土地検索の候補地メモ（2026-09-10 追加）
+  'lands',
 ] as const;
 
 /** 保存対象の全列（id と管理用の列は含まない） */
