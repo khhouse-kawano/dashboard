@@ -9,7 +9,13 @@ $response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 店舗
-$sql_shop = "SELECT brand, shop, division, section, multi, report_flag
+// ⚠️⚠️ `parent_shop` は 2026-09-10 に追加した「親店舗」の列。
+//   併売店をまとめる機能（Company.tsx の showMulti）が使う。
+//   ⚠️ ここから外すと、② への転送が失敗して ① にフォールバックしたときだけ
+//     まとめ機能が**黙って効かなくなる**（エラーにならないので気づけない）。
+//   ⚠️ 列そのものは backend/scripts/sql/2026-09-10_shop_list_parent_shop.sql で追加する。
+//     SQL未実行の環境では、この SELECT が Fatal error になる。
+$sql_shop = "SELECT brand, shop, division, section, multi, report_flag, parent_shop
         FROM shop_list WHERE report_flag = 1";
 $stmt_shop = $pdo->prepare($sql_shop);
 $stmt_shop->execute();
@@ -41,6 +47,14 @@ $response_contract = $stmt_contract->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 契約者一覧(建売事業)
+// ⚠️⚠️ 2026-09-10 に契約日の条件を外した。
+//   以前は (契約日あり OR 仲介契約日あり) AND ランクあり だったため、
+//   **ランクを持つが契約日が無い顧客が返らず**、会社実績の建売の
+//   「ランク数」が空欄になっていた（実データで400件が欠落）。
+//   ⚠️ 契約数は変わらない（以前の603件は全てランクを持つため新条件にも含まれる）。
+//   ⚠️ 契約日ありでランクが無い27件は以前も今も返らない。
+//     ランク条件を外すと契約数が増えるため残している。
+//   ⚠️ backend-express/src/features/company/queries.ts と同じ条件にすること。
 $sql_contract_kaeru = "SELECT id,
 customer_contacts_name as customer,
 '建売' as category,
@@ -51,7 +65,7 @@ step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW as contract,
 step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 as contract_broker,
 status,
 rank_period FROM master_data_kaeru
-WHERE show_dashboard = 1 and (step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW <> '' or step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 <> '') AND customized_input_01J82Z5F366ZQ897PXWF6H5ZAM IN ('Sランク','Aランク', 'Bランク', 'Cランク')";
+WHERE show_dashboard = 1 AND customized_input_01J82Z5F366ZQ897PXWF6H5ZAM IN ('Sランク','Aランク', 'Bランク', 'Cランク')";
 $stmt_contract_kaeru = $pdo->prepare($sql_contract_kaeru);
 $stmt_contract_kaeru->execute();
 $response_contract_kaeru = $stmt_contract_kaeru->fetchAll(PDO::FETCH_ASSOC);

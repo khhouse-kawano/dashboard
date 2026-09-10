@@ -44,6 +44,8 @@ import {
   runFundingPlanGet,
   runFundingPlanSave,
 } from '../features/fundingPlan';
+import { runChangeCompanyAchievement, runCompany } from '../features/company';
+import { runListEvent } from '../features/list/event';
 import { runHeader } from '../features/header';
 import type { InformationCategory } from '../features/information';
 import { runInformationInit } from '../features/information';
@@ -1161,10 +1163,12 @@ register({
 //
 // ⚠️ 参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
 //
-// ⚠️⚠️ **roll 付きの list（insert / black / tag / shop_change / staff_change /
-//   event）はまだ移植していない。** ゲートウェイは request + roll + category の
-//   完全一致で引くため、未登録の roll は自動で ① へ転送される。
-//   移植するときは書き込み系なので expressProxyExclusive() への登録が必要。
+// ⚠️ roll 付きの list はすべて移植済み
+//   （insert / black / tag / shop_change / staff_change / event）。
+//   ⚠️⚠️ **ゲートウェイは request + roll + category の完全一致で引く。**
+//     登録漏れがあると ② が「ループ検知」で 502 を返し、① にフォールバックする。
+//     画面は動くが往復が無駄になり、① と ② の両方のログが汚れる。
+//     2026-09-10 に roll = 'event' の登録漏れで実際に起きた。
 // ---------------------------------------------------------------------------
 
 for (const category of ['order', 'spec', 'used']) {
@@ -1302,6 +1306,73 @@ for (const category of ['', 'order', 'spec', 'used']) {
     auth: 'staff',
     handler: async (ctx) => {
       const result = await runShopTrend(ctx.body.category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 会社実績（company/Company.tsx）
+//
+// ⚠️ `company` は参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
+// ⚠️⚠️ `change_company_achievement` は**書き込み**。① の PHP も残るため
+//   フォールバック禁止（express_proxy.php の exclusive）に登録している。
+//   両方で走ると company_achievement が二重に書かれる。
+//
+// ⚠️ どちらも roll / category では分岐しない。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'company',
+  summary: '会社実績の初期データ（担当営業・店舗・課・契約者3事業・契約目標）',
+  phpSource: 'backend/src/handlers/company.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runCompany();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'change_company_achievement',
+  summary: '【書き込み・フォールバック禁止】契約目標の登録（company_achievement の upsert）',
+  phpSource: 'backend/src/handlers/change_company_achievement.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runChangeCompanyAchievement(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 集客イベントの来場予約一覧（header/EventList.tsx）
+//
+// ⚠️⚠️ **1つの roll で参照と書き込みを兼ねる。** `function` で分かれる
+//   （load = 参照 / update = 書き込み）。`rank` と同じ構造である。
+//
+// ⚠️ ① に PHP ハンドラが実在する（listAction/list_event.php）。
+//   ⚠️⚠️ **フォールバック禁止には登録しない。**
+//     update は単純な代入だけで冪等なので、① で再実行されても結果は同じ。
+//     理由の詳細は features/list/event.ts のコメントを参照。
+//
+// ⚠️ category は AuthContext 由来で order / spec / used のいずれか。
+//   ワイルドカードは無いので3件登録する。
+//   ⚠️ 登録漏れがあると 2026-09-10 に起きた「ループ検知 502」が再発する。
+// ---------------------------------------------------------------------------
+
+for (const category of ['order', 'spec', 'used']) {
+  register({
+    request: 'list',
+    roll: 'event',
+    category,
+    summary: `集客イベントの来場予約一覧（${category}）⚠️ function で参照と更新を兼ねる`,
+    phpSource: 'backend/src/handlers/listAction/list_event.php',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runListEvent(ctx.body);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

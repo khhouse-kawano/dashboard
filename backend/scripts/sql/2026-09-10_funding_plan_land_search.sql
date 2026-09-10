@@ -59,10 +59,14 @@ ALTER TABLE `funding_plan`
 -- ===========================================================
 -- 確認
 -- ===========================================================
--- ⚠️ 13列すべて追加されたか。件数が 13 でなければ ALTER が一部失敗している。
-SELECT COUNT(*) AS added_columns
-  FROM information_schema.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE()
-   AND TABLE_NAME = 'funding_plan'
-   AND COLUMN_NAME IN ('t_pref','t_city','t_station','t_budget','t_needTsubo','t_radius',
-                       't_lat','t_lng','t_addr','t_muni','t_area','t_dist','lands');
+-- ⚠️ 13行返ることを確認する。少なければ ALTER が一部失敗している。
+--
+-- ⚠️⚠️ **information_schema は使わないこと。**
+--   ① レンタルサーバー（Xserver 共用）の DB ユーザーには参照権限が無く、
+--     #1044 - ユーザー '...'@'localhost' の 'information_schema' データベースへの
+--     アクセスを拒否します
+--   になる。SHOW COLUMNS なら同じ確認ができ、権限も要らない。
+--   ⚠️ ローカルの root では通ってしまうため、気づかずに書きがちである。
+SHOW COLUMNS FROM `funding_plan`
+ WHERE `Field` IN ('t_pref','t_city','t_station','t_budget','t_needTsubo','t_radius',
+                   't_lat','t_lng','t_addr','t_muni','t_area','t_dist','lands');

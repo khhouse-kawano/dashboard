@@ -227,11 +227,20 @@ function expressProxyRequests(): array
         //
         // ⚠️ 参照のみ。転送に失敗したら ① で処理してよい。
         //
-        // ⚠️⚠️ `list` は roll でも分岐する（insert / black / tag / shop_change /
-        //   staff_change / event）。**それらは ② に未登録**なので、
-        //   ゲートウェイが「未移植」と判断して ① へ転送する。
-        //   ⚠️ 書き込み系を移植したら expressProxyExclusive() にも追加すること。
-        //   入れないと、転送失敗時に ① でも実行され二重登録になる。
+        // ⚠️ `list` は roll でも分岐する。**すべて ② に登録済み**
+        //   （参照 / insert / black / tag / shop_change / staff_change / event）。
+        //
+        // ⚠️⚠️ **roll を1つでも登録し忘れると ② が「ループ検知」で 502 を返す。**
+        //   2026-09-10 に `roll = 'event'` の登録漏れで実際に起きた。
+        //   ① がフォールバックするので画面は動くが、
+        //   往復が無駄になり ① と ② の両方のログが汚れる。
+        //   ⚠️ 症状: ② のログに
+        //     「ループ検知: ① から転送された "list" が ② に未登録です」
+        //   ⚠️ roll を追加するときは ② の registry.ts への登録を先に済ませること。
+        //
+        // ⚠️ 書き込み系の roll は expressProxyExclusive() にも入れている。
+        //   ⚠️ ただし `event` は入れていない（update が冪等なため）。
+        //     理由は backend-express/src/features/list/event.ts のコメント参照。
         // -----------------------------------------------------------------
         'list',
 
@@ -269,6 +278,26 @@ function expressProxyRequests(): array
         'interviewLog',
         'interviewLog_update_interview',
         'contract_ex_update',
+
+        // -----------------------------------------------------------------
+        // 2026-09-10 移植。会社実績（company/Company.tsx）。
+        //
+        // ⚠️⚠️ どちらも ① に PHP ハンドラが**実在する**（消していない）。
+        //   この配列から外せば即座に ① の処理へ戻る。
+        //
+        // ⚠️ `company` は参照のみ。転送に失敗したら ① で処理してよい。
+        // ⚠️⚠️ `change_company_achievement` は**書き込み**なので、
+        //   expressProxyExclusive() にも入れている。
+        //   入れないと転送失敗時に ① でも実行され、
+        //   company_achievement の upsert が二重に走る。
+        //
+        // ⚠️ `company` の SELECT は shop_list.parent_shop を参照する。
+        //   backend/scripts/sql/2026-09-10_shop_list_parent_shop.sql を
+        //   **先に実行しておくこと。** 列が無いと ② 側のクエリが落ち、
+        //   フォールバックで ① に戻る（画面は動くが Express を経由しない）。
+        // -----------------------------------------------------------------
+        'company',
+        'change_company_achievement',
     ];
 }
 
@@ -341,6 +370,19 @@ function expressProxyExclusive(): array
         // -----------------------------------------------------------------
         'interviewLog_update_interview',
         'contract_ex_update',
+
+        // 2026-09-10 移植。会社実績の契約目標の書き込み。
+        //
+        // ⚠️⚠️ ① に PHP ハンドラが**実在する**（change_company_achievement.php）。
+        //   転送に失敗したまま ① で実行されると、
+        //   company_achievement の upsert が二重に走る。
+        //   ⚠️ 一意キーがあるので値は壊れないが、
+        //     ② が落ちていることに気づけなくなるため禁止しておく。
+        //
+        // ⚠️ この request は roll / category で分岐しないため、
+        //   request 名だけで書いてよい。
+        // -----------------------------------------------------------------
+        'change_company_achievement',
 
         // -----------------------------------------------------------------
         // 2026-09-09 移植。反響一覧の書き込み。
