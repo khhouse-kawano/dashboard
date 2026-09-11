@@ -143,6 +143,104 @@ export const runInquiryIntroductoryUpdate = async (
 };
 
 // ---------------------------------------------------------------------------
+// 同期不要の判定（重複客・ブラックリスト客）
+// ---------------------------------------------------------------------------
+
+/**
+ * 「重複」「ブラックリスト」のタグを付け外しする。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **顧客は作らない。** `sync = 1` にするだけである。
+ *   未同期の一覧から外して、本当に対応が必要な反響だけを残すのが目的。
+ *
+ *   ⚠️ `master_data_id` は **NULL のまま**にする。
+ *     ここが本当の同期済みとの違いであり、見分ける唯一の手がかりである。
+ *
+ *       本当に同期済み … sync = 1 かつ master_data_id IS NOT NULL
+ *       同期不要       … sync = 1 かつ master_data_id IS NULL
+ *
+ * ⚠️⚠️ **顧客が作られた行（master_data_id あり）は拒否する。**
+ *   タグを外すと `sync = 0` に戻るため、次に同期を押したときに
+ *   **顧客が二重に作られる**。画面側でもボタンを出さないが、
+ *   ここでも必ず止める。
+ *
+ * ⚠️ 2つのタグは排他にしている。「重複」を押したら「ブラックリスト」は 0 になる。
+ *   両方立った状態に意味が無く、解除の挙動が分かりにくくなるため。
+ * ─────────────────────────────────────────────
+ */
+const TAG_COLUMNS = {
+  duplicate: 'duplicate_tag',
+  blacklist: 'blacklist_tag',
+} as const;
+
+type TagKey = keyof typeof TAG_COLUMNS;
+
+const isTagKey = (value: unknown): value is TagKey =>
+  typeof value === 'string' && value in TAG_COLUMNS;
+
+export const runInquiryIntroductoryTag = async (
+  body: Record<string, unknown>
+): Promise<IntroductoryResult> => {
+  const no = toInt(body.no);
+  if (no <= 0) {
+    return { httpStatus: 400, body: { status: 'error', message: '反響IDが不正です。' } };
+  }
+
+  const tag = body.tag;
+  if (!isTagKey(tag)) {
+    return { httpStatus: 400, body: { status: 'error', message: '判定の種別が不正です。' } };
+  }
+
+  /**
+   * 付けるか外すか。
+   * ⚠️ 画面から明示的に受け取る。サーバー側で現在値を見て反転させると、
+   *   連打や二重送信で**押した回数によって結果が変わる**。
+   */
+  const on = body.value === undefined ? true : toInt(body.value) === 1;
+
+  const rows = await query<DynamicRow>(
+    'SELECT `master_data_id`, `duplicate_tag`, `blacklist_tag` FROM inquiry_introductory WHERE `no` = ?',
+    [no]
+  );
+  const current = rows[0];
+
+  if (current === undefined) {
+    return { httpStatus: 404, body: { status: 'error', message: '該当する反響が見つかりません。' } };
+  }
+
+  // ⚠️⚠️ 顧客が作られている行は触らせない（上のコメント参照）
+  if (orNull(current.master_data_id) !== null) {
+    return {
+      httpStatus: 400,
+      body: {
+        status: 'error',
+        message: '既に顧客として取り込まれている反響です。判定は変更できません。',
+      },
+    };
+  }
+
+  const duplicate = on && tag === 'duplicate' ? 1 : 0;
+  const blacklist = on && tag === 'blacklist' ? 1 : 0;
+  // ⚠️ どちらかが立っていれば同期不要として一覧から外す
+  const sync = duplicate === 1 || blacklist === 1 ? 1 : 0;
+
+  await execute(
+    'UPDATE inquiry_introductory SET `duplicate_tag` = ?, `blacklist_tag` = ?, `sync` = ? WHERE `no` = ?',
+    [duplicate, blacklist, sync, no]
+  );
+
+  return {
+    httpStatus: 200,
+    body: {
+      status: 'ok',
+      duplicate_tag: duplicate,
+      blacklist_tag: blacklist,
+      sync,
+    },
+  };
+};
+
+// ---------------------------------------------------------------------------
 // 同期
 // ---------------------------------------------------------------------------
 

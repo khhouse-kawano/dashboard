@@ -11,6 +11,7 @@ import { runAmbassadorMaster } from '../features/ambassador/master';
 import {
   runInquiryIntroductoryList,
   runInquiryIntroductorySync,
+  runInquiryIntroductoryTag,
   runInquiryIntroductoryUpdate,
 } from '../features/introductory';
 import { runEventReservation } from '../features/event/reservation';
@@ -570,6 +571,31 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await runInquiryIntroductorySync(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響に「重複」「ブラックリスト」の判定を付け外しする。
+ *
+ * ⚠️⚠️ **顧客は作らない。** sync を 1 にして未同期の一覧から外すだけ。
+ *   `master_data_id` は NULL のままで、そこが本当の同期済みとの違いである。
+ *
+ * ⚠️ 顧客が作られた行（master_data_id あり）は拒否する。
+ *   タグを外すと sync が 0 に戻り、次の同期で顧客が二重に作られるため。
+ *
+ * ⚠️ 列の追加は backend/scripts/sql/2026-09-11_inquiry_introductory_skip_tags.sql。
+ *   **先に実行すること。** 無いと UPDATE が落ちる。
+ */
+register({
+  request: 'inquiry_introductory',
+  roll: 'tag',
+  summary: '【書き込み】紹介反響に重複・ブラックリストの判定を付け外しする（顧客は作らない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductoryTag(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
