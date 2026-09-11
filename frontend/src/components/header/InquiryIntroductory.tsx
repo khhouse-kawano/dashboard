@@ -68,9 +68,38 @@ type Inquiry = {
     staff: string | null;
     sync: number;
     master_data_id: string | null;
+    /** 重複客。⚠️ 1 なら sync も 1 だが顧客は作られていない */
+    duplicate_tag?: number | null;
+    /** ブラックリスト客。⚠️ 1 なら sync も 1 だが顧客は作られていない */
+    blacklist_tag?: number | null;
 };
 
 type SyncFilter = 'all' | 'unsynced' | 'synced';
+
+/** 同期不要の判定。⚠️ 値は Express の TAG_COLUMNS と対応する */
+type TagKey = 'duplicate' | 'blacklist';
+
+const TAG_LABELS: Record<TagKey, string> = {
+    duplicate: '重複',
+    blacklist: 'ブラックリスト',
+};
+
+/**
+ * その反響が「本当に顧客として取り込まれた」か。
+ *
+ * ⚠️⚠️ **`sync` では判定できない。**
+ *   重複・ブラックリストの判定を付けた行も `sync = 1` になる
+ *   （未同期の一覧から外すため）。顧客は作られていない。
+ *   見分けるのは `master_data_id` の有無だけである。
+ */
+const isImported = (item: Inquiry): boolean => (item.master_data_id ?? '') !== '';
+
+/** 付いている判定。無ければ null */
+const tagOf = (item: Inquiry): TagKey | null => {
+    if (Number(item.duplicate_tag) === 1) return 'duplicate';
+    if (Number(item.blacklist_tag) === 1) return 'blacklist';
+    return null;
+};
 
 /** ⚠️ 秒まで出すと横に長くなるだけなので日時までにする */
 const dateLabel = (value: string | null): string => (value ?? '—').slice(0, 16);
@@ -109,7 +138,10 @@ const InquiryIntroductory = () => {
     // ⚠️ 店舗は show_flag = 1、担当営業は category = 1 かつ当年度。
     //   アンバサダー画面と同じマスタを共用している（request も同じ）。
     //   詳細は useAmbassadorMaster.ts
-    const { shopOptionsForDivision, staffOptionsFor, masterError } = useAmbassadorMaster();
+    const { shopOptionsForDivision, staffOptionsFor, shopOptions, masterError } = useAmbassadorMaster();
+
+    /** 判定を保存中の行番号 */
+    const [tagging, setTagging] = useState<number | null>(null);
 
     const [filter, setFilter] = useState<SyncFilter>('unsynced');
     const [shopFilter, setShopFilter] = useState('');
@@ -145,8 +177,27 @@ const InquiryIntroductory = () => {
     const filterShopOptions = useMemo(() => {
         const seen = new Set<string>();
         list.forEach(i => { if (i.shop) seen.add(i.shop); });
-        return [...seen].sort();
-    }, [list]);
+
+        /**
+         * ⚠️⚠️ **文字コード順（`[...seen].sort()`）では並べない。**
+         *   2026-09-11 まで素の sort だったため、「DJH…」「KH…」「なごみ…」が
+         *   アルファベット順に混ざり、行ごとの担当店舗 select
+         *   （sortShops を通っている）と**並びが食い違っていた**。
+         *
+         * ⚠️ マスタ（useAmbassadorMaster の shopOptions）の並びに合わせる。
+         *   あちらは 事業区分 → ブランド → id の順（sortShops）。
+         *
+         * ⚠️ マスタに無い店舗（廃止・改称）は末尾に回して名前順にする。
+         *   捨てるとその店舗の反響を絞り込めなくなる。
+         */
+        const order = new Map(shopOptions.map((s, i) => [s, i]));
+        return [...seen].sort((a, b) => {
+            const ia = order.get(a) ?? Number.MAX_SAFE_INTEGER;
+            const ib = order.get(b) ?? Number.MAX_SAFE_INTEGER;
+            if (ia !== ib) return ia - ib;
+            return a.localeCompare(b, 'ja');
+        });
+    }, [list, shopOptions]);
 
     /** 全角・半角と空白の差を無視して比較する */
     const normalize = (value: string): string => value.replace(/[\s　]/g, '').toLowerCase();
@@ -312,6 +363,60 @@ const InquiryIntroductory = () => {
         }
     };
 
+    /**
+     * 「重複」「ブラックリスト」の判定を付け外しする。
+     *
+     * ⚠️⚠️ **顧客は作られない。** `sync` が 1 になって未同期の一覧から外れるだけで、
+     *   `master_data_id` は NULL のままである。
+     *
+     * ⚠️ 同じタグをもう一度押したら外す（トグル）。押し間違いを戻せるようにする。
+     *   ⚠️ 現在値の反転はサーバーに任せず、画面側で `value` を明示して送る。
+     *     サーバーで反転させると、連打や二重送信で結果が変わる。
+     *
+     * ⚠️ 取り消せる操作なので確認ダイアログは出さない（同期とは違う）。
+     */
+    const handleTag = async (item: Inquiry, tag: TagKey) => {
+        const on = tagOf(item) !== tag;
+
+        setTagging(item.no);
+        setError('');
+        setNotice('');
+
+        try {
+            const res = await apiClient.post('', {
+                request: 'inquiry_introductory',
+                roll: 'tag',
+                no: item.no,
+                tag,
+                value: on ? 1 : 0,
+            });
+
+            if (res.data?.status !== 'ok') {
+                setError(res.data?.message ?? '判定の保存に失敗しました。');
+                return;
+            }
+
+            // ⚠️ 一覧は再取得しない。既定の絞り込み（未同期のみ）から消えて
+            //   「押したのに何も起きていない」ように見えるため（同期と同じ理由）
+            setList(prev => prev.map(i => i.no === item.no
+                ? {
+                    ...i,
+                    duplicate_tag: res.data.duplicate_tag,
+                    blacklist_tag: res.data.blacklist_tag,
+                    sync: res.data.sync,
+                }
+                : i));
+            setNotice(on
+                ? `${item.friendName ?? ''}様 を「${TAG_LABELS[tag]}」として処理済みにしました（顧客は作成していません）。`
+                : `${item.friendName ?? ''}様 の判定を解除しました。`);
+        } catch (e: unknown) {
+            const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setError(message ?? '判定の保存に失敗しました。');
+        } finally {
+            setTagging(null);
+        }
+    };
+
     const filterButtons: { key: SyncFilter; label: string; count: number }[] = [
         { key: 'unsynced', label: '未同期', count: unsyncedCount },
         { key: 'synced', label: '同期済み', count: list.length - unsyncedCount },
@@ -319,7 +424,11 @@ const InquiryIntroductory = () => {
     ];
 
     return (
-        <div className="py-2">
+        // ⚠️ 左右の余白はここで付ける。この画面は Header.tsx の全画面モーダルで開き、
+        //   そちらの Modal.Body は `p-0`（縦を使い切るため）なので、
+        //   何も付けないとテーブルが画面の端に貼り付いて読みにくい。
+        //   ⚠️ Header.tsx 側に余白を足すと**他の全画面メニューにも効く**ので触らない。
+        <div className="py-3 px-4">
             <div className="d-flex align-items-center gap-3 flex-wrap mb-3">
                 <span className="fw-bold" style={{ fontSize: '14px' }}>
                     <i className="fa-solid fa-user-group me-2 text-primary" aria-hidden="true" />
@@ -420,7 +529,8 @@ const InquiryIntroductory = () => {
                     <Table hover bordered className="mb-0 align-middle text-nowrap" style={{ fontSize: '12px', minWidth: '2000px' }}>
                         <thead className="bg-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                             <tr>
-                                <th className="bg-light text-center" style={{ width: '90px' }}>同期</th>
+                                {/* ⚠️ 「ブラックリスト」が入る幅が要る。狭めると折り返して行が伸びる */}
+                                <th className="bg-light text-center" style={{ width: '130px' }}>同期</th>
                                 <th className="bg-light" style={{ width: '120px' }}>受付日時</th>
                                 {/* ⚠️ 顧客になるのはお友達。紹介者と並べる順序を入れ替えないこと */}
                                 <th className="bg-light" style={{ width: '150px' }}>お友達（顧客）</th>
@@ -440,28 +550,77 @@ const InquiryIntroductory = () => {
                         </thead>
                         <tbody>
                             {filtered.map(item => {
+                                // ⚠️⚠️ **「顧客として取り込まれたか」は sync では判定できない。**
+                                //   重複・ブラックリストの判定を付けた行も sync = 1 になる。
+                                //   顧客が作られたかは master_data_id でしか分からない
+                                const imported = isImported(item);
+                                const tag = tagOf(item);
                                 const isSynced = Number(item.sync) === 1;
                                 const noShop = (item.shop ?? '') === '';
                                 const division: DivisionKey = asDivision(item.division);
+                                const busy = tagging === item.no || syncing === item.no;
 
                                 return (
                                     <tr key={item.no} className={isSynced ? 'text-muted' : ''}>
                                         <td className="text-center">
-                                            {isSynced ? (
+                                            {imported ? (
                                                 <Badge bg="primary" className="fw-normal" title={item.master_data_id ?? ''}>
                                                     同期済み
                                                 </Badge>
                                             ) : (
-                                                <Button
-                                                    size="sm"
-                                                    variant={noShop ? 'outline-secondary' : 'primary'}
-                                                    style={{ fontSize: '11px' }}
-                                                    disabled={syncing === item.no || noShop}
-                                                    title={noShop ? '担当店舗が未設定のため同期できません' : 'お友達を顧客として取り込む'}
-                                                    onClick={() => void handleSync(item)}
-                                                >
-                                                    {syncing === item.no ? '処理中…' : '同期'}
-                                                </Button>
+                                                <div className="d-flex flex-column align-items-stretch gap-1">
+                                                    {/* ⚠️ 判定が付いていても「同期済み」にはせず押せるままにする。
+                                                        押すと判定が外れて未同期へ戻る（顧客は作られない） */}
+                                                    <Button
+                                                        size="sm"
+                                                        variant={tag !== null ? 'outline-primary' : noShop ? 'outline-secondary' : 'primary'}
+                                                        style={{ fontSize: '11px' }}
+                                                        disabled={busy || (tag === null && noShop)}
+                                                        title={tag !== null
+                                                            ? `「${TAG_LABELS[tag]}」の判定を解除して未同期に戻す`
+                                                            : noShop ? '担当店舗が未設定のため同期できません' : 'お友達を顧客として取り込む'}
+                                                        onClick={() => tag !== null
+                                                            ? void handleTag(item, tag)
+                                                            : void handleSync(item)}
+                                                    >
+                                                        {busy ? '処理中…' : tag !== null ? '解除' : '同期'}
+                                                    </Button>
+
+                                                    {/* ⚠️ 同期不要の判定。顧客は作らず、未同期の一覧から外すだけ */}
+                                                    <div className="d-flex gap-1">
+                                                        {(['duplicate', 'blacklist'] as TagKey[]).map(key => (
+                                                            <span
+                                                                key={key}
+                                                                role="button"
+                                                                tabIndex={0}
+                                                                className={`flex-fill border rounded px-1 ${tag === key
+                                                                    ? 'bg-secondary text-white border-secondary'
+                                                                    : 'text-secondary border-secondary-subtle'}`}
+                                                                style={{
+                                                                    fontSize: '9px',
+                                                                    lineHeight: '1.5',
+                                                                    cursor: busy ? 'default' : 'pointer',
+                                                                    opacity: busy ? 0.5 : 1,
+                                                                    userSelect: 'none',
+                                                                }}
+                                                                title={tag === key
+                                                                    ? 'もう一度押すと解除します'
+                                                                    : `「${TAG_LABELS[key]}」として処理済みにする（顧客は作成しません）`}
+                                                                onClick={() => { if (!busy) void handleTag(item, key); }}
+                                                                onKeyDown={(e) => {
+                                                                    // ⚠️ span をボタンにしているのでキーボード操作を自前で拾う
+                                                                    if (busy) return;
+                                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                                        e.preventDefault();
+                                                                        void handleTag(item, key);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {TAG_LABELS[key]}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             )}
                                         </td>
 
@@ -584,6 +743,9 @@ const InquiryIntroductory = () => {
                 <br />
                 販促媒体は「紹介」になります。事業区分で登録先が変わります（注文／建売／中古）。
                 ⚠️ この操作は取り消せません。
+                <br />
+                「重複」「ブラックリスト」は<strong>顧客を作らずに処理済みにする</strong>印です（未同期の一覧から外れます）。
+                押し間違えたら「解除」で戻せます。
             </p>
         </div>
     );

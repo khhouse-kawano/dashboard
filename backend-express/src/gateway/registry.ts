@@ -11,6 +11,7 @@ import { runAmbassadorMaster } from '../features/ambassador/master';
 import {
   runInquiryIntroductoryList,
   runInquiryIntroductorySync,
+  runInquiryIntroductoryTag,
   runInquiryIntroductoryUpdate,
 } from '../features/introductory';
 import { runEventReservation } from '../features/event/reservation';
@@ -26,6 +27,7 @@ import {
 } from '../features/eventBudget';
 import { runList } from '../features/list';
 import { runShopTrend } from '../features/shopTrend';
+import { runCustomerTrend } from '../features/customerTrend';
 import {
   runListBlack,
   runListInsert,
@@ -569,6 +571,31 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await runInquiryIntroductorySync(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響に「重複」「ブラックリスト」の判定を付け外しする。
+ *
+ * ⚠️⚠️ **顧客は作らない。** sync を 1 にして未同期の一覧から外すだけ。
+ *   `master_data_id` は NULL のままで、そこが本当の同期済みとの違いである。
+ *
+ * ⚠️ 顧客が作られた行（master_data_id あり）は拒否する。
+ *   タグを外すと sync が 0 に戻り、次の同期で顧客が二重に作られるため。
+ *
+ * ⚠️ 列の追加は backend/scripts/sql/2026-09-11_inquiry_introductory_skip_tags.sql。
+ *   **先に実行すること。** 無いと UPDATE が落ちる。
+ */
+register({
+  request: 'inquiry_introductory',
+  roll: 'tag',
+  summary: '【書き込み】紹介反響に重複・ブラックリストの判定を付け外しする（顧客は作らない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductoryTag(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
@@ -1306,6 +1333,35 @@ for (const category of ['', 'order', 'spec', 'used']) {
     auth: 'staff',
     handler: async (ctx) => {
       const result = await runShopTrend(ctx.body.category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 販促媒体別動向（customerTrend/CustomerTrendOrder.tsx / CustomerTrendKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
+// ⚠️ roll では分岐しない。category だけ。
+//
+// ⚠️⚠️ **`used` は登録しない。** ① の customerTrendAction/customerTrend_used.php が
+//   存在せず、CustomerTrendResale.tsx も中身の無いプレースホルダのため、
+//   そもそも動いていない経路である。登録すると壊れた経路を
+//   「動いているように見せる」ことになる。
+//
+// ⚠️ category を送らない呼び出しに備えて '' も登録する（PHP の既定値 'order'）。
+// ---------------------------------------------------------------------------
+
+for (const category of ['', 'order', 'spec']) {
+  register({
+    request: 'customerTrend',
+    category,
+    summary: `販促媒体別動向の初期データ（${category === '' ? '既定=order' : category}）`,
+    phpSource: `backend/src/handlers/customerTrendAction/customerTrend_${category === '' ? 'order' : category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runCustomerTrend(ctx.body.category);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

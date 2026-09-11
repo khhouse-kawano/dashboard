@@ -9,6 +9,8 @@ $response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 店舗
+// ⚠️ multi / parent_shop は足さないこと。**建売に併売店の概念は無い**
+//   （2026-09-11 に利用者が明言）。注文（customerTrend_order.php）だけが持つ。
 $sql_shop = "SELECT shop, section
         FROM shop_list WHERE division = '建売分譲事業' AND show_flag = 1";
 $stmt_shop = $pdo->prepare($sql_shop);
