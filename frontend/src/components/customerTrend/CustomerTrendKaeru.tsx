@@ -12,7 +12,13 @@ import CustomerListModal from "../CustomerListModal";
 import InformationEditKaeru from "../information/InformationEditKaeru";
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
-type MediumType = { medium: string, category: string, sort_key: number, response_medium: number };
+/**
+ * 販促媒体（medium_kaeru）。
+ * ⚠️ `show_graph` は「表の行とグラフの系列に出すか」。2026-09-11 追加。
+ *   backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql を先に実行すること。
+ *   ⚠️ DB から文字列で来ることがあるため Number() で比べる。
+ */
+type MediumType = { medium: string, category: string, sort_key: number, response_medium: number, show_graph?: number | string };
 type CustomerList = Record<string, string>;
 type GraphData = { month: string, [key: string]: number | string };
 type CheckItem = {
@@ -28,6 +34,7 @@ const CustomerTrendKaeru: React.FC = () => {
   // ⚠️ token / authority は顧客詳細（InformationEditKaeru）に渡すために取る
   const { category, token, authority } = useContext(AuthContext);
   const [originalUserData, setOriginalUserData] = useState<CustomerList[]>([]);
+  const [mediumList, setMediumList] = useState<MediumType[]>([]);
   const [graphCategory, setGraphCategory] = useState('register');
   const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
   const [startMonth, setStartMonth] = useState(startMonthValue);
@@ -78,14 +85,8 @@ const CustomerTrendKaeru: React.FC = () => {
           medium: 'その他'
         }) : r);
         setOriginalUserData(responseCustomer);
-        /**
-         * ⚠️ `response.data.medium`（medium_kaeru）は**使っていない**。
-         *   2026-09-11 にグラフの系列を表に合わせた際、表示する媒体が
-         *   `displayMediums`（SUUMO / HOME'S / ALLGRIT / アットホーム）の
-         *   固定4つになったため。
-         *   ⚠️ **サーバ側の SELECT は消さないこと。** ① の PHP が返しており、
-         *     応答の形を変えるとフォールバック時に差が出る。
-         */
+        // ⚠️ show_graph で表・グラフに出す媒体を決める（下の displayMediums）
+        setMediumList(response.data.medium);
         setOriginalShopArray(response.data.shop);
         setBudget(response.data.budget);
       } catch (error) {
@@ -276,7 +277,44 @@ const CustomerTrendKaeru: React.FC = () => {
     return !isPortalMatch;
   };
 
-  const displayMediums = ['SUUMO', `HOME'S`, 'ALLGRIT', 'アットホーム'];
+  /**
+   * 表の行とグラフの系列に出す販促媒体。
+   *
+   * ─────────────────────────────────────────────
+   * ⚠️⚠️ **2026-09-11 に直書きをやめ、DB（medium_kaeru.show_graph）に移した。**
+   *   以前は
+   *     const displayMediums = ['SUUMO', `HOME'S`, 'ALLGRIT', 'アットホーム'];
+   *   と書いていた。媒体の増減は運用側で起こるため直書きは必ず腐る。
+   *
+   * ⚠️⚠️ **`mediumFormate()` を通してから配列にすること。**
+   *   DB の実データは `公式LINE` / `athome` だが、画面の表示名と
+   *   下の突き合わせ（`o.hp_campaign?.includes(medium)`）は
+   *   `ALLGRIT` / `アットホーム` を前提にしている。
+   *   生値のまま入れると、hp_campaign 側の一致が取れなくなり
+   *   **数字が静かに減る**。
+   *
+   * ⚠️ 並び順は sort_key。グラフの色は添字で決まるので、
+   *   sort_key を変えると**色の対応が変わる**。
+   *
+   * ⚠️ `isHp()` のポータル一覧（タウンライフ・カゴスマを含む）は別物で、
+   *   ここには連動しない。あちらは「HP反響かどうか」の判定であり、
+   *   表に出すかどうかとは目的が違う。
+   *
+   * ⚠️⚠️ **SQL を先に実行すること。** `show_graph` 列がまだ無いと
+   *   `Number(undefined)` が NaN になって**空配列**になり、
+   *   表は「全販促媒体 / ホームページ反響計」の2行だけ、
+   *   グラフは1系列だけになる。**エラーは出ない。**
+   *   フロントより先に backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql
+   *   を流すこと。
+   * ─────────────────────────────────────────────
+   */
+  const displayMediums = useMemo(() =>
+    mediumList
+      .filter(m => Number(m.show_graph) === 1)
+      .sort((a, b) => (Number(a.sort_key) || 0) - (Number(b.sort_key) || 0))
+      .map(m => mediumFormate(m.medium)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mediumList]);
 
   const hpMediums = ['会員登録', '資料請求', '来場予約', '先取物件', 'その他'];
 
@@ -358,6 +396,9 @@ const CustomerTrendKaeru: React.FC = () => {
    * ⚠️ **「全販促媒体」は入れないこと。** 合計なので、積み上げると二重に数える。
    * ⚠️ HP内訳（showSummary）も入れない。切り替えるたびに系列数が変わり、
    *   色の対応が動いて読めなくなる。
+   *
+   * ⚠️ `displayMediums` は medium_kaeru.show_graph 由来なので、
+   *   DB を直せば表もグラフも同時に変わる。片方だけ変わることはない。
    */
   const graphSeries = ['ホームページ反響計', ...displayMediums];
 
@@ -381,8 +422,9 @@ const CustomerTrendKaeru: React.FC = () => {
         ])
       )
     }));
+    // ⚠️ displayMediums（＝show_graph）が変われば系列も変わるので依存に入れる
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userData, monthArray, graphCategory, checked.graph.show, showSummary]);
+  }, [userData, monthArray, graphCategory, checked.graph.show, showSummary, displayMediums]);
 
   /**
    * 数字のセルの見た目。
@@ -513,8 +555,9 @@ const CustomerTrendKaeru: React.FC = () => {
             onClick={() => setGraphCategory('contact')}>接触数推移</div>
           <div className="btn bg-success text-white px-4 rounded-pill mx-2" style={{ fontSize: '12px', letterSpacing: '1px', transform: graphCategory === 'interview' ? 'scale(1.1)' : '', opacity: graphCategory === 'interview' ? '1' : '.3' }}
             onClick={() => setGraphCategory('interview')}>来場数推移</div>
-          <div className="btn bg-info text-white px-4 rounded-pill mx-2" style={{ fontSize: '12px', letterSpacing: '1px', transform: graphCategory === 'tour' ? 'scale(1.1)' : '', opacity: graphCategory === 'tour' ? '1' : '.3' }}
-            onClick={() => setGraphCategory('tour')}>物件案内数推移</div>
+          {/* ⚠️ 「物件案内数推移」は KPI から外したためボタンを消した（2026-09-11）。
+                getValue の 'tour' の扱いは残してある。interviewKeys に
+                ['interview', 'tour'] として入っており、来場の判定に使っている */}
           <div className="btn bg-danger text-white px-4 rounded-pill mx-2" style={{ fontSize: '12px', letterSpacing: '1px', transform: graphCategory === 'contract' ? 'scale(1.1)' : '', opacity: graphCategory === 'contract' ? '1' : '.3' }}
             onClick={() => setGraphCategory('contract')}>契約数推移</div>
         </div>
