@@ -133,7 +133,9 @@ const Menu = ({ key, onReload }: Props) => {
         { id: 'rank', path: '/rank', icon: 'fa-person', label: '店舗・担当別反響', show: category !== 'planner', exact: true },
         { id: 'map', path: '/map', icon: 'fa-map', label: '反響MAP', show: category !== 'planner', exact: true },
         { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && category === 'order', exact: true },
-        { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && category === 'order', exact: true },
+        // ⚠️ 建売（spec）も 2026-09-11 から表示する（ShopKaeru.tsx を追加したため）。
+        //   ⚠️ `used`（中古）は画面が無いので出さない。
+        { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
         { id: 'property_used', path: '/property', icon: 'fa-house', label: '掲載物件一覧', show: category === 'planner', exact: false },
         { id: 'broker', path: '/broker', icon: 'fa-house', label: '媒介獲得台帳', show: category === 'planner', exact: false },
         { id: 'customerTrend', path: '/customerTrend', icon: 'fa-chart-bar', label: '販促媒体別反響推移', show: !isSp && (category === 'order' || category === 'spec'), exact: true },

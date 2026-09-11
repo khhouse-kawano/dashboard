@@ -443,16 +443,25 @@ const ShopOrder = () => {
                     <div className="mb-4">
                         <div className="text-center mb-2" style={{ fontSize: '12px' }}>店舗別 単価比較</div>
                         {/* ⚠️ 店舗数だけ横に伸びるので高さを固定し、店舗名は縦に倒す */}
-                        <ResponsiveContainer width="100%" height={420}>
-                            <BarChart data={graphData} margin={{ top: 8, right: 16, left: 24, bottom: 80 }}>
+                        <ResponsiveContainer width="100%" height={480}>
+                            <BarChart data={graphData} margin={{ top: 8, right: 16, left: 24, bottom: 120 }}>
                                 <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
+                                {/**
+                                  * ⚠️⚠️ **`angle={-90}` にすること。** `90` だと文字が
+                                  *   上から下へ向き、日本語の店舗名が読みにくい。
+                                  *   -90 で**下から上に向かって**読める向きになる。
+                                  * ⚠️ `textAnchor="end"` を外さないこと。回転の基点がずれて
+                                  *   ラベルが軸から離れる。
+                                  * ⚠️ 縦にした分ラベルが高くなるので、`height` と
+                                  *   `margin.bottom` も合わせて広げてある。
+                                  */}
                                 <XAxis
                                     dataKey="shop"
-                                    fontSize={10}
+                                    fontSize={11}
                                     interval={0}
-                                    angle={-45}
+                                    angle={-90}
                                     textAnchor="end"
-                                    height={80}
+                                    height={120}
                                 />
                                 {/* ⚠️ Y軸は円。3桁区切りにしないと桁が読めない */}
                                 <YAxis

@@ -418,10 +418,12 @@ const ShopKaeru = () => {
                 {showGraph && (
                     <div className="mb-4">
                         <div className="text-center mb-2" style={{ fontSize: '12px' }}>店舗別 単価比較</div>
-                        <ResponsiveContainer width="100%" height={420}>
-                            <BarChart data={graphData} margin={{ top: 8, right: 16, left: 24, bottom: 80 }}>
+                        <ResponsiveContainer width="100%" height={480}>
+                            <BarChart data={graphData} margin={{ top: 8, right: 16, left: 24, bottom: 120 }}>
                                 <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
-                                <XAxis dataKey="shop" fontSize={10} interval={0} angle={-45} textAnchor="end" height={80} />
+                                {/* ⚠️ `-90` で下から上に読める向きになる。`90` だと上から下で読みにくい。
+                                       ⚠️ textAnchor="end" を外すと軸から離れる */}
+                                <XAxis dataKey="shop" fontSize={11} interval={0} angle={-90} textAnchor="end" height={120} />
                                 {/* ⚠️ Y軸は円。3桁区切りにしないと桁が読めない */}
                                 <YAxis fontSize={11} tickFormatter={(v: number) => `¥${v.toLocaleString()}`} width={80} />
                                 <ChartTooltip
