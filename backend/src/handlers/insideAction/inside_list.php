@@ -1,7 +1,19 @@
 <?php
 
 // 架電情報
-$sql_call = "SELECT * FROM call_sheet WHERE shop IN ('KH熊本店', 'KH八代店', 'JH熊本店', 'JH八代店');";
+//
+// ⚠️⚠️ 対象店舗は backend-express/src/features/inside.ts の TARGET_SHOPS と
+//   **同じ内容にしておくこと。** 片方だけ直すと、転送に失敗して ① に
+//   フォールバックしたときに対象店舗が食い違う。
+//
+// ⚠️⚠️ **'PG HOUSE霧島店' は表記ゆれである。消さないこと。**
+//   2026-09-11 に実データを数えたところ
+//     PGH霧島店      … 222件
+//     PG HOUSE霧島店 … 1件
+//   の2通りが入っていた。'PGH霧島店' だけにすると1件が漏れる（エラーは出ない）。
+//   ⚠️ 本来はデータを直すのが筋。call_sheet を 'PGH霧島店' に UPDATE したら
+//     この行を消してよい。直すまでは残すこと。
+$sql_call = "SELECT * FROM call_sheet WHERE shop IN ('KH熊本店', 'KH八代店', 'JH熊本店', 'JH八代店', 'PGH霧島店', 'PG HOUSE霧島店');";
 $stmt_call = $pdo->prepare($sql_call);
 $stmt_call->execute();
 $response_call = $stmt_call->fetchAll(PDO::FETCH_ASSOC);

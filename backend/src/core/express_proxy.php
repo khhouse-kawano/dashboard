@@ -342,6 +342,19 @@ function expressProxyRequests(): array
         'shop::',
         'shop::order',
         'shop::spec',
+
+        // -----------------------------------------------------------------
+        // 2026-09-11 移植。インサイドセールスの架電一覧
+        // （insideSales/InsideSales.tsx）。
+        //
+        // ⚠️ 参照のみ。① に inside.php / insideAction/inside_list.php が
+        //   実在するのでフォールバックしてよい。
+        //
+        // ⚠️ roll は 'list' だけ。① の inside.php も 'list' しか許可していない。
+        //   ⚠️ 将来 roll を増やすときは ② の registry.ts への登録を先に済ませること。
+        //     登録漏れがあると ② が「ループ検知」で 502 を返す。
+        // -----------------------------------------------------------------
+        'inside:list',
     ];
 }
 

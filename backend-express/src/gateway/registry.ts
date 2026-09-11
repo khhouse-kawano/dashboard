@@ -29,6 +29,7 @@ import { runList } from '../features/list';
 import { runShopTrend } from '../features/shopTrend';
 import { runCustomerTrend } from '../features/customerTrend';
 import { runShop } from '../features/shop';
+import { runInside } from '../features/inside';
 import {
   runListBlack,
   runListInsert,
@@ -1399,6 +1400,30 @@ for (const category of ['', 'order', 'spec']) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// インサイドセールスの架電一覧（insideSales/InsideSales.tsx）
+//
+// ⚠️ 参照のみ。① に inside.php / insideAction/inside_list.php が実在するので
+//   フォールバックしてよい。
+//
+// ⚠️ roll は 'list' だけ。① の inside.php も 'list' しか許可していない。
+// ⚠️ 対象店舗は features/inside.ts の TARGET_SHOPS。
+//   ⚠️ ① の inside_list.php にも同じ内容がある。片方だけ直さないこと。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'inside',
+  roll: 'list',
+  summary: 'インサイドセールスの架電一覧と担当者',
+  phpSource: 'backend/src/handlers/insideAction/inside_list.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInside(ctx.body.roll);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
 
 // ---------------------------------------------------------------------------
 // 会社実績（company/Company.tsx）
