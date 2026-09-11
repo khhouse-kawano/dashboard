@@ -320,6 +320,28 @@ function expressProxyRequests(): array
         'customerTrend::',
         'customerTrend::order',
         'customerTrend::spec',
+
+        // -----------------------------------------------------------------
+        // 2026-09-11 移植。店舗ランキング（shop/ShopOrder.tsx / ShopKaeru.tsx）。
+        //
+        // ⚠️ 参照のみ。
+        //
+        // ⚠️⚠️ **order と spec で ① の状況が違う。**
+        //     order … ① に shopAction/shop_order.php が実在する
+        //             → 転送に失敗しても ① で処理できる
+        //     spec  … ① に shopAction/shop_spec.php は**無い**
+        //             → 転送に失敗すると 500（require 失敗）になる。
+        //               ⚠️ ② が落ちると建売の店舗ランキングは見られない。
+        //               利用者と相談のうえ ① には作らない方針（2026-09-11）。
+        //
+        // ⚠️⚠️ **request 名だけで書いてはいけない。** `used` が
+        //   ② に登録されていない（画面も ① の PHP も無い）。
+        //   request 名だけで書くと used も ② へ送られ、
+        //   ② が「ループ検知」で 502 を返して無駄な往復が起きる。
+        // -----------------------------------------------------------------
+        'shop::',
+        'shop::order',
+        'shop::spec',
     ];
 }
 

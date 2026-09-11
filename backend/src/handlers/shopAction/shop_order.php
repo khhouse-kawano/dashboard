@@ -1,7 +1,15 @@
 <?php
 
 // 店舗
-$sql_shop = "SELECT shop, section, area
+// ⚠️ id / brand / division は 2026-09-11 に追加。
+//   ⚠️ ShopOrder.tsx は `key={value.id ?? ...}` で id を使っていたが、
+//     **ここが返していなかったため常に undefined だった**（動いてはいた）。
+//   ⚠️ 店舗の並び替え（sortShops）に division と id が要る。
+//   ⚠️ backend-express/src/features/shop/queries.ts の SHOP_SQL.order と
+//     必ず同じ列にしておくこと。違うとフォールバック時に並びが崩れる。
+// ⚠️ multi / parent_shop は ShopOrder.tsx の「併売店をまとめる」が使う。
+//   無いとフォールバック時に**まとめが黙って効かなくなる**。
+$sql_shop = "SELECT id, brand, shop, section, area, division, multi, parent_shop
         FROM shop_list WHERE division = '注文事業'";
 $stmt_shop = $pdo->prepare($sql_shop);
 $stmt_shop->execute();
