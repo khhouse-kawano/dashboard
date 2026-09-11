@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import axios from "axios";
 import AuthContext from '../../context/AuthContext';
 import Table from "react-bootstrap/Table";
@@ -27,7 +27,12 @@ import InterviewLog from '../InterviewLog';
 import { thisYear } from '../../utils/thisYear';
 import apiClient from '../../utils/apiClient';
 
-type Shop = { brand: string; shop: string; section: string; area: string; }
+/**
+ * 店舗。
+ * ⚠️ `multi` / `parent_shop` は shop_list 由来で、「併売店をまとめる」にだけ使う。
+ *   ⚠️ `sections`（課を店舗に見立てた配列）にはこの2つが無いため任意にしている。
+ */
+type Shop = { brand: string; shop: string; section: string; area: string; multi?: number; parent_shop?: string | null; }
 type Customer = { id: string, shop: string, customer: string, staff: string, status: string, contract: string, rank: string, medium: string, interview: string, register: string, reserved_interview: string, appointment: string, screening: string };
 type Medium = { id: number; medium: string, list_medium: number };
 type Staff = { name: string; shop: string; rank: number, section: string };
@@ -110,6 +115,54 @@ const ShopTrendOrder = () => {
 
     const [editId, setEditId] = useState('');
 
+    /**
+     * 併売店をまとめるか。
+     *
+     * ⚠️ 親店舗（shop_list.parent_shop）は**利用者が手作業で設定する**。
+     *   1件も設定されていなければ、ONにしても表示・集計は一切変わらない
+     *   （＝既定の挙動を壊さない）。
+     */
+    const [showMulti, setShowMulti] = useState<boolean>(false);
+
+    /**
+     * 親店舗名 → まとめ先に吸収する子店舗名の一覧。
+     *
+     * ⚠️⚠️ **親が注文事業の店舗一覧に居ない場合は対象外にする。**
+     *   `shop_list` は事業をまたいで1つのテーブルなので、`parent_shop` に
+     *   他事業の店舗名が入り得る。そのまま子を隠すと、**どの行にも合算されず
+     *   数字が消える**（合計だけ合わなくなり、気づきにくい）。
+     */
+    const multiChildren = useMemo(() => {
+        const shopNames = new Set(originalShopArray.map(s => s.shop));
+        const map = new Map<string, string[]>();
+        originalShopArray.forEach(s => {
+            const parent = s.parent_shop;
+            if (s.multi !== 1 || !parent || !shopNames.has(parent) || parent === s.shop) return;
+            const children = map.get(parent) ?? [];
+            children.push(s.shop);
+            map.set(parent, children);
+        });
+        return map;
+    }, [originalShopArray]);
+
+    /** まとめON時に行として消える側（子店舗）の集合 */
+    const mergedChildShops = useMemo(() => {
+        const set = new Set<string>();
+        multiChildren.forEach(children => children.forEach(child => set.add(child)));
+        return set;
+    }, [multiChildren]);
+
+    /**
+     * その店舗行が集計対象とする店舗名の一覧。
+     * まとめOFF、または子を持たない店舗では `[shopName]` のままなので、
+     * 呼び出し側の既存ロジックは変わらない。
+     */
+    const shopNamesOf = (shopName: string): string[] =>
+        showMulti ? [shopName, ...(multiChildren.get(shopName) ?? [])] : [shopName];
+
+    /** その店舗を行・選択肢として表示してよいか */
+    const isVisibleShop = (shopName: string): boolean => !(showMulti && mergedChildShops.has(shopName));
+
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -181,6 +234,8 @@ const ShopTrendOrder = () => {
     const showSummary = (title: string) => {
         setShow(true);
         const sectionShops = originalShopArray.filter(o => o.section === title).map(o => o.shop);
+        // ⚠️ サマリも表の数字と一致させる。まとめOFFなら [title] のままなので従来どおり
+        const summaryShops = shopNamesOf(title);
         const filtered: ResponseData[] = monthArray.map(m => {
             const matchTarget = (c: Customer) =>
                 title === '注文営業'
@@ -189,7 +244,7 @@ const ShopTrendOrder = () => {
                         ? sectionShops.includes(c.shop)
                         : sectionArray.includes(title)
                             ? sectionShops.includes(c.shop)
-                            : c.shop === title;
+                            : summaryShops.includes(c.shop);
 
             const registerValue = originalCustomerList.filter(c => formate(c.register).includes(m) && matchTarget(c)).length;
             const reserveValue = originalCustomerList.filter(c => (c.interview.includes(m) || c.reserved_interview?.replace(/-/g, '/').includes(m)) && matchTarget(c)).length;
@@ -390,7 +445,7 @@ const ShopTrendOrder = () => {
                             setTargetShop(e.target.value);
                         }}>
                             <option value="">店舗を選択</option>
-                            {originalShopArray.filter(shop => !shop.shop?.includes('店舗未設定')).map(shop =>
+                            {originalShopArray.filter(shop => !shop.shop?.includes('店舗未設定') && isVisibleShop(shop.shop)).map(shop =>
                                 <option value={shop.shop} selected={shop.shop === targetShop}>{shop.shop}</option>
                             )}
                         </select>
@@ -405,6 +460,12 @@ const ShopTrendOrder = () => {
                             </label>
                         </div>
                     })}
+                    <div className="m-1">
+                        <label className="target checkbox d-flex align-items-center">
+                            <input type="checkbox" checked={showMulti} className='me-1'
+                                onChange={() => setShowMulti(prev => !prev)} />併売店をまとめる
+                        </label>
+                    </div>
                 </div>
                 {targetMedium === 'all' && <>
                     <div style={{ fontSize: '12px' }}>表示する販促媒体を選択</div>
@@ -431,11 +492,13 @@ const ShopTrendOrder = () => {
                                             <td className='sticky-column text-center' style={{ width: '120px' }}>店舗名</td>
                                             {['全期間', ...monthArray].map(month => <td>{month}</td>)}
                                         </tr>
-                                        {[{ name: targetShop, shop: targetShop, rank: 1 }, ...staff].filter(s => s.rank === 1 && s.shop === targetShop).map((item, staffIndex) =>
+                                        {[{ name: targetShop, shop: targetShop, rank: 1 }, ...staff].filter(s => s.rank === 1 && shopNamesOf(targetShop).includes(s.shop)).map((item, staffIndex) =>
                                             <tr>
                                                 <td className='align-middle  sticky-column text-center'>{item.name}</td>
                                                 {['全期間', ...monthArray].map((month, monthIndex) => {
-                                                    const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name : c.shop === targetShop));
+                                                    // ⚠️ まとめON かつ targetShop が親店舗のときだけ、子店舗の顧客も含める
+                                                    const targetShops = shopNamesOf(targetShop);
+                                                    const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name : targetShops.includes(c.shop)));
                                                     const total = getValue(base, monthIndex, month, 'register');
                                                     const interview = getValue(base, monthIndex, month, 'interview');
                                                     const contract = getValue(base, monthIndex, month, 'contract');
@@ -495,8 +558,19 @@ const ShopTrendOrder = () => {
                                                 area: ''
                                             },
                                             ...(targetSection !== 'all' ? shopArray : sections)
-                                        ].filter(shop => !shop.shop.includes('店舗未設定') && !shop.shop.includes('FH')).map((target, targetIndex) => {
-                                            const staffLength = setStaffLength(staff, targetSection, target.section, target.shop, targetIndex, sectionNames).length;
+                                        ].filter(shop => !shop.shop.includes('店舗未設定') && !shop.shop.includes('FH')
+                                            // ⚠️ 課の行（targetSection === 'all'）は店舗ではないので、まとめの対象外
+                                            && (targetSection === 'all' || isVisibleShop(shop.shop))).map((target, targetIndex) => {
+                                            /**
+                                             * この行が集計対象とする店舗名。
+                                             * ⚠️ 2要素以上になるのは「まとめON かつ 親店舗の明細行」のときだけ。
+                                             *   それ以外は従来と完全に同じ経路（setSection / budgetFilter）を通す。
+                                             */
+                                            const mergeShops = shopNamesOf(target.shop);
+                                            const isMerged = targetIndex >= 1 && targetSection !== 'all' && mergeShops.length > 1;
+                                            const staffLength = isMerged
+                                                ? mergeShops.reduce((acc, s) => acc + setStaffLength(staff, targetSection, target.section, s, targetIndex, sectionNames).length, 0)
+                                                : setStaffLength(staff, targetSection, target.section, target.shop, targetIndex, sectionNames).length;
                                             return <>
                                                 <tr>
                                                     <td className='align-middle  sticky-column text-center' rowSpan={checked.budget.show ? 2 : 1}>
@@ -509,7 +583,9 @@ const ShopTrendOrder = () => {
                                                     </td>
                                                     {['全期間', ...monthArray].map((month, monthIndex) => {
                                                         const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
-                                                        const base = setSection(customerList, targetSection, target.section, target.shop, targetIndex, sectionShops);
+                                                        const base = isMerged
+                                                            ? customerList.filter(c => mergeShops.includes(c.shop))
+                                                            : setSection(customerList, targetSection, target.section, target.shop, targetIndex, sectionShops);
                                                         const total = getValue(base, monthIndex, month, 'register');
                                                         const interview = getValue(base, monthIndex, month, 'interview');
                                                         const contract = getValue(base, monthIndex, month, 'contract');
@@ -569,15 +645,29 @@ const ShopTrendOrder = () => {
                                                             && (monthIndex > 0 ? b.budget_period.includes(month) : monthArray.includes(b.budget_period.slice(0, 7)))
                                                             && (targetBrand ? b.shop.slice(0, 2) === targetBrand.slice(0, 2) : true)
                                                             && (targetMedium ? b.medium === targetMedium : true));
-                                                        const filteredBudget = budgetFilter(baseBudget, targetSection, target.shop, targetIndex);
+                                                        /**
+                                                         * ⚠️⚠️ **広告費も子店舗の分を足すこと。**
+                                                         *   顧客だけ親に寄せて販促費を親の分だけにすると、
+                                                         *   反響単価・来場単価・契約単価が**実際より安く**出る。
+                                                         *   ⚠️ company/Company.tsx では予算を合算していないが、
+                                                         *     あちらは input で編集する値なので二重計上を避けたため。
+                                                         *     ここは表示専用なので合算が正しい。
+                                                         */
+                                                        const filteredBudget = isMerged
+                                                            ? mergeShops.flatMap(s => budgetFilter(baseBudget, targetSection, s, targetIndex))
+                                                            : budgetFilter(baseBudget, targetSection, target.shop, targetIndex);
                                                         const formattedValue = filteredBudget.reduce((acc, cur) => acc + cur.budget_value, 0);
                                                         const base = customerList.filter(item => (monthIndex >= 1 ? item.register.includes(month) : monthArray.includes(item.register.slice(0, 7))));
                                                         const lastYear = `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`
                                                         const lastYearMonthArray = monthArray.map(month => `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`);
                                                         const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
-                                                        const total = setSection(base, targetSection, target.section, target.shop, targetIndex, sectionShops);
+                                                        const total = isMerged
+                                                            ? base.filter(item => mergeShops.includes(item.shop))
+                                                            : setSection(base, targetSection, target.section, target.shop, targetIndex, sectionShops);
                                                         const baseLastYear = customerList.filter(item => (monthIndex >= 1 ? item.register.includes(lastYear) : monthArray.includes(item.register.slice(0, 7))));
-                                                        const totalLastYear = setSection(baseLastYear, targetSection, target.section, target.shop, targetIndex);
+                                                        const totalLastYear = isMerged
+                                                            ? baseLastYear.filter(item => mergeShops.includes(item.shop))
+                                                            : setSection(baseLastYear, targetSection, target.section, target.shop, targetIndex);
                                                         let formattedLastYearValue;
                                                         const isDisplayLastYear = (isLastYear(month) || monthIndex === 0) && checked.comparison.show;
                                                         const lastYearBudget = budgetList.filter(b =>
@@ -585,7 +675,9 @@ const ShopTrendOrder = () => {
                                                             && (monthIndex > 0 ? b.budget_period.includes(lastYear) : lastYearMonthArray.includes(b.budget_period.slice(0, 7)))
                                                             && (targetBrand ? b.shop.slice(0, 2) === targetBrand.slice(0, 2) : true)
                                                             && (targetMedium ? b.medium === targetMedium : true));
-                                                        const filteredLastYearBudget = budgetFilter(lastYearBudget, targetSection, target.shop, targetIndex);
+                                                        const filteredLastYearBudget = isMerged
+                                                            ? mergeShops.flatMap(s => budgetFilter(lastYearBudget, targetSection, s, targetIndex))
+                                                            : budgetFilter(lastYearBudget, targetSection, target.shop, targetIndex);
                                                         formattedLastYearValue = filteredLastYearBudget.reduce((acc, cur) => acc + cur.budget_value, 0);
                                                         return <td key={monthIndex} style={{ fontSize: '11px' }}>
                                                             {[{ label: '総額', color: '#c03442' }, { label: '反響単価', color: '#b02a37' }, { label: '来場単価', color: '#8a1e28' }, { label: '契約単価', color: '#64151c' }]
@@ -684,7 +776,7 @@ const ShopTrendOrder = () => {
                     </div>
                 </Modal.Body>
             </Modal>
-            <Modal show={listShow.show} onHide={modalClose} size='lg'>
+            <Modal show={listShow.show} onHide={modalClose} size='xl'>
                 <Modal.Header closeButton>{listShow.label}一覧</Modal.Header>
                 <ModalBody>
                     <Table bordered striped>
@@ -694,9 +786,11 @@ const ShopTrendOrder = () => {
                                 <td>顧客名</td>
                                 <td>店舗</td>
                                 <td>担当営業</td>
+                                <td>初回来場日</td>
                                 <td>ステータス</td>
                                 <td>ランク</td>
                                 <td>販促媒体</td>
+                                <td>商談ステップ</td>
                             </tr>
                             {modalList.slice(listPage * 10 - 10, listPage * 10).map((item, index) =>
                                 <tr key={index}>
@@ -704,9 +798,13 @@ const ShopTrendOrder = () => {
                                     <td><span onClick={() => setEditId(item.id)} style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{item.customer}</span></td>
                                     <td>{item.shop}</td>
                                     <td>{item.staff}</td>
+                                    {/* ⚠️ 未来場（来場予約・キャンセルの一覧）では空になるので '-' を出す */}
+                                    <td>{item.interview || '-'}</td>
                                     <td>{item.status}</td>
                                     <td>{item.rank}</td>
                                     <td>{item.medium}</td>
+                                    <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
+                                        onClick={() => setInterviewId(item.id)}>表示</div></td>
                                 </tr>)}
                         </tbody>
                     </Table>
@@ -729,6 +827,7 @@ const ShopTrendOrder = () => {
                     </div>
                 </ModalBody>
             </Modal>
+            <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </>
     )

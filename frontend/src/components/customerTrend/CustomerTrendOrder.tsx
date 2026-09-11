@@ -11,7 +11,7 @@ import Category from "../Category";
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
 type MediumType = { medium: string, category: string, sort_key: number, response_medium: number };
-type CustomerList = { id: string, shop: string, string; status: string, medium: string, interview: string, register: string, contract: string, hp_campaign: string, section: string, appointment: string, screening: string };
+type CustomerList = { id: string, shop: string, status: string, medium: string, interview: string, register: string, contract: string, hp_campaign: string, section: string, appointment: string, screening: string };
 type GraphData = { month: string, [key: string]: number | string };
 type CheckItem = {
     name: string;
