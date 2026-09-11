@@ -260,6 +260,8 @@ const ShopOrder = () => {
             const appointmentValue = filteredValue(value.shop, 'appointment', '');
             const contractValue = filteredValue(value.shop, 'contract', '');
             const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
+            // ⚠️ 次アポ率の分母は**来場数**。総反響ではない（歩留まりを1段ずつ見るため）
+            const perAppointment = isNaN(appointmentValue / reserveValue) ? 0 : Math.round((appointmentValue / reserveValue) * 100);
             const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
             /**
              * ⚠️⚠️ **広告費も子店舗の分を足す。**
@@ -282,6 +284,7 @@ const ShopOrder = () => {
                 appointmentValue,
                 contractValue,
                 perReserve,
+                perAppointment,
                 perContract,
                 staffValue,
                 rankSValue,
@@ -325,6 +328,7 @@ const ShopOrder = () => {
                     case 'total': default: return x.totalValue;
                     case 'perReserve': return x.perReserve;
                     case 'reserve': return x.reserveValue;
+                    case 'perAppointment': return x.perAppointment;
                     case 'perContract': return x.perContract;
                     case 'contract': return x.contractValue;
                     case 'S': return x.rankAValue;
@@ -466,17 +470,9 @@ const ShopOrder = () => {
                                         <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'total')}>▲</span>
                                         <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'total')}>▼</span>
                                     </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>来場者数/総反響数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>来場率</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perReserve')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perReserve')}>▼</span>
-                                    </td>
+                                    {/* ⚠️ 「数 → 率」の順に並べている。歩留まりを左から
+                                           総反響 → 来場 → 次アポ → 契約 と1段ずつ追えるようにするため。
+                                           ⚠️ 2026-09-11 に「率 → 数」から入れ替えた。順番を戻さないこと */}
                                     <td style={{ position: 'relative', textAlign: 'center' }}>
                                         <OverlayTrigger
                                             placement="top"
@@ -492,12 +488,34 @@ const ShopOrder = () => {
                                         <OverlayTrigger
                                             placement="top"
                                             overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>契約者数/来場者数</Tooltip>
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>来場者数/総反響数</Tooltip>
                                             }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約率</span>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>来場率</span>
                                         </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perContract')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perContract')}>▼</span>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perReserve')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perReserve')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>
+                                        <OverlayTrigger
+                                            placement="top"
+                                            overlay={
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち次アポ（次回アポイント・資金審査・契約のいずれか）がある方の数</Tooltip>
+                                            }>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>次アポ数</span>
+                                        </OverlayTrigger>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'appointment')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'appointment')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>
+                                        <OverlayTrigger
+                                            placement="top"
+                                            overlay={
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>次アポ数/来場者数</Tooltip>
+                                            }>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>次アポ率</span>
+                                        </OverlayTrigger>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perAppointment')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perAppointment')}>▼</span>
                                     </td>
                                     <td style={{ position: 'relative', textAlign: 'center' }}>
                                         <OverlayTrigger
@@ -509,6 +527,17 @@ const ShopOrder = () => {
                                         </OverlayTrigger>
                                         <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'contract')}>▲</span>
                                         <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'contract')}>▼</span>
+                                    </td>
+                                    <td style={{ position: 'relative', textAlign: 'center' }}>
+                                        <OverlayTrigger
+                                            placement="top"
+                                            overlay={
+                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>契約者数/来場者数</Tooltip>
+                                            }>
+                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約率</span>
+                                        </OverlayTrigger>
+                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perContract')}>▲</span>
+                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perContract')}>▼</span>
                                     </td>
                                     {['S', 'A', 'B', 'C'].map(item =>
                                         <td style={{ position: 'relative', textAlign: 'center' }}>
@@ -557,8 +586,10 @@ const ShopOrder = () => {
                                         value,
                                         totalValue,
                                         reserveValue,
+                                        appointmentValue,
                                         contractValue,
                                         perReserve,
+                                        perAppointment,
                                         perContract,
                                         staffValue,
                                         rankSValue,
@@ -580,10 +611,13 @@ const ShopOrder = () => {
                                             <td className='sticky-column' style={{ textAlign: 'center' }}>{value.shop}</td>
                                             <td style={{ textAlign: 'center' }}>{staffValue}</td>
                                             <td style={{ textAlign: 'center' }}>{totalValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{perReserve}%</td>
+                                            {/* ⚠️ 見出しと同じ「数 → 率」の順。片方だけ直すと列がずれる */}
                                             <td style={{ textAlign: 'center' }}>{reserveValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{perContract}%</td>
+                                            <td style={{ textAlign: 'center' }}>{perReserve}%</td>
+                                            <td style={{ textAlign: 'center' }}>{appointmentValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{perAppointment}%</td>
                                             <td style={{ textAlign: 'center' }}>{contractValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{perContract}%</td>
                                             <td style={{ textAlign: 'center' }}>{rankSValue.toLocaleString()}</td>
                                             <td style={{ textAlign: 'center' }}>{rankAValue.toLocaleString()}</td>
                                             <td style={{ textAlign: 'center' }}>{rankBValue.toLocaleString()}</td>

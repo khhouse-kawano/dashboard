@@ -76,7 +76,25 @@ const UnitPriceGraphModal: React.FC<Props> = ({ show, onHide, data, series, titl
             dialogClassName={isFullscreen ? 'modal-fullscreen' : ''}
             contentClassName={isFullscreen ? 'h-100 d-flex flex-column' : ''}
         >
-            <Modal.Header closeButton className="border-bottom-0 pb-0" style={{ fontSize: '14px' }}>
+            {/**
+              * ⚠️ 全画面のときは右上の × が本文から遠いので、見出しの隣にも閉じるボタンを置く。
+              *   ⚠️ `.modal-header` は justify-content: space-between のため、
+              *     そのままだとボタンが右端へ飛ぶ。左寄せに上書きしている（Header.tsx と同じ）。
+              */}
+            <Modal.Header
+                closeButton
+                className="border-bottom-0 pb-0 d-flex align-items-center gap-3 justify-content-start"
+                style={{ fontSize: '14px' }}
+            >
+                <button
+                    type="button"
+                    onClick={onHide}
+                    className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 fw-normal"
+                    style={{ fontSize: '12px' }}
+                >
+                    <i className="fa-solid fa-xmark" aria-hidden="true" />
+                    閉じる
+                </button>
                 <span className="fw-bold text-secondary">{title} 店舗別 単価比較</span>
             </Modal.Header>
             <Modal.Body className={isFullscreen ? 'flex-grow-1 d-flex flex-column' : ''} style={{ minHeight: 0 }}>
@@ -118,8 +136,17 @@ const UnitPriceGraphModal: React.FC<Props> = ({ show, onHide, data, series, titl
                                     tickFormatter={(v: number) => `¥${v.toLocaleString()}`}
                                     width={80}
                                 />
+                                {/**
+                                  * ⚠️⚠️ **`itemSorter={() => 0}` を外さないこと。**
+                                  *   recharts の Tooltip は既定で**値の降順**に並べ替えるため、
+                                  *   店舗ごとに反響単価と契約単価の順番が入れ替わり、
+                                  *   毎回どれがどれか読み直すことになる。
+                                  *   0 を返すと並べ替えが起きず、**Bar を宣言した順**
+                                  *   （反響 → 来場 → 次アポ → 契約）のまま表示される。
+                                  */}
                                 <ChartTooltip
                                     formatter={(v: number, name: string) => [`¥${Number(v).toLocaleString()}`, name]}
+                                    itemSorter={() => 0}
                                     contentStyle={{ fontSize: '12px' }}
                                 />
                                 {/* ⚠️ stackId は付けない。単価は足し合わせても意味がない */}
