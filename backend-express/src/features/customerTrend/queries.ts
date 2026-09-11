@@ -47,12 +47,16 @@ const STAFF_SQL: Record<CustomerTrendCategory, string | null> = {
 /**
  * 店舗。
  * ⚠️ order だけ `brand` / `area` を取り、`show_flag` で絞らない（PHP のまま）。
- * ⚠️ `multi` / `parent_shop` は今回の追加（併売店まとめ）。
+ *
+ * ⚠️⚠️ **`multi` / `parent_shop` は order にだけ足している。**
+ *   「併売店をまとめる」は注文事業だけの機能で、
+ *   **建売に併売店の概念は無い**（2026-09-11 に利用者が明言）。
+ *   spec に足しても使い道が無く、転送量が増えるだけである。
  */
 const SHOP_SQL: Record<CustomerTrendCategory, string> = {
   order: `SELECT shop, section, brand, area, multi, parent_shop
             FROM shop_list WHERE division = ?`,
-  spec: `SELECT shop, section, multi, parent_shop
+  spec: `SELECT shop, section
            FROM shop_list WHERE division = ? AND show_flag = 1`,
 };
 

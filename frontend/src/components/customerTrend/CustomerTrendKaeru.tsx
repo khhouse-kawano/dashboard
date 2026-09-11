@@ -11,12 +11,7 @@ import { chartColors } from "./utils";
 import CustomerListModal from "../CustomerListModal";
 import InformationEditKaeru from "../information/InformationEditKaeru";
 
-/**
- * 店舗。
- * ⚠️ `multi` / `parent_shop` は shop_list 由来で、「併売店をまとめる」にだけ使う。
- *   ⚠️ `multi` は DB から文字列で来ることがあるため Number() で比べること。
- */
-type Shop = { brand: string; shop: string; section: string; area: string; multi?: number | string; parent_shop?: string | null; }
+type Shop = { brand: string; shop: string; section: string; area: string; }
 type MediumType = { medium: string, category: string, sort_key: number, response_medium: number };
 type CustomerList = Record<string, string>;
 type GraphData = { month: string, [key: string]: number | string };
@@ -33,7 +28,6 @@ const CustomerTrendKaeru: React.FC = () => {
   // ⚠️ token / authority は顧客詳細（InformationEditKaeru）に渡すために取る
   const { category, token, authority } = useContext(AuthContext);
   const [originalUserData, setOriginalUserData] = useState<CustomerList[]>([]);
-  const [mediumList, setMediumList] = useState<MediumType[]>([]);
   const [graphCategory, setGraphCategory] = useState('register');
   const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
   const [startMonth, setStartMonth] = useState(startMonthValue);
@@ -58,13 +52,6 @@ const CustomerTrendKaeru: React.FC = () => {
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
 
-  /**
-   * 併売店をまとめるか。
-   * ⚠️ 親店舗（shop_list.parent_shop）は**利用者が手作業で設定する**。
-   *   1件も設定されていなければ、ONにしても表示・集計は一切変わらない。
-   */
-  const [showMulti, setShowMulti] = useState<boolean>(false);
-
   /** 顧客一覧モーダル。label は「実来場」などの見出し */
   const [listShow, setListShow] = useState<{ show: boolean, label: string, list: CustomerList[] }>({
     show: false, label: '', list: []
@@ -86,13 +73,19 @@ const CustomerTrendKaeru: React.FC = () => {
     const fetchData = async () => {
       try {
         const response = await apiClient.post("/", { request: 'customerTrend', category });
-        const filteredMedium = response.data.medium;
         const responseCustomer = response.data.customer.map(r => !r.medium ? ({
           ...r,
           medium: 'その他'
         }) : r);
         setOriginalUserData(responseCustomer);
-        setMediumList(filteredMedium);
+        /**
+         * ⚠️ `response.data.medium`（medium_kaeru）は**使っていない**。
+         *   2026-09-11 にグラフの系列を表に合わせた際、表示する媒体が
+         *   `displayMediums`（SUUMO / HOME'S / ALLGRIT / アットホーム）の
+         *   固定4つになったため。
+         *   ⚠️ **サーバ側の SELECT は消さないこと。** ① の PHP が返しており、
+         *     応答の形を変えるとフォールバック時に差が出る。
+         */
         setOriginalShopArray(response.data.shop);
         setBudget(response.data.budget);
       } catch (error) {
@@ -108,16 +101,13 @@ const CustomerTrendKaeru: React.FC = () => {
    *
    *   以前は1つの useEffect の中で monthArray / sectionArray / userData /
    *   graphData を**まとめて setState** しており、依存配列から
-   *   `mediumArray` と `originalShopArray` と `originalMonthArray` が**抜けていた**。
+   *   `originalShopArray` と `originalMonthArray` が**抜けていた**。
    *   ⚠️ そのため graphData が1テンポ古い値で作られる場面があり、
    *     さらに setState が4回走るため再描画が重なって表示がもたついていた。
    *
    * ⚠️ **この変更で表示が変わる場面がある。** ズレが直る方向だが、
    *   「前は違う数字だった」と見える可能性がある。
    */
-
-  /** 販促媒体名の一覧 */
-  const mediumArray = useMemo(() => mediumList.map(f => f.medium), [mediumList]);
 
   /** 表示対象の年月。開始月・終了月で切り出す */
   const monthArray = useMemo(() => {
@@ -137,55 +127,22 @@ const CustomerTrendKaeru: React.FC = () => {
   }, [originalShopArray]);
 
   /**
-   * 親店舗名 → まとめ先に吸収する子店舗名の一覧。
-   *
-   * ⚠️⚠️ **親が建売分譲事業の店舗一覧に居ない場合は対象外にする。**
-   *   `shop_list` は事業をまたいで1つのテーブルなので、`parent_shop` に
-   *   他事業の店舗名が入り得る。そのまま子を隠すと、**どの行にも合算されず
-   *   数字が消える**（合計だけ合わなくなり、気づきにくい）。
-   */
-  const multiChildren = useMemo(() => {
-    const shopNames = new Set(originalShopArray.map(s => s.shop));
-    const map = new Map<string, string[]>();
-    originalShopArray.forEach(s => {
-      const parent = s.parent_shop;
-      if (Number(s.multi) !== 1 || !parent || !shopNames.has(parent) || parent === s.shop) return;
-      const children = map.get(parent) ?? [];
-      children.push(s.shop);
-      map.set(parent, children);
-    });
-    return map;
-  }, [originalShopArray]);
-
-  /** まとめON時に選択肢から消える側（子店舗）の集合 */
-  const mergedChildShops = useMemo(() => {
-    const set = new Set<string>();
-    multiChildren.forEach(children => children.forEach(child => set.add(child)));
-    return set;
-  }, [multiChildren]);
-
-  /** その店舗が集計対象とする店舗名の一覧。まとめOFFなら `[shopName]` のまま */
-  const shopNamesOf = (shopName: string): string[] =>
-    showMulti ? [shopName, ...(multiChildren.get(shopName) ?? [])] : [shopName];
-
-  /** その店舗を選択肢として表示してよいか */
-  const isVisibleShop = (shopName: string): boolean => !(showMulti && mergedChildShops.has(shopName));
-
-  /**
    * 絞り込み後の顧客。
    * ⚠️ `isDuplicate` が false のときだけ `show_dashboard = 1` に絞る。
    *   ⚠️ サーバ側で絞っていないのはこのためである（queries.ts のコメント参照）。
+   *
+   * ⚠️⚠️ **建売に併売店の概念は無い。** 注文（CustomerTrendOrder.tsx）には
+   *   「併売店をまとめる」があるが、こちらには**意図的に入れていない**。
+   *   同じ画面構成なので足したくなるが、足さないこと。
    */
   const userData = useMemo(() => {
     const sectionShops = originalShopArray.filter(o => o.section === targetSection).map(o => o.shop);
-    const targetShops = targetShop ? shopNamesOf(targetShop) : [];
     return originalUserData.filter(o =>
       (targetSection ? sectionShops.includes(o.shop) : true) &&
-      (targetShop ? targetShops.includes(o.shop) : true) &&
+      (targetShop ? o.shop === targetShop : true) &&
       (isDuplicate ? true : Number(o.show_dashboard) === 1)
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [originalUserData, originalShopArray, targetSection, targetShop, isDuplicate, showMulti, multiChildren]);
+  }, [originalUserData, originalShopArray, targetSection, targetShop, isDuplicate]);
 
   const formattedMonthArray = useMemo(() => {
     return isReverse ? [...monthArray].reverse() : [...monthArray];
@@ -309,6 +266,101 @@ const CustomerTrendKaeru: React.FC = () => {
     return base.filter(b => evaluateKPI(b, [target]));
   };
 
+  const isHp = (value: string) => {
+    // データが空（undefinedやnull）の時に.includesでクラッシュするのを防ぐ
+    if (!value) return false;
+
+    const portal = ['SUUMO', 'ALLGRIT', `HOME'S`, 'アットホーム', 'タウンライフ', 'カゴスマ'];
+    const isPortalMatch = portal.some(p => value.includes(p));
+
+    return !isPortalMatch;
+  };
+
+  const displayMediums = ['SUUMO', `HOME'S`, 'ALLGRIT', 'アットホーム'];
+
+  const hpMediums = ['会員登録', '資料請求', '来場予約', '先取物件', 'その他'];
+
+  /**
+   * その顧客が、表の「販促媒体名」の行に該当するか。
+   *
+   * ─────────────────────────────────────────────
+   * ⚠️⚠️ **表（summary）とグラフの両方がこの1つを使う。**
+   *   2026-09-11 まで、表はこの判定、グラフは
+   *   `mediumFormate(o.medium) === mediumFormate(値)` という**別の判定**を
+   *   使っていた。そのため hp_campaign 由来の反響がグラフでは
+   *   どの系列にも入らず、**表とグラフで数字が合わなかった**。
+   *
+   * ⚠️ 中身は表にあったものをそのまま関数へ出しただけで、**判定は変えていない。**
+   *
+   * ⚠️ `mediumIndex` は 0（全販促媒体）と 1（ホームページ反響計）だけを見る。
+   *   それ以外の行は値を問わないので、グラフからは 2 を渡している。
+   * ─────────────────────────────────────────────
+   */
+  const matchesMediumRow = (o: CustomerList, medium: string, mediumIndex: number): boolean => {
+    // 1. 全販促媒体
+    if (mediumIndex === 0) return true;
+
+    // --------------------------------------------------
+    // 【追加】このデータ(o)が displayMediums の「いずれか」に該当するか判定
+    // --------------------------------------------------
+    const isAnyDisplayMedium = displayMediums.some(dm => {
+      const isMatchMedium = mediumFormate(o.medium) === mediumFormate(dm);
+      const isMatchCampaign = o.hp_campaign?.includes(dm) ?? false;
+      return isMatchMedium || isMatchCampaign;
+    });
+
+    // --------------------------------------------------
+    // displayMediums を選択中の場合の判定
+    // --------------------------------------------------
+    if (displayMediums.includes(medium)) {
+      // 選択中の媒体(medium)に合致するかどうかだけを返す
+      const isMatchMedium = mediumFormate(o.medium) === mediumFormate(medium);
+      const isMatchCampaign = o.hp_campaign?.includes(medium) ?? false;
+      return isMatchMedium || isMatchCampaign;
+    }
+
+    // --------------------------------------------------
+    // 【修正】HPグループの判定
+    // 条件: 「displayMediums に該当しない（!isAnyDisplayMedium）」かつ「HP系の条件を満たす」
+    // --------------------------------------------------
+    const isHpGroup = !isAnyDisplayMedium && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign);
+
+    // 2. ホームページ反響計（合計）
+    if (mediumIndex === 1) return isHpGroup;
+
+    // 3. showSummary 表示時の HP内訳（hpMediums の要素）
+    if (showSummary && hpMediums.includes(medium)) {
+      if (!isHpGroup) return false; // HPグループ以外は弾く
+
+      // HP反響の「その他」
+      if (medium === 'その他') {
+        const mainHpKeywords = ['会員登録', '資料請求', '来場予約', '先取物件'];
+        // キャンペーン名が無い、または主要キーワードが含まれていない場合は全て「その他」へ
+        return !o.hp_campaign || !mainHpKeywords.some(keyword => o.hp_campaign.includes(keyword));
+      }
+
+      // それ以外のHP内訳（会員登録、資料請求など）
+      return o.hp_campaign?.includes(medium) ?? false;
+    }
+
+    // 4. その他の通常の媒体
+    // HPグループに吸収されたデータは除外し、媒体名が一致するものだけを抽出
+    return !isHpGroup && mediumFormate(o.medium) === mediumFormate(medium);
+  };
+
+  /**
+   * グラフの系列。
+   *
+   * ⚠️⚠️ **表の行と同じにしている（2026-09-11）。**
+   *   以前は `medium_kaeru` の全媒体を系列にしており、表には無い媒体が並んで
+   *   数字が突き合わせられなかった。
+   *
+   * ⚠️ **「全販促媒体」は入れないこと。** 合計なので、積み上げると二重に数える。
+   * ⚠️ HP内訳（showSummary）も入れない。切り替えるたびに系列数が変わり、
+   *   色の対応が動いて読めなくなる。
+   */
+  const graphSeries = ['ホームページ反響計', ...displayMediums];
+
   /**
    * 積み上げ棒グラフのデータ。⚠️ グラフ非表示のときは作らない（重いため）
    *
@@ -322,14 +374,15 @@ const CustomerTrendKaeru: React.FC = () => {
     return monthArray.map(monthValue => ({
       month: monthValue,
       ...Object.fromEntries(
-        mediumArray.map(mediumValue => [mediumValue,
+        graphSeries.map(seriesName => [seriesName,
           getValue(userData, monthArray.indexOf(monthValue) + 1, monthValue, graphCategory)
-            .filter(item => formate(item.medium) === formate(mediumValue)).length
+            // ⚠️ 表と同じ判定を使う。'ホームページ反響計' だけ mediumIndex = 1 相当
+            .filter(item => matchesMediumRow(item, seriesName, seriesName === 'ホームページ反響計' ? 1 : 2)).length
         ])
       )
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userData, monthArray, mediumArray, graphCategory, checked.graph.show]);
+  }, [userData, monthArray, graphCategory, checked.graph.show, showSummary]);
 
   /**
    * 数字のセルの見た目。
@@ -420,7 +473,7 @@ const CustomerTrendKaeru: React.FC = () => {
             setTargetShop(e.target.value);
           }}>
             <option value="">店舗を選択</option>
-            {originalShopArray.filter(shop => !shop.shop?.includes('店舗未設定') && isVisibleShop(shop.shop)).map(shop =>
+            {originalShopArray.filter(shop => !shop.shop?.includes('店舗未設定')).map(shop =>
               <option value={shop.shop} selected={shop.shop === targetShop}>{shop.shop}</option>
             )}
           </select>
@@ -444,16 +497,6 @@ const CustomerTrendKaeru: React.FC = () => {
         <div className="m-1">
           <label className="target checkbox d-flex align-items-center">
             <input type="checkbox" checked={isDuplicate === true} className='me-1' onChange={() => setIsDuplicate(!isDuplicate)} />名寄せした顧客も表示
-          </label>
-        </div>
-        <div className="m-1">
-          <label className="target checkbox d-flex align-items-center">
-            {/* ⚠️ 表の行は販促媒体なので、効くのは店舗の選択肢と集計だけ。行数は変わらない */}
-            <input type="checkbox" checked={showMulti} className='me-1' onChange={() => {
-              // ⚠️ 子店舗を選んだままONにすると選択肢から消えて戻せなくなる。先に解除する
-              if (!showMulti && targetShop && mergedChildShops.has(targetShop)) setTargetShop('');
-              setShowMulti(!showMulti);
-            }} />併売店をまとめる
           </label>
         </div>
       </div>
@@ -483,8 +526,8 @@ const CustomerTrendKaeru: React.FC = () => {
                 <Tooltip content={CustomTooltip} />
                 <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
                 <Legend content={<CustomLegend />} />
-                {mediumArray.map((medium, index) =>
-                  <Bar key={index} dataKey={medium} stackId="a" fill={chartColors[index]} />
+                {graphSeries.map((seriesName, index) =>
+                  <Bar key={seriesName} dataKey={seriesName} stackId="a" fill={chartColors[index]} />
                 )}
               </BarChart>
             </ResponsiveContainer>
@@ -492,20 +535,6 @@ const CustomerTrendKaeru: React.FC = () => {
       </div>
     </>
   };
-
-const isHp = (value: string) => {
-    // データが空（undefinedやnull）の時に.includesでクラッシュするのを防ぐ
-    if (!value) return false; 
-    
-    const portal = ['SUUMO', 'ALLGRIT', `HOME'S`, 'アットホーム', 'タウンライフ', 'カゴスマ'];
-    const isPortalMatch = portal.some(p => value.includes(p));
-
-    return !isPortalMatch;
-  };
-
-  const displayMediums = ['SUUMO', `HOME'S`, 'ALLGRIT', 'アットホーム'];
-
-  const hpMediums = ['会員登録', '資料請求', '来場予約', '先取物件', 'その他'];
 
   const summary = () => {
     return <>
@@ -523,57 +552,8 @@ const isHp = (value: string) => {
             .map((medium, mediumIndex) => {
               const sectionShops = originalShopArray.filter(o => o.section === targetSection).map(o => o.shop);
               
-const base = userData.filter(o => {
-  // 1. 全販促媒体
-  if (mediumIndex === 0) return true;
-
-  // --------------------------------------------------
-  // 【追加】このデータ(o)が displayMediums の「いずれか」に該当するか判定
-  // --------------------------------------------------
-  const isAnyDisplayMedium = displayMediums.some(dm => {
-    const isMatchMedium = mediumFormate(o.medium) === mediumFormate(dm);
-    const isMatchCampaign = o.hp_campaign?.includes(dm) ?? false;
-    return isMatchMedium || isMatchCampaign;
-  });
-
-  // --------------------------------------------------
-  // displayMediums を選択中の場合の判定
-  // --------------------------------------------------
-  if (displayMediums.includes(medium)) {
-    // 選択中の媒体(medium)に合致するかどうかだけを返す
-    const isMatchMedium = mediumFormate(o.medium) === mediumFormate(medium);
-    const isMatchCampaign = o.hp_campaign?.includes(medium) ?? false;
-    return isMatchMedium || isMatchCampaign;
-  }
-
-  // --------------------------------------------------
-  // 【修正】HPグループの判定
-  // 条件: 「displayMediums に該当しない（!isAnyDisplayMedium）」かつ「HP系の条件を満たす」
-  // --------------------------------------------------
-  const isHpGroup = !isAnyDisplayMedium && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign);
-
-  // 2. ホームページ反響計（合計）
-  if (mediumIndex === 1) return isHpGroup;
-
-  // 3. showSummary 表示時の HP内訳（hpMediums の要素）
-  if (showSummary && hpMediums.includes(medium)) {
-    if (!isHpGroup) return false; // HPグループ以外は弾く
-
-    // HP反響の「その他」
-    if (medium === 'その他') {
-      const mainHpKeywords = ['会員登録', '資料請求', '来場予約', '先取物件'];
-      // キャンペーン名が無い、または主要キーワードが含まれていない場合は全て「その他」へ
-      return !o.hp_campaign || !mainHpKeywords.some(keyword => o.hp_campaign.includes(keyword));
-    }
-
-    // それ以外のHP内訳（会員登録、資料請求など）
-    return o.hp_campaign?.includes(medium) ?? false;
-  }
-
-  // 4. その他の通常の媒体
-  // HPグループに吸収されたデータは除外し、媒体名が一致するものだけを抽出
-  return !isHpGroup && mediumFormate(o.medium) === mediumFormate(medium);
-});
+              // ⚠️ 判定は matchesMediumRow に出した。グラフも同じものを使う
+              const base = userData.filter(o => matchesMediumRow(o, medium, mediumIndex));
               const baseBudget = budgetList.filter(b =>
                 b.section === 'spec'
                 && (mediumIndex === 0 ? true :
