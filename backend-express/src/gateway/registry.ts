@@ -26,6 +26,7 @@ import {
 } from '../features/eventBudget';
 import { runList } from '../features/list';
 import { runShopTrend } from '../features/shopTrend';
+import { runCustomerTrend } from '../features/customerTrend';
 import {
   runListBlack,
   runListInsert,
@@ -1306,6 +1307,35 @@ for (const category of ['', 'order', 'spec', 'used']) {
     auth: 'staff',
     handler: async (ctx) => {
       const result = await runShopTrend(ctx.body.category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 販促媒体別動向（customerTrend/CustomerTrendOrder.tsx / CustomerTrendKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
+// ⚠️ roll では分岐しない。category だけ。
+//
+// ⚠️⚠️ **`used` は登録しない。** ① の customerTrendAction/customerTrend_used.php が
+//   存在せず、CustomerTrendResale.tsx も中身の無いプレースホルダのため、
+//   そもそも動いていない経路である。登録すると壊れた経路を
+//   「動いているように見せる」ことになる。
+//
+// ⚠️ category を送らない呼び出しに備えて '' も登録する（PHP の既定値 'order'）。
+// ---------------------------------------------------------------------------
+
+for (const category of ['', 'order', 'spec']) {
+  register({
+    request: 'customerTrend',
+    category,
+    summary: `販促媒体別動向の初期データ（${category === '' ? '既定=order' : category}）`,
+    phpSource: `backend/src/handlers/customerTrendAction/customerTrend_${category === '' ? 'order' : category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runCustomerTrend(ctx.body.category);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

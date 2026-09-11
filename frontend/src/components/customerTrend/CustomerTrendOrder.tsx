@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useContext } from "react";
-import axios from "axios";
+import React, { useEffect, useState, useContext, useMemo } from "react";
 import '../chartConfig';
 import AuthContext from '../../context/AuthContext';
 import Table from "react-bootstrap/Table";
@@ -7,11 +6,23 @@ import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { isLastYear } from '../../utils/isLastYear';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { get11MonthsAgoString } from "../../utils/get11MonthsAgoString";
-import Category from "../Category";
+import apiClient from "../../utils/apiClient";
+import { chartColors } from "./utils";
+import CustomerListModal from "../CustomerListModal";
+import InformationEdit from "../information/InformationEdit";
 
-type Shop = { brand: string; shop: string; section: string; area: string; }
+/**
+ * 店舗。
+ * ⚠️ `multi` / `parent_shop` は shop_list 由来で、「併売店をまとめる」にだけ使う。
+ */
+type Shop = { brand: string; shop: string; section: string; area: string; multi?: number; parent_shop?: string | null; }
 type MediumType = { medium: string, category: string, sort_key: number, response_medium: number };
-type CustomerList = { id: string, shop: string, status: string, medium: string, interview: string, register: string, contract: string, hp_campaign: string, section: string, appointment: string, screening: string };
+/**
+ * 顧客。
+ * ⚠️ `customer` / `staff` / `rank` は**以前から API が返していた**が、
+ *   この型に書かれていなかったため使えなかった。顧客一覧モーダルで使う。
+ */
+type CustomerList = { id: string, customer: string, staff: string, rank: string, shop: string, status: string, medium: string, interview: string, register: string, contract: string, hp_campaign: string, section: string, appointment: string, screening: string };
 type GraphData = { month: string, [key: string]: number | string };
 type CheckItem = {
     name: string;
@@ -23,13 +34,11 @@ type CheckedState = {
 type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note: string, company: string, response_medium: number, section: string, order_section: string };
 
 const CustomerTrendOrder: React.FC = () => {
-    const { category } = useContext(AuthContext);
-    const [userData, setUserData] = useState<CustomerList[]>([]);
+    // ⚠️ token / authority は顧客詳細（InformationEdit）に渡すために取る
+    const { category, token, authority } = useContext(AuthContext);
     const [originalUserData, setOriginalUserData] = useState<CustomerList[]>([]);
-    const [mediumArray, setMediumArray] = useState<string[]>([]);
     const [mediumList, setMediumList] = useState<MediumType[]>([]);
     const [graphCategory, setGraphCategory] = useState('register');
-    const [graphData, setGraphData] = useState<GraphData[]>([]);
     const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
     const [startMonth, setStartMonth] = useState(startMonthValue);
     const [endMonth, setEndMonth] = useState('');
@@ -37,8 +46,6 @@ const CustomerTrendOrder: React.FC = () => {
     const [targetShop, setTargetShop] = useState('');
     const [targetSection, setTargetSection] = useState('');
     const [targetBrand, setTargetBrand] = useState('');
-    const [monthArray, setMonthArray] = useState<string[]>([]);
-    const [sectionArray, setSectionArray] = useState<string[]>([]);
     const [originalShopArray, setOriginalShopArray] = useState<Shop[]>([]);
     const now = new Date();
     const year = now.getFullYear();
@@ -55,6 +62,20 @@ const CustomerTrendOrder: React.FC = () => {
     const [budgetList, setBudget] = useState<Budget[]>([]);
     const [portalChecked, setPortalChecked] = useState(false);
 
+    /**
+     * 併売店をまとめるか。
+     * ⚠️ 親店舗（shop_list.parent_shop）は**利用者が手作業で設定する**。
+     *   1件も設定されていなければ、ONにしても表示・集計は一切変わらない。
+     */
+    const [showMulti, setShowMulti] = useState<boolean>(false);
+
+    /** 顧客一覧モーダル。label は「実来場者」などの見出し */
+    const [listShow, setListShow] = useState<{ show: boolean, label: string, list: CustomerList[] }>({
+        show: false, label: '', list: []
+    });
+    /** 顧客詳細モーダルを開く顧客ID。'' なら閉じている */
+    const [editId, setEditId] = useState('');
+
 
     const formate = (medium: string) => {
         return medium === '公式LINE' ? 'ALLGRIT' : medium;
@@ -64,36 +85,46 @@ const CustomerTrendOrder: React.FC = () => {
         return date ? date.replace(/-/g, '/') : '';
     };
 
-    const chartColors = [
-        "#0d6efd", // Blue
-        "#198754", // Green
-        "#dc3545", // Red
-        "#fd7e14", // Orange
-        "#ffc107", // Yellow
-        "#20c997", // Teal
-        "#0dcaf0", // Cyan
-        "#6f42c1", // Purple
-        "#6610f2", // Indigo
-        "#d63384", // Pink
-        "#6c757d", // Gray
-        "#343a40", // Dark Gray
-        "#adb5bd", // Light Gray
-        "#17a2b8", // Info Blue
-        "#28a745", // Success Green
-        "#ff6384",  // Soft Red (Chart.js 系の見やすい色)
-        "#ff9f40",
-        "#4bc0c0"
-    ];
+    /**
+     * 数字のセルの見た目。
+     * ⚠️ 0件のときは下線もカーソルも出さない。押しても何も起きないため、
+     *   押せるように見せると「壊れている」と受け取られる。
+     */
+    const clickable = (value: number) => {
+        return value ? {
+            fontWeight: '700', textDecoration: 'underline', cursor: 'pointer', letterSpacing: '1px'
+        } : { fontWeight: '700' };
+    };
+
+    /** 顧客一覧モーダルを開く。⚠️ 0件のときは開かない */
+    const handleShow = (list: CustomerList[], labelValue: string) => {
+        if (list.length === 0) return;
+        setListShow({ show: true, label: labelValue, list });
+    };
+
+    /**
+     * 顧客詳細を閉じたあとの再取得。
+     * ⚠️ 詳細で日付を直すと歩留まりが変わるため、閉じたら読み直す。
+     */
+    const closeInformationEdit = () => {
+        setEditId('');
+        const fetchData = async () => {
+            try {
+                const response = await apiClient.post("", { request: 'customerTrend', category });
+                setOriginalUserData(response.data.customer);
+            } catch (error) {
+                console.error("データ取得エラー:", error);
+            }
+        };
+        fetchData();
+    };
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const headers = {
-                    Authorization: "4081Kokubu",
-                    "Content-Type": "application/json",
-                };
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'customerTrend', category }, { headers });
-                console.log(response.data)
+                // ⚠️⚠️ 2026-09-11 まで axios で**本番URLを直書き**していた。
+                //   ローカル開発からでも本番DBを読んでいた。apiClient を通すこと。
+                const response = await apiClient.post("", { request: 'customerTrend', category });
                 setOriginalUserData(response.data.customer);
                 const filteredMedium = response.data.medium.filter(item => item.list_medium === 1);
                 setMediumList(filteredMedium);
@@ -107,51 +138,172 @@ const CustomerTrendOrder: React.FC = () => {
         fetchData();
     }, []);
 
-    useEffect(() => {
-        const filtered = mediumList.filter(m =>
-            portalChecked ? m.category === 'ポータル' : true
-        );
-        setMediumArray(filtered.map(f => f.medium));
-    }, [mediumList, portalChecked]);
+    /**
+     * ⚠️⚠️ **ここから下の派生値は useState + useEffect をやめて useMemo にした（2026-09-11）。**
+     *
+     *   以前は1つの useEffect の中で monthArray / sectionArray / userData /
+     *   graphData を**まとめて setState** しており、依存配列から
+     *   `mediumList` と `mediumArray` が**抜けていた**。
+     *
+     *   ⚠️ そのため「ポータル反響のみ表示」を切り替えたとき、
+     *     graphData が**1テンポ古い mediumArray** で作られていた
+     *     （portalChecked → mediumArray → graphData の順に更新されるのに、
+     *      graphData は portalChecked にしか反応していなかった）。
+     *
+     *   ⚠️ さらに setState が4回走るため再描画が重なり、表示がもたついていた。
+     *
+     * ⚠️ **この変更で表示が変わる場面がある。** 上記のズレが直る方向だが、
+     *   「前は違う数字だった」と見える可能性がある。
+     */
 
-    useEffect(() => {
+    /** 販促媒体名の一覧。⚠️ ポータルのみ表示のときは category = 'ポータル' に絞る */
+    const mediumArray = useMemo(() =>
+        mediumList.filter(m => portalChecked ? m.category === 'ポータル' : true).map(f => f.medium),
+        [mediumList, portalChecked]);
+
+    /** 表示対象の年月。開始月・終了月で切り出す */
+    const monthArray = useMemo(() => {
         const startIndex = startMonth ? originalMonthArray.indexOf(startMonth) : 0;
-        const endIndex = endMonth ? originalMonthArray.indexOf(endMonth) + 1 : originalMonthArray.length
-        const filteredMonthArray = originalMonthArray.slice(startIndex, endIndex);
-        setMonthArray(filteredMonthArray);
+        const endIndex = endMonth ? originalMonthArray.indexOf(endMonth) + 1 : originalMonthArray.length;
+        return originalMonthArray.slice(startIndex, endIndex);
+    }, [originalMonthArray, startMonth, endMonth]);
 
-        const uniqueSectionArray = [...new Set(originalShopArray.filter(o => o.section).map(o => o.section))];
-        const filteredSectionArray = uniqueSectionArray.sort((a, b) => {
+    /** 課の一覧。⚠️ 「第2営業課」のような数字で並べる */
+    const sectionArray = useMemo(() => {
+        const unique = [...new Set(originalShopArray.filter(o => o.section).map(o => o.section))];
+        return unique.sort((a, b) => {
             const numA = parseInt(a?.match(/\d+/)?.[0] ?? "9999", 10);
             const numB = parseInt(b?.match(/\d+/)?.[0] ?? "9999", 10);
-            return numA - numB
+            return numA - numB;
         });
-        setSectionArray(filteredSectionArray);
+    }, [originalShopArray]);
 
+    /**
+     * 親店舗名 → まとめ先に吸収する子店舗名の一覧。
+     *
+     * ⚠️⚠️ **親が注文事業の店舗一覧に居ない場合は対象外にする。**
+     *   `shop_list` は事業をまたいで1つのテーブルなので、`parent_shop` に
+     *   他事業の店舗名が入り得る。そのまま子を隠すと、**どの行にも合算されず
+     *   数字が消える**（合計だけ合わなくなり、気づきにくい）。
+     */
+    const multiChildren = useMemo(() => {
+        const shopNames = new Set(originalShopArray.map(s => s.shop));
+        const map = new Map<string, string[]>();
+        originalShopArray.forEach(s => {
+            const parent = s.parent_shop;
+            if (s.multi !== 1 || !parent || !shopNames.has(parent) || parent === s.shop) return;
+            const children = map.get(parent) ?? [];
+            children.push(s.shop);
+            map.set(parent, children);
+        });
+        return map;
+    }, [originalShopArray]);
+
+    /** まとめON時に選択肢から消える側（子店舗）の集合 */
+    const mergedChildShops = useMemo(() => {
+        const set = new Set<string>();
+        multiChildren.forEach(children => children.forEach(child => set.add(child)));
+        return set;
+    }, [multiChildren]);
+
+    /**
+     * その店舗が集計対象とする店舗名の一覧。
+     * まとめOFF、または子を持たない店舗では `[shopName]` のままなので、
+     * 呼び出し側の既存ロジックは変わらない。
+     */
+    const shopNamesOf = (shopName: string): string[] =>
+        showMulti ? [shopName, ...(multiChildren.get(shopName) ?? [])] : [shopName];
+
+    /** その店舗を選択肢として表示してよいか */
+    const isVisibleShop = (shopName: string): boolean => !(showMulti && mergedChildShops.has(shopName));
+
+    /**
+     * 絞り込み後の顧客。
+     * ⚠️ 表の行は「販促媒体」なので、店舗の絞り込みはここで一度だけ効く。
+     *   ⚠️ まとめONで親店舗を選んだときは、子店舗の顧客も含める。
+     */
+    const userData = useMemo(() => {
         const sectionShops = originalShopArray.filter(o => o.section === targetSection).map(o => o.shop);
-
-        const filteredCustomer = originalUserData.filter(o =>
+        const targetShops = targetShop ? shopNamesOf(targetShop) : [];
+        return originalUserData.filter(o =>
             (targetSection ? sectionShops.includes(o.shop) : true) &&
-            (targetShop ? o.shop === targetShop : true) &&
+            (targetShop ? targetShops.includes(o.shop) : true) &&
             (targetBrand ? o.shop.slice(0, 2) === targetBrand : true) &&
             (portalChecked ? !o.hp_campaign : true)
         );
-        setUserData(filteredCustomer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [originalUserData, originalShopArray, targetSection, targetShop, targetBrand, portalChecked, showMulti, multiChildren]);
 
-        // const total = getValue(filteredCustomer, 0, '', 'register');
-        // const interview = getValue(filteredCustomer, 0, '', 'interview');
-        // const contract = getValue(filteredCustomer, 0, '', 'contract');
+    const getValue = (base: CustomerList[], monthIndex: number, month: string, target: string, period: string[] = monthArray) => {
+        if (target === 'appointment') {
+            return base.filter(b => {
+                if (b.interview) {
+                    return monthIndex >= 1 ? dateFormate(b.interview).includes(month) && (b.appointment || b.screening || b.contract)
+                        : period.includes(dateFormate(b.interview).slice(0, 7)) && (b.appointment || b.screening || b.contract);
+                }
+                return (monthIndex >= 1 ? (dateFormate(b.appointment).includes(month) || dateFormate(b.screening).includes(month) || dateFormate(b.contract).includes(month))
+                    : (period.includes(dateFormate(b.appointment).slice(0, 7)) || period.includes(dateFormate(b.screening).slice(0, 7)) || period.includes(dateFormate(b.contract).slice(0, 7))))
+            })
+        }
+        if (target === 'interview') {
+            if (monthIndex >= 1) {
+                const interviewBase = base.filter(b =>
+                    dateFormate(b.interview).includes(month)
+                );
+                const appointmentBase = base.filter(b =>
+                    !b.interview &&
+                    (
+                        dateFormate(b.appointment).includes(month) ||
+                        dateFormate(b.screening).includes(month) ||
+                        dateFormate(b.contract).includes(month)
+                    )
+                );
+                return [...interviewBase, ...appointmentBase];
+            } else {
+                const interviewBase = base.filter(b =>
+                    period.includes(dateFormate(b.interview).slice(0, 7))
+                );
+                const appointmentBase = base.filter(b =>
+                    !b.interview &&
+                    (
+                        period.includes(dateFormate(b.appointment).slice(0, 7)) ||
+                        period.includes(dateFormate(b.screening).slice(0, 7)) ||
+                        period.includes(dateFormate(b.contract).slice(0, 7))
+                    )
+                );
+                return [...interviewBase, ...appointmentBase];
+            }
+        }
 
-        const filteredData = filteredMonthArray.map(monthValue => ({
+        if (target === 'contract') {
+            return base.filter(b => (monthIndex >= 1 ? dateFormate(b.contract).includes(month) && (b.status === '契約済み' || b.status === '解約') : period.includes(dateFormate(b.contract).slice(0, 7)) && (b.status === '契約済み' || b.status === '解約')))
+        }
+        return base.filter(b => (monthIndex >= 1 ? dateFormate(b[target]).includes(month) : period.includes(dateFormate(b[target]).slice(0, 7))))
+    };
+
+    /**
+     * 積み上げ棒グラフのデータ。⚠️ グラフ非表示のときは作らない（重いため）
+     *
+     * ⚠️⚠️ **`getValue` の定義より後に置くこと。**
+     *   useMemo のコールバックは**レンダー中に即実行される**ため、
+     *   `const getValue = ...` より前に書くと初回レンダーで
+     *   「Cannot access 'getValue' before initialization」になる。
+     *   （以前このファイルでは getValue が下にあり、useEffect だったので
+     *     問題が出ていなかった。useMemo 化で条件が変わった）
+     */
+    const graphData = useMemo<GraphData[]>(() => {
+        if (!checked.graph.show) return [];
+        return monthArray.map(monthValue => ({
             month: monthValue,
             ...Object.fromEntries(
                 mediumArray.map(mediumValue => [mediumValue,
-                    getValue(filteredCustomer, filteredMonthArray.indexOf(monthValue) + 1, monthValue, graphCategory).filter(item => formate(item.medium) === formate(mediumValue)).length
+                    getValue(userData, monthArray.indexOf(monthValue) + 1, monthValue, graphCategory)
+                        .filter(item => formate(item.medium) === formate(mediumValue)).length
                 ])
             )
         }));
-        setGraphData(filteredData);
-    }, [originalUserData, graphCategory, targetSection, targetShop, targetBrand, startMonth, endMonth, portalChecked]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userData, monthArray, mediumArray, graphCategory, checked.graph.show]);
 
     const CustomLegend = ({ payload }: { payload?: any[] }) => {
         if (!payload) return null;
@@ -199,53 +351,6 @@ const CustomerTrendOrder: React.FC = () => {
                 ))}
             </div>
         );
-    };
-
-    const getValue = (base: CustomerList[], monthIndex: number, month: string, target: string, period: string[] = monthArray) => {
-        if (target === 'appointment') {
-            return base.filter(b => {
-                if (b.interview) {
-                    return monthIndex >= 1 ? dateFormate(b.interview).includes(month) && (b.appointment || b.screening || b.contract)
-                        : period.includes(dateFormate(b.interview).slice(0, 7)) && (b.appointment || b.screening || b.contract);
-                }
-                return (monthIndex >= 1 ? (dateFormate(b.appointment).includes(month) || dateFormate(b.screening).includes(month) || dateFormate(b.contract).includes(month))
-                    : (period.includes(dateFormate(b.appointment).slice(0, 7)) || period.includes(dateFormate(b.screening).slice(0, 7)) || period.includes(dateFormate(b.contract).slice(0, 7))))
-            })
-        }
-        if (target === 'interview') {
-            if (monthIndex >= 1) {
-                const interviewBase = base.filter(b =>
-                    dateFormate(b.interview).includes(month)
-                );
-                const appointmentBase = base.filter(b =>
-                    !b.interview &&
-                    (
-                        dateFormate(b.appointment).includes(month) ||
-                        dateFormate(b.screening).includes(month) ||
-                        dateFormate(b.contract).includes(month)
-                    )
-                );
-                return [...interviewBase, ...appointmentBase];
-            } else {
-                const interviewBase = base.filter(b =>
-                    period.includes(dateFormate(b.interview).slice(0, 7))
-                );
-                const appointmentBase = base.filter(b =>
-                    !b.interview &&
-                    (
-                        period.includes(dateFormate(b.appointment).slice(0, 7)) ||
-                        period.includes(dateFormate(b.screening).slice(0, 7)) ||
-                        period.includes(dateFormate(b.contract).slice(0, 7))
-                    )
-                );
-                return [...interviewBase, ...appointmentBase];
-            }
-        }
-
-        if (target === 'contract') {
-            return base.filter(b => (monthIndex >= 1 ? dateFormate(b.contract).includes(month) && (b.status === '契約済み' || b.status === '解約') : period.includes(dateFormate(b.contract).slice(0, 7)) && (b.status === '契約済み' || b.status === '解約')))
-        }
-        return base.filter(b => (monthIndex >= 1 ? dateFormate(b[target]).includes(month) : period.includes(dateFormate(b[target]).slice(0, 7))))
     };
 
     const checkedChange = (e) => {
@@ -312,7 +417,7 @@ const CustomerTrendOrder: React.FC = () => {
                             setTargetShop(e.target.value);
                         }}>
                             <option value="">店舗を選択</option>
-                            {originalShopArray.filter(shop => !shop.shop?.includes('店舗未設定')).map(shop =>
+                            {originalShopArray.filter(shop => !shop.shop?.includes('店舗未設定') && isVisibleShop(shop.shop)).map(shop =>
                                 <option value={shop.shop} selected={shop.shop === targetShop}>{shop.shop}</option>
                             )}
                         </select>
@@ -333,6 +438,16 @@ const CustomerTrendOrder: React.FC = () => {
                             <input type="checkbox" checked={portalChecked} className='me-1' onChange={() =>
                                 setPortalChecked(!portalChecked)
                             } />ポータル反響のみ表示
+                        </label>
+                    </div>
+                    <div className="m-1">
+                        <label className="target checkbox d-flex align-items-center">
+                            {/* ⚠️ 表の行は販促媒体なので、効くのは店舗の選択肢と集計だけ。行数は変わらない */}
+                            <input type="checkbox" checked={showMulti} className='me-1' onChange={() => {
+                                // ⚠️ 子店舗を選んだままONにすると選択肢から消えて戻せなくなる。先に解除する
+                                if (!showMulti && targetShop && mergedChildShops.has(targetShop)) setTargetShop('');
+                                setShowMulti(!showMulti);
+                            }} />併売店をまとめる
                         </label>
                     </div>
                 </div>
@@ -433,17 +548,17 @@ const CustomerTrendOrder: React.FC = () => {
                                                         return (
                                                             <td style={{ fontSize: '11px', letterSpacing: '.5px' }}>
                                                                 <div className={checked.register.show ? "text-white p-2 rounded" : 'text-white rounded'} style={{ backgroundColor: '#6baed6' }}>
-                                                                    {checked.register.show && <div>総反響:<span className="fw-bold">{total.length.toLocaleString()}</span>
+                                                                    {checked.register.show && <div>総反響:<span style={clickable(total.length)} onClick={() => handleShow(total, `${medium} ${month} 総反響`)}>{total.length.toLocaleString()}</span>
                                                                         {isDisplayLastYear && <span className='bg-white text-primary rounded px-1 ms-1 fw-bold'>{lastYearValue.total.toLocaleString()}</span>}</div>}
                                                                     <div className={checked.interview.show ? "rounded p-2 my-2" : "my-2 rounded p-2"} style={{ backgroundColor: '#2171b5' }}>
-                                                                        {checked.interview.show && <div>実来場:<span className="fw-bold">{interview.length.toLocaleString()}</span>({isNaN(interview.length / total.length) ? 0 : Math.floor(interview.length / total.length * 100)}%)
+                                                                        {checked.interview.show && <div>実来場:<span style={clickable(interview.length)} onClick={() => handleShow(interview, `${medium} ${month} 実来場`)}>{interview.length.toLocaleString()}</span>({isNaN(interview.length / total.length) ? 0 : Math.floor(interview.length / total.length * 100)}%)
                                                                             {isDisplayLastYear && <span className='bg-white text-primary rounded px-1 ms-1 fw-bold'>{lastYearValue.interview.toLocaleString()}</span>}</div>}
                                                                         <div className={checked.appointment.show ? "rounded p-2 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08519c' }}>
-                                                                            {checked.appointment.show && <div>次アポ:<span className="fw-bold">{appointment.length.toLocaleString()}</span>({isNaN(appointment.length / interview.length) ? 0 : Math.floor(appointment.length / interview.length * 100)}%)
+                                                                            {checked.appointment.show && <div>次アポ:<span style={clickable(appointment.length)} onClick={() => handleShow(appointment, `${medium} ${month} 次アポ`)}>{appointment.length.toLocaleString()}</span>({isNaN(appointment.length / interview.length) ? 0 : Math.floor(appointment.length / interview.length * 100)}%)
                                                                                 {isDisplayLastYear && <span className='bg-white text-primary rounded px-1 ms-1 fw-bold'>{lastYearValue.appointment.toLocaleString()}</span>}</div>}
                                                                         </div>
                                                                         <div className={checked.contract.show ? "rounded p-2 my-2" : "my-2 rounded"} style={{ backgroundColor: '#08306b' }}>
-                                                                            {checked.contract.show && <div>契約:<span className="fw-bold">{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
+                                                                            {checked.contract.show && <div>契約:<span style={clickable(contract.length)} onClick={() => handleShow(contract, `${medium} ${month} 契約`)}>{contract.length.toLocaleString()}</span>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)
                                                                                 {isDisplayLastYear && <span className='bg-white text-primary rounded px-1 ms-1 fw-bold'>{lastYearValue.contract.length.toLocaleString()}</span>}</div>}
                                                                         </div>
                                                                     </div>
@@ -502,6 +617,14 @@ const CustomerTrendOrder: React.FC = () => {
                     </div>
                 </div>
             </div>
+            <CustomerListModal
+                show={listShow.show}
+                label={listShow.label}
+                list={listShow.list}
+                onHide={() => setListShow({ show: false, label: '', list: [] })}
+                onSelectCustomer={setEditId}
+            />
+            <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </>
     );
 };

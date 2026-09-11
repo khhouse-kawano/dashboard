@@ -9,7 +9,10 @@ $response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 店舗
-$sql_shop = "SELECT shop, section
+// ⚠️ multi / parent_shop は CustomerTrendKaeru.tsx の「併売店をまとめる」が使う。
+//   ⚠️ backend-express/src/features/customerTrend/queries.ts の SHOP_SQL.spec と
+//     必ず同じ列にしておくこと。
+$sql_shop = "SELECT shop, section, multi, parent_shop
         FROM shop_list WHERE division = '建売分譲事業' AND show_flag = 1";
 $stmt_shop = $pdo->prepare($sql_shop);
 $stmt_shop->execute();

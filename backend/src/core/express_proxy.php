@@ -298,6 +298,28 @@ function expressProxyRequests(): array
         // -----------------------------------------------------------------
         'company',
         'change_company_achievement',
+
+        // -----------------------------------------------------------------
+        // 2026-09-11 移植。販促媒体別動向（customerTrend/CustomerTrendOrder.tsx /
+        // CustomerTrendKaeru.tsx）。
+        //
+        // ⚠️ 参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
+        //
+        // ⚠️⚠️ **`customerTrend` と request 名だけで書いてはいけない。**
+        //   この request は category で分岐し、`used`（中古）が
+        //   ② に**登録されていない**（① にも customerTrend_used.php が無く、
+        //   そもそも動いていない経路のため意図的に登録していない）。
+        //   request 名だけで書くと used も ② へ送られ、
+        //   ② が「ループ検知」で 502 を返し、無駄な往復とログ汚れが起きる。
+        //   ⚠️ 2026-09-10 に `list:event` の登録漏れで同じことが起きている。
+        //
+        // ⚠️ roll は使わないので中央は空にする（'request::category' の形）。
+        // ⚠️ `customerTrend::` は category を送らない呼び出し用。
+        //   ② 側は PHP と同じく既定値 'order' として扱う。
+        // -----------------------------------------------------------------
+        'customerTrend::',
+        'customerTrend::order',
+        'customerTrend::spec',
     ];
 }
 
