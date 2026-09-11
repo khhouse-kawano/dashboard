@@ -3,7 +3,8 @@ import Table from "react-bootstrap/Table";
 import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Tooltip as ChartTooltip } from 'recharts';
+// ⚠️ グラフは UnitPriceGraphModal.tsx に移した。ここでは recharts を使わない
+import UnitPriceGraphModal from './UnitPriceGraphModal';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import apiClient from '../../utils/apiClient';
 import { sortShops } from '../header/useAmbassadorMaster';
@@ -408,37 +409,21 @@ const ShopKaeru = () => {
                 </div>
                 <div className="d-flex flex-wrap mb-3">
                     <div className="m-1">
-                        <label className="target checkbox d-flex align-items-center">
-                            <input type="checkbox" checked={showGraph} className='me-1'
-                                onChange={() => setShowGraph(!showGraph)} />グラフを表示
-                        </label>
+                        {/* ⚠️ 表と同時に見ると視認性が悪いのでモーダルで出す。
+                               店舗数で全画面/xl が切り替わる（UnitPriceGraphModal.tsx） */}
+                        <div className="bg-primary btn text-white rounded-pill px-3 py-1"
+                            style={{ fontSize: '12px', letterSpacing: '1px' }}
+                            onClick={() => setShowGraph(true)}>グラフを表示</div>
                     </div>
                     {/* ⚠️ 「併売店をまとめる」は置かない。建売に併売店の概念は無い */}
                 </div>
-                {showGraph && (
-                    <div className="mb-4">
-                        <div className="text-center mb-2" style={{ fontSize: '12px' }}>店舗別 単価比較</div>
-                        <ResponsiveContainer width="100%" height={480}>
-                            <BarChart data={graphData} margin={{ top: 8, right: 16, left: 24, bottom: 120 }}>
-                                <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
-                                {/* ⚠️ `-90` で下から上に読める向きになる。`90` だと上から下で読みにくい。
-                                       ⚠️ textAnchor="end" を外すと軸から離れる */}
-                                <XAxis dataKey="shop" fontSize={11} interval={0} angle={-90} textAnchor="end" height={120} />
-                                {/* ⚠️ Y軸は円。3桁区切りにしないと桁が読めない */}
-                                <YAxis fontSize={11} tickFormatter={(v: number) => `¥${v.toLocaleString()}`} width={80} />
-                                <ChartTooltip
-                                    formatter={(v: number, name: string) => [`¥${Number(v).toLocaleString()}`, name]}
-                                    contentStyle={{ fontSize: '12px' }}
-                                />
-                                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                                {/* ⚠️ stackId は付けない。単価は足し合わせても意味がない */}
-                                {UNIT_PRICE_SERIES_SPEC.map(s => (
-                                    <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} />
-                                ))}
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                )}
+                <UnitPriceGraphModal
+                    show={showGraph}
+                    onHide={() => setShowGraph(false)}
+                    data={graphData}
+                    series={UNIT_PRICE_SERIES_SPEC}
+                    title='建売分譲事業'
+                />
                 <div className="table-wrapper">
                     <div className="list_table">
                         <Table striped style={{ fontSize: '12px' }} bordered>
