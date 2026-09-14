@@ -30,6 +30,7 @@ import { runShopTrend } from '../features/shopTrend';
 import { runCustomerTrend } from '../features/customerTrend';
 import { runShop } from '../features/shop';
 import { runInside } from '../features/inside';
+import { runBudgetSimulator } from '../features/budgetSimulator';
 import {
   runListBlack,
   runListInsert,
@@ -1411,6 +1412,29 @@ for (const category of ['', 'order', 'spec']) {
 // ⚠️ 対象店舗は features/inside.ts の TARGET_SHOPS。
 //   ⚠️ ① の inside_list.php にも同じ内容がある。片方だけ直さないこと。
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 広告費シミュレーター（header/BudgetSimulator.tsx）
+//
+// ⚠️ 参照のみ。① に budget_simulator.php が実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **注文と建売をまとめて返すので応答が大きい。**
+//   列は集計に要るものだけに絞ってある。足すときは転送量を意識すること。
+//
+// ⚠️ roll / category では分岐しない。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'budget_simulator',
+  summary: '広告費シミュレーターの初期データ（注文・建売をまとめて返す）',
+  phpSource: 'backend/src/handlers/budget_simulator.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runBudgetSimulator();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
 
 register({
   request: 'inside',

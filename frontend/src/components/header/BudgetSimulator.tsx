@@ -1,520 +1,408 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Table from 'react-bootstrap/Table';
-import BsForm from 'react-bootstrap/Form';
+import Form from 'react-bootstrap/Form';
+import Button from 'react-bootstrap/Button';
 import apiClient from '../../utils/apiClient';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
-import { thisYear } from '../../utils/thisYear';
-import { getFiscalYearMonthsFromJune } from '../../utils/getFiscalYearMonthsFromJune';
+import {
+    DIVISION_LABEL, KPI_DEFS, applyBudget, applyCount, applyUnit,
+    countKpis, filterCustomers, sumBudget, toNumber, unitPrice,
+} from './budgetSimulatorUtils';
+import type { Division, SimBudget, SimCustomer, SimRow, SimShop } from './budgetSimulatorUtils';
 
-// --- モックデータと型定義 ---
-type Member = {
-    id: string;
-    name: string;
-    shop: string;
-    personalIndex: number;
+/**
+ * 広告費シミュレーター。
+ *
+ * ─────────────────────────────────────────────
+ * 2つのことを1画面でやる。
+ *
+ *   (1) **いくらかけて、どれだけの結果が出たのか**（実績）
+ *   (2) **いくら投下したら、どれだけ得られるのか**（試算）
+ *
+ *   (1) を入力欄に出し、そのまま書き換えると (2) になる、という作りである。
+ *   別々の画面にすると「実績がいくらだったか」を見ながら試算できない。
+ *
+ * ⚠️⚠️ **KPI の判定は budgetSimulatorUtils.ts に置き、
+ *   shop/ShopOrder.tsx・ShopKaeru.tsx と同じにしてある。**
+ *   食い違うと店舗ランキングと数字が合わず、どちらが正しいか分からなくなる。
+ *
+ * ⚠️ 連動の規則（`単価 = 広告費 ÷ 件数` を常に保つ）
+ *     広告費を変える … 単価を保ち、4つの件数が比例して動く
+ *     単価を変える   … 広告費を保ち、その件数が `広告費 ÷ 単価` になる
+ *     件数を変える   … 広告費を保ち、単価が自動で変わる
+ *   ⚠️ 単価は state に持たない。3つを別々に持つとすぐ辻褄が合わなくなる。
+ *
+ * ⚠️ 試算はこの画面の中だけで完結する。**保存もDBへの書き込みも無い。**
+ *   閉じれば消える。
+ * ─────────────────────────────────────────────
+ */
+
+type DivisionData = {
+    shop: SimShop[];
+    section: { name: string }[];
+    customer: SimCustomer[];
+    budget: SimBudget[];
 };
 
-type Shop = Record<string, string>;
-type Staff = Record<string, string>;
-type Section = Record<string, string>;
-type OrderContract = Record<string, string>;
-type Achievement = Record<string, string>;
-type Budget = {
-    category: string;
-    shop: string;
-    budget_period: string;
-    budget_value: number;
-};
-
+/** ⚠️ 他の画面と同じく 2025/01 から */
 const monthArray = getYearMonthArray(2025, 1);
-const now = new Date();
-const year = String(now.getFullYear());
-const month = String(now.getMonth() + 1).padStart(2, '0');
-const monthFormate = (month: string) => {
-    return (month ?? '').replace(/-/g, '/').slice(0, 7);
+
+/** レンダリング時の 'YYYY/MM'。⚠️ 期間の初期値（開始・終了とも同じ月） */
+const currentMonth = (): string => {
+    const now = new Date();
+    return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
-const duplicate = ['DJH加世田店', 'なごみ加世田店', '2L出水店', ' DJH鹿屋店', 'DJH延岡店'];
+
+const yen = (v: number | null): string => (v === null ? '-' : `¥${v.toLocaleString()}`);
 
 const BudgetSimulator = () => {
-    // --- 状態管理 ---
-    const [calcMode, setCalcMode] = useState<'calc_budget' | 'calc_contracts'>('calc_budget');
-    // 🌟 追加: 起算日のトグル管理用State
-    const [dateBase, setDateBase] = useState<'inquiry' | 'achievement'>('inquiry'); 
-    
-    const [targetShop, setTargetShop] = useState('');
-    const [targetSection, setTargetSection] = useState('');
-    const [startPeriod, setStartPeriod] = useState('');
-    const [endPeriod, setEndPeriod] = useState('');
-    const [budgetList, setBudgetList] = useState<Budget[]>([]);
-    const [baseCpa, setBaseCpa] = useState<number>(0);
-    const [achievement, setAchievement] = useState<Achievement[]>([]);
-    const [targetContracts, setTargetContracts] = useState<number>(0);
-    const [inputBudget, setInputBudget] = useState<number>(500000);
-    const [shopIndex, setShopIndex] = useState<number>(1.0);
-    const [members, setMembers] = useState<Member[]>([]);
-    const [newMemberName, setNewMemberName] = useState('');
-    const [shops, setShops] = useState<Shop[]>([]);
-    const [staffs, setStaffs] = useState<Staff[]>([]);
-    const [sections, setSections] = useState<string[]>([]);
-    const [orderContract, setOrderContract] = useState<OrderContract[]>([]);
+    const [data, setData] = useState<Record<Division, DivisionData> | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
-    // --- データフェッチ ---
+    const [targetDivision, setTargetDivision] = useState<Division>('order');
+    const [targetSection, setTargetSection] = useState('');
+    const [targetShop, setTargetShop] = useState('');
+
+    const initialMonth = currentMonth();
+    const [startMonth, setStartMonth] = useState(initialMonth);
+    const [endMonth, setEndMonth] = useState(initialMonth);
+
+    /**
+     * 利用者が書き換えた値。
+     * ⚠️ キーは '' が全体、それ以外は販促媒体名。
+     * ⚠️ 条件（事業・期間・店舗）を変えたら**必ず捨てる。**
+     *   別の条件の試算が残っていると、実績と噛み合わない数字が並ぶ。
+     */
+    const [edited, setEdited] = useState<Record<string, SimRow>>({});
+
     useEffect(() => {
         const fetchData = async () => {
-            const response = await apiClient.post('', { request: 'budget_simulator' });
-            const filteredShop = response.data.shop.filter((s: Shop) => s.division === '注文事業' && !duplicate.includes(s.shop));
-            setShops(filteredShop);
-            const filteredSection = response.data.section.filter((s: Section) => s.division === '注文事業').map((s: Section) => s.name);
-            setSections(filteredSection);
-            const filteredStaff = response.data.staff.filter((s: Staff) => s.period === String(thisYear) && !duplicate.includes(s.shop));
-            setStaffs(filteredStaff);
-            setOrderContract(response.data.order_contract);
-            setBudgetList(response.data.budget);
-            setAchievement(response.data.achievement);
+            try {
+                const res = await apiClient.post('', { request: 'budget_simulator' });
+                setData({ order: res.data.order, spec: res.data.spec });
+            } catch (e) {
+                // ⚠️ 応答が大きい request なので、転送のタイムアウトでもここに来る
+                setError('データを取得できませんでした。時間をおいて再度お試しください。');
+            } finally {
+                setLoading(false);
+            }
         };
-        fetchData();
-        setStartPeriod(`${year}/06`);
-        setEndPeriod(`${year}/${month}`);
+        void fetchData();
     }, []);
 
-    // --- ユーティリティ ---
-    const handleNumberOnlyChange = (value: string, setter: React.Dispatch<React.SetStateAction<number>>) => {
-        const halfWidth = value.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-        const numbersOnly = halfWidth.replace(/[^0-9]/g, '');
-        setter(numbersOnly === '' ? 0 : Number(numbersOnly));
-    };
+    const current = data ? data[targetDivision] : null;
 
-    const disableTextInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Tab') {
-            e.preventDefault();
-        }
-    };
+    /** 表示対象の年月。⚠️ 開始 > 終了なら空になる（行も0件になる） */
+    const months = useMemo(() => {
+        const s = monthArray.indexOf(startMonth);
+        const e = monthArray.indexOf(endMonth);
+        if (s < 0 || e < 0) return [];
+        return monthArray.slice(s, e + 1);
+    }, [startMonth, endMonth]);
 
-    const getLastYear = (value: string) => {
-        const year = value.split('/')[0] ?? 0;
-        const lastYear = Number(year) - 1;
-        const month = value.split('/')[1] ?? 0;
-        return `${lastYear}/${month}`;
-    };
+    /** 課の一覧。⚠️ section_list（マスタ）を使う。店舗の登録状況に依存させない */
+    const sectionOptions = useMemo(
+        () => (current?.section ?? []).map(s => s.name).filter(Boolean),
+        [current]
+    );
 
-    // --- 絞り込みロジック (useMemo) ---
-    const newShops = useMemo(() => {
-        return shops.filter(s => targetSection ? s.section === targetSection : true);
-    }, [shops, targetSection]);
+    /** 店舗の選択肢。⚠️ 管理用の擬似店舗は出さない（他画面と同じ） */
+    const shopOptions = useMemo(
+        () => (current?.shop ?? [])
+            .filter(s => !s.shop?.includes('未設定') && !s.shop?.includes('全店舗'))
+            .filter(s => !targetSection || s.section === targetSection),
+        [current, targetSection]
+    );
 
-    const newStaffs = useMemo(() => {
-        const base = staffs.filter(s => sections?.includes(s.section ?? ''));
-        const uniqueStaffs = Array.from(
-            new Map(base.map(staff => [staff.name, staff])).values()
-        );
-        return uniqueStaffs.filter(s => (targetShop ? s.shop === targetShop
-            : targetSection ? s.section === targetSection
-                : true
-        ));
-    }, [staffs, targetShop, targetSection, sections]);
+    /**
+     * 集計対象の店舗名。
+     * ⚠️ null は「絞らない」。空配列（該当店舗なし）と区別するため null にしている。
+     */
+    const targetShops = useMemo<string[] | null>(() => {
+        if (targetShop) return [targetShop];
+        if (targetSection) return shopOptions.map(s => s.shop);
+        return null;
+    }, [targetShop, targetSection, shopOptions]);
 
-    const targetPeriod = useMemo(() => {
-        const start = monthArray.indexOf(getLastYear(startPeriod));
-        const end = monthArray.indexOf(getLastYear(endPeriod));
-        return monthArray.slice(start, end + 1);
-    }, [startPeriod, endPeriod]);
+    /** 期間・店舗で絞った顧客 */
+    const customers = useMemo(
+        () => (current ? filterCustomers(current.customer, months, targetShops) : []),
+        [current, months, targetShops]
+    );
 
-    const achievementPeriod = useMemo(() => {
-        const start = getFiscalYearMonthsFromJune(thisYear).indexOf(startPeriod);
-        const end = getFiscalYearMonthsFromJune(thisYear).indexOf(endPeriod);
-        return getFiscalYearMonthsFromJune(thisYear).slice(start, end + 1);
-    }, [startPeriod, endPeriod]);
+    /**
+     * 販促媒体の一覧。
+     * ⚠️ マスタではなく**実データ**（sales_promotion_name）から作る。
+     *   マスタから作ると、その期間に1件も無い媒体まで並んで読みにくい。
+     * ⚠️ 空文字は「その他」としてまとめる。媒体未設定の反響が消えると
+     *   媒体別の合計が全体と合わなくなる。
+     */
+    const mediums = useMemo(() => {
+        const seen = new Set<string>();
+        customers.forEach(c => seen.add(c.medium || 'その他'));
+        return [...seen].sort();
+    }, [customers]);
 
-    const filteredNewShops = useMemo(() => newShops.map(s => s.shop), [newShops]);
-
-    const shopTotal = useMemo(() => {
-        return achievement.filter(a => achievementPeriod.includes(a.period.replace(/-/g, '/') ?? '')
-            && a.category === 'shop'
-            && (targetShop ? targetShop === a.name : filteredNewShops.includes(a.name))
-        ).reduce((acc, cur) => acc + (Number(cur?.value ?? 0)), 0);
-    }, [achievement, targetPeriod, targetShop, filteredNewShops]);
-
-    const newContractOrder = useMemo(() => {
-        return orderContract.filter(o => {
-            return (targetShop ? o.shop === targetShop : newShops.length > 0 ? filteredNewShops.includes(o.shop) : true)
-                && (targetPeriod?.includes(monthFormate(dateBase === 'inquiry' ? o.register : o.contract)));
-        });
-    }, [newShops, targetShop, orderContract, filteredNewShops, targetPeriod, dateBase]);
-
-    const newBudget = useMemo(() => {
-        return budgetList.filter(b => {
-            return (targetShop ? b.shop === targetShop : newShops.length > 0 ? filteredNewShops.includes(b.shop) : true)
-                && (targetPeriod?.includes(monthFormate(b.budget_period)));
-        });
-    }, [budgetList, targetShop, newShops, filteredNewShops, targetPeriod]);
-
-    const contractSummary = useMemo(() => {
-        const contractLength = newContractOrder.filter(n => n.status === '契約済み' && n.contract).length;
-        const total = newBudget.reduce((acc, cur) => acc + (cur.budget_value ?? 0), 0);
-        const CPA = contractLength > 0 ? Math.round(total / contractLength) : 0;
-        return { 
-            contract: contractLength,
-            CPA 
+    /** 実績（書き換え前の値）。キーは '' が全体、それ以外は媒体名 */
+    const actual = useMemo<Record<string, SimRow>>(() => {
+        if (!current) return {};
+        const out: Record<string, SimRow> = {
+            '': {
+                budget: sumBudget(current.budget, months, targetShops),
+                counts: countKpis(targetDivision, customers),
+            },
         };
-    }, [newContractOrder, newBudget]);
-
-    const simulationResult = useMemo(() => {
-        const teamSalesIndex = members.length > 0
-            ? members.reduce((sum, m) => sum + m.personalIndex, 0) / members.length
-            : 1.0;
-
-        const totalIndex = shopIndex * teamSalesIndex;
-        const actualCpa = totalIndex > 0 ? baseCpa / totalIndex : baseCpa;
-
-        let requiredBudget = 0;
-        let predictedContracts = 0;
-
-        if (calcMode === 'calc_budget') {
-            requiredBudget = Math.round(targetContracts * actualCpa);
-            predictedContracts = targetContracts;
-        } else {
-            predictedContracts = Math.floor(inputBudget / actualCpa);
-            requiredBudget = inputBudget;
-        }
-
-        return { teamSalesIndex, totalIndex, actualCpa, requiredBudget, predictedContracts };
-    }, [members, shopIndex, baseCpa, calcMode, targetContracts, inputBudget]);
-
-    // --- 計算・更新ロジック (useEffect) ---
-    useEffect(() => {
-        if (contractSummary.CPA > 0) {
-            setBaseCpa(contractSummary.CPA);
-        }
-        setShopIndex(1.0); // チームベース指数は必ず1.0にリセット
-    }, [contractSummary.CPA, targetShop, targetSection]);
-
-    const calculatePersonalIndex = (personalContracts: number, shopTotalContracts: number, memberCount: number): number => {
-        if (memberCount === 0 || shopTotalContracts === 0) return 0.5;
-        const averageContracts = shopTotalContracts / memberCount;
-        const index = personalContracts / averageContracts;
-        return Math.round(index * 1000) / 1000;
-    };
-
-    useEffect(() => {
-        setMembers(() => {
-            const positionIndex: Record<string, number> = { '店長': 0, '店長代理': 1, '一般': 2 };
-
-            return [...newStaffs]
-                .sort((a, b) => {
-                    if (!targetSection) return 0;
-                    return Number(a.khg_id ?? 0) - Number(b.khg_id ?? 0);
-                })
-                .sort((a, b) => Number(positionIndex[a.position] ?? 0) - Number(positionIndex[b.position] ?? 0))
-                .map((staff, index) => {
-                    const actualId = staff.khg_id ?? staff.id;
-                    const idString = actualId ? String(actualId) : `fallback_${targetShop}_${index}`;
-                    const shopString = staff.shop ?? '';
-                    const displayName = (!targetShop && staff.shop) ? `${staff.name} (${staff.shop})` : staff.name;
-
-                    const staffTotal = achievement.filter(a =>
-                        a.period.includes(String(thisYear - 1)) &&
-                        a.category === 'staff' &&
-                        a.name === staff.name
-                    );
-
-                    const staffTotalAverage = (staffTotal.reduce((acc, cur) => acc + (Number(cur?.value ?? 0)), 0))
-                        * achievementPeriod.length / 12;
-
-                    return {
-                        id: idString,
-                        name: displayName,
-                        shop: shopString,
-                        personalIndex: calculatePersonalIndex(staffTotalAverage, shopTotal, newStaffs.length)
-                    };
-                });
+        mediums.forEach(m => {
+            const list = customers.filter(c => (c.medium || 'その他') === m);
+            out[m] = {
+                // ⚠️ 「その他」に budget.medium = '' の分を寄せる。顧客側と揃えるため
+                budget: sumBudget(current.budget, months, targetShops, m === 'その他' ? '' : m),
+                counts: countKpis(targetDivision, list),
+            };
         });
-    }, [newStaffs, targetShop, targetSection, achievement, targetPeriod, shopTotal]);
+        return out;
+    }, [current, months, targetShops, customers, mediums, targetDivision]);
 
+    /**
+     * ⚠️ 条件が変わったら試算を捨てる。
+     *   残すと、いま見えている実績とは別の条件の数字が並ぶ。
+     */
     useEffect(() => {
-        const filteredAchievement = achievement.filter(a =>
-            achievementPeriod.includes(a.period.replace(/-/g, '/') ?? '')
-            && a.category === 'shop'
-            && (isSection || isGroup ? newShops.map(n => n.shop).includes(a.name) : targetShop === a.name)
-        ).reduce((acc, cur) => acc + Number(cur.value ?? 0), 0);
-        setTargetContracts(filteredAchievement);
-    }, [achievement, achievementPeriod, targetShop, targetSection, newShops]);
+        setEdited({});
+    }, [targetDivision, targetSection, targetShop, startMonth, endMonth]);
 
-    // --- ハンドラー ---
-    const handleAddMember = () => {
-        if (!newMemberName.trim()) return;
-        const foundStaff = staffs.find(s => s.name === newMemberName);
-        const newShop = foundStaff ? foundStaff.shop : '';
-        const newMember: Member = { id: `manual_${Date.now()}`, name: newMemberName, shop: newShop, personalIndex: 1.0 };
-        setMembers([...members, newMember]);
-        setNewMemberName('');
+    /** 表示する値。書き換えがあればそちら、無ければ実績 */
+    const rowOf = useCallback(
+        (key: string): SimRow => edited[key] ?? actual[key] ?? { budget: 0, counts: { register: 0, interview: 0, appointment: 0, contract: 0 } },
+        [edited, actual]
+    );
+
+    const update = (key: string, next: SimRow) => setEdited(prev => ({ ...prev, [key]: next }));
+
+    const isEdited = (key: string) => edited[key] !== undefined;
+
+    const kpis = KPI_DEFS[targetDivision];
+
+    /** 1ブロック分の表。全体も媒体別も同じ形で出す */
+    const renderBlock = (key: string, label: string) => {
+        const row = rowOf(key);
+        const base = actual[key];
+        const edit = isEdited(key);
+
+        return (
+            <div key={key || '__total__'} className="mb-4">
+                <div className="d-flex align-items-center gap-2 mb-2">
+                    <span className="fw-bold" style={{ fontSize: '13px' }}>{label}</span>
+                    {edit && (
+                        <>
+                            <span className="badge bg-warning text-dark" style={{ fontSize: '10px' }}>試算中</span>
+                            {/* ⚠️ 実績に戻せるようにする。戻せないと元の数字が分からなくなる */}
+                            <Button
+                                size="sm"
+                                variant="outline-secondary"
+                                style={{ fontSize: '10px', padding: '1px 8px' }}
+                                onClick={() => setEdited(prev => {
+                                    const next = { ...prev };
+                                    delete next[key];
+                                    return next;
+                                })}
+                            >実績に戻す</Button>
+                        </>
+                    )}
+                </div>
+
+                <Table bordered hover className="mb-0 align-middle" style={{ fontSize: '12px' }}>
+                    <thead className="bg-light">
+                        <tr>
+                            <th className="bg-light" style={{ width: '130px' }}>広告費総額</th>
+                            {kpis.map(k => (
+                                <th key={k.key} className="bg-light text-center" style={{ width: '150px' }}>
+                                    {/* ⚠️ 色は shop/unitPriceSeries.ts と同じ。工程の進み方が読めるようにしている */}
+                                    <span style={{ borderLeft: `4px solid ${k.color}`, paddingLeft: '6px' }}>{k.label}</span>
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td rowSpan={2} style={{ verticalAlign: 'middle' }}>
+                                <Form.Control
+                                    size="sm"
+                                    style={{ fontSize: '12px', textAlign: 'right' }}
+                                    value={row.budget.toLocaleString()}
+                                    onChange={(e) => update(key, applyBudget(row, toNumber(e.target.value)))}
+                                />
+                                {base && (
+                                    <div className="text-muted mt-1" style={{ fontSize: '10px' }}>
+                                        実績 {yen(base.budget)}
+                                    </div>
+                                )}
+                            </td>
+                            {kpis.map(k => (
+                                <td key={k.key} className="text-center">
+                                    <Form.Control
+                                        size="sm"
+                                        style={{ fontSize: '12px', textAlign: 'right' }}
+                                        value={row.counts[k.key].toLocaleString()}
+                                        onChange={(e) => update(key, applyCount(row, k.key, toNumber(e.target.value)))}
+                                    />
+                                    {base && (
+                                        <div className="text-muted mt-1" style={{ fontSize: '10px' }}>
+                                            実績 {base.counts[k.key].toLocaleString()}件
+                                        </div>
+                                    )}
+                                </td>
+                            ))}
+                        </tr>
+                        <tr>
+                            {kpis.map(k => {
+                                const unit = unitPrice(row.budget, row.counts[k.key]);
+                                const baseUnit = base ? unitPrice(base.budget, base.counts[k.key]) : null;
+                                return (
+                                    <td key={k.key} className="text-center">
+                                        <div className="text-muted mb-1" style={{ fontSize: '10px' }}>{k.unitLabel}</div>
+                                        <Form.Control
+                                            size="sm"
+                                            style={{ fontSize: '12px', textAlign: 'right' }}
+                                            value={unit === null ? '' : unit.toLocaleString()}
+                                            placeholder="-"
+                                            onChange={(e) => update(key, applyUnit(row, k.key, toNumber(e.target.value)))}
+                                        />
+                                        {base && (
+                                            <div className="text-muted mt-1" style={{ fontSize: '10px' }}>
+                                                実績 {yen(baseUnit)}
+                                            </div>
+                                        )}
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    </tbody>
+                </Table>
+            </div>
+        );
     };
-
-    // --- レンダリング定義 ---
-    const inputStyle = { fontSize: '12px', width: '120px' };
-    const isGroup = !targetShop && !targetSection;
-    const isSection = targetSection && !targetShop;
 
     return (
-        <div className="bg-white p-4 rounded shadow-sm border">
-            {/* ヘッダー＆フィルター */}
-            <div className="d-flex align-items-center mb-4 border-bottom pb-3">
-                <h5 className="mb-0 fw-bold me-4"><i className="fa-solid fa-calculator me-2"></i>広告費シミュレーター</h5>
-                <div className="d-flex gap-2 ms-auto align-items-center">
-                    <div className="text-secondary" style={{ ...inputStyle, width: 'fit-content' }}>参考値を選択</div>
-                    <BsForm.Select size="sm" className="text-muted" style={inputStyle}
-                        value={targetSection} onChange={(e) => {
-                            setTargetSection(e.target.value);
+        // ⚠️ 余白はここで付ける。Header.tsx の全画面モーダルの Modal.Body は p-0
+        //   （縦を使い切るため）で、何も付けないと端に貼り付いて読みにくい。
+        //   ⚠️ Header.tsx 側に足すと他の全画面メニューにも効くので触らない。
+        <div className="py-3 px-5">
+            <div className="d-flex align-items-center gap-3 flex-wrap mb-3">
+                <span className="fw-bold" style={{ fontSize: '14px' }}>
+                    <i className="fa-solid fa-calculator me-2 text-primary" aria-hidden="true" />
+                    広告費シミュレーター
+                </span>
+                <span className="text-muted" style={{ fontSize: '11px' }}>
+                    {/* ⚠️ 保存されないことを明記する。試算を入力して閉じると消えるため */}
+                    実績の数字を書き換えると試算になります（保存はされません）
+                </span>
+            </div>
+
+            {/* 絞り込み。⚠️ 上部にまとめて置く */}
+            <div className="d-flex align-items-end gap-2 flex-wrap px-3 py-2 mb-3 bg-light border rounded">
+                <div>
+                    <Form.Label className="text-muted mb-1 fw-bold" style={{ fontSize: '11px' }}>事業区分</Form.Label>
+                    <Form.Select
+                        size="sm" value={targetDivision} style={{ width: '160px', fontSize: '12px' }}
+                        onChange={(e) => {
+                            // ⚠️ 事業が変われば課も店舗も別物になる。必ず外す
+                            setTargetSection('');
                             setTargetShop('');
-                        }}>
-                        <option value=''>注文事業全体</option>
-                        {sections.map(section => <option key={section} value={section}>{section}</option>)}
-                    </BsForm.Select>
-                    <BsForm.Select size="sm" className="text-muted" style={inputStyle}
-                        value={targetShop} onChange={(e) => setTargetShop(e.target.value)}>
-                        {targetSection ? <option value=''>{targetSection}全体</option> : <option value=''>注文事業全体</option>}
-                        {newShops.map(shop => <option key={shop.shop} value={shop.shop}>{shop.shop}</option>)}
-                    </BsForm.Select>
-                    <BsForm.Select size="sm" className="text-muted" style={inputStyle}
-                        value={startPeriod} onChange={(e) => setStartPeriod(e.target.value)}>
-                        {getFiscalYearMonthsFromJune(2027).map(period => <option key={period} value={period}>{period} </option>)}
-                    </BsForm.Select>
-                    <BsForm.Select size="sm" className="text-muted" style={inputStyle}
-                        value={endPeriod} onChange={(e) => setEndPeriod(e.target.value)}>
-                        {getFiscalYearMonthsFromJune(2027).map(period => <option key={period} value={period}>{period} </option>)}
-                    </BsForm.Select>
-                    
-                    {/* 🌟 追加：起算日トグルボタン */}
-                    <div className="btn-group ms-2" role="group">
-                        <input type="radio" className="btn-check" name="dateBase" id="dateBaseInquiry" 
-                            checked={dateBase === 'inquiry'} onChange={() => setDateBase('inquiry')} />
-                        <label className="btn btn-outline-secondary btn-sm" htmlFor="dateBaseInquiry" style={{ fontSize: '12px', padding: '0.25rem 0.5rem' }}>反響日起算</label>
-
-                        <input type="radio" className="btn-check" name="dateBase" id="dateBaseAchievement" 
-                            checked={dateBase === 'achievement'} onChange={() => setDateBase('achievement')} />
-                        <label className="btn btn-outline-secondary btn-sm" htmlFor="dateBaseAchievement" style={{ fontSize: '12px', padding: '0.25rem 0.5rem' }}>実績日起算</label>
-                    </div>
+                            setTargetDivision(e.target.value as Division);
+                        }}
+                    >
+                        {(Object.keys(DIVISION_LABEL) as Division[]).map(d =>
+                            <option key={d} value={d}>{DIVISION_LABEL[d]}</option>)}
+                    </Form.Select>
                 </div>
+                <div>
+                    <Form.Label className="text-muted mb-1 fw-bold" style={{ fontSize: '11px' }}>営業課</Form.Label>
+                    <Form.Select
+                        size="sm" value={targetSection} style={{ width: '180px', fontSize: '12px' }}
+                        onChange={(e) => { setTargetShop(''); setTargetSection(e.target.value); }}
+                    >
+                        <option value="">すべて</option>
+                        {sectionOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                    </Form.Select>
+                </div>
+                <div>
+                    <Form.Label className="text-muted mb-1 fw-bold" style={{ fontSize: '11px' }}>店舗</Form.Label>
+                    <Form.Select
+                        size="sm" value={targetShop} style={{ width: '180px', fontSize: '12px' }}
+                        onChange={(e) => setTargetShop(e.target.value)}
+                    >
+                        <option value="">すべて</option>
+                        {shopOptions.map(s => <option key={s.shop} value={s.shop}>{s.shop}</option>)}
+                    </Form.Select>
+                </div>
+                <div>
+                    <Form.Label className="text-muted mb-1 fw-bold" style={{ fontSize: '11px' }}>開始月</Form.Label>
+                    <Form.Select
+                        size="sm" value={startMonth} style={{ width: '120px', fontSize: '12px' }}
+                        onChange={(e) => setStartMonth(e.target.value)}
+                    >
+                        {monthArray.map(m => <option key={m} value={m}>{m}</option>)}
+                    </Form.Select>
+                </div>
+                <span className="pb-1">～</span>
+                <div>
+                    <Form.Label className="text-muted mb-1 fw-bold" style={{ fontSize: '11px' }}>終了月</Form.Label>
+                    <Form.Select
+                        size="sm" value={endMonth} style={{ width: '120px', fontSize: '12px' }}
+                        onChange={(e) => setEndMonth(e.target.value)}
+                    >
+                        {monthArray.map(m => <option key={m} value={m}>{m}</option>)}
+                    </Form.Select>
+                </div>
+                {Object.keys(edited).length > 0 && (
+                    <Button
+                        size="sm" variant="outline-secondary" className="ms-auto"
+                        style={{ fontSize: '12px' }}
+                        onClick={() => setEdited({})}
+                    >
+                        <i className="fa-solid fa-rotate-left me-1" aria-hidden="true" />すべて実績に戻す
+                    </Button>
+                )}
             </div>
 
-            {/* モード切替タブ */}
-            <ul className="nav nav-pills nav-fill mb-4 p-1 bg-light rounded border">
-                <li className="nav-item">
-                    <button
-                        className={`nav-link fw-bold border-0 ${calcMode === 'calc_budget' ? 'active bg-primary text-white shadow-sm' : 'text-secondary'}`}
-                        onClick={() => setCalcMode('calc_budget')}
-                        style={{ fontSize: '14px', borderRadius: '0.375rem' }}
-                    >
-                        <i className="fa-solid fa-bullseye me-2"></i>目標契約数から広告費を算出
-                    </button>
-                </li>
-                <li className="nav-item">
-                    <button
-                        className={`nav-link fw-bold border-0 ${calcMode === 'calc_contracts' ? 'active bg-success text-white shadow-sm' : 'text-secondary'}`}
-                        onClick={() => setCalcMode('calc_contracts')}
-                        style={{ fontSize: '14px', borderRadius: '0.375rem' }}
-                    >
-                        <i className="fa-solid fa-coins me-2"></i>予算から予測契約数を算出
-                    </button>
-                </li>
-            </ul>
+            {error !== '' && (
+                <div className="alert alert-danger d-flex align-items-start gap-2" style={{ fontSize: '13px' }}>
+                    <i className="fa-solid fa-triangle-exclamation mt-1" aria-hidden="true" />
+                    <span className="flex-grow-1">{error}</span>
+                </div>
+            )}
 
-            <div className="row mb-4">
-                <div className="col-md-7">
-                    
-                    {/* 2カラム構成：左（シミュレーション入力）/ 右（前年度実績） */}
-                    <div className="bg-light p-4 rounded border mb-4">
-                        <div className="row">
-                            {/* 左カラム: 目標・入力エリア */}
-                            <div className="col-md-6 mb-4 mb-md-0 border-end">
-                                {/* 1. 目標契約単価 */}
-                                <div className="mb-3">
-                                    <label className="text-muted mb-1 fw-bold" style={{ fontSize: '13px' }}>目標契約単価 (CPA)</label>
-                                    <div className="d-flex align-items-center">
-                                        <BsForm.Control
-                                            size="sm" type="text"
-                                            value={baseCpa === 0 ? '' : baseCpa}
-                                            onChange={(e) => handleNumberOnlyChange(e.target.value, setBaseCpa)}
-                                            style={{ fontSize: '15px', maxWidth: '160px' }}
-                                        />
-                                        <span className="ms-2 text-muted" style={{ fontSize: '13px' }}>円</span>
-                                    </div>
-                                </div>
+            {/* ⚠️ 開始 > 終了 のときは黙って0件にせず理由を出す */}
+            {months.length === 0 && error === '' && !loading && (
+                <div className="alert alert-warning" style={{ fontSize: '13px' }}>
+                    開始月が終了月より後になっています。期間を選び直してください。
+                </div>
+            )}
 
-                                {/* 2. 目標契約数 or 投入予算 */}
-                                <div className="mb-3">
-                                    {calcMode === 'calc_budget' ? (
-                                        <>
-                                            <label className="text-primary mb-1 fw-bold" style={{ fontSize: '13px' }}>目標契約数</label>
-                                            <div className="d-flex align-items-center">
-                                                <BsForm.Control
-                                                    size="sm" type="text"
-                                                    value={targetContracts === 0 ? '' : targetContracts}
-                                                    onChange={(e) => handleNumberOnlyChange(e.target.value, setTargetContracts)}
-                                                    style={{ fontSize: '15px', maxWidth: '160px', borderColor: '#0d6efd' }}
-                                                />
-                                                <span className="ms-2 text-muted" style={{ fontSize: '13px' }}>件</span>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <label className="text-success mb-1 fw-bold" style={{ fontSize: '13px' }}>投入予算</label>
-                                            <div className="d-flex align-items-center">
-                                                <BsForm.Control
-                                                    size="sm" type="text"
-                                                    value={inputBudget === 0 ? '' : inputBudget}
-                                                    onChange={(e) => handleNumberOnlyChange(e.target.value, setInputBudget)}
-                                                    style={{ fontSize: '15px', maxWidth: '160px', borderColor: '#198754' }}
-                                                />
-                                                <span className="ms-2 text-muted" style={{ fontSize: '13px' }}>円</span>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* 3. グループ/店舗指数 */}
-                                <div>
-                                    <label className="text-muted mb-1 fw-bold" style={{ fontSize: '13px' }}>
-                                        {isGroup ? 'グループ指数' : isSection ? `${targetSection}指数` : `${targetShop}指数`}
-                                    </label>
-                                    <div className="d-flex align-items-center">
-                                        <BsForm.Control
-                                            size="sm" type="number" step="0.1"
-                                            value={shopIndex}
-                                            onChange={(e) => setShopIndex(Number(e.target.value))}
-                                            onKeyDown={disableTextInput}
-                                            style={{ fontSize: '15px', maxWidth: '160px' }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 右カラム: 前年度実績エリア (表示専用) */}
-                            <div className="col-md-6 ps-md-4">
-                                {/* 1. 前年度契約単価 */}
-                                <div className="mb-3">
-                                    <label className="text-muted mb-1 fw-bold" style={{ fontSize: '13px' }}>前年度契約単価 (CPA)</label>
-                                    <div className="d-flex align-items-center">
-                                        <BsForm.Control
-                                            size="sm" type="text"
-                                            value={contractSummary.CPA ? contractSummary.CPA.toLocaleString() : ''}
-                                            readOnly
-                                            style={{ fontSize: '15px', maxWidth: '160px', backgroundColor: '#e9ecef', color: '#6c757d' }}
-                                        />
-                                        <span className="ms-2 text-muted" style={{ fontSize: '13px' }}>円</span>
-                                    </div>
-                                </div>
-
-                                {/* 2. 前年度契約数 */}
-                                <div className="mb-3">
-                                    <label className="text-muted mb-1 fw-bold" style={{ fontSize: '13px' }}>前年度契約数</label>
-                                    <div className="d-flex align-items-center">
-                                        <BsForm.Control
-                                            size="sm" type="text"
-                                            value={contractSummary.contract ? contractSummary.contract.toLocaleString() : ''}
-                                            readOnly
-                                            style={{ fontSize: '15px', maxWidth: '160px', backgroundColor: '#e9ecef', color: '#6c757d' }}
-                                        />
-                                        <span className="ms-2 text-muted" style={{ fontSize: '13px' }}>件</span>
-                                    </div>
-                                </div>
-
-                                {/* 3. ブランク（左の指数入力欄と高さを揃える） */}
-                                <div className="d-none d-md-block" style={{ height: '62px' }}></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* メンバーリスト */}
-                    <div>
-                        <div className="d-flex justify-content-between align-items-end mb-2">
-                            <span className="fw-bold" style={{ fontSize: '13px' }}>所属営業メンバー ({members.length}名)</span>
-                            <div className="d-flex gap-1">
-                                <BsForm.Control size="sm" placeholder="新規メンバー名" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} style={inputStyle} />
-                                <button className="btn btn-secondary btn-sm" style={{ fontSize: '12px' }} onClick={handleAddMember}>追加</button>
-                            </div>
-                        </div>
-                        <div className="table-responsive border rounded" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                            <Table hover size="sm" className="align-middle mb-0">
-                                <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#f8f9fa' }}>
-                                    <tr className="text-secondary" style={{ fontSize: '12px' }}>
-                                        <th className="py-2 px-3 border-bottom-0">氏名</th>
-                                        <th className="py-2 border-bottom-0" style={{ width: '120px' }}>個人指数</th>
-                                        <th className="py-2 text-center border-bottom-0" style={{ width: '60px' }}>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody style={{ fontSize: '13px' }}>
-                                    {members.map((member, index) => (
-                                        <tr key={`${member.id}_${member.shop}_${index}`}>
-                                            <td className="px-3 fw-bold">{member.name}</td>
-                                            <td>
-                                                <BsForm.Control
-                                                    size="sm" type="number" step="0.1"
-                                                    value={member.personalIndex}
-                                                    onChange={(e) => setMembers(members.map(m =>
-                                                        (m.id === member.id && m.shop === member.shop)
-                                                            ? { ...m, personalIndex: Number(e.target.value) }
-                                                            : m
-                                                    ))}
-                                                    onKeyDown={disableTextInput}
-                                                    style={{ fontSize: '12px' }}
-                                                />
-                                            </td>
-                                            <td className="text-center">
-                                                <button className="btn btn-link text-danger p-0" onClick={() => setMembers(members.filter(m => !(m.id === member.id && m.shop === member.shop)))}>
-                                                    <i className="fa-solid fa-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {members.length === 0 && (
-                                        <tr><td colSpan={2} className="text-center text-muted py-3">メンバーがいません</td></tr>
-                                    )}
-                                </tbody>
-                            </Table>
-                        </div>
+            {loading ? (
+                <div className="text-center py-5">
+                    <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">読み込み中</span>
                     </div>
                 </div>
+            ) : (
+                <>
+                    {renderBlock('', `${DIVISION_LABEL[targetDivision]} 全体`)}
 
-                {/* 右側: 結果表示パネル */}
-                <div className="col-md-5">
-                    <div className="card border-0 shadow-sm rounded-4 h-100" style={{ backgroundColor: '#2c3e50', color: 'white' }}>
-                        <div className="card-body p-4 d-flex flex-column">
-                            <h6 className="text-white-50 mb-4 fw-bold">シミュレーション結果</h6>
-
-                            <div className="mb-4">
-                                <span className="d-block text-white-50 mb-1" style={{ fontSize: '13px' }}>チーム営業指数</span>
-                                <span className="fs-3 fw-bold">{simulationResult.teamSalesIndex.toFixed(2)}</span>
-                            </div>
-
-                            <div className="mb-4">
-                                <span className="d-block text-white-50 mb-1" style={{ fontSize: '13px' }}>総合パフォーマンス指数</span>
-                                <span className="fs-3 fw-bold">{simulationResult.totalIndex.toFixed(2)}</span>
-                                <span className="ms-2" style={{ fontSize: '12px' }}>(実質CPA: {Math.round(simulationResult.actualCpa).toLocaleString()}円)</span>
-                            </div>
-
-                            <div className="mt-auto p-3 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-                                {calcMode === 'calc_budget' ? (
-                                    <>
-                                        <span className="d-block text-info fw-bold mb-2" style={{ fontSize: '14px' }}>目標 {targetContracts.toLocaleString()} 件を達成するための必要予算</span>
-                                        <div className="text-end">
-                                            <span className="fs-1 fw-bold text-white">{simulationResult.requiredBudget.toLocaleString()}</span>
-                                            <span className="ms-2 text-white-50">円</span>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span className="d-block text-success fw-bold mb-2" style={{ fontSize: '14px' }}>予算 {inputBudget.toLocaleString()} 円から予測される獲得数</span>
-                                        <div className="text-end">
-                                            <span className="fs-1 fw-bold text-white">{simulationResult.predictedContracts.toLocaleString()}</span>
-                                            <span className="ms-2 text-white-50">件</span>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
+                    <div className="fw-bold mb-2 mt-4" style={{ fontSize: '13px' }}>
+                        販促媒体別
+                        <span className="text-muted ms-2" style={{ fontSize: '11px' }}>
+                            {/* ⚠️ 媒体別の合計は全体と一致しないことがある。理由を書いておく */}
+                            ※ 広告費が媒体に紐づいていない分は全体にのみ含まれます
+                        </span>
                     </div>
-                </div>
-            </div>
+                    {mediums.length === 0
+                        ? <div className="text-muted" style={{ fontSize: '12px' }}>この期間に反響がありません</div>
+                        : mediums.map(m => renderBlock(m, m))}
+                </>
+            )}
         </div>
     );
 };
