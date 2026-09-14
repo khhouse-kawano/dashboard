@@ -208,6 +208,31 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: today,
                 id: generateULID()
             });
+            /**
+             * ⚠️⚠️ **新規顧客でも架電記録・商談ステップを必ず空にすること。**
+             *   下の fetchData は `if (id !== 'new')` の中でしか
+             *   `setCallLog` / `setInterviewLog` を呼ばない。
+             *   ここで空にしないと**前に開いていた顧客の履歴が残ったまま**になり、
+             *   保存時に ID だけ差し替わって
+             *   **他人の架電履歴が新しい顧客の行に書き込まれる。**
+             */
+            setCallLog({
+                id: '',
+                shop: '',
+                staff: '',
+                name: '',
+                status: '',
+                reserved_status: '',
+                call_log: [],
+                add: false
+            });
+            setInterviewLog({
+                id: '',
+                shop: '',
+                name: '',
+                interview_log: [],
+                add: false
+            });
             setSending(false);
         }
 
@@ -500,6 +525,39 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
             action: '',
             note: '',
             staff: ''
+        });
+        /**
+         * ⚠️⚠️ **架電記録・商談ステップも必ず空に戻すこと。**
+         *
+         *   2026-09-14 まで、この保存経路だけ `setCallLog` / `setInterviewLog` が
+         *   抜けていた（`handleClose` には両方ある）。そのため
+         *
+         *     顧客A を保存して閉じる → callLog に A の履歴が残る
+         *       → 新規顧客を開く（fetchData は id === 'new' では
+         *          callLog を初期化しない）
+         *       → 保存すると **A の架電履歴が新しい顧客の行に丸ごとコピーされる**
+         *
+         *   という状態になっていた。保存時に `id: information.id` で
+         *   ID だけ差し替わるため、**中身が他人のものだと気づけない。**
+         *
+         * ⚠️ 注文（InformationEdit.tsx）でも同じ修正をしている。片方だけ戻さないこと。
+         */
+        setCallLog({
+            id: '',
+            shop: '',
+            staff: '',
+            name: '',
+            status: '',
+            reserved_status: '',
+            call_log: [],
+            add: false
+        });
+        setInterviewLog({
+            id: '',
+            shop: '',
+            name: '',
+            interview_log: [],
+            add: false
         });
         modalClose();
     };
