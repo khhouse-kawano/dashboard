@@ -37,20 +37,22 @@ const DIVISIONS: BudgetDivision[] = ['order', 'spec'];
 const fetchOne = async (division: BudgetDivision) => {
   const sql = budgetSimulatorSql(division);
 
-  const [shop, section, customer, budget, achievement] = await Promise.all([
+  const [shop, section, customer, medium, budget, achievement] = await Promise.all([
     query<DynamicRow>(sql.shop, [sql.division]),
     query<DynamicRow>(sql.section, [sql.division]),
     query<DynamicRow>(sql.customer),
+    // ⚠️ 事業ごとに別テーブル（order = medium_list / spec = medium_kaeru）
+    query<DynamicRow>(sql.medium),
     query<DynamicRow>(sql.budget, [sql.budgetSection]),
     // ⚠️ 契約目標は事業で絞らない。店舗名でフロントが突合する（queries.ts 参照）
     query<DynamicRow>(sql.achievement),
   ]);
 
-  return { shop, section, customer, budget, achievement };
+  return { shop, section, customer, medium, budget, achievement };
 };
 
 export const runBudgetSimulator = async (): Promise<BudgetSimulatorResult> => {
-  // ⚠️ 事業ごとに4クエリ、計8本を並列で投げる
+  // ⚠️ 事業ごとに6クエリ、計12本を並列で投げる
   const [order, spec] = await Promise.all(DIVISIONS.map(fetchOne));
 
   /**

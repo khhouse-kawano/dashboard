@@ -5,11 +5,11 @@ import Button from 'react-bootstrap/Button';
 import apiClient from '../../utils/apiClient';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import {
-    DIVISION_LABEL, KPI_DEFS, applyBudget, applyCount, applyUnit,
-    countKpis, filterCustomers, lastYearMonth, requiredBudget,
-    sumAchievement, sumBudget, toNumber, unitPrice,
+    DIVISION_LABEL, HP_ROW, KPI_DEFS, applyBudget, applyCount, applyUnit,
+    countKpis, filterCustomers, lastYearMonth, matchesMedium, mediumRows,
+    requiredBudget, sumAchievement, sumBudget, toNumber, unitPrice,
 } from './budgetSimulatorUtils';
-import type { Division, KpiKey, SimBudget, SimCustomer, SimRow, SimShop } from './budgetSimulatorUtils';
+import type { Division, KpiKey, SimBudget, SimCustomer, SimMedium, SimRow, SimShop } from './budgetSimulatorUtils';
 
 /**
  * 広告費シミュレーター。
@@ -42,6 +42,7 @@ type DivisionData = {
     shop: SimShop[];
     section: { name: string }[];
     customer: SimCustomer[];
+    medium: SimMedium[];
     budget: SimBudget[];
     achievement: { name: string; period: string; value: string }[];
 };
@@ -134,18 +135,27 @@ const BudgetSimulator = () => {
      */
     const lastYearMonths = useMemo(() => months.map(lastYearMonth), [months]);
 
-    /** 期間・店舗で絞った顧客（＝**今**の歩留まり） */
+    /** 選択期間・店舗で絞った顧客（＝**当期の実績**。グレーで併記する） */
     const customers = useMemo(
         () => (current ? filterCustomers(current.customer, months, targetShops) : []),
         [current, months, targetShops]
     );
 
     /**
-     * 1年前の顧客。
-     * ⚠️ **契約目標に必要な広告費を出すためだけに使う。** 画面には出さない。
-     *   必要広告費は「昨年の広告費 ÷ **昨年の**契約数」で単価を出す必要があり、
-     *   画面の単価（昨年の広告費 ÷ 今の契約数）を使うと、
-     *   期の途中で契約数が少ないぶん単価が跳ね上がって過大になる。
+     * 1年前の顧客（＝**試算の出発点**）。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **KPI 単価は「昨年の広告費 ÷ 昨年の件数」である**（2026-09-14 の指示）。
+     *   当期の件数を分母にすると、期の途中では件数が少ないぶん
+     *   **単価が跳ね上がり**、試算の基準として使えない。
+     *
+     * ⚠️⚠️ そのため入力欄の初期値は**広告費・件数とも昨年**で揃えてある。
+     *   `単価 = 広告費 ÷ 件数` という恒等式でシミュレーションが回っており、
+     *   単価だけ昨年に差し替えると**画面の3つの数字が噛み合わなくなる**
+     *   （広告費 ÷ 件数 が表示中の単価と一致しない）。
+     *
+     * ⚠️ 当期の実績は各セルの下にグレーで併記する。入力欄には入れない。
+     * ─────────────────────────────────────────────
      */
     const lastYearCustomers = useMemo(
         () => (current ? filterCustomers(current.customer, lastYearMonths, targetShops) : []),
@@ -165,51 +175,66 @@ const BudgetSimulator = () => {
     );
 
     /**
-     * 販促媒体の一覧。
-     * ⚠️ マスタではなく**実データ**（sales_promotion_name）から作る。
-     *   マスタから作ると、その期間に1件も無い媒体まで並んで読みにくい。
-     * ⚠️ 空文字は「その他」としてまとめる。媒体未設定の反響が消えると
-     *   媒体別の合計が全体と合わなくなる。
+     * 販促媒体の行。
+     * ⚠️⚠️ **マスタから作る**（2026-09-14 の指示）。事業ごとに別テーブルで、
+     *   建売は「ホームページ反響計」が先頭に付く（budgetSimulatorUtils.ts 参照）。
      */
-    const mediums = useMemo(() => {
-        const seen = new Set<string>();
-        customers.forEach(c => seen.add(c.medium || 'その他'));
-        return [...seen].sort();
-    }, [customers]);
+    const mediums = useMemo(
+        () => (current ? mediumRows(targetDivision, current.medium ?? []) : []),
+        [current, targetDivision]
+    );
 
     /**
-     * 実績（書き換え前の値）。キーは '' が全体、それ以外は媒体名。
-     * ⚠️⚠️ **広告費は1年前、件数は選択期間**（指示）。ここが揃っていないのは意図的。
+     * 試算の出発点（書き換え前の値）。キーは '' が全体、それ以外は媒体の行。
+     * ⚠️⚠️ **広告費も件数も1年前で揃える。** 単価が「昨年 ÷ 昨年」になるようにするため
+     *   （lastYearCustomers のコメント参照）。
      */
     const actual = useMemo<Record<string, SimRow>>(() => {
         if (!current) return {};
         const out: Record<string, SimRow> = {
             '': {
                 budget: sumBudget(current.budget, lastYearMonths, targetShops),
-                counts: countKpis(targetDivision, customers),
+                counts: countKpis(targetDivision, lastYearCustomers),
             },
         };
         mediums.forEach(m => {
-            const list = customers.filter(c => (c.medium || 'その他') === m);
+            const list = lastYearCustomers.filter(c => matchesMedium(targetDivision, c, m, mediums));
             out[m] = {
-                // ⚠️ 「その他」に budget.medium = '' の分を寄せる。顧客側と揃えるため
-                budget: sumBudget(current.budget, lastYearMonths, targetShops, m === 'その他' ? '' : m),
+                budget: sumBudget(current.budget, lastYearMonths, targetShops, m, mediums),
                 counts: countKpis(targetDivision, list),
             };
         });
         return out;
-    }, [current, lastYearMonths, targetShops, customers, mediums, targetDivision]);
+    }, [current, lastYearMonths, targetShops, lastYearCustomers, mediums, targetDivision]);
+
+    /**
+     * 当期の実績件数。
+     * ⚠️ **表示専用。** 入力欄には入れない（入れると単価の分母が当期になり、
+     *   「昨年 ÷ 昨年」という指示から外れる）。
+     */
+    const currentCounts = useMemo<Record<string, Record<KpiKey, number>>>(() => {
+        const out: Record<string, Record<KpiKey, number>> = {
+            '': countKpis(targetDivision, customers),
+        };
+        mediums.forEach(m => {
+            out[m] = countKpis(
+                targetDivision,
+                customers.filter(c => matchesMedium(targetDivision, c, m, mediums))
+            );
+        });
+        return out;
+    }, [customers, mediums, targetDivision]);
 
     /**
      * 契約目標を達成するために必要な広告費。
-     * ⚠️ 単価は「昨年の広告費 ÷ **昨年の**契約数」。画面に出ている単価とは違う
-     *   （budgetSimulatorUtils.ts の requiredBudget のコメント参照）。
+     * ⚠️ 単価は「昨年の広告費 ÷ 昨年の契約数」。
+     *   ⚠️ 2026-09-14 に画面の単価も同じ基準になったため、**契約単価と一致する。**
+     *     以前は画面の単価だけ分母が当期で、別物だった。
      */
     const neededBudget = useMemo(() => {
-        const lastBudget = actual['']?.budget ?? 0;
-        const lastContract = countKpis(targetDivision, lastYearCustomers).contract;
-        return requiredBudget(lastBudget, lastContract, contractTarget);
-    }, [actual, targetDivision, lastYearCustomers, contractTarget]);
+        const base = actual[''];
+        return requiredBudget(base?.budget ?? 0, base?.counts.contract ?? 0, contractTarget);
+    }, [actual, contractTarget]);
 
     /**
      * 媒体の並び順。
@@ -244,6 +269,9 @@ const BudgetSimulator = () => {
     const sortedMediums = useMemo(() => {
         const arr = [...mediums];
         arr.sort((a, b) => {
+            // ⚠️ 「ホームページ反響計」は媒体ではなく寄せ集めの行なので常に先頭に置く
+            //   （CustomerTrendKaeru.tsx と同じ並び）。並べ替えの対象にしない
+            if (a === HP_ROW || b === HP_ROW) return a === HP_ROW ? -1 : 1;
             const va = rowOf(a).counts[sortKey];
             const vb = rowOf(b).counts[sortKey];
             // ⚠️ 同数なら媒体名で安定させる。並びが毎回変わると読みにくい
@@ -253,15 +281,21 @@ const BudgetSimulator = () => {
         return arr;
     }, [mediums, rowOf, sortKey, sortOrder]);
 
-    /** 期間のラベル。⚠️ 広告費が1年前であることを見出しに出す */
-    const budgetPeriodLabel = lastYearMonths.length > 0
+    /** 昨年の期間ラベル。⚠️ 入力欄が1年前であることを見出しに出す */
+    const lastYearLabel = lastYearMonths.length > 0
         ? `${lastYearMonths[0]}～${lastYearMonths[lastYearMonths.length - 1]}`
+        : '-';
+
+    /** 選択期間のラベル。⚠️ グレーの併記がこの期間であることを示す */
+    const currentLabel = months.length > 0
+        ? `${months[0]}～${months[months.length - 1]}`
         : '-';
 
     /** 1ブロック分の表。全体も媒体別も同じ形で出す */
     const renderBlock = (key: string, label: string) => {
         const row = rowOf(key);
         const base = actual[key];
+        const now = currentCounts[key];
         const edit = isEdited(key);
         /** ⚠️ 契約目標は店舗単位。媒体別には割り振れないので全体の表にだけ出す */
         const isTotal = key === '';
@@ -291,9 +325,9 @@ const BudgetSimulator = () => {
                 <Table bordered hover className="mb-0 align-middle" style={{ fontSize: '12px' }}>
                     <thead className="bg-light">
                         <tr>
-                            {/* ⚠️ 広告費は1年前。見出しに期間を出して取り違えを防ぐ */}
+                            {/* ⚠️ 入力欄は1年前。見出しに期間を出して取り違えを防ぐ */}
                             <th className="bg-light" style={{ width: '150px' }}>
-                                {budgetPeriodLabel}<br />広告費総額
+                                {lastYearLabel}<br />広告費総額
                             </th>
                             {kpis.map(k => (
                                 <th key={k.key} className="bg-light text-center" style={{ width: '150px' }}>
@@ -321,7 +355,7 @@ const BudgetSimulator = () => {
                                 />
                                 {base && (
                                     <div className="text-muted mt-1" style={{ fontSize: '10px' }}>
-                                        実績 {yen(base.budget)}
+                                        昨年実績 {yen(base.budget)}
                                     </div>
                                 )}
                             </td>
@@ -335,7 +369,13 @@ const BudgetSimulator = () => {
                                     />
                                     {base && (
                                         <div className="text-muted mt-1" style={{ fontSize: '10px' }}>
-                                            実績 {base.counts[k.key].toLocaleString()}件
+                                            昨年 {base.counts[k.key].toLocaleString()}件
+                                        </div>
+                                    )}
+                                    {/* ⚠️ 当期の実績。入力欄（昨年）とは別の期間なのでラベルで分ける */}
+                                    {now && (
+                                        <div className="text-primary" style={{ fontSize: '10px' }}>
+                                            当期 {now[k.key].toLocaleString()}件
                                         </div>
                                     )}
                                 </td>
@@ -351,10 +391,8 @@ const BudgetSimulator = () => {
                                     <div className="fw-bold text-danger" style={{ fontSize: '13px' }}>
                                         {yen(neededBudget)}
                                     </div>
-                                    {/* ⚠️ 画面の契約単価とは別物であることを書いておく。
-                                           こちらは「昨年の広告費 ÷ 昨年の契約数」で出している */}
                                     <div className="text-muted mt-1" style={{ fontSize: '9px', lineHeight: 1.3 }}>
-                                        ※昨年の契約単価から算出
+                                        ※左の契約単価 × 目標
                                     </div>
                                 </td>
                             )}
@@ -375,7 +413,7 @@ const BudgetSimulator = () => {
                                         />
                                         {base && (
                                             <div className="text-muted mt-1" style={{ fontSize: '10px' }}>
-                                                実績 {yen(baseUnit)}
+                                                昨年実績 {yen(baseUnit)}
                                             </div>
                                         )}
                                     </td>
@@ -400,8 +438,25 @@ const BudgetSimulator = () => {
                 </span>
                 <span className="text-muted" style={{ fontSize: '11px' }}>
                     {/* ⚠️ 保存されないことを明記する。試算を入力して閉じると消えるため */}
-                    実績の数字を書き換えると試算になります（保存はされません）
+                    数字を書き換えると試算になります（保存はされません）
                 </span>
+            </div>
+
+            {/* ⚠️⚠️ **入力欄と併記が別の期間である**ことを必ず出す。
+                   これが無いと「当期の広告費」と読まれ、必ず取り違えられる */}
+            <div className="d-flex align-items-start gap-2 px-3 py-2 mb-3 border rounded bg-white" style={{ fontSize: '11px' }}>
+                <i className="fa-solid fa-circle-info mt-1 text-secondary" aria-hidden="true" />
+                <div style={{ lineHeight: 1.6 }}>
+                    <span className="fw-bold">入力欄＝昨年実績（{lastYearLabel}）</span>
+                    <span className="text-muted ms-1">
+                        … 試算の出発点。KPI単価は「昨年の広告費 ÷ 昨年の件数」です
+                    </span>
+                    <br />
+                    <span className="fw-bold text-primary">当期＝{currentLabel}</span>
+                    <span className="text-muted ms-1">
+                        … 各件数の下に併記しています。試算には使いません
+                    </span>
+                </div>
             </div>
 
             {/* 絞り込み。⚠️ 上部にまとめて置く */}
@@ -513,12 +568,24 @@ const BudgetSimulator = () => {
                             <option value="asc">少ない順</option>
                         </Form.Select>
                         <span className="text-muted ms-2" style={{ fontSize: '11px' }}>
-                            {/* ⚠️ 媒体別の合計は全体と一致しないことがある。理由を書いておく */}
-                            ※ 広告費が媒体に紐づいていない分は全体にのみ含まれます
+                            {/* ⚠️⚠️ 媒体別の合計は全体と一致しない。マスタに載っていない媒体
+                                   （注文なら list_medium = 0 のもの、未設定の反響）は
+                                   どの行にも入らないため。黙って合わないと不具合に見える */}
+                            ※ 媒体別の合計は全体と一致しません（マスタに登録されていない媒体は
+                            {targetDivision === 'order' ? '行になりません' : 'ホームページ反響計に入ります'}）
                         </span>
                     </div>
                     {sortedMediums.length === 0
-                        ? <div className="text-muted" style={{ fontSize: '12px' }}>この期間に反響がありません</div>
+                        ? (
+                            <div className="alert alert-warning" style={{ fontSize: '12px' }}>
+                                {/* ⚠️ 建売で show_graph 列が無いとここに来る。原因が分かる文面にする */}
+                                表示対象の販促媒体が登録されていません。
+                                {targetDivision === 'order'
+                                    ? '（medium_list の list_medium）'
+                                    : '（medium_kaeru の show_graph）'}
+                                をご確認ください。
+                            </div>
+                        )
                         : sortedMediums.map(m => renderBlock(m, m))}
                 </>
             )}

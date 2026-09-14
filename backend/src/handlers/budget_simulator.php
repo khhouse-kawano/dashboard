@@ -52,8 +52,22 @@ $customer_sql = [
         COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG, '') as application,
         COALESCE(step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW, '') as contract,
         COALESCE(step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0, '') as contract_broker,
+        COALESCE(hp_campaign, '') as hp_campaign,
         COALESCE(status, '') as status
         FROM master_data_kaeru WHERE show_dashboard = 1",
+];
+
+/**
+ * 販促媒体のマスタ。
+ * ⚠️⚠️ **事業ごとに別のテーブル。** order = medium_list / spec = medium_kaeru。
+ *   建売の顧客の販促媒体名は medium_kaeru 由来で、medium_list とは
+ *   ほとんど一致しない（実測で最多の `ネット` 4,899件は medium_list に無い）。
+ * ⚠️ Express 側 backend-express/src/features/budgetSimulator/queries.ts の
+ *   MEDIUM_SQL と同じにしておくこと。
+ */
+$medium_sql = [
+    'order' => "SELECT medium, list_medium, sort_key FROM medium_list WHERE response_medium = 0",
+    'spec'  => "SELECT * FROM medium_kaeru",
 ];
 
 // ⚠️ order は show_flag で絞らない（店舗ランキングと揃える）。spec だけ絞る
@@ -82,6 +96,11 @@ foreach ($divisions as $key => $conf) {
     $stmt_customer->execute();
     $response_customer = $stmt_customer->fetchAll(PDO::FETCH_ASSOC);
 
+    // 販促媒体のマスタ。⚠️ 事業ごとに別テーブル
+    $stmt_medium = $pdo->prepare($medium_sql[$key]);
+    $stmt_medium->execute();
+    $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
+
     // 販促費。⚠️ medium も返すこと。媒体別の広告費を出すのに要る
     $stmt_budget = $pdo->prepare(
         "SELECT shop, medium, budget_period, budget_value
@@ -106,6 +125,7 @@ foreach ($divisions as $key => $conf) {
         'shop' => $response_shop,
         'section' => $response_section,
         'customer' => $response_customer,
+        'medium' => $response_medium,
         'budget' => $response_budget,
         'achievement' => $response_achievement,
     ];

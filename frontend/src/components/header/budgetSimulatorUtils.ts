@@ -11,6 +11,23 @@ export type SimCustomer = Record<string, string>;
 export type SimBudget = { shop: string; medium: string; budget_period: string; budget_value: number };
 export type SimShop = { id: number; brand: string; shop: string; section: string; area: string; division: string };
 
+/**
+ * 販促媒体のマスタ。
+ * ⚠️ 事業ごとに別テーブルなので、来る列が違う。
+ *     order … medium_list   （`list_medium`）
+ *     spec  … medium_kaeru  （`show_graph`。2026-09-11 に足した列）
+ *   どちらか片方しか無いので、両方とも任意にしてある。
+ */
+export type SimMedium = {
+    medium: string;
+    list_medium?: number | string;
+    show_graph?: number | string;
+    sort_key?: number | string;
+};
+
+/** 建売のホームページ反響をまとめる行。⚠️ マスタには無い、画面だけの行 */
+export const HP_ROW = 'ホームページ反響計';
+
 export const DIVISION_LABEL: Record<Division, string> = {
     order: '注文事業',
     spec: '建売分譲事業',
@@ -128,6 +145,141 @@ export const matchesKpi = (division: Division, c: SimCustomer, kpi: KpiKey): boo
     return !!(c.contact || c.interview || c.tour || c.application) || isContract;
 };
 
+// ---------------------------------------------------------------------------
+// 販促媒体
+// ---------------------------------------------------------------------------
+
+/**
+ * 媒体名の掃除。
+ *
+ * ⚠️⚠️ **実データには末尾の空白と改行が混ざっている。**
+ *   ローカルDBの実測（2026-09-14 / master_data / show_dashboard = 1）で
+ *     `SNS広告` 2,014件 のほかに `SNS広告\n` 16件
+ *     `インターネット検索` 1,702件 のほかに `インターネット検索 ` 24件
+ *     `チラシ` 1,110件 のほかに `チラシ ` 18件
+ *   が別の値として入っていた。掃除せずにマスタ名と比べると
+ *   **静かに落ちる**（エラーは出ず、件数がわずかに減るだけ）。
+ */
+export const cleanMedium = (value: string): string =>
+    (value ?? '').replace(/[\r\n]/g, '').trim();
+
+/**
+ * 突合用の名前に寄せる。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **`公式LINE` と `ALLGRIT` は同じものである**（2026-09-14 の指示）。
+ *   ⚠️ 厄介なのは**表記がテーブルごとに違う**こと。実測で
+ *       medium_list … `公式LINE`
+ *       budget      … `公式LINE` 718件 / `ALLGRIT` 0件
+ *       master_data … `ALLGRIT` 1,329件 **かつ** `公式LINE` 397件
+ *   顧客側に**両方**入っているため、片方向に寄せるだけでは足りない。
+ *   ⚠️ ここを通して**両方を同じ名前にしてから**比べること。
+ *   ⚠️ `CustomerTrendOrder.tsx` の `formate()` は `公式LINE → ALLGRIT` の
+ *     片方向で、顧客側の `公式LINE` 397件を取りこぼす。真似しないこと。
+ *
+ * ⚠️ `athome` と `アットホーム` も同じ（建売の顧客側は `アットホーム`）。
+ *   CustomerTrendKaeru.tsx の `mediumFormate()` と同じ対応にしてある。
+ * ─────────────────────────────────────────────
+ */
+export const mediumFormate = (medium: string): string => {
+    const m = cleanMedium(medium);
+    if (m === '公式LINE') return 'ALLGRIT';
+    if (m === 'athome') return 'アットホーム';
+    return m;
+};
+
+/**
+ * 建売で「ホームページ反響」とみなすか。
+ * ⚠️ CustomerTrendKaeru.tsx の `isHp()` と同じ。**ポータル以外**が HP 扱いである。
+ *   ⚠️ この一覧は `displayMediums`（show_graph）とは**連動しない。**
+ *     あちらは「表に出すか」、こちらは「HP反響か」で目的が違う。
+ */
+const isHp = (value: string): boolean => {
+    if (!value) return false;
+    const portal = ['SUUMO', 'ALLGRIT', `HOME'S`, 'アットホーム', 'タウンライフ', 'カゴスマ'];
+    return !portal.some(p => value.includes(p));
+};
+
+/**
+ * 表に出す媒体の行。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **実データではなくマスタから作る**（2026-09-14 の指示）。
+ *   以前は顧客の `sales_promotion_name` を集めていたが、
+ *   表記ゆれや一過性の値までそのまま行になっていた。
+ *
+ * ⚠️ 事業で見る列が違う。
+ *     order … medium_list.list_medium = 1
+ *     spec  … medium_kaeru.show_graph = 1（＋ 先頭に「ホームページ反響計」）
+ *
+ * ⚠️⚠️ **建売で `show_graph` 列がまだ無いと空になる。**
+ *   2026-09-11 の SQL が未実行だと `Number(undefined)` が NaN になり、
+ *   建売の媒体別が「ホームページ反響計」1行だけになる。**エラーは出ない。**
+ *   CustomerTrendKaeru.tsx と同じ前提である。
+ * ─────────────────────────────────────────────
+ */
+export const mediumRows = (division: Division, master: SimMedium[]): string[] => {
+    const flag = division === 'order' ? 'list_medium' : 'show_graph';
+    const rows = (master ?? [])
+        .filter(m => Number(m[flag]) === 1)
+        .sort((a, b) => (Number(a.sort_key) || 0) - (Number(b.sort_key) || 0))
+        // ⚠️ 表示名も寄せる（`公式LINE` ではなく `ALLGRIT` で並ぶ）。
+        //   建売の hp_campaign 側の突合が `ALLGRIT` 前提のため
+        .map(m => mediumFormate(m.medium))
+        .filter(Boolean);
+
+    // ⚠️ 重複を落とす。medium_list には同名が複数ある（`HOME'S` / `SUUMO` など）
+    const unique = [...new Set(rows)];
+
+    return division === 'spec' ? [HP_ROW, ...unique] : unique;
+};
+
+/**
+ * その顧客がこの媒体の行に該当するか。
+ *
+ * ⚠️⚠️ **建売は CustomerTrendKaeru.tsx の `matchesMediumRow()` と同じにすること**
+ *   （2026-09-14 に利用者が「建売は CustomerTrendKaeru と同じでよい」と明言）。
+ *   建売は `sales_promotion_name` だけでは足りず、`hp_campaign` も見る。
+ *   ⚠️ 実測で建売の最多は `ネット` 4,899件だが、これは medium_kaeru の
+ *     どの表示媒体でもなく、**ホームページ反響計に入る。**
+ *     hp_campaign を見ないとこの4,899件が丸ごと消える。
+ */
+export const matchesMedium = (
+    division: Division,
+    customer: SimCustomer,
+    row: string,
+    rows: string[]
+): boolean => {
+    const name = mediumFormate(customer.medium ?? '');
+
+    if (division === 'order') return name === mediumFormate(row);
+
+    const campaign = customer.hp_campaign ?? '';
+    /** 表示媒体（ホームページ反響計を除く）のどれかに当たるか */
+    const displayed = rows.filter(r => r !== HP_ROW);
+    const isAnyDisplay = displayed.some(d =>
+        name === mediumFormate(d) || campaign.includes(d));
+
+    if (row !== HP_ROW) {
+        return name === mediumFormate(row) || campaign.includes(row);
+    }
+    // ⚠️ 媒体も hp_campaign も空のものは HP 側に寄せる（あちらと同じ）
+    return !isAnyDisplay && (isHp(campaign) || !cleanMedium(customer.medium ?? '') || !campaign);
+};
+
+/** その広告費がこの媒体の行に該当するか */
+export const budgetMatchesMedium = (
+    budget: SimBudget,
+    row: string,
+    rows: string[]
+): boolean => {
+    const name = mediumFormate(budget.medium ?? '');
+    // ⚠️ 表示媒体に付いていない広告費はまとめてホームページ反響計へ。
+    //   CustomerTrendKaeru.tsx の mediumIndex === 1 と同じ扱い
+    if (row === HP_ROW) return !rows.filter(r => r !== HP_ROW).some(r => mediumFormate(r) === name);
+    return name === mediumFormate(row);
+};
+
 /** 期間・店舗で絞った顧客 */
 export const filterCustomers = (
     customers: SimCustomer[],
@@ -140,18 +292,23 @@ export const filterCustomers = (
         (shops === null || shops.includes(c.shop))
     );
 
-/** 期間・店舗で絞った広告費の合計 */
+/**
+ * 期間・店舗で絞った広告費の合計。
+ * ⚠️ `row` を渡すとその媒体の行だけを足す。省略すると全体。
+ *   ⚠️ 単純な名前一致では**表記ゆれで落ちる**ので budgetMatchesMedium を通す。
+ */
 export const sumBudget = (
     budgets: SimBudget[],
     months: string[],
     shops: string[] | null,
-    medium?: string
+    row?: string,
+    rows: string[] = []
 ): number =>
     budgets
         .filter(b =>
             inPeriod(b.budget_period, months) &&
             (shops === null || shops.includes(b.shop)) &&
-            (medium === undefined || b.medium === medium)
+            (row === undefined || budgetMatchesMedium(b, row, rows))
         )
         .reduce((acc, b) => acc + Number(b.budget_value ?? 0), 0);
 
@@ -240,10 +397,12 @@ export const applyCount = (row: SimRow, kpi: KpiKey, nextCount: number): SimRow 
 /**
  * 'YYYY/MM' を1年前にする。
  *
- * ⚠️⚠️ **広告費だけが1年前を見る。** KPI（歩留まり）は選択期間そのもの。
- *   「昨年これだけかけた → 今これだけ取れている」を並べて見るための作り
- *   （2026-09-14 の指示）。
- *   ⚠️ 両方を同じ期間にすると、ただの実績表になってシミュレーターの意味が無くなる。
+ * ⚠️⚠️ **試算の出発点（広告費・件数・単価）はすべて1年前を見る。**
+ *   KPI 単価が「昨年の広告費 ÷ **昨年の**件数」でなければならないため
+ *   （2026-09-14 の指示）。当期の件数を分母にすると、期の途中では
+ *   件数が少ないぶん単価が跳ね上がり、基準として使えない。
+ *
+ * ⚠️ 選択期間の実績は**画面に併記するだけ**で、試算には入れない。
  */
 export const lastYearMonth = (month: string): string => {
     const [y, m] = month.split('/');

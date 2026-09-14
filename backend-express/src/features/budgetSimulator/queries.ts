@@ -89,8 +89,39 @@ const CUSTOMER_SQL: Record<BudgetDivision, string> = {
       COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG, '') as application,
       COALESCE(step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW, '') as contract,
       COALESCE(step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0, '') as contract_broker,
+      COALESCE(hp_campaign, '') as hp_campaign,
       COALESCE(status, '') as status
       FROM master_data_kaeru WHERE show_dashboard = 1`,
+};
+
+/**
+ * 販促媒体のマスタ。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **事業ごとに別のテーブルである。共通化しないこと。**
+ *     order … medium_list（`list_medium = 1` をフロントが拾う）
+ *     spec  … medium_kaeru（`show_graph = 1` をフロントが拾う）
+ *   建売の顧客の `sales_promotion_name` は medium_kaeru 由来の名前
+ *   （`ネット` `アットホーム` `Web検索` など）で、medium_list とは
+ *   **ほとんど一致しない。** 実測（2026-09-14）で建売の最多は
+ *   `ネット` 4,899件だが、medium_list にこの名前は無い。
+ *   取り違えると建売の媒体別が**ほぼ空になる。**
+ *
+ * ⚠️ order は `response_medium = 0` で絞る。他画面（shop / list /
+ *   customerTrend）がすべてそうしており、揃えないと媒体の数が食い違う。
+ *   ⚠️ `list_medium = 1` には `看板` `バス広告` `CM/ラジオ`
+ *     `建築現場を見て` のように `response_medium = 1` のものが混ざるが、
+ *     それらは budget 側（`response_medium = 0`）に広告費が無い。
+ *
+ * ⚠️ spec は `SELECT *`。customerTrend/queries.ts の MEDIUM_SQL と同じ。
+ *   ⚠️ `show_graph` は 2026-09-11 に足した列である。
+ *     SQL が未実行の環境では列ごと返らず、フロントで**空配列**になる
+ *     （エラーは出ない。建売の媒体別が消える）。
+ * ─────────────────────────────────────────────
+ */
+const MEDIUM_SQL: Record<BudgetDivision, string> = {
+  order: `SELECT medium, list_medium, sort_key FROM medium_list WHERE response_medium = 0`,
+  spec: `SELECT * FROM medium_kaeru`,
 };
 
 /**
@@ -136,6 +167,7 @@ export const budgetSimulatorSql = (division: BudgetDivision) => ({
   shop: SHOP_SQL[division],
   section: SECTION_SQL,
   customer: CUSTOMER_SQL[division],
+  medium: MEDIUM_SQL[division],
   budget: BUDGET_SQL,
   achievement: ACHIEVEMENT_SQL,
   division: DIVISION[division],
