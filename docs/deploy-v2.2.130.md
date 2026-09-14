@@ -20,6 +20,23 @@
 
 **戻し方は下の「ロールバック」にまとめてある。① の1ファイルから2行消すだけで戻る。**
 
+### ⚠️ ただし、そのリスクは今回の圧縮対応でほぼ消える
+
+2026-09-14 に判明したこと。⚠️ **これまで API の応答が一度も圧縮されていなかった。**
+
+| 経路 | これまで | このリリース後 |
+|---|---|---|
+| ① → ブラウザ（`main.js` などの静的ファイル） | ✅ brotli で圧縮済み | 変更なし |
+| ⚠️ ① → ブラウザ（**API の JSON**） | ⚠️ **非圧縮** | 手順6の `.htaccess` で圧縮 |
+| ⚠️ ① → ②（cURL） | ⚠️ **非圧縮** | `CURLOPT_ENCODING` で圧縮（手順3に含む） |
+
+⚠️ 実測で **20.50MB → 2.43MB（約8分の1）**。応答の**半分以上（10.98MB）が毎行
+くり返される列名**で、圧縮が極端によく効く。
+
+⚠️⚠️ **「① → ブラウザが非圧縮」は今回の移植とは無関係に以前からそうだった。**
+顧客一覧が重いという問題の本体はこちらで、⚠️ 手順6をやると**顧客一覧に限らず
+全画面が速くなる。**
+
 ---
 
 ## ⚠️ まず 126 の SQL がデプロイ済みか確認する
@@ -53,6 +70,7 @@ SHOW COLUMNS FROM `medium_kaeru` WHERE `Field` = 'show_graph';
 | ⚠️ 架電記録が**他の顧客に保存される**不具合の修正 | ① フロント |
 | 紹介キャンペーン反響一覧を1つの表にまとめ、顧客URLのコピーボタンを追加 | ① フロント |
 | 建売・中古の顧客一覧で `?id=` を開けるように | ① フロント |
+| ⚠️ ① → ② の転送を**圧縮**する（`CURLOPT_ENCODING`。20.5MB → 2.43MB） | ① PHP |
 | 広告費シミュレーターの作り直し（KPI別単価・媒体別・契約目標・試算の2軸） | ① フロント ＋ ② ＋ ① PHP |
 | 顧客一覧（`database` の order / spec）を Express へ移植 | ② ＋ ① PHP |
 | 顧客一覧に**担当営業のセレクト**を追加（同姓の担当者対策） | ① フロント |
@@ -82,8 +100,13 @@ SHOW COLUMNS FROM `medium_kaeru` WHERE `Field` = 'show_graph';
 1. push → GitHub で PR マージ
 2. 【② VPS】        Express を更新
 3. 【①】            PHP を2ファイル
-4. 【①】            フロントを build → アップロード     ← 最後
+4. 【①】            フロントを build → アップロード
+5.                  動作確認
+6. 【①】            .htaccess で API の JSON を圧縮       ← 最後
 ```
+
+⚠️ **6 を最後にする理由** … 先に入れると、問題が起きたとき原因が移植なのか
+圧縮なのか切り分けられなくなる。⚠️ 6 は単独でロールバックできる。
 
 **なぜこの順序なのか**
 
@@ -204,12 +227,24 @@ dcp logs --tail 400 express-api | grep -E "database::|budget_simulator"
 サーバーパネル → ファイルマネージャ（または FTP）。
 配置先は `dashboard/api/gateway/` 配下。
 
-| ローカル | ① の配置先 |
-|---|---|
-| `backend/src/core/express_proxy.php` | `core/express_proxy.php` |
-| `backend/src/handlers/budget_simulator.php` | `handlers/budget_simulator.php` |
+| ローカル | ① の配置先 | 含まれる変更 |
+|---|---|---|
+| `backend/src/core/express_proxy.php` | `core/express_proxy.php` | 許可リストへの `database::` 追加 ＋ ⚠️ **`CURLOPT_ENCODING`（転送の圧縮）** |
+| `backend/src/handlers/budget_simulator.php` | `handlers/budget_simulator.php` | 返す形の作り替え |
 
 ⚠️ **この2つだけ。**
+
+### ⚠️ `express_proxy.php` には圧縮の1行が入っている
+
+```php
+CURLOPT_ENCODING => '',
+```
+
+⚠️ ② は `compression()` を入れているが、**`Accept-Encoding` を送らない限り
+圧縮してくれない。** これまで送っていなかった。
+⚠️ 受信時に cURL が**自動で展開する**ので、**他のコードは何も変わらない。**
+⚠️ ローカルの ② で gzip / deflate / br のいずれを要求しても圧縮が返ることを確認済み
+（Xserver の libcurl がどれに対応していても効く）。
 
 ### ⚠️⚠️ `budget_simulator.php` は普段使われない。それでも上げること
 
@@ -318,6 +353,65 @@ npm run build
 
 - ⚠️ 中古の顧客一覧が**これまでどおり開くこと**（移植していないので変化が無いのが正常）
 - ゴミ箱・複製が動くこと（⚠️ 移植していないので ① が応答する）
+
+---
+
+## 6. 【① レンタルサーバー】API の JSON を圧縮する（`.htaccess`）
+
+⚠️ **手順5で動作確認が済んでから**行う。先にやると、問題が起きたとき
+原因が移植なのか圧縮なのか切り分けられなくなる。
+
+### 置き場所
+
+`dashboard/api/gateway/.htaccess`
+
+⚠️⚠️ **既にファイルがあれば「追記」する。上書きしないこと。**
+⚠️ `gateway/` 配下に限定しているので、⚠️ **フロントの静的ファイル（既に brotli
+で圧縮済み）には影響しない。** 二重圧縮を避けるためにわざと分けている。
+
+```apache
+# API の JSON 応答を圧縮する（2026-09-14 追加）
+# ⚠️ 実測で 20.5MB → 2.43MB。応答の半分以上が毎行くり返される列名のため
+#   圧縮が極端によく効く。
+# ⚠️ Content-Type は2通りある。② が処理した応答だけ charset が付く
+#   （core/express_proxy.php が 'application/json; charset=utf-8' を送る）。
+#   ① が処理した場合は core/db.php の 'application/json'。両方書いておく。
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE application/json
+  AddOutputFilterByType DEFLATE application/json;charset=utf-8
+</IfModule>
+```
+
+⚠️⚠️ **`<IfModule mod_deflate.c>` を必ず付けること。**
+モジュールが無い状態で `AddOutputFilterByType` を書くと **500 になる。**
+
+### 効いたかの確認
+
+⚠️ **curl では判定できない。** 認証エラーの応答は小さすぎて圧縮の閾値を下回る。
+
+ブラウザで**顧客一覧**を開き、開発者ツール → Network → `gateway` の通信 →
+**Headers** タブ。
+
+| 見え方 | 判断 |
+|---|---|
+| `Content-Encoding: gzip`（または `br`）がある | ✅ 効いている |
+| ⚠️ **プロパティ自体が無い** | 効いていない。下記を試す |
+
+⚠️ 転送量（Size 列）が **2〜3MB 程度**になっていれば確実である。
+
+### ⚠️ 効かなかった場合
+
+⚠️ Xserver は前段に nginx がいる。Apache が圧縮しても nginx が展開してしまう
+可能性がある（**害は無いが効果も無い**）。
+
+その場合は ⚠️ **PHP 側で圧縮する**方法に切り替える。`core/db.php` の先頭に
+`ob_start('ob_gzhandler');` を置く形だが、⚠️ **全 API の入口なので影響範囲が広い。**
+⚠️ 20MB を出力バッファに載せるためメモリも余分に使う。試す前に相談してほしい。
+
+### ロールバック
+
+⚠️ **追記した部分を消すだけ**でよい。ファイルごと消さないこと（他の設定が
+入っている可能性がある）。
 
 ---
 

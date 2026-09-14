@@ -698,6 +698,19 @@ function forwardToExpress(array $data): bool
         //   一方、正常に繋がった後の重い集計は待つ必要がある。
         CURLOPT_CONNECTTIMEOUT => 3,
         CURLOPT_TIMEOUT => 120,
+        // ⚠️⚠️ **転送を圧縮させる。空文字は「cURL が対応する全形式を要求する」意味。**
+        //   ② は compression() を入れているが、`Accept-Encoding` を送らない限り
+        //   **圧縮してくれない。** 2026-09-14 まで未設定で、①↔② は生のまま流れていた。
+        //
+        //   ⚠️ 実測（顧客一覧 database::order）で **20.50MB → 2.43MB（約8分の1）**。
+        //     応答の半分以上が毎行くり返される列名で、圧縮が極端によく効く。
+        //
+        //   ⚠️ 受信時に cURL が**自動で展開する**ので、これ以降のコードは何も変わらない。
+        //     $response には展開後の JSON がそのまま入る。
+        //
+        //   ⚠️ これは「① ↔ ②」の話。「① → ブラウザ」は別で、
+        //     ① の .htaccess（mod_deflate）が担当する。**片方だけでは効果は半分。**
+        CURLOPT_ENCODING => '',
         // ⚠️ 証明書の検証を無効化しないこと。中間者攻撃を検知できなくなる
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
