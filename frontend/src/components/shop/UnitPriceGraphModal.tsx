@@ -17,14 +17,14 @@ import './shop.css';
  * ─────────────────────────────────────────────
  */
 
-/** 1店舗あたりの横幅。⚠️ 4本の棒＋間隔が潰れない最小値 */
+/** 1項目あたりの横幅。⚠️ 4本の棒＋間隔が潰れない最小値 */
 const WIDTH_PER_SHOP = 78;
 
 /**
- * モーダルを全画面にする店舗数のしきい値。
+ * モーダルを全画面にする項目数のしきい値。
  *
  * ⚠️ Bootstrap の `xl` は約 1140px。左右の余白とY軸のラベルを引くと
- *   グラフに使えるのは 1000px ほどで、1店舗 78px なら **12店舗**で埋まる。
+ *   グラフに使えるのは 1000px ほどで、1項目 78px なら **12項目**で埋まる。
  *   これを超えたら全画面にして幅を稼ぐ。
  * ⚠️ 全画面でも足りない分は横スクロールで見る（shop.css 参照）。
  */
@@ -37,22 +37,38 @@ export type UnitPriceSeries = ReadonlyArray<{
 }>;
 
 export type UnitPriceRow = {
-    shop: string;
     [key: string]: string | number;
 };
 
 type Props = {
     show: boolean;
     onHide: () => void;
-    /** 店舗ごとの単価。⚠️ 先頭が「グループ全体」になるよう並べて渡すこと */
+    /** 単価の一覧。⚠️ 先頭に合計行（「グループ全体」「総反響」）が来るよう並べて渡すこと */
     data: UnitPriceRow[];
     /** 描く系列。unitPriceSeries.ts の定数を渡す */
     series: UnitPriceSeries;
     /** 見出し。事業名を入れる */
     title: string;
+    /**
+     * X軸に使う項目のキー。
+     * ⚠️ 既定は 'shop'（店舗ランキング）。販促媒体別ランキング
+     *   （customer/）からは 'medium' を渡す。
+     * ⚠️ 既定値を変えないこと。shop 側を無変更で動かすためにある。
+     */
+    itemKey?: string;
+    /** 見出しの「◯◯別」の語。⚠️ 既定は '店舗' */
+    itemLabel?: string;
 };
 
-const UnitPriceGraphModal: React.FC<Props> = ({ show, onHide, data, series, title }) => {
+/**
+ * ⚠️⚠️ **2026-09-14 に customer/（販促媒体別ランキング）からも使うようにした。**
+ *   X軸が店舗名か販促媒体名かだけが違い、描き方は同じである。
+ *   ⚠️ `itemKey` / `itemLabel` に既定値を置いてあるので、
+ *     **shop 側の呼び出しは1文字も変えていない。**
+ */
+const UnitPriceGraphModal: React.FC<Props> = ({
+    show, onHide, data, series, title, itemKey = 'shop', itemLabel = '店舗',
+}) => {
     /**
      * ⚠️ 店舗数で全画面かどうかを決める。
      *   ⚠️ `fullscreen` プロパティは型が 'true | string' で真偽値を渡せないため、
@@ -95,7 +111,7 @@ const UnitPriceGraphModal: React.FC<Props> = ({ show, onHide, data, series, titl
                     <i className="fa-solid fa-xmark" aria-hidden="true" />
                     閉じる
                 </button>
-                <span className="fw-bold text-secondary">{title} 店舗別 単価比較</span>
+                <span className="fw-bold text-secondary">{title} {itemLabel}別 単価比較</span>
             </Modal.Header>
             <Modal.Body className={isFullscreen ? 'flex-grow-1 d-flex flex-column' : ''} style={{ minHeight: 0 }}>
                 {/* ⚠️ 凡例は横スクロール領域の外。中に入れるとスクロールで流れていく */}
@@ -114,16 +130,16 @@ const UnitPriceGraphModal: React.FC<Props> = ({ show, onHide, data, series, titl
                             <BarChart data={data} margin={{ top: 8, right: 24, left: 24, bottom: 120 }}>
                                 <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
                                 {/**
-                                  * X軸＝店舗。
+                                  * X軸＝店舗、または販促媒体（`itemKey`）。
                                   * ⚠️⚠️ **`angle={-90}` にすること。** `90` だと文字が
-                                  *   上から下へ向き、日本語の店舗名が読みにくい。
+                                  *   上から下へ向き、日本語の名前が読みにくい。
                                   *   -90 で**下から上に向かって**読める向きになる。
                                   * ⚠️ `textAnchor="end"` を外さないこと。回転の基点がずれて
                                   *   ラベルが軸から離れる。
-                                  * ⚠️ `interval={0}` を外すと店舗が間引かれる。
+                                  * ⚠️ `interval={0}` を外すと項目が間引かれる。
                                   */}
                                 <XAxis
-                                    dataKey="shop"
+                                    dataKey={itemKey}
                                     fontSize={11}
                                     interval={0}
                                     angle={-90}

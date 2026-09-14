@@ -71,6 +71,7 @@ SHOW COLUMNS FROM `medium_kaeru` WHERE `Field` = 'show_graph';
 | 紹介キャンペーン反響一覧を1つの表にまとめ、顧客URLのコピーボタンを追加 | ① フロント |
 | 建売・中古の顧客一覧で `?id=` を開けるように | ① フロント |
 | ⚠️⚠️ **メニューのバッジを COUNT 化（18.2MB × 2 → 44バイト）** | ① フロント ＋ ② ＋ ① PHP |
+| ⚠️⚠️ **販促媒体別ランキング（customer）を shop に揃える。誤りを3つ修正** | ① フロント ＋ ② ＋ ① PHP |
 | ⚠️ ① → ② の転送を**圧縮**する（`CURLOPT_ENCODING`。20.5MB → 2.43MB） | ① PHP |
 | 広告費シミュレーターの作り直し（KPI別単価・媒体別・契約目標・試算の2軸） | ① フロント ＋ ② ＋ ① PHP |
 | 顧客一覧（`database` の order / spec）を Express へ移植 | ② ＋ ① PHP |
@@ -100,7 +101,7 @@ SHOW COLUMNS FROM `medium_kaeru` WHERE `Field` = 'show_graph';
 0. 【① phpMyAdmin】 126 の SQL（未実行の場合のみ）      ← 最初
 1. push → GitHub で PR マージ
 2. 【② VPS】        Express を更新
-3. 【①】            PHP を2ファイル
+3. 【①】            PHP を5ファイル
 4. 【①】            フロントを build → アップロード
 5.                  動作確認
 6. 【①】            .htaccess で API の JSON を圧縮       ← 最後
@@ -204,16 +205,21 @@ dcp ps
 **ログで確かめるのが確実。**
 
 ```bash
-dcp logs --tail 400 express-api | grep -E "database::|budget_simulator"
+dcp logs --tail 400 express-api | grep -E "database::|customer::|budget_simulator|menu::"
 ```
 
-⚠️ 以下の3つが出ること。
+⚠️ 以下の6つが出ること。
 
 ```
 🔒 database::order       — 顧客一覧の初期データ（order）：マスタ＋顧客＋ギフト進呈可否
 🔒 database::spec        — 顧客一覧の初期データ（spec）：マスタ＋顧客＋ギフト進呈可否
+🔒 customer::order       — 販促媒体別ランキングの初期データ（order）
+🔒 customer::spec        — 販促媒体別ランキングの初期データ（spec）
 🔒 budget_simulator::    — 広告費シミュレーターの初期データ（注文・建売をまとめて返す）
+   menu::                — メニューの通知バッジ用データ（未同期・キャンセル・失注・新着物件）
 ```
+
+⚠️ `customer::used` が出ないのも正常（CustomerRouter.tsx が描画しない）。
 
 ⚠️⚠️ **`database::used` と `database::common` は出ないのが正常。**
 中古の顧客一覧（`DatabaseResale.tsx`）は移植していない。これまでどおり ① が応答する。
@@ -233,8 +239,10 @@ dcp logs --tail 400 express-api | grep -E "database::|budget_simulator"
 | `backend/src/core/express_proxy.php` | `core/express_proxy.php` | 許可リストへの `database::` 追加 ＋ ⚠️ **`CURLOPT_ENCODING`（転送の圧縮）** |
 | `backend/src/handlers/budget_simulator.php` | `handlers/budget_simulator.php` | 返す形の作り替え |
 | ⚠️ `backend/src/handlers/menu.php` | `handlers/menu.php` | ⚠️ **返す形の作り替え（COUNT化）** |
+| ⚠️ `backend/src/handlers/customerAction/customer_order.php` | `handlers/customerAction/customer_order.php` | 列を shop に合わせた |
+| ⚠️ `backend/src/handlers/customerAction/customer_spec.php` | `handlers/customerAction/customer_spec.php` | ⚠️ **契約列の取り違えと販促費の絞り込みを修正** |
 
-⚠️ **この3つだけ。**
+⚠️ **この5つだけ。**
 
 ### ⚠️⚠️ `menu.php` は「普段使われない」側ではない
 
@@ -313,6 +321,33 @@ npm run build
 
 ⚠️ ローカル実測（2026-09-14）では 未同期 94 / キャンセル 36 / 失注 39 で、
 **改修前と完全に一致**することを確認済み。
+
+### ⚠️⚠️ 5-0b. 販促媒体別ランキング（**数字が大きく変わる**）
+
+メニューの「販促媒体別」を開く。
+
+**注文事業**
+- 一番上の行が **「総反響」**（末尾から先頭へ移した）
+- 列が **総反響 / 来場数 / 来場率 / 次アポ数 / 次アポ率 / 契約数 / 契約率** の順
+  ⚠️ 「率 → 数」のままなら古い JS を読んでいる
+- 「グラフを表示」でモーダルが開き、⚠️ **X軸が販促媒体名**であること
+- ⚠️ 数字が**店舗別ランキング（店舗別広告費）の合計と一致する**こと
+
+**⚠️⚠️ 建売分譲事業（ここが一番変わる）**
+
+⚠️ 移植前に**3つの誤り**があり、直したことで数字が変わる。デプロイ前と違って当然である。
+
+| | 旧 | 新 |
+|---|---|---|
+| ⚠️ 販促媒体の行 | **0件**（総反響のみ） | **17件**（medium_kaeru 全件） |
+| ⚠️ 契約数 | 435件（申込み列を見ていた） | **473件** |
+| ⚠️ 広告費 | 9.87億円（**全事業分**） | **2.82億円**（建売のみ） |
+
+- ⚠️ **販促媒体の行が並ぶこと**（SUUMO / HOME'S / Instagram など）。
+  ⚠️ 「総反響」1行だけなら古い JS を読んでいる
+- 列が **総反響 / 接触率 / 接触数 / 来場・案内 / 申込数 / 契約率 / 契約数** の順
+- ⚠️ **単価が以前よりぐっと安くなる**（全事業の広告費が乗らなくなったため）。異常ではない
+- ⚠️ 数字が **ShopKaeru（店舗別広告費）と一致する**こと
 
 ### ⚠️⚠️ 5-1. 顧客一覧の速度（**最優先。ここが今回いちばん危ない**）
 

@@ -32,6 +32,8 @@ import { runShop } from '../features/shop';
 import { runInside } from '../features/inside';
 import { runBudgetSimulator } from '../features/budgetSimulator';
 import { runDatabase } from '../features/database';
+import { runCustomer } from '../features/customer';
+import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
 import {
   runListBlack,
@@ -1548,6 +1550,39 @@ for (const category of databaseCategories) {
     auth: 'staff',
     handler: async (ctx) => {
       const result = await runDatabase(category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 販促媒体別ランキング（customer/CustomerOrder.tsx / CustomerKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に customer.php / customerAction/customer_{category}.php が
+//   実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **登録するのは order と spec だけ。**
+//   ① の customer.php は 'used' も許可しているが、CustomerRouter.tsx は
+//   order / spec しか描画しない。登録していない category は ① へ転送される。
+//
+// ⚠️ SQL は shop/queries.ts と同じ内容にしてある（行が店舗か媒体かの違いだけ）。
+//   ⚠️ 移植にあたり、① の customer_spec.php にあった誤り2つ
+//     （契約の列の取り違え／販促費を事業で絞っていない）を直してある。
+//     ① の PHP も同じ形に直した。**片方だけ直さないこと。**
+// ---------------------------------------------------------------------------
+
+const customerCategories: CustomerCategory[] = ['order', 'spec'];
+
+for (const category of customerCategories) {
+  register({
+    request: 'customer',
+    category,
+    summary: `販促媒体別ランキングの初期データ（${category}）`,
+    phpSource: `backend/src/handlers/customerAction/customer_${category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runCustomer(category);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

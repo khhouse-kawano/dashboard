@@ -386,6 +386,20 @@ function expressProxyRequests(): array
         // -----------------------------------------------------------------
         'database::order',
         'database::spec',
+
+        // -----------------------------------------------------------------
+        // 2026-09-14 移植。販促媒体別ランキング
+        // （customer/CustomerOrder.tsx / CustomerKaeru.tsx）。
+        //
+        // ⚠️ 参照のみ。① に customer.php が実在するのでフォールバックしてよい。
+        //
+        // ⚠️⚠️ **category を必ず書くこと。** request 名だけで書くと、
+        //   ② に登録していない 'used' まで ② へ送られ「ループ検知」で 502 になる。
+        //   ⚠️ CustomerRouter.tsx は order / spec しか描画しないが、
+        //     ① の customer.php は used も許可している。
+        // -----------------------------------------------------------------
+        'customer::order',
+        'customer::spec',
     ];
 }
 
