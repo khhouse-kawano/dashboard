@@ -395,6 +395,58 @@ export const applyCount = (row: SimRow, kpi: KpiKey, nextCount: number): SimRow 
 });
 
 /**
+ * 試算の軸。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **「何を固定するか」で連動の向きが変わる**（2026-09-14 の指示）。
+ *
+ *   'budget' … 広告費を固定する
+ *       件数を変える → その単価が動く（「この広告費でこれだけ取るには単価いくら」）
+ *       ⚠️ **投下した広告費から達成可能な件数を見る**ときの軸。
+ *
+ *   'unit'   … 単価を固定する
+ *       件数を変える → **広告費が動く**（「これだけ取るにはいくら要るか」）
+ *       ⚠️ **目標の契約数から必要な広告費を出す**ときの軸。
+ *       ⚠️ 単価を保つため、ほかの3つの件数も同じ比率で動く。
+ *         契約を1.5倍にするなら反響も来場も1.5倍要る、という意味である。
+ *
+ * ⚠️ 広告費そのものを書き換えたときは**どちらの軸でも同じ**
+ *   （単価を保ったまま件数が比例する）。元の版の 'calc_contracts' に当たる。
+ * ─────────────────────────────────────────────
+ */
+export type SimAxis = 'budget' | 'unit';
+
+/**
+ * 単価を固定したまま件数を変える。
+ *
+ * ⚠️⚠️ **広告費と、ほかの件数も同じ比率で動かす。** 触った KPI だけ動かすと
+ *   その単価は保てても**ほかの3つの単価が壊れる**（広告費が変わるため）。
+ *
+ * ⚠️ 元の件数が0なら比率が出せないので何もしない。
+ *   ⚠️ 0で割ると Infinity になり、広告費が NaN で表示される。
+ * ⚠️ 0件にしたい場合も比率が0になり全部消えてしまうので受け付けない。
+ */
+export const applyCountKeepUnit = (row: SimRow, kpi: KpiKey, nextCount: number): SimRow => {
+    const current = row.counts[kpi];
+    const next = Math.max(0, Math.round(nextCount));
+    if (current <= 0 || next <= 0) return row;
+
+    const ratio = next / current;
+    return {
+        budget: Math.round(row.budget * ratio),
+        counts: {
+            register: Math.round(row.counts.register * ratio),
+            interview: Math.round(row.counts.interview * ratio),
+            appointment: Math.round(row.counts.appointment * ratio),
+            contract: Math.round(row.counts.contract * ratio),
+            // ⚠️ 触った KPI は丸めずに入力どおりにする。
+            //   ratio を掛け直すと入力した数と1件ずれることがある
+            [kpi]: next,
+        },
+    };
+};
+
+/**
  * 'YYYY/MM' を1年前にする。
  *
  * ⚠️⚠️ **試算の出発点（広告費・件数・単価）はすべて1年前を見る。**

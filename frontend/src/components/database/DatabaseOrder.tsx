@@ -11,11 +11,19 @@ import InformationEdit from '../information/InformationEdit';
 import { useIsSp } from '../../utils/isSp';
 import { useDebounce } from './useDebounce';
 import apiClient from '../../utils/apiClient';
-import { safeParse, hotleadStyle } from './databaseUtils';
+import { safeParse, hotleadStyle, staffOptionsOf } from './databaseUtils';
 import { GiftDot, GiftLegend } from './GiftMark';
+import { thisYear } from '../../utils/thisYear';
+// ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
+import { sortStaff } from '../header/useAmbassadorMaster';
 
 // --- 型定義 ---
 type ShopList = { brand: string; shop: string; section: string };
+/** 担当営業。⚠️ サーバーは `SELECT * FROM staff_list WHERE rank = 1` を返している */
+type StaffList = {
+    name: string; shop: string; section: string; position: string;
+    period: string; category: number | string; khg_id: string; status: string;
+};
 type MediumType = { id: number; medium: string; category: string; sort_key: number; response_medium: number; list_medium: number };
 
 // 必要なプロパティを明示することで、mapやsort時の型エラーをなくす
@@ -64,6 +72,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
     // データリスト関連
     const [originalDatabase, setOriginalDatabase] = useState<CustomerItem[]>([]);
     const [shopArray, setShopArray] = useState<ShopList[]>([]);
+    const [staffArray, setStaffArray] = useState<StaffList[]>([]);
     const [mediumArray, setMediumArray] = useState<string[]>([]);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [familyList, setFamilyList] = useState<Record<string, any>[]>([]);
@@ -73,6 +82,12 @@ const DatabaseOrder = ({ onReload }: Props) => {
 
     // 検索・フィルター条件
     const [selectedShop, setSelectedShop] = useState<string>('');
+    /**
+     * セレクトで選んだ担当営業。
+     * ⚠️ テキスト検索（staffSearch）とは別に持つ。あちらは部分一致で、
+     *   同姓の担当者が増えたため1人を選べるようにした（指示）。
+     */
+    const [selectedStaff, setSelectedStaff] = useState<string>('');
     const [selectedRegister, setSelectedRegister] = useState<string>('');
     const [selectedReserve, setSelectedReserve] = useState<string>('');
     const [selectedRank, setSelectedRank] = useState<string>('');
@@ -108,6 +123,16 @@ const DatabaseOrder = ({ onReload }: Props) => {
     const addressSearch = useDebounce('', 300);
     const familySearch = useDebounce('', 300);
     const isSp = useIsSp();
+
+    /**
+     * 担当営業の選択肢。⚠️ 条件と並び順は databaseUtils.ts の staffOptionsOf を見ること。
+     * ⚠️ `thisYear` は**年度**（6月始まり）。暦年で比べると候補が0件になる。
+     */
+    const staffOptions = useMemo(
+        () => staffOptionsOf(staffArray, selectedShop, thisYear, sortStaff),
+        [staffArray, selectedShop]
+    );
+
     const [searchParams, setSearchParams] = useSearchParams();
     const skipPageReset = useRef(false);
 
@@ -139,6 +164,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
 
             if (isInitial) {
                 setShopArray(response.data.shop.filter((item: ShopList) => !item.shop.includes('店舗未設定')));
+                // ⚠️ これまで使っていなかったが、応答には元から含まれている
+                setStaffArray(response.data.staff ?? []);
                 setMediumArray(response.data.medium.filter((item: MediumType) => item.list_medium === 1).map((item: MediumType) => item.medium));
                 setDisplayLength(customers.length);
                 setFamilyList(response.data.family);
@@ -206,6 +233,9 @@ const DatabaseOrder = ({ onReload }: Props) => {
             return (trash === 1 ? Number(item.trash ?? 0) !== 0 : true)
                 && (trash === 0 ? Number(item.trash ?? 0) !== 1 : true)
                 && (selectedShop ? arrIncludes(item.shop, selectedShop) : true)
+                // ⚠️ セレクトは1人を選ぶので**完全一致**。部分一致にすると
+                //   同姓の担当者を分けるという目的が果たせない
+                && (selectedStaff ? (item.staff ?? '') === selectedStaff : true)
                 && (selectedRegister ? strIncludes(item.register, dateFormate(selectedRegister)) : true)
                 && (selectedReserve === 'notVisited'
                     ? ((item.reserved_interview ?? '') !== '' && (item.interview ?? '') === '')
@@ -249,7 +279,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
             return dateB.localeCompare(dateA);
         });
     }, [
-        originalDatabase, selectedShop, selectedRegister, selectedReserve,
+        originalDatabase, selectedShop, selectedStaff, selectedRegister, selectedReserve,
         selectedRank, selectedMedium, selectedStatus, nameSearch.debouncedValue,
         staffSearch.debouncedValue, phoneSearch.debouncedValue, callStatus, addressSearch.debouncedValue,
         familySearch.debouncedValue, selectedIntroductory, trash, familyList, familyStatus,
@@ -352,11 +382,42 @@ const DatabaseOrder = ({ onReload }: Props) => {
             <div className='content database bg-white p-2'>
                 <div className='p-1 p-md-3 d-flex flex-wrap'>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedShop(e.target.value)}>
+                        <select
+                            className="target"
+                            onChange={(e) => {
+                                // ⚠️ 店舗を変えたら担当営業を外す。別の店舗の担当者が
+                                //   残ると、条件に合う顧客が無く**0件**になる
+                                setSelectedStaff('');
+                                setSelectedShop(e.target.value);
+                            }}
+                        >
                             <option value="">店舗を選択</option>
                             {shopArray.map((item, index) => <option key={index} value={item.shop}>{item.shop}</option>)}
                         </select>
                     </div>
+                    {/* ⚠️ 店舗を選んだときだけ出す（指示）。店舗未選択では候補が作れない。
+                           ⚠️ 色を付けて他のセレクトと見分けられるようにしている（指示） */}
+                    {selectedShop && (
+                        <div className="m-1">
+                            <select
+                                className="target"
+                                value={selectedStaff}
+                                style={{
+                                    backgroundColor: selectedStaff ? '#0d6efd' : '#e7f1ff',
+                                    color: selectedStaff ? '#fff' : '#0d6efd',
+                                    borderColor: '#0d6efd',
+                                    fontWeight: 700,
+                                }}
+                                onChange={(e) => setSelectedStaff(e.target.value)}
+                            >
+                                <option value="">担当営業を選択</option>
+                                {staffOptions.map((item, index) =>
+                                    <option key={index} value={item.name}>
+                                        {item.name}{item.position ? `（${item.position}）` : ''}
+                                    </option>)}
+                            </select>
+                        </div>
+                    )}
                     {!isSp && <>
                         <div className="m-1">
                             <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>

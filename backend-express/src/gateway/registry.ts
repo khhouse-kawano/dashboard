@@ -31,6 +31,8 @@ import { runCustomerTrend } from '../features/customerTrend';
 import { runShop } from '../features/shop';
 import { runInside } from '../features/inside';
 import { runBudgetSimulator } from '../features/budgetSimulator';
+import { runDatabase } from '../features/database';
+import type { DatabaseCategory } from '../features/database/queries';
 import {
   runListBlack,
   runListInsert,
@@ -1510,6 +1512,42 @@ for (const category of ['order', 'spec', 'used']) {
     auth: 'staff',
     handler: async (ctx) => {
       const result = await runListEvent(ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 顧客一覧（database/DatabaseOrder.tsx / DatabaseKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に database.php / databaseAction/database_{category}.php が
+//   実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **登録するのは order と spec だけ。**
+//   ① の database.php は 'used' と 'common' も許可しているが、
+//   中古（DatabaseResale.tsx）はここでは扱わない。登録していない category は
+//   そのまま ① へ転送されるので、これまでどおり ① が応答する。
+//
+// ⚠️⚠️ **roll（trash / copy）は登録しない。** 書き込みを伴う別経路である。
+//   ① の database.php は roll があれば database_{category}_{roll}.php を読む。
+//   ここに roll 付きを登録すると、書き込み経路まで ② に寄せてしまう。
+//
+// ⚠️⚠️ **応答が大きい。** 顧客は注文で約24,000件・建売で約10,000件。
+//   ⚠️ 列を足すときは転送量を意識すること。
+// ---------------------------------------------------------------------------
+
+const databaseCategories: DatabaseCategory[] = ['order', 'spec'];
+
+for (const category of databaseCategories) {
+  register({
+    request: 'database',
+    category,
+    summary: `顧客一覧の初期データ（${category}）：マスタ＋顧客＋ギフト進呈可否`,
+    phpSource: `backend/src/handlers/databaseAction/database_${category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runDatabase(category);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

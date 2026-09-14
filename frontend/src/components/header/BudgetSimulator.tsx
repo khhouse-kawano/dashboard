@@ -5,11 +5,11 @@ import Button from 'react-bootstrap/Button';
 import apiClient from '../../utils/apiClient';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import {
-    DIVISION_LABEL, HP_ROW, KPI_DEFS, applyBudget, applyCount, applyUnit,
-    countKpis, filterCustomers, lastYearMonth, matchesMedium, mediumRows,
+    DIVISION_LABEL, HP_ROW, KPI_DEFS, applyBudget, applyCount, applyCountKeepUnit,
+    applyUnit, countKpis, filterCustomers, lastYearMonth, matchesMedium, mediumRows,
     requiredBudget, sumAchievement, sumBudget, toNumber, unitPrice,
 } from './budgetSimulatorUtils';
-import type { Division, KpiKey, SimBudget, SimCustomer, SimMedium, SimRow, SimShop } from './budgetSimulatorUtils';
+import type { Division, KpiKey, SimAxis, SimBudget, SimCustomer, SimMedium, SimRow, SimShop } from './budgetSimulatorUtils';
 
 /**
  * 広告費シミュレーター。
@@ -78,6 +78,13 @@ const BudgetSimulator = () => {
      *   別の条件の試算が残っていると、実績と噛み合わない数字が並ぶ。
      */
     const [edited, setEdited] = useState<Record<string, SimRow>>({});
+
+    /**
+     * 試算の軸。⚠️ 「何を固定するか」で件数を変えたときの向きが変わる
+     *   （budgetSimulatorUtils.ts の SimAxis のコメント参照）。
+     * ⚠️ 既定は 'budget'。従来の挙動をそのまま残すため。
+     */
+    const [axis, setAxis] = useState<SimAxis>('budget');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -365,7 +372,9 @@ const BudgetSimulator = () => {
                                         size="sm"
                                         style={{ fontSize: '12px', textAlign: 'right' }}
                                         value={row.counts[k.key].toLocaleString()}
-                                        onChange={(e) => update(key, applyCount(row, k.key, toNumber(e.target.value)))}
+                                        onChange={(e) => update(key, axis === 'unit'
+                                            ? applyCountKeepUnit(row, k.key, toNumber(e.target.value))
+                                            : applyCount(row, k.key, toNumber(e.target.value)))}
                                     />
                                     {base && (
                                         <div className="text-muted mt-1" style={{ fontSize: '10px' }}>
@@ -403,10 +412,19 @@ const BudgetSimulator = () => {
                                 const baseUnit = base ? unitPrice(base.budget, base.counts[k.key]) : null;
                                 return (
                                     <td key={k.key} className="text-center">
-                                        <div className="text-muted mb-1" style={{ fontSize: '10px' }}>{k.unitLabel}</div>
+                                        <div className="text-muted mb-1" style={{ fontSize: '10px' }}>
+                                            {k.unitLabel}
+                                            {/* ⚠️ 固定されている側であることを明示する。
+                                                   読み取り専用の理由が分からないと壊れて見える */}
+                                            {axis === 'unit' && <span className="ms-1 text-secondary">（固定）</span>}
+                                        </div>
                                         <Form.Control
                                             size="sm"
-                                            style={{ fontSize: '12px', textAlign: 'right' }}
+                                            readOnly={axis === 'unit'}
+                                            style={{
+                                                fontSize: '12px', textAlign: 'right',
+                                                backgroundColor: axis === 'unit' ? '#eef1f5' : undefined,
+                                            }}
                                             value={unit === null ? '' : unit.toLocaleString()}
                                             placeholder="-"
                                             onChange={(e) => update(key, applyUnit(row, k.key, toNumber(e.target.value)))}
@@ -442,6 +460,34 @@ const BudgetSimulator = () => {
                 </span>
             </div>
 
+            {/* 試算の軸。⚠️ 「何を固定するか」で件数を変えたときの向きが変わる */}
+            <div className="d-flex align-items-center gap-3 flex-wrap px-3 py-2 mb-2 border rounded bg-white">
+                <span className="fw-bold" style={{ fontSize: '12px' }}>試算の軸</span>
+                {([
+                    {
+                        key: 'budget' as SimAxis,
+                        label: '広告費を固定',
+                        hint: '投下した広告費から達成可能な件数を見る',
+                    },
+                    {
+                        key: 'unit' as SimAxis,
+                        label: '単価を固定',
+                        hint: '目標の件数から必要な広告費を出す',
+                    },
+                ]).map(a => (
+                    <Button
+                        key={a.key}
+                        size="sm"
+                        variant={axis === a.key ? 'primary' : 'outline-secondary'}
+                        style={{ fontSize: '12px' }}
+                        onClick={() => setAxis(a.key)}
+                    >
+                        {a.label}
+                        <span className="ms-2" style={{ fontSize: '10px', opacity: 0.85 }}>{a.hint}</span>
+                    </Button>
+                ))}
+            </div>
+
             {/* ⚠️⚠️ **入力欄と併記が別の期間である**ことを必ず出す。
                    これが無いと「当期の広告費」と読まれ、必ず取り違えられる */}
             <div className="d-flex align-items-start gap-2 px-3 py-2 mb-3 border rounded bg-white" style={{ fontSize: '11px' }}>
@@ -456,6 +502,22 @@ const BudgetSimulator = () => {
                     <span className="text-muted ms-1">
                         … 各件数の下に併記しています。試算には使いません
                     </span>
+                    <br />
+                    {/* ⚠️ 軸によって「件数を書き換えたとき何が動くか」が変わる。
+                           ここに書かないと、広告費が勝手に変わったように見える */}
+                    {axis === 'unit'
+                        ? (
+                            <span className="text-muted">
+                                件数を書き換えると<span className="fw-bold text-danger">広告費が変わります</span>。
+                                単価を保つため、ほかの件数も同じ比率で動きます
+                                （契約を1.5倍にするなら反響も1.5倍必要、という意味です）
+                            </span>
+                        )
+                        : (
+                            <span className="text-muted">
+                                件数を書き換えると<span className="fw-bold">その単価が変わります</span>。広告費は動きません
+                            </span>
+                        )}
                 </div>
             </div>
 
