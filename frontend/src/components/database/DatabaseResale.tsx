@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
+// ⚠️ 共有された URL の ?id= で顧客編集を開くため（下の useEffect 参照）
+import { useSearchParams } from 'react-router-dom';
 import Table from "react-bootstrap/Table";
 import AuthContext from '../../context/AuthContext';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
@@ -252,6 +254,33 @@ const DatabaseResale = ({ onReload, key }: Props) => {
     };
 
     const [editId, setEditId] = useState('')
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    /**
+     * URL の `?id=` で顧客編集を開く。
+     *
+     * ⚠️⚠️ **DatabaseOrder.tsx と同じ仕組み。** 2026-09-14 にこちらへも入れた。
+     *   紹介・アンバサダーの反響一覧（header/InquiryAmbassador.tsx）に
+     *   「顧客編集ページのURLをコピー」するボタンがあり、
+     *   そのリンクを受けるのがここである。
+     *   ⚠️ これが無いと、共有されたリンクを開いても
+     *     **黙って顧客一覧が開くだけ**になる（エラーも出ない）。
+     *
+     * ⚠️ 2つ目の useEffect は、画面で顧客を開いたときに URL へ反映するため。
+     *   これがあるから、開いている状態の URL をそのまま共有できる。
+     */
+    useEffect(() => {
+        const urlId = searchParams.get('id');
+        if (urlId) setEditId(urlId);
+    }, [searchParams]);
+
+    useEffect(() => {
+        if (!editId) return;
+        const newParams = new URLSearchParams(searchParams);
+        newParams.set('id', editId);
+        setSearchParams(newParams);
+    }, [editId, searchParams, setSearchParams]);
+
 
     const handleGarbage = async (id: string, name: string) => {
         if (!id) return;
