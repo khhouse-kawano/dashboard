@@ -90,12 +90,24 @@ foreach ($divisions as $key => $conf) {
     $stmt_budget->execute([$conf['budget_section']]);
     $response_budget = $stmt_budget->fetchAll(PDO::FETCH_ASSOC);
 
+    // 契約目標。
+    // ⚠️⚠️ 事業区分の列が無いので**事業で絞らず全件返す。** 店舗名での突合は
+    //   フロントが行う。SQL で JOIN すると shop_list に無い店舗名の目標が静かに消える。
+    // ⚠️ category は 'shop' だけ。'staff'（担当者別）を混ぜると二重に積み上がる。
+    // ⚠️ period は 'YYYY-MM'（ハイフン）。画面の月は 'YYYY/MM' なので変換が要る。
+    $stmt_achievement = $pdo->prepare(
+        "SELECT name, period, value FROM company_achievement WHERE category = 'shop'"
+    );
+    $stmt_achievement->execute();
+    $response_achievement = $stmt_achievement->fetchAll(PDO::FETCH_ASSOC);
+
     // ⚠️ キーの順序も Express と揃えている
     $result[$key] = [
         'shop' => $response_shop,
         'section' => $response_section,
         'customer' => $response_customer,
         'budget' => $response_budget,
+        'achievement' => $response_achievement,
     ];
 }
 

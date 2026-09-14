@@ -105,11 +105,39 @@ const BUDGET_SQL = `
    WHERE response_medium = 0 AND section = ?
 `;
 
+/**
+ * 契約目標。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **事業区分の列は無い。** `name`（店舗名）を `shop_list` と
+ *   突き合わせて事業を判定する。実測（2026-09-14 / category = 'shop'）で
+ *     注文事業 28店 / 建売分譲事業 6店 / 中古リノベ 2店
+ *   が入っていた。
+ *   ⚠️ 事業で絞らずに**全件返し、フロントで店舗名で突合する。**
+ *     SQL で JOIN すると、`shop_list` に無い店舗名の目標が静かに消える。
+ *
+ * ⚠️ `category` は 'shop' / 'staff' / '中古リノベ' の3種類。
+ *   店舗の目標は **'shop' だけ**。'staff' は担当者別なので混ぜない
+ *   （混ぜると目標が二重に積み上がる）。
+ *
+ * ⚠️⚠️ **`period` は 'YYYY-MM'（ハイフン）。** 画面の月は 'YYYY/MM'（スラッシュ）。
+ *   そのまま比較すると**1件も一致しない**（エラーは出ず、目標が0になる）。
+ *
+ * ⚠️ `value` は text 型。数値に変換してから足すこと。
+ * ─────────────────────────────────────────────
+ */
+const ACHIEVEMENT_SQL = `
+  SELECT name, period, value
+    FROM company_achievement
+   WHERE category = 'shop'
+`;
+
 export const budgetSimulatorSql = (division: BudgetDivision) => ({
   shop: SHOP_SQL[division],
   section: SECTION_SQL,
   customer: CUSTOMER_SQL[division],
   budget: BUDGET_SQL,
+  achievement: ACHIEVEMENT_SQL,
   division: DIVISION[division],
   budgetSection: BUDGET_SECTION[division],
 });

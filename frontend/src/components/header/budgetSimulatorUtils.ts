@@ -50,11 +50,39 @@ export const KPI_DEFS: Record<Division, KpiDef[]> = {
 /** 'YYYY-MM-DD' と 'YYYY/MM/DD' の差を吸収する */
 export const formate = (value: string): string => (value ? value.replace(/-/g, '/') : '');
 
+/**
+ * 日付文字列から 'YYYY/MM' を取り出す。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **`slice(0, 7)` で切ってはいけない。**
+ *   `budget.budget_period` は形式が揃っていない。ローカルDBの実測
+ *   （2026-09-14 / section = 'order' / 21,169件）で
+ *
+ *     YYYY/MM/DD（2桁）  … 21,108件
+ *     YYYY/M/D（ゼロ埋めなし）… **19件**
+ *     空文字             … 40件
+ *
+ *   が混在していた。ゼロ埋めなしを `slice(0, 7)` で切ると
+ *   `'2026/8/'` となって月と一致せず、**静かに集計から落ちる。**
+ *   ⚠️ その19件の合計は **970万円**。無視できない額である。
+ *
+ * ⚠️ 月が2桁（10〜12月）のときは偶然一致してしまうため、
+ *   **1桁月だけが落ちる**という気づきにくい壊れ方をする。
+ *
+ * ⚠️ 空文字や解釈できない値は '' を返す。期間には決して入らない。
+ * ─────────────────────────────────────────────
+ */
+export const toYearMonth = (value: string): string => {
+    const matched = formate(value).match(/^(\d{4})\/(\d{1,2})/);
+    if (!matched) return '';
+    return `${matched[1]}/${matched[2].padStart(2, '0')}`;
+};
+
 /** その日付が期間（'YYYY/MM' の配列）に入っているか */
 const inPeriod = (value: string, months: string[]): boolean => {
-    const v = formate(value);
-    if (!v) return false;
-    return months.includes(v.slice(0, 7));
+    const ym = toYearMonth(value);
+    if (!ym) return false;
+    return months.includes(ym);
 };
 
 /**
@@ -208,6 +236,68 @@ export const applyCount = (row: SimRow, kpi: KpiKey, nextCount: number): SimRow 
     ...row,
     counts: { ...row.counts, [kpi]: Math.max(0, Math.round(nextCount)) },
 });
+
+/**
+ * 'YYYY/MM' を1年前にする。
+ *
+ * ⚠️⚠️ **広告費だけが1年前を見る。** KPI（歩留まり）は選択期間そのもの。
+ *   「昨年これだけかけた → 今これだけ取れている」を並べて見るための作り
+ *   （2026-09-14 の指示）。
+ *   ⚠️ 両方を同じ期間にすると、ただの実績表になってシミュレーターの意味が無くなる。
+ */
+export const lastYearMonth = (month: string): string => {
+    const [y, m] = month.split('/');
+    if (!y || !m) return month;
+    return `${Number(y) - 1}/${m}`;
+};
+
+/**
+ * 契約目標の合計。
+ *
+ * ⚠️⚠️ **`period` は 'YYYY-MM'（ハイフン）。** 画面の月は 'YYYY/MM'（スラッシュ）で、
+ *   そのまま比較すると**1件も一致しない**（エラーは出ず目標が0になる）。
+ *
+ * ⚠️ `value` は text 型なので Number() を通す。空文字は0として扱う。
+ *
+ * ⚠️ 店舗を絞っていないとき（shops が null）は**対象事業の店舗だけ**を足す。
+ *   company_achievement には全事業の店舗が入っているので、
+ *   絞らないと注文の画面に建売の目標まで乗る。
+ *   ⚠️ 実測（2026-09-14）で 注文28店 / 建売6店 / 中古2店 が入っていた。
+ */
+export const sumAchievement = (
+    rows: { name: string; period: string; value: string }[],
+    months: string[],
+    shops: string[] | null,
+    divisionShops: string[]
+): number => {
+    const target = new Set(shops ?? divisionShops);
+    // ⚠️ 形式の揺れを吸収してから比べる（toYearMonth のコメント参照）
+    const periods = new Set(months);
+    return rows
+        .filter(r => periods.has(toYearMonth(r.period)) && target.has(r.name))
+        .reduce((acc, r) => acc + (Number(r.value) || 0), 0);
+};
+
+/**
+ * 契約目標を達成するために必要な広告費。
+ *
+ * ⚠️⚠️ **単価は「昨年の広告費 ÷ 昨年の契約数」で出すこと。**
+ *   画面に出している単価は「昨年の広告費 ÷ **今の**契約数」であり、
+ *   期の途中だと契約数が少なく単価が跳ね上がる。
+ *   それを使うと必要広告費が実態よりはるかに大きく出てしまう。
+ *
+ * ⚠️ 昨年の契約数が0なら出せない（null）。0で割らないこと。
+ */
+export const requiredBudget = (
+    lastYearBudget: number,
+    lastYearContract: number,
+    targetContract: number
+): number | null => {
+    if (lastYearContract <= 0 || targetContract <= 0) return null;
+    const unit = lastYearBudget / lastYearContract;
+    if (!isFinite(unit)) return null;
+    return Math.round(unit * targetContract);
+};
 
 /** 入力欄の文字列を数値にする。⚠️ 全角・カンマ・円記号を落とす */
 export const toNumber = (value: string): number => {

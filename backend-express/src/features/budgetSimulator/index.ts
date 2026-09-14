@@ -37,14 +37,16 @@ const DIVISIONS: BudgetDivision[] = ['order', 'spec'];
 const fetchOne = async (division: BudgetDivision) => {
   const sql = budgetSimulatorSql(division);
 
-  const [shop, section, customer, budget] = await Promise.all([
+  const [shop, section, customer, budget, achievement] = await Promise.all([
     query<DynamicRow>(sql.shop, [sql.division]),
     query<DynamicRow>(sql.section, [sql.division]),
     query<DynamicRow>(sql.customer),
     query<DynamicRow>(sql.budget, [sql.budgetSection]),
+    // ⚠️ 契約目標は事業で絞らない。店舗名でフロントが突合する（queries.ts 参照）
+    query<DynamicRow>(sql.achievement),
   ]);
 
-  return { shop, section, customer, budget };
+  return { shop, section, customer, budget, achievement };
 };
 
 export const runBudgetSimulator = async (): Promise<BudgetSimulatorResult> => {
