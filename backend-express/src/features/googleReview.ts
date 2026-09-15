@@ -134,13 +134,19 @@ export const runGoogleReviewList = async (): Promise<GoogleReviewResult> => {
  *   揃えたうえで、事業区分・営業課で絞り込むため。
  *   ⚠️ 突き合わせの規則はフロント（googleReviewUtils.ts）にある。
  *
+ * ⚠️⚠️ **`section_list` も返す。** 絞り込みの選択肢を**並べるため**である
+ *   （2026-09-15 の指示）。⚠️ `no` の昇順で
+ *     注文事業 → 建売分譲事業 → 不動産企画室 → 中古リノベ
+ *   の順になる。⚠️ 名前で並べると「建売分譲事業」が先に来て、
+ *   会社の見方と合わない。
+ *
  * ⚠️ `review_history` は返さない。画面では使わない（2026-09-15 の指示）。
  *   ⚠️ 必要になったら足すこと。今は転送量を増やさない。
  * ─────────────────────────────────────────────
  */
 export const runGoogleReviewSummary = async (): Promise<GoogleReviewResult> => {
   // ⚠️ 互いに独立しているので並列で投げる
-  const [reviews, shop] = await Promise.all([
+  const [reviews, shop, section] = await Promise.all([
     query<ReviewRow>(
       `SELECT no, shop, id, address, average, amount, recently_review, url
          FROM google_review ORDER BY no`
@@ -150,9 +156,13 @@ export const runGoogleReviewSummary = async (): Promise<GoogleReviewResult> => {
     query<RowDataPacket & { shop: string }>(
       `SELECT shop, section, division, brand FROM shop_list`
     ),
+    // ⚠️ 絞り込みの選択肢を並べるため。⚠️ `no` の順に意味がある
+    query<RowDataPacket & { no: number }>(
+      `SELECT no, division, name FROM section_list ORDER BY no`
+    ),
   ]);
 
-  return { httpStatus: 200, body: { status: 'ok', reviews, shop } };
+  return { httpStatus: 200, body: { status: 'ok', reviews, shop, section } };
 };
 
 /** sync から送られてくる1店舗分 */

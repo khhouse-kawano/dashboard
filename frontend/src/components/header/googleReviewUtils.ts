@@ -126,6 +126,51 @@ export const resolveShopName = (rawShop: string, shopNames: Set<string>): string
 
 export type ShopMaster = { shop: string; section: string; division: string; brand: string };
 
+/** section_list の1行。⚠️ `no` は並び順に使う */
+export type SectionMaster = { no: number; division: string; name: string };
+
+/**
+ * 事業区分・営業課の選択肢を `section_list.no` の昇順で並べる。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **名前で並べてはいけない**（2026-09-15 の指示）。
+ *   文字列順だと「建売分譲事業」が「注文事業」より先に来てしまい、
+ *   会社の見方と合わない。`no` の順は
+ *     注文事業 → 建売分譲事業 → 不動産企画室 → 中古リノベ
+ *   であり、こちらが正しい並びである。
+ *
+ * ⚠️ `section_list` に無いものは**末尾**に回す（マスタ未登録に備える）。
+ *   ⚠️ 消してはいけない。実データにあるのに選べなくなる。
+ *
+ * ⚠️ 引数の `values` は**実データに存在するものだけ**を渡すこと。
+ *   マスタ全部を選択肢にすると、0件になる選択肢が並ぶ。
+ * ─────────────────────────────────────────────
+ */
+export const orderByMaster = (
+    values: string[],
+    master: SectionMaster[],
+    pick: (s: SectionMaster) => string
+): string[] => {
+    const order = new Map<string, number>();
+    (master ?? []).forEach(s => {
+        const key = pick(s);
+        // ⚠️ 最初に現れた no を採用する。division は複数行に跨るため
+        //   （注文事業は no=1〜7）。後勝ちにすると並びが崩れる
+        if (key && !order.has(key)) order.set(key, Number(s.no));
+    });
+
+    // ⚠️ 元の配列を壊さない
+    return [...values].sort((a, b) => {
+        const oa = order.get(a);
+        const ob = order.get(b);
+        // ⚠️ どちらもマスタに無ければ名前順。並びが不定になるのを避ける
+        if (oa === undefined && ob === undefined) return a.localeCompare(b, 'ja');
+        if (oa === undefined) return 1;
+        if (ob === undefined) return -1;
+        return oa - ob;
+    });
+};
+
 /** 画面が使う1店舗分 */
 export type ReviewShop = {
     no: number;
