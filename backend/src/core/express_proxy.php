@@ -416,6 +416,9 @@ function expressProxyRequests(): array
         // -----------------------------------------------------------------
         'google_review:list',
         'google_review:save',
+        // ⚠️ 2026-09-15 追加。口コミ集計画面（header/GoogleReview.tsx）用。
+        //   ⚠️ `list` とは別物。あちらは sync 専用で本文を返さない。
+        'google_review:summary',
     ];
 }
 

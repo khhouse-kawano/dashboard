@@ -26,10 +26,11 @@ import InquiryIntroductory from './InquiryIntroductory';
 import EventList from './EventList';
 import EventSummary from './EventSummary';
 import EventBudget from './EventBudget';
+import GoogleReview from './GoogleReview';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
-type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント';
+type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
 
 const Header = ({ }) => {
     const { authority } = useContext(AuthContext);
@@ -57,7 +58,7 @@ const Header = ({ }) => {
     const [modal, setModal] = useState<boolean>(false);
     const [estateId, setEstateId] = useState('search');
     const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント'];
+    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
@@ -77,7 +78,8 @@ const Header = ({ }) => {
         '日報': ['月次日報'],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
         '紹介キャンペーン': ['反響一覧'],
-        '集客イベント': ['反響一覧', '集客サマリー', '広告費入力']
+        '集客イベント': ['反響一覧', '集客サマリー', '広告費入力'],
+        'Google口コミ': ['口コミ集計']
     };
 
     /**
@@ -117,7 +119,9 @@ const Header = ({ }) => {
         //
         // ⚠️ 一方 '集客サマリー' は自前のモーダルを持たないので、
         //   共通モーダルに載せる（EventList とは扱いが違う）。
-        '集客イベント/集客サマリー': <EventSummary />
+        '集客イベント/集客サマリー': <EventSummary />,
+        // ⚠️ モーダルの大きさは既定の xl（isFullscreenMenu に入れないこと）
+        'Google口コミ/口コミ集計': <GoogleReview />
     };
 
     useEffect(() => {

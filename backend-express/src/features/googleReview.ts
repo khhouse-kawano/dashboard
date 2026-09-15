@@ -122,6 +122,39 @@ export const runGoogleReviewList = async (): Promise<GoogleReviewResult> => {
   return { httpStatus: 200, body: { status: 'ok', shops: rows } };
 };
 
+/**
+ * 口コミ集計画面（header/GoogleReview.tsx）の初期データ。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **`list` とは別に用意している。** あちらは projects/sync 専用で
+ *   本文を返さない（取得側は要らないため）。こちらは画面用で本文が要る。
+ *   ⚠️ `list` に本文を足すと、sync の往復が無駄に重くなる。
+ *
+ * ⚠️ `shop_list` も一緒に返す。画面が店舗名を shop_list の表記へ
+ *   揃えたうえで、事業区分・営業課で絞り込むため。
+ *   ⚠️ 突き合わせの規則はフロント（googleReviewUtils.ts）にある。
+ *
+ * ⚠️ `review_history` は返さない。画面では使わない（2026-09-15 の指示）。
+ *   ⚠️ 必要になったら足すこと。今は転送量を増やさない。
+ * ─────────────────────────────────────────────
+ */
+export const runGoogleReviewSummary = async (): Promise<GoogleReviewResult> => {
+  // ⚠️ 互いに独立しているので並列で投げる
+  const [reviews, shop] = await Promise.all([
+    query<ReviewRow>(
+      `SELECT no, shop, id, address, average, amount, recently_review, url
+         FROM google_review ORDER BY no`
+    ),
+    // ⚠️ 擬似店舗（全店舗／店舗未設定）も返す。除くのはフロントの仕事にする
+    //   （ここで絞ると、なぜ消えたのかが画面側から分からなくなる）
+    query<RowDataPacket & { shop: string }>(
+      `SELECT shop, section, division, brand FROM shop_list`
+    ),
+  ]);
+
+  return { httpStatus: 200, body: { status: 'ok', reviews, shop } };
+};
+
 /** sync から送られてくる1店舗分 */
 type IncomingShop = {
   /** Place ID。⚠️ google_review.id と突き合わせる */

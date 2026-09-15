@@ -33,7 +33,7 @@ import { runInside } from '../features/inside';
 import { runBudgetSimulator } from '../features/budgetSimulator';
 import { runDatabase } from '../features/database';
 import { runCustomer } from '../features/customer';
-import { runGoogleReviewList, runGoogleReviewSave } from '../features/googleReview';
+import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
 import {
@@ -1626,6 +1626,24 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runGoogleReviewList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️ 口コミ集計画面（header/GoogleReview.tsx）用。
+ *   ⚠️ `list` とは別物である。あちらは sync 専用で本文を返さない。
+ *   ⚠️ こちらは画面から呼ぶので auth: 'staff'（sync は呼ばない）。
+ */
+register({
+  request: 'google_review',
+  roll: 'summary',
+  summary: '口コミ集計画面の初期データ（クチコミ本文＋店舗マスタ）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runGoogleReviewSummary();
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
