@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import EditStaff from './EditStaff';
 import EditAuth from './EditAuth';
 import EditShop from './EditShop';
@@ -67,6 +67,42 @@ const Header = ({ }) => {
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
 
     const isSp = useIsSp();
+
+    /**
+     * ヘッダーの実際の高さを下のレイアウトへ伝える。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **メニューが折り返すと高さが変わる**（2026-09-15 に flex-wrap を付けた）。
+     *   ヘッダーは `position-fixed` なので場所を取らず、下のコンテンツは
+     *   App.tsx の余白で避けている。⚠️ 高さが 30px → 60px になっても
+     *   余白が固定のままだと、**画面の上部がヘッダーに隠れる。**
+     *
+     * ⚠️ そこで実測して CSS 変数（--header-h）に入れ、App.tsx がそれを使う。
+     *   ⚠️ 片方だけ直さないこと。変数名を変えるなら App.tsx も直す。
+     *
+     * ⚠️ ResizeObserver を使うのは、折り返しが**幅の変化で起きる**ため。
+     *   リサイズだけを見ていると、メニューの増減に追従できない。
+     * ─────────────────────────────────────────────
+     */
+    const headerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const el = headerRef.current;
+        // ⚠️ スマホではこのヘッダーを描かない。余白も要らないので 0 に戻す
+        if (!el) {
+            document.documentElement.style.setProperty('--header-h', '0px');
+            return;
+        }
+
+        const apply = () => {
+            document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`);
+        };
+        apply();
+
+        const observer = new ResizeObserver(apply);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [isSp]);
 
     const menuMapping: Record<MenuKey, string[]> = {
         '店舗管理': ['店舗編集'],
@@ -167,8 +203,24 @@ const Header = ({ }) => {
     return (
         <>
             {!isSp && <div
-                className="d-flex align-items-center bg-white border-bottom px-2 position-fixed top-0 start-0 w-100"
-                style={{ zIndex: 1050, height: '30px', userSelect: 'none' }}
+                ref={headerRef}
+                /**
+                 * ⚠️⚠️ `flex-wrap` を外さないこと（2026-09-15 追加）。
+                 *   メニューが11項目あり、1024px 前後の幅では**1行に収まらず
+                 *   画面外へはみ出す。** 折り返して全部見えるようにしている。
+                 * ⚠️ `row-gap` は折り返したときの行間。無いと2行が詰まって読みにくい。
+                 */
+                className="d-flex flex-wrap align-items-center bg-white border-bottom px-2 position-fixed top-0 start-0 w-100"
+                style={{
+                    zIndex: 1050,
+                    // ⚠️⚠️ **`height` ではなく `minHeight`。**
+                    //   固定すると折り返した2行目が**はみ出して見えなくなる。**
+                    minHeight: '30px',
+                    rowGap: '2px',
+                    paddingTop: '2px',
+                    paddingBottom: '2px',
+                    userSelect: 'none',
+                }}
             >
                 {/* Claudeによる分析：menuMapping とは別の独立したボタン */}
                 <button

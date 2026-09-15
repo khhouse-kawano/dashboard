@@ -194,7 +194,25 @@ const GoogleReview = () => {
         <div className="gr_wrap">
             {/* ⚠️ このコンポーネント専用のスタイル。共通CSSを汚さない */}
             <style>{`
-                .gr_wrap { font-size: 13px; color: #1f2937; }
+                /**
+                 * ⚠️⚠️ 全画面モーダルの Modal.Body は **p-0 かつ overflow: hidden** である
+                 *   （Header.tsx）。⚠️ そのため
+                 *     ・余白はこちらで持つ（py-3 px-5 相当）
+                 *     ・高さを使い切り、**表だけがスクロールする**形にする
+                 *   ⚠️ height:100% と min-height:0 を外すと、表が画面外へ出て見えなくなる。
+                 *
+                 * ⚠️ Header.tsx 側に余白を足すと他の全画面メニューにも効くので触らない。
+                 */
+                .gr_wrap { font-size: 13px; color: #1f2937;
+                           height: 100%; display: flex; flex-direction: column;
+                           padding: 16px 40px 20px; box-sizing: border-box; }
+                /**
+                 * ⚠️ 横幅いっぱいに広げると視線の移動が大きく読みにくい（2026-09-15 の指摘）。
+                 *   ⚠️ 最大幅を決めて中央に寄せる。広い画面でも行が間延びしない。
+                 *   ⚠️ これを外すと全幅に戻る。
+                 */
+                .gr_inner { width: 100%; max-width: 1500px; margin: 0 auto;
+                            display: flex; flex-direction: column; min-height: 0; flex: 1; }
                 .gr_head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
                 .gr_title { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
                 .gr_note { font-size: 11px; color: #6b7280; }
@@ -208,9 +226,12 @@ const GoogleReview = () => {
                 .gr_kpi_label { font-size: 11px; color: #6b7280; }
                 .gr_kpi_value { font-size: 20px; font-weight: 700; line-height: 1.2; }
 
-                /* ⚠️ 表。⚠️ 見出しは固定する（店舗が多いと見出しが流れるため） */
+                /* ⚠️ 表。⚠️ 見出しは固定する（店舗が多いと見出しが流れるため）
+                   ⚠️ flex:1 と min-height:0 で「残りの高さを使い切って中だけスクロール」。
+                      ⚠️ min-height:0 を外すと flex の既定（auto）で縮まず、
+                        表が画面外へ出る。 */
                 .gr_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto;
-                                 background: #fff; }
+                                 background: #fff; flex: 1 1 auto; min-height: 0; }
                 .gr_table { width: 100%; border-collapse: separate; border-spacing: 0;
                             font-size: 12px; }
                 .gr_th { position: sticky; top: 0; z-index: 2; background: #f8fafc;
@@ -253,6 +274,8 @@ const GoogleReview = () => {
                 .gr_link:hover { text-decoration: underline; }
             `}</style>
 
+            {/* ⚠️ 中央寄せの内側ラッパ。⚠️ 全画面でも横に広がりすぎないようにする */}
+            <div className="gr_inner">
             <div className="gr_head mb-2">
                 <span className="gr_title">
                     <i className="fa-brands fa-google me-2 text-primary" aria-hidden="true" />
@@ -435,6 +458,7 @@ const GoogleReview = () => {
                     </div>
                 </>
             )}
+            </div>
         </div>
     );
 };
