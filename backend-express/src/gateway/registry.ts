@@ -33,6 +33,7 @@ import { runInside } from '../features/inside';
 import { runBudgetSimulator } from '../features/budgetSimulator';
 import { runDatabase } from '../features/database';
 import { runCustomer } from '../features/customer';
+import { runGoogleReviewList, runGoogleReviewSave } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
 import {
@@ -1588,3 +1589,58 @@ for (const category of customerCategories) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Google クチコミの取得（projects/sync から呼ばれる。画面は無い）
+//
+// ⚠️⚠️ **① に PHP ハンドラは無い。** 以前は post_review.php / shop_review.php が
+//   あったが現行の backend/src/handlers/ から消えている
+//   （backup/back/20260625/api/actions/ にだけ残っている）。
+//   ⚠️ そのため express_proxy.php の expressProxyExclusive() に入れてある。
+//     転送に失敗したら 502 で終わり、① で二重に実行されることはない。
+//
+// ⚠️ `list` は参照、`save` は書き込み。roll で分けている。
+//
+// ⚠️⚠️ **Places API はクチコミを最大5件しか返さない。**
+//   毎回5件取って、まだ持っていないものだけを足していく運用である。
+//   突き合わせは features/googleReview.ts が行う（sync 側ではない）。
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️⚠️ **auth: 'none' にしている理由**
+ *   呼び出し元は projects/sync（無人のバッチ）で、**認証ヘッダを送らない**
+ *   （utils/postGateway.ts は Content-Type しか付けない）。
+ *   移植元の post_review.php も認証していなかった。
+ *   ⚠️ 'staff' にすると sync から一切叩けなくなる。
+ *
+ * ⚠️⚠️ **書き込み（save）なのに認証が無いことは認識しておくこと。**
+ *   他の sync 経由の request（suumo_db_order など）も同じ状態で、
+ *   認証強化は移行と分けて一括で行う方針である
+ *   （GATEWAY_REQUIRE_AUTH で切り替えられる）。
+ */
+register({
+  request: 'google_review',
+  roll: 'list',
+  summary: 'Google クチコミ取得の対象店舗と Place ID（本文は返さない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runGoogleReviewList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'google_review',
+  roll: 'save',
+  summary: '【書き込み・フォールバック禁止】Google クチコミの保存（増えた分だけ追記）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  // ⚠️ 上の list と同じ理由で 'none'。sync は認証ヘッダを送らない
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runGoogleReviewSave(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
