@@ -62,7 +62,7 @@ SHOW COLUMNS FROM `medium_kaeru` WHERE `Field` = 'show_graph';
 
 ## このリリースの内容
 
-`origin/production` に無いコミットは8本（v2.2.128 / v2.2.129 の分を含む）。
+`origin/production` に無いコミットは13本（v2.2.128 / v2.2.129 の分を含む）。
 
 | 変更 | 場所 |
 |---|---|
@@ -73,6 +73,7 @@ SHOW COLUMNS FROM `medium_kaeru` WHERE `Field` = 'show_graph';
 | ⚠️⚠️ **メニューのバッジを COUNT 化（18.2MB × 2 → 44バイト）** | ① フロント ＋ ② ＋ ① PHP |
 | ⚠️⚠️ **販促媒体別ランキング（customer）を shop に揃える。誤りを3つ修正** | ① フロント ＋ ② ＋ ① PHP |
 | ⚠️ ① → ② の転送を**圧縮**する（`CURLOPT_ENCODING`。20.5MB → 2.43MB） | ① PHP |
+| ⚠️ **Google クチコミの取得経路を新設**（projects/sync 用。画面は無い） | ② ＋ ① PHP |
 | 広告費シミュレーターの作り直し（KPI別単価・媒体別・契約目標・試算の2軸） | ① フロント ＋ ② ＋ ① PHP |
 | 顧客一覧（`database` の order / spec）を Express へ移植 | ② ＋ ① PHP |
 | 顧客一覧に**担当営業のセレクト**を追加（同姓の担当者対策） | ① フロント |
@@ -205,10 +206,10 @@ dcp ps
 **ログで確かめるのが確実。**
 
 ```bash
-dcp logs --tail 400 express-api | grep -E "database::|customer::|budget_simulator|menu::"
+dcp logs --tail 400 express-api | grep -E "database::|customer::|budget_simulator|menu::|google_review"
 ```
 
-⚠️ 以下の6つが出ること。
+⚠️ 以下の8つが出ること。
 
 ```
 🔒 database::order       — 顧客一覧の初期データ（order）：マスタ＋顧客＋ギフト進呈可否
@@ -217,7 +218,12 @@ dcp logs --tail 400 express-api | grep -E "database::|customer::|budget_simulato
 🔒 customer::spec        — 販促媒体別ランキングの初期データ（spec）
 🔒 budget_simulator::    — 広告費シミュレーターの初期データ（注文・建売をまとめて返す）
    menu::                — メニューの通知バッジ用データ（未同期・キャンセル・失注・新着物件）
+   google_review:list:   — Google クチコミ取得の対象店舗と Place ID（本文は返さない）
+   google_review:save:   — 【書き込み・フォールバック禁止】Google クチコミの保存（増えた分だけ追記）
 ```
+
+⚠️ `google_review` の2つに 🔒 が**付かないのが正常**（auth: 'none'）。
+呼び出し元の projects/sync は認証ヘッダを送らないため。
 
 ⚠️ `customer::used` が出ないのも正常（CustomerRouter.tsx が描画しない）。
 
@@ -236,7 +242,7 @@ dcp logs --tail 400 express-api | grep -E "database::|customer::|budget_simulato
 
 | ローカル | ① の配置先 | 含まれる変更 |
 |---|---|---|
-| `backend/src/core/express_proxy.php` | `core/express_proxy.php` | 許可リストへの `database::` 追加 ＋ ⚠️ **`CURLOPT_ENCODING`（転送の圧縮）** |
+| `backend/src/core/express_proxy.php` | `core/express_proxy.php` | 許可リストへの `database::` / `customer::` / `google_review:` 追加 ＋ ⚠️ **`CURLOPT_ENCODING`（転送の圧縮）** |
 | `backend/src/handlers/budget_simulator.php` | `handlers/budget_simulator.php` | 返す形の作り替え |
 | ⚠️ `backend/src/handlers/menu.php` | `handlers/menu.php` | ⚠️ **返す形の作り替え（COUNT化）** |
 | ⚠️ `backend/src/handlers/customerAction/customer_order.php` | `handlers/customerAction/customer_order.php` | 列を shop に合わせた |
@@ -348,6 +354,49 @@ npm run build
 - 列が **総反響 / 接触率 / 接触数 / 来場・案内 / 申込数 / 契約率 / 契約数** の順
 - ⚠️ **単価が以前よりぐっと安くなる**（全事業の広告費が乗らなくなったため）。異常ではない
 - ⚠️ 数字が **ShopKaeru（店舗別広告費）と一致する**こと
+
+### 5-0c. Google クチコミの取得（⚠️ 画面は無い。projects/sync から）
+
+⚠️ これまで **404「該当する処理がありません。」** で動かなかった経路である
+（① に許可リストが無かったため）。
+
+**まず疎通だけ確かめる。【あなたのPC（PowerShell）で実行】**
+
+```powershell
+cd $env:TEMP
+'{"request":"google_review","roll":"list"}' | Out-File -Encoding ascii gr.json
+curl.exe -s -X POST https://khg-marketing.info/dashboard/api/gateway/ `
+  -H "Content-Type: application/json" -d "@gr.json"
+```
+
+| 応答 | 判断 |
+|---|---|
+| `{"status":"ok","shops":[...31件...]}` | ✅ 経路が通った |
+| ⚠️ `該当する処理がありません。` | ① の `express_proxy.php` が古い（手順3をやり直す） |
+| ⚠️ `ループ検知` / 502 | ② が古い（手順2をやり直す） |
+
+**次に取得を動かす（projects/sync）**
+
+⚠️ `targetTasks` に `"google_review"` を指定して実行する。
+
+⚠️⚠️ **先に GCP で「Places API (New)」を有効化しておくこと。**
+⚠️ 鍵は Geocoding と同じ `API_KEY`。⚠️ キーに API 制限をかけている場合は
+Places API を許可リストに加えること。
+
+| ログ | 判断 |
+|---|---|
+| `○○店 … 評価 4.9 / 74件 / 本文 5件` が並ぶ | ✅ 成功 |
+| ⚠️ `403` `SERVICE_DISABLED` | Places API が有効化されていない |
+| ⚠️ `403` `REQUEST_DENIED` | API キーの制限に Places API が入っていない |
+| `保存完了 updated=31 added=N` | ✅ N 件が新たに溜まった |
+
+⚠️ `added` は**0でも正常**である。既に持っているクチコミばかりなら増えない。
+
+⚠️⚠️ **`reviews` を取ると Place Details Enterprise SKU になり単価が上がる。**
+31店舗 × 実行回数ぶん課金されるので、**1日1回程度**にすること。
+
+⚠️ クチコミ本文は Google の仕様で**最大5件**しか返らない。
+過去に遡って全件を取ることはできず、動かし続けて少しずつ溜める形である。
 
 ### ⚠️⚠️ 5-1. 顧客一覧の速度（**最優先。ここが今回いちばん危ない**）
 
