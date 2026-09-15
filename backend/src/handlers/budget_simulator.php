@@ -1,100 +1,134 @@
 <?php
 
-// 担当営業
-$sql_staff = "SELECT name, shop, section, report, sort, multi, status, period, position, khg_id
-        FROM staff_list WHERE report = 1 and khg_id <> '';";
-$stmt_staff = $pdo->prepare($sql_staff);
-$stmt_staff->execute();
-$response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
+/**
+ * 広告費シミュレーター（frontend/src/components/header/BudgetSimulator.tsx）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **2026-09-14 に作り直した。以前とは返す形が全く違う。**
+ *   旧版は契約数と目標だけを返しており、単価の算出に必要な列が無かった
+ *   （販促媒体・来場・次アポ、建売はコメントアウト）。
+ *
+ * ⚠️⚠️ **backend-express/src/features/budgetSimulator/ と同じ形にしておくこと。**
+ *   こちらは ② への転送が失敗したときのフォールバックである。
+ *   形が違うと、転送が失敗した瞬間に画面が壊れる（しかも普段は動くので
+ *   気づくのが遅れる）。
+ *
+ * ⚠️ 集計はしない。行を返すだけで、KPI の判定はフロントが行う。
+ *   店舗ランキング（ShopOrder / ShopKaeru）と同じ判定を使い、
+ *   数字を食い違わせないため。
+ *
+ * ⚠️ 顧客IDや氏名は返さない。画面に出さないうえ、数万行を返す API なので
+ *   列を増やすと素直に重くなる。
+ * ─────────────────────────────────────────────
+ */
 
-
-// 店舗
-$sql_shop = "SELECT brand, shop, division, section, multi, report_flag
-        FROM shop_list WHERE report_flag = 1";
-$stmt_shop = $pdo->prepare($sql_shop);
-$stmt_shop->execute();
-$response_shop = $stmt_shop->fetchAll(PDO::FETCH_ASSOC);
-
-
-// 営業課
-$sql_section = "SELECT division, name FROM section_list";
-$stmt_section = $pdo->prepare($sql_section);
-$stmt_section->execute();
-$response_section = $stmt_section->fetchAll(PDO::FETCH_ASSOC);
-
-
-// 契約者一覧(注文事業)
-$sql_contract = "SELECT id,
-'注文' as category,
-in_charge_store as shop,
-in_charge_user as staff,
-step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 as register,
-step_migration_item_01J82Z5F1RR18Z792C7KZS88QG as contract,
-status,
-rank_period FROM master_data
-WHERE show_dashboard = 1 ";
-$stmt_contract = $pdo->prepare($sql_contract);
-$stmt_contract->execute();
-$response_contract = $stmt_contract->fetchAll(PDO::FETCH_ASSOC);
-
-
-// // 契約者一覧(建売事業)
-// $sql_contract_kaeru = "SELECT id,
-// category as category,
-// in_charge_store as shop,
-// in_charge_user as staff,
-// step_migration_item_01J82Z5F1RR18Z792C7KZS88QG as contract,
-// status,
-// rank_period FROM master_data_kaeru
-// WHERE show_dashboard = 1 and (step_migration_item_01J82Z5F1RR18Z792C7KZS88QG <> '' or customized_input_01J82Z5F366ZQ897PXWF6H5ZAM IN ('Sランク','Aランク', 'Bランク', 'Cランク'))";
-// $stmt_contract_kaeru = $pdo->prepare($sql_contract_kaeru);
-// $stmt_contract_kaeru->execute();
-// $response_contract_kaeru = $stmt_contract_kaeru->fetchAll(PDO::FETCH_ASSOC);
-
-
-// // 契約者一覧(中古リノベ事業)
-// $sql_contract_resale = "SELECT id,
-// customer_contacts_name as customer,
-// '中専' as category,
-// '中専鹿児島店' as shop,
-// in_charge_user as staff,
-// customized_input_01J82Z5F366ZQ897PXWF6H5ZAM as rank,
-// step_migration_item_01J82Z5F1RR18Z792C7KZS88QG as contract_reform,
-// step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW as contract_buy,
-// step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 as contract_sell,
-// customized_input_01JRCT12N9X24PCQ5QZPAYKB93 as budget,
-// status,
-// contraction_contract_price,
-// additional_contraction_contract_price,
-// rank_period FROM master_data_resale
-// WHERE show_dashboard = 1";
-// $stmt_contract_resale = $pdo->prepare($sql_contract_resale);
-// $stmt_contract_resale->execute();
-// $response_contract_resale = $stmt_contract_resale->fetchAll(PDO::FETCH_ASSOC);
-
-
-// 契約目標
-$sql_achievement = "SELECT category, name, period, value FROM company_achievement";
-$stmt_achievement = $pdo->prepare($sql_achievement);
-$stmt_achievement->execute();
-$response_achievement = $stmt_achievement->fetchAll(PDO::FETCH_ASSOC);
-
-
-// 予算総額
-$sql_budget = "SELECT shop, medium, budget_period, budget_value FROM budget WHERE section = 'order' AND response_medium = 0";
-$stmt_budget = $pdo->prepare($sql_budget);
-$stmt_budget->execute();
-$response_budget = $stmt_budget->fetchAll(PDO::FETCH_ASSOC);
-
-$result = [
-    "staff" => $response_staff,
-    "shop" => $response_shop,
-    "section" => $response_section,
-    "order_contract" => $response_contract,
-    // "contract_kaeru" => $response_contract_kaeru,
-    // "contract_resale" => $response_contract_resale,
-    "achievement" => $response_achievement,
-    "budget" => $response_budget
+/** 事業ごとの設定。⚠️ Express 側の DIVISION / BUDGET_SECTION と揃えること */
+$divisions = [
+    'order' => ['division' => '注文事業', 'budget_section' => 'order'],
+    'spec'  => ['division' => '建売分譲事業', 'budget_section' => 'spec'],
 ];
+
+// ⚠️ 同じフェーズ列が事業ごとに別の意味を持つ。列名から推測しないこと。
+//   step_migration_item_01J82Z5F1RR18Z792C7KZS88QG は
+//     order → contract（契約） / spec → application（申し込み）
+$customer_sql = [
+    'order' => "SELECT
+        COALESCE(in_charge_store, '') as shop,
+        COALESCE(sales_promotion_name, '') as medium,
+        COALESCE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '') as register,
+        COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
+        COALESCE(step_migration_item_01JSENACS2FC422ZHEZWNSXNYA, '') as appointment,
+        COALESCE(step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR, '') as screening,
+        COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG, '') as contract,
+        COALESCE(status, '') as status
+        FROM master_data WHERE show_dashboard = 1",
+    'spec' => "SELECT
+        COALESCE(in_charge_store, '') as shop,
+        COALESCE(sales_promotion_name, '') as medium,
+        COALESCE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '') as register,
+        COALESCE(step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z, '') as contact,
+        COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
+        COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
+        COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG, '') as application,
+        COALESCE(step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW, '') as contract,
+        COALESCE(step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0, '') as contract_broker,
+        COALESCE(hp_campaign, '') as hp_campaign,
+        COALESCE(status, '') as status
+        FROM master_data_kaeru WHERE show_dashboard = 1",
+];
+
+/**
+ * 販促媒体のマスタ。
+ * ⚠️⚠️ **事業ごとに別のテーブル。** order = medium_list / spec = medium_kaeru。
+ *   建売の顧客の販促媒体名は medium_kaeru 由来で、medium_list とは
+ *   ほとんど一致しない（実測で最多の `ネット` 4,899件は medium_list に無い）。
+ * ⚠️ Express 側 backend-express/src/features/budgetSimulator/queries.ts の
+ *   MEDIUM_SQL と同じにしておくこと。
+ */
+$medium_sql = [
+    'order' => "SELECT medium, list_medium, sort_key FROM medium_list WHERE response_medium = 0",
+    'spec'  => "SELECT * FROM medium_kaeru",
+];
+
+// ⚠️ order は show_flag で絞らない（店舗ランキングと揃える）。spec だけ絞る
+$shop_sql = [
+    'order' => "SELECT id, brand, shop, section, area, division
+        FROM shop_list WHERE division = ?",
+    'spec'  => "SELECT id, brand, shop, section, area, division
+        FROM shop_list WHERE division = ? AND show_flag = 1",
+];
+
+$result = ['status' => 'ok'];
+
+foreach ($divisions as $key => $conf) {
+    // 店舗
+    $stmt_shop = $pdo->prepare($shop_sql[$key]);
+    $stmt_shop->execute([$conf['division']]);
+    $response_shop = $stmt_shop->fetchAll(PDO::FETCH_ASSOC);
+
+    // 営業課
+    $stmt_section = $pdo->prepare("SELECT name FROM section_list WHERE division = ?");
+    $stmt_section->execute([$conf['division']]);
+    $response_section = $stmt_section->fetchAll(PDO::FETCH_ASSOC);
+
+    // 顧客
+    $stmt_customer = $pdo->prepare($customer_sql[$key]);
+    $stmt_customer->execute();
+    $response_customer = $stmt_customer->fetchAll(PDO::FETCH_ASSOC);
+
+    // 販促媒体のマスタ。⚠️ 事業ごとに別テーブル
+    $stmt_medium = $pdo->prepare($medium_sql[$key]);
+    $stmt_medium->execute();
+    $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
+
+    // 販促費。⚠️ medium も返すこと。媒体別の広告費を出すのに要る
+    $stmt_budget = $pdo->prepare(
+        "SELECT shop, medium, budget_period, budget_value
+           FROM budget WHERE response_medium = 0 AND section = ?"
+    );
+    $stmt_budget->execute([$conf['budget_section']]);
+    $response_budget = $stmt_budget->fetchAll(PDO::FETCH_ASSOC);
+
+    // 契約目標。
+    // ⚠️⚠️ 事業区分の列が無いので**事業で絞らず全件返す。** 店舗名での突合は
+    //   フロントが行う。SQL で JOIN すると shop_list に無い店舗名の目標が静かに消える。
+    // ⚠️ category は 'shop' だけ。'staff'（担当者別）を混ぜると二重に積み上がる。
+    // ⚠️ period は 'YYYY-MM'（ハイフン）。画面の月は 'YYYY/MM' なので変換が要る。
+    $stmt_achievement = $pdo->prepare(
+        "SELECT name, period, value FROM company_achievement WHERE category = 'shop'"
+    );
+    $stmt_achievement->execute();
+    $response_achievement = $stmt_achievement->fetchAll(PDO::FETCH_ASSOC);
+
+    // ⚠️ キーの順序も Express と揃えている
+    $result[$key] = [
+        'shop' => $response_shop,
+        'section' => $response_section,
+        'customer' => $response_customer,
+        'medium' => $response_medium,
+        'budget' => $response_budget,
+        'achievement' => $response_achievement,
+    ];
+}
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

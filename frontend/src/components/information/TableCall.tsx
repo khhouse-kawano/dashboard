@@ -101,6 +101,39 @@ const TableCall = ({ information, setInformation, callLog, setCallLog, interview
         </div>
     );
 
+    /**
+     * 表示順に並べ替えた架電記録。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **元の index を持たせたまま並べ替えること。**
+     *   2026-09-14 まで
+     *     callLog.call_log.sort(...).map((item, index) =>
+     *         prev.call_log.map((log, i) => i === index ? ... )
+     *   と書かれており、**並べ替えた後の index で元の配列を書き換えていた。**
+     *   日付順と登録順が違う顧客では**編集した行とは別の行が壊れる。**
+     *   ⚠️ InterviewLog.tsx で 2026-09-09 に直したのと同じ欠陥である。
+     *
+     * ⚠️⚠️ **sort は必ずコピーに対して行うこと。**
+     *   以前は `callLog.call_log.sort(...)` と state の配列を
+     *   **直接**並べ替えていた。Array.prototype.sort は破壊的なので、
+     *   描画のたびに props の中身が書き換わる。
+     *
+     * ⚠️ `new Date()` に変換しない。'YYYY-MM-DD' は文字列のまま比較すれば
+     *   日付順になり、空文字や不正な値でも NaN にならない。
+     * ─────────────────────────────────────────────
+     */
+    const ordered = (callLog.call_log ?? [])
+        .map((log, index) => ({ log, index }))
+        .sort((a, b) => {
+            const dayA = dateFormate(a.log.day ?? '');
+            const dayB = dateFormate(b.log.day ?? '');
+            // ⚠️ 日付が同じなら登録順を保つ（並びを安定させる）
+            if (dayA === dayB) return a.index - b.index;
+            const asc = dayA < dayB ? -1 : 1;
+            return callSort === 'asc' ? asc : -asc;
+        });
+
+    /** ⚠️ 引数は**元の配列**の index。表示順の index ではない */
     const callAction = (index: number) => (
         <div style={{ color: '#868686ff', marginBottom: '7px' }}>
             {callSort === 'desc' && <div style={{ textAlign: 'center', margin: '2px 0' }}>
@@ -175,13 +208,8 @@ const TableCall = ({ information, setInformation, callLog, setCallLog, interview
                 </div>
                 {callSort === 'desc' && newCall()}
                 {callLog.call_log &&
-                    callLog.call_log
-                        .sort((a, b) => {
-                            const dayA = new Date(dateFormate(a.day)).getTime();
-                            const dayB = new Date(dateFormate(b.day)).getTime();
-                            return callSort === 'asc' ? dayA - dayB : dayB - dayA
-                        })
-                        .map((item, index) => <>
+                    ordered
+                        .map(({ log: item, index }) => <React.Fragment key={index}>
                             {callSort === 'desc' && callAction(index)}
                             <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
                                 <div>
@@ -233,7 +261,7 @@ const TableCall = ({ information, setInformation, callLog, setCallLog, interview
                                     }}>削除</div>
                             </div>
                             {callSort === 'asc' && callAction(index)}
-                        </>)}
+                        </React.Fragment>)}
                 {callSort === 'asc' && newCall()}
             </div></>
     )

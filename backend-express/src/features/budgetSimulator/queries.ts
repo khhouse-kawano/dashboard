@@ -1,0 +1,175 @@
+/**
+ * 広告費シミュレーター（header/BudgetSimulator.tsx）のSQL。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **2026-09-14 に作り直した。移植ではなく差し替えである。**
+ *   移植元の `backend/src/handlers/budget_simulator.php` は
+ *   契約数と目標だけを返しており、単価の算出に必要な列が無かった。
+ *     ・`sales_promotion_name`（販促媒体）… 媒体別の集計に要る
+ *     ・`interview` / `appointment` / `screening` … 来場・次アポの判定に要る
+ *     ・`master_data_kaeru` … コメントアウトされていた
+ *   ⚠️ ① の PHP も同じ内容へ書き換えてある。**片方だけ直さないこと。**
+ *
+ * ⚠️⚠️ **KPI の判定は shop/ShopOrder.tsx・ShopKaeru.tsx と同じにすること。**
+ *   ここが食い違うと、同じ期間・同じ店舗なのに店舗ランキングと
+ *   シミュレーターで数字が合わず、どちらが正しいか分からなくなる。
+ *   ⚠️ 判定そのものは**フロントで行う**（あちらと同じコードを使うため）。
+ *     サーバーは行を返すだけで、集計はしない。
+ *
+ * ⚠️ 顧客IDや氏名は返していない。画面に出さないためで、
+ *   ⚠️ 数万行を返す API なので**列を増やすと素直に重くなる。**
+ *   2026-09-11 に別の request が 17MB・120秒で切れた例がある。
+ * ─────────────────────────────────────────────
+ */
+
+export type BudgetDivision = 'order' | 'spec';
+
+/** 事業区分。⚠️ 画面の targetDivision と対応する */
+const DIVISION: Record<BudgetDivision, string> = {
+  order: '注文事業',
+  spec: '建売分譲事業',
+};
+
+/**
+ * 販促費の section。
+ * ⚠️ shopTrend では used が 'use' だが、ここは order / spec だけなので素直。
+ */
+const BUDGET_SECTION: Record<BudgetDivision, string> = {
+  order: 'order',
+  spec: 'spec',
+};
+
+/**
+ * 店舗。
+ * ⚠️ `report_flag` では絞らない。旧 PHP は絞っていたが、
+ *   店舗ランキング（ShopOrder / ShopKaeru）が絞っていないため、
+ *   揃えないと**同じ条件で店舗数が違う**という分かりにくい差になる。
+ * ⚠️ spec だけ `show_flag = 1`（他の建売画面と同じ）。
+ */
+const SHOP_SQL: Record<BudgetDivision, string> = {
+  order: `SELECT id, brand, shop, section, area, division
+            FROM shop_list WHERE division = ?`,
+  spec: `SELECT id, brand, shop, section, area, division
+           FROM shop_list WHERE division = ? AND show_flag = 1`,
+};
+
+const SECTION_SQL = `SELECT name FROM section_list WHERE division = ?`;
+
+/**
+ * 顧客。
+ *
+ * ⚠️⚠️ **同じフェーズ列が事業ごとに別の意味を持つ。** 列名から推測しないこと。
+ *   step_migration_item_01J82Z5F1RR18Z792C7KZS88QG は
+ *     order → contract（契約）
+ *     spec  → application（申し込み）
+ *
+ * ⚠️ 別名は shop/queries.ts と揃えてある。フロントの KPI 判定を
+ *   ShopOrder / ShopKaeru と共通化するため。
+ */
+const CUSTOMER_SQL: Record<BudgetDivision, string> = {
+  order: `
+    SELECT
+      COALESCE(in_charge_store, '') as shop,
+      COALESCE(sales_promotion_name, '') as medium,
+      COALESCE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '') as register,
+      COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
+      COALESCE(step_migration_item_01JSENACS2FC422ZHEZWNSXNYA, '') as appointment,
+      COALESCE(step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR, '') as screening,
+      COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG, '') as contract,
+      COALESCE(status, '') as status
+      FROM master_data WHERE show_dashboard = 1`,
+  spec: `
+    SELECT
+      COALESCE(in_charge_store, '') as shop,
+      COALESCE(sales_promotion_name, '') as medium,
+      COALESCE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '') as register,
+      COALESCE(step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z, '') as contact,
+      COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
+      COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
+      COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG, '') as application,
+      COALESCE(step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW, '') as contract,
+      COALESCE(step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0, '') as contract_broker,
+      COALESCE(hp_campaign, '') as hp_campaign,
+      COALESCE(status, '') as status
+      FROM master_data_kaeru WHERE show_dashboard = 1`,
+};
+
+/**
+ * 販促媒体のマスタ。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **事業ごとに別のテーブルである。共通化しないこと。**
+ *     order … medium_list（`list_medium = 1` をフロントが拾う）
+ *     spec  … medium_kaeru（`show_graph = 1` をフロントが拾う）
+ *   建売の顧客の `sales_promotion_name` は medium_kaeru 由来の名前
+ *   （`ネット` `アットホーム` `Web検索` など）で、medium_list とは
+ *   **ほとんど一致しない。** 実測（2026-09-14）で建売の最多は
+ *   `ネット` 4,899件だが、medium_list にこの名前は無い。
+ *   取り違えると建売の媒体別が**ほぼ空になる。**
+ *
+ * ⚠️ order は `response_medium = 0` で絞る。他画面（shop / list /
+ *   customerTrend）がすべてそうしており、揃えないと媒体の数が食い違う。
+ *   ⚠️ `list_medium = 1` には `看板` `バス広告` `CM/ラジオ`
+ *     `建築現場を見て` のように `response_medium = 1` のものが混ざるが、
+ *     それらは budget 側（`response_medium = 0`）に広告費が無い。
+ *
+ * ⚠️ spec は `SELECT *`。customerTrend/queries.ts の MEDIUM_SQL と同じ。
+ *   ⚠️ `show_graph` は 2026-09-11 に足した列である。
+ *     SQL が未実行の環境では列ごと返らず、フロントで**空配列**になる
+ *     （エラーは出ない。建売の媒体別が消える）。
+ * ─────────────────────────────────────────────
+ */
+const MEDIUM_SQL: Record<BudgetDivision, string> = {
+  order: `SELECT medium, list_medium, sort_key FROM medium_list WHERE response_medium = 0`,
+  spec: `SELECT * FROM medium_kaeru`,
+};
+
+/**
+ * 販促費。
+ * ⚠️ `response_medium = 0`（反響媒体ではないもの）で共通。
+ *   section だけ事業で変わる。
+ * ⚠️ `medium` を返すこと。媒体別の広告費を出すのに要る。
+ */
+const BUDGET_SQL = `
+  SELECT shop, medium, budget_period, budget_value
+    FROM budget
+   WHERE response_medium = 0 AND section = ?
+`;
+
+/**
+ * 契約目標。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **事業区分の列は無い。** `name`（店舗名）を `shop_list` と
+ *   突き合わせて事業を判定する。実測（2026-09-14 / category = 'shop'）で
+ *     注文事業 28店 / 建売分譲事業 6店 / 中古リノベ 2店
+ *   が入っていた。
+ *   ⚠️ 事業で絞らずに**全件返し、フロントで店舗名で突合する。**
+ *     SQL で JOIN すると、`shop_list` に無い店舗名の目標が静かに消える。
+ *
+ * ⚠️ `category` は 'shop' / 'staff' / '中古リノベ' の3種類。
+ *   店舗の目標は **'shop' だけ**。'staff' は担当者別なので混ぜない
+ *   （混ぜると目標が二重に積み上がる）。
+ *
+ * ⚠️⚠️ **`period` は 'YYYY-MM'（ハイフン）。** 画面の月は 'YYYY/MM'（スラッシュ）。
+ *   そのまま比較すると**1件も一致しない**（エラーは出ず、目標が0になる）。
+ *
+ * ⚠️ `value` は text 型。数値に変換してから足すこと。
+ * ─────────────────────────────────────────────
+ */
+const ACHIEVEMENT_SQL = `
+  SELECT name, period, value
+    FROM company_achievement
+   WHERE category = 'shop'
+`;
+
+export const budgetSimulatorSql = (division: BudgetDivision) => ({
+  shop: SHOP_SQL[division],
+  section: SECTION_SQL,
+  customer: CUSTOMER_SQL[division],
+  medium: MEDIUM_SQL[division],
+  budget: BUDGET_SQL,
+  achievement: ACHIEVEMENT_SQL,
+  division: DIVISION[division],
+  budgetSection: BUDGET_SECTION[division],
+});

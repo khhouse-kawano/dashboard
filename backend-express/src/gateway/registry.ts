@@ -30,6 +30,12 @@ import { runShopTrend } from '../features/shopTrend';
 import { runCustomerTrend } from '../features/customerTrend';
 import { runShop } from '../features/shop';
 import { runInside } from '../features/inside';
+import { runBudgetSimulator } from '../features/budgetSimulator';
+import { runDatabase } from '../features/database';
+import { runCustomer } from '../features/customer';
+import { runGoogleReviewList, runGoogleReviewSave } from '../features/googleReview';
+import type { CustomerCategory } from '../features/customer/queries';
+import type { DatabaseCategory } from '../features/database/queries';
 import {
   runListBlack,
   runListInsert,
@@ -1412,6 +1418,29 @@ for (const category of ['', 'order', 'spec']) {
 //   ⚠️ ① の inside_list.php にも同じ内容がある。片方だけ直さないこと。
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// 広告費シミュレーター（header/BudgetSimulator.tsx）
+//
+// ⚠️ 参照のみ。① に budget_simulator.php が実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **注文と建売をまとめて返すので応答が大きい。**
+//   列は集計に要るものだけに絞ってある。足すときは転送量を意識すること。
+//
+// ⚠️ roll / category では分岐しない。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'budget_simulator',
+  summary: '広告費シミュレーターの初期データ（注文・建売をまとめて返す）',
+  phpSource: 'backend/src/handlers/budget_simulator.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runBudgetSimulator();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
 register({
   request: 'inside',
   roll: 'list',
@@ -1491,3 +1520,127 @@ for (const category of ['order', 'spec', 'used']) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// 顧客一覧（database/DatabaseOrder.tsx / DatabaseKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に database.php / databaseAction/database_{category}.php が
+//   実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **登録するのは order と spec だけ。**
+//   ① の database.php は 'used' と 'common' も許可しているが、
+//   中古（DatabaseResale.tsx）はここでは扱わない。登録していない category は
+//   そのまま ① へ転送されるので、これまでどおり ① が応答する。
+//
+// ⚠️⚠️ **roll（trash / copy）は登録しない。** 書き込みを伴う別経路である。
+//   ① の database.php は roll があれば database_{category}_{roll}.php を読む。
+//   ここに roll 付きを登録すると、書き込み経路まで ② に寄せてしまう。
+//
+// ⚠️⚠️ **応答が大きい。** 顧客は注文で約24,000件・建売で約10,000件。
+//   ⚠️ 列を足すときは転送量を意識すること。
+// ---------------------------------------------------------------------------
+
+const databaseCategories: DatabaseCategory[] = ['order', 'spec'];
+
+for (const category of databaseCategories) {
+  register({
+    request: 'database',
+    category,
+    summary: `顧客一覧の初期データ（${category}）：マスタ＋顧客＋ギフト進呈可否`,
+    phpSource: `backend/src/handlers/databaseAction/database_${category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runDatabase(category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 販促媒体別ランキング（customer/CustomerOrder.tsx / CustomerKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に customer.php / customerAction/customer_{category}.php が
+//   実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **登録するのは order と spec だけ。**
+//   ① の customer.php は 'used' も許可しているが、CustomerRouter.tsx は
+//   order / spec しか描画しない。登録していない category は ① へ転送される。
+//
+// ⚠️ SQL は shop/queries.ts と同じ内容にしてある（行が店舗か媒体かの違いだけ）。
+//   ⚠️ 移植にあたり、① の customer_spec.php にあった誤り2つ
+//     （契約の列の取り違え／販促費を事業で絞っていない）を直してある。
+//     ① の PHP も同じ形に直した。**片方だけ直さないこと。**
+// ---------------------------------------------------------------------------
+
+const customerCategories: CustomerCategory[] = ['order', 'spec'];
+
+for (const category of customerCategories) {
+  register({
+    request: 'customer',
+    category,
+    summary: `販促媒体別ランキングの初期データ（${category}）`,
+    phpSource: `backend/src/handlers/customerAction/customer_${category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runCustomer(category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Google クチコミの取得（projects/sync から呼ばれる。画面は無い）
+//
+// ⚠️⚠️ **① に PHP ハンドラは無い。** 以前は post_review.php / shop_review.php が
+//   あったが現行の backend/src/handlers/ から消えている
+//   （backup/back/20260625/api/actions/ にだけ残っている）。
+//   ⚠️ そのため express_proxy.php の expressProxyExclusive() に入れてある。
+//     転送に失敗したら 502 で終わり、① で二重に実行されることはない。
+//
+// ⚠️ `list` は参照、`save` は書き込み。roll で分けている。
+//
+// ⚠️⚠️ **Places API はクチコミを最大5件しか返さない。**
+//   毎回5件取って、まだ持っていないものだけを足していく運用である。
+//   突き合わせは features/googleReview.ts が行う（sync 側ではない）。
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️⚠️ **auth: 'none' にしている理由**
+ *   呼び出し元は projects/sync（無人のバッチ）で、**認証ヘッダを送らない**
+ *   （utils/postGateway.ts は Content-Type しか付けない）。
+ *   移植元の post_review.php も認証していなかった。
+ *   ⚠️ 'staff' にすると sync から一切叩けなくなる。
+ *
+ * ⚠️⚠️ **書き込み（save）なのに認証が無いことは認識しておくこと。**
+ *   他の sync 経由の request（suumo_db_order など）も同じ状態で、
+ *   認証強化は移行と分けて一括で行う方針である
+ *   （GATEWAY_REQUIRE_AUTH で切り替えられる）。
+ */
+register({
+  request: 'google_review',
+  roll: 'list',
+  summary: 'Google クチコミ取得の対象店舗と Place ID（本文は返さない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runGoogleReviewList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'google_review',
+  roll: 'save',
+  summary: '【書き込み・フォールバック禁止】Google クチコミの保存（増えた分だけ追記）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  // ⚠️ 上の list と同じ理由で 'none'。sync は認証ヘッダを送らない
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runGoogleReviewSave(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
