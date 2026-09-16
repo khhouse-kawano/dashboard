@@ -44,6 +44,11 @@ interface FormRow extends RowDataPacket {
     mail_cc: string;
     redirect: string;
     thanks: number;
+    /** ⚠️ メール本文のひな型。⚠️ 空なら mailTemplate.ts の既定を使う */
+    thanks_subject: string;
+    thanks_body: string;
+    internal_subject: string;
+    internal_body: string;
 }
 
 /**
@@ -152,7 +157,8 @@ export const runCampaignFormEntry = async (
     // ---- 1. フォーム設定を引く ----
     // ⚠️⚠️ 通知先・サンクス送信の可否は**必ずここから**。リクエストの値は使わない
     const forms = await query<FormRow>(
-        'SELECT campaign, campaign_id, brand, mail_to, mail_cc, redirect, thanks'
+        'SELECT campaign, campaign_id, brand, mail_to, mail_cc, redirect, thanks,'
+        + ' thanks_subject, thanks_body, internal_subject, internal_body'
         + ' FROM form_table WHERE brand = ? AND campaign_id = ? LIMIT 1',
         [rawBrand, a.campaignId]
     );
@@ -284,6 +290,8 @@ export const runCampaignFormEntry = async (
             questionnaire: questionnaireFor(spec, a.shop),
             answers: a,
             campaignId: a.campaignId,
+            subjectTemplate: form.thanks_subject ?? '',
+            bodyTemplate: form.thanks_body ?? '',
         });
     }
 
@@ -296,6 +304,8 @@ export const runCampaignFormEntry = async (
             brandName: spec?.name ?? '',
             answers: a,
             receivedAt: dateTime(now),
+            subjectTemplate: form.internal_subject ?? '',
+            bodyTemplate: form.internal_body ?? '',
         });
     }
 

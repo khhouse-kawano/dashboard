@@ -1,5 +1,16 @@
 import { logger } from '../../utils/logger';
 import { sanitizeHeader, sendMail } from '../../utils/mailer';
+import {
+    DEFAULT_INTERNAL_BODY,
+    DEFAULT_INTERNAL_SUBJECT,
+    DEFAULT_MEMBER_BODY,
+    DEFAULT_THANKS_BODY,
+    DEFAULT_THANKS_SUBJECT,
+    MEMBER_CAMPAIGN_ID,
+    pick,
+    render,
+    type TemplateValues,
+} from './mailTemplate';
 
 /**
  * キャンペーンフォーム反響のメール2通。
@@ -64,27 +75,24 @@ export const safeAddressList = (value: string): string[] => {
     return [...seen].slice(0, 20);
 };
 
-/** 未入力は書かない。⚠️ 空行だと項目が抜けたのか空なのか分からない */
-const line = (label: string, value: string): string =>
-    value.trim() === '' ? '' : `${label}：${value.trim()}\n`;
-
-const address = (a: FormAnswers): string => {
-    if (a.zip.trim() === '') return '';
-    return `郵便番号：${a.zip}\n住所：${a.pref}${a.city}${a.town}${a.street}\n`;
-};
-
-const detail = (a: FormAnswers): string =>
-    line('来場希望場所', a.shop)
-    + `お名前：${a.sei} ${a.mei}\n`
-    + `お名前（カナ）：${a.seiKana} ${a.meiKana}\n`
-    + line('来場希望日', a.date)
-    + line('来場希望時間', a.time)
-    + line('携帯番号', a.phone)
-    + line('メールアドレス', a.mail)
-    + line('年齢', a.age)
-    + address(a)
-    + line('お問い合わせのきっかけ', a.medium)
-    + line('その他ご質問・ご要望', a.question);
+/**
+ * 差し込みに渡す値を組み立てる。
+ * ⚠️ `TemplateValues` に無い項目は差し込めない。⚠️ 通知先は**入れない**。
+ */
+const toValues = (
+    a: FormAnswers,
+    brandName: string,
+    questionnaire: string,
+    receivedAt: string
+): TemplateValues => ({
+    sei: a.sei, mei: a.mei, seiKana: a.seiKana, meiKana: a.meiKana,
+    zip: a.zip, pref: a.pref, city: a.city, town: a.town, street: a.street,
+    phone: a.phone, mail: a.mail, age: a.age,
+    shop: a.shop, date: a.date, time: a.time,
+    medium: a.medium, question: a.question,
+    campaign: a.campaign,
+    brandName, receivedAt, questionnaire,
+});
 
 // ---------------------------------------------------------------------------
 // 顧客宛
@@ -97,56 +105,11 @@ interface ThanksInput {
     questionnaire: string;
     answers: FormAnswers;
     campaignId: string;
+    /** ⚠️ form_table.thanks_subject。空なら既定 */
+    subjectTemplate: string;
+    /** ⚠️ form_table.thanks_body。空なら既定 */
+    bodyTemplate: string;
 }
-
-/**
- * ⚠️ デイジャストハウスの会員登録フォームだけ本文が別。
- *   移植元に同じ特例がある（campaign_id で判定している）。
- */
-const MEMBER_CAMPAIGN_ID = '20240000_djh_kyotsu_member';
-
-const memberBody = (a: FormAnswers): string =>
-    `${a.sei} ${a.mei} 様\n\n`
-    + 'お世話になっております。\nデイジャストハウスです。\n\n'
-    + 'この度は、会員登録にお申込みいただき、誠にありがとうございます。\n登録が無事完了いたしました。\n\n'
-    + '限定コンテンツログイン情報をお送りいたします。\n大切に保管をお願いいたします。\n\n'
-    + '───────────────────────────────\n'
-    + '●会員限定公開プラン　ログイン情報\n'
-    + '───────────────────────────────\n\n'
-    + 'ユーザー名：dayjust\n'
-    + 'パスワード：plan\n\n'
-    + '厳選プランページURL：\nhttps://day-just-house.com/plan/\n\n'
-    + '上記ご案内したログイン情報より弊社ホームページの会員限定公開プランの閲覧が可能です。\n\n'
-    + 'デイジャストハウスではお客様との出会いを大切に誠実に丁寧に対応させていただきます。\n'
-    + 'なんでもお気軽にご相談・お問い合わせください。\n\n'
-    /**
-     * ⚠️⚠️ **移植元ではこの署名が本文に入っていなかった。**
-     *   `"...ください。\n\n";` で文が終わり、次の行の `"デイジャストハウス";` が
-     *   **どこにも代入されない孤立した式**になっていた。ここでは正しく連結している。
-     */
-    + 'デイジャストハウス';
-
-const thanksBody = (input: ThanksInput): string => {
-    const a = input.answers;
-
-    return `${a.sei} ${a.mei} 様\n`
-        + 'お問い合わせを受け付けました。\n\n'
-        + 'お問い合わせ内容は以下となります。\n\n'
-        + detail(a)
-        + '\nこちらのメールは配信用のため返信できません。\n'
-        + 'ご意見・ご要望はご予約の店舗までお寄せください。\n\n'
-        + '※お問い合わせいただいた日時が18:00以降または火曜日、水曜日の場合、'
-        + '翌営業日以降のご連絡となりますのであらかじめご了承ください。\n'
-        /**
-         * ⚠️⚠️ **URL が空なら案内ごと出さない。**
-         *   ⚠️ 移植元の `form_register` は日付か時間があれば必ず出しており、
-         *     アンケートを持たないブランド（かえるホーム等）では
-         *     **URL 無しで「▼事前アンケートでギフトカードプレゼント！」だけ**届いていた。
-         */
-        + ((a.date !== '' || a.time !== '') && input.questionnaire !== ''
-            ? `\n▼事前アンケートでギフトカードプレゼント！\n\n${input.questionnaire}\n`
-            : '');
-};
 
 export const sendCustomerThanks = async (input: ThanksInput): Promise<void> => {
     const to = safeAddressList(input.to);
@@ -155,13 +118,24 @@ export const sendCustomerThanks = async (input: ThanksInput): Promise<void> => {
         return;
     }
 
-    const body = input.campaignId === MEMBER_CAMPAIGN_ID
-        ? memberBody(input.answers)
-        : thanksBody(input);
+    /**
+     * ⚠️⚠️ **デイジャストハウスの会員登録だけ既定の本文が別。**
+     *   ⚠️ ひな型が入っていれば**そちらが優先**される。
+     *     特例が効くのは「未設定のまま」のときだけ。
+     */
+    const defaultBody = input.campaignId === MEMBER_CAMPAIGN_ID
+        ? DEFAULT_MEMBER_BODY
+        : DEFAULT_THANKS_BODY;
+
+    const values = toValues(input.answers, input.brandName, input.questionnaire, '');
+
+    const body = render(pick(input.bodyTemplate, defaultBody), values);
+    const subject = render(pick(input.subjectTemplate, DEFAULT_THANKS_SUBJECT), values);
 
     const ok = await sendMail({
         to,
-        subject: sanitizeHeader(`${input.brandName}/お問い合わせありがとうございます。`),
+        // ⚠️ 件名はヘッダに入る。⚠️ ひな型はDBの値なので、必ずここで無害化する
+        subject: sanitizeHeader(subject),
         text: body,
     });
 
@@ -183,6 +157,10 @@ interface NoticeInput {
     brandName: string;
     answers: FormAnswers;
     receivedAt: string;
+    /** ⚠️ form_table.internal_subject。空なら既定 */
+    subjectTemplate: string;
+    /** ⚠️ form_table.internal_body。空なら既定 */
+    bodyTemplate: string;
 }
 
 export const sendInternalNotice = async (input: NoticeInput): Promise<void> => {
@@ -196,12 +174,11 @@ export const sendInternalNotice = async (input: NoticeInput): Promise<void> => {
     }
 
     const a = input.answers;
-    const body = `${a.campaign}からの登録がありました。\n\n`
-        + `お問合わせ日時：${input.receivedAt}\n\n`
-        + '====================\nお客様情報\n====================\n'
-        + detail(a)
-        + '====================\n'
-        + '※のちほどダッシュボードへ反映されます。\n';
+    const values = toValues(a, input.brandName, '', input.receivedAt);
+
+    // ⚠️ ② はプレーンテキストで送る（mailer の方針）。① は HTML へ直す
+    const body = render(pick(input.bodyTemplate, DEFAULT_INTERNAL_BODY), values);
+    const subject = render(pick(input.subjectTemplate, DEFAULT_INTERNAL_SUBJECT), values);
 
     /**
      * ⚠️ Cc は `to` に足して送る。
@@ -211,7 +188,8 @@ export const sendInternalNotice = async (input: NoticeInput): Promise<void> => {
      */
     const ok = await sendMail({
         to: [...to, ...cc],
-        subject: sanitizeHeader(`${input.brandName}/${a.campaign}からの登録がありました。`),
+        // ⚠️ 件名はヘッダに入る。⚠️ ひな型はDBの値なので、必ずここで無害化する
+        subject: sanitizeHeader(subject),
         text: body,
     });
 

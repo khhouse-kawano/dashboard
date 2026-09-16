@@ -34,6 +34,16 @@ import { execute, query } from '../../db/pool';
  *     **ここでオブジェクトに変換してはいけない**（PHP と同じ形で返す）。
  *   ⚠️ 既存データには改行や不揃いな空白が含まれるが、そのまま返す。
  */
+/**
+ * ⚠️⚠️ **メール本文のひな型。空なら実装側の既定を使う。**
+ *   ⚠️ 移行時に既存行へ書き写していない。空のままにしておくこと。
+ *   ⚠️ ① の `form_post` / `form_update` はこれらの列を知らない。
+ *     そのため DB 側に `DEFAULT ''` を付けてある。
+ */
+const MAIL_TEMPLATE_COLUMNS = [
+    'thanks_subject', 'thanks_body', 'internal_subject', 'internal_body',
+] as const;
+
 const JSON_COLUMNS = [
     'notice', 'name', 'kana', 'age', 'phone', 'mail',
     'address', 'question', 'shop', 'date', 'medium', 'attention',
@@ -155,7 +165,8 @@ export const runCampaignFormInsert = async (body: FormBody): Promise<FormResult>
 
     const columns = [
         'registered_date', 'campaign', 'campaign_id', 'url', 'tag', 'brand',
-        'mail_to', 'mail_cc', 'redirect', 'thanks', ...JSON_COLUMNS,
+        'mail_to', 'mail_cc', 'redirect', 'thanks',
+        ...MAIL_TEMPLATE_COLUMNS, ...JSON_COLUMNS,
     ];
 
     const values = [
@@ -163,6 +174,8 @@ export const runCampaignFormInsert = async (body: FormBody): Promise<FormResult>
         str(body.mail_to), str(body.mail_cc), str(body.redirect),
         // ⚠️ thanks は tinyint。true/false で来るので 1/0 に直す
         body.thanks === true || body.thanks === 1 || body.thanks === '1' ? 1 : 0,
+        // ⚠️ ひな型は素の文字列。⚠️ JSON 化しないこと
+        ...MAIL_TEMPLATE_COLUMNS.map(key => str(body[key])),
         ...JSON_COLUMNS.map(key => jsonText(body[key])),
     ];
 
@@ -198,12 +211,15 @@ export const runCampaignFormUpdate = async (body: FormBody): Promise<FormResult>
 
     const sets = [
         'registered_date = ?', 'campaign = ?', 'mail_to = ?', 'mail_cc = ?',
-        'redirect = ?', 'thanks = ?', ...JSON_COLUMNS.map(key => `${key} = ?`),
+        'redirect = ?', 'thanks = ?',
+        ...MAIL_TEMPLATE_COLUMNS.map(key => `${key} = ?`),
+        ...JSON_COLUMNS.map(key => `${key} = ?`),
     ];
 
     const values = [
         today(), campaign, str(body.mail_to), str(body.mail_cc), str(body.redirect),
         body.thanks === true || body.thanks === 1 || body.thanks === '1' ? 1 : 0,
+        ...MAIL_TEMPLATE_COLUMNS.map(key => str(body[key])),
         ...JSON_COLUMNS.map(key => jsonText(body[key])),
         brand, campaignId,
     ];

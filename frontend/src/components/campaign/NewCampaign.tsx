@@ -3,6 +3,7 @@ import Table from "react-bootstrap/Table";
 import { useNavigate, useLocation } from "react-router-dom";
 import { fetchDetail, fetchMaster, insertCampaign, updateCampaign } from './campaignApi';
 import AuthContext from '../../context/AuthContext';
+import { PLACEHOLDERS, unknownPlaceholders } from './mailTemplateFields';
 
 type BooleanKeys =
     'thanks';
@@ -15,6 +16,16 @@ type FormState = {
     mail_cc: string;
     redirect: string;
     img_code: string,
+    /**
+     * ⚠️⚠️ **メール本文のひな型。空なら既定の文面が使われる。**
+     *   ⚠️ 既定は ② の `campaignForm/mailTemplate.ts` にある。
+     *     ⚠️ ここに書き写さないこと。写すと既定を直しても反映されなくなる。
+     *   ⚠️ 既存の340件はすべて空。**空＝既定に戻す**という意味である。
+     */
+    thanks_subject: string,
+    thanks_body: string,
+    internal_subject: string,
+    internal_body: string,
     notice: {
         bool: boolean,
         text: string
@@ -113,6 +124,10 @@ const NewCampaign = () => {
         thanks: true,
         redirect: '',
         img_code: '',
+        thanks_subject: '',
+        thanks_body: '',
+        internal_subject: '',
+        internal_body: '',
         notice: {
             bool: true,
             text: '',
@@ -243,6 +258,15 @@ const NewCampaign = () => {
                         redirect: row.redirect ?? '',
                         // ⚠️ img_code は form_table に列が無い（form_database だけ）。常に空になる
                         img_code: row.img_code ?? '',
+                        /**
+                         * ⚠️⚠️ **列が無い古い応答でも空文字にすること。**
+                         *   ⚠️ undefined のまま textarea に渡すと React が
+                         *     **非制御→制御の切り替わり**で警告を出し、入力が壊れる。
+                         */
+                        thanks_subject: row.thanks_subject ?? '',
+                        thanks_body: row.thanks_body ?? '',
+                        internal_subject: row.internal_subject ?? '',
+                        internal_body: row.internal_body ?? '',
                         notice: parse(row.notice, prev.notice),
                         shop: parse(row.shop, prev.shop),
                         date: parse(row.date, prev.date),
@@ -273,6 +297,11 @@ const NewCampaign = () => {
                         thanks: Boolean(response.data.thanks),
                         redirect: response.data.redirect,
                         img_code: response.data.img_code,
+                        // ⚠️ form_database（ブランド既定値）にひな型の列は無い。新規は常に空＝既定
+                        thanks_subject: '',
+                        thanks_body: '',
+                        internal_subject: '',
+                        internal_body: '',
                         notice: JSON.parse(response.data.notice),
                         shop: JSON.parse(response.data.shop),
                         date: JSON.parse(response.data.date),
@@ -360,6 +389,87 @@ const NewCampaign = () => {
     };
 
 
+
+    type TemplateKey = 'thanks_subject' | 'thanks_body' | 'internal_subject' | 'internal_body';
+
+    const changeTemplate = (key: TemplateKey, value: string) => {
+        setForm(prev => ({ ...prev, [key]: value }));
+    };
+
+    /**
+     * メール文面の編集欄。
+     *
+     * ⚠️⚠️ **空欄＝既定の文面**である。
+     *   ⚠️ 既定の本文はここに書き写していない（② が持っている）。
+     *     ⚠️ 写すと、既定を直しても画面だけ古いままになる。
+     *   ⚠️ したがって「既定に戻す」は**空にするだけ**でよい。
+     *
+     * ⚠️ 差し込み語は `{{ }}` で書く。⚠️ 知らない語はそのまま本文に残る。
+     *   ⚠️ 気づけるよう、保存前にここで知らせる。
+     */
+    const mailTemplateEditor = (subjectKey: TemplateKey, bodyKey: TemplateKey, note: string) => {
+        const subject = form[subjectKey];
+        const body = form[bodyKey];
+        const unknown = [...unknownPlaceholders(subject), ...unknownPlaceholders(body)];
+        const isDefault = subject.trim() === '' && body.trim() === '';
+
+        return (
+            <div>
+                <div className="d-flex align-items-center mb-2" style={{ gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: '#666' }}>{note}</span>
+                    <span style={{
+                        fontSize: '11px', padding: '2px 10px', borderRadius: '999px',
+                        backgroundColor: isDefault ? '#eef2f7' : '#fff7ed',
+                        color: isDefault ? '#4b5563' : '#b45309',
+                    }}>
+                        {isDefault ? '既定の文面' : 'このキャンペーン専用'}
+                    </span>
+                    {isDefault ||
+                        <button type="button"
+                            onClick={() => { changeTemplate(subjectKey, ''); changeTemplate(bodyKey, ''); }}
+                            style={{
+                                fontSize: '11px', border: '1px solid #d1d5db', borderRadius: '999px',
+                                background: '#fff', padding: '2px 12px', cursor: 'pointer',
+                            }}>
+                            既定に戻す
+                        </button>}
+                </div>
+
+                <input type="text" className="form-control mb-2" value={subject}
+                    placeholder="件名（空欄なら既定）"
+                    onChange={(e) => changeTemplate(subjectKey, e.target.value)}
+                    style={{ fontSize: '12px' }} />
+
+                <textarea value={body} rows={10}
+                    placeholder="本文（空欄なら既定の文面が送られます）"
+                    onChange={(e) => changeTemplate(bodyKey, e.target.value)}
+                    style={{
+                        width: '100%', border: '1px solid #D3D3D3', borderRadius: '7px',
+                        fontSize: '12px', letterSpacing: '.7px', padding: '6px',
+                    }} />
+
+                {unknown.length === 0 ||
+                    <div style={{ color: '#b45309', fontSize: '12px', marginTop: '4px' }}>
+                        {`差し込めない語があります：${unknown.map(k => `{{${k}}}`).join(' ')}`}
+                        <span className="ms-1">そのまま本文に出ます。</span>
+                    </div>}
+
+                <details style={{ marginTop: '6px' }}>
+                    <summary style={{ fontSize: '12px', cursor: 'pointer', color: '#2563eb' }}>
+                        使える差し込み語
+                    </summary>
+                    <div style={{ fontSize: '11px', color: '#4b5563', lineHeight: 1.9, marginTop: '4px' }}>
+                        {PLACEHOLDERS.map(item => (
+                            <div key={item.key}>
+                                <code>{`{{${item.key}}}`}</code>
+                                {!item.note || <span className="ms-2">{item.note}</span>}
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            </div>
+        );
+    };
 
     const postForm = async () => {
         console.log(form);
@@ -492,6 +602,22 @@ const NewCampaign = () => {
                                                     不要
                                                 </div>
                                             </div>
+                                        </td>
+                                    </tr>
+                                    <tr style={{ fontSize: '13px' }}>
+                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
+                                            サンクスメールの文面
+                                        </td>
+                                        <td>
+                                            {mailTemplateEditor('thanks_subject', 'thanks_body', 'お客様へ届くメールです。')}
+                                        </td>
+                                    </tr>
+                                    <tr style={{ fontSize: '13px' }}>
+                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
+                                            通知メールの文面
+                                        </td>
+                                        <td>
+                                            {mailTemplateEditor('internal_subject', 'internal_body', '社内（反響アドレス）へ届くメールです。')}
                                         </td>
                                     </tr>
                                     <tr style={{ fontSize: '13px' }}>
