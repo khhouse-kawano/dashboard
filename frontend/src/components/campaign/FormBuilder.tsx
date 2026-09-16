@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Table from 'react-bootstrap/Table';
 import Button from 'react-bootstrap/Button';
 import { fetchDetail, fetchList, CampaignListRow } from './campaignApi';
-import { BUILDER_FIELDS, BuilderField, buildHtml, usedFromSettings } from './formBuilderUtils';
+import { BUILDER_FIELDS, BuilderField, buildHtml, readSettings } from './formBuilderUtils';
 import { CAMPAIGN_BRANDS, brandLabel } from './brands';
 
 /**
@@ -89,24 +89,31 @@ const FormBuilder: React.FC<Props> = ({ activeTab }) => {
                 }
 
                 /**
-                 * ⚠️ 選択肢はキャンペーン設定から取る。
-                 *   ⚠️ 手で打ち直すと、iframe 版のフォームと**選択肢が食い違う**。
-                 *     同じキャンペーンなのに店舗の一覧が違う、という状態になる。
-                 */
-                setFields(BUILDER_FIELDS.map(field => {
-                    if (field.key === 'shop') return { ...field, options: optionsFrom(row.shop, 'shopName') };
-                    if (field.key === 'time') return { ...field, options: optionsFrom(row.date, 'time') };
-                    if (field.key === 'medium') return { ...field, options: optionsFrom(row.medium, 'mediumName') };
-                    return { ...field };
-                }));
-
-                /**
-                 * ⚠️⚠️ **チェックをキャンペーン設定に合わせる。**
-                 *   ⚠️ そのフォームで実際に聞いている項目だけが入る。
+                 * ⚠️⚠️ **チェックと必須をキャンペーン設定に合わせる。**
+                 *   ⚠️ そのフォームで実際に聞いている項目だけにチェックが入る。
                  *   ⚠️ 設定の1項目が複数の入力欄に対応することがある
                  *     （name → 姓・名 など）。対応表は formBuilderUtils.ts。
                  */
-                setUsed(usedFromSettings(row));
+                const flags = readSettings(row);
+
+                /**
+                 * ⚠️ 選択肢はキャンペーン設定から取る。
+                 *   ⚠️ 手で打ち直すと、iframe 版のフォームと**選択肢が食い違う**。
+                 *     同じキャンペーンなのに店舗の一覧が違う、という状態になる。
+                 *
+                 * ⚠️⚠️ **必須も設定から取る**（2026-09-16 の指摘）。
+                 *   ⚠️ BUILDER_FIELDS のベタ書きを残すと、キャンペーン側で
+                 *     必須にしている項目が必須にならない。
+                 */
+                setFields(BUILDER_FIELDS.map(field => {
+                    const required = flags.required[field.key] ?? false;
+                    if (field.key === 'shop') return { ...field, required, options: optionsFrom(row.shop, 'shopName') };
+                    if (field.key === 'time') return { ...field, required, options: optionsFrom(row.date, 'time') };
+                    if (field.key === 'medium') return { ...field, required, options: optionsFrom(row.medium, 'mediumName') };
+                    return { ...field, required };
+                }));
+
+                setUsed(flags.used);
 
                 // ⚠️ サンクスページは設定側の値を初期値にする。変えたければ画面で直せる
                 setThanksUrl(row.redirect ?? '');

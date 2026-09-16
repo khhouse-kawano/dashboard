@@ -83,36 +83,70 @@ export const SETTING_TO_FIELDS: Record<string, string[]> = {
     question: ['question'],
 };
 
+/** `readSettings` の戻り値 */
+export interface SettingFlags {
+    /** 項目キー → その項目を聞いているか */
+    used: Record<string, boolean>;
+    /** 項目キー → 必須か */
+    required: Record<string, boolean>;
+}
+
 /**
- * キャンペーン設定から「どの項目を聞いているか」を読み取る。
+ * キャンペーン設定から「どの項目を聞いているか」「どれが必須か」を読み取る。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **`form_table` の設定 JSON は `bool` と `required` を別々に持っている。**
+ *   `bool`     … その項目を聞くかどうか
+ *   `required` … 必須かどうか
+ *
+ *   ⚠️ 以前は `bool` しか読んでおらず、必須は BUILDER_FIELDS の
+ *     **ベタ書き**（姓・名・電話・メールだけ true）のままだった。
+ *     ⚠️ そのため**キャンペーン側で必須にしている来場希望場所や
+ *       来場希望日が、生成した HTML では必須にならなかった**
+ *       （2026-09-16 の指摘）。
+ *
+ *   ⚠️ 公開フォーム（react/form_get の Form.tsx）も
+ *     `parsed.required === true && parsed.bool === true` で判定している。
+ *     ⚠️ **同じ読み方に揃えること。**片方だけ変えると
+ *       iframe 版と HTML 版で必須項目が食い違う。
  *
  * ⚠️ 設定は列ごとに JSON 文字列。⚠️ 壊れていても落とさず、その項目だけ諦める。
- * ⚠️ `bool` が true の設定に紐づく入力欄を有効にする。
- *
- * @returns 項目キー → 使うかどうか
+ * ─────────────────────────────────────────────
  */
-export const usedFromSettings = (row: Record<string, string>): Record<string, boolean> => {
+export const readSettings = (row: Record<string, string>): SettingFlags => {
     const used: Record<string, boolean> = {};
+    const required: Record<string, boolean> = {};
     // ⚠️ まず全部 false にする。設定に無い項目が前の選択のまま残らないように
-    for (const field of BUILDER_FIELDS) used[field.key] = false;
+    for (const field of BUILDER_FIELDS) {
+        used[field.key] = false;
+        required[field.key] = false;
+    }
 
     for (const [setting, keys] of Object.entries(SETTING_TO_FIELDS)) {
         const raw = row[setting];
         if (!raw) continue;
 
         let on = false;
+        let must = false;
         try {
-            const parsed = JSON.parse(raw) as { bool?: unknown };
+            const parsed = JSON.parse(raw) as { bool?: unknown; required?: unknown };
             on = parsed.bool === true;
+            // ⚠️ 聞いていない項目を必須にはできない。⚠️ bool と併せて見る
+            must = on && parsed.required === true;
         } catch {
             console.error(`[formBuilder] 設定の解釈に失敗しました（${setting}）`);
             continue;
         }
 
-        if (on) for (const key of keys) used[key] = true;
+        if (on) {
+            for (const key of keys) {
+                used[key] = true;
+                required[key] = must;
+            }
+        }
     }
 
-    return used;
+    return { used, required };
 };
 
 /** ⚠️ HTML に値を埋めるときは必ず通す。属性と本文の両方で使える形にする */

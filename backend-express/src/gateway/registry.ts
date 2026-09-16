@@ -87,6 +87,7 @@ import {
   runCampaignFormUpdate,
 } from '../features/campaignForm';
 import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaignForm/entry';
+import { runCampaignSummary } from '../features/campaignSummary';
 import { runLostList } from '../features/lostList';
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
@@ -1826,4 +1827,22 @@ register({
   phpSource: 'backend/src/handlers/lostList.php',
   auth: 'staff',
   handler: async () => runLostList(),
+});
+
+// ---------------------------------------------------------------------------
+// キャンペーン別集計
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在する（campaignSummary.php）ので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️ 絞り込みは画面側にある。⚠️ ここは移植元と同じく全件返す。
+//   ⚠️ 期間の起点が画面側の定数なので、SQL に写すと食い違う。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'campaignSummary',
+  summary: 'キャンペーン別の反響〜契約の集計',
+  phpSource: 'backend/src/handlers/campaignSummary.php',
+  auth: 'staff',
+  handler: async () => runCampaignSummary(),
 });
