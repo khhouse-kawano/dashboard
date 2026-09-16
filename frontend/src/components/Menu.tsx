@@ -190,7 +190,14 @@ const Menu = ({ key, onReload }: Props) => {
         },
         { id: 'rank', path: '/rank', icon: 'fa-person', label: '店舗・担当別反響', show: category !== 'planner', exact: true },
         { id: 'map', path: '/map', icon: 'fa-map', label: '反響MAP', show: category !== 'planner', exact: true },
-        { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && category === 'order', exact: true },
+        /**
+         * ⚠️ 建売（spec）も 2026-09-16 から表示する。
+         *   ⚠️ 画面（customer/CustomerKaeru.tsx）も ② の `customer:spec` も
+         *     **元からあった**が、ここが `order` だけだったため
+         *     ⚠️ **URL を直接開かないと辿り着けなかった。**
+         *   ⚠️ `used`（中古）は画面が無いので出さない。
+         */
+        { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
         // ⚠️ 建売（spec）も 2026-09-11 から表示する（ShopKaeru.tsx を追加したため）。
         //   ⚠️ `used`（中古）は画面が無いので出さない。
         { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
