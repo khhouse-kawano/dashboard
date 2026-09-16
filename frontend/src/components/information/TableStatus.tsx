@@ -2,6 +2,7 @@ import React, { memo, useContext } from 'react';
 import { safeFormate } from '../../utils/informationUtils';
 import { inputStyle } from '../../utils/informationUtils';
 import { dateFormate } from '../../utils/informationUtils';
+import { UNKNOWN_COMPETITOR } from '../../utils/informationUtils';
 import AuthContext from '../../context/AuthContext';
 import TableInput from './TableInput';
 
@@ -25,6 +26,46 @@ type Props = {
 
 const TableStatus = ({ information, setInformation, idMapping, setShowLostReason, competitorsRef, competitorsInput, handleCompetitorsDelete, handleCompetitors, setCompetitorsInput, makerList }: Props) => {
     const { category, authority } = useContext(AuthContext);
+
+    /**
+     * 「失注先不明」のボタン。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **失注先が分からないときも、必ず何か入れてもらうためのもの。**
+     *   ⚠️ 空文字や `null` のままだと「要回答」に数えられ続け、
+     *     ⚠️ **答えようがないのに件数が減らない**（DatabaseOrder の loseLength）。
+     *   ⚠️ `不明` を入れれば判定から外れる。
+     *     判定は `!competitor_name || competitor_name === 'null'` なので、
+     *     ⚠️ **空文字や 'null' 以外なら何でもよい**が、
+     *       ⚠️ 既存データに `不明` が62件あるので**それに揃える**。
+     *       ⚠️ 別の表記（「わからない」等）を足すと集計で分かれてしまう。
+     *
+     * ⚠️ 同じ判定が次の3か所にある。**片方だけ直さないこと。**
+     *     frontend/src/components/database/DatabaseOrder.tsx
+     *     frontend/src/components/LostStatusList.tsx
+     *     backend-express/src/features/menu.ts
+     *
+     * ⚠️ 候補（competitors_text）がある画面と、入力欄がある画面の
+     *   **両方に出す**。⚠️ 片方だけだと、候補があるお客様で選べない。
+     * ─────────────────────────────────────────────
+     */
+    const isUnknown = information.competitor_name === UNKNOWN_COMPETITOR;
+
+    const unknownButton = (
+        <div
+            key="__unknown__"
+            className={`me-2 mb-1 px-2 py-1 rounded border text-nowrap ${isUnknown ? 'bg-warning border-warning fw-bold text-dark' : 'bg-white text-muted'}`}
+            style={{ cursor: 'pointer', transition: 'all 0.2s', fontSize: '11px' }}
+            title="失注先が分からない場合に選んでください"
+            onClick={() => setInformation(prev => ({
+                ...prev,
+                // ⚠️ もう一度押したら解除する。誤って押しても戻せるように
+                competitor_name: isUnknown ? '' : UNKNOWN_COMPETITOR
+            }))}
+        >
+            失注先不明
+        </div>
+    );
 
     return (
         <>
@@ -99,6 +140,8 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                                                 {c}
                                             </div>
                                         ))
+                                        // ⚠️ 候補があるときも「不明」を選べるようにする（下の unknownButton と同じもの）
+                                        .concat([unknownButton])
                                 ) : (
                                     <div className="d-flex align-items-center flex-grow-1 mt-1 mt-md-0">
                                         <div className="position-relative flex-grow-1 me-2">
@@ -147,6 +190,9 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                                                 </div>
                                             )}
                                         </div>
+
+                                        {/* ⚠️ 指示どおり「追加」の左隣に置く */}
+                                        {unknownButton}
 
                                         <button
                                             className="btn btn-primary btn-sm text-nowrap shadow-sm px-3"
