@@ -121,14 +121,49 @@ const MEDIUM_SQL: Record<CustomerCategory, string> = {
  * ⚠️ **事業で絞ること。** 移植元の customer_spec.php は絞っておらず、
  *   建売の画面に注文事業の広告費まで乗っていた（単価が高く出る）。
  */
-const BUDGET_SQL = `SELECT * FROM budget WHERE response_medium = 0 AND section = ?`;
+const BUDGET_SQL: Record<CustomerCategory, string> = {
+  order: `SELECT * FROM budget WHERE response_medium = 0 AND section = ?`,
+
+  /**
+   * ⚠️⚠️ **建売は「実績のある店舗」の販促費だけを見る**（2026-09-16 の指示）。
+   *
+   *   ⚠️ `section = 'spec'` だけでは、**反響を1件も持たない店舗**の広告費まで
+   *     合計に乗る。⚠️ 分母（反響数）に対して分子（販促費）だけが増えるので
+   *     **単価が実際より高く出る。**
+   *
+   *   ⚠️ 実データで落ちるのは次の5つ（2026-09-16 時点）。
+   *       かえる鹿児島店   88件  12,673,423
+   *       買い:中古リノベ 453件   6,738,032
+   *       かえる宮崎店 / 大分店 / 熊本店  計19件  145,501
+   *     ⚠️ 合計 282,481,113 → **262,924,157**（−19,556,956／−6.9%）。
+   *
+   * ⚠️⚠️ **`NOT IN` ではなく `IN` で書くこと。**
+   *   ⚠️ `in_charge_store` には NULL と空文字が混ざっており、
+   *     `NOT IN` だと比較結果が UNKNOWN になって**1行も返らない**
+   *     （実際に検証中これを踏んだ）。
+   *   ⚠️ 下では NULL と空文字を先に除いている。
+   *
+   * ⚠️ 列名は `in_charge_shop` ではなく **`in_charge_store`**。
+   */
+  spec: `
+    SELECT * FROM budget
+     WHERE response_medium = 0
+       AND section = ?
+       AND shop IN (
+         SELECT DISTINCT in_charge_store
+           FROM master_data_kaeru
+          WHERE show_dashboard = 1
+            AND in_charge_store IS NOT NULL
+            AND in_charge_store <> ''
+       )`,
+};
 
 export const customerSql = (category: CustomerCategory) => ({
   shop: SHOP_SQL[category],
   section: SECTION_SQL,
   customer: CUSTOMER_SQL[category],
   medium: MEDIUM_SQL[category],
-  budget: BUDGET_SQL,
+  budget: BUDGET_SQL[category],
   division: DIVISION[category],
   budgetSection: BUDGET_SECTION[category],
 });

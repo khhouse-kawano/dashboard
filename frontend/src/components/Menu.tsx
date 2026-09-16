@@ -198,9 +198,16 @@ const Menu = ({ key, onReload }: Props) => {
          *   ⚠️ `used`（中古）は画面が無いので出さない。
          */
         { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
-        // ⚠️ 建売（spec）も 2026-09-11 から表示する（ShopKaeru.tsx を追加したため）。
-        //   ⚠️ `used`（中古）は画面が無いので出さない。
-        { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
+        /**
+         * ⚠️⚠️ **建売（spec）には出さない**（2026-09-16 の指示。要件の整理中）。
+         *   ⚠️ 2026-09-11 に `ShopKaeru.tsx` を足して spec にも出していたが、
+         *     いったん取り下げる。
+         *   ⚠️ **画面（shop/ShopKaeru.tsx）と ② の `shop:spec` は消していない。**
+         *     ⚠️ URL を直接開けば今までどおり見える。戻すのはこの1行を
+         *       `(category === 'order' || category === 'spec')` にするだけ。
+         *   ⚠️ `used`（中古）は画面が無いので元から出していない。
+         */
+        { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && category === 'order', exact: true },
         { id: 'property_used', path: '/property', icon: 'fa-house', label: '掲載物件一覧', show: category === 'planner', exact: false },
         { id: 'broker', path: '/broker', icon: 'fa-house', label: '媒介獲得台帳', show: category === 'planner', exact: false },
         { id: 'customerTrend', path: '/customerTrend', icon: 'fa-chart-bar', label: '販促媒体別反響推移', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
