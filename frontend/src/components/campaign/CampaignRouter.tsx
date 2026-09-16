@@ -24,7 +24,8 @@ const CampaignRouter = () => {
         <div className="list_table">
           <Tabs
             defaultActiveKey="list"
-            style={{ fontSize: '13px', width: '80vw' }}
+            // ⚠️ タブの幅は画面に合わせる。80vw 固定だと狭い画面で見出しが潰れる
+            style={{ fontSize: '0.8rem', width: '100%' }}
             className='justify-content-center mt-3'
             onSelect={key => setActiveTab(key)}
             justify>

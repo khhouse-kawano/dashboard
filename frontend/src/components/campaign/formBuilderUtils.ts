@@ -56,6 +56,65 @@ export const BUILDER_FIELDS: BuilderField[] = [
     { key: 'question', label: 'ご要望・ご質問', type: 'textarea', required: false },
 ];
 
+/**
+ * ⚠️⚠️ **`form_table` の設定キーと、ここの項目キーの対応表。**
+ *
+ *   ⚠️ `form_table` は項目を JSON で持っており、1つの JSON が
+ *     **複数の入力欄をまとめている**ことがある。
+ *       `name`    → 姓・名（sei / mei）
+ *       `kana`    → せい・めい（seiKana / meiKana）
+ *       `date`    → 来場希望日・時間（date / time）
+ *       `address` → 郵便番号〜番地（zip / pref / city / town / street）
+ *
+ *   ⚠️ そのため「設定の1項目 = 画面の1チェック」ではない。
+ *     ⚠️ 取り違えると、**キャンペーンで聞いている項目が
+ *       フォーム作成側に出てこない**（エラーにならないので気づけない）。
+ */
+export const SETTING_TO_FIELDS: Record<string, string[]> = {
+    shop: ['shop'],
+    name: ['sei', 'mei'],
+    kana: ['seiKana', 'meiKana'],
+    phone: ['phone'],
+    mail: ['mail'],
+    age: ['age'],
+    address: ['zip', 'pref', 'city', 'town', 'street'],
+    date: ['date', 'time'],
+    medium: ['medium'],
+    question: ['question'],
+};
+
+/**
+ * キャンペーン設定から「どの項目を聞いているか」を読み取る。
+ *
+ * ⚠️ 設定は列ごとに JSON 文字列。⚠️ 壊れていても落とさず、その項目だけ諦める。
+ * ⚠️ `bool` が true の設定に紐づく入力欄を有効にする。
+ *
+ * @returns 項目キー → 使うかどうか
+ */
+export const usedFromSettings = (row: Record<string, string>): Record<string, boolean> => {
+    const used: Record<string, boolean> = {};
+    // ⚠️ まず全部 false にする。設定に無い項目が前の選択のまま残らないように
+    for (const field of BUILDER_FIELDS) used[field.key] = false;
+
+    for (const [setting, keys] of Object.entries(SETTING_TO_FIELDS)) {
+        const raw = row[setting];
+        if (!raw) continue;
+
+        let on = false;
+        try {
+            const parsed = JSON.parse(raw) as { bool?: unknown };
+            on = parsed.bool === true;
+        } catch {
+            console.error(`[formBuilder] 設定の解釈に失敗しました（${setting}）`);
+            continue;
+        }
+
+        if (on) for (const key of keys) used[key] = true;
+    }
+
+    return used;
+};
+
 /** ⚠️ HTML に値を埋めるときは必ず通す。属性と本文の両方で使える形にする */
 const esc = (value: string): string =>
     String(value ?? '')

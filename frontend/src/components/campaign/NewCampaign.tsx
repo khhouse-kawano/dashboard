@@ -23,7 +23,17 @@ type FormState = {
         bool: boolean,
         required: boolean,
         text: string,
-        shopName: string[]
+        shopName: string[],
+        /**
+         * ⚠️⚠️ **聞かない（bool=false）ときに、代わりに入れておく値。**
+         *   ⚠️ 2026-09-16 追加。⚠️ 既存の272件にはこのキーが無いので
+         *     **必ず `?? ''` で読むこと**（undefined が来る）。
+         *   ⚠️ 列は増やしていない。既存の JSON に1つ足しただけなので、
+         *     古いフォームはそのまま動く。
+         *   ⚠️ 公開フォーム（react/form_get）がこの値を送る。
+         *     ⚠️ 片方だけ直すと、指定したのに保存されない。
+         */
+        default?: string
     }
     date: {
         bool: boolean,
@@ -111,7 +121,8 @@ const NewCampaign = () => {
             bool: true,
             required: true,
             text: '',
-            shopName: []
+            shopName: [],
+            default: ''
         },
         date: {
             bool: true,
@@ -462,6 +473,36 @@ const NewCampaign = () => {
                                             <div>来場希望場所</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.shop.bool} onChange={() => changeForm('shop')} /></div>
                                         </td>
                                         <td>
+                                            {/**
+                                              * ⚠️⚠️ **聞かないときは、代わりに入れておく値を選ばせる**（2026-09-16 の指示）。
+                                              *   ⚠️ 例: 店舗が1つに決まっているLPで、来場希望場所を尋ねずに固定する。
+                                              *   ⚠️ 空のままなら今までどおり（何も入らない）。
+                                              *   ⚠️ 候補は下の「選択肢」をそのまま使う。**別に持たせない**
+                                              *     （持たせると選択肢を直したときに片方だけ古くなる）。
+                                              */}
+                                            {form.shop.bool ||
+                                                <div className="mb-3 p-2" style={{ backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
+                                                    <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+                                                        聞かない代わりに、この値で登録する
+                                                    </div>
+                                                    <select
+                                                        value={form.shop.default ?? ''}
+                                                        style={{ fontSize: '13px', padding: '3px 6px', minWidth: '260px', maxWidth: '100%' }}
+                                                        onChange={(e) => setForm(prev => ({
+                                                            ...prev,
+                                                            shop: { ...prev.shop, default: e.target.value }
+                                                        }))}
+                                                    >
+                                                        <option value="">指定しない</option>
+                                                        {form.shop.shopName.map((item, index) =>
+                                                            <option key={index} value={item}>{item}</option>)}
+                                                    </select>
+                                                    {form.shop.shopName.length > 0 ||
+                                                        <div className="text-muted" style={{ fontSize: '11px', marginTop: '4px' }}>
+                                                            ⚠️ 選択肢がまだありません。下で追加すると選べます。
+                                                        </div>}
+                                                </div>}
+
                                             <div>
                                                 <div className="d-flex align-items-center mb-2">
                                                     <div>
