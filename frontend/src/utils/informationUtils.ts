@@ -75,3 +75,24 @@ export const safeParse = (data: any) => {
         return [];
     }
 };
+
+/**
+ * 失注先が分からないときに入れる値。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **空文字や `null` にしないための値である。**
+ *   ⚠️ 失注先が空のままだと「要回答」に数えられ続け、
+ *     ⚠️ **答えようがないのに件数が減らない**。
+ *
+ * ⚠️ 判定は `!competitor_name || competitor_name === 'null'` なので
+ *   ⚠️ **空文字と 'null' 以外なら何でも外れる**が、
+ *     ⚠️ 既存データに `不明` が62件あるので**それに揃える**。
+ *     ⚠️ 表記を増やすと集計で分かれてしまう。
+ *
+ * ⚠️ 同じ判定が次の3か所にある。**片方だけ直さないこと。**
+ *     frontend/src/components/database/DatabaseOrder.tsx
+ *     frontend/src/components/LostStatusList.tsx
+ *     backend-express/src/features/menu.ts
+ * ─────────────────────────────────────────────
+ */
+export const UNKNOWN_COMPETITOR = '不明';

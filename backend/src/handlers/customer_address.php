@@ -72,10 +72,19 @@ if (isset($data['request']) && $data['request'] === 'customer_address') {
             ':id'      => $data['id']
         ]);
 
+        // ⚠️⚠️ 更新できた行数を必ず返す。
+        //   ⚠️ 0 行でも HTTP 200 が返るため、呼び出し側（runGeocode.ts）は
+        //     「保存できた」と誤解し、**次回また同じ行を Geocoding に投げる**。
+        //   ⚠️ 2026-09-15、物件側でこれと同じ形（保存先テーブルの不一致）により
+        //     毎回1,031件を叩き続け、請求が ¥150,000 を超えた。
+        //   ⚠️ この値を消さないこと。TS 側が 0 を異常として検知している。
+        $updated = $stmt->rowCount();
+
         $result = [
             "mode" => "update",
             "id" => $data['id'],
-            "message" => "更新しました"
+            "updated" => $updated,
+            "message" => $updated > 0 ? "更新しました" : "該当する行がありません"
         ];
     }
 

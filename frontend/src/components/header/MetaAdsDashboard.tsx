@@ -1,23 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Form, Badge, ButtonGroup, InputGroup, Row, Col, Spinner, Pagination, Modal } from "react-bootstrap";
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, Table, Button, Form, Badge, ButtonGroup, InputGroup, Spinner, Pagination, Modal } from "react-bootstrap";
 import apiClient from '../../utils/apiClient';
+import {
+    AdData, summarizeByAdvertiser, summarizeByTitle, summarizeByMonth,
+} from './metaAdsUtils';
+import MetaAdsSummary from './MetaAdsSummary';
 
-// 💡 1. 型定義に新しいデータを追加
-type AdData = {
-    id: string | number;
-    advertiser_name: string;
-    advertiser_area: string;   // 追加
-    advertiser_period: string; // 追加
-    ad_title: string;
-    image_filename: string;
-    scraped_date: string;
-    lp_url: string;
-    bookmark?: number;
-};
+// ⚠️ 型と集計は metaAdsUtils.ts に寄せた。**ここで再定義しないこと**
+//   （同じ形を2か所に書くと、片方だけ列を足して食い違う）
 
 const MetaAdsDashboard = () => {
     const [ads, setAds] = useState<AdData[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    /**
+     * ⚠️ 見出し（ad_title）の検索。
+     *   ⚠️ 以前の検索欄は **advertiser_name しか見ていなかった**ので、
+     *     「どんな訴求で出しているか」を探せなかった。
+     */
+    const [adTitle, setAdTitle] = useState<string>('');
+    /** 表示の切り替え。⚠️ 集計は同じデータから作るので再取得しない */
+    const [panel, setPanel] = useState<'banner' | 'summary'>('banner');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [isLoading, setIsLoading] = useState(true);
     const [companyList, setCompanyList] = useState<string[]>([]);
@@ -39,7 +41,9 @@ const MetaAdsDashboard = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await apiClient.post('', { request: "meta_ads" });
+                // ⚠️ roll を付けること。移植元は1つの request で読み書きを兼ねていたため、
+                //   ⚠️ ② 側は roll で分けている（許可リストも roll 込み）
+                const response = await apiClient.post('', { request: "meta_ads", roll: "list" });
                 const formattedAds = response.data.ads.
                 sort((a, b) => new Date(b.scraped_date).getTime() - new Date(a.scraped_date).getTime())
                 .map((ad: any) => ({
@@ -66,7 +70,7 @@ const MetaAdsDashboard = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, viewMode, showOnlyBookmarked, selectedArea]);
+    }, [searchQuery, adTitle, viewMode, showOnlyBookmarked, selectedArea]);
 
     const toggleBookmark = async (id: string | number) => {
         setAds(prevAds => prevAds.map(ad =>
@@ -78,6 +82,7 @@ const MetaAdsDashboard = () => {
             const newBookmarkValue = targetAd?.bookmark === 1 ? 0 : 1;
             await apiClient.post('', {
                 request: "meta_ads",
+                roll: "bookmark",
                 id: id,
                 bookmark: newBookmarkValue
             });
@@ -86,12 +91,29 @@ const MetaAdsDashboard = () => {
         }
     };
 
-    const filteredAds = ads.filter(ad => {
-        const matchSearch = ad.advertiser_name.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchBookmark = showOnlyBookmarked ? ad.bookmark === 1 : true;
-        const matchArea = selectedArea ? ad.advertiser_area === selectedArea : true;
-        return matchSearch && matchBookmark && matchArea;
-    });
+    /**
+     * 絞り込み。
+     * ⚠️ 3,814件あるので、描画のたびに作り直さないよう useMemo にしている。
+     * ⚠️ 依存を1つでも書き漏らすと**絞り込んだのに表示が変わらない**。
+     */
+    const filteredAds = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        const t = adTitle.trim().toLowerCase();
+
+        return ads.filter(ad => {
+            const matchSearch = q === '' || (ad.advertiser_name ?? '').toLowerCase().includes(q);
+            // ⚠️ 見出しは空の行が720件ある。空文字に対して includes は常に false になるので問題ない
+            const matchTitle = t === '' || (ad.ad_title ?? '').toLowerCase().includes(t);
+            const matchBookmark = showOnlyBookmarked ? ad.bookmark === 1 : true;
+            const matchArea = selectedArea ? ad.advertiser_area === selectedArea : true;
+            return matchSearch && matchTitle && matchBookmark && matchArea;
+        });
+    }, [ads, searchQuery, adTitle, showOnlyBookmarked, selectedArea]);
+
+    // ⚠️ 集計は**絞り込んだ後**のデータから作る。絞り込みと数字が食い違うと読めない
+    const advertiserRows = useMemo(() => summarizeByAdvertiser(filteredAds), [filteredAds]);
+    const titleRows = useMemo(() => summarizeByTitle(filteredAds), [filteredAds]);
+    const monthly = useMemo(() => summarizeByMonth(filteredAds), [filteredAds]);
 
     const totalPages = Math.ceil(filteredAds.length / itemsPerPage);
     const paginatedAds = filteredAds.slice(
@@ -233,6 +255,51 @@ const MetaAdsDashboard = () => {
                             )}
                         </div>
 
+                        {/* ⚠️ 見出し（ad_title）の検索。広告主の検索とは別に効く */}
+                        <div style={{ width: '220px' }}>
+                            <InputGroup size="sm" className="shadow-sm">
+                                <InputGroup.Text className="bg-white border-end-0">
+                                    <i className="fa-solid fa-quote-left text-muted"></i>
+                                </InputGroup.Text>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="広告の見出しで検索..."
+                                    value={adTitle}
+                                    onChange={(e) => setAdTitle(e.target.value)}
+                                    className="border-start-0 ps-0"
+                                    style={{ fontSize: '0.8rem' }}
+                                />
+                                {!adTitle || (
+                                    <Button variant="white" className="border border-start-0 text-muted"
+                                        onClick={() => setAdTitle('')} title="クリア">
+                                        <i className="fa-solid fa-xmark"></i>
+                                    </Button>
+                                )}
+                            </InputGroup>
+                        </div>
+
+                        {/* ⚠️ バナーと集計の切り替え。⚠️ 同じ絞り込み結果を見ている */}
+                        <ButtonGroup className="shadow-sm">
+                            <Button
+                                variant={panel === 'banner' ? "dark" : "white"}
+                                size="sm"
+                                onClick={() => setPanel('banner')}
+                                className={panel === 'banner' ? "fw-bold" : "text-secondary border"}
+                                style={{ width: '80px', fontSize: '0.8rem' }}
+                            >
+                                <i className="fa-solid fa-image me-1"></i>バナー
+                            </Button>
+                            <Button
+                                variant={panel === 'summary' ? "dark" : "white"}
+                                size="sm"
+                                onClick={() => setPanel('summary')}
+                                className={panel === 'summary' ? "fw-bold" : "text-secondary border"}
+                                style={{ width: '80px', fontSize: '0.8rem' }}
+                            >
+                                <i className="fa-solid fa-chart-simple me-1"></i>集計
+                            </Button>
+                        </ButtonGroup>
+
                         <ButtonGroup className="shadow-sm">
                             <Button
                                 variant={viewMode === 'grid' ? "primary" : "white"}
@@ -264,12 +331,36 @@ const MetaAdsDashboard = () => {
                     <div className="text-center py-5 text-muted bg-white shadow-sm rounded flex-grow-1">
                         該当する広告がありません
                     </div>
+                ) : panel === 'summary' ? (
+                    /* ⚠️ 集計は絞り込み後のデータから作る。バナー側と数字が食い違わないため */
+                    <MetaAdsSummary
+                        advertisers={advertiserRows}
+                        titles={titleRows}
+                        monthly={monthly}
+                        total={filteredAds.length}
+                    />
                 ) : (
                     <>
                         {viewMode === 'grid' && (
-                            <Row xs={1} sm={2} md={3} lg={4} className="g-3 mb-4">
+                            /**
+                             * ⚠️⚠️ **カードの幅を固定して、画面幅ぶんだけ並べる。**
+                             *   ⚠️ 以前は `xs=1 sm=2 md=3 lg=4` の固定列だったため、
+                             *     全画面にしても**1行4枚**までしか入らず、
+                             *     広い画面ほど1枚が巨大になって比較しづらかった。
+                             *   ⚠️ `auto-fill` + `minmax` なら幅に応じて枚数が増える。
+                             *   ⚠️ `minmax` の下限を画面幅より大きくしないこと（横スクロールが出る）。
+                             */
+                            <div
+                                className="mb-4"
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                                    gap: '1rem',
+                                    alignItems: 'start',
+                                }}
+                            >
                                 {paginatedAds.map((ad) => (
-                                    <Col key={ad.id}>
+                                    <div key={ad.id}>
                                         <Card className="shadow-sm h-100 border-0 rounded-3 overflow-hidden">
                                             <Card.Img
                                                 variant="top"
@@ -336,9 +427,9 @@ const MetaAdsDashboard = () => {
                                                 </Button>
                                             </div>
                                         </Card>
-                                    </Col>
+                                    </div>
                                 ))}
-                            </Row>
+                            </div>
                         )}
 
                         {viewMode === 'list' && (

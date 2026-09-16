@@ -79,6 +79,17 @@ import {
   runKSnapShow,
 } from '../features/ksnap';
 import { runMenu } from '../features/menu';
+import {
+  runCampaignFormDetail,
+  runCampaignFormInsert,
+  runCampaignFormList,
+  runCampaignFormMaster,
+  runCampaignFormUpdate,
+} from '../features/campaignForm';
+import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaignForm/entry';
+import { runCampaignSummary } from '../features/campaignSummary';
+import { runLostList } from '../features/lostList';
+import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
 import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
@@ -1661,4 +1672,177 @@ register({
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
+});
+
+// ---------------------------------------------------------------------------
+// キャンペーンフォーム（form_table）
+//
+// ⚠️⚠️ **移植元は dashboard のゲートウェイではない別API**である。
+//   `https://khg-marketing.info/api/` の index.php で、
+//   ルーティングに `request` ではなく **`Authorization` ヘッダ**を使っていた
+//   （`Authorization: form_list` 等）。
+//
+//   対応:
+//     form_list     → campaign_form:list
+//     form_edit     → campaign_form:detail
+//     form_post     → campaign_form:insert
+//     form_update   → campaign_form:update
+//     form_database → campaign_form:master
+//     form_get      → campaign_form:public   ⚠️ 認証なし
+//     form_register → campaign_form:entry    ⚠️ 認証なし・書き込み
+//
+// ⚠️ 公開フォーム（272件）は各ブランドサイトの `form/api/index.php` を経由して届く。
+//   ⚠️ そちらの `$targetUrl` を ② へ向けると切り替わる（**8ファイルの1行**）。
+//   ⚠️ 問題があれば1行戻すだけで元に戻せる。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'campaign_form',
+  roll: 'list',
+  summary: 'キャンペーンフォームの一覧（ブランド別）',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_list)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormList(ctx.body),
+});
+
+register({
+  request: 'campaign_form',
+  roll: 'detail',
+  summary: 'キャンペーンフォーム1件の設定（編集用）',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_edit)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormDetail(ctx.body),
+});
+
+register({
+  request: 'campaign_form',
+  roll: 'insert',
+  summary: '【書き込み】キャンペーンフォームの新規登録',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_post)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormInsert(ctx.body),
+});
+
+register({
+  request: 'campaign_form',
+  roll: 'update',
+  summary: '【書き込み】キャンペーンフォームの更新',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_update)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormUpdate(ctx.body),
+});
+
+register({
+  request: 'campaign_form',
+  roll: 'master',
+  summary: 'ブランドごとのフォーム既定値（form_database）',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_database)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormMaster(ctx.body),
+});
+
+/**
+ * ⚠️⚠️ **公開フォームの初期表示。認証なし。**
+ *   ⚠️ 移植元は `SELECT *` で **mail_to / mail_cc をブラウザへ返していた**。
+ *     フォームのソースを見れば誰でも通知先が読めた。
+ *   ⚠️ こちらは表示に必要な列だけを返す。**通知先を返さないこと。**
+ */
+register({
+  request: 'campaign_form',
+  roll: 'public',
+  summary: '【認証なし】公開フォームの設定（通知先は返さない）＋表示記録',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_get)',
+  auth: 'none',
+  handler: async (ctx) => runCampaignFormPublic(ctx.body),
+});
+
+/**
+ * ⚠️⚠️ **公開フォームからの反響受付。認証なしの書き込み口である。**
+ *   ⚠️ 社外の誰でも、ブラウザでも curl でも叩ける。
+ *   ⚠️ 防御は3つ:
+ *     1. middlewares/publicFormRateLimit.ts … IP単位の流量制限
+ *     2. features/campaignForm/entry.ts     … 全項目の長さ制限・通知先はDBから
+ *     3. CORS（app.ts）
+ *   ⚠️ CORS はブラウザの仕組みで curl には効かない。防御として数えないこと。
+ *
+ * ⚠️ 各ブランドサイトが別オリジンなので、本番の CORS_ORIGINS への追加が必要。
+ *   ⚠️ ただし**経由するのは各サイトの form/api/index.php（サーバー間通信）**なので、
+ *     プロキシのままなら CORS は関係しない。
+ */
+register({
+  request: 'campaign_form',
+  roll: 'entry',
+  summary: '【書き込み・認証なし】公開フォームからの反響受付（inquiry_customer）',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_register)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runCampaignFormEntry(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 他社広告ライブラリ（meta_ads）
+//
+// ⚠️⚠️ **移植元は1つの request で読み書きを兼ねていた**
+//   （backend/src/handlers/meta_ads.php。`id` があれば更新、無ければ一覧）。
+//   ⚠️ そのため ① の許可リストに **request 名だけで載せてはいけない。**
+//     載せると書き込みまで ② へ流れ、PHP 側と二重に走る経路ができる。
+//   ⚠️ roll で分けてある。許可リストにも roll 込みで書くこと。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'meta_ads',
+  roll: 'list',
+  summary: '他社広告ライブラリの一覧（バナー・広告主・エリア）',
+  phpSource: 'backend/src/handlers/meta_ads.php',
+  auth: 'staff',
+  handler: async () => runMetaAdsList(),
+});
+
+register({
+  request: 'meta_ads',
+  roll: 'bookmark',
+  summary: '【書き込み】他社広告のブックマーク',
+  phpSource: 'backend/src/handlers/meta_ads.php',
+  auth: 'staff',
+  handler: async (ctx) => runMetaAdsBookmark(ctx.body),
+});
+
+// ---------------------------------------------------------------------------
+// 失注一覧
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在するので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️⚠️ **移植元は master_data を全件返していた。**
+//   ⚠️ 画面が受け取ったあとで失注だけに絞っていたため、
+//     使わない行まで送っていた。⚠️ ここでは SQL 側で絞る。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'lostList',
+  summary: '失注一覧（未入力の失注理由・失注先の確認用）',
+  phpSource: 'backend/src/handlers/lostList.php',
+  auth: 'staff',
+  handler: async () => runLostList(),
+});
+
+// ---------------------------------------------------------------------------
+// キャンペーン別集計
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在する（campaignSummary.php）ので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️ 絞り込みは画面側にある。⚠️ ここは移植元と同じく全件返す。
+//   ⚠️ 期間の起点が画面側の定数なので、SQL に写すと食い違う。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'campaignSummary',
+  summary: 'キャンペーン別の反響〜契約の集計',
+  phpSource: 'backend/src/handlers/campaignSummary.php',
+  auth: 'staff',
+  handler: async () => runCampaignSummary(),
 });

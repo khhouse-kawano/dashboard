@@ -12,7 +12,7 @@ import AuthProvider from "./context/AuthProvider";
 import Customer from "./components/customer/CustomerRouter";
 import { ShopTrendRouter } from "./components/shopTrend/ShopTrendRouter";
 import Company from "./components/company/Company";
-import NewCampaign from "./components/NewCampaign";
+import NewCampaign from "./components/campaign/NewCampaign";
 import ListRouter from "./components/list/ListRouter";
 import Photo from "./components/photo/Photo";
 import Hab from "./components/Hab";

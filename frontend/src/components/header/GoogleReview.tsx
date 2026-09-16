@@ -226,6 +226,12 @@ const GoogleReview = () => {
                 .gr_kpi_label { font-size: 11px; color: #6b7280; }
                 .gr_kpi_value { font-size: 20px; font-weight: 700; line-height: 1.2; }
 
+                /* ⚠️ 表の上の注意書き。⚠️ 長文なので gr_note（11px 一行）とは別にする。
+                      ⚠️ flex-shrink:0 を外すと、表が伸びたときにここが潰れて読めなくなる */
+                .gr_caution { font-size: 11px; color: #92400e; line-height: 1.8;
+                              background: #fffbeb; border: 1px solid #fde68a;
+                              border-radius: 8px; padding: 8px 12px; flex-shrink: 0; }
+
                 /* ⚠️ 表。⚠️ 見出しは固定する（店舗が多いと見出しが流れるため）
                    ⚠️ flex:1 と min-height:0 で「残りの高さを使い切って中だけスクロール」。
                       ⚠️ min-height:0 を外すと flex の既定（auto）で縮まず、
@@ -284,7 +290,7 @@ const GoogleReview = () => {
                 {/* ⚠️⚠️ 本文が総数より少ない理由を必ず出す。書かないと
                        「クチコミが消えている」と受け取られる */}
                 <span className="gr_note">
-                    ※ 評価・口コミ数は Google の全体値です。本文は取得できた分のみ表示しています
+                    ※ 評価・レビュー数は Google の全体値です。本文は取得できた分のみ表示しています
                 </span>
             </div>
 
@@ -337,20 +343,32 @@ const GoogleReview = () => {
                             <div className="gr_kpi_value">{total.shops.toLocaleString()}</div>
                         </div>
                         <div className="gr_kpi_card">
-                            <div className="gr_kpi_label">口コミ総数</div>
+                            <div className="gr_kpi_label">レビュー総数</div>
                             <div className="gr_kpi_value">{total.amount.toLocaleString()}</div>
                         </div>
                         <div className="gr_kpi_card">
                             <div className="gr_kpi_label">
                                 平均評価
                                 {/* ⚠️ 単純平均ではないことを明記する */}
-                                <span className="ms-1" style={{ fontSize: '10px' }}>（口コミ数で加重）</span>
+                                <span className="ms-1" style={{ fontSize: '10px' }}>（レビュー数で加重）</span>
                             </div>
                             <div className="gr_kpi_value" style={{ color: '#b45309' }}>
                                 {total.average.toFixed(1)}
                                 <span className="ms-2"><Stars value={total.average} /></span>
                             </div>
                         </div>
+                    </div>
+
+                    {/**
+                      * ⚠️⚠️ **レビュー数が「減る」ことがある理由をここに書いておく**（2026-09-16 の指示）。
+                      *   ⚠️ 書かないと「取り込みが壊れている」と受け取られる。
+                      *     実際には Google 側で消えているだけのことがある。
+                      */}
+                    <div className="gr_caution mb-2">
+                        レビュー数は Dashboard が取り込んだ時点の数です。
+                        「ユーザー自身が過去の自分の口コミを削除した」、
+                        「Google のスパムフィルターやポリシー違反（虚偽の投稿、不適切なコンテンツなど）の判定により、
+                        Google 側が口コミを削除した」等のケースでレビュー数が減ることもあります。
                     </div>
 
                     <div className="gr_table_wrap">
@@ -361,7 +379,7 @@ const GoogleReview = () => {
                                     <SortHead label="事業区分" keyName="division" width="130px" />
                                     <SortHead label="営業課" keyName="section" width="150px" />
                                     <SortHead label="評価" keyName="average" align="center" width="170px" />
-                                    <SortHead label="口コミ数" keyName="amount" align="right" width="90px" />
+                                    <SortHead label="レビュー数" keyName="amount" align="right" width="100px" />
                                     <SortHead label="取得本文" keyName="reviews" align="right" width="90px" />
                                     <th className="gr_th">最新のクチコミ</th>
                                     <th className="gr_th" style={{ width: '130px' }}></th>

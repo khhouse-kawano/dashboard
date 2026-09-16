@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useContext } from 'react';
 import Table from "react-bootstrap/Table";
 import { useNavigate, useLocation } from "react-router-dom";
-import axios from "axios";
-import AuthContext from '../context/AuthContext';
+import { fetchDetail, fetchMaster, insertCampaign, updateCampaign } from './campaignApi';
+import AuthContext from '../../context/AuthContext';
+import { PLACEHOLDERS, unknownPlaceholders } from './mailTemplateFields';
 
 type BooleanKeys =
     'thanks';
@@ -15,6 +16,16 @@ type FormState = {
     mail_cc: string;
     redirect: string;
     img_code: string,
+    /**
+     * ⚠️⚠️ **メール本文のひな型。空なら既定の文面が使われる。**
+     *   ⚠️ 既定は ② の `campaignForm/mailTemplate.ts` にある。
+     *     ⚠️ ここに書き写さないこと。写すと既定を直しても反映されなくなる。
+     *   ⚠️ 既存の340件はすべて空。**空＝既定に戻す**という意味である。
+     */
+    thanks_subject: string,
+    thanks_body: string,
+    internal_subject: string,
+    internal_body: string,
     notice: {
         bool: boolean,
         text: string
@@ -23,7 +34,17 @@ type FormState = {
         bool: boolean,
         required: boolean,
         text: string,
-        shopName: string[]
+        shopName: string[],
+        /**
+         * ⚠️⚠️ **聞かない（bool=false）ときに、代わりに入れておく値。**
+         *   ⚠️ 2026-09-16 追加。⚠️ 既存の272件にはこのキーが無いので
+         *     **必ず `?? ''` で読むこと**（undefined が来る）。
+         *   ⚠️ 列は増やしていない。既存の JSON に1つ足しただけなので、
+         *     古いフォームはそのまま動く。
+         *   ⚠️ 公開フォーム（react/form_get）がこの値を送る。
+         *     ⚠️ 片方だけ直すと、指定したのに保存されない。
+         */
+        default?: string
     }
     date: {
         bool: boolean,
@@ -103,6 +124,10 @@ const NewCampaign = () => {
         thanks: true,
         redirect: '',
         img_code: '',
+        thanks_subject: '',
+        thanks_body: '',
+        internal_subject: '',
+        internal_body: '',
         notice: {
             bool: true,
             text: '',
@@ -111,7 +136,8 @@ const NewCampaign = () => {
             bool: true,
             required: true,
             text: '',
-            shopName: []
+            shopName: [],
+            default: ''
         },
         date: {
             bool: true,
@@ -179,6 +205,12 @@ const NewCampaign = () => {
     const [newTime, setNewTime] = useState<string>('');
     const [newMedium, setNewMedium] = useState<string>('');
     const [validation, setValidation] = useState<string[]>([]);
+    /**
+     * ⚠️ 設定を読めなかったことを画面に出すため。
+     *   ⚠️ 2026-09-16 まで、読めなくても**何も出ず**、
+     *     利用者には「修正を押したのに反映されない」としか見えなかった。
+     */
+    const [loadError, setLoadError] = useState<string>('');
     const { token } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
 
@@ -186,37 +218,76 @@ const NewCampaign = () => {
         const fetchData = async () => {
             if (idValue) {
                 try {
-                    const headers = { Authorization: 'form_edit', 'Content-Type': 'application/json' };
-                    const response = await axios.post("https://khg-marketing.info/api/", { brand: brandValue, id: idValue }, { headers });
-                    setForm({
+                    const response = await fetchDetail(String(brandValue ?? ''), String(idValue ?? ''));
+                    const row = response.data;
+
+                    /**
+                     * ⚠️⚠️ **`response.data` が行そのもの。`response.data.data` ではない。**
+                     *   ⚠️ 2026-09-16、旧APIから移した際にここだけ直し忘れ、
+                     *     **全項目が undefined** になっていた。
+                     *   ⚠️ さらに `JSON.parse(undefined)` で例外になり、
+                     *     **修正ボタンを押しても画面に何も入らなかった。**
+                     */
+                    if (!row) {
+                        console.error(`キャンペーン設定が見つかりません brand="${brandValue}" id="${idValue}"`);
+                        setLoadError('キャンペーン設定を読み込めませんでした。');
+                        return;
+                    }
+
+                    /**
+                     * ⚠️ JSON 列は文字列で入っている。
+                     *   ⚠️ 1つでも壊れていると画面全体が出なくなるので、項目ごとに受け止める。
+                     */
+                    const parse = <T,>(value: string | undefined, fallback: T): T => {
+                        if (!value) return fallback;
+                        try {
+                            return JSON.parse(value) as T;
+                        } catch {
+                            console.error(`設定の解釈に失敗しました: ${String(value).slice(0, 80)}`);
+                            return fallback;
+                        }
+                    };
+
+                    setForm(prev => ({
                         brand: brandValue as string,
-                        campaign: response.data.data.campaign,
-                        campaign_id: response.data.data.campaign_id,
-                        mail_to: response.data.data.mail_to,
-                        mail_cc: response.data.data.mail_cc,
-                        thanks: Boolean(response.data.data.thanks),
-                        redirect: response.data.data.redirect,
-                        img_code: response.data.data.img_code,
-                        notice: JSON.parse(response.data.data.notice),
-                        shop: JSON.parse(response.data.data.shop),
-                        date: JSON.parse(response.data.data.date),
-                        name: JSON.parse(response.data.data.name),
-                        kana: JSON.parse(response.data.data.kana),
-                        age: JSON.parse(response.data.data.age),
-                        phone: JSON.parse(response.data.data.phone),
-                        mail: JSON.parse(response.data.data.mail),
-                        address: JSON.parse(response.data.data.address),
-                        medium: JSON.parse(response.data.data.medium),
-                        question: JSON.parse(response.data.data.question),
-                        attention: JSON.parse(response.data.data.attention),
-                    });
+                        campaign: row.campaign ?? '',
+                        campaign_id: row.campaign_id ?? '',
+                        mail_to: row.mail_to ?? '',
+                        mail_cc: row.mail_cc ?? '',
+                        thanks: Boolean(Number(row.thanks ?? 0)),
+                        redirect: row.redirect ?? '',
+                        // ⚠️ img_code は form_table に列が無い（form_database だけ）。常に空になる
+                        img_code: row.img_code ?? '',
+                        /**
+                         * ⚠️⚠️ **列が無い古い応答でも空文字にすること。**
+                         *   ⚠️ undefined のまま textarea に渡すと React が
+                         *     **非制御→制御の切り替わり**で警告を出し、入力が壊れる。
+                         */
+                        thanks_subject: row.thanks_subject ?? '',
+                        thanks_body: row.thanks_body ?? '',
+                        internal_subject: row.internal_subject ?? '',
+                        internal_body: row.internal_body ?? '',
+                        notice: parse(row.notice, prev.notice),
+                        shop: parse(row.shop, prev.shop),
+                        date: parse(row.date, prev.date),
+                        name: parse(row.name, prev.name),
+                        kana: parse(row.kana, prev.kana),
+                        age: parse(row.age, prev.age),
+                        phone: parse(row.phone, prev.phone),
+                        mail: parse(row.mail, prev.mail),
+                        address: parse(row.address, prev.address),
+                        medium: parse(row.medium, prev.medium),
+                        question: parse(row.question, prev.question),
+                        attention: parse(row.attention, prev.attention),
+                    }));
                 } catch (error) {
-                    console.error("データ取得エラー:", error);
+                    // ⚠️ 黙らない。利用者には「修正を押したのに反映されない」としか見えない
+                    console.error("キャンペーン設定の取得に失敗:", error);
+                    setLoadError('キャンペーン設定を読み込めませんでした。');
                 }
             } else {
                 try {
-                    const headers = { Authorization: 'form_database', 'Content-Type': 'application/json' };
-                    const response = await axios.post("https://khg-marketing.info/api/", { brand: brandValue }, { headers });
+                    const response = { data: await fetchMaster(String(brandValue ?? '')) };
                     setForm({
                         brand: response.data.brand,
                         campaign: '',
@@ -226,6 +297,11 @@ const NewCampaign = () => {
                         thanks: Boolean(response.data.thanks),
                         redirect: response.data.redirect,
                         img_code: response.data.img_code,
+                        // ⚠️ form_database（ブランド既定値）にひな型の列は無い。新規は常に空＝既定
+                        thanks_subject: '',
+                        thanks_body: '',
+                        internal_subject: '',
+                        internal_body: '',
                         notice: JSON.parse(response.data.notice),
                         shop: JSON.parse(response.data.shop),
                         date: JSON.parse(response.data.date),
@@ -314,6 +390,87 @@ const NewCampaign = () => {
 
 
 
+    type TemplateKey = 'thanks_subject' | 'thanks_body' | 'internal_subject' | 'internal_body';
+
+    const changeTemplate = (key: TemplateKey, value: string) => {
+        setForm(prev => ({ ...prev, [key]: value }));
+    };
+
+    /**
+     * メール文面の編集欄。
+     *
+     * ⚠️⚠️ **空欄＝既定の文面**である。
+     *   ⚠️ 既定の本文はここに書き写していない（② が持っている）。
+     *     ⚠️ 写すと、既定を直しても画面だけ古いままになる。
+     *   ⚠️ したがって「既定に戻す」は**空にするだけ**でよい。
+     *
+     * ⚠️ 差し込み語は `{{ }}` で書く。⚠️ 知らない語はそのまま本文に残る。
+     *   ⚠️ 気づけるよう、保存前にここで知らせる。
+     */
+    const mailTemplateEditor = (subjectKey: TemplateKey, bodyKey: TemplateKey, note: string) => {
+        const subject = form[subjectKey];
+        const body = form[bodyKey];
+        const unknown = [...unknownPlaceholders(subject), ...unknownPlaceholders(body)];
+        const isDefault = subject.trim() === '' && body.trim() === '';
+
+        return (
+            <div>
+                <div className="d-flex align-items-center mb-2" style={{ gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: '#666' }}>{note}</span>
+                    <span style={{
+                        fontSize: '11px', padding: '2px 10px', borderRadius: '999px',
+                        backgroundColor: isDefault ? '#eef2f7' : '#fff7ed',
+                        color: isDefault ? '#4b5563' : '#b45309',
+                    }}>
+                        {isDefault ? '既定の文面' : 'このキャンペーン専用'}
+                    </span>
+                    {isDefault ||
+                        <button type="button"
+                            onClick={() => { changeTemplate(subjectKey, ''); changeTemplate(bodyKey, ''); }}
+                            style={{
+                                fontSize: '11px', border: '1px solid #d1d5db', borderRadius: '999px',
+                                background: '#fff', padding: '2px 12px', cursor: 'pointer',
+                            }}>
+                            既定に戻す
+                        </button>}
+                </div>
+
+                <input type="text" className="form-control mb-2" value={subject}
+                    placeholder="件名（空欄なら既定）"
+                    onChange={(e) => changeTemplate(subjectKey, e.target.value)}
+                    style={{ fontSize: '12px' }} />
+
+                <textarea value={body} rows={10}
+                    placeholder="本文（空欄なら既定の文面が送られます）"
+                    onChange={(e) => changeTemplate(bodyKey, e.target.value)}
+                    style={{
+                        width: '100%', border: '1px solid #D3D3D3', borderRadius: '7px',
+                        fontSize: '12px', letterSpacing: '.7px', padding: '6px',
+                    }} />
+
+                {unknown.length === 0 ||
+                    <div style={{ color: '#b45309', fontSize: '12px', marginTop: '4px' }}>
+                        {`差し込めない語があります：${unknown.map(k => `{{${k}}}`).join(' ')}`}
+                        <span className="ms-1">そのまま本文に出ます。</span>
+                    </div>}
+
+                <details style={{ marginTop: '6px' }}>
+                    <summary style={{ fontSize: '12px', cursor: 'pointer', color: '#2563eb' }}>
+                        使える差し込み語
+                    </summary>
+                    <div style={{ fontSize: '11px', color: '#4b5563', lineHeight: 1.9, marginTop: '4px' }}>
+                        {PLACEHOLDERS.map(item => (
+                            <div key={item.key}>
+                                <code>{`{{${item.key}}}`}</code>
+                                {!item.note || <span className="ms-2">{item.note}</span>}
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            </div>
+        );
+    };
+
     const postForm = async () => {
         console.log(form);
         setValidation([]);
@@ -333,17 +490,13 @@ const NewCampaign = () => {
         const fetchData = async () => {
             if (idValue) {
                 try {
-                    const headers = { Authorization: 'form_update', 'Content-Type': 'application/json' };
-                    const responseData = await axios.post("https://khg-marketing.info/api/", form, { headers });
-                    await setResponse(responseData.data);
+                    setResponse(await updateCampaign(form));
                 } catch (error) {
                     console.error("データ取得エラー:", error);
                 }
             } else {
                 try {
-                    const headers = { Authorization: 'form_post', 'Content-Type': 'application/json' };
-                    const responseData = await axios.post("https://khg-marketing.info/api/", form, { headers });
-                    await setResponse(responseData.data);
+                    setResponse(await insertCampaign(form));
                 } catch (error) {
                     console.error("データ取得エラー:", error);
                 }
@@ -367,13 +520,29 @@ const NewCampaign = () => {
                 <div className="table-wrapper">
                     <div className="list_table">
                         <div className='bg-light w-75' style={{ position: 'fixed', bottom: '0', height: '130px', zIndex: '100' }}>
-                            <div className="p-3 rounded-pill hover" style={{ width: '400px', margin: '40px auto', textAlign: 'center', cursor: 'pointer', backgroundColor: 'blue', color: '#fff' }} onClick={() => postForm()}>{!idValue ? '入力内容でキャンペーン登録' : '入力内容でキャンペーン修正'}</div>
+                            <div className="p-3 rounded-pill" style={{ width: '400px', margin: '40px auto', textAlign: 'center', cursor: 'pointer', backgroundColor: 'blue', color: '#fff', textDecoration: 'none' }} onClick={() => postForm()}>{!idValue ? '入力内容でキャンペーン登録' : '入力内容でキャンペーン修正'}</div>
                         </div>
                         <div className="bg-white" style={{ width: '90%', maxWidth: '960px', margin: '0 auto', paddingBottom: '200px' }}>
                             <div className="pt-3" style={{ width: '200px', margin: '0 auto' }}>
                                 <img src={`https://khg-marketing.info/dashboard/form/img/${brandValue}.png`} className="w-100" />
                             </div>
-                            <div className="w-100 pt-3" style={{ fontSize: '15px', textAlign: 'center', marginBottom: '30px' }}>キャンペーン作成</div>
+                            <div className="w-100 pt-3" style={{ fontSize: '15px', textAlign: 'center', marginBottom: '30px' }}>
+                                {idValue ? 'キャンペーン修正' : 'キャンペーン作成'}
+                            </div>
+
+                            {/**
+                              * ⚠️⚠️ **読み込めなかったことを必ず画面に出す。**
+                              *   ⚠️ 出さないと「修正を押したのに反映されない」としか見えず、
+                              *     利用者にも受けた側にも原因が分からない。
+                              */}
+                            {!loadError ||
+                                <div className="border rounded p-3 mb-4 text-center"
+                                    style={{ fontSize: '13px', color: '#dc3545', backgroundColor: '#fff5f5' }}>
+                                    {loadError}<br />
+                                    <span style={{ fontSize: '11px', color: '#666' }}>
+                                        このまま保存すると内容が上書きされます。一覧に戻ってやり直してください。
+                                    </span>
+                                </div>}
                             <Table style={{ width: '90%', margin: '0 auto' }}>
                                 <tbody style={{ border: '1px solid #d3d3d3ff' }}>
                                     <tr style={{ fontSize: '13px' }}>
@@ -437,6 +606,22 @@ const NewCampaign = () => {
                                     </tr>
                                     <tr style={{ fontSize: '13px' }}>
                                         <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
+                                            サンクスメールの文面
+                                        </td>
+                                        <td>
+                                            {mailTemplateEditor('thanks_subject', 'thanks_body', 'お客様へ届くメールです。')}
+                                        </td>
+                                    </tr>
+                                    <tr style={{ fontSize: '13px' }}>
+                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
+                                            通知メールの文面
+                                        </td>
+                                        <td>
+                                            {mailTemplateEditor('internal_subject', 'internal_body', '社内（反響アドレス）へ届くメールです。')}
+                                        </td>
+                                    </tr>
+                                    <tr style={{ fontSize: '13px' }}>
+                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
                                             リダイレクトURL
                                         </td>
                                         <td>
@@ -468,6 +653,36 @@ const NewCampaign = () => {
                                             <div>来場希望場所</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.shop.bool} onChange={() => changeForm('shop')} /></div>
                                         </td>
                                         <td>
+                                            {/**
+                                              * ⚠️⚠️ **聞かないときは、代わりに入れておく値を選ばせる**（2026-09-16 の指示）。
+                                              *   ⚠️ 例: 店舗が1つに決まっているLPで、来場希望場所を尋ねずに固定する。
+                                              *   ⚠️ 空のままなら今までどおり（何も入らない）。
+                                              *   ⚠️ 候補は下の「選択肢」をそのまま使う。**別に持たせない**
+                                              *     （持たせると選択肢を直したときに片方だけ古くなる）。
+                                              */}
+                                            {form.shop.bool ||
+                                                <div className="mb-3 p-2" style={{ backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
+                                                    <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+                                                        聞かない代わりに、この値で登録する
+                                                    </div>
+                                                    <select
+                                                        value={form.shop.default ?? ''}
+                                                        style={{ fontSize: '13px', padding: '3px 6px', minWidth: '260px', maxWidth: '100%' }}
+                                                        onChange={(e) => setForm(prev => ({
+                                                            ...prev,
+                                                            shop: { ...prev.shop, default: e.target.value }
+                                                        }))}
+                                                    >
+                                                        <option value="">指定しない</option>
+                                                        {form.shop.shopName.map((item, index) =>
+                                                            <option key={index} value={item}>{item}</option>)}
+                                                    </select>
+                                                    {form.shop.shopName.length > 0 ||
+                                                        <div className="text-muted" style={{ fontSize: '11px', marginTop: '4px' }}>
+                                                            ⚠️ 選択肢がまだありません。下で追加すると選べます。
+                                                        </div>}
+                                                </div>}
+
                                             <div>
                                                 <div className="d-flex align-items-center mb-2">
                                                     <div>
@@ -1431,7 +1646,7 @@ const NewCampaign = () => {
                                                             }></textarea>
                                                     </div>
                                                     {!form.attention.bool_red || <>
-                                                        <div className="hover" style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer' }}
+                                                        <div style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer', textDecoration: 'none' }}
                                                             onClick={() => {
                                                                 const modal = document.querySelector('#modal') as HTMLElement;
                                                                 modal.style.display = 'block'
@@ -1451,7 +1666,7 @@ const NewCampaign = () => {
                                                                             }))
                                                                         }></textarea>
                                                                 </div>
-                                                                <div className="hover" style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer' }}
+                                                                <div style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer', textDecoration: 'none' }}
                                                                     onClick={() => {
                                                                         const modal = document.querySelector('#modal') as HTMLElement;
                                                                         modal.style.display = 'none'
