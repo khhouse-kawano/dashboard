@@ -38,6 +38,15 @@ export interface MailMessage {
   subject: string;
   /** プレーンテキスト本文。⚠️ HTMLメールは使わない（迷惑メール判定が厳しくなる） */
   text: string;
+  /**
+   * 差出人の表示名。
+   *
+   * ⚠️⚠️ **省略すると `SMTP_FROM` の表示名がそのまま出る。**
+   *   ⚠️ `SMTP_FROM` は1つしか持てないため、ブランドごとに送り分ける処理では
+   *     **必ず渡すこと**。渡さないと**全部同じブランド名で届く**。
+   *   ⚠️ アドレスは変えない（変えると送信元として認められず弾かれる）。
+   */
+  fromName?: string;
   attachments?: MailAttachment[];
 }
 
@@ -96,6 +105,34 @@ const getTransporter = (): Transporter | null => {
 };
 
 /**
+ * `SMTP_FROM` からメールアドレスだけを取り出す。
+ *
+ * ⚠️ `SMTP_FROM` は `国分ハウジング <noreply@example.jp>` の形でも
+ *   `noreply@example.jp` だけの形でも書ける。⚠️ どちらでも拾えること。
+ */
+const addressOf = (from: string): string => {
+  const matched = /<([^<>]+)>/.exec(from);
+  return (matched === null ? from : matched[1]).trim();
+};
+
+/**
+ * 差出人を組み立てる。
+ *
+ * ⚠️⚠️ **アドレスは `SMTP_FROM` のものから変えない。**
+ *   ⚠️ 送信元として認められていないアドレスにすると、まるごと弾かれる。
+ *   ⚠️ 差し替えてよいのは**表示名だけ**。
+ *
+ * ⚠️ 表示名は必ず `sanitizeHeader` を通す。⚠️ ブランド名は DB 由来なので、
+ *   改行が混ざるとヘッダを追加される。
+ */
+const buildFrom = (fromName?: string): string | { name: string; address: string } => {
+  const name = sanitizeHeader(fromName ?? '');
+  // ⚠️ 空なら今までどおり SMTP_FROM をそのまま使う
+  if (name === '') return env.smtp.from;
+  return { name, address: addressOf(env.smtp.from) };
+};
+
+/**
  * 1通送る。送れたら true。
  *
  * ⚠️ 呼び出し側で try / catch を書かなくてよいようにしてある。
@@ -114,7 +151,7 @@ export const sendMail = async (message: MailMessage): Promise<boolean> => {
 
   try {
     await mailer.sendMail({
-      from: env.smtp.from,
+      from: buildFrom(message.fromName),
       to,
       // ⚠️ noreply から送るため、これが無いと顧客の返信が誰にも届かない
       replyTo: env.smtp.replyTo === '' ? undefined : env.smtp.replyTo,

@@ -48,7 +48,15 @@ const NIERU: BrandSpec = {
     questionnaire: 'https://khg-marketing.info/survey_2l/',
 };
 const FH: BrandSpec = {
-    value: 'FH', name: 'フルコミコーム', shopPrefix: 'FH',
+    /**
+     * ⚠️⚠️ **`name` は「フルコミホーム」。** ⚠️ 移植元（① の PHP）は
+     *   **`フルコミコーム` という誤字**で、⚠️ 今も本番のメールがその名前で届いている。
+     *   ⚠️ 今までは差出人名が `SMTP_FROM` の「国分ハウジング」で固定されており
+     *     誤字は表に出ていなかったが、⚠️ v2.2.134 で**顧客に見えるようになる**ため直した
+     *     （2026-09-16 に利用者と確認）。
+     * ⚠️ `value`（`FH`）と `shopPrefix`（`FH`）は**既存データの表記なので触らない**。
+     */
+    value: 'FH', name: 'フルコミホーム', shopPrefix: 'FH',
     questionnaire: 'https://khg-marketing.info/survey_fh/',
 };
 const PG: BrandSpec = {

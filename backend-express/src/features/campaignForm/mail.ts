@@ -137,6 +137,12 @@ export const sendCustomerThanks = async (input: ThanksInput): Promise<void> => {
         // ⚠️ 件名はヘッダに入る。⚠️ ひな型はDBの値なので、必ずここで無害化する
         subject: sanitizeHeader(subject),
         text: body,
+        /**
+         * ⚠️⚠️ **差出人名はブランドごとに変える。**
+         *   ⚠️ 渡さないと `SMTP_FROM` の表示名（1つだけ）が出るため、
+         *     **全ブランドが同じ名前で届く**。① は差し替えていた。
+         */
+        fromName: input.brandName,
     });
 
     if (!ok) {
@@ -191,6 +197,8 @@ export const sendInternalNotice = async (input: NoticeInput): Promise<void> => {
         // ⚠️ 件名はヘッダに入る。⚠️ ひな型はDBの値なので、必ずここで無害化する
         subject: sanitizeHeader(subject),
         text: body,
+        // ⚠️ 社内宛もブランド名で届く（① と同じ）
+        fromName: input.brandName,
     });
 
     if (!ok) {
