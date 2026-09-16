@@ -111,6 +111,42 @@ export const brandOf = (raw: string): BrandSpec | null =>
     BRANDS[(raw ?? '').trim()] ?? null;
 
 /**
+ * 送られてきた `brand` → **`form_table.brand` に入っているキー**。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **公開フォームが送る `brand` は、`form_table.brand` と一致しない。**
+ *
+ *   ⚠️ 公開フォームは送信の直前に
+ *       `brand: form.brand === 'nagomi' ? 'なごみ' : form.brand`
+ *     と**かなへ書き換える**（① の PHP がかなでしか判定しないため）。
+ *     ⚠️ ところが `form_table.brand` は **`nagomi`（ローマ字）**である。
+ *
+ *   ⚠️ KHG 共通フォームはさらに、**選んだ店舗のブランドへ書き換える**
+ *     （`khg` → `kh` など）。⚠️ `form_table` の行は `khg` のままである。
+ *
+ *   ⚠️⚠️ **そのまま引くと行が見つからず、メールが1通も飛ばない。**
+ *     ⚠️ 反響は保存されるので**成功に見える**（2026-09-16 に実際に起きた）。
+ *
+ * ⚠️ `campaign_id` だけで引いてはいけない。
+ *   ⚠️ **別ブランドで同じ campaign_id が5組ある**（実データ）。
+ *     通知先が別ブランドのものになる。
+ * ─────────────────────────────────────────────
+ */
+const FORM_TABLE_BRAND: Record<string, string> = {
+    // ⚠️ かな → ローマ字（form_table はローマ字）
+    'なごみ': 'nagomi',
+    // ⚠️ 本番とローカルで割れていた名残
+    nieru: '2l',
+};
+
+export const formTableBrand = (raw: string, isKhgForm = false): string => {
+    const value = (raw ?? '').trim();
+    // ⚠️ KHG 共通フォームの設定は必ず `khg` の行にある
+    if (isKhgForm) return 'khg';
+    return FORM_TABLE_BRAND[value] ?? value;
+};
+
+/**
  * 事前アンケートのURL。
  *
  * ⚠️ `khg`（グループ共通フォーム）だけは、**選ばれた店舗名**で決まる。

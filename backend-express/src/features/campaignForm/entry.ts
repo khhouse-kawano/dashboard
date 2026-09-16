@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query } from '../../db/pool';
 import { logger } from '../../utils/logger';
-import { brandOf, questionnaireFor } from './brands';
+import { brandOf, formTableBrand, questionnaireFor } from './brands';
 import { sendCustomerThanks, sendInternalNotice } from './mail';
 import { clean, cleanMultiline, dateOnly, dateTime, stamp } from './text';
 
@@ -154,26 +154,43 @@ export const runCampaignFormEntry = async (
         return { httpStatus: 400, body: { status: 'error', message: '登録に失敗しました。' } };
     }
 
+    /**
+     * ⚠️⚠️ **KHG 共通フォームからの送信かどうか。**
+     *   ⚠️ 判定に `brand` は使えない。⚠️ 公開フォームが送信前に
+     *     **選んだ店舗のブランドへ書き換えてしまう**ため、
+     *     ここへ届く `brand` は `khg` ではなく `kh` などになっている。
+     *   ⚠️ KHG 共通フォームの「来場希望場所」は**ブランド名そのもの**なので、
+     *     それで判定できる。
+     */
+    const isKhgForm = KHG_BRAND[a.shop] !== undefined;
+
     // ---- 1. フォーム設定を引く ----
     // ⚠️⚠️ 通知先・サンクス送信の可否は**必ずここから**。リクエストの値は使わない
+    const lookupBrand = formTableBrand(rawBrand, isKhgForm);
+
     const forms = await query<FormRow>(
         'SELECT campaign, campaign_id, brand, mail_to, mail_cc, redirect, thanks,'
         + ' thanks_subject, thanks_body, internal_subject, internal_body'
         + ' FROM form_table WHERE brand = ? AND campaign_id = ? LIMIT 1',
-        [rawBrand, a.campaignId]
+        [lookupBrand, a.campaignId]
     );
     const form = forms[0];
 
     if (!form) {
-        // ⚠️ 設定が無いフォームからの送信。⚠️ 反響は捨てず、通知だけ出せない形で進める
+        /**
+         * ⚠️ 設定が無いフォームからの送信。⚠️ 反響は捨てず、通知だけ出せない形で進める。
+         * ⚠️⚠️ **ここに落ちるとメールが1通も飛ばない。** 見かけ上は成功するので、
+         *   ⚠️ 引いたキーも必ず残すこと（2026-09-16 に原因の特定へ丸1時間かかった）。
+         */
         logger.warn(
-            `campaign_form:entry: form_table に無い組み合わせです brand="${rawBrand}" campaign_id="${a.campaignId}"`
+            `campaign_form:entry: form_table に無い組み合わせです`
+            + ` brand="${rawBrand}" 引いたキー="${lookupBrand}" campaign_id="${a.campaignId}"`
         );
     }
 
     // ---- 2. ブランドを解決する ----
     // ⚠️ khg のときは選ばれた店舗で実ブランドが決まる（元はフロントの分岐）
-    const effectiveBrand = rawBrand === 'khg' ? (KHG_BRAND[a.shop] ?? rawBrand) : rawBrand;
+    const effectiveBrand = isKhgForm ? (KHG_BRAND[a.shop] ?? rawBrand) : rawBrand;
     const spec = brandOf(effectiveBrand);
 
     if (!spec) {
@@ -296,8 +313,9 @@ export const runCampaignFormEntry = async (
     }
 
     if (form) {
-        // ⚠️ khg のときだけ店舗別の Cc で上書きする（元はフロントの分岐）
-        const cc = rawBrand === 'khg' ? (KHG_CC[a.shop] ?? form.mail_cc) : form.mail_cc;
+        // ⚠️ KHG 共通フォームのときだけ店舗別の Cc で上書きする（元はフロントの分岐）
+        // ⚠️ rawBrand では判定できない（書き換えられている）。isKhgForm を使う
+        const cc = isKhgForm ? (KHG_CC[a.shop] ?? form.mail_cc) : form.mail_cc;
         await sendInternalNotice({
             to: form.mail_to,
             cc,
