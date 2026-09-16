@@ -87,6 +87,7 @@ import {
   runCampaignFormUpdate,
 } from '../features/campaignForm';
 import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaignForm/entry';
+import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
 import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
@@ -1777,4 +1778,32 @@ register({
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
+});
+
+// ---------------------------------------------------------------------------
+// 他社広告ライブラリ（meta_ads）
+//
+// ⚠️⚠️ **移植元は1つの request で読み書きを兼ねていた**
+//   （backend/src/handlers/meta_ads.php。`id` があれば更新、無ければ一覧）。
+//   ⚠️ そのため ① の許可リストに **request 名だけで載せてはいけない。**
+//     載せると書き込みまで ② へ流れ、PHP 側と二重に走る経路ができる。
+//   ⚠️ roll で分けてある。許可リストにも roll 込みで書くこと。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'meta_ads',
+  roll: 'list',
+  summary: '他社広告ライブラリの一覧（バナー・広告主・エリア）',
+  phpSource: 'backend/src/handlers/meta_ads.php',
+  auth: 'staff',
+  handler: async () => runMetaAdsList(),
+});
+
+register({
+  request: 'meta_ads',
+  roll: 'bookmark',
+  summary: '【書き込み】他社広告のブックマーク',
+  phpSource: 'backend/src/handlers/meta_ads.php',
+  auth: 'staff',
+  handler: async (ctx) => runMetaAdsBookmark(ctx.body),
 });
