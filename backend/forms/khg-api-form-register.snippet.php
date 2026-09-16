@@ -60,6 +60,37 @@ function khgSanitizeHeader($value)
 }
 
 // ---------------------------------------------------------------------------
+// 1-2. 店舗名（⚠️ 空のときに「店舗未設定」を付ける）
+// ---------------------------------------------------------------------------
+
+/**
+ * `inquiry_customer.shop` に入れる値。
+ *
+ * ⚠️⚠️ **既存の bindValue を、この関数の呼び出しに置き換えること。**
+ *
+ *   置き換え前（`form_register` と `registration:homepage` の2か所）:
+ *     $stmt->bindValue(':shop',
+ *         $brand_value === 'PG HOUSE' ? 'PGH' . $data['shop'] : $brand_value . $data['shop'],
+ *         PDO::PARAM_STR);
+ *
+ *   置き換え後:
+ *     $stmt->bindValue(':shop', khgShopValue($brand_value, $data['shop'] ?? ''), PDO::PARAM_STR);
+ *
+ * ⚠️⚠️ **来場希望場所を聞かないフォームが89件ある。**
+ *   ⚠️ そのとき今は `KH` のように**接頭辞だけ**が入り、
+ *     反響一覧で店舗が分からず営業が困る（2026-09-16 の指示）。
+ *   ⚠️ 空のときは `KH店舗未設定` のようにする。② と同じ扱い。
+ *
+ * ⚠️ PG HOUSE だけ接頭辞が 'PGH'。⚠️ brand の値をそのまま使わない。
+ */
+function khgShopValue($brandValue, $shop)
+{
+    $prefix = ($brandValue === 'PG HOUSE') ? 'PGH' : (string)$brandValue;
+    $shop = trim((string)$shop);
+    return $prefix . ($shop === '' ? '店舗未設定' : $shop);
+}
+
+// ---------------------------------------------------------------------------
 // 2. 差し込み（② の mailTemplate.ts と同じ規則）
 // ---------------------------------------------------------------------------
 

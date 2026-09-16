@@ -45,7 +45,19 @@ import { UNIT_PRICE_SERIES_SPEC } from '../shop/unitPriceSeries';
 type Customer = Record<string, string>;
 type Budget = { id: number; medium: string; budget_period: string; shop: string; budget_value: number; note: string; company: string; response_medium: number; category: string; section: string; order_section: string }
 type Shop = { id: number; brand: string; shop: string; section: string; area: string; }
-type Medium = { id: number; medium: string }
+/**
+ * ⚠️ 実データ（medium_kaeru）は `id` ではなく **`no`** を返す。
+ *   ⚠️ `show_graph` は 2026-09-11 に足した列。
+ *     backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql を先に実行すること。
+ */
+type Medium = { id?: number; no?: number; medium: string; show_graph?: number | string }
+
+/**
+ * ⚠️⚠️ **`show_graph = 0` の媒体をまとめる行の名前。**
+ *   ⚠️ 実在の媒体名と重ならないこと。`medium_kaeru` に同名があると
+ *     その媒体だけ二重に数えられる。
+ */
+const HOMEPAGE_ROW = 'ホームページ反響';
 type Section = { no: number, name: string }
 
 const CustomerKaeru = () => {
@@ -139,6 +151,37 @@ const CustomerKaeru = () => {
         });
     }, [originalBudgetList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
 
+    /**
+     * ⚠️⚠️ **まとめる側の媒体（`show_graph = 0`）の名前一覧。**
+     *   ⚠️ これらは1行「ホームページ反響」にまとめる（2026-09-16 の指示）。
+     *   ⚠️ `Number()` を通すこと。DB から `"0"` / `"1"` の文字列で来ることがあり、
+     *     `=== 1` の厳密比較だと**全部 false になって行が消える**。
+     */
+    const groupedMediums = useMemo(
+        () => mediumArray.filter(m => Number(m.show_graph) !== 1).map(m => m.medium),
+        [mediumArray]
+    );
+
+    /**
+     * 表の行。
+     *
+     * ⚠️⚠️ **並びは「総反響 → show_graph=1 の媒体 → ホームページ反響」。**
+     *   ⚠️ 総反響を先頭にするのは shop/ShopKaeru.tsx の「グループ全体」に揃えるため。
+     *     グラフのX軸も同じ並びになるので、表と突き合わせられる。
+     *   ⚠️ まとめ行は**末尾**。個別の媒体より先に出すと、内訳に見えて誤読される。
+     *
+     * ⚠️⚠️ **`show_graph` 列がまだ無いと、全媒体が「ホームページ反響」に入る。**
+     *   ⚠️ `undefined` は `Number()` で NaN になり `!== 1` が真になるため。
+     *   ⚠️ その場合は backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql
+     *     が未実行。**表は出るので気づきにくい。**
+     */
+    const rows = useMemo<Medium[]>(() => {
+        const shown = mediumArray.filter(m => Number(m.show_graph) === 1);
+        const base: Medium[] = [{ medium: '総反響' }, ...shown];
+        // ⚠️ まとめる媒体が1つも無ければ、空の行を作らない
+        return groupedMediums.length > 0 ? [...base, { medium: HOMEPAGE_ROW }] : base;
+    }, [mediumArray, groupedMediums]);
+
     /** 単価。⚠️ 分母が0や未定義なら null（表では '-'、グラフでは 0） */
     const unitPrice = (budget: number, count: number): number | null =>
         isFinite(budget / count) ? Math.round(budget / count) : null;
@@ -149,10 +192,23 @@ const CustomerKaeru = () => {
          *   2026-09-14 まで末尾だった。shop/ShopKaeru.tsx の「グループ全体」に
          *   揃えてある。⚠️ グラフのX軸も同じ並びになるので、表と突き合わせられる。
          */
-        return [{ id: 0, medium: '総反響' }, ...mediumArray].map(value => {
-            const base = filteredCustomers.filter(
-                c => value.medium === '総反響' || c.medium === value.medium
-            );
+        return rows.map(value => {
+            /**
+             * ⚠️⚠️ **行ごとに拾う顧客の決め方が3通りある。**
+             *   総反響           … 全部
+             *   ホームページ反響 … ⚠️ `show_graph = 0` の媒体**だけ**の合計
+             *   それ以外         … その媒体だけ
+             *
+             * ⚠️ 「総反響から show_graph=1 の分を引く」形にはしていない。
+             *   ⚠️ 媒体が空だったり medium_kaeru に無い値の反響が混ざると、
+             *     引き算では**それらが黙って「ホームページ反響」に入る。**
+             *   ⚠️ 足し算なら、拾えていない反響は表に出ない＝気づける。
+             */
+            const base = filteredCustomers.filter(c => {
+                if (value.medium === '総反響') return true;
+                if (value.medium === HOMEPAGE_ROW) return groupedMediums.includes(c.medium);
+                return c.medium === value.medium;
+            });
 
             /**
              * ⚠️⚠️ **判定は shop/ShopKaeru.tsx の `filteredValue()` と同じもの。**
@@ -192,8 +248,13 @@ const CustomerKaeru = () => {
             const rankBValue = base.filter(item => item.rank === 'Bランク').length;
             const rankCValue = base.filter(item => item.rank === 'Cランク').length;
 
+            // ⚠️ 販促費も行の決め方に合わせる。⚠️ 顧客と揃えないと単価が合わない
             const totalBudget = filteredBudgets
-                .filter(item => value.medium === '総反響' || item.medium === value.medium)
+                .filter(item => {
+                    if (value.medium === '総反響') return true;
+                    if (value.medium === HOMEPAGE_ROW) return groupedMediums.includes(item.medium);
+                    return item.medium === value.medium;
+                })
                 .reduce((acc, cur) => acc + cur.budget_value, 0);
 
             return {
@@ -217,7 +278,7 @@ const CustomerKaeru = () => {
                 contractUnit: unitPrice(totalBudget, contractValue),
             };
         });
-    }, [mediumArray, filteredCustomers, filteredBudgets]);
+    }, [rows, groupedMediums, filteredCustomers, filteredBudgets]);
 
     /**
      * 単価グラフのデータ。
