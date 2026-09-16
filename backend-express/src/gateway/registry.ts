@@ -87,6 +87,7 @@ import {
   runCampaignFormUpdate,
 } from '../features/campaignForm';
 import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaignForm/entry';
+import { runLostList } from '../features/lostList';
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
 import { runShopList } from '../features/shopList';
@@ -1806,4 +1807,23 @@ register({
   phpSource: 'backend/src/handlers/meta_ads.php',
   auth: 'staff',
   handler: async (ctx) => runMetaAdsBookmark(ctx.body),
+});
+
+// ---------------------------------------------------------------------------
+// 失注一覧
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在するので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️⚠️ **移植元は master_data を全件返していた。**
+//   ⚠️ 画面が受け取ったあとで失注だけに絞っていたため、
+//     使わない行まで送っていた。⚠️ ここでは SQL 側で絞る。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'lostList',
+  summary: '失注一覧（未入力の失注理由・失注先の確認用）',
+  phpSource: 'backend/src/handlers/lostList.php',
+  auth: 'staff',
+  handler: async () => runLostList(),
 });

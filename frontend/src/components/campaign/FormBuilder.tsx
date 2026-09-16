@@ -262,8 +262,9 @@ const FormBuilder: React.FC<Props> = ({ activeTab }) => {
                 </div>
 
                 <div className="mb-4">
-                    <button onClick={generate} className="hover"
-                        style={{ backgroundColor: 'blue', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 28px', fontSize: '13px' }}>
+                    {/* ⚠️ `hover` は共通CSSで下線が付く。ボタンには要らないので使わない */}
+                    <button onClick={generate}
+                        style={{ backgroundColor: 'blue', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 28px', fontSize: '13px', cursor: 'pointer' }}>
                         HTMLを作成
                     </button>
                 </div>
@@ -273,8 +274,8 @@ const FormBuilder: React.FC<Props> = ({ activeTab }) => {
                     <div>
                         <div className="d-flex align-items-center mb-2" style={{ gap: '12px' }}>
                             <div style={{ fontSize: '13px' }}>生成されたHTML</div>
-                            <button onClick={copy} className="hover"
-                                style={{ backgroundColor: '#444', color: '#fff', border: 'none', borderRadius: '14px', padding: '2px 14px', fontSize: '12px' }}>
+                            <button onClick={copy}
+                                style={{ backgroundColor: '#444', color: '#fff', border: 'none', borderRadius: '14px', padding: '2px 14px', fontSize: '12px', cursor: 'pointer' }}>
                                 コピー
                             </button>
                             {!copied || <span style={{ fontSize: '12px', color: 'green' }}>コピーしました</span>}

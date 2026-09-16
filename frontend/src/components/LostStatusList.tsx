@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react'
 import { Table, Modal, Button, Form, Badge, ButtonGroup } from "react-bootstrap";
-import axios from 'axios';
-import { headers } from '../utils/headers';
+import apiClient from '../utils/apiClient';
 import InformationEdit from './information/InformationEdit';
 import AuthContext from '../context/AuthContext';
 
@@ -30,7 +29,13 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
         if (!loseListShow) return;
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'lostList' }, { headers });
+                /**
+                 * ⚠️⚠️ **`apiClient` を使う。URL を直接書かない。**
+                 *   ⚠️ 以前は本番のURLが直書きで、**Token を送っていなかった**
+                 *     （`headers` は Authorization だけ）。
+                 *   ⚠️ `apiClient` なら Token が自動で付き、② 側の認証が効く。
+                 */
+                const response = await apiClient.post('', { request: 'lostList' });
                 const filteredLoseLength = response.data.customer.filter(item => {
                     const now = new Date();
                     const today = now.getTime();

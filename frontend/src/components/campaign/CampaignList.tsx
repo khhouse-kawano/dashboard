@@ -9,7 +9,8 @@ import { CAMPAIGN_BRANDS, brandLabel, brandLogo } from './brands';
  *
  * ⚠️ 2026-09-16 に表からカードへ変えた。
  *   ⚠️ 埋め込みタグが長く、表のままでは1行が縦に伸びて読めなかった。
- *   ⚠️ タグは既定で畳んである（常に出すと1件で画面が埋まる）。
+ *   ⚠️ フォームタグは常に出す（2026-09-16 の指示）。
+ *   ⚠️ 横長・最大2カラム。狭い画面では1列に落ちる。
  */
 
 interface CampaignListProps {
@@ -22,8 +23,6 @@ const CampaignList: React.FC<CampaignListProps> = () => {
     /** ⚠️ 取得に失敗したことを画面に出すため。空なら問題なし */
     const [loadError, setLoadError] = useState<string>('');
     const [keyword, setKeyword] = useState<string>('');
-    /** どのカードの埋め込みタグを開いているか */
-    const [openTag, setOpenTag] = useState<string>('');
     const [copied, setCopied] = useState<string>('');
     const navigate = useNavigate();
 
@@ -78,8 +77,8 @@ const CampaignList: React.FC<CampaignListProps> = () => {
             window.setTimeout(() => setCopied(''), 2000);
         } catch {
             // ⚠️ 権限が無い環境がある。黙らずに手動コピーを促す
-            setOpenTag(item.campaign_id);
-            setLoadError('コピーできませんでした。開いたタグを選択してコピーしてください。');
+            //   ⚠️ タグは常に出しているので、そのまま選択してもらえる
+            setLoadError('コピーできませんでした。下のフォームタグを選択してコピーしてください。');
         }
     };
 
@@ -106,15 +105,34 @@ const CampaignList: React.FC<CampaignListProps> = () => {
                         {CAMPAIGN_BRANDS.map(item => (
                             <div
                                 key={item}
-                                className="bg-white shadow-sm rounded-3 p-3 d-flex flex-column align-items-center hover"
-                                style={{ cursor: 'pointer', border: '1px solid #e9ecef' }}
+                                className="bg-white shadow-sm rounded-3 p-3 d-flex align-items-center justify-content-center"
+                                /**
+                                 * ⚠️⚠️ **`hover` クラスを使わない。**
+                                 *   ⚠️ 共通CSS（App.css / index.css）の `.hover` は
+                                 *     `text-decoration: underline` と `color: blue` を付けるため、
+                                 *     ⚠️ **カード全体に下線が入る**。
+                                 *   ⚠️ `.hover` は他の8ファイルでも使われているので**共通CSSは触らない**。
+                                 *     ここでは必要な `cursor` だけ自前で指定する。
+                                 *
+                                 * ⚠️⚠️ **高さを固定する。**
+                                 *   ⚠️ ロゴの縦横比がブランドごとに違う（横長のものと正方形に近いものがある）。
+                                 *     ⚠️ 高さを決めないと**カードの丈が揃わず、上揃えで不格好になる**。
+                                 *   ⚠️ 中身は上下左右とも中央に置く。
+                                 */
+                                style={{
+                                    cursor: 'pointer', border: '1px solid #e9ecef', textDecoration: 'none',
+                                    height: '110px',
+                                }}
                                 onClick={() => setBrandValue(item)}
                             >
+                                {/* ⚠️ ロゴ下の日本語表記は出さない（2026-09-16 の指示）。
+                                      ⚠️ alt には残す。読み上げと画像が出ないときに要る */}
+                                {/* ⚠️ `maxHeight` を付けないと、縦長のロゴがカードからはみ出す */}
                                 <img src={brandLogo(item)} alt={brandLabel(item)}
-                                    style={{ width: '100%', maxWidth: '150px', objectFit: 'contain' }} />
-                                <div className="text-secondary mt-2 text-center" style={{ fontSize: '0.78rem' }}>
-                                    {brandLabel(item)}
-                                </div>
+                                    style={{
+                                        maxWidth: '100%', maxHeight: '100%',
+                                        width: 'auto', height: 'auto', objectFit: 'contain',
+                                    }} />
                             </div>
                         ))}
                     </div>
@@ -193,24 +211,43 @@ const CampaignList: React.FC<CampaignListProps> = () => {
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))',
+                        /**
+                         * ⚠️⚠️ **最大2カラム**（2026-09-16 の指示）。
+                         *   ⚠️ `auto-fill` のままだと広い画面で3列以上になる。
+                         *   ⚠️ 下限を大きめに取って横長にし、
+                         *     狭い画面では1列に落ちるようにしている。
+                         */
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 520px), 1fr))',
                         gap: '1rem',
-                        alignItems: 'start',
+                        /**
+                         * ⚠️⚠️ **`start` にしない。**
+                         *   ⚠️ キャンペーン名の行数で高さが変わるため、
+                         *     上揃えだと**カードの丈がばらついて不格好になる**。
+                         *   ⚠️ `stretch` で行内の高さを揃える。
+                         */
+                        alignItems: 'stretch',
+                        maxWidth: '1180px',
                     }}
                 >
                     {shown.map(item => (
                         <div key={item.campaign_id}
-                            className="bg-white shadow-sm rounded-3"
-                            style={{ border: '1px solid #e9ecef', overflow: 'hidden' }}>
+                            className="bg-white shadow-sm rounded-3 d-flex flex-column"
+                            // ⚠️ 高さを揃えたうえで、ボタン以下を下端に寄せる（下の mt-auto）
+                            style={{ border: '1px solid #e9ecef', overflow: 'hidden', height: '100%' }}>
 
                             <div className="p-3">
                                 <div className="text-muted mb-1" style={{ fontSize: '0.7rem' }}>
                                     <i className="fa-regular fa-calendar me-1"></i>{item.registered_date}
                                 </div>
+                                {/**
+                                  * ⚠️ 2行で切る。⚠️ さらに**2行ぶんの高さを確保**しておく。
+                                  *   ⚠️ 切るだけだと1行の名前でカードが縮み、丈が揃わない。
+                                  */}
                                 <div className="fw-bold text-dark mb-2" style={{
                                     fontSize: '0.88rem', lineHeight: 1.5,
                                     display: '-webkit-box', WebkitLineClamp: 2,
                                     WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                                    minHeight: 'calc(0.88rem * 1.5 * 2)',
                                 }}>
                                     {item.campaign}
                                 </div>
@@ -220,21 +257,19 @@ const CampaignList: React.FC<CampaignListProps> = () => {
                                 </div>
                             </div>
 
-                            <div className="px-3 pb-3 d-flex flex-wrap gap-2">
+                            {/* ⚠️ `mt-auto` でボタン以下を下端へ。⚠️ 高さを揃えたぶんの余白を上に寄せる */}
+                            <div className="px-3 pb-3 d-flex flex-wrap gap-2 mt-auto">
+                                {/* ⚠️ Button を href で使うと <a> になり、
+                                      ⚠️ 全体CSSの影響で下線が付く。ここで打ち消す */}
                                 <Button size="sm" variant="white" className="border text-secondary"
                                     href={item.url} target="_blank" rel="noopener noreferrer"
-                                    style={{ fontSize: '0.75rem' }}>
+                                    style={{ fontSize: '0.75rem', textDecoration: 'none' }}>
                                     <i className="fa-solid fa-arrow-up-right-from-square me-1"></i>開く
                                 </Button>
                                 <Button size="sm" variant="white" className="border text-secondary"
                                     onClick={() => copyTag(item)} style={{ fontSize: '0.75rem' }}>
                                     <i className="fa-regular fa-copy me-1"></i>
-                                    {copied === item.campaign_id ? 'コピーしました' : 'タグをコピー'}
-                                </Button>
-                                <Button size="sm" variant="white" className="border text-secondary"
-                                    onClick={() => setOpenTag(openTag === item.campaign_id ? '' : item.campaign_id)}
-                                    style={{ fontSize: '0.75rem' }}>
-                                    {openTag === item.campaign_id ? '隠す' : 'タグ'}
+                                    {copied === item.campaign_id ? 'コピーしました' : 'フォームタグをコピー'}
                                 </Button>
                                 <Button size="sm" variant="primary" className="ms-auto"
                                     onClick={() => editForm(item.brand, item.campaign_id)}
@@ -243,8 +278,9 @@ const CampaignList: React.FC<CampaignListProps> = () => {
                                 </Button>
                             </div>
 
-                            {openTag === item.campaign_id &&
-                                <div className="px-3 pb-3">
+                            {/* ⚠️ フォームタグは常に出す（2026-09-16 の指示）。畳まない */}
+                            <div className="px-3 pb-3">
+                                <div className="text-muted mb-1" style={{ fontSize: '0.68rem' }}>フォームタグ</div>
                                     <textarea
                                         value={item.tag}
                                         readOnly
@@ -255,8 +291,8 @@ const CampaignList: React.FC<CampaignListProps> = () => {
                                             border: '1px solid #dee2e6', borderRadius: '6px', padding: '8px',
                                             backgroundColor: '#f8f9fa',
                                         }}
-                                    />
-                                </div>}
+                                />
+                            </div>
                         </div>
                     ))}
                 </div>

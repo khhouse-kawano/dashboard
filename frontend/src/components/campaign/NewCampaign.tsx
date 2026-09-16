@@ -190,6 +190,12 @@ const NewCampaign = () => {
     const [newTime, setNewTime] = useState<string>('');
     const [newMedium, setNewMedium] = useState<string>('');
     const [validation, setValidation] = useState<string[]>([]);
+    /**
+     * ⚠️ 設定を読めなかったことを画面に出すため。
+     *   ⚠️ 2026-09-16 まで、読めなくても**何も出ず**、
+     *     利用者には「修正を押したのに反映されない」としか見えなかった。
+     */
+    const [loadError, setLoadError] = useState<string>('');
     const { token } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
 
@@ -198,30 +204,62 @@ const NewCampaign = () => {
             if (idValue) {
                 try {
                     const response = await fetchDetail(String(brandValue ?? ''), String(idValue ?? ''));
-                    setForm({
+                    const row = response.data;
+
+                    /**
+                     * ⚠️⚠️ **`response.data` が行そのもの。`response.data.data` ではない。**
+                     *   ⚠️ 2026-09-16、旧APIから移した際にここだけ直し忘れ、
+                     *     **全項目が undefined** になっていた。
+                     *   ⚠️ さらに `JSON.parse(undefined)` で例外になり、
+                     *     **修正ボタンを押しても画面に何も入らなかった。**
+                     */
+                    if (!row) {
+                        console.error(`キャンペーン設定が見つかりません brand="${brandValue}" id="${idValue}"`);
+                        setLoadError('キャンペーン設定を読み込めませんでした。');
+                        return;
+                    }
+
+                    /**
+                     * ⚠️ JSON 列は文字列で入っている。
+                     *   ⚠️ 1つでも壊れていると画面全体が出なくなるので、項目ごとに受け止める。
+                     */
+                    const parse = <T,>(value: string | undefined, fallback: T): T => {
+                        if (!value) return fallback;
+                        try {
+                            return JSON.parse(value) as T;
+                        } catch {
+                            console.error(`設定の解釈に失敗しました: ${String(value).slice(0, 80)}`);
+                            return fallback;
+                        }
+                    };
+
+                    setForm(prev => ({
                         brand: brandValue as string,
-                        campaign: response.data.data.campaign,
-                        campaign_id: response.data.data.campaign_id,
-                        mail_to: response.data.data.mail_to,
-                        mail_cc: response.data.data.mail_cc,
-                        thanks: Boolean(response.data.data.thanks),
-                        redirect: response.data.data.redirect,
-                        img_code: response.data.data.img_code,
-                        notice: JSON.parse(response.data.data.notice),
-                        shop: JSON.parse(response.data.data.shop),
-                        date: JSON.parse(response.data.data.date),
-                        name: JSON.parse(response.data.data.name),
-                        kana: JSON.parse(response.data.data.kana),
-                        age: JSON.parse(response.data.data.age),
-                        phone: JSON.parse(response.data.data.phone),
-                        mail: JSON.parse(response.data.data.mail),
-                        address: JSON.parse(response.data.data.address),
-                        medium: JSON.parse(response.data.data.medium),
-                        question: JSON.parse(response.data.data.question),
-                        attention: JSON.parse(response.data.data.attention),
-                    });
+                        campaign: row.campaign ?? '',
+                        campaign_id: row.campaign_id ?? '',
+                        mail_to: row.mail_to ?? '',
+                        mail_cc: row.mail_cc ?? '',
+                        thanks: Boolean(Number(row.thanks ?? 0)),
+                        redirect: row.redirect ?? '',
+                        // ⚠️ img_code は form_table に列が無い（form_database だけ）。常に空になる
+                        img_code: row.img_code ?? '',
+                        notice: parse(row.notice, prev.notice),
+                        shop: parse(row.shop, prev.shop),
+                        date: parse(row.date, prev.date),
+                        name: parse(row.name, prev.name),
+                        kana: parse(row.kana, prev.kana),
+                        age: parse(row.age, prev.age),
+                        phone: parse(row.phone, prev.phone),
+                        mail: parse(row.mail, prev.mail),
+                        address: parse(row.address, prev.address),
+                        medium: parse(row.medium, prev.medium),
+                        question: parse(row.question, prev.question),
+                        attention: parse(row.attention, prev.attention),
+                    }));
                 } catch (error) {
-                    console.error("データ取得エラー:", error);
+                    // ⚠️ 黙らない。利用者には「修正を押したのに反映されない」としか見えない
+                    console.error("キャンペーン設定の取得に失敗:", error);
+                    setLoadError('キャンペーン設定を読み込めませんでした。');
                 }
             } else {
                 try {
@@ -372,13 +410,29 @@ const NewCampaign = () => {
                 <div className="table-wrapper">
                     <div className="list_table">
                         <div className='bg-light w-75' style={{ position: 'fixed', bottom: '0', height: '130px', zIndex: '100' }}>
-                            <div className="p-3 rounded-pill hover" style={{ width: '400px', margin: '40px auto', textAlign: 'center', cursor: 'pointer', backgroundColor: 'blue', color: '#fff' }} onClick={() => postForm()}>{!idValue ? '入力内容でキャンペーン登録' : '入力内容でキャンペーン修正'}</div>
+                            <div className="p-3 rounded-pill" style={{ width: '400px', margin: '40px auto', textAlign: 'center', cursor: 'pointer', backgroundColor: 'blue', color: '#fff', textDecoration: 'none' }} onClick={() => postForm()}>{!idValue ? '入力内容でキャンペーン登録' : '入力内容でキャンペーン修正'}</div>
                         </div>
                         <div className="bg-white" style={{ width: '90%', maxWidth: '960px', margin: '0 auto', paddingBottom: '200px' }}>
                             <div className="pt-3" style={{ width: '200px', margin: '0 auto' }}>
                                 <img src={`https://khg-marketing.info/dashboard/form/img/${brandValue}.png`} className="w-100" />
                             </div>
-                            <div className="w-100 pt-3" style={{ fontSize: '15px', textAlign: 'center', marginBottom: '30px' }}>キャンペーン作成</div>
+                            <div className="w-100 pt-3" style={{ fontSize: '15px', textAlign: 'center', marginBottom: '30px' }}>
+                                {idValue ? 'キャンペーン修正' : 'キャンペーン作成'}
+                            </div>
+
+                            {/**
+                              * ⚠️⚠️ **読み込めなかったことを必ず画面に出す。**
+                              *   ⚠️ 出さないと「修正を押したのに反映されない」としか見えず、
+                              *     利用者にも受けた側にも原因が分からない。
+                              */}
+                            {!loadError ||
+                                <div className="border rounded p-3 mb-4 text-center"
+                                    style={{ fontSize: '13px', color: '#dc3545', backgroundColor: '#fff5f5' }}>
+                                    {loadError}<br />
+                                    <span style={{ fontSize: '11px', color: '#666' }}>
+                                        このまま保存すると内容が上書きされます。一覧に戻ってやり直してください。
+                                    </span>
+                                </div>}
                             <Table style={{ width: '90%', margin: '0 auto' }}>
                                 <tbody style={{ border: '1px solid #d3d3d3ff' }}>
                                     <tr style={{ fontSize: '13px' }}>
@@ -1466,7 +1520,7 @@ const NewCampaign = () => {
                                                             }></textarea>
                                                     </div>
                                                     {!form.attention.bool_red || <>
-                                                        <div className="hover" style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer' }}
+                                                        <div style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer', textDecoration: 'none' }}
                                                             onClick={() => {
                                                                 const modal = document.querySelector('#modal') as HTMLElement;
                                                                 modal.style.display = 'block'
@@ -1486,7 +1540,7 @@ const NewCampaign = () => {
                                                                             }))
                                                                         }></textarea>
                                                                 </div>
-                                                                <div className="hover" style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer' }}
+                                                                <div style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer', textDecoration: 'none' }}
                                                                     onClick={() => {
                                                                         const modal = document.querySelector('#modal') as HTMLElement;
                                                                         modal.style.display = 'none'
