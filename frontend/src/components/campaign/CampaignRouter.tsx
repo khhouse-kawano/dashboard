@@ -3,9 +3,19 @@ import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
 import CampaignSummary from './CampaignSummary';
 import CampaignList from './CampaignList';
+import FormBuilder from './FormBuilder';
 
+/**
+ * キャンペーン関連の画面。
+ *
+ * ⚠️⚠️ **`activeTab` の初期値は `defaultActiveKey` と必ず揃えること。**
+ *   ⚠️ 2026-09-16 まで、初期値が `'summary'` なのに最初に開くタブは `list` だった。
+ *     ⚠️ 表示されているタブと、子が受け取る activeTab が**食い違う**状態で、
+ *       activeTab を見て読み込む子は**別のタブを開いて戻るまで動かない**。
+ */
 const CampaignRouter = () => {
-  const [activeTab, setActiveTab] = useState<string | null>('summary');
+  // ⚠️ 下の defaultActiveKey と同じ値にすること
+  const [activeTab, setActiveTab] = useState<string | null>('list');
 
   return (
 
@@ -23,6 +33,10 @@ const CampaignRouter = () => {
             </Tab>
             <Tab eventKey="summary" title="キャンペーン別反響">
               <CampaignSummary activeTab={activeTab} />
+            </Tab>
+            {/* ⚠️ 指示により**一番右**に置いている。並びを変えないこと */}
+            <Tab eventKey="builder" title="フォーム作成">
+              <FormBuilder activeTab={activeTab} />
             </Tab>
           </Tabs>
         </div>

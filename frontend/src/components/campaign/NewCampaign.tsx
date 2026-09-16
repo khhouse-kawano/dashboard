@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useContext } from 'react';
 import Table from "react-bootstrap/Table";
 import { useNavigate, useLocation } from "react-router-dom";
-import axios from "axios";
-import AuthContext from '../context/AuthContext';
+import { fetchDetail, fetchMaster, insertCampaign, updateCampaign } from './campaignApi';
+import AuthContext from '../../context/AuthContext';
 
 type BooleanKeys =
     'thanks';
@@ -186,8 +186,7 @@ const NewCampaign = () => {
         const fetchData = async () => {
             if (idValue) {
                 try {
-                    const headers = { Authorization: 'form_edit', 'Content-Type': 'application/json' };
-                    const response = await axios.post("https://khg-marketing.info/api/", { brand: brandValue, id: idValue }, { headers });
+                    const response = await fetchDetail(String(brandValue ?? ''), String(idValue ?? ''));
                     setForm({
                         brand: brandValue as string,
                         campaign: response.data.data.campaign,
@@ -215,8 +214,7 @@ const NewCampaign = () => {
                 }
             } else {
                 try {
-                    const headers = { Authorization: 'form_database', 'Content-Type': 'application/json' };
-                    const response = await axios.post("https://khg-marketing.info/api/", { brand: brandValue }, { headers });
+                    const response = { data: await fetchMaster(String(brandValue ?? '')) };
                     setForm({
                         brand: response.data.brand,
                         campaign: '',
@@ -333,17 +331,13 @@ const NewCampaign = () => {
         const fetchData = async () => {
             if (idValue) {
                 try {
-                    const headers = { Authorization: 'form_update', 'Content-Type': 'application/json' };
-                    const responseData = await axios.post("https://khg-marketing.info/api/", form, { headers });
-                    await setResponse(responseData.data);
+                    setResponse(await updateCampaign(form));
                 } catch (error) {
                     console.error("データ取得エラー:", error);
                 }
             } else {
                 try {
-                    const headers = { Authorization: 'form_post', 'Content-Type': 'application/json' };
-                    const responseData = await axios.post("https://khg-marketing.info/api/", form, { headers });
-                    await setResponse(responseData.data);
+                    setResponse(await insertCampaign(form));
                 } catch (error) {
                     console.error("データ取得エラー:", error);
                 }

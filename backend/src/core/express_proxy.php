@@ -152,6 +152,29 @@ function expressProxyRequests(): array
         'inquiry_introductory',
 
         // -----------------------------------------------------------------
+        // 2026-09-16 移植。キャンペーンフォームの設定（form_table）。
+        //
+        // ⚠️⚠️ **移植元は dashboard の PHP ではない。**
+        //   `https://khg-marketing.info/api/` の index.php で、
+        //   ルーティングに `Authorization` ヘッダを使う別APIである
+        //   （form_list / form_edit / form_post / form_update / form_database）。
+        //   ⚠️ dashboard 側に同名の PHP ハンドラは無いため、
+        //     自動フォールバックしても 404 になるだけで二重実行にならない。
+        //
+        // ⚠️⚠️ **`public` と `entry` を入れてはいけない。**
+        //   ⚠️ あの2つは**公開フォームが ② を直接叩く**ためのもので、
+        //     ① を経由しない。ここに入れても使われず、
+        //     **認証なしの口を ① 側にも増やすだけ**になる。
+        //   ⚠️ 公開フォームの退避先は ① の `khg-marketing.info/api/`
+        //     （こことは別のPHP）である。混同しないこと。
+        // -----------------------------------------------------------------
+        'campaign_form:list',
+        'campaign_form:detail',
+        'campaign_form:insert',
+        'campaign_form:update',
+        'campaign_form:master',
+
+        // -----------------------------------------------------------------
         // 2026-09-07 移植。顧客詳細モーダルの初期データ（参照のみ）。
         //
         // ⚠️⚠️ **category を明示した3件だけを書くこと。**
