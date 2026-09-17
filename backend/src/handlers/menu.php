@@ -87,6 +87,13 @@ $sql_lost = "SELECT COUNT(*) AS c
                AND (COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') IN ('', 'null')
                  OR COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') IN ('', 'null')
                  OR TRIM(COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '')) = ''))
+           -- ⚠️ 2026-09-17 に追加（価格差・今後の対策）。
+           -- ⚠️ ② の backend-express/src/features/menu.ts と**必ず揃えること**。
+           OR (competitor_lost_contract_reason = '競合負け'
+               AND (COALESCE(competitor_price_gap, '') IN ('', 'null')
+                 OR TRIM(COALESCE(competitor_price_gap, '')) = ''
+                 OR COALESCE(competitor_countermeasure, '') IN ('', 'null')
+                 OR TRIM(COALESCE(competitor_countermeasure, '')) = ''))
          )";
 $stmt_lost = $pdo->prepare($sql_lost);
 $stmt_lost->execute();

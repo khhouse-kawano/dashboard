@@ -157,3 +157,63 @@ export const statusRequiredError = (
 
     return null;
 };
+
+/** 詳細な他決・失注理由（複数選択）の列 */
+export const LOST_DETAIL_KEY = 'customized_input_01JRF9CZSW65A151WR30NA4PB3';
+
+/**
+ * 未入力とみなす値。
+ *
+ * ⚠️⚠️ **文字列の `'null'` も未入力である。**
+ *   ⚠️ 一覧系の SQL は `COALESCE(..., '')` を通すが、
+ *     ⚠️ **DB に文字列として `null` が入っている行が実在する。**
+ *   ⚠️ `!value` だけでは拾えない。
+ * ⚠️ 空白だけの入力も未入力として扱う（`statusRequiredError()` と同じ）。
+ */
+const isBlank = (value: unknown): boolean => {
+    const text = String(value ?? '').trim();
+    return text === '' || text === 'null';
+};
+
+/**
+ * 失注の「未入力箇所」。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **失注の要回答判定は、以前この4か所に写されていた。**
+ *     frontend/src/components/database/DatabaseOrder.tsx（loseLength）
+ *     frontend/src/components/LostStatusList.tsx（一覧の絞り込み・表示で計3回）
+ *   ⚠️ **2026-09-17 にここへ集約した。** ⚠️ 判定を足すときはここだけ直す。
+ *
+ * ⚠️⚠️ **`statusRequiredError()` と同じ条件にすること。**
+ *   ⚠️ 食い違うと「一覧に出ないのに保存できない」「直したのに件数が減らない」
+ *     という、利用者から見て**理由の分からない状態**になる。
+ *
+ * ⚠️⚠️ **以前は「他決理由」と「敗因」を1つの判定にまとめていた。**
+ *   ⚠️ 2026-09-17 に**別の項目として分けた**（敗因が必須になったため）。
+ *
+ * ⚠️⚠️ **`競合負け` 以外では、失注理由さえ入っていれば未入力なし。**
+ *   ⚠️ 計画中止・音信不通などで競合の情報を求めない。
+ *
+ * ⚠️ 返すのは**画面に出すラベルの配列**。⚠️ **空配列なら未入力なし。**
+ * ─────────────────────────────────────────────
+ */
+export const missingLostFields = (item: Record<string, unknown>): string[] => {
+    const missing: string[] = [];
+
+    if (isBlank(item.competitor_lost_contract_reason)) missing.push('失注理由');
+
+    if (item.competitor_lost_contract_reason !== '競合負け') return missing;
+
+    if (isBlank(item.competitor_name)) missing.push('失注先');
+    if (isBlank(item[LOST_DETAIL_KEY])) missing.push('他決理由');
+    if (isBlank(item[LOSE_REASON_KEY])) missing.push('敗因');
+    /**
+     * ⚠️⚠️ **2026-09-17 に足した2つ。** ⚠️ 新しい列なので**既存は全件が空**である。
+     *   ⚠️ ローカルの実測（対象283件）で要回答が **39件 → 108件**（+69件）になった。
+     *   ⚠️ 件数が急に増えても**不具合ではない。**
+     */
+    if (isBlank(item[PRICE_GAP_KEY])) missing.push('価格差');
+    if (isBlank(item[COUNTERMEASURE_KEY])) missing.push('今後の対策');
+
+    return missing;
+};

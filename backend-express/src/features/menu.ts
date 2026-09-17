@@ -95,10 +95,20 @@ const CANCEL_SQL = `
  * ⚠️⚠️ **`'null'` という文字列が実データに入っている。** 空文字と同じ扱いにする。
  *   フロントも `=== 'null'` で判定していた。`IS NULL` では拾えない。
  *
- * ⚠️ 条件は3つのどれかに当たれば「未記入」。
+ * ⚠️ 条件は次のどれかに当たれば「未記入」。
  *     ① 失注理由そのものが無い
  *     ② 理由が「競合負け」なのに競合名が無い
- *     ③ 理由が「競合負け」なのに詳細2項目のどちらかが無い
+ *     ③ 理由が「競合負け」なのに他決理由・敗因のどちらかが無い
+ *     ④ ⚠️ **理由が「競合負け」なのに価格差・今後の対策のどちらかが無い**（2026-09-17）
+ *
+ * ⚠️⚠️ **同じ判定がフロントにもある。**
+ *   ⚠️ `frontend/src/utils/informationUtils.ts` の `missingLostFields()`。
+ *   ⚠️ **片方だけ直すと、メニューのバッジと失注一覧の件数が合わなくなる。**
+ *   ⚠️ ① の backend/src/handlers/menu.php も同じ SQL を持っている（計3か所）。
+ *
+ * ⚠️⚠️ **④ を足したことで件数が増える。**
+ *   ⚠️ ローカルの実測（2026-09-17／対象283件）で **39件 → 108件**。
+ *   ⚠️ 新しい列なので**既存は全件が空**である。**不具合ではない。**
  *
  * ⚠️ `register` の正規化は PHP と同じ2段構え（'%Y/%m/%d' → '%Y-%m-%d'）。
  *   本番データに両方の形式が混在しているため、片方だけだと NULL になる。
@@ -124,6 +134,11 @@ const LOST_SQL = `
            AND (COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') IN ('', 'null')
              OR COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') IN ('', 'null')
              OR TRIM(COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '')) = ''))
+       OR (competitor_lost_contract_reason = '競合負け'
+           AND (COALESCE(competitor_price_gap, '') IN ('', 'null')
+             OR TRIM(COALESCE(competitor_price_gap, '')) = ''
+             OR COALESCE(competitor_countermeasure, '') IN ('', 'null')
+             OR TRIM(COALESCE(competitor_countermeasure, '')) = ''))
      )
 `;
 

@@ -65,6 +65,14 @@ const SELECT_SQL = `
     COALESCE(customized_input_01JRCT12N9X24PCQ5QZPAYKB93, '') AS event,
     COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') AS customized_input_01JRF9CZSW65A151WR30NA4PB3,
     COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') AS customized_input_01JSE7H4MQES619NBWX6PQDFRH,
+    /*
+      ⚠️⚠️ **2026-09-17 に足した2列。** 画面の「未入力箇所」で使う。
+        ⚠️ 返さないと画面側で undefined になり、⚠️ **失注が全件「要回答」になる。**
+        ⚠️ ① の lostList.php にも**同じ2行を足してある**。片方だけにしないこと。
+        ⚠️⚠️ **ここはSQLの中なのでバッククォートを書かないこと**（文字列が終わる）。
+    */
+    COALESCE(competitor_price_gap, '') AS competitor_price_gap,
+    COALESCE(competitor_countermeasure, '') AS competitor_countermeasure,
     COALESCE(k_snap, '') AS k_snap
   FROM master_data
   WHERE status = '失注'

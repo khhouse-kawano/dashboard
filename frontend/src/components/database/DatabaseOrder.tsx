@@ -14,6 +14,7 @@ import apiClient from '../../utils/apiClient';
 import { safeParse, hotleadStyle, staffOptionsOf } from './databaseUtils';
 import { GiftDot, GiftLegend } from './GiftMark';
 import { thisYear } from '../../utils/thisYear';
+import { missingLostFields } from '../../utils/informationUtils';
 // ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
 import { sortStaff } from '../header/useAmbassadorMaster';
 
@@ -190,13 +191,13 @@ const DatabaseOrder = ({ onReload }: Props) => {
 
                     const lTarget = new Date(dateFormate(item.register)).getTime();
                     if (lTarget < nowTime && loseBase < lTarget && item.status === '失注') {
-                        const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
-                        const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
-                        const isDetailMissing = item.competitor_lost_contract_reason === '競合負け' &&
-                            (!item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
-                                !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === '');
-
-                        if (isReasonMissing || isCompetitorMissing || isDetailMissing) lCount++;
+                        /**
+                         * ⚠️⚠️ **判定は informationUtils の `missingLostFields()` に集約した**
+                         *   （2026-09-17）。⚠️ 以前はここに条件が写されており、
+                         *   ⚠️ **LostStatusList.tsx と食い違うと件数が合わなかった。**
+                         * ⚠️ **ここで条件を書き足さないこと。** 向こうだけ直すと必ずずれる。
+                         */
+                        if (missingLostFields(item).length > 0) lCount++;
                     }
                 });
                 setCancelLength(cCount);
