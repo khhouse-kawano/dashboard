@@ -90,55 +90,72 @@ const CANCEL_SQL = `
 `;
 
 /**
- * 失注したが理由が埋まっていない顧客。
+ * 反響取得日を 'YYYY-MM-DD' に揃える式。
+ *
+ * ⚠️⚠️ **本番データに '/' 区切りと '-' 区切りが混在している。**
+ *   ⚠️ 片方だけだと `STR_TO_DATE` が NULL を返し、**その行が黙って落ちる。**
+ * ⚠️ ① の menu.php と**同じ2段構え**にしてある。
+ */
+const REGISTER_DATE = `
+  COALESCE(
+    DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y/%m/%d'), '%Y-%m-%d'),
+    DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y-%m-%d'), '%Y-%m-%d')
+  )`;
+
+/**
+ * その列が未入力か。
  *
  * ⚠️⚠️ **`'null'` という文字列が実データに入っている。** 空文字と同じ扱いにする。
- *   フロントも `=== 'null'` で判定していた。`IS NULL` では拾えない。
+ *   ⚠️ `IS NULL` では拾えない。⚠️ フロントの `isBlank()` と同じ考え方である。
+ * ⚠️ 空白だけの入力も未入力として扱うため `TRIM` を通す。
  *
- * ⚠️ 条件は次のどれかに当たれば「未記入」。
+ * ⚠️ 列名は**この関数の呼び出し側で決め打ちしたものしか渡さない。**
+ *   ⚠️ 外部からの値を渡さないこと（SQL に直接埋め込むため）。
+ */
+const isBlankSql = (column: string): string =>
+    `TRIM(COALESCE(${column}, '')) IN ('', 'null')`;
+
+/**
+ * 失注（競合負け）で埋めてほしい列。
+ *
+ * ⚠️⚠️ **フロントの `LOST_FIELDS`（informationUtils.ts）と同じ並び・同じ顔ぶれにすること。**
+ *   ⚠️ 食い違うと、**メニューのバッジと失注一覧の件数が合わなくなる。**
+ * ⚠️ ① の menu.php にも同じ一覧がある（計3か所）。**3つとも直すこと。**
+ */
+const LOST_REQUIRED_COLUMNS = [
+    'competitor_name',
+    'customized_input_01JRF9CZSW65A151WR30NA4PB3',
+    'customized_input_01JSE7H4MQES619NBWX6PQDFRH',
+    // ⚠️ 2026-09-17 に追加（価格差・今後の対策）
+    'competitor_price_gap',
+    'competitor_countermeasure',
+];
+
+/**
+ * 失注したが理由が埋まっていない顧客。
+ *
+ * ⚠️ 条件は次のどちらかに当たれば「未記入」。
  *     ① 失注理由そのものが無い
- *     ② 理由が「競合負け」なのに競合名が無い
- *     ③ 理由が「競合負け」なのに他決理由・敗因のどちらかが無い
- *     ④ ⚠️ **理由が「競合負け」なのに価格差・今後の対策のどちらかが無い**（2026-09-17）
+ *     ② 理由が「競合負け」なのに `LOST_REQUIRED_COLUMNS` のどれかが空
  *
- * ⚠️⚠️ **同じ判定がフロントにもある。**
- *   ⚠️ `frontend/src/utils/informationUtils.ts` の `missingLostFields()`。
- *   ⚠️ **片方だけ直すと、メニューのバッジと失注一覧の件数が合わなくなる。**
- *   ⚠️ ① の backend/src/handlers/menu.php も同じ SQL を持っている（計3か所）。
- *
- * ⚠️⚠️ **④ を足したことで件数が増える。**
- *   ⚠️ ローカルの実測（2026-09-17／対象283件）で **39件 → 108件**。
+ * ⚠️⚠️ **2026-09-17 に価格差・今後の対策を足したため件数が増える。**
+ *   ⚠️ ローカルの実測（対象283件）で **39件 → 108件**。
  *   ⚠️ 新しい列なので**既存は全件が空**である。**不具合ではない。**
  *
- * ⚠️ `register` の正規化は PHP と同じ2段構え（'%Y/%m/%d' → '%Y-%m-%d'）。
- *   本番データに両方の形式が混在しているため、片方だけだと NULL になる。
+ * ⚠️ 期間は**反響取得日**が 2026-06-01 より後、かつ今日より前。
+ *   ⚠️ **失注した日ではない。** ⚠️ フロントの各画面も同じ起点である。
  */
 const LOST_SQL = `
   SELECT COUNT(*) AS c
     FROM master_data
    WHERE show_dashboard = 1
      AND COALESCE(status, '') = '失注'
-     AND COALESCE(
-           DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y/%m/%d'), '%Y-%m-%d'),
-           DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y-%m-%d'), '%Y-%m-%d')
-         ) > '2026-06-01'
-     AND COALESCE(
-           DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y/%m/%d'), '%Y-%m-%d'),
-           DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y-%m-%d'), '%Y-%m-%d')
-         ) < NOW()
+     AND ${REGISTER_DATE} > '2026-06-01'
+     AND ${REGISTER_DATE} < NOW()
      AND (
-          COALESCE(competitor_lost_contract_reason, '') IN ('', 'null')
+          ${isBlankSql('competitor_lost_contract_reason')}
        OR (competitor_lost_contract_reason = '競合負け'
-           AND COALESCE(competitor_name, '') IN ('', 'null'))
-       OR (competitor_lost_contract_reason = '競合負け'
-           AND (COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') IN ('', 'null')
-             OR COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') IN ('', 'null')
-             OR TRIM(COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '')) = ''))
-       OR (competitor_lost_contract_reason = '競合負け'
-           AND (COALESCE(competitor_price_gap, '') IN ('', 'null')
-             OR TRIM(COALESCE(competitor_price_gap, '')) = ''
-             OR COALESCE(competitor_countermeasure, '') IN ('', 'null')
-             OR TRIM(COALESCE(competitor_countermeasure, '')) = ''))
+           AND (${LOST_REQUIRED_COLUMNS.map(isBlankSql).join('\n             OR ')}))
      )
 `;
 

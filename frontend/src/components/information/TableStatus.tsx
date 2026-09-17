@@ -4,8 +4,9 @@ import { inputStyle } from '../../utils/informationUtils';
 import { dateFormate } from '../../utils/informationUtils';
 import { UNKNOWN_COMPETITOR, requiredStyle } from '../../utils/informationUtils';
 import {
-    COUNTERMEASURE_KEY, LOSE_REASON_KEY, PRICE_GAP_KEY,
-    RIVAL_CAMPAIGN_KEY, SALES_PERSON_KEY, WIN_REASON_KEY,
+    COUNTERMEASURE_KEY, LOSE_REASON_KEY, LOST_REASON_KEY, LOST_REASON_OPTIONS,
+    LOST_TO_COMPETITOR, PRICE_GAP_KEY, RIVAL_CAMPAIGN_KEY, SALES_PERSON_KEY,
+    WIN_REASON_KEY, isBlank, lostFieldLabel,
 } from '../../utils/informationUtils';
 import AuthContext from '../../context/AuthContext';
 import TableInput from './TableInput';
@@ -182,13 +183,19 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
      */
     const freeField = (
         itemKey: string,
-        label: string,
         required: boolean,
         type: 'text' | 'number' | 'textarea',
         placeholder = ''
     ) => {
+        /**
+         * ⚠️⚠️ **見出しは `LOST_FIELDS` / `WIN_FIELDS` の label を引く。**
+         *   ⚠️ ここに文字列を手書きすると、
+         *     ⚠️ **一覧の「〇〇未入力」・保存時の警告と名前が食い違う。**
+         */
+        const label = lostFieldLabel(itemKey);
         const value = safeFormate(information[itemKey]);
-        const empty = value.trim() === '';
+        // ⚠️ 判定は informationUtils と同じものを使う（'null' も空として扱う）
+        const empty = isBlank(value);
         const change = (v: string) => setInformation(prev => ({ ...prev, [itemKey]: v }));
 
         return (
@@ -272,13 +279,13 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                         </div>
                     </div>
 
-                    {freeField(PRICE_GAP_KEY, '価格差', false, 'number', '他社との差額（円）')}
-                    {freeField(WIN_REASON_KEY, '勝因', true, 'textarea', '選ばれた理由を具体的に入力してください')}
+                    {freeField(PRICE_GAP_KEY, false, 'number', '他社との差額（円）')}
+                    {freeField(WIN_REASON_KEY, true, 'textarea', '選ばれた理由を具体的に入力してください')}
 
                     {/* ⚠️ 失注先の選択と同じUI・同じ列（competitor_name） */}
                     {competitorPicker('競合')}
 
-                    {freeField(SALES_PERSON_KEY, '他社営業', false, 'text', '競合の営業担当者名')}
+                    {freeField(SALES_PERSON_KEY, false, 'text', '競合の営業担当者名')}
                 </div>
             )}
 
@@ -288,23 +295,24 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                     <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
                         {/* ⚠️ 2026-09-17 に見出しを分けた。⚠️ 「失注情報の入力」は
                                **競合負けのときだけ**出すため（指示） */}
-                        <div className="fw-bold text-dark" style={{ fontSize: '13px' }}>失注理由の入力{!information.competitor_lost_contract_reason && <i className="fa-solid fa-triangle-exclamation text-danger me-1"></i>}</div>
+                        <div className="fw-bold text-dark" style={{ fontSize: '13px' }}>失注理由の入力{isBlank(information[LOST_REASON_KEY]) && <i className="fa-solid fa-triangle-exclamation text-danger ms-2"></i>}</div>
                     </div>
 
                     <div className="mb-3 d-flex align-items-center">
                         <span className="me-3 fw-bold text-secondary" style={{ fontSize: '12px' }}>失注理由:</span>
-                        <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information.competitor_lost_contract_reason)}
+                        <select style={{ ...inputStyle, fontSize: '12px', width: '240px' }} value={safeFormate(information[LOST_REASON_KEY])}
                             onChange={(e) => {
-                                setInformation(prev => ({ ...prev, competitor_lost_contract_reason: e.target.value }));
+                                setInformation(prev => ({ ...prev, [LOST_REASON_KEY]: e.target.value }));
                             }}>
                             <option value="">選択してください</option>
-                            {["競合負け", "計画中止", "身内の反対", "音信不通", "建築エリア外", "その他"].map(reason => (
+                            {/* ⚠️ 選択肢は informationUtils と共有する。⚠️ **ここに書き足さないこと** */}
+                            {LOST_REASON_OPTIONS.map(reason => (
                                 <option value={reason} key={reason}>{reason}</option>
                             ))}
                         </select>
                     </div>
 
-                    {information.competitor_lost_contract_reason === '競合負け' && (
+                    {information[LOST_REASON_KEY] === LOST_TO_COMPETITOR && (
                         <>
                             <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
                                 <div className="fw-bold text-dark" style={{ fontSize: '13px' }}>失注情報の入力</div>
@@ -361,17 +369,17 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                               *     ⚠️ **今までどおり任意**（判定を足すと保存できなくなる）。
                               */}
                             {freeField(
-                                LOSE_REASON_KEY, '敗因', isOrder, 'textarea',
+                                LOSE_REASON_KEY, isOrder, 'textarea',
                                 '負けた理由を具体的に入力してください'
                             )}
 
                             {/* ⚠️ ここから下は注文事業だけ。⚠️ 列が master_data にしか無い */}
                             {isOrder && (
                                 <>
-                                    {freeField(SALES_PERSON_KEY, '他社営業', false, 'text', '競合の営業担当者名')}
-                                    {freeField(PRICE_GAP_KEY, '価格差', true, 'number', '他社との差額（円）')}
-                                    {freeField(COUNTERMEASURE_KEY, '今後の対策', true, 'textarea', '次に同じ競合と当たったときの対策')}
-                                    {freeField(RIVAL_CAMPAIGN_KEY, '他社のキャンペーン', false, 'textarea', '他社が実施していた特典・値引きなど')}
+                                    {freeField(SALES_PERSON_KEY, false, 'text', '競合の営業担当者名')}
+                                    {freeField(PRICE_GAP_KEY, true, 'number', '他社との差額（円）')}
+                                    {freeField(COUNTERMEASURE_KEY, true, 'textarea', '次に同じ競合と当たったときの対策')}
+                                    {freeField(RIVAL_CAMPAIGN_KEY, false, 'textarea', '他社が実施していた特典・値引きなど')}
                                 </>
                             )}
                         </>

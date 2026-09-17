@@ -3,7 +3,10 @@ import { Table, Modal, Button, Form, Badge, ButtonGroup } from "react-bootstrap"
 import apiClient from '../utils/apiClient';
 import InformationEdit from './information/InformationEdit';
 import AuthContext from '../context/AuthContext';
-import { LOST_DETAIL_KEY, missingLostFields } from '../utils/informationUtils';
+import {
+    LOST_DETAIL_KEY, LOST_REASON_KEY, LOST_REASON_OPTIONS, LOST_TO_COMPETITOR,
+    missingLostFields,
+} from '../utils/informationUtils';
 
 type shopList = { brand: string, shop: string, section: string };
 type Props = {
@@ -58,7 +61,7 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
     useEffect(() => {
         const filtered = originalMasterDataList.filter(o =>
             targetShop ? o.shop === targetShop : true
-                && targetReason ? o.competitor_lost_contract_reason === targetReason : true
+                && targetReason ? o[LOST_REASON_KEY] === targetReason : true
         );
         setMasterDataList(filtered);
     }, [targetShop, originalMasterDataList, targetReason]);
@@ -125,7 +128,13 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
                                 style={{ fontSize: '0.8rem' }}
                             >
                                 <option value="">失注理由を選択</option>
-                                {['計画中止', '競合負け', '身内の反対', '音信普通', '建築エリア外', 'その他'].map(reason =>
+                                {/**
+                                  * ⚠️⚠️ **選択肢は informationUtils と共有する**（2026-09-17）。
+                                  *   ⚠️ 以前はここに手書きされており、**`音信普通`** という
+                                  *     ⚠️ **誤字**だった（正しくは `音信不通`。実データ117件）。
+                                  *   ⚠️ そのため**この理由で絞ると必ず0件**になっていた。
+                                  */}
+                                {LOST_REASON_OPTIONS.map(reason =>
                                     <option value={reason} key={reason}>{reason}</option>
                                 )}
                             </Form.Select>
@@ -175,7 +184,7 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
                                                     <td className="py-2"><Badge bg="secondary" className="fw-normal">{item.shop}</Badge></td>
                                                     <td className="py-2 fw-bold text-dark">{item.customer}</td>
                                                     <td className="py-2">{formate(item.register)}</td>
-                                                    <td className="py-2 text-truncate" style={{ maxWidth: '120px' }}><Badge bg={`${item.competitor_lost_contract_reason === '競合負け' ? 'warning' : 'info'}`} className="fw-normal text-dark">{item.competitor_lost_contract_reason || '-'}</Badge></td>
+                                                    <td className="py-2 text-truncate" style={{ maxWidth: '120px' }}><Badge bg={`${item[LOST_REASON_KEY] === LOST_TO_COMPETITOR ? 'warning' : 'info'}`} className="fw-normal text-dark">{item[LOST_REASON_KEY] || '-'}</Badge></td>
                                                     <td className="py-2">{item.competitor_name ? <Badge bg="secondary" className="fw-normal text-white">{item.competitor_name}</Badge> : '-'}</td>
                                                     {/* ⚠️ 列名は informationUtils の定数を使う。⚠️ ULID を直書きしない */}
                                                     <td className="py-2">{(item[LOST_DETAIL_KEY] ?? '').split(',').filter(Boolean).map(reason => <Badge bg="danger" className="text-white fw-normal text-dark me-2" key={reason}>{reason}</Badge>)}</td>
