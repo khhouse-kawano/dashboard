@@ -32,7 +32,19 @@ import type { Request, Response, NextFunction } from 'express';
  * ⚠️ **認証なしの書き込み口を追加したら、必ずここにも追加すること。**
  *   追加を忘れても動いてしまうため、エラーでは気づけない。
  */
-const GUARDED_REQUESTS = new Set(['ambassador_inquiry', 'event_reservation']);
+const GUARDED_REQUESTS = new Set([
+    'ambassador_inquiry',
+    'event_reservation',
+    /**
+     * ⚠️⚠️ キャンペーンフォームの反響受付（roll: 'entry'）。
+     *   ⚠️ 272件の公開フォームが叩く口で、**認証が無い**。
+     *   ⚠️ ここは request 名だけで判定しているため、
+     *     同じ request の `campaign_form:public`（表示）にも制限が掛かる。
+     *     ⚠️ 表示は反響1件につき最低1回来るので、**上限は下の MAX_PER_IP を超えやすい**。
+     *     ⚠️ そのため下で roll を見て、表示は対象から外している。
+     */
+    'campaign_form',
+]);
 
 const WINDOW_MS = 10 * 60_000;
 const MAX_PER_IP = 5;
@@ -114,6 +126,22 @@ export const publicFormRateLimit = (
   if (!GUARDED_REQUESTS.has(request)) {
     next();
     return;
+  }
+
+  /**
+   * ⚠️⚠️ **キャンペーンフォームは roll を見て分ける。**
+   *   ⚠️ `campaign_form` は同じ request で「表示（public）」と「送信（entry）」の
+   *     両方を受ける。
+   *   ⚠️ 表示はページを開くたびに来るため、送信と同じ 5件/10分 を掛けると
+   *     **普通の閲覧者がフォームを開けなくなる。**
+   *   ⚠️ 制限するのは書き込み（entry）だけでよい。
+   */
+  if (request === 'campaign_form') {
+    const roll = (req.body as { roll?: unknown } | undefined)?.roll;
+    if (roll !== 'entry') {
+      next();
+      return;
+    }
   }
 
   void limiter(req, res, next);

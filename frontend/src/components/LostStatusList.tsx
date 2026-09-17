@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react'
 import { Table, Modal, Button, Form, Badge, ButtonGroup } from "react-bootstrap";
-import axios from 'axios';
-import { headers } from '../utils/headers';
+import apiClient from '../utils/apiClient';
 import InformationEdit from './information/InformationEdit';
 import AuthContext from '../context/AuthContext';
+import {
+    LOST_DETAIL_KEY, LOST_REASON_KEY, LOST_REASON_OPTIONS, LOST_TO_COMPETITOR,
+    missingLostFields,
+} from '../utils/informationUtils';
 
 type shopList = { brand: string, shop: string, section: string };
 type Props = {
@@ -30,7 +33,13 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
         if (!loseListShow) return;
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'lostList' }, { headers });
+                /**
+                 * ⚠️⚠️ **`apiClient` を使う。URL を直接書かない。**
+                 *   ⚠️ 以前は本番のURLが直書きで、**Token を送っていなかった**
+                 *     （`headers` は Authorization だけ）。
+                 *   ⚠️ `apiClient` なら Token が自動で付き、② 側の認証が効く。
+                 */
+                const response = await apiClient.post('', { request: 'lostList' });
                 const filteredLoseLength = response.data.customer.filter(item => {
                     const now = new Date();
                     const today = now.getTime();
@@ -52,7 +61,7 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
     useEffect(() => {
         const filtered = originalMasterDataList.filter(o =>
             targetShop ? o.shop === targetShop : true
-                && targetReason ? o.competitor_lost_contract_reason === targetReason : true
+                && targetReason ? o[LOST_REASON_KEY] === targetReason : true
         );
         setMasterDataList(filtered);
     }, [targetShop, originalMasterDataList, targetReason]);
@@ -119,7 +128,13 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
                                 style={{ fontSize: '0.8rem' }}
                             >
                                 <option value="">失注理由を選択</option>
-                                {['計画中止', '競合負け', '身内の反対', '音信普通', '建築エリア外', 'その他'].map(reason =>
+                                {/**
+                                  * ⚠️⚠️ **選択肢は informationUtils と共有する**（2026-09-17）。
+                                  *   ⚠️ 以前はここに手書きされており、**`音信普通`** という
+                                  *     ⚠️ **誤字**だった（正しくは `音信不通`。実データ117件）。
+                                  *   ⚠️ そのため**この理由で絞ると必ず0件**になっていた。
+                                  */}
+                                {LOST_REASON_OPTIONS.map(reason =>
                                     <option value={reason} key={reason}>{reason}</option>
                                 )}
                             </Form.Select>
@@ -150,14 +165,17 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
                                         const target = new Date(dateFormate(item.register)).getTime();
                                         const start = new Date('2026-01-01');
                                         const base = start.getTime();
-                                        const isReason = item.competitor_lost_contract_reason && item.competitor_lost_contract_reason !== 'null';
-                                        const isCompetitor = item.competitor_lost_contract_reason === '競合負け' ? (item.competitor_name && item.competitor_name !== 'null') : true;
-                                        const isDetail = item.competitor_lost_contract_reason === '競合負け' ?
-                                            (
-                                                item.customized_input_01JRF9CZSW65A151WR30NA4PB3 && item.customized_input_01JRF9CZSW65A151WR30NA4PB3 !== 'null' ||
-                                                item.customized_input_01JSE7H4MQES619NBWX6PQDFRH && item.customized_input_01JSE7H4MQES619NBWX6PQDFRH !== 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
-                                            ) : true;
-                                        return target < today && base < target && item.status === '失注' && isReason && isCompetitor && isDetail && Number(item.trash) === 1;
+                                        /**
+                                         * ⚠️⚠️ **こちらは「入力が済んだ顧客」の一覧である。**
+                                         *   ⚠️ 未入力が1つも無いものだけを出す。
+                                         *
+                                         * ⚠️⚠️ **2026-09-17 に判定を `missingLostFields()` へ集約した。**
+                                         *   ⚠️ 以前はここに条件が写されており、しかも
+                                         *     `… !== 'null' || String(…).trim() === ''` と
+                                         *     ⚠️ **「空なら入力済み」と読める向きになっていた**（`||` の向きが逆）。
+                                         *   ⚠️ そのため**敗因が空の顧客がこちらに出ていた。**
+                                         */
+                                        return target < today && base < target && item.status === '失注' && missingLostFields(item).length === 0 && Number(item.trash) === 1;
                                     }).sort((a, b) => new Date(dateFormate(b.register)).getTime() - new Date(dateFormate(a.register)).getTime())
                                         .map((item, index) => {
                                             return (
@@ -166,9 +184,10 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
                                                     <td className="py-2"><Badge bg="secondary" className="fw-normal">{item.shop}</Badge></td>
                                                     <td className="py-2 fw-bold text-dark">{item.customer}</td>
                                                     <td className="py-2">{formate(item.register)}</td>
-                                                    <td className="py-2 text-truncate" style={{ maxWidth: '120px' }}><Badge bg={`${item.competitor_lost_contract_reason === '競合負け' ? 'warning' : 'info'}`} className="fw-normal text-dark">{item.competitor_lost_contract_reason || '-'}</Badge></td>
+                                                    <td className="py-2 text-truncate" style={{ maxWidth: '120px' }}><Badge bg={`${item[LOST_REASON_KEY] === LOST_TO_COMPETITOR ? 'warning' : 'info'}`} className="fw-normal text-dark">{item[LOST_REASON_KEY] || '-'}</Badge></td>
                                                     <td className="py-2">{item.competitor_name ? <Badge bg="secondary" className="fw-normal text-white">{item.competitor_name}</Badge> : '-'}</td>
-                                                    <td className="py-2">{item.customized_input_01JRF9CZSW65A151WR30NA4PB3.split(',').map(item => <Badge bg="danger" className="text-white fw-normal text-dark me-2" key={item}>{item}</Badge>) || '-'}</td>
+                                                    {/* ⚠️ 列名は informationUtils の定数を使う。⚠️ ULID を直書きしない */}
+                                                    <td className="py-2">{(item[LOST_DETAIL_KEY] ?? '').split(',').filter(Boolean).map(reason => <Badge bg="danger" className="text-white fw-normal text-dark me-2" key={reason}>{reason}</Badge>)}</td>
                                                     <td className="py-2">
                                                         <div className="d-flex justify-content-center">
                                                             <Button
@@ -207,26 +226,19 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
                                         const target = new Date(dateFormate(item.register)).getTime();
                                         const start = new Date('2026-01-01');
                                         const base = start.getTime();
-                                        const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
-                                        const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
-                                        const isDetailMissing = item.competitor_lost_contract_reason === '競合負け' &&
-                                            (
-                                                !item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
-                                                !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
-                                            );
-
-                                        return target < today && base < target && item.status === '失注' && (isReasonMissing || isCompetitorMissing || isDetailMissing) && Number(item.trash) === 1;
+                                        // ⚠️ こちらは「未入力が1つでもある顧客」の一覧（上の裏返し）
+                                        return target < today && base < target && item.status === '失注' && missingLostFields(item).length > 0 && Number(item.trash) === 1;
                                     })
                                         .sort((a, b) => new Date(dateFormate(b.reserved_interview)).getTime() - new Date(dateFormate(a.reserved_interview)).getTime())
                                         .map((item, index) => {
-                                            const isReasonEmpty = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
-                                            const isCompetitorEmpty = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
-
-                                            const isDetailEmpty = item.competitor_lost_contract_reason === '競合負け' &&
-                                                (
-                                                    !item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
-                                                    !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
-                                                );
+                                            /**
+                                             * ⚠️⚠️ **未入力の項目名をそのまま並べる**（2026-09-17）。
+                                             *   ⚠️ 以前は3種類を手書きしており、
+                                             *     ⚠️ **項目を足しても表示が増えなかった。**
+                                             *   ⚠️ ここに項目名を書き足さないこと。
+                                             *     ⚠️ 増やすのは `missingLostFields()` の側である。
+                                             */
+                                            const missing = missingLostFields(item);
 
                                             return (
                                                 <tr key={item.id}>
@@ -240,25 +252,15 @@ const LostStatusList = ({ loseListShow, setLoseListShow, onReload, shopArray }: 
                                                         </Badge>
                                                     </td>
                                                     <td className="py-2">
-                                                        <div className="d-flex flex-column gap-1">
-                                                            {isReasonEmpty && (
-                                                                <div className="text-danger fw-bold" style={{ fontSize: '11px' }}>
+                                                        {/* ⚠️ 項目が6つに増えたので横にも折り返す。
+                                                               ⚠️ 縦一列のままだと1行がとても高くなる */}
+                                                        <div className="d-flex flex-wrap gap-2">
+                                                            {missing.map(label => (
+                                                                <div className="text-danger fw-bold" style={{ fontSize: '11px' }} key={label}>
                                                                     <i className="fa-solid fa-triangle-exclamation me-1"></i>
-                                                                    失注理由未入力
+                                                                    {label}未入力
                                                                 </div>
-                                                            )}
-                                                            {isCompetitorEmpty && (
-                                                                <div className="text-danger fw-bold" style={{ fontSize: '11px' }}>
-                                                                    <i className="fa-solid fa-triangle-exclamation me-1"></i>
-                                                                    失注先未入力
-                                                                </div>
-                                                            )}
-                                                            {isDetailEmpty && (
-                                                                <div className="text-danger fw-bold" style={{ fontSize: '11px' }}>
-                                                                    <i className="fa-solid fa-triangle-exclamation me-1"></i>
-                                                                    他決理由未入力
-                                                                </div>
-                                                            )}
+                                                            ))}
                                                         </div>
                                                     </td>
                                                     <td className="py-2">

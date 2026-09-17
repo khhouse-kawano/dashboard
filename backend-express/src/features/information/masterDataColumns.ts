@@ -12,15 +12,25 @@
  * ⚠️ 元の PHP には contract_building_application_date が2回書かれている
  *   （PDO では最後が勝つだけで無害）。ここでは一意にしてある。
  *
- * 生成元: backend/src/core/allowed_columns.php（182件 → 一意 181件）
+ * 生成元: backend/src/core/allowed_columns.php（187件 → 一意 186件）
+ *
+ * ⚠️⚠️ **2026-09-17 に勝因・敗因の5列を追加した。**
+ *   `competitor_campaign` / `competitor_countermeasure` / `competitor_price_gap`
+ *   `competitor_sales_person` / `competitor_win_reason`
+ *   ⚠️ 列そのものは **master_data にしか無い**（2026-09-17 の SQL）。
+ *     ⚠️ この一覧は**3テーブル共通**なので、建売・中古の画面から
+ *       これらのキーを送ると `Unknown column` で**保存がまるごと失敗する。**
+ *     ⚠️ そのため入力欄は `TableStatus.tsx` で `category === 'order'` に限っている。
  */
 export const MASTER_DATA_COLUMNS: readonly string[] = [
   'additional_contraction_contract_price', 'additional_contraction_estimate_number',
   'additional_contraction_funding_plan_number',
   'additional_contraction_purchase_order_issued_date', 'bonus_repayment_amount', 'brand',
   'budget', 'budget_reason', 'call_log', 'call_status', 'cancel_status', 'category',
-  'competitor', 'competitor_lost_contract_date', 'competitor_lost_contract_reason',
-  'competitor_name', 'competitors_text', 'contract_application_fee_planned_date',
+  'competitor', 'competitor_campaign', 'competitor_countermeasure',
+  'competitor_lost_contract_date', 'competitor_lost_contract_reason',
+  'competitor_name', 'competitor_price_gap', 'competitor_sales_person',
+  'competitor_win_reason', 'competitors_text', 'contract_application_fee_planned_date',
   'contract_building_agreement_date', 'contract_building_application_date',
   'contract_land_agreement_date', 'contract_land_application_date',
   'contract_payment_planned_date', 'contract_planned_date', 'contracted_property_id',

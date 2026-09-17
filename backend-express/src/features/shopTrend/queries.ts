@@ -56,9 +56,16 @@ const STAFF_SQL: Record<ShopTrendCategory, string> = {
  * 店舗。
  * ⚠️ order だけ `show_flag` で絞っていない（PHP のまま）。
  *   揃えると order の店舗数が変わり、行数と集計が変わる。
+ *
+ * ⚠️ order にだけ `multi` / `parent_shop` を追加している（2026-09-11）。
+ *   ShopTrendOrder.tsx の「併売店をまとめる」が使う。
+ *   ⚠️ **spec / used には追加していない。** あちらはまとめ機能を持たないため、
+ *     追加すると転送量が増えるだけで使い道がない。
+ *   ⚠️ ① の PHP（shopTrendAction/shopTrend_order.php）にも同じ2列を足すこと。
+ *     足さないと 5xx でフォールバックしたときに**まとめが黙って効かなくなる**。
  */
 const SHOP_SQL: Record<ShopTrendCategory, string> = {
-  order: `SELECT shop, section FROM shop_list WHERE division = ?`,
+  order: `SELECT shop, section, multi, parent_shop FROM shop_list WHERE division = ?`,
   spec: `SELECT shop, section FROM shop_list WHERE division = ? AND show_flag = 1`,
   used: `SELECT shop, section FROM shop_list WHERE division = ? AND show_flag = 1`,
 };

@@ -8,9 +8,17 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cart
 import { get11MonthsAgoString } from "../../utils/get11MonthsAgoString";
 import apiClient from "../../utils/apiClient";
 import { chartColors } from "./utils";
+import CustomerListModal from "../CustomerListModal";
+import InformationEditKaeru from "../information/InformationEditKaeru";
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
-type MediumType = { medium: string, category: string, sort_key: number, response_medium: number };
+/**
+ * 販促媒体（medium_kaeru）。
+ * ⚠️ `show_graph` は「表の行とグラフの系列に出すか」。2026-09-11 追加。
+ *   backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql を先に実行すること。
+ *   ⚠️ DB から文字列で来ることがあるため Number() で比べる。
+ */
+type MediumType = { medium: string, category: string, sort_key: number, response_medium: number, show_graph?: number | string };
 type CustomerList = Record<string, string>;
 type GraphData = { month: string, [key: string]: number | string };
 type CheckItem = {
@@ -23,13 +31,11 @@ type CheckedState = {
 type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note: string, company: string, response_medium: number, section: string, order_section: string };
 
 const CustomerTrendKaeru: React.FC = () => {
-  const { category } = useContext(AuthContext);
-  const [userData, setUserData] = useState<CustomerList[]>([]);
+  // ⚠️ token / authority は顧客詳細（InformationEditKaeru）に渡すために取る
+  const { category, token, authority } = useContext(AuthContext);
   const [originalUserData, setOriginalUserData] = useState<CustomerList[]>([]);
-  const [mediumArray, setMediumArray] = useState<string[]>([]);
   const [mediumList, setMediumList] = useState<MediumType[]>([]);
   const [graphCategory, setGraphCategory] = useState('register');
-  const [graphData, setGraphData] = useState<GraphData[]>([]);
   const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
   const [startMonth, setStartMonth] = useState(startMonthValue);
   const [endMonth, setEndMonth] = useState('');
@@ -37,8 +43,6 @@ const CustomerTrendKaeru: React.FC = () => {
   const [targetShop, setTargetShop] = useState('');
   const [targetSection, setTargetSection] = useState('');
   const [targetBrand, setTargetBrand] = useState('');
-  const [monthArray, setMonthArray] = useState<string[]>([]);
-  const [sectionArray, setSectionArray] = useState<string[]>([]);
   const [originalShopArray, setOriginalShopArray] = useState<Shop[]>([]);
   const [checked, setChecked] = useState<CheckedState>({
     graph: { name: 'グラフ', show: false },
@@ -55,6 +59,13 @@ const CustomerTrendKaeru: React.FC = () => {
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
 
+  /** 顧客一覧モーダル。label は「実来場」などの見出し */
+  const [listShow, setListShow] = useState<{ show: boolean, label: string, list: CustomerList[] }>({
+    show: false, label: '', list: []
+  });
+  /** 顧客詳細モーダルを開く顧客ID。'' なら閉じている */
+  const [editId, setEditId] = useState('');
+
 
   const mediumFormate = (medium: string) => {
     return medium === '公式LINE' ? 'ALLGRIT' :
@@ -69,14 +80,13 @@ const CustomerTrendKaeru: React.FC = () => {
     const fetchData = async () => {
       try {
         const response = await apiClient.post("/", { request: 'customerTrend', category });
-        const filteredMedium = response.data.medium;
-        const mediums = filteredMedium.map(f => f.medium);
         const responseCustomer = response.data.customer.map(r => !r.medium ? ({
           ...r,
           medium: 'その他'
         }) : r);
         setOriginalUserData(responseCustomer);
-        setMediumList(filteredMedium);
+        // ⚠️ show_graph で表・グラフに出す媒体を決める（下の displayMediums）
+        setMediumList(response.data.medium);
         setOriginalShopArray(response.data.shop);
         setBudget(response.data.budget);
       } catch (error) {
@@ -87,43 +97,53 @@ const CustomerTrendKaeru: React.FC = () => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    setMediumArray(mediumList.map(f => f.medium));
-  }, [mediumList]);
+  /**
+   * ⚠️⚠️ **ここから下の派生値は useState + useEffect をやめて useMemo にした（2026-09-11）。**
+   *
+   *   以前は1つの useEffect の中で monthArray / sectionArray / userData /
+   *   graphData を**まとめて setState** しており、依存配列から
+   *   `originalShopArray` と `originalMonthArray` が**抜けていた**。
+   *   ⚠️ そのため graphData が1テンポ古い値で作られる場面があり、
+   *     さらに setState が4回走るため再描画が重なって表示がもたついていた。
+   *
+   * ⚠️ **この変更で表示が変わる場面がある。** ズレが直る方向だが、
+   *   「前は違う数字だった」と見える可能性がある。
+   */
 
-  useEffect(() => {
+  /** 表示対象の年月。開始月・終了月で切り出す */
+  const monthArray = useMemo(() => {
     const startIndex = startMonth ? originalMonthArray.indexOf(startMonth) : 0;
-    const endIndex = endMonth ? originalMonthArray.indexOf(endMonth) + 1 : originalMonthArray.length
-    const filteredMonthArray = originalMonthArray.slice(startIndex, endIndex);
-    setMonthArray(filteredMonthArray);
+    const endIndex = endMonth ? originalMonthArray.indexOf(endMonth) + 1 : originalMonthArray.length;
+    return originalMonthArray.slice(startIndex, endIndex);
+  }, [originalMonthArray, startMonth, endMonth]);
 
-    const uniqueSectionArray = [...new Set(originalShopArray.filter(o => o.section).map(o => o.section))];
-    const filteredSectionArray = uniqueSectionArray.sort((a, b) => {
+  /** 課の一覧。⚠️ 「不動産営業2課」のような数字で並べる */
+  const sectionArray = useMemo(() => {
+    const unique = [...new Set(originalShopArray.filter(o => o.section).map(o => o.section))];
+    return unique.sort((a, b) => {
       const numA = parseInt(a?.match(/\d+/)?.[0] ?? "9999", 10);
       const numB = parseInt(b?.match(/\d+/)?.[0] ?? "9999", 10);
-      return numA - numB
+      return numA - numB;
     });
-    setSectionArray(filteredSectionArray);
+  }, [originalShopArray]);
 
+  /**
+   * 絞り込み後の顧客。
+   * ⚠️ `isDuplicate` が false のときだけ `show_dashboard = 1` に絞る。
+   *   ⚠️ サーバ側で絞っていないのはこのためである（queries.ts のコメント参照）。
+   *
+   * ⚠️⚠️ **建売に併売店の概念は無い。** 注文（CustomerTrendOrder.tsx）には
+   *   「併売店をまとめる」があるが、こちらには**意図的に入れていない**。
+   *   同じ画面構成なので足したくなるが、足さないこと。
+   */
+  const userData = useMemo(() => {
     const sectionShops = originalShopArray.filter(o => o.section === targetSection).map(o => o.shop);
-
-    const filteredCustomer = originalUserData.filter(o =>
+    return originalUserData.filter(o =>
       (targetSection ? sectionShops.includes(o.shop) : true) &&
       (targetShop ? o.shop === targetShop : true) &&
       (isDuplicate ? true : Number(o.show_dashboard) === 1)
     );
-    setUserData(filteredCustomer);
-
-    const filteredData = filteredMonthArray.map(monthValue => ({
-      month: monthValue,
-      ...Object.fromEntries(
-        mediumArray.map(mediumValue => [mediumValue,
-          getValue(filteredCustomer, filteredMonthArray.indexOf(monthValue) + 1, monthValue, graphCategory).filter(item => formate(item.medium) === formate(mediumValue)).length
-        ])
-      )
-    }));
-    setGraphData(filteredData);
-  }, [originalUserData, graphCategory, targetSection, targetShop, targetBrand, startMonth, endMonth, isDuplicate]);
+  }, [originalUserData, originalShopArray, targetSection, targetShop, isDuplicate]);
 
   const formattedMonthArray = useMemo(() => {
     return isReverse ? [...monthArray].reverse() : [...monthArray];
@@ -247,6 +267,196 @@ const CustomerTrendKaeru: React.FC = () => {
     return base.filter(b => evaluateKPI(b, [target]));
   };
 
+  const isHp = (value: string) => {
+    // データが空（undefinedやnull）の時に.includesでクラッシュするのを防ぐ
+    if (!value) return false;
+
+    const portal = ['SUUMO', 'ALLGRIT', `HOME'S`, 'アットホーム', 'タウンライフ', 'カゴスマ'];
+    const isPortalMatch = portal.some(p => value.includes(p));
+
+    return !isPortalMatch;
+  };
+
+  /**
+   * 表の行とグラフの系列に出す販促媒体。
+   *
+   * ─────────────────────────────────────────────
+   * ⚠️⚠️ **2026-09-11 に直書きをやめ、DB（medium_kaeru.show_graph）に移した。**
+   *   以前は
+   *     const displayMediums = ['SUUMO', `HOME'S`, 'ALLGRIT', 'アットホーム'];
+   *   と書いていた。媒体の増減は運用側で起こるため直書きは必ず腐る。
+   *
+   * ⚠️⚠️ **`mediumFormate()` を通してから配列にすること。**
+   *   DB の実データは `公式LINE` / `athome` だが、画面の表示名と
+   *   下の突き合わせ（`o.hp_campaign?.includes(medium)`）は
+   *   `ALLGRIT` / `アットホーム` を前提にしている。
+   *   生値のまま入れると、hp_campaign 側の一致が取れなくなり
+   *   **数字が静かに減る**。
+   *
+   * ⚠️ 並び順は sort_key。グラフの色は添字で決まるので、
+   *   sort_key を変えると**色の対応が変わる**。
+   *
+   * ⚠️ `isHp()` のポータル一覧（タウンライフ・カゴスマを含む）は別物で、
+   *   ここには連動しない。あちらは「HP反響かどうか」の判定であり、
+   *   表に出すかどうかとは目的が違う。
+   *
+   * ⚠️⚠️ **SQL を先に実行すること。** `show_graph` 列がまだ無いと
+   *   `Number(undefined)` が NaN になって**空配列**になり、
+   *   表は「全販促媒体 / ホームページ反響計」の2行だけ、
+   *   グラフは1系列だけになる。**エラーは出ない。**
+   *   フロントより先に backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql
+   *   を流すこと。
+   * ─────────────────────────────────────────────
+   */
+  const displayMediums = useMemo(() =>
+    mediumList
+      .filter(m => Number(m.show_graph) === 1)
+      .sort((a, b) => (Number(a.sort_key) || 0) - (Number(b.sort_key) || 0))
+      .map(m => mediumFormate(m.medium)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mediumList]);
+
+  const hpMediums = ['会員登録', '資料請求', '来場予約', '先取物件', 'その他'];
+
+  /**
+   * その顧客が、表の「販促媒体名」の行に該当するか。
+   *
+   * ─────────────────────────────────────────────
+   * ⚠️⚠️ **表（summary）とグラフの両方がこの1つを使う。**
+   *   2026-09-11 まで、表はこの判定、グラフは
+   *   `mediumFormate(o.medium) === mediumFormate(値)` という**別の判定**を
+   *   使っていた。そのため hp_campaign 由来の反響がグラフでは
+   *   どの系列にも入らず、**表とグラフで数字が合わなかった**。
+   *
+   * ⚠️ 中身は表にあったものをそのまま関数へ出しただけで、**判定は変えていない。**
+   *
+   * ⚠️ `mediumIndex` は 0（全販促媒体）と 1（ホームページ反響計）だけを見る。
+   *   それ以外の行は値を問わないので、グラフからは 2 を渡している。
+   * ─────────────────────────────────────────────
+   */
+  const matchesMediumRow = (o: CustomerList, medium: string, mediumIndex: number): boolean => {
+    // 1. 全販促媒体
+    if (mediumIndex === 0) return true;
+
+    // --------------------------------------------------
+    // 【追加】このデータ(o)が displayMediums の「いずれか」に該当するか判定
+    // --------------------------------------------------
+    const isAnyDisplayMedium = displayMediums.some(dm => {
+      const isMatchMedium = mediumFormate(o.medium) === mediumFormate(dm);
+      const isMatchCampaign = o.hp_campaign?.includes(dm) ?? false;
+      return isMatchMedium || isMatchCampaign;
+    });
+
+    // --------------------------------------------------
+    // displayMediums を選択中の場合の判定
+    // --------------------------------------------------
+    if (displayMediums.includes(medium)) {
+      // 選択中の媒体(medium)に合致するかどうかだけを返す
+      const isMatchMedium = mediumFormate(o.medium) === mediumFormate(medium);
+      const isMatchCampaign = o.hp_campaign?.includes(medium) ?? false;
+      return isMatchMedium || isMatchCampaign;
+    }
+
+    // --------------------------------------------------
+    // 【修正】HPグループの判定
+    // 条件: 「displayMediums に該当しない（!isAnyDisplayMedium）」かつ「HP系の条件を満たす」
+    // --------------------------------------------------
+    const isHpGroup = !isAnyDisplayMedium && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign);
+
+    // 2. ホームページ反響計（合計）
+    if (mediumIndex === 1) return isHpGroup;
+
+    // 3. showSummary 表示時の HP内訳（hpMediums の要素）
+    if (showSummary && hpMediums.includes(medium)) {
+      if (!isHpGroup) return false; // HPグループ以外は弾く
+
+      // HP反響の「その他」
+      if (medium === 'その他') {
+        const mainHpKeywords = ['会員登録', '資料請求', '来場予約', '先取物件'];
+        // キャンペーン名が無い、または主要キーワードが含まれていない場合は全て「その他」へ
+        return !o.hp_campaign || !mainHpKeywords.some(keyword => o.hp_campaign.includes(keyword));
+      }
+
+      // それ以外のHP内訳（会員登録、資料請求など）
+      return o.hp_campaign?.includes(medium) ?? false;
+    }
+
+    // 4. その他の通常の媒体
+    // HPグループに吸収されたデータは除外し、媒体名が一致するものだけを抽出
+    return !isHpGroup && mediumFormate(o.medium) === mediumFormate(medium);
+  };
+
+  /**
+   * グラフの系列。
+   *
+   * ⚠️⚠️ **表の行と同じにしている（2026-09-11）。**
+   *   以前は `medium_kaeru` の全媒体を系列にしており、表には無い媒体が並んで
+   *   数字が突き合わせられなかった。
+   *
+   * ⚠️ **「全販促媒体」は入れないこと。** 合計なので、積み上げると二重に数える。
+   * ⚠️ HP内訳（showSummary）も入れない。切り替えるたびに系列数が変わり、
+   *   色の対応が動いて読めなくなる。
+   *
+   * ⚠️ `displayMediums` は medium_kaeru.show_graph 由来なので、
+   *   DB を直せば表もグラフも同時に変わる。片方だけ変わることはない。
+   */
+  const graphSeries = ['ホームページ反響計', ...displayMediums];
+
+  /**
+   * 積み上げ棒グラフのデータ。⚠️ グラフ非表示のときは作らない（重いため）
+   *
+   * ⚠️⚠️ **`getValue` の定義より後に置くこと。**
+   *   useMemo のコールバックは**レンダー中に即実行される**ため、
+   *   `const getValue = ...` より前に書くと初回レンダーで
+   *   「Cannot access 'getValue' before initialization」になる。
+   */
+  const graphData = useMemo<GraphData[]>(() => {
+    if (!checked.graph.show) return [];
+    return monthArray.map(monthValue => ({
+      month: monthValue,
+      ...Object.fromEntries(
+        graphSeries.map(seriesName => [seriesName,
+          getValue(userData, monthArray.indexOf(monthValue) + 1, monthValue, graphCategory)
+            // ⚠️ 表と同じ判定を使う。'ホームページ反響計' だけ mediumIndex = 1 相当
+            .filter(item => matchesMediumRow(item, seriesName, seriesName === 'ホームページ反響計' ? 1 : 2)).length
+        ])
+      )
+    }));
+    // ⚠️ displayMediums（＝show_graph）が変われば系列も変わるので依存に入れる
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userData, monthArray, graphCategory, checked.graph.show, showSummary, displayMediums]);
+
+  /**
+   * 数字のセルの見た目。
+   * ⚠️ 0件のときは下線もカーソルも出さない。押しても何も起きないため、
+   *   押せるように見せると「壊れている」と受け取られる。
+   */
+  const clickable = (value: number): React.CSSProperties =>
+    value ? { textDecoration: 'underline', cursor: 'pointer' } : {};
+
+  /** 顧客一覧モーダルを開く。⚠️ 0件のときは開かない */
+  const handleShow = (list: CustomerList[], labelValue: string) => {
+    if (list.length === 0) return;
+    setListShow({ show: true, label: labelValue, list });
+  };
+
+  /**
+   * 顧客詳細を閉じたあとの再取得。
+   * ⚠️ 詳細で日付を直すと歩留まりが変わるため、閉じたら読み直す。
+   */
+  const closeInformationEdit = () => {
+    setEditId('');
+    const fetchData = async () => {
+      try {
+        const response = await apiClient.post("/", { request: 'customerTrend', category });
+        setOriginalUserData(response.data.customer.map(r => !r.medium ? ({ ...r, medium: 'その他' }) : r));
+      } catch (error) {
+        console.error("データ取得エラー:", error);
+      }
+    };
+    fetchData();
+  };
+
   const checkedChange = (e) => {
     const { name } = e.target;
     setChecked(prev => ({
@@ -345,8 +555,9 @@ const CustomerTrendKaeru: React.FC = () => {
             onClick={() => setGraphCategory('contact')}>接触数推移</div>
           <div className="btn bg-success text-white px-4 rounded-pill mx-2" style={{ fontSize: '12px', letterSpacing: '1px', transform: graphCategory === 'interview' ? 'scale(1.1)' : '', opacity: graphCategory === 'interview' ? '1' : '.3' }}
             onClick={() => setGraphCategory('interview')}>来場数推移</div>
-          <div className="btn bg-info text-white px-4 rounded-pill mx-2" style={{ fontSize: '12px', letterSpacing: '1px', transform: graphCategory === 'tour' ? 'scale(1.1)' : '', opacity: graphCategory === 'tour' ? '1' : '.3' }}
-            onClick={() => setGraphCategory('tour')}>物件案内数推移</div>
+          {/* ⚠️ 「物件案内数推移」は KPI から外したためボタンを消した（2026-09-11）。
+                getValue の 'tour' の扱いは残してある。interviewKeys に
+                ['interview', 'tour'] として入っており、来場の判定に使っている */}
           <div className="btn bg-danger text-white px-4 rounded-pill mx-2" style={{ fontSize: '12px', letterSpacing: '1px', transform: graphCategory === 'contract' ? 'scale(1.1)' : '', opacity: graphCategory === 'contract' ? '1' : '.3' }}
             onClick={() => setGraphCategory('contract')}>契約数推移</div>
         </div>
@@ -358,8 +569,8 @@ const CustomerTrendKaeru: React.FC = () => {
                 <Tooltip content={CustomTooltip} />
                 <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
                 <Legend content={<CustomLegend />} />
-                {mediumArray.map((medium, index) =>
-                  <Bar key={index} dataKey={medium} stackId="a" fill={chartColors[index]} />
+                {graphSeries.map((seriesName, index) =>
+                  <Bar key={seriesName} dataKey={seriesName} stackId="a" fill={chartColors[index]} />
                 )}
               </BarChart>
             </ResponsiveContainer>
@@ -367,20 +578,6 @@ const CustomerTrendKaeru: React.FC = () => {
       </div>
     </>
   };
-
-const isHp = (value: string) => {
-    // データが空（undefinedやnull）の時に.includesでクラッシュするのを防ぐ
-    if (!value) return false; 
-    
-    const portal = ['SUUMO', 'ALLGRIT', `HOME'S`, 'アットホーム', 'タウンライフ', 'カゴスマ'];
-    const isPortalMatch = portal.some(p => value.includes(p));
-
-    return !isPortalMatch;
-  };
-
-  const displayMediums = ['SUUMO', `HOME'S`, 'ALLGRIT', 'アットホーム'];
-
-  const hpMediums = ['会員登録', '資料請求', '来場予約', '先取物件', 'その他'];
 
   const summary = () => {
     return <>
@@ -398,57 +595,8 @@ const isHp = (value: string) => {
             .map((medium, mediumIndex) => {
               const sectionShops = originalShopArray.filter(o => o.section === targetSection).map(o => o.shop);
               
-const base = userData.filter(o => {
-  // 1. 全販促媒体
-  if (mediumIndex === 0) return true;
-
-  // --------------------------------------------------
-  // 【追加】このデータ(o)が displayMediums の「いずれか」に該当するか判定
-  // --------------------------------------------------
-  const isAnyDisplayMedium = displayMediums.some(dm => {
-    const isMatchMedium = mediumFormate(o.medium) === mediumFormate(dm);
-    const isMatchCampaign = o.hp_campaign?.includes(dm) ?? false;
-    return isMatchMedium || isMatchCampaign;
-  });
-
-  // --------------------------------------------------
-  // displayMediums を選択中の場合の判定
-  // --------------------------------------------------
-  if (displayMediums.includes(medium)) {
-    // 選択中の媒体(medium)に合致するかどうかだけを返す
-    const isMatchMedium = mediumFormate(o.medium) === mediumFormate(medium);
-    const isMatchCampaign = o.hp_campaign?.includes(medium) ?? false;
-    return isMatchMedium || isMatchCampaign;
-  }
-
-  // --------------------------------------------------
-  // 【修正】HPグループの判定
-  // 条件: 「displayMediums に該当しない（!isAnyDisplayMedium）」かつ「HP系の条件を満たす」
-  // --------------------------------------------------
-  const isHpGroup = !isAnyDisplayMedium && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign);
-
-  // 2. ホームページ反響計（合計）
-  if (mediumIndex === 1) return isHpGroup;
-
-  // 3. showSummary 表示時の HP内訳（hpMediums の要素）
-  if (showSummary && hpMediums.includes(medium)) {
-    if (!isHpGroup) return false; // HPグループ以外は弾く
-
-    // HP反響の「その他」
-    if (medium === 'その他') {
-      const mainHpKeywords = ['会員登録', '資料請求', '来場予約', '先取物件'];
-      // キャンペーン名が無い、または主要キーワードが含まれていない場合は全て「その他」へ
-      return !o.hp_campaign || !mainHpKeywords.some(keyword => o.hp_campaign.includes(keyword));
-    }
-
-    // それ以外のHP内訳（会員登録、資料請求など）
-    return o.hp_campaign?.includes(medium) ?? false;
-  }
-
-  // 4. その他の通常の媒体
-  // HPグループに吸収されたデータは除外し、媒体名が一致するものだけを抽出
-  return !isHpGroup && mediumFormate(o.medium) === mediumFormate(medium);
-});
+              // ⚠️ 判定は matchesMediumRow に出した。グラフも同じものを使う
+              const base = userData.filter(o => matchesMediumRow(o, medium, mediumIndex));
               const baseBudget = budgetList.filter(b =>
                 b.section === 'spec'
                 && (mediumIndex === 0 ? true :
@@ -506,7 +654,8 @@ const base = userData.filter(o => {
                             {checked.register.show && (
                               <div style={getCardStyle('#38bdf8')}>
                                 <div style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>総反響</div>
-                                <span style={{ color: total.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px' }}>{total.length.toLocaleString()}</span>
+                                <span style={{ color: total.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px', ...clickable(total.length) }}
+                                  onClick={() => handleShow(total, `${medium} ${month} 総反響`)}>{total.length.toLocaleString()}</span>
                               </div>
                             )}
 
@@ -515,7 +664,8 @@ const base = userData.filter(o => {
                                 <div style={getCardStyle('#0ea5e9')}>
                                   <div style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>接触</div>
                                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                                    <span style={{ color: contact.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px' }}>{contact.length.toLocaleString()}</span>
+                                    <span style={{ color: contact.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px', ...clickable(contact.length) }}
+                                  onClick={() => handleShow(contact, `${medium} ${month} 接触`)}>{contact.length.toLocaleString()}</span>
                                     <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 500 }}>({isNaN(contact.length / total.length) ? 0 : Math.floor(contact.length / total.length * 100)}%)</span>
                                   </div>
                                 </div>
@@ -526,7 +676,8 @@ const base = userData.filter(o => {
                                   <div style={getCardStyle('#0284c7')}>
                                     <div style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>来場・物件案内</div>
                                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                                      <span style={{ color: interview.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px' }}>{interview.length.toLocaleString()}</span>
+                                      <span style={{ color: interview.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px', ...clickable(interview.length) }}
+                                  onClick={() => handleShow(interview, `${medium} ${month} 来場・物件案内`)}>{interview.length.toLocaleString()}</span>
                                       <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 500 }}>({isNaN(interview.length / contact.length) ? 0 : Math.floor(interview.length / contact.length * 100)}%)</span>
                                     </div>
                                   </div>
@@ -536,7 +687,8 @@ const base = userData.filter(o => {
                                   <div style={getCardStyle('#0284c7')}>
                                     <div style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>申込み</div>
                                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                                      <span style={{ color: application.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px' }}>{application.length.toLocaleString()}</span>
+                                      <span style={{ color: application.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px', ...clickable(application.length) }}
+                                  onClick={() => handleShow(application, `${medium} ${month} 申込み`)}>{application.length.toLocaleString()}</span>
                                       <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 500 }}>({isNaN(application.length / contact.length) ? 0 : Math.floor(application.length / contact.length * 100)}%)</span>
                                     </div>
                                   </div>
@@ -547,7 +699,8 @@ const base = userData.filter(o => {
                                     <div style={getCardStyle('#075985')}>
                                       <div style={{ color: '#475569', fontWeight: 600, fontSize: '11px' }}>契約</div>
                                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                                        <span style={{ color: contract.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px' }}>{contract.length.toLocaleString()}</span>
+                                        <span style={{ color: contract.length ? '#0284c7' : '#94a3b8', fontWeight: 700, fontSize: '13px', ...clickable(contract.length) }}
+                                  onClick={() => handleShow(contract, `${medium} ${month} 契約`)}>{contract.length.toLocaleString()}</span>
                                         <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 500 }}>({isNaN(contract.length / interview.length) ? 0 : Math.floor(contract.length / interview.length * 100)}%)</span>
                                       </div>
                                     </div>
@@ -614,6 +767,14 @@ const base = userData.filter(o => {
           </div>
         </div>
       </div>
+      <CustomerListModal
+        show={listShow.show}
+        label={listShow.label}
+        list={listShow.list}
+        onHide={() => setListShow({ show: false, label: '', list: [] })}
+        onSelectCustomer={setEditId}
+      />
+      <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
     </>
   );
 };

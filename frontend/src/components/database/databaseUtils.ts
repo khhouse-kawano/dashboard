@@ -165,3 +165,43 @@ export const hotleadStyle = (status: string | null) => {
       return { ...base, color: '#4b5563', backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' };
   }
 };
+/**
+ * 店舗を選んだときに出す担当営業の選択肢。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **同姓の担当者が増えたため**に入れた機能である（2026-09-14 の指示）。
+ *   既存の担当者名のテキスト検索（staffSearch）とは**別物**で、あちらは
+ *   部分一致なので「田中」で複数の田中が引っかかる。こちらは1人を選ぶ。
+ *
+ * ⚠️ 絞り込みの条件は3つすべて（指示）。
+ *     period   … 年度。⚠️ **暦年ではない**。utils/thisYear.ts を使うこと。
+ *                 ⚠️⚠️ 2026-09-13 に、暦年で比べていたために
+ *                   候補が0件になる不具合があった（useAmbassadorMaster.ts）。
+ *                   `getFullYear()` で代用しないこと。
+ *     category … 1。⚠️ サーバーは `rank = 1` でしか絞っておらず、
+ *                 実測（2026-09-14 / period = '2027'）で
+ *                 rank=1 かつ category=0 が6件あった。ここで落とす必要がある。
+ *     shop     … 選択中の店舗。
+ *
+ * ⚠️ 並び順は役職（utils/positions.ts）→ 社員番号。
+ *   ⚠️ `sortStaff()` を header/useAmbassadorMaster.ts から借りている。
+ *     同じ並びを2箇所に書くと、片方だけ直されて画面ごとに順序が変わる。
+ * ─────────────────────────────────────────────
+ */
+export const staffOptionsOf = <T extends { name: string; shop: string; period: string; category: number | string; position: string; khg_id: string }>(
+  staffList: T[],
+  shop: string,
+  year: number | string,
+  sorter: (rows: T[]) => T[]
+): T[] => {
+  if (!shop) return [];
+  const matched = (staffList ?? []).filter(s =>
+    String(s.period ?? '') === String(year) &&
+    Number(s.category) === 1 &&
+    (s.shop ?? '') === shop
+  );
+  // ⚠️ 同姓ではなく**同一人物**が重複登録されている場合に備えて名前で一意にする。
+  //   ⚠️ 同姓「別人」は名字だけでなくフルネームが違うので消えない
+  const unique = [...new Map(matched.map(s => [s.name, s])).values()];
+  return sorter(unique);
+};

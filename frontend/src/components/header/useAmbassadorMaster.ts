@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../../utils/apiClient';
 import { DIVISION_KEYS, SHOP_DIVISION } from './divisions';
 import { positions } from '../../utils/positions';
+// ⚠️ 年度の判定はここに寄せる。画面ごとに再実装しないこと（下の thisYear 参照）
+import { thisYear as fiscalYear } from '../../utils/thisYear';
 
 /**
  * 反響画面の店舗・担当営業マスタ。
@@ -53,11 +55,29 @@ export type MasterStaff = {
 /**
  * 当年度。
  *
- * ⚠️ 年度の切り替わりは考慮していない（暦年で判定する）。
- *   staff_list.period が暦年で運用されているため、これに合わせている。
- *   4月始まりに変えるなら staff_list 側の運用とセットで直すこと。
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **暦年ではなく「6月始まりの年度」である。**
+ *
+ *   2026-09-11 まで `String(new Date().getFullYear())` を返していた。
+ *   「staff_list.period は暦年で運用されている」という前提でコメントも
+ *   書かれていたが、**実データは年度**だった。
+ *
+ *   ⚠️ 実害: 2026-09 時点で当年度は 2027 なのに "2026" で絞っており、
+ *     **period = 2026 の行が無い店舗では担当営業が1人も出なかった。**
+ *     ローカルDBの実測で4店舗が該当（KH久留米店 / 不動産企画係 /
+ *     中古住宅専門店 / 外販）。店舗は選べるのに担当だけ選べないため、
+ *     原因が分かりにくい。
+ *
+ * ⚠️ 判定は `utils/thisYear.ts` に寄せてある。**ここで再実装しないこと。**
+ *   ShopTrendOrder / ShopOrder / CustomerTrend など他の画面はすべて
+ *   あちらを使っており、別々に持つと今回と同じズレが再発する。
+ *
+ * ⚠️ `utils/thisYear` はモジュール読み込み時に1度だけ評価される定数である。
+ *   画面を開いたまま6月をまたぐと切り替わらないが、他の画面と同じ挙動に
+ *   揃えることを優先している。
+ * ─────────────────────────────────────────────
  */
-const thisYear = (): string => String(new Date().getFullYear());
+const thisYear = (): string => String(fiscalYear);
 
 // ---------------------------------------------------------------------------
 // 店舗の絞り込みと並び替え

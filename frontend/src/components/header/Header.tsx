@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import EditStaff from './EditStaff';
 import EditAuth from './EditAuth';
 import EditShop from './EditShop';
@@ -26,10 +26,11 @@ import InquiryIntroductory from './InquiryIntroductory';
 import EventList from './EventList';
 import EventSummary from './EventSummary';
 import EventBudget from './EventBudget';
+import GoogleReview from './GoogleReview';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
-type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント';
+type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
 
 const Header = ({ }) => {
     const { authority } = useContext(AuthContext);
@@ -57,7 +58,7 @@ const Header = ({ }) => {
     const [modal, setModal] = useState<boolean>(false);
     const [estateId, setEstateId] = useState('search');
     const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント'];
+    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
@@ -66,6 +67,42 @@ const Header = ({ }) => {
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
 
     const isSp = useIsSp();
+
+    /**
+     * ヘッダーの実際の高さを下のレイアウトへ伝える。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **メニューが折り返すと高さが変わる**（2026-09-15 に flex-wrap を付けた）。
+     *   ヘッダーは `position-fixed` なので場所を取らず、下のコンテンツは
+     *   App.tsx の余白で避けている。⚠️ 高さが 30px → 60px になっても
+     *   余白が固定のままだと、**画面の上部がヘッダーに隠れる。**
+     *
+     * ⚠️ そこで実測して CSS 変数（--header-h）に入れ、App.tsx がそれを使う。
+     *   ⚠️ 片方だけ直さないこと。変数名を変えるなら App.tsx も直す。
+     *
+     * ⚠️ ResizeObserver を使うのは、折り返しが**幅の変化で起きる**ため。
+     *   リサイズだけを見ていると、メニューの増減に追従できない。
+     * ─────────────────────────────────────────────
+     */
+    const headerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const el = headerRef.current;
+        // ⚠️ スマホではこのヘッダーを描かない。余白も要らないので 0 に戻す
+        if (!el) {
+            document.documentElement.style.setProperty('--header-h', '0px');
+            return;
+        }
+
+        const apply = () => {
+            document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`);
+        };
+        apply();
+
+        const observer = new ResizeObserver(apply);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [isSp]);
 
     const menuMapping: Record<MenuKey, string[]> = {
         '店舗管理': ['店舗編集'],
@@ -77,7 +114,8 @@ const Header = ({ }) => {
         '日報': ['月次日報'],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
         '紹介キャンペーン': ['反響一覧'],
-        '集客イベント': ['反響一覧', '集客サマリー', '広告費入力']
+        '集客イベント': ['反響一覧', '集客サマリー', '広告費入力'],
+        'Google口コミ': ['口コミ集計']
     };
 
     /**
@@ -117,7 +155,9 @@ const Header = ({ }) => {
         //
         // ⚠️ 一方 '集客サマリー' は自前のモーダルを持たないので、
         //   共通モーダルに載せる（EventList とは扱いが違う）。
-        '集客イベント/集客サマリー': <EventSummary />
+        '集客イベント/集客サマリー': <EventSummary />,
+        // ⚠️ 表が横に広いので isFullscreenMenu に入れてある（上を参照）
+        'Google口コミ/口コミ集計': <GoogleReview />
     };
 
     useEffect(() => {
@@ -143,6 +183,15 @@ const Header = ({ }) => {
         '紹介キャンペーン/反響一覧',
         // 集客サマリーは KPI が5列＋広告費で横に広く、行も伸びるため同じ扱い
         '集客イベント/集客サマリー',
+        // ⚠️ 広告費シミュレーターは媒体の数だけ表が縦に伸びる。
+        //   ⚠️ 全画面にすると Modal.Header に「閉じる」ボタンも出る（下を参照）。
+        '反響管理/広告費シミュレーター',
+        // ⚠️ 口コミ集計は列が8つあり、本文の列に幅が要る。
+        //   ⚠️ 外すと（xl だと）本文の列が潰れて読めなくなる（2026-09-15 の指示）。
+        'Google口コミ/口コミ集計',
+        // ⚠️ 他社広告はバナーをグリッドで並べるため、幅が広いほど枚数が入る。
+        //   ⚠️ xl のままだと1行2〜3枚しか入らず、比較しづらい（2026-09-16 の指示）。
+        '他社動向/他社広告ライブラリ',
     ].includes(editMenu);
 
     // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）
@@ -157,8 +206,24 @@ const Header = ({ }) => {
     return (
         <>
             {!isSp && <div
-                className="d-flex align-items-center bg-white border-bottom px-2 position-fixed top-0 start-0 w-100"
-                style={{ zIndex: 1050, height: '30px', userSelect: 'none' }}
+                ref={headerRef}
+                /**
+                 * ⚠️⚠️ `flex-wrap` を外さないこと（2026-09-15 追加）。
+                 *   メニューが11項目あり、1024px 前後の幅では**1行に収まらず
+                 *   画面外へはみ出す。** 折り返して全部見えるようにしている。
+                 * ⚠️ `row-gap` は折り返したときの行間。無いと2行が詰まって読みにくい。
+                 */
+                className="d-flex flex-wrap align-items-center bg-white border-bottom px-2 position-fixed top-0 start-0 w-100"
+                style={{
+                    zIndex: 1050,
+                    // ⚠️⚠️ **`height` ではなく `minHeight`。**
+                    //   固定すると折り返した2行目が**はみ出して見えなくなる。**
+                    minHeight: '30px',
+                    rowGap: '2px',
+                    paddingTop: '2px',
+                    paddingBottom: '2px',
+                    userSelect: 'none',
+                }}
             >
                 {/* Claudeによる分析：menuMapping とは別の独立したボタン */}
                 <button

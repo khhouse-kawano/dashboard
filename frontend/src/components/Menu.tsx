@@ -9,6 +9,7 @@ import Estate from './Estate';
 import { useIsSp } from '../utils/isSp';
 import apiClient from "../utils/apiClient";
 import { isPendingSync } from './list/listTags';
+import { missingLostFields } from '../utils/informationUtils';
 
 type UnSync = { inquiry_date: string, sync: number, duplicate_flag: number, support_flag: number, black_flag: number };
 type Cancel = Record<string, string>;
@@ -32,6 +33,33 @@ type MenuItem = {
     badges?: Badge[];            // 通知バッジの設定
 };
 
+/**
+ * 進行中（または完了済み）の menu リクエスト。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **Menu は App.tsx で2箇所にマウントされている。**
+ *   PC用（`.modal_menu`）とスマホ用（`.modal_menu_sp`）の両方が常に
+ *   マウントされ、CSS で見た目だけを切り替えている。
+ *   ⚠️ そのため何もしないと **useEffect が2回走り、同じデータを2回取る。**
+ *     2026-09-14 の実測では 18.2MB を2回（3.25秒 / 2.88秒）取得していた。
+ *
+ * ⚠️ どちらか片方だけレンダリングする形にはできない。
+ *   `useIsSp()` の初期値が false（PC扱い）なので、スマホでは
+ *   「PC用がマウント → useEffect で判定 → 差し替え」となり**結局2回走る。**
+ *
+ * ⚠️ `key`（再読み込みのたびに変わる）が同じ間は同じ Promise を返す。
+ *   完了後も保持するので、2つ目のインスタンスが後からマウントされても
+ *   再取得しない。
+ * ─────────────────────────────────────────────
+ */
+let menuRequest: { key: number, promise: Promise<any> } | null = null;
+
+const fetchMenuOnce = (key: number) => {
+    if (menuRequest && menuRequest.key === key) return menuRequest.promise;
+    menuRequest = { key, promise: apiClient.post("", { request: "menu" }) };
+    return menuRequest.promise;
+};
+
 const Menu = ({ key, onReload }: Props) => {
     const { authority, category, version } = useContext(AuthContext);
     const location = useLocation();
@@ -40,6 +68,12 @@ const Menu = ({ key, onReload }: Props) => {
     const navigate = useNavigate();
     const isSp = useIsSp();
 
+    /**
+     * サーバーが数えた件数。
+     * ⚠️ null なら旧形式（全件を受け取ってフロントで数える）。
+     *   ⚠️ ① と ② の両方が新しい形になったら、旧経路ごと消してよい。
+     */
+    const [serverCounts, setServerCounts] = useState<{ sync: number, cancel: number, lost: number } | null>(null);
     const [unSyncList, setUnSyncList] = useState<UnSync[]>([]);
     const [sync, setSync] = useState(0);
     const [cancelList, setCancelList] = useState<Cancel[]>([]);
@@ -52,22 +86,47 @@ const Menu = ({ key, onReload }: Props) => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const response = await apiClient.post("", { request: "menu" });
-            setUnSyncList(response.data.inquiry);
-            setCancelList(response.data.customer);
+            // ⚠️ 2箇所からマウントされるので、同じ key の間は1回しか取りに行かない
+            const response = await fetchMenuOnce(key);
+            const data = response.data ?? {};
+
+            // ⚠️⚠️ **新旧どちらの応答でも動くようにしてある。**
+            //   2026-09-14 にサーバー側で COUNT するよう変えた（18.2MB → 数十バイト）。
+            //   ⚠️ ① と ② のどちらが応答するかで形が変わりうるため、
+            //     デプロイの順序やフォールバックで壊れないよう両対応にしている。
+            //   ⚠️ ① と ② の両方が新しい形になったら、下の旧経路は消してよい。
+            if (typeof data.sync === 'number') {
+                setServerCounts({ sync: data.sync, cancel: data.cancel ?? 0, lost: data.lost ?? 0 });
+            } else {
+                // 旧形式（全件を受け取ってフロントで数える）
+                setServerCounts(null);
+                setUnSyncList(data.inquiry ?? []);
+                setCancelList(data.customer ?? []);
+            }
         };
         fetchData();
         setMonthArray(getYearMonthArray(2025, 1).slice(5));
     }, [key]);
 
     useEffect(() => {
+        // ⚠️ サーバーが数えてくれた場合はそのまま使う
+        if (serverCounts) {
+            setSync(serverCounts.sync);
+            return;
+        }
         const total = unSyncList.filter(c => {
             return monthArray.includes(c.inquiry_date.slice(0, 7)) && isPendingSync(c);
         }).length;
         setSync(total);
-    }, [unSyncList, monthArray]);
+    }, [unSyncList, monthArray, serverCounts]);
 
     useEffect(() => {
+        // ⚠️ サーバーが数えてくれた場合はそのまま使う
+        if (serverCounts) {
+            setCancel(serverCounts.cancel);
+            setLost(serverCounts.lost);
+            return;
+        }
         const cancelLength = cancelList.filter(item => {
             const now = new Date();
             const today = now.getTime();
@@ -82,17 +141,16 @@ const Menu = ({ key, onReload }: Props) => {
             const today = now.getTime();
             const target = new Date(dateFormate(item.register)).getTime();
             const base = new Date('2026-06-01').getTime();
-            const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
-            const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
-            const isDetailMissing = item.competitor_lost_contract_reason === '競合負け' &&
-                (
-                    !item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
-                    !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
-                );
-            return target < today && base < target && item.status === '失注' && (isReasonMissing || isCompetitorMissing || isDetailMissing) && Number(item.trash) === 1;
+            /**
+             * ⚠️⚠️ **判定は informationUtils の `missingLostFields()` に集約した**
+             *   （2026-09-17）。⚠️ 以前はここに条件が写されており、
+             *   ⚠️ **② が数えなかったときだけ古い基準の件数が出ていた。**
+             * ⚠️ ここで条件を書き足さないこと。
+             */
+            return target < today && base < target && item.status === '失注' && missingLostFields(item).length > 0 && Number(item.trash) === 1;
         }).length
         setLost(lostLength);
-    }, [cancelList]);
+    }, [cancelList, serverCounts]);
 
     const handleNavigate = (path: string) => {
         navigate(path, { state: { authority } });
@@ -132,7 +190,23 @@ const Menu = ({ key, onReload }: Props) => {
         },
         { id: 'rank', path: '/rank', icon: 'fa-person', label: '店舗・担当別反響', show: category !== 'planner', exact: true },
         { id: 'map', path: '/map', icon: 'fa-map', label: '反響MAP', show: category !== 'planner', exact: true },
-        { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && category === 'order', exact: true },
+        /**
+         * ⚠️ 建売（spec）も 2026-09-16 から表示する。
+         *   ⚠️ 画面（customer/CustomerKaeru.tsx）も ② の `customer:spec` も
+         *     **元からあった**が、ここが `order` だけだったため
+         *     ⚠️ **URL を直接開かないと辿り着けなかった。**
+         *   ⚠️ `used`（中古）は画面が無いので出さない。
+         */
+        { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
+        /**
+         * ⚠️⚠️ **建売（spec）には出さない**（2026-09-16 の指示。要件の整理中）。
+         *   ⚠️ 2026-09-11 に `ShopKaeru.tsx` を足して spec にも出していたが、
+         *     いったん取り下げる。
+         *   ⚠️ **画面（shop/ShopKaeru.tsx）と ② の `shop:spec` は消していない。**
+         *     ⚠️ URL を直接開けば今までどおり見える。戻すのはこの1行を
+         *       `(category === 'order' || category === 'spec')` にするだけ。
+         *   ⚠️ `used`（中古）は画面が無いので元から出していない。
+         */
         { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && category === 'order', exact: true },
         { id: 'property_used', path: '/property', icon: 'fa-house', label: '掲載物件一覧', show: category === 'planner', exact: false },
         { id: 'broker', path: '/broker', icon: 'fa-house', label: '媒介獲得台帳', show: category === 'planner', exact: false },

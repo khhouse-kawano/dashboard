@@ -23,6 +23,7 @@ import { get11MonthsAgoString } from '../../utils/get11MonthsAgoString';
 import { isLastYear } from '../../utils/isLastYear';
 import { ModalBody } from 'react-bootstrap';
 import InformationEditKaeru from '../information/InformationEditKaeru';
+import InterviewLog from '../InterviewLog';
 import { thisYear } from '../../utils/thisYear';
 import apiClient from '../../utils/apiClient';
 
@@ -100,6 +101,8 @@ const ShopTrendKaeru = () => {
     const [listPage, setListPage] = useState(1);
 
     const [editId, setEditId] = useState('');
+    /** 商談ステップ（InterviewLog）を開く顧客ID。'' なら閉じている */
+    const [interviewId, setInterviewId] = useState('');
     const [isReverse, setIsReverse] = useState(true);
 
     useEffect(() => {
@@ -907,7 +910,7 @@ const ShopTrendKaeru = () => {
                     </div>
                 </Modal.Body>
             </Modal>
-            <Modal show={listShow.show} onHide={modalClose} size='lg'>
+            <Modal show={listShow.show} onHide={modalClose} size='xl'>
                 <Modal.Header closeButton>{listShow.label}一覧</Modal.Header>
                 <ModalBody>
                     <Table bordered striped>
@@ -917,9 +920,11 @@ const ShopTrendKaeru = () => {
                                 <td>顧客名</td>
                                 <td>店舗</td>
                                 <td>担当営業</td>
+                                <td>初回来場日</td>
                                 <td>ステータス</td>
                                 <td>ランク</td>
                                 <td>販促媒体</td>
+                                <td>商談ステップ</td>
                             </tr>
                             {modalList.slice(listPage * 10 - 10, listPage * 10).map((item, index) =>
                                 <tr key={index}>
@@ -927,9 +932,13 @@ const ShopTrendKaeru = () => {
                                     <td><span onClick={() => setEditId(item.id)} style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{item.customer}</span></td>
                                     <td>{item.shop}</td>
                                     <td>{item.staff}</td>
+                                    {/* ⚠️ 未来場（来場予約・キャンセルの一覧）では空になるので '-' を出す */}
+                                    <td>{item.interview || '-'}</td>
                                     <td>{item.status}</td>
                                     <td>{item.rank}</td>
                                     <td>{item.medium}</td>
+                                    <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
+                                        onClick={() => setInterviewId(item.id)}>表示</div></td>
                                 </tr>)}
                         </tbody>
                     </Table>
@@ -952,6 +961,7 @@ const ShopTrendKaeru = () => {
                     </div>
                 </ModalBody>
             </Modal>
+            <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
             <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </>
     )

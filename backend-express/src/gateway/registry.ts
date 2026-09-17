@@ -11,6 +11,7 @@ import { runAmbassadorMaster } from '../features/ambassador/master';
 import {
   runInquiryIntroductoryList,
   runInquiryIntroductorySync,
+  runInquiryIntroductoryTag,
   runInquiryIntroductoryUpdate,
 } from '../features/introductory';
 import { runEventReservation } from '../features/event/reservation';
@@ -26,6 +27,15 @@ import {
 } from '../features/eventBudget';
 import { runList } from '../features/list';
 import { runShopTrend } from '../features/shopTrend';
+import { runCustomerTrend } from '../features/customerTrend';
+import { runShop } from '../features/shop';
+import { runInside } from '../features/inside';
+import { runBudgetSimulator } from '../features/budgetSimulator';
+import { runDatabase } from '../features/database';
+import { runCustomer } from '../features/customer';
+import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
+import type { CustomerCategory } from '../features/customer/queries';
+import type { DatabaseCategory } from '../features/database/queries';
 import {
   runListBlack,
   runListInsert,
@@ -44,6 +54,8 @@ import {
   runFundingPlanGet,
   runFundingPlanSave,
 } from '../features/fundingPlan';
+import { runChangeCompanyAchievement, runCompany } from '../features/company';
+import { runListEvent } from '../features/list/event';
 import { runHeader } from '../features/header';
 import type { InformationCategory } from '../features/information';
 import { runInformationInit } from '../features/information';
@@ -67,6 +79,17 @@ import {
   runKSnapShow,
 } from '../features/ksnap';
 import { runMenu } from '../features/menu';
+import {
+  runCampaignFormDetail,
+  runCampaignFormInsert,
+  runCampaignFormList,
+  runCampaignFormMaster,
+  runCampaignFormUpdate,
+} from '../features/campaignForm';
+import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaignForm/entry';
+import { runCampaignSummary } from '../features/campaignSummary';
+import { runLostList } from '../features/lostList';
+import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
 import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
@@ -567,6 +590,31 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await runInquiryIntroductorySync(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 反響に「重複」「ブラックリスト」の判定を付け外しする。
+ *
+ * ⚠️⚠️ **顧客は作らない。** sync を 1 にして未同期の一覧から外すだけ。
+ *   `master_data_id` は NULL のままで、そこが本当の同期済みとの違いである。
+ *
+ * ⚠️ 顧客が作られた行（master_data_id あり）は拒否する。
+ *   タグを外すと sync が 0 に戻り、次の同期で顧客が二重に作られるため。
+ *
+ * ⚠️ 列の追加は backend/scripts/sql/2026-09-11_inquiry_introductory_skip_tags.sql。
+ *   **先に実行すること。** 無いと UPDATE が落ちる。
+ */
+register({
+  request: 'inquiry_introductory',
+  roll: 'tag',
+  summary: '【書き込み】紹介反響に重複・ブラックリストの判定を付け外しする（顧客は作らない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInquiryIntroductoryTag(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
@@ -1161,10 +1209,12 @@ register({
 //
 // ⚠️ 参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
 //
-// ⚠️⚠️ **roll 付きの list（insert / black / tag / shop_change / staff_change /
-//   event）はまだ移植していない。** ゲートウェイは request + roll + category の
-//   完全一致で引くため、未登録の roll は自動で ① へ転送される。
-//   移植するときは書き込み系なので expressProxyExclusive() への登録が必要。
+// ⚠️ roll 付きの list はすべて移植済み
+//   （insert / black / tag / shop_change / staff_change / event）。
+//   ⚠️⚠️ **ゲートウェイは request + roll + category の完全一致で引く。**
+//     登録漏れがあると ② が「ループ検知」で 502 を返し、① にフォールバックする。
+//     画面は動くが往復が無駄になり、① と ② の両方のログが汚れる。
+//     2026-09-10 に roll = 'event' の登録漏れで実際に起きた。
 // ---------------------------------------------------------------------------
 
 for (const category of ['order', 'spec', 'used']) {
@@ -1307,3 +1357,492 @@ for (const category of ['', 'order', 'spec', 'used']) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// 販促媒体別動向（customerTrend/CustomerTrendOrder.tsx / CustomerTrendKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
+// ⚠️ roll では分岐しない。category だけ。
+//
+// ⚠️⚠️ **`used` は登録しない。** ① の customerTrendAction/customerTrend_used.php が
+//   存在せず、CustomerTrendResale.tsx も中身の無いプレースホルダのため、
+//   そもそも動いていない経路である。登録すると壊れた経路を
+//   「動いているように見せる」ことになる。
+//
+// ⚠️ category を送らない呼び出しに備えて '' も登録する（PHP の既定値 'order'）。
+// ---------------------------------------------------------------------------
+
+for (const category of ['', 'order', 'spec']) {
+  register({
+    request: 'customerTrend',
+    category,
+    summary: `販促媒体別動向の初期データ（${category === '' ? '既定=order' : category}）`,
+    phpSource: `backend/src/handlers/customerTrendAction/customerTrend_${category === '' ? 'order' : category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runCustomerTrend(ctx.body.category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 店舗ランキング（shop/ShopOrder.tsx / ShopKaeru.tsx）
+//
+// ⚠️ 参照のみ。roll では分岐しない。category だけ。
+//
+// ⚠️⚠️ **order と spec で ① の状況が違う。**
+//     order … ① に shopAction/shop_order.php が実在する → フォールバック可
+//     spec  … ① に shopAction/shop_spec.php は**無い** → ② が落ちると見られない
+//   ⚠️ 利用者と相談のうえ ① には作らない方針（2026-09-11）。
+//     SQL を2箇所に書くと片方だけ直して鼠算になるため。
+//
+// ⚠️ `used` は登録しない。画面も ① の PHP も無い。
+// ---------------------------------------------------------------------------
+
+for (const category of ['', 'order', 'spec']) {
+  register({
+    request: 'shop',
+    category,
+    summary: `店舗ランキングの初期データ（${category === '' ? '既定=order' : category}）`,
+    phpSource: category === 'spec'
+      ? '(Express のみ。① に shop_spec.php は無い)'
+      : 'backend/src/handlers/shopAction/shop_order.php',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runShop(ctx.body.category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// インサイドセールスの架電一覧（insideSales/InsideSales.tsx）
+//
+// ⚠️ 参照のみ。① に inside.php / insideAction/inside_list.php が実在するので
+//   フォールバックしてよい。
+//
+// ⚠️ roll は 'list' だけ。① の inside.php も 'list' しか許可していない。
+// ⚠️ 対象店舗は features/inside.ts の TARGET_SHOPS。
+//   ⚠️ ① の inside_list.php にも同じ内容がある。片方だけ直さないこと。
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 広告費シミュレーター（header/BudgetSimulator.tsx）
+//
+// ⚠️ 参照のみ。① に budget_simulator.php が実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **注文と建売をまとめて返すので応答が大きい。**
+//   列は集計に要るものだけに絞ってある。足すときは転送量を意識すること。
+//
+// ⚠️ roll / category では分岐しない。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'budget_simulator',
+  summary: '広告費シミュレーターの初期データ（注文・建売をまとめて返す）',
+  phpSource: 'backend/src/handlers/budget_simulator.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runBudgetSimulator();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inside',
+  roll: 'list',
+  summary: 'インサイドセールスの架電一覧と担当者',
+  phpSource: 'backend/src/handlers/insideAction/inside_list.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runInside(ctx.body.roll);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 会社実績（company/Company.tsx）
+//
+// ⚠️ `company` は参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
+// ⚠️⚠️ `change_company_achievement` は**書き込み**。① の PHP も残るため
+//   フォールバック禁止（express_proxy.php の exclusive）に登録している。
+//   両方で走ると company_achievement が二重に書かれる。
+//
+// ⚠️ どちらも roll / category では分岐しない。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'company',
+  summary: '会社実績の初期データ（担当営業・店舗・課・契約者3事業・契約目標）',
+  phpSource: 'backend/src/handlers/company.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runCompany();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'change_company_achievement',
+  summary: '【書き込み・フォールバック禁止】契約目標の登録（company_achievement の upsert）',
+  phpSource: 'backend/src/handlers/change_company_achievement.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runChangeCompanyAchievement(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 集客イベントの来場予約一覧（header/EventList.tsx）
+//
+// ⚠️⚠️ **1つの roll で参照と書き込みを兼ねる。** `function` で分かれる
+//   （load = 参照 / update = 書き込み）。`rank` と同じ構造である。
+//
+// ⚠️ ① に PHP ハンドラが実在する（listAction/list_event.php）。
+//   ⚠️⚠️ **フォールバック禁止には登録しない。**
+//     update は単純な代入だけで冪等なので、① で再実行されても結果は同じ。
+//     理由の詳細は features/list/event.ts のコメントを参照。
+//
+// ⚠️ category は AuthContext 由来で order / spec / used のいずれか。
+//   ワイルドカードは無いので3件登録する。
+//   ⚠️ 登録漏れがあると 2026-09-10 に起きた「ループ検知 502」が再発する。
+// ---------------------------------------------------------------------------
+
+for (const category of ['order', 'spec', 'used']) {
+  register({
+    request: 'list',
+    roll: 'event',
+    category,
+    summary: `集客イベントの来場予約一覧（${category}）⚠️ function で参照と更新を兼ねる`,
+    phpSource: 'backend/src/handlers/listAction/list_event.php',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runListEvent(ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 顧客一覧（database/DatabaseOrder.tsx / DatabaseKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に database.php / databaseAction/database_{category}.php が
+//   実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **登録するのは order と spec だけ。**
+//   ① の database.php は 'used' と 'common' も許可しているが、
+//   中古（DatabaseResale.tsx）はここでは扱わない。登録していない category は
+//   そのまま ① へ転送されるので、これまでどおり ① が応答する。
+//
+// ⚠️⚠️ **roll（trash / copy）は登録しない。** 書き込みを伴う別経路である。
+//   ① の database.php は roll があれば database_{category}_{roll}.php を読む。
+//   ここに roll 付きを登録すると、書き込み経路まで ② に寄せてしまう。
+//
+// ⚠️⚠️ **応答が大きい。** 顧客は注文で約24,000件・建売で約10,000件。
+//   ⚠️ 列を足すときは転送量を意識すること。
+// ---------------------------------------------------------------------------
+
+const databaseCategories: DatabaseCategory[] = ['order', 'spec'];
+
+for (const category of databaseCategories) {
+  register({
+    request: 'database',
+    category,
+    summary: `顧客一覧の初期データ（${category}）：マスタ＋顧客＋ギフト進呈可否`,
+    phpSource: `backend/src/handlers/databaseAction/database_${category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runDatabase(category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 販促媒体別ランキング（customer/CustomerOrder.tsx / CustomerKaeru.tsx）
+//
+// ⚠️ 参照のみ。① に customer.php / customerAction/customer_{category}.php が
+//   実在するのでフォールバックしてよい。
+//
+// ⚠️⚠️ **登録するのは order と spec だけ。**
+//   ① の customer.php は 'used' も許可しているが、CustomerRouter.tsx は
+//   order / spec しか描画しない。登録していない category は ① へ転送される。
+//
+// ⚠️ SQL は shop/queries.ts と同じ内容にしてある（行が店舗か媒体かの違いだけ）。
+//   ⚠️ 移植にあたり、① の customer_spec.php にあった誤り2つ
+//     （契約の列の取り違え／販促費を事業で絞っていない）を直してある。
+//     ① の PHP も同じ形に直した。**片方だけ直さないこと。**
+// ---------------------------------------------------------------------------
+
+const customerCategories: CustomerCategory[] = ['order', 'spec'];
+
+for (const category of customerCategories) {
+  register({
+    request: 'customer',
+    category,
+    summary: `販促媒体別ランキングの初期データ（${category}）`,
+    phpSource: `backend/src/handlers/customerAction/customer_${category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runCustomer(category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Google クチコミの取得（projects/sync から呼ばれる。画面は無い）
+//
+// ⚠️⚠️ **① に PHP ハンドラは無い。** 以前は post_review.php / shop_review.php が
+//   あったが現行の backend/src/handlers/ から消えている
+//   （backup/back/20260625/api/actions/ にだけ残っている）。
+//   ⚠️ そのため express_proxy.php の expressProxyExclusive() に入れてある。
+//     転送に失敗したら 502 で終わり、① で二重に実行されることはない。
+//
+// ⚠️ `list` は参照、`save` は書き込み。roll で分けている。
+//
+// ⚠️⚠️ **Places API はクチコミを最大5件しか返さない。**
+//   毎回5件取って、まだ持っていないものだけを足していく運用である。
+//   突き合わせは features/googleReview.ts が行う（sync 側ではない）。
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️⚠️ **auth: 'none' にしている理由**
+ *   呼び出し元は projects/sync（無人のバッチ）で、**認証ヘッダを送らない**
+ *   （utils/postGateway.ts は Content-Type しか付けない）。
+ *   移植元の post_review.php も認証していなかった。
+ *   ⚠️ 'staff' にすると sync から一切叩けなくなる。
+ *
+ * ⚠️⚠️ **書き込み（save）なのに認証が無いことは認識しておくこと。**
+ *   他の sync 経由の request（suumo_db_order など）も同じ状態で、
+ *   認証強化は移行と分けて一括で行う方針である
+ *   （GATEWAY_REQUIRE_AUTH で切り替えられる）。
+ */
+register({
+  request: 'google_review',
+  roll: 'list',
+  summary: 'Google クチコミ取得の対象店舗と Place ID（本文は返さない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runGoogleReviewList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️ 口コミ集計画面（header/GoogleReview.tsx）用。
+ *   ⚠️ `list` とは別物である。あちらは sync 専用で本文を返さない。
+ *   ⚠️ こちらは画面から呼ぶので auth: 'staff'（sync は呼ばない）。
+ */
+register({
+  request: 'google_review',
+  roll: 'summary',
+  summary: '口コミ集計画面の初期データ（クチコミ本文＋店舗マスタ）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runGoogleReviewSummary();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'google_review',
+  roll: 'save',
+  summary: '【書き込み・フォールバック禁止】Google クチコミの保存（増えた分だけ追記）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  // ⚠️ 上の list と同じ理由で 'none'。sync は認証ヘッダを送らない
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runGoogleReviewSave(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// キャンペーンフォーム（form_table）
+//
+// ⚠️⚠️ **移植元は dashboard のゲートウェイではない別API**である。
+//   `https://khg-marketing.info/api/` の index.php で、
+//   ルーティングに `request` ではなく **`Authorization` ヘッダ**を使っていた
+//   （`Authorization: form_list` 等）。
+//
+//   対応:
+//     form_list     → campaign_form:list
+//     form_edit     → campaign_form:detail
+//     form_post     → campaign_form:insert
+//     form_update   → campaign_form:update
+//     form_database → campaign_form:master
+//     form_get      → campaign_form:public   ⚠️ 認証なし
+//     form_register → campaign_form:entry    ⚠️ 認証なし・書き込み
+//
+// ⚠️ 公開フォーム（272件）は各ブランドサイトの `form/api/index.php` を経由して届く。
+//   ⚠️ そちらの `$targetUrl` を ② へ向けると切り替わる（**8ファイルの1行**）。
+//   ⚠️ 問題があれば1行戻すだけで元に戻せる。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'campaign_form',
+  roll: 'list',
+  summary: 'キャンペーンフォームの一覧（ブランド別）',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_list)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormList(ctx.body),
+});
+
+register({
+  request: 'campaign_form',
+  roll: 'detail',
+  summary: 'キャンペーンフォーム1件の設定（編集用）',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_edit)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormDetail(ctx.body),
+});
+
+register({
+  request: 'campaign_form',
+  roll: 'insert',
+  summary: '【書き込み】キャンペーンフォームの新規登録',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_post)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormInsert(ctx.body),
+});
+
+register({
+  request: 'campaign_form',
+  roll: 'update',
+  summary: '【書き込み】キャンペーンフォームの更新',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_update)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormUpdate(ctx.body),
+});
+
+register({
+  request: 'campaign_form',
+  roll: 'master',
+  summary: 'ブランドごとのフォーム既定値（form_database）',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_database)',
+  auth: 'staff',
+  handler: async (ctx) => runCampaignFormMaster(ctx.body),
+});
+
+/**
+ * ⚠️⚠️ **公開フォームの初期表示。認証なし。**
+ *   ⚠️ 移植元は `SELECT *` で **mail_to / mail_cc をブラウザへ返していた**。
+ *     フォームのソースを見れば誰でも通知先が読めた。
+ *   ⚠️ こちらは表示に必要な列だけを返す。**通知先を返さないこと。**
+ */
+register({
+  request: 'campaign_form',
+  roll: 'public',
+  summary: '【認証なし】公開フォームの設定（通知先は返さない）＋表示記録',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_get)',
+  auth: 'none',
+  handler: async (ctx) => runCampaignFormPublic(ctx.body),
+});
+
+/**
+ * ⚠️⚠️ **公開フォームからの反響受付。認証なしの書き込み口である。**
+ *   ⚠️ 社外の誰でも、ブラウザでも curl でも叩ける。
+ *   ⚠️ 防御は3つ:
+ *     1. middlewares/publicFormRateLimit.ts … IP単位の流量制限
+ *     2. features/campaignForm/entry.ts     … 全項目の長さ制限・通知先はDBから
+ *     3. CORS（app.ts）
+ *   ⚠️ CORS はブラウザの仕組みで curl には効かない。防御として数えないこと。
+ *
+ * ⚠️ 各ブランドサイトが別オリジンなので、本番の CORS_ORIGINS への追加が必要。
+ *   ⚠️ ただし**経由するのは各サイトの form/api/index.php（サーバー間通信）**なので、
+ *     プロキシのままなら CORS は関係しない。
+ */
+register({
+  request: 'campaign_form',
+  roll: 'entry',
+  summary: '【書き込み・認証なし】公開フォームからの反響受付（inquiry_customer）',
+  phpSource: 'khg-marketing.info/api/index.php (Authorization: form_register)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runCampaignFormEntry(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 他社広告ライブラリ（meta_ads）
+//
+// ⚠️⚠️ **移植元は1つの request で読み書きを兼ねていた**
+//   （backend/src/handlers/meta_ads.php。`id` があれば更新、無ければ一覧）。
+//   ⚠️ そのため ① の許可リストに **request 名だけで載せてはいけない。**
+//     載せると書き込みまで ② へ流れ、PHP 側と二重に走る経路ができる。
+//   ⚠️ roll で分けてある。許可リストにも roll 込みで書くこと。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'meta_ads',
+  roll: 'list',
+  summary: '他社広告ライブラリの一覧（バナー・広告主・エリア）',
+  phpSource: 'backend/src/handlers/meta_ads.php',
+  auth: 'staff',
+  handler: async () => runMetaAdsList(),
+});
+
+register({
+  request: 'meta_ads',
+  roll: 'bookmark',
+  summary: '【書き込み】他社広告のブックマーク',
+  phpSource: 'backend/src/handlers/meta_ads.php',
+  auth: 'staff',
+  handler: async (ctx) => runMetaAdsBookmark(ctx.body),
+});
+
+// ---------------------------------------------------------------------------
+// 失注一覧
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在するので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️⚠️ **移植元は master_data を全件返していた。**
+//   ⚠️ 画面が受け取ったあとで失注だけに絞っていたため、
+//     使わない行まで送っていた。⚠️ ここでは SQL 側で絞る。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'lostList',
+  summary: '失注一覧（未入力の失注理由・失注先の確認用）',
+  phpSource: 'backend/src/handlers/lostList.php',
+  auth: 'staff',
+  handler: async () => runLostList(),
+});
+
+// ---------------------------------------------------------------------------
+// キャンペーン別集計
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在する（campaignSummary.php）ので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️ 絞り込みは画面側にある。⚠️ ここは移植元と同じく全件返す。
+//   ⚠️ 期間の起点が画面側の定数なので、SQL に写すと食い違う。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'campaignSummary',
+  summary: 'キャンペーン別の反響〜契約の集計',
+  phpSource: 'backend/src/handlers/campaignSummary.php',
+  auth: 'staff',
+  handler: async () => runCampaignSummary(),
+});

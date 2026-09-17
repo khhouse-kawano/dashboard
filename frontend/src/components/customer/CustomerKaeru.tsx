@@ -1,17 +1,63 @@
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import Table from "react-bootstrap/Table";
-import axios from "axios";
 import '../chartConfig';
 import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import Category from '../Category';
+import apiClient from '../../utils/apiClient';
+// ⚠️ グラフとその系列は shop/ と共有する。X軸が店舗名か販促媒体名かだけが違う
+import UnitPriceGraphModal from '../shop/UnitPriceGraphModal';
+import { UNIT_PRICE_SERIES_SPEC } from '../shop/unitPriceSeries';
+
+/**
+ * 販促媒体別ランキング（建売分譲事業）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **shop/ShopKaeru.tsx を踏襲している**（2026-09-14 の指示）。
+ *   違いは**行が店舗か販促媒体か**だけで、KPI も列の並びも同じにしてある。
+ *   ⚠️ **片方を直したら必ず両方直すこと。**
+ *
+ * ⚠️⚠️ **2026-09-14 に KPI を建売のものへ直した。以前とは数字が変わる。**
+ *   それまで中身は CustomerOrder.tsx とほぼ同じで、**注文事業の判定**
+ *   （総反響 → 来場 → 契約／契約に「解約」を含む）を使っていた。
+ *   ⚠️ 建売は 総反響 → 接触 → 来場・案内 → 申込み → 契約 で、
+ *     契約は `status === '契約済み'` のみである。
+ *
+ *   ⚠️⚠️ **旧版は「申込み」の列を契約として数えていた。**
+ *     建売の 01J82Z5F1RR18Z792C7KZS88QG は `application`（申込み）であり、
+ *     契約は 01JP74NGRTT95X4Z8AQZ2QK2PW（＋仲介 01JV6AVXQMJY6XR4STWCHNKVE0）。
+ *     ⚠️ 実測（2026-09-14 / show_dashboard = 1 の 8,321 件）で
+ *       旧 435 件 → 新 **473 件**。**増える**。
+ *       申込み日が空でも契約日が入っている顧客がいるためで、
+ *       解約を除いた効果より、契約列を正しく見た効果のほうが大きい。
+ *     ⚠️ ShopKaeru や CustomerTrendKaeru とはこれで一致する。
+ *
+ * ⚠️⚠️ **販促媒体が1つも表示されていなかった問題も直した。**
+ *   `response.data.medium.filter(m => m.list_medium === 1)` としていたが、
+ *   建売が受け取るのは `medium_kaeru` で、**`list_medium` 列が存在しない。**
+ *   `undefined === 1` は常に false になり、表は「総反響」1行だけだった。
+ *   ⚠️ エラーは出ないので気づきにくい壊れ方である。
+ * ─────────────────────────────────────────────
+ */
 
 type Customer = Record<string, string>;
 type Budget = { id: number; medium: string; budget_period: string; shop: string; budget_value: number; note: string; company: string; response_medium: number; category: string; section: string; order_section: string }
 type Shop = { id: number; brand: string; shop: string; section: string; area: string; }
-type Medium = { id: number; medium: string }
+/**
+ * ⚠️ 実データ（medium_kaeru）は `id` ではなく **`no`** を返す。
+ *   ⚠️ `show_graph` は 2026-09-11 に足した列。
+ *     backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql を先に実行すること。
+ */
+type Medium = { id?: number; no?: number; medium: string; show_graph?: number | string }
+
+/**
+ * ⚠️⚠️ **`show_graph = 0` の媒体をまとめる行の名前。**
+ *   ⚠️ 実在の媒体名と重ならないこと。`medium_kaeru` に同名があると
+ *     その媒体だけ二重に数えられる。
+ */
+const HOMEPAGE_ROW = 'ホームページ反響';
 type Section = { no: number, name: string }
 
 const CustomerKaeru = () => {
@@ -29,17 +75,22 @@ const CustomerKaeru = () => {
     const [sortKey, setSortKey] = useState<string>('');
     const [sortOrder, setSortOrder] = useState<string>('');
     const [sectionList, setSectionList] = useState<Section[]>([]);
+    /** 単価グラフ（モーダル）。⚠️ 表と同時に見ると視認性が悪いのでモーダルで出す */
+    const [showGraph, setShowGraph] = useState<boolean>(false);
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
 
         const fetchData = async () => {
             try {
-                const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "customer", category }, { headers });
+                // ⚠️ 本番URLの直書きをやめた。apiClient が環境ごとの向き先を持つ
+                const response = await apiClient.post("", { request: "customer", category });
                 await setOriginalList(response.data.customer);
                 await setShopArray(response.data.shop.filter(s => !s.shop.includes('未設定') && !s.shop.includes('全店舗')));
-                await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
+                // ⚠️⚠️ **絞らないこと。** medium_kaeru に `list_medium` 列は無く、
+                //   以前の `filter(m => m.list_medium === 1)` は**常に空**になっていた。
+                //   ⚠️ ShopTrendKaeru.tsx と同じく全件をそのまま行にする（指示）
+                await setMediumArray(response.data.medium);
                 await setOriginalBudgetList(response.data.budget);
                 await setSectionList(response.data.section);
             } catch (error) {
@@ -100,48 +151,151 @@ const CustomerKaeru = () => {
         });
     }, [originalBudgetList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
 
+    /**
+     * ⚠️⚠️ **まとめる側の媒体（`show_graph = 0`）の名前一覧。**
+     *   ⚠️ これらは1行「ホームページ反響」にまとめる（2026-09-16 の指示）。
+     *   ⚠️ `Number()` を通すこと。DB から `"0"` / `"1"` の文字列で来ることがあり、
+     *     `=== 1` の厳密比較だと**全部 false になって行が消える**。
+     */
+    const groupedMediums = useMemo(
+        () => mediumArray.filter(m => Number(m.show_graph) !== 1).map(m => m.medium),
+        [mediumArray]
+    );
+
+    /**
+     * 表の行。
+     *
+     * ⚠️⚠️ **並びは「総反響 → show_graph=1 の媒体 → ホームページ反響」。**
+     *   ⚠️ 総反響を先頭にするのは shop/ShopKaeru.tsx の「グループ全体」に揃えるため。
+     *     グラフのX軸も同じ並びになるので、表と突き合わせられる。
+     *   ⚠️ まとめ行は**末尾**。個別の媒体より先に出すと、内訳に見えて誤読される。
+     *
+     * ⚠️⚠️ **`show_graph` 列がまだ無いと、全媒体が「ホームページ反響」に入る。**
+     *   ⚠️ `undefined` は `Number()` で NaN になり `!== 1` が真になるため。
+     *   ⚠️ その場合は backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql
+     *     が未実行。**表は出るので気づきにくい。**
+     */
+    const rows = useMemo<Medium[]>(() => {
+        const shown = mediumArray.filter(m => Number(m.show_graph) === 1);
+        const base: Medium[] = [{ medium: '総反響' }, ...shown];
+        // ⚠️ まとめる媒体が1つも無ければ、空の行を作らない
+        return groupedMediums.length > 0 ? [...base, { medium: HOMEPAGE_ROW }] : base;
+    }, [mediumArray, groupedMediums]);
+
+    /** 単価。⚠️ 分母が0や未定義なら null（表では '-'、グラフでは 0） */
+    const unitPrice = (budget: number, count: number): number | null =>
+        isFinite(budget / count) ? Math.round(budget / count) : null;
+
     const aggregated = useMemo(() => {
-        return [...mediumArray, { id: 0, medium: '総反響' }].map(value => {
-            const base = filteredCustomers.filter(
-                c => value.medium === '総反響' || c.medium === value.medium
-            );
+        /**
+         * ⚠️⚠️ **「総反響」は先頭に置く。**
+         *   2026-09-14 まで末尾だった。shop/ShopKaeru.tsx の「グループ全体」に
+         *   揃えてある。⚠️ グラフのX軸も同じ並びになるので、表と突き合わせられる。
+         */
+        return rows.map(value => {
+            /**
+             * ⚠️⚠️ **行ごとに拾う顧客の決め方が3通りある。**
+             *   総反響           … 全部
+             *   ホームページ反響 … ⚠️ `show_graph = 0` の媒体**だけ**の合計
+             *   それ以外         … その媒体だけ
+             *
+             * ⚠️ 「総反響から show_graph=1 の分を引く」形にはしていない。
+             *   ⚠️ 媒体が空だったり medium_kaeru に無い値の反響が混ざると、
+             *     引き算では**それらが黙って「ホームページ反響」に入る。**
+             *   ⚠️ 足し算なら、拾えていない反響は表に出ない＝気づける。
+             */
+            const base = filteredCustomers.filter(c => {
+                if (value.medium === '総反響') return true;
+                if (value.medium === HOMEPAGE_ROW) return groupedMediums.includes(c.medium);
+                return c.medium === value.medium;
+            });
+
+            /**
+             * ⚠️⚠️ **判定は shop/ShopKaeru.tsx の `filteredValue()` と同じもの。**
+             *
+             * ⚠️ **上位の工程に進んだ人は、下位の工程も達成したものとして数える。**
+             *   接触日が空でも契約済みなら「接触した」はずである。
+             *   日付の入力漏れで歩留まりが逆転する（契約数 > 申込数 など）のを防ぐ。
+             *
+             * ⚠️ `tour`（物件案内）は来場と同じ段階として扱う。
+             * ⚠️ `contract_broker`（仲介契約）も契約に含める。
+             * ⚠️ 契約は `status === '契約済み'` のみ。**解約を含めない**
+             *   （注文事業とはここが違う）。
+             */
+            const isContract = (b: Customer) => (b.contract || b.contract_broker) && b.status === '契約済み';
+            const isApplication = (b: Customer) => b.application || isContract(b);
+            const isInterview = (b: Customer) => b.interview || b.tour || isApplication(b);
+            const isContact = (b: Customer) => b.contact || isInterview(b);
 
             const totalValue = base.length;
-            const reserveValue = base.filter(item =>
-                item.interview || item.appointment || item.screening || item.contract
-            ).length;
-            const contractValue = base.filter(
-                item => item.contract && (item.status === '契約済み' || item.status === '解約')
-            ).length;
+            const contactValue = base.filter(isContact).length;
+            const interviewValue = base.filter(isInterview).length;
+            const applicationValue = base.filter(isApplication).length;
+            const contractValue = base.filter(isContract).length;
 
-            const perReserve = isNaN(reserveValue / totalValue) ? 0 : Math.round((reserveValue / totalValue) * 100);
-            const perContract = isNaN(contractValue / reserveValue) ? 0 : Math.round((contractValue / reserveValue) * 100);
-            const rankSValue = base.filter(item => item.rank === 'Sランク' && item.status === '見込み').length;
-            const rankAValue = base.filter(item => item.rank === 'Aランク' && item.status === '見込み').length;
-            const rankBValue = base.filter(item => item.rank === 'Bランク' && item.status === '見込み').length;
-            const rankCValue = base.filter(item => item.rank === 'Cランク' && item.status === '見込み').length;
-            const rankDValue = base.filter(item => item.rank === 'Dランク' && item.status === '見込み').length;
+            const perContact = isNaN(contactValue / totalValue) ? 0 : Math.round((contactValue / totalValue) * 100);
+            // ⚠️ 契約率の分母は**接触数**（ShopKaeru.tsx と同じ）
+            const perContract = isNaN(contractValue / contactValue) ? 0 : Math.round((contractValue / contactValue) * 100);
 
+            /**
+             * ランク別。
+             * ⚠️⚠️ **status で絞らない。** 注文は `status === '見込み'` で絞るが、
+             *   建売は `show_dashboard = 1` のものを**すべて見込みとして扱う**
+             *   運用である（ShopKaeru.tsx / Company.tsx と同じ）。
+             */
+            const rankSValue = base.filter(item => item.rank === 'Sランク').length;
+            const rankAValue = base.filter(item => item.rank === 'Aランク').length;
+            const rankBValue = base.filter(item => item.rank === 'Bランク').length;
+            const rankCValue = base.filter(item => item.rank === 'Cランク').length;
+
+            // ⚠️ 販促費も行の決め方に合わせる。⚠️ 顧客と揃えないと単価が合わない
             const totalBudget = filteredBudgets
-                .filter(item => value.medium === '総反響' || item.medium === value.medium)
+                .filter(item => {
+                    if (value.medium === '総反響') return true;
+                    if (value.medium === HOMEPAGE_ROW) return groupedMediums.includes(item.medium);
+                    return item.medium === value.medium;
+                })
                 .reduce((acc, cur) => acc + cur.budget_value, 0);
 
             return {
                 value,
                 totalValue,
-                reserveValue,
+                contactValue,
+                interviewValue,
+                applicationValue,
                 contractValue,
-                perReserve,
+                perContact,
                 perContract,
                 rankSValue,
                 rankAValue,
                 rankBValue,
                 rankCValue,
-                rankDValue,
                 totalBudget,
+                // ⚠️ キー名は shop/unitPriceSeries.ts の UNIT_PRICE_SERIES_SPEC と一致させること
+                registerUnit: unitPrice(totalBudget, totalValue),
+                contactUnit: unitPrice(totalBudget, contactValue),
+                applicationUnit: unitPrice(totalBudget, applicationValue),
+                contractUnit: unitPrice(totalBudget, contractValue),
             };
         });
-    }, [mediumArray, filteredCustomers, filteredBudgets]);
+    }, [rows, groupedMediums, filteredCustomers, filteredBudgets]);
+
+    /**
+     * 単価グラフのデータ。
+     * ⚠️ X軸は**販促媒体**。先頭が「総反響」になるよう aggregated の並びをそのまま使う。
+     * ⚠️ 非表示のときは作らない。
+     */
+    const graphData = useMemo(() => {
+        if (!showGraph) return [];
+        return aggregated.map(item => ({
+            medium: item.value.medium,
+            // ⚠️ null のままだと recharts が棒を描かないので 0 に落とす
+            registerUnit: item.registerUnit ?? 0,
+            contactUnit: item.contactUnit ?? 0,
+            applicationUnit: item.applicationUnit ?? 0,
+            contractUnit: item.contractUnit ?? 0,
+        }));
+    }, [aggregated, showGraph]);
 
 
     const sorted = useMemo(() => {
@@ -149,22 +303,25 @@ const CustomerKaeru = () => {
         arr.sort((a, b) => {
             const getKey = (x) => {
                 switch (sortKey) {
+                    // ⚠️ キーは shop/ShopKaeru.tsx と揃えてある（建売のKPI）
                     case 'total': default: return x.totalValue;
-                    case 'perReserve': return x.perReserve;
-                    case 'reserve': return x.reserveValue;
+                    case 'perContact': return x.perContact;
+                    case 'contact': return x.contactValue;
+                    case 'interview': return x.interviewValue;
+                    case 'application': return x.applicationValue;
                     case 'perContract': return x.perContract;
                     case 'contract': return x.contractValue;
                     case 'S': return x.rankSValue;
                     case 'A': return x.rankAValue;
                     case 'B': return x.rankBValue;
                     case 'C': return x.rankCValue;
-                    case 'D': return x.rankDValue;
-                    case 'E': return x.rankEValue;
                     case 'totalBudget': return x.totalBudget;
                     case 'registerBudget':
                         return isFinite(x.totalBudget / x.totalValue) ? Math.round(x.totalBudget / x.totalValue) : 0;
-                    case 'reserveBudget':
-                        return isFinite(x.totalBudget / x.reserveValue) ? Math.round(x.totalBudget / x.reserveValue) : 0;
+                    case 'contactBudget':
+                        return isFinite(x.totalBudget / x.contactValue) ? Math.round(x.totalBudget / x.contactValue) : 0;
+                    case 'applicationBudget':
+                        return isFinite(x.totalBudget / x.applicationValue) ? Math.round(x.totalBudget / x.applicationValue) : 0;
                     case 'contractBudget':
                         return isFinite(x.totalBudget / x.contractValue) ? Math.round(x.totalBudget / x.contractValue) : 0;
                 }
@@ -192,6 +349,38 @@ const CustomerKaeru = () => {
     };
 
     const arrowStyle = { position: 'absolute' as const, right: '4px', cursor: 'pointer' as const, fontSize: '10px' };
+
+    /** 見出しの期間表示。⚠️ ツールチップの文言に使う */
+    const periodLabel = `${startMonth === '' ? '' : `${startMonth}から`}${endMonth === '' ? '' : `${endMonth}まで`}${startMonth !== '' && endMonth !== '' ? '' : '全期間'}`;
+
+    /**
+     * 見出しのセル。
+     * ⚠️ shop/ShopKaeru.tsx の headCell と同じ形にしてある。
+     * ⚠️ `plain` のときは並べ替えの矢印を出さない（販促媒体名の列）。
+     */
+    const headCell = (label: string, key: string, tip?: string, plain?: boolean) => (
+        <td
+            className={plain ? 'sticky-column budget' : undefined}
+            style={{ position: 'relative', textAlign: 'center' }}
+        >
+            {tip ? (
+                <OverlayTrigger
+                    placement="top"
+                    overlay={<Tooltip id={`tooltip-${key}`} style={{ fontSize: '12px' }}>{tip}</Tooltip>}
+                >
+                    <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>{label}</span>
+                </OverlayTrigger>
+            ) : label}
+            {!plain && <>
+                <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', key)}>▲</span>
+                <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', key)}>▼</span>
+            </>}
+        </td>
+    );
+
+    /** 単価の表示。⚠️ 分母が0なら '-'（0円と書くと「無料で取れた」と読める） */
+    const unitText = (budget: number, count: number) =>
+        isFinite(budget / count) ? `¥${Math.round(budget / count).toLocaleString()}` : '-';
 
     return (
         <>
@@ -240,104 +429,60 @@ const CustomerKaeru = () => {
                         </select>
                     </div>
                 </div>
+                <div className="d-flex flex-wrap mb-3">
+                    <div className="m-1">
+                        {/* ⚠️ 表と同時に見ると視認性が悪いのでモーダルで出す */}
+                        <div className="bg-primary btn text-white rounded-pill px-3 py-1"
+                            style={{ fontSize: '12px', letterSpacing: '1px' }}
+                            onClick={() => setShowGraph(true)}>グラフを表示</div>
+                    </div>
+                </div>
+                {/* ⚠️ X軸は販促媒体。`itemKey` を渡さないと店舗名を探して空になる */}
+                <UnitPriceGraphModal
+                    show={showGraph}
+                    onHide={() => setShowGraph(false)}
+                    data={graphData}
+                    series={UNIT_PRICE_SERIES_SPEC}
+                    title='建売分譲事業'
+                    itemKey='medium'
+                    itemLabel='販促媒体'
+                />
                 <div className="table-wrapper mt-3">
                     <div className="list_table">
                         <Table striped style={{ fontSize: '12px' }} bordered>
                             <tbody>
                                 <tr className='sticky-header'>
-                                    <td className='sticky-column budget' style={{ position: 'relative', textAlign: 'center' }}>販促媒体名</td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の総反響数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>総反響</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'total')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'total')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>来場者数/総反響数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>来場率</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perReserve')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perReserve')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち来場した方の数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>来場数</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'reserve')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'reserve')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>契約者数/来場者数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約率</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perContract')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perContract')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち契約した方の数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約数</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'contract')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'contract')}>▼</span>
-                                    </td>
+                                    {/* ⚠️⚠️ 列の並びは shop/ShopKaeru.tsx と揃えてある。
+                                           建売は「率 → 数」の順（注文の ShopOrder だけ「数 → 率」）。
+                                           ⚠️ 片方だけ直すと画面ごとに並びが違って読み違える */}
+                                    {headCell('販促媒体名', '', '', true)}
+                                    {headCell('総反響', 'total', `${periodLabel}の総反響数`)}
+                                    {headCell('接触率', 'perContact', '接触数/総反響数')}
+                                    {headCell('接触数', 'contact', `${periodLabel}の反響のうち接触した方の数（以降の工程に進んだ方を含む）`)}
+                                    {headCell('来場・案内', 'interview', '来場または物件案内があった方の数（以降の工程に進んだ方を含む）')}
+                                    {headCell('申込数', 'application', '申し込みに至った方の数（契約者を含む）')}
+                                    {headCell('契約率', 'perContract', '契約者数/接触者数')}
+                                    {headCell('契約数', 'contract', '契約済みの方の数（仲介契約を含む。解約は含まない）')}
                                     {['S', 'A', 'B', 'C'].map(item =>
-                                        <td style={{ position: 'relative', textAlign: 'center' }}>
-                                            <OverlayTrigger
-                                                placement="top"
-                                                overlay={
-                                                    <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち{item}ランクの数</Tooltip>
-                                                }>
-                                                <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>{item}ランク</span>
-                                            </OverlayTrigger>
-                                            <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', item)}>▲</span>
-                                            <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', item)}>▼</span>
-                                        </td>
+                                        <React.Fragment key={item}>
+                                            {headCell(`${item}ランク`, item, `${periodLabel}の反響のうち${item}ランクの数`)}
+                                        </React.Fragment>
                                     )}
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>総予算
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'totalBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'totalBudget')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>反響単価
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'registerBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'registerBudget')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>来場単価
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'reserveBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'reserveBudget')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>契約単価
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'contractBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'contractBudget')}>▼</span>
-                                    </td>
+                                    {headCell('総予算', 'totalBudget')}
+                                    {headCell('反響単価', 'registerBudget')}
+                                    {headCell('接触単価', 'contactBudget')}
+                                    {headCell('申込単価', 'applicationBudget')}
+                                    {headCell('契約単価', 'contractBudget')}
                                 </tr>
                                 {sorted.map((item, index) => {
                                     const {
                                         value,
                                         totalValue,
-                                        reserveValue,
+                                        contactValue,
+                                        interviewValue,
+                                        applicationValue,
                                         contractValue,
-                                        perReserve,
+                                        perContact,
                                         perContract,
                                         rankSValue,
                                         rankAValue,
@@ -349,9 +494,12 @@ const CustomerKaeru = () => {
                                     return (
                                         <tr key={value.id ?? `medium-${index}`}>
                                             <td className='sticky-column' style={{ textAlign: 'center' }}>{value.medium}</td>
+                                            {/* ⚠️ 見出しと同じ並び。入れ替えないこと */}
                                             <td style={{ textAlign: 'center' }}>{totalValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{perReserve}%</td>
-                                            <td style={{ textAlign: 'center' }}>{reserveValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{perContact}%</td>
+                                            <td style={{ textAlign: 'center' }}>{contactValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{interviewValue.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>{applicationValue.toLocaleString()}</td>
                                             <td style={{ textAlign: 'center' }}>{perContract}%</td>
                                             <td style={{ textAlign: 'center' }}>{contractValue.toLocaleString()}</td>
                                             <td style={{ textAlign: 'center' }}>{rankSValue.toLocaleString()}</td>
@@ -359,15 +507,10 @@ const CustomerKaeru = () => {
                                             <td style={{ textAlign: 'center' }}>{rankBValue.toLocaleString()}</td>
                                             <td style={{ textAlign: 'center' }}>{rankCValue.toLocaleString()}</td>
                                             <td style={{ textAlign: 'center' }}>{`¥${totalBudget.toLocaleString()}`}</td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {isFinite(totalBudget / totalValue) ? `¥${Math.round(totalBudget / totalValue).toLocaleString()}` : '-'}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {isFinite(totalBudget / reserveValue) ? `¥${Math.round(totalBudget / reserveValue).toLocaleString()}` : '-'}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {isFinite(totalBudget / contractValue) ? `¥${Math.round(totalBudget / contractValue).toLocaleString()}` : '-'}
-                                            </td>
+                                            <td style={{ textAlign: 'center' }}>{unitText(totalBudget, totalValue)}</td>
+                                            <td style={{ textAlign: 'center' }}>{unitText(totalBudget, contactValue)}</td>
+                                            <td style={{ textAlign: 'center' }}>{unitText(totalBudget, applicationValue)}</td>
+                                            <td style={{ textAlign: 'center' }}>{unitText(totalBudget, contractValue)}</td>
                                         </tr>
                                     );
                                 })}

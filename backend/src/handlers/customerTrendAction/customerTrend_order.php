@@ -1,7 +1,11 @@
 <?php
 
 // 店舗
-$sql_shop = "SELECT shop, section, brand, area
+// ⚠️ multi / parent_shop は CustomerTrendOrder.tsx の「併売店をまとめる」が使う。
+//   ⚠️ backend-express/src/features/customerTrend/queries.ts の SHOP_SQL.order と
+//     必ず同じ列にしておくこと。ここに無いと、② が 5xx でここへフォールバックした
+//     ときに**まとめが黙って効かなくなる**（画面はエラーを出さない）。
+$sql_shop = "SELECT shop, section, brand, area, multi, parent_shop
         FROM shop_list WHERE division = '注文事業'";
 $stmt_shop = $pdo->prepare($sql_shop);
 $stmt_shop->execute();

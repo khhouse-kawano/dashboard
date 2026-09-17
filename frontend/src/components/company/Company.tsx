@@ -16,7 +16,13 @@ import Ranking from './Ranking';
 import { sortStyle, tableStyle, tdStyle, dateFormate, monthFormate, lastYearMonthFormate, formattedThisMonth, cancelStyle, lastYearStyle } from './companyUtils';
 
 type Staff = { name: string, shop: string, section: string, report: number, sort: number, multi: number, status: string, period: string, position: string, khg_id: string };
-type Shop = { brand: string, shop: string, section: string, area: string, division: string, multi: number };
+/**
+ * 店舗。
+ * ⚠️ `parent_shop` は併売店（multi = 1）の親店舗名。運用側が手作業で設定する。
+ *   ⚠️ 未設定なら null。**親店舗自身も null** である（自分を指さない）。
+ *   列の追加: backend/scripts/sql/2026-09-10_shop_list_parent_shop.sql
+ */
+type Shop = { brand: string, shop: string, section: string, area: string, division: string, multi: number, parent_shop: string | null };
 type Section = { name: string, division: string };
 type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string };
@@ -40,6 +46,16 @@ const Company = () => {
     });
     const [showLastYear, setShowLastYear] = useState(false);
     const [showCancel, setShowCancel] = useState(true);
+    /**
+     * 併売店をまとめるか。
+     *
+     * ⚠️⚠️ **既定は false。false のときは従来の表示と1つも変わらない。**
+     *   true にすると
+     *     ・子店舗（multi = 1 かつ parent_shop あり）の行を隠す
+     *     ・親店舗の行が「自店＋子店」の契約を数える
+     *     ・重複登録されている担当営業の行を1本にまとめる
+     */
+    const [showMulti, setShowMulti] = useState<boolean>(false);
     const [showRanking, setShowRanking] = useState(false);
 
     const isSp = useIsSp();
@@ -156,6 +172,54 @@ const Company = () => {
         }
     };
 
+    /**
+     * 併売店の親子関係。親店舗名 → 子店舗名の配列。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **子の判定は「multi = 1 かつ parent_shop が入っている」。**
+     *   `multi = 1` だけでは判定できない。2026-09-10 時点の実データでは
+     *   親である KH加世田店 / KH鹿屋店 も multi = 1 だが、
+     *   KH延岡店 は multi = 0 である（付け方が一貫していない）。
+     *   parent_shop の有無だけが親子を決める。
+     *
+     * ⚠️ parent_shop は `shop_list.shop` と完全一致する文字列である前提。
+     *   既存コードには店舗名からブランド名を除いた**部分一致**での推測が
+     *   あるが（下の multiContract）、この列はそれを置き換えるためのもの。
+     * ─────────────────────────────────────────────
+     */
+    const multiChildren = useMemo(() => {
+        const map = new Map<string, string[]>();
+        shopList.forEach(sh => {
+            const parent = (sh.parent_shop ?? '').trim();
+            if (sh.multi !== 1 || !parent) return;
+            map.set(parent, [...(map.get(parent) ?? []), sh.shop]);
+        });
+        return map;
+    }, [shopList]);
+
+    /** まとめ表示で隠す店舗（＝子店舗）の名前 */
+    const mergedChildShops = useMemo(() => {
+        const set = new Set<string>();
+        multiChildren.forEach(children => children.forEach(c => set.add(c)));
+        return set;
+    }, [multiChildren]);
+
+    /**
+     * その店舗の行が受け持つ店舗名。
+     * ⚠️ まとめ表示なら [親, ...子]。そうでなければ自分だけ。
+     */
+    const shopNamesOf = (shopName: string): string[] =>
+        showMulti ? [shopName, ...(multiChildren.get(shopName) ?? [])] : [shopName];
+
+    /**
+     * 表示する店舗か。
+     * ⚠️ 集計には使わないこと。`shopList` を絞ると課・事業部の合計が減る
+     *   （calculateContractList の 'section' などが shopList から
+     *     対象店舗を作っているため）。**表示の絞り込みだけに使う。**
+     */
+    const isVisibleShop = (shopName: string): boolean =>
+        !(showMulti && mergedChildShops.has(shopName));
+
     const monthArray: string[] = useMemo(() => {
         return getPeriod(Number(targetYear) - 1, 6);
     }, [targetYear]);
@@ -163,6 +227,77 @@ const Company = () => {
     const lastYearMonthArray: string[] = useMemo(() => {
         return getPeriod(Number(targetYear) - 2, 6);
     }, [targetYear]);
+
+    /**
+     * 見込み客か。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **建売は `status` を見ない。**
+     *
+     *   `status` の語彙が事業ごとに違う（2026-09-10 の実データ）。
+     *
+     *     注文       … 契約済み / 見込み / 失注 / 解約 / 会社管理 / 重複
+     *     中古リノベ … 契約済み / 見込み            ← 2値だけ
+     *     建売       … 契約済み / 来店あり / 接触（通話・返信） / 追客中 /
+     *                  未設定 / 追客終了 / 申込み済み / アポイント確定 /
+     *                  事前取得 / 各種査定 …（**進捗ステータス18種**）
+     *
+     *   ⚠️ 建売で `status === '見込み'` に一致するのは**1,003件中1件だけ**。
+     *     そのため会社実績の建売のランク数がほぼ空欄になっていた。
+     *
+     *   ⚠️ 建売は SQL の時点で
+     *       show_dashboard = 1 AND ランクあり
+     *     に絞られている（company.php / features/company/queries.ts）。
+     *     届いた行はすべて集計対象なので、ここでは status を見ない。
+     *
+     * ⚠️⚠️ **建売は契約済みもランク列に含まれる。**
+     *   注文・中古では `status === '見込み'` が契約済みを除くため、
+     *   「契約済み」列とランク列は排他になっている。建売だけ排他ではない。
+     *   ⚠️ 排他にしたい場合は、ここで `o.status !== '契約済み'` を足す。
+     * ─────────────────────────────────────────────
+     */
+    const isProspect = (o: Customer): boolean =>
+        o.category === '建売' ? true : o.status === '見込み';
+
+    /**
+     * 日付文字列が当月を含むか。
+     *
+     * ⚠️⚠️ **区切り文字が2種類ある。** 両方を見ないと一致しない。
+     *   `formattedThisMonth` は `2026/09`（スラッシュ）だが、
+     *   DBの契約日は `2026-09-05`（ハイフン）で入っている。
+     *   スラッシュだけで includes すると**常に false** になる。
+     */
+    const includesThisMonth = (value: string | undefined | null): boolean => {
+        if (!value) return false;
+        return value.includes(formattedThisMonth)
+            || value.includes(monthFormate(formattedThisMonth));
+    };
+
+    /**
+     * ランク列（S / A / B / C）に数えるか。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **建売の「Sランク」は契約済みの顧客を意味する。**
+     *
+     *   建売ではランクが商談の見込み度ではなく契約状態を表しており、
+     *   Sランクだけで872件ある（2026-09-10 の実データ）。
+     *   そのまま数えると過去の契約客まで全部拾って**数が意味を持たない**。
+     *
+     *   そのため建売のSランクだけ、**当月に契約した顧客に限る**。
+     *   ⚠️ 契約日（contract）と仲介契約日（contract_broker）の
+     *     どちらかが当月なら数える。建売は契約の列が2本ある。
+     *
+     * ⚠️ A / B / Cランクは絞らない。建売でも見込み度として使われている。
+     * ⚠️ 注文・中古リノベは一切絞らない（ランクの意味が違う）。
+     * ─────────────────────────────────────────────
+     */
+    const matchesRank = (o: Customer, r: string): boolean => {
+        if (!safeFormate(o.rank).includes(r)) return false;
+        if (o.category === '建売' && r === 'Sランク') {
+            return includesThisMonth(o.contract) || includesThisMonth(o.contract_broker);
+        }
+        return true;
+    };
 
     const usedList = useMemo(() => {
         return customerList.filter(c => c.category === '中専');
@@ -411,26 +546,73 @@ const Company = () => {
 
     const contractTable = (section: Section, division: string, sectionColor: string, sectionProspectList: Customer[]) => {
         return <>{shopList
-            .filter(shop => shop.section === section.name && !shop.shop.includes('FH'))
+            // ⚠️ まとめ表示のとき、子店舗の行を隠す（isVisibleShop の宣言箇所参照）
+            .filter(shop => shop.section === section.name && !shop.shop.includes('FH') && isVisibleShop(shop.shop))
             .map(shop => {
-                return [...staffList, { name: '予算', shop: shop.shop, section: section.name, report: 1, sort: 0, multi: 0 }, { name: '実績', shop: shop.shop, section: section.name, report: 1, sort: -1, multi: shop.multi }]
-                    .sort(staffSorter()).filter(staff => staff.shop === shop.shop && staff.report === 1)
+                /** この行が受け持つ店舗名。まとめ表示なら親＋子 */
+                const shopNames = shopNamesOf(shop.shop);
+
+                /**
+                 * 担当営業の行。
+                 *
+                 * ⚠️⚠️ **まとめ表示では氏名で重複排除する。**
+                 *   併売店の担当営業は**同じ人が各ブランド店舗に登録されている**
+                 *   （2026-09-10 実データ: 中野 健太 は KH加世田店 /
+                 *     DJH加世田店 / なごみ加世田店 の3行、
+                 *     迫 隆広 は KH鹿屋店 / DJH鹿屋店 の2行）。
+                 *   排除しないと同じ人が3行並ぶ。
+                 *
+                 * ⚠️ 残すのは**親店舗の行**を優先する。`sort` の値が
+                 *   店舗ごとに違うため（迫 隆広: DJH鹿屋店=0 / KH鹿屋店=5）、
+                 *   どちらを残すかで並び順が変わる。親の意図を採る。
+                 *
+                 * ⚠️⚠️ **`new Map(entries)` で重複排除してはいけない。**
+                 *   同じキーが複数あると**後の値で上書きされる**ため、
+                 *   親を先に並べても子の行が勝ってしまう
+                 *   （2026-09-10 に実データの検証で発覚）。
+                 *   `has()` で「先に入ったものを残す」ことを明示する。
+                 */
+                const shopStaffList = showMulti
+                    ? (() => {
+                        const seen = new Map<string, Staff>();
+                        // shopNames は [親, ...子] の順。先に入る＝親が残る
+                        shopNames.forEach(name => {
+                            staffList
+                                .filter(st => st.shop === name && st.report === 1)
+                                .forEach(st => {
+                                    if (!seen.has(st.name)) seen.set(st.name, st);
+                                });
+                        });
+                        return Array.from(seen.values());
+                    })()
+                    : staffList.filter(st => st.shop === shop.shop && st.report === 1);
+
+                return [...shopStaffList, { name: '予算', shop: shop.shop, section: section.name, report: 1, sort: 0, multi: 0 }, { name: '実績', shop: shop.shop, section: section.name, report: 1, sort: -1, multi: shop.multi }]
+                    .sort(staffSorter()).filter(staff => staff.report === 1)
                     .map((staff, staffIndex) => {
-                        const staffLength = staffList.filter(s => s.shop === shop.shop && s.report === 1).length + 2;
+                        const staffLength = shopStaffList.length + 2;
                         const isShop = staffIndex === staffLength - 1;
 
-                        const baseShopTotal = aggregatedContracts.shops[shop.shop]?.total || [];
-                        const baseShopTotalBroker = aggregatedContracts.shops[shop.shop]?.total_broker || [];
+                        /**
+                         * ⚠️⚠️ まとめ表示では親＋子の集計を足し合わせる。
+                         *   `aggregatedContracts.shops` は店舗名で引ける形になっているので、
+                         *   子の分をそのまま連結すればよい。
+                         *   ⚠️ 集計そのもの（shops の作り方）は変えていない。
+                         *     変えると課・事業部の合計に影響する。
+                         */
+                        const baseShopTotal = shopNames.flatMap(n => aggregatedContracts.shops[n]?.total ?? []);
+                        const baseShopTotalBroker = shopNames.flatMap(n => aggregatedContracts.shops[n]?.total_broker ?? []);
 
                         const shopContract = isShop ? baseShopTotal : baseShopTotal.filter(o => {
-                            return (o.staff === staff.name && o.shop === staff.shop)
+                            // ⚠️ 店舗の条件も親＋子に広げる。広げないと子の契約が拾えない
+                            return (o.staff === staff.name && shopNames.includes(o.shop ?? ''))
                         });
                         const shopContractBroker = isShop ? baseShopTotalBroker : baseShopTotalBroker.filter(o => {
-                            return (o.staff === staff.name && o.shop === staff.shop)
+                            return (o.staff === staff.name && shopNames.includes(o.shop ?? ''))
                         });
 
-                        const baseShopLastYear = aggregatedContracts.shops[shop.shop]?.lastYear || [];
-                        const baseShopLastYearBroker = aggregatedContracts.shops[shop.shop]?.lastYear_broker || [];
+                        const baseShopLastYear = shopNames.flatMap(n => aggregatedContracts.shops[n]?.lastYear ?? []);
+                        const baseShopLastYearBroker = shopNames.flatMap(n => aggregatedContracts.shops[n]?.lastYear_broker ?? []);
 
                         const shopContractLastYear = isShop ? baseShopLastYear : calculateContractList(baseShopLastYear, 'staff_lastYear', '', '', '', shop.shop, staff.name)
                         const shopContractLastYearBroker = isShop ? baseShopLastYearBroker : calculateContractListBroker(baseShopLastYearBroker, 'staff_lastYear', '', '', '', shop.shop, staff.name)
@@ -442,8 +624,18 @@ const Company = () => {
 
                         const isStaff = staffIndex < staffLength - 2;
                         const isAchievement = staffIndex === staffLength - 2;
-                        const isShopMulti = shop.multi === 1;
-                        const isStaffMulti = staff.multi === 1;
+                        /**
+                         * ⚠️⚠️ まとめ表示のときは括弧の併売数を出さない。
+                         *   本数そのものが既に子店舗を含んでいるため、
+                         *   `27(27)` のように同じ数を二度見せることになる。
+                         *
+                         * ⚠️ 括弧の中身（multiContract）は店舗名からブランド名を
+                         *   除いた**部分一致**で数えている推測値である。
+                         *   parent_shop による明示指定に置き換わるのは
+                         *   まとめ表示のときだけで、従来表示はそのまま残す。
+                         */
+                        const isShopMulti = shop.multi === 1 && !showMulti;
+                        const isStaffMulti = staff.multi === 1 && !showMulti;
                         const cancelList = shopContract.filter(o => o.status === '解約');
 
                         return (
@@ -531,7 +723,8 @@ const Company = () => {
                                         const isStaff = staffIndex !== staffLength - 2 && staffIndex !== staffLength - 1;
                                         const target = r === '契約済み' ?
                                             shopContract.filter(o => dateFormate(o.contract).includes(formattedThisMonth)) :
-                                            sectionProspectList.filter(o => safeFormate(o.rank).includes(r) && (isStaff ? o.staff === staff.name : o.shop === shop.shop));
+                                            // ⚠️ matchesRank を使う。建売のSランクは当月契約のみ（宣言箇所参照）
+                                            sectionProspectList.filter(o => matchesRank(o, r) && (isStaff ? o.staff === staff.name : o.shop === shop.shop));
 
                                         const targetBroker = r === '契約済み' ?
                                             shopContractBroker.filter(o => dateFormate(o.contract_broker).includes(formattedThisMonth)) : [];
@@ -762,7 +955,8 @@ const Company = () => {
                         <div className="bg-white m-1">
                             <select className='target' onChange={(e) => moveToTarget(e.target.value)}>
                                 <option value={divisionArray[0]}>店舗を選択</option>
-                                {shopList.filter(s => s.section).map((shop, index) =>
+                                {/* ⚠️ まとめ表示中は隠れている店舗を選ばせない（スクロール先が無い） */}
+                                {shopList.filter(s => s.section && isVisibleShop(s.shop)).map((shop, index) =>
                                     <option key={index} value={shop.shop}>{shop.brand === 'KHF' && `${shop.division}_`}{shop.shop}</option>
                                 )}
                             </select>
@@ -779,6 +973,15 @@ const Company = () => {
                                 checked={showCancel}
                                 onChange={() => setShowCancel(!showCancel)} />キャンセル数を表示</label>
                         </div>
+                        {/* ⚠️ 親店舗が1つも設定されていないときは出さない。
+                            押しても何も起きないチェックボックスになるため。
+                            設定は shop_list.parent_shop（運用側が手作業で入れる）。 */}
+                        {mergedChildShops.size > 0 &&
+                            <div className="bg-white m-1">
+                                <label style={{ fontSize: '12px', cursor: 'pointer' }} className='d-flex align-items-center'><input type='checkbox' className='me-1'
+                                    checked={showMulti}
+                                    onChange={() => setShowMulti(!showMulti)} />併売店をまとめる</label>
+                            </div>}
                     </div>}
                 <div style={{ transform: isSp ? '' : 'translateY(60.5px)' }}>
                     <Table bordered style={tableStyle(isSp)} >
@@ -804,10 +1007,12 @@ const Company = () => {
                                 <TableAchievement list={achievementLength('group') ?? null} row={1} col={2} lastYear={achievementLength('group_lastYear') ?? 0} />
                                 <td className='table-none-border'></td>
                                 {rankArray.map((r, index) => {
-                                    const orderProspectList = customerList.filter(o => o.status === '見込み' && (o.rank_period <= formattedThisMonth || !o.rank_period));
+                                    // ⚠️ isProspect を使う。建売は status を見ない（宣言箇所のコメント参照）
+                                    const orderProspectList = customerList.filter(o => isProspect(o) && (o.rank_period <= formattedThisMonth || !o.rank_period));
                                     const target = r === '契約済み' ?
                                         (aggregatedContracts.group.monthly?.[monthFormate(formattedThisMonth)] || []) :
-                                        orderProspectList.filter(o => safeFormate(o.rank)?.includes(r));
+                                        // ⚠️ matchesRank を使う。建売のSランクは当月契約のみ（宣言箇所参照）
+                                        orderProspectList.filter(o => matchesRank(o, r));
                                     const targetBroker = r === '契約済み' ?
                                         (aggregatedContracts.group.monthly_broker?.[monthFormate(formattedThisMonth)] || []) : [];
                                     return <TableContract key={index} list={target} brokerList={targetBroker} row={2} col={1} lastYear={null} />
@@ -823,7 +1028,13 @@ const Company = () => {
                             </tr>
                             {/* 以下部門別 */}
                             {divisionArray.map((division, divisionIndex) => {
-                                const prospectList = customerList.filter(o => o.status === '見込み' && (o.rank_period <= formattedThisMonth || !o.rank_period) && o.category === divisionMapping[division as keyof typeof divisionMapping]);
+                                /**
+                                 * この事業部の見込み客。
+                                 * ⚠️ ここから課（sectionProspectList）→ 店舗・担当営業へ
+                                 *   受け渡されるので、**ここを直せば下まで直る。**
+                                 * ⚠️ isProspect を使う。建売は status を見ない（宣言箇所のコメント参照）
+                                 */
+                                const prospectList = customerList.filter(o => isProspect(o) && (o.rank_period <= formattedThisMonth || !o.rank_period) && o.category === divisionMapping[division as keyof typeof divisionMapping]);
                                 const targetTotalList = usedContractList.filter(u =>
                                     monthArray.includes(monthFormate(u.contract_reform)) ||
                                     monthArray.includes(monthFormate(u.contract_buy)) ||
@@ -844,7 +1055,8 @@ const Company = () => {
                                         {rankArray.map(r => {
                                             const targetList = r === '契約済み' ?
                                                 (aggregatedContracts.divisions[division]?.monthly?.[monthFormate(formattedThisMonth)] || []) :
-                                                prospectList.filter(o => safeFormate(o.rank)?.includes(r));
+                                                // ⚠️ matchesRank を使う。建売のSランクは当月契約のみ（宣言箇所参照）
+                                                prospectList.filter(o => matchesRank(o, r));
                                             const targetUsedList = r === '契約済み' ? usedList.filter(u => u.status === '契約済み'
                                                 && (monthFormate(u.contract_reform).includes(monthFormate(formattedThisMonth))
                                                     || monthFormate(u.contract_buy).includes(monthFormate(formattedThisMonth)) || monthFormate(u.contract_sell).includes(monthFormate(formattedThisMonth))))
@@ -904,7 +1116,8 @@ const Company = () => {
                                                             {rankArray.map(r => {
                                                                 const target = r === '契約済み' ?
                                                                     (aggregatedContracts.sections[section.name]?.monthly?.[monthFormate(formattedThisMonth)] || []) :
-                                                                    sectionProspectList.filter(o => safeFormate(o.rank).includes(r));
+                                                                    // ⚠️ matchesRank を使う。建売のSランクは当月契約のみ（宣言箇所参照）
+                                                                    sectionProspectList.filter(o => matchesRank(o, r));
                                                                 const targetBroker = r === '契約済み' ?
                                                                     (aggregatedContracts.sections[section.name]?.monthly_broker?.[monthFormate(formattedThisMonth)] || []) : [];
                                                                 return <TableContract key={r} list={target} brokerList={targetBroker} row={2} col={1} lastYear={null} />

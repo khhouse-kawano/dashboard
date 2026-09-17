@@ -115,7 +115,13 @@ export const InquiryAmbassador = () => {
     //   詳細は useAmbassadorMaster.ts
     const { shopOptionsForDivision, staffOptionsFor, masterError } = useAmbassadorMaster();
 
-    const [filter, setFilter] = useState<SyncFilter>('unsynced');
+    /**
+     * ⚠️ 既定は「すべて」。未同期と同期済みを**同じ表で**見るため（2026-09-14 に変更）。
+     *   ⚠️ 以前は 'unsynced' で、同期した瞬間に行が消えて
+     *     「押したのに何も起きていない」ように見えていた。
+     *   ⚠️ 絞り込みボタンは残してある。未同期だけ見たいときは押せばよい。
+     */
+    const [filter, setFilter] = useState<SyncFilter>('all');
     const [shopFilter, setShopFilter] = useState('');
     const [keyword, setKeyword] = useState('');
 
@@ -310,6 +316,68 @@ export const InquiryAmbassador = () => {
         }
     };
 
+    /**
+     * 顧客編集ページのURLをクリップボードへコピーする。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ **本番のURLを固定で組み立てる。** `window.location.origin` は使わない。
+     *   担当営業へ**共有するための**リンクなので、ローカル開発で押したときに
+     *   `http://localhost:3000/...` がコピーされると、そのまま貼られて届かない。
+     *
+     * ⚠️ `navigator.clipboard` は **HTTPS か localhost でしか使えない。**
+     *   使えない場合に黙って何も起きないと「ボタンが壊れている」と見えるので、
+     *   古い `execCommand('copy')` に落とし、それも駄目なら URL を見せて
+     *   手でコピーしてもらう。
+     * ─────────────────────────────────────────────
+     */
+    const CUSTOMER_URL_BASE = 'https://khg-marketing.info/dashboard/database?id=';
+
+    /** コピーした行。⚠️ ボタンの見た目を一時的に変えて、押せたことを伝える */
+    const [copied, setCopied] = useState<number | null>(null);
+
+    const copyCustomerUrl = async (item: Inquiry) => {
+        const url = `${CUSTOMER_URL_BASE}${item.master_data_id ?? ''}`;
+
+        const fallback = () => {
+            try {
+                const el = document.createElement('textarea');
+                el.value = url;
+                // ⚠️ 画面外に置く。見えていると一瞬ちらつく
+                el.style.position = 'fixed';
+                el.style.left = '-9999px';
+                document.body.appendChild(el);
+                el.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(el);
+                return ok;
+            } catch {
+                return false;
+            }
+        };
+
+        let ok = false;
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(url);
+                ok = true;
+            } else {
+                ok = fallback();
+            }
+        } catch {
+            ok = fallback();
+        }
+
+        if (ok) {
+            setCopied(item.no);
+            // ⚠️ 2秒で元に戻す。押したことが伝わればよく、残し続ける意味は無い
+            window.setTimeout(() => setCopied(prev => (prev === item.no ? null : prev)), 2000);
+            return;
+        }
+
+        // ⚠️ コピーできなかったときは URL を見せる。黙って失敗させない
+        setError(`URLをコピーできませんでした。手でコピーしてください: ${url}`);
+    };
+
     const filterButtons: { key: SyncFilter; label: string; count: number }[] = [
         { key: 'unsynced', label: '未同期', count: unsyncedCount },
         { key: 'synced', label: '同期済み', count: list.length - unsyncedCount },
@@ -317,7 +385,11 @@ export const InquiryAmbassador = () => {
     ];
 
     return (
-        <div className="py-2">
+        // ⚠️ 左右の余白はここで付ける。この画面は Header.tsx の全画面モーダルで開き、
+        //   そちらの Modal.Body は `p-0`（縦を使い切るため）なので、
+        //   何も付けないとテーブルが画面の端に貼り付いて読みにくい。
+        //   ⚠️ Header.tsx 側に余白を足すと**他の全画面メニューにも効く**ので触らない。
+        <div className="py-3 px-4">
             <div className="d-flex align-items-center gap-3 flex-wrap mb-3">
                 <span className="fw-bold" style={{ fontSize: '14px' }}>
                     <i className="fa-brands fa-instagram me-2 text-danger" aria-hidden="true" />
@@ -444,12 +516,29 @@ export const InquiryAmbassador = () => {
                                 const division: DivisionKey = asDivision(item.division);
 
                                 return (
-                                    <tr key={item.no} className={isSynced ? 'text-muted' : ''}>
+                                    // ⚠️ 同期済みは行ごと色を付ける。未同期と同じ表に並ぶので、
+                                    //   文字色を薄くするだけでは**対応が済んでいるか一目で分からない**
+                                    <tr key={item.no} className={isSynced ? 'table-primary' : ''}>
                                         <td className="text-center">
                                             {isSynced ? (
-                                                <Badge bg="primary" className="fw-normal" title={item.master_data_id ?? ''}>
-                                                    同期済み
-                                                </Badge>
+                                                <div className="d-flex flex-column align-items-center gap-1">
+                                                    <Badge bg="primary" className="fw-normal" title={item.master_data_id ?? ''}>
+                                                        同期済み
+                                                    </Badge>
+                                                    {/* ⚠️ 担当営業へ共有するためのリンク。顧客IDが無い行では出さない */}
+                                                    {(item.master_data_id ?? '') !== '' && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant={copied === item.no ? 'success' : 'outline-secondary'}
+                                                            style={{ fontSize: '10px', padding: '1px 6px' }}
+                                                            title="顧客編集ページのURLをコピーする"
+                                                            onClick={() => void copyCustomerUrl(item)}
+                                                        >
+                                                            <i className={`fa-solid ${copied === item.no ? 'fa-check' : 'fa-link'} me-1`} aria-hidden="true" />
+                                                            {copied === item.no ? 'コピー済' : 'URL'}
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <Button
                                                     size="sm"

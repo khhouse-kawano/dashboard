@@ -12,7 +12,7 @@ import AuthProvider from "./context/AuthProvider";
 import Customer from "./components/customer/CustomerRouter";
 import { ShopTrendRouter } from "./components/shopTrend/ShopTrendRouter";
 import Company from "./components/company/Company";
-import NewCampaign from "./components/NewCampaign";
+import NewCampaign from "./components/campaign/NewCampaign";
 import ListRouter from "./components/list/ListRouter";
 import Photo from "./components/photo/Photo";
 import Hab from "./components/Hab";
@@ -83,7 +83,16 @@ function AppInner() {
       <ActiveUser />
       <div className='outer-container'>
         {currentPath !== '/login' && <Header key={menuKey} />}
-        <div className="d-flex pt-4">
+        {/**
+          * ⚠️⚠️ **ヘッダーの高さぶんだけ空ける。**
+          *   Header.tsx は `position-fixed` なので場所を取らない。
+          *   ⚠️ メニューが折り返すと高さが 30px → 60px と変わるため、
+          *     Header.tsx が実測して `--header-h` に入れている（ResizeObserver）。
+          *   ⚠️ 固定値（pt-4 = 24px）に戻すと、**折り返したときに
+          *     画面の上部がヘッダーに隠れる。**
+          *   ⚠️ 変数がまだ無い初回描画では既定の 30px を使う。
+          */}
+        <div className="d-flex" style={{ paddingTop: 'calc(var(--header-h, 30px) + 6px)' }}>
           {currentPath !== '/home' && currentPath !== '/login' && <>
             {/* PC用メニュー */}
             <div className="modal_menu">

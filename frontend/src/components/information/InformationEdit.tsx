@@ -11,7 +11,7 @@ import AuthContext from '../../context/AuthContext';
 import Estate from '../Estate';
 import KSnap from './KSnap';
 import IceWorld from '../IceWorld';
-import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate } from '../../utils/informationUtils';
+import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate, statusRequiredError } from '../../utils/informationUtils';
 import TableInput from './TableInput';
 import TableSelect from './TableSelect';
 import TableInterview from './TableInterview';
@@ -247,6 +247,36 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: today,
                 id: generateULID()
             }));
+            /**
+             * ⚠️⚠️ **新規顧客でも架電記録・商談ステップを必ず空にすること。**
+             *
+             *   下の fetchData は `if (id !== 'new')` の中でしか
+             *   `setCallLog` / `setInterviewLog` を呼ばない。
+             *   ここで空にしないと**前に開いていた顧客の履歴が残ったまま**になり、
+             *   保存時に `id: information.id` で ID だけ差し替わって
+             *   **他人の架電履歴が新しい顧客の行に書き込まれる。**
+             *
+             * ⚠️ 保存経路（handleUpdate の末尾）でもリセットしているが、
+             *   そちらを通らずに閉じた場合に備えて**ここでも空にする。**
+             *   片方だけでは塞ぎきれない。
+             */
+            setCallLog({
+                id: '',
+                shop: '',
+                staff: '',
+                name: '',
+                status: '',
+                reserved_status: '',
+                call_log: [],
+                add: false
+            });
+            setInterviewLog({
+                id: '',
+                shop: '',
+                name: '',
+                interview_log: [],
+                add: false
+            });
             setSending(false);
         }
 
@@ -325,6 +355,19 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                 alert(`必須項目が未入力です:${targetLabel}`)
                 return;
             }
+        }
+
+        /**
+         * ⚠️⚠️ **ステータスで変わる必須項目**（2026-09-17 の指示）。
+         *   ⚠️ 上の `requiredList` は固定の配列なので、
+         *     「契約済みなら勝因」「競合負けなら価格差」のような条件つきは書けない。
+         *   ⚠️ 判定は informationUtils の `statusRequiredError()` に置いてある
+         *     （⚠️ **TableStatus.tsx のラベルと揃えること**）。
+         */
+        const statusError = statusRequiredError(information, category, information.status);
+        if (statusError !== null) {
+            alert(`必須項目が未入力です:${statusError}`);
+            return;
         }
 
         setSending(false);
@@ -543,6 +586,41 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
             action: '',
             note: '',
             staff: ''
+        });
+        /**
+         * ⚠️⚠️ **架電記録・商談ステップも必ず空に戻すこと。**
+         *
+         *   2026-09-14 まで、この保存経路だけ `setCallLog` / `setInterviewLog` が
+         *   抜けていた（`handleClose` には両方ある）。そのため
+         *
+         *     顧客A を保存して閉じる → callLog に A の履歴が残る
+         *       → 新規顧客を開く（下の fetchData は id === 'new' では
+         *          callLog を初期化しない）
+         *       → 保存すると **A の架電履歴が新しい顧客の行に丸ごとコピーされる**
+         *
+         *   という状態になっていた。保存時に `id: information.id` で
+         *   ID だけ差し替わるため、**中身が他人のものだと気づけない。**
+         *
+         * ⚠️ 保存条件は `callLog.status || isAddCallLog || callLog.add` である。
+         *   前の顧客に架電ステータスが入っていれば、**架電欄を一切触らなくても
+         *   送信される。**
+         */
+        setCallLog({
+            id: '',
+            shop: '',
+            staff: '',
+            name: '',
+            status: '',
+            reserved_status: '',
+            call_log: [],
+            add: false
+        });
+        setInterviewLog({
+            id: '',
+            shop: '',
+            name: '',
+            interview_log: [],
+            add: false
         });
         setCompetitorPdfFile([]);
         modalClose();

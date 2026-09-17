@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Table from "react-bootstrap/Table";
-import axios from "axios";
+import apiClient from '../../utils/apiClient';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 
 interface CampaignSummaryProps {
@@ -18,6 +18,7 @@ const CampaignSummary: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
     const [targetBrand, setTargetBrand] = useState('');
     const [targetShop, setTargetShop] = useState('');
     const [targetCampaign, setTargetCampaign] = useState('');
+    const [error, setError] = useState('');
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
@@ -36,12 +37,20 @@ const CampaignSummary: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
         setMonthArray(monthArray);
         const fetchData = async () => {
             try {
-                const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: 'campaignSummary' }, { headers });
-                await setShopArray(response.data.shop);
-                await setCampaignList(response.data.campaign);
+                /**
+                 * ⚠️⚠️ **`apiClient` を使う。URL を直接書かない。**
+                 *   ⚠️ 以前は本番のURLが直書きで、**Token を送っていなかった**
+                 *     （headers は Authorization だけ）。
+                 *   ⚠️ そのため**ローカルでも本番のDBを見ていた**。
+                 *   ⚠️ `apiClient` なら Token が自動で付き、② 側の認証が効く。
+                 */
+                const response = await apiClient.post('', { request: 'campaignSummary' });
+                setShopArray(response.data.shop ?? []);
+                setCampaignList(response.data.campaign ?? []);
             } catch (error) {
+                // ⚠️ 黙って空にしない。⚠️ 0件と取得失敗が見分けられなくなる
                 console.error("Error fetching data:", error);
+                setError('キャンペーン集計を取得できませんでした。');
             }
         };
         fetchData();
@@ -100,6 +109,7 @@ const CampaignSummary: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
     return (
         <div>
             <div className='container bg-white py-3 mt-2'>
+                {!error || <div className="mb-3" style={{ color: 'red', fontSize: '13px' }}>{error}</div>}
                 <div className="d-flex  mb-3 align-items-center">
                     <div className="m-1">
                         <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
