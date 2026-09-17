@@ -5,8 +5,8 @@ import Button from 'react-bootstrap/Button';
 import apiClient from '../../utils/apiClient';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import {
-    DIVISION_LABEL, HP_ROW, KPI_DEFS, applyBudget, applyCount, applyCountKeepUnit,
-    applyUnit, countKpis, filterCustomers, lastYearMonth, matchesMedium, mediumRows,
+    AXIS_LABEL, AXIS_ORDER, DIVISION_LABEL, HP_ROW, KPI_DEFS, applyBudget, applyCountKeepUnit,
+    applyUnit, canEdit, countKpis, filterCustomers, lastYearMonth, matchesMedium, mediumRows,
     requiredBudget, sumAchievement, sumBudget, toNumber, unitPrice,
 } from './budgetSimulatorUtils';
 import type { Division, KpiKey, SimAxis, SimBudget, SimCustomer, SimMedium, SimRow, SimShop } from './budgetSimulatorUtils';
@@ -30,8 +30,14 @@ import type { Division, KpiKey, SimAxis, SimBudget, SimCustomer, SimMedium, SimR
  * ⚠️ 連動の規則（`単価 = 広告費 ÷ 件数` を常に保つ）
  *     広告費を変える … 単価を保ち、4つの件数が比例して動く
  *     単価を変える   … 広告費を保ち、その件数が `広告費 ÷ 単価` になる
- *     件数を変える   … 広告費を保ち、単価が自動で変わる
+ *     件数を変える   … 単価を保ち、広告費とほかの件数が比例して動く
  *   ⚠️ 単価は state に持たない。3つを別々に持つとすぐ辻褄が合わなくなる。
+ *
+ * ⚠️⚠️ **2026-09-17 から「軸で選んだ欄しか編集できない」**（指示）。
+ *   ⚠️ 編集できない欄は **disabled にしてグレーで出す**。
+ *     ⚠️ 値は消さない。消すと昨年実績が読めなくなる。
+ *   ⚠️ どの欄が編集できるかは **budgetSimulatorUtils.ts の `EDITABLE_FIELD`** が唯一の定義。
+ *     ⚠️ **ここで `axis === '…'` と書かないこと。** 軸を足すたびに漏れる。
  *
  * ⚠️ 試算はこの画面の中だけで完結する。**保存もDBへの書き込みも無い。**
  *   閉じれば消える。
@@ -58,6 +64,37 @@ const currentMonth = (): string => {
 
 const yen = (v: number | null): string => (v === null ? '-' : `¥${v.toLocaleString()}`);
 
+/**
+ * 入力欄の見た目。
+ *
+ * ⚠️⚠️ **編集できない欄は「入力できない値」に見えること**（2026-09-17 の指示）。
+ *   ⚠️ `disabled` を付けるだけでは、ブラウザによっては**ほとんど色が変わらない。**
+ *     ⚠️ 背景・文字色・枠線を自前で落とし、**カーソルも not-allowed** にする。
+ *   ⚠️ ⚠️ **値そのものは消さない。** 消すと昨年実績（試算の出発点）が読めなくなる。
+ */
+const inputStyle = (editable: boolean): React.CSSProperties => ({
+    fontSize: '12px',
+    textAlign: 'right',
+    ...(editable ? {} : {
+        backgroundColor: '#eef1f5',
+        color: '#8a949f',
+        borderColor: '#dde3ea',
+        cursor: 'not-allowed',
+        // ⚠️ 文字を薄くするだけだと「読み込み中」に見えるので、枠も一緒に落とす
+        opacity: 1,
+    }),
+});
+
+/**
+ * 編集できない欄に付ける印。
+ * ⚠️ 色を落とすだけでは**壊れているように見える。** 理由を一言で出す。
+ */
+const LockMark = () => (
+    <span className="ms-1 text-secondary" style={{ fontSize: '10px' }}>
+        <i className="fa-solid fa-lock me-1" aria-hidden="true" />固定
+    </span>
+);
+
 const BudgetSimulator = () => {
     const [data, setData] = useState<Record<Division, DivisionData> | null>(null);
     const [loading, setLoading] = useState(true);
@@ -80,9 +117,9 @@ const BudgetSimulator = () => {
     const [edited, setEdited] = useState<Record<string, SimRow>>({});
 
     /**
-     * 試算の軸。⚠️ 「何を固定するか」で件数を変えたときの向きが変わる
+     * 試算の軸。⚠️ **どの欄を書き換えるか**を決める
      *   （budgetSimulatorUtils.ts の SimAxis のコメント参照）。
-     * ⚠️ 既定は 'budget'。従来の挙動をそのまま残すため。
+     * ⚠️ 既定は 'budget'（＝KPI単価を修正）。従来の既定をそのまま残すため。
      */
     const [axis, setAxis] = useState<SimAxis>('budget');
 
@@ -307,6 +344,14 @@ const BudgetSimulator = () => {
         /** ⚠️ 契約目標は店舗単位。媒体別には割り振れないので全体の表にだけ出す */
         const isTotal = key === '';
 
+        /**
+         * ⚠️⚠️ **編集できる欄は軸で1種類だけ。**
+         *   ⚠️ 判定は `canEdit()` に任せる。ここで `axis === '…'` と書かない。
+         */
+        const editBudget = canEdit(axis, 'budget');
+        const editCount = canEdit(axis, 'count');
+        const editUnit = canEdit(axis, 'unit');
+
         return (
             <div key={key || '__total__'} className="mb-4">
                 <div className="d-flex align-items-center gap-2 mb-2">
@@ -335,11 +380,14 @@ const BudgetSimulator = () => {
                             {/* ⚠️ 入力欄は1年前。見出しに期間を出して取り違えを防ぐ */}
                             <th className="bg-light" style={{ width: '150px' }}>
                                 {lastYearLabel}<br />広告費総額
+                                {/* ⚠️ 見出しにも印を出す。欄だけ薄いと不具合に見える */}
+                                {!editBudget && <LockMark />}
                             </th>
                             {kpis.map(k => (
                                 <th key={k.key} className="bg-light text-center" style={{ width: '150px' }}>
                                     {/* ⚠️ 色は shop/unitPriceSeries.ts と同じ。工程の進み方が読めるようにしている */}
                                     <span style={{ borderLeft: `4px solid ${k.color}`, paddingLeft: '6px' }}>{k.label}</span>
+                                    {!editCount && <LockMark />}
                                 </th>
                             ))}
                             {/* ⚠️ 契約は2列。実績（左）と目標（右）を並べる。全体のときだけ出す
@@ -354,9 +402,11 @@ const BudgetSimulator = () => {
                     <tbody>
                         <tr>
                             <td rowSpan={2} style={{ verticalAlign: 'middle' }}>
+                                {/* ⚠️ 広告費を書き換えると単価を保ったまま件数が比例する（'total' の軸） */}
                                 <Form.Control
                                     size="sm"
-                                    style={{ fontSize: '12px', textAlign: 'right' }}
+                                    disabled={!editBudget}
+                                    style={inputStyle(editBudget)}
                                     value={row.budget.toLocaleString()}
                                     onChange={(e) => update(key, applyBudget(row, toNumber(e.target.value)))}
                                 />
@@ -368,13 +418,14 @@ const BudgetSimulator = () => {
                             </td>
                             {kpis.map(k => (
                                 <td key={k.key} className="text-center">
+                                    {/* ⚠️⚠️ 件数を書き換えられるのは 'unit' の軸だけ。
+                                           ⚠️ **単価を保つため広告費とほかの件数も動く。** */}
                                     <Form.Control
                                         size="sm"
-                                        style={{ fontSize: '12px', textAlign: 'right' }}
+                                        disabled={!editCount}
+                                        style={inputStyle(editCount)}
                                         value={row.counts[k.key].toLocaleString()}
-                                        onChange={(e) => update(key, axis === 'unit'
-                                            ? applyCountKeepUnit(row, k.key, toNumber(e.target.value))
-                                            : applyCount(row, k.key, toNumber(e.target.value)))}
+                                        onChange={(e) => update(key, applyCountKeepUnit(row, k.key, toNumber(e.target.value)))}
                                     />
                                     {base && (
                                         <div className="text-muted mt-1" style={{ fontSize: '10px' }}>
@@ -416,15 +467,14 @@ const BudgetSimulator = () => {
                                             {k.unitLabel}
                                             {/* ⚠️ 固定されている側であることを明示する。
                                                    読み取り専用の理由が分からないと壊れて見える */}
-                                            {axis === 'unit' && <span className="ms-1 text-secondary">（固定）</span>}
+                                            {!editUnit && <LockMark />}
                                         </div>
+                                        {/* ⚠️ 単価を書き換えられるのは 'budget' の軸だけ。
+                                               ⚠️ 広告費は動かず、件数が `広告費 ÷ 単価` になる */}
                                         <Form.Control
                                             size="sm"
-                                            readOnly={axis === 'unit'}
-                                            style={{
-                                                fontSize: '12px', textAlign: 'right',
-                                                backgroundColor: axis === 'unit' ? '#eef1f5' : undefined,
-                                            }}
+                                            disabled={!editUnit}
+                                            style={inputStyle(editUnit)}
                                             value={unit === null ? '' : unit.toLocaleString()}
                                             placeholder="-"
                                             onChange={(e) => update(key, applyUnit(row, k.key, toNumber(e.target.value)))}
@@ -460,32 +510,29 @@ const BudgetSimulator = () => {
                 </span>
             </div>
 
-            {/* 試算の軸。⚠️ 「何を固定するか」で件数を変えたときの向きが変わる */}
+            {/* 試算の軸。⚠️⚠️ **選んだ欄だけが編集できる**（2026-09-17 の指示）。
+                   ⚠️ 表記は「〜を固定」ではなく **「〜を修正」**。
+                   ⚠️ 名前と中身は budgetSimulatorUtils.ts の AXIS_LABEL / AXIS_ORDER にある */}
             <div className="d-flex align-items-center gap-3 flex-wrap px-3 py-2 mb-2 border rounded bg-white">
                 <span className="fw-bold" style={{ fontSize: '12px' }}>試算の軸</span>
-                {([
-                    {
-                        key: 'budget' as SimAxis,
-                        label: '広告費を固定',
-                        hint: '投下した広告費から達成可能な件数を見る',
-                    },
-                    {
-                        key: 'unit' as SimAxis,
-                        label: '単価を固定',
-                        hint: '目標の件数から必要な広告費を出す',
-                    },
-                ]).map(a => (
+                {AXIS_ORDER.map((a: SimAxis) => (
                     <Button
-                        key={a.key}
+                        key={a}
                         size="sm"
-                        variant={axis === a.key ? 'primary' : 'outline-secondary'}
+                        variant={axis === a ? 'primary' : 'outline-secondary'}
                         style={{ fontSize: '12px' }}
-                        onClick={() => setAxis(a.key)}
+                        onClick={() => setAxis(a)}
                     >
-                        {a.label}
-                        <span className="ms-2" style={{ fontSize: '10px', opacity: 0.85 }}>{a.hint}</span>
+                        {AXIS_LABEL[a].label}
+                        <span className="ms-2" style={{ fontSize: '10px', opacity: 0.85 }}>
+                            {AXIS_LABEL[a].hint}
+                        </span>
                     </Button>
                 ))}
+                <span className="text-muted" style={{ fontSize: '11px' }}>
+                    {/* ⚠️ 他の欄が薄いのは不具合ではない、と分かるようにする */}
+                    ※ 選んだ欄だけが入力でき、ほかは自動で計算されます
+                </span>
             </div>
 
             {/* ⚠️⚠️ **入力欄と併記が別の期間である**ことを必ず出す。
@@ -503,21 +550,30 @@ const BudgetSimulator = () => {
                         … 各件数の下に併記しています。試算には使いません
                     </span>
                     <br />
-                    {/* ⚠️ 軸によって「件数を書き換えたとき何が動くか」が変わる。
-                           ここに書かないと、広告費が勝手に変わったように見える */}
-                    {axis === 'unit'
-                        ? (
-                            <span className="text-muted">
-                                件数を書き換えると<span className="fw-bold text-danger">広告費が変わります</span>。
-                                単価を保つため、ほかの件数も同じ比率で動きます
-                                （契約を1.5倍にするなら反響も1.5倍必要、という意味です）
-                            </span>
-                        )
-                        : (
-                            <span className="text-muted">
-                                件数を書き換えると<span className="fw-bold">その単価が変わります</span>。広告費は動きません
-                            </span>
-                        )}
+                    {/* ⚠️⚠️ **軸ごとに「何を書き換えると何が動くか」が変わる。**
+                           ⚠️ ここに書かないと、触っていない欄が勝手に変わったように見える */}
+                    {axis === 'total' && (
+                        <span className="text-muted">
+                            <span className="fw-bold">広告費総額</span>を書き換えると
+                            <span className="fw-bold text-danger">4つの件数が同じ比率で動きます</span>。
+                            KPI単価は変わりません（予算を倍にすれば件数も倍、という意味です）
+                        </span>
+                    )}
+                    {axis === 'unit' && (
+                        <span className="text-muted">
+                            <span className="fw-bold">件数</span>を書き換えると
+                            <span className="fw-bold text-danger">広告費が変わります</span>。
+                            単価を保つため、ほかの件数も同じ比率で動きます
+                            （契約を1.5倍にするなら反響も1.5倍必要、という意味です）
+                        </span>
+                    )}
+                    {axis === 'budget' && (
+                        <span className="text-muted">
+                            <span className="fw-bold">KPI単価</span>を書き換えると
+                            <span className="fw-bold text-danger">その件数が変わります</span>。
+                            広告費は動きません（単価が半分になれば件数は倍、という意味です）
+                        </span>
+                    )}
                 </div>
             </div>
 
