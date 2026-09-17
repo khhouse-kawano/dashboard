@@ -91,15 +91,22 @@ alias dcp='docker compose -f ~/dashboard/docker-compose.prod.yml --env-file ~/da
 cd ~/dashboard
 git fetch --depth 1 origin production
 git reset --hard FETCH_HEAD
-git log --oneline -5
+git log --oneline -1
 ```
 
-⚠️⚠️ **次の2つが見えること。** 見えなければ手順1が終わっていない。⚠️ **ここで止める。**
+⚠️⚠️ **`--depth 1` なのでコミットは1つしか来ない**（`grafted` と出る）。
+⚠️ `git log -5` としても**1行しか出ない。それが正常である。**
+⚠️ ⚠️ **コミットの一覧では取り込みを確認できない。**
 
+### ⚠️ 取り込めたかは**ファイルの中身**で見る
+
+```bash
+grep -c "店舗未設定"     ~/dashboard/backend-express/src/features/campaignForm/entry.ts
+grep -c "formTableBrand" ~/dashboard/backend-express/src/features/campaignForm/entry.ts
 ```
-find the campaign settings when the form rewrote the brand
-keep the shop name when the form does not ask for it
-```
+
+⚠️⚠️ **どちらも 1 以上なら取り込めている。**
+⚠️ `0` なら古いまま。⚠️ 手順1（PR のマージ）が終わっていない。⚠️ **ここで止める。**
 
 ```bash
 dcp build express-api

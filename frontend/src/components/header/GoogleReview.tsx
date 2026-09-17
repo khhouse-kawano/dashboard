@@ -27,7 +27,11 @@ import type { ReviewShop, SectionMaster, ShopMaster } from './googleReviewUtils'
  * ─────────────────────────────────────────────
  */
 
-type SortKey = 'shop' | 'division' | 'section' | 'average' | 'amount' | 'reviews';
+/**
+ * ⚠️ `'reviews'`（取得できた本文の数）は 2026-09-17 に**列ごと外した**（指示）。
+ *   ⚠️ 並べ替えの見出しが無くなったため、キーとしても残していない。
+ */
+type SortKey = 'shop' | 'division' | 'section' | 'average' | 'amount';
 type SortOrder = 'asc' | 'desc';
 
 /** 本文の折りたたみ文字数。⚠️ 長文が1件で表を占有するのを防ぐ */
@@ -100,7 +104,6 @@ const GoogleReview = () => {
                 case 'division': return s.division;
                 case 'section': return s.section;
                 case 'amount': return s.amount;
-                case 'reviews': return s.reviews.length;
                 case 'average':
                 default: return s.average;
             }
@@ -380,15 +383,18 @@ const GoogleReview = () => {
                                     <SortHead label="営業課" keyName="section" width="150px" />
                                     <SortHead label="評価" keyName="average" align="center" width="170px" />
                                     <SortHead label="レビュー数" keyName="amount" align="right" width="100px" />
-                                    <SortHead label="取得本文" keyName="reviews" align="right" width="90px" />
+                                    {/* ⚠️ 「取得本文」列は 2026-09-17 に削除（指示）。
+                                           ⚠️ 本文が総数より少ない理由は見出しの注記に残してある */}
                                     <th className="gr_th">最新のクチコミ</th>
-                                    <th className="gr_th" style={{ width: '130px' }}></th>
+                                    {/* ⚠️ 「取得したレビューを読む（n）」が入る幅。
+                                           ⚠️ .gr_more は nowrap なので、狭いと隣の列へはみ出す */}
+                                    <th className="gr_th" style={{ width: '180px' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {visible.length === 0 ? (
                                     <tr>
-                                        <td className="gr_td gr_empty text-center py-4" colSpan={8}>
+                                        <td className="gr_td gr_empty text-center py-4" colSpan={7}>
                                             該当する店舗がありません
                                         </td>
                                     </tr>
@@ -418,7 +424,6 @@ const GoogleReview = () => {
                                                     </span>
                                                 </td>
                                                 <td className="gr_td text-end gr_amount">{shop.amount.toLocaleString()}</td>
-                                                <td className="gr_td text-end gr_amount">{shop.reviews.length.toLocaleString()}</td>
                                                 <td className="gr_td">
                                                     {latest ? (
                                                         <span className="gr_text d-block" style={{ marginTop: 0 }}>
@@ -433,7 +438,9 @@ const GoogleReview = () => {
                                                 <td className="gr_td text-end">
                                                     {shop.reviews.length > 0 && (
                                                         <button className="gr_more" onClick={() => toggle(shop.no)}>
-                                                            {isOpen ? '閉じる' : `レビューを読む（${shop.reviews.length}）`}
+                                                            {/* ⚠️ 「取得した」を付ける（2026-09-17 の指示）。
+                                                                   ⚠️ 総数ではなく**取り込めた本文の数**であることを表す */}
+                                                            {isOpen ? '閉じる' : `取得したレビューを読む（${shop.reviews.length}）`}
                                                         </button>
                                                     )}
                                                     {shop.url && (
@@ -450,7 +457,7 @@ const GoogleReview = () => {
                                             {/* ⚠️ 本文は行の下に広げる。全部を表に並べると読めなくなるため（指示） */}
                                             {isOpen && (
                                                 <tr className="gr_detail">
-                                                    <td className="gr_td" colSpan={8}>
+                                                    <td className="gr_td" colSpan={7}>
                                                         {shop.reviews.map((r, i) => (
                                                             <div className="gr_review" key={`${shop.no}-${i}`}>
                                                                 <div className="gr_review_head">

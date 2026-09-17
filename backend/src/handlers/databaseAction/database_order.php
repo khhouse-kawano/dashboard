@@ -69,6 +69,10 @@ $sql_customer = "SELECT
   COALESCE(customized_input_01JRCT12N9X24PCQ5QZPAYKB93, '') AS event,
   COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') AS customized_input_01JRF9CZSW65A151WR30NA4PB3,
   COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') AS customized_input_01JSE7H4MQES619NBWX6PQDFRH,
+  -- ⚠️ 2026-09-17 に追加。DatabaseOrder.tsx の「要回答」件数で使う。
+  -- ⚠️ ② の backend-express/src/features/database/queries.ts と**必ず揃えること**。
+  COALESCE(competitor_price_gap, '') AS competitor_price_gap,
+  COALESCE(competitor_countermeasure, '') AS competitor_countermeasure,
   COALESCE(call_log, '') AS call_log,
   COALESCE(hotlead_id, '') AS hotlead_id,
   COALESCE(k_snap, '') AS k_snap

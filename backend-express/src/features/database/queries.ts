@@ -87,6 +87,15 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
   COALESCE(customized_input_01JRCT12N9X24PCQ5QZPAYKB93, '') AS event,
   COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') AS customized_input_01JRF9CZSW65A151WR30NA4PB3,
   COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') AS customized_input_01JSE7H4MQES619NBWX6PQDFRH,
+  /*
+    ⚠️⚠️ **2026-09-17 に足した2列。** DatabaseOrder.tsx の「要回答」件数で使う。
+      ⚠️ 返さないと画面側で undefined になり、⚠️ **失注が全件「要回答」になる。**
+      ⚠️ ⚠️ **order にだけ足すこと。** 建売・中古のテーブルにはこの列が無い。
+      ⚠️ ① の database_order.php にも同じ2行を足してある。
+      ⚠️⚠️ **ここはSQLの中なのでバッククォートを書かないこと**（文字列が終わる）。
+  */
+  COALESCE(competitor_price_gap, '') AS competitor_price_gap,
+  COALESCE(competitor_countermeasure, '') AS competitor_countermeasure,
   COALESCE(call_log, '') AS call_log,
   COALESCE(hotlead_id, '') AS hotlead_id,
   COALESCE(k_snap, '') AS k_snap

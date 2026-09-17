@@ -9,6 +9,7 @@ import Estate from './Estate';
 import { useIsSp } from '../utils/isSp';
 import apiClient from "../utils/apiClient";
 import { isPendingSync } from './list/listTags';
+import { missingLostFields } from '../utils/informationUtils';
 
 type UnSync = { inquiry_date: string, sync: number, duplicate_flag: number, support_flag: number, black_flag: number };
 type Cancel = Record<string, string>;
@@ -140,14 +141,13 @@ const Menu = ({ key, onReload }: Props) => {
             const today = now.getTime();
             const target = new Date(dateFormate(item.register)).getTime();
             const base = new Date('2026-06-01').getTime();
-            const isReasonMissing = !item.competitor_lost_contract_reason || item.competitor_lost_contract_reason === 'null';
-            const isCompetitorMissing = item.competitor_lost_contract_reason === '競合負け' && (!item.competitor_name || item.competitor_name === 'null');
-            const isDetailMissing = item.competitor_lost_contract_reason === '競合負け' &&
-                (
-                    !item.customized_input_01JRF9CZSW65A151WR30NA4PB3 || item.customized_input_01JRF9CZSW65A151WR30NA4PB3 === 'null' ||
-                    !item.customized_input_01JSE7H4MQES619NBWX6PQDFRH || item.customized_input_01JSE7H4MQES619NBWX6PQDFRH === 'null' || String(item.customized_input_01JSE7H4MQES619NBWX6PQDFRH).trim() === ''
-                );
-            return target < today && base < target && item.status === '失注' && (isReasonMissing || isCompetitorMissing || isDetailMissing) && Number(item.trash) === 1;
+            /**
+             * ⚠️⚠️ **判定は informationUtils の `missingLostFields()` に集約した**
+             *   （2026-09-17）。⚠️ 以前はここに条件が写されており、
+             *   ⚠️ **② が数えなかったときだけ古い基準の件数が出ていた。**
+             * ⚠️ ここで条件を書き足さないこと。
+             */
+            return target < today && base < target && item.status === '失注' && missingLostFields(item).length > 0 && Number(item.trash) === 1;
         }).length
         setLost(lostLength);
     }, [cancelList, serverCounts]);
