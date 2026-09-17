@@ -5,8 +5,8 @@ import { dateFormate } from '../../utils/informationUtils';
 import { UNKNOWN_COMPETITOR, requiredStyle } from '../../utils/informationUtils';
 import {
     COUNTERMEASURE_KEY, LOSE_REASON_KEY, LOST_REASON_KEY, LOST_REASON_OPTIONS,
-    LOST_TO_COMPETITOR, PRICE_GAP_KEY, RIVAL_CAMPAIGN_KEY, SALES_PERSON_KEY,
-    WIN_REASON_KEY, isBlank, lostFieldLabel,
+    LOST_TO_COMPETITOR, PRICE_GAP_KEY, PRICE_GAP_UNIT, RIVAL_CAMPAIGN_KEY,
+    SALES_PERSON_KEY, WIN_REASON_KEY, isBlank, lostFieldLabel,
 } from '../../utils/informationUtils';
 import AuthContext from '../../context/AuthContext';
 import TableInput from './TableInput';
@@ -185,7 +185,9 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
         itemKey: string,
         required: boolean,
         type: 'text' | 'number' | 'textarea',
-        placeholder = ''
+        placeholder = '',
+        /** 欄の右に出す単位。⚠️ **空なら出さない**（textarea では使わない） */
+        unit = ''
     ) => {
         /**
          * ⚠️⚠️ **見出しは `LOST_FIELDS` / `WIN_FIELDS` の label を引く。**
@@ -216,14 +218,26 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                         onChange={(e) => change(e.target.value)}
                     ></textarea>
                 ) : (
-                    <input
-                        type={type}
-                        placeholder={placeholder}
-                        className="form-control form-control-sm"
-                        style={{ fontSize: '12px', maxWidth: type === 'number' ? '200px' : '100%' }}
-                        value={value}
-                        onChange={(e) => change(e.target.value)}
-                    />
+                    <div className="d-flex align-items-center gap-2">
+                        <input
+                            type={type}
+                            placeholder={placeholder}
+                            className="form-control form-control-sm"
+                            style={{ fontSize: '12px', maxWidth: type === 'number' ? '200px' : '100%' }}
+                            value={value}
+                            onChange={(e) => change(e.target.value)}
+                        />
+                        {/**
+                          * ⚠️⚠️ **単位は欄の横に出す。プレースホルダに書かない**（2026-09-17 の指示）。
+                          *   ⚠️ プレースホルダは**入力すると消える**ため、
+                          *     ⚠️ **あとから見た人に単位が分からない。**
+                          *   ⚠️⚠️ **入力値はそのまま保存される（変換しない）。**
+                          *     ⚠️ 単位の表示を変えるときは、**既存データの意味も変わる**ことに注意。
+                          */}
+                        {unit !== '' && (
+                            <span className="text-secondary text-nowrap" style={{ fontSize: '12px' }}>{unit}</span>
+                        )}
+                    </div>
                 )}
             </div>
         );
@@ -279,7 +293,8 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                         </div>
                     </div>
 
-                    {freeField(PRICE_GAP_KEY, false, 'number', '他社との差額（円）')}
+                    {/* ⚠️ 単位は欄の横に出す。⚠️ **入力値はそのまま保存される** */}
+                    {freeField(PRICE_GAP_KEY, false, 'number', '他社との差額', PRICE_GAP_UNIT)}
                     {freeField(WIN_REASON_KEY, true, 'textarea', '選ばれた理由を具体的に入力してください')}
 
                     {/* ⚠️ 失注先の選択と同じUI・同じ列（competitor_name） */}
@@ -377,7 +392,8 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                             {isOrder && (
                                 <>
                                     {freeField(SALES_PERSON_KEY, false, 'text', '競合の営業担当者名')}
-                                    {freeField(PRICE_GAP_KEY, true, 'number', '他社との差額（円）')}
+                                    {/* ⚠️ 単位は契約済み側と必ず同じにする（同じ列に入るため） */}
+                                    {freeField(PRICE_GAP_KEY, true, 'number', '他社との差額', PRICE_GAP_UNIT)}
                                     {freeField(COUNTERMEASURE_KEY, true, 'textarea', '次に同じ競合と当たったときの対策')}
                                     {freeField(RIVAL_CAMPAIGN_KEY, false, 'textarea', '他社が実施していた特典・値引きなど')}
                                 </>

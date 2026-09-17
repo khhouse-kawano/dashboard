@@ -555,3 +555,113 @@ $sql_lost = "SELECT COUNT(*) AS c
 | 5 | ⚠️ ① の phpMyAdmin で **`2026-09-17_update_log_2.2.136.sql`** |
 
 ⚠️⚠️ **1 を最初に。** ⚠️ 列が無いまま PHP を上げると ⚠️ **`Unknown column` でメニューと一覧が開かなくなる。**
+
+---
+
+## ⚠️ 追補（2026-09-17）　価格差の単位を「万円」と明示
+
+⚠️ 依頼: 「価格差については入力値そのまま？ であれば**万円を input タグの横などにも追記**してほしい／
+**またコメントにも追加する**／**バージョンは変えないでいい**」
+
+### ⚠️ 回答
+
+⚠️⚠️ **入力値をそのまま保存している。換算していない。**
+⚠️ `competitor_price_gap` は TEXT で、`input` の値をそのまま `bindValue` するだけである。
+⚠️ 案内はプレースホルダの「他社との差額（円）」だけで、⚠️ **入力すると消えて分からなくなっていた。**
+
+### 変更
+
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| `frontend/src/utils/` | `informationUtils.ts` | ⚠️ **`PRICE_GAP_UNIT` を追加**（`'万円'`） |
+| `frontend/src/components/information/` | `TableStatus.tsx` | ⚠️ `freeField()` に `unit` を追加。⚠️ **欄の右横に出す** |
+| `backend/scripts/sql/` | `2026-09-17_master_data_win_lose.sql` | ⚠️ **列コメントに「（万円）」** |
+| `docs/` | `deploy-v2.2.136.md` | ⚠️ 手順と確認項目に反映 |
+
+⚠️ ⚠️ **`version.ts` は `2.2.136` のまま**（指示）。
+
+### 追加した定数
+
+```ts
+/**
+ * 価格差の単位。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **入力値はそのまま保存する。単位の換算はしていない。**
+ *   ⚠️ `competitor_price_gap` は TEXT で、⚠️ **画面に打った数字がそのまま入る。**
+ *   ⚠️ そのため ⚠️ **この表示だけが「何の単位か」を決めている。**
+ *
+ * ⚠️⚠️ **ここを変えると、既に入力済みのデータの意味まで変わる。**
+ *   ⚠️ 例）`500` は「500万円」から「500円」になってしまう。
+ *   ⚠️ 変えるときは**既存データの換算を必ず併せて考えること。**
+ *
+ * ⚠️ 契約済み側と失注側の**両方**がこれを使う（同じ列に入るため）。
+ * ⚠️ ⚠️ **プレースホルダには書かない。** 入力すると消えて分からなくなる。
+ * ─────────────────────────────────────────────
+ */
+export const PRICE_GAP_UNIT = '万円';
+```
+
+### `freeField()` の入力欄（変更後）
+
+```tsx
+                ) : (
+                    <div className="d-flex align-items-center gap-2">
+                        <input
+                            type={type}
+                            placeholder={placeholder}
+                            className="form-control form-control-sm"
+                            style={{ fontSize: '12px', maxWidth: type === 'number' ? '200px' : '100%' }}
+                            value={value}
+                            onChange={(e) => change(e.target.value)}
+                        />
+                        {/**
+                          * ⚠️⚠️ **単位は欄の横に出す。プレースホルダに書かない**（2026-09-17 の指示）。
+                          *   ⚠️ プレースホルダは**入力すると消える**ため、
+                          *     ⚠️ **あとから見た人に単位が分からない。**
+                          *   ⚠️⚠️ **入力値はそのまま保存される（変換しない）。**
+                          *     ⚠️ 単位の表示を変えるときは、**既存データの意味も変わる**ことに注意。
+                          */}
+                        {unit !== '' && (
+                            <span className="text-secondary text-nowrap" style={{ fontSize: '12px' }}>{unit}</span>
+                        )}
+                    </div>
+                )}
+```
+
+⚠️ 呼び出しは**2か所とも同じ単位**にしてある（⚠️ **同じ列に入るため**）。
+
+```tsx
+                    {/* ⚠️ 単位は欄の横に出す。⚠️ **入力値はそのまま保存される** */}
+                    {freeField(PRICE_GAP_KEY, false, 'number', '他社との差額', PRICE_GAP_UNIT)}
+```
+
+```tsx
+                                    {/* ⚠️ 単位は契約済み側と必ず同じにする（同じ列に入るため） */}
+                                    {freeField(PRICE_GAP_KEY, true, 'number', '他社との差額', PRICE_GAP_UNIT)}
+```
+
+### DB のコメント
+
+```sql
+  ADD COLUMN competitor_price_gap       TEXT DEFAULT NULL COMMENT '競合との価格差（万円）。入力値そのまま。契約済み=任意／失注=必須',
+```
+
+⚠️⚠️ **既に ALTER を流したあと**でコメントだけ足す場合は、SQL ファイル末尾のこちらを使う。
+⚠️ `ADD COLUMN` をもう一度流すと `Duplicate column name` で失敗する。
+
+```sql
+ALTER TABLE master_data
+  MODIFY competitor_price_gap TEXT DEFAULT NULL COMMENT '競合との価格差（万円）。入力値そのまま。契約済み=任意／失注=必須';
+```
+
+### 検証
+
+| 確認 | 結果 |
+|---|---|
+| ローカルDBへ `MODIFY` を適用 | ⚠️ **コメントに「（万円）」が入った**（`SHOW FULL COLUMNS` で確認） |
+| ⚠️ 型・既定値 | ⚠️ **`text` / `Null=YES` / `Default=NULL` のまま** |
+| `npm run build` | ⚠️ **成功**（追加した警告なし） |
+| ⚠️ `version.ts` | ⚠️ **`2.2.136` のまま** |
+
+⚠️ ⚠️ **画面での確認は未実施**（欄の右に「万円」が出ること・入力しても消えないこと）。
