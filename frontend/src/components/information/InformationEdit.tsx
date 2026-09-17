@@ -11,7 +11,7 @@ import AuthContext from '../../context/AuthContext';
 import Estate from '../Estate';
 import KSnap from './KSnap';
 import IceWorld from '../IceWorld';
-import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate } from '../../utils/informationUtils';
+import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate, statusRequiredError } from '../../utils/informationUtils';
 import TableInput from './TableInput';
 import TableSelect from './TableSelect';
 import TableInterview from './TableInterview';
@@ -355,6 +355,19 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                 alert(`必須項目が未入力です:${targetLabel}`)
                 return;
             }
+        }
+
+        /**
+         * ⚠️⚠️ **ステータスで変わる必須項目**（2026-09-17 の指示）。
+         *   ⚠️ 上の `requiredList` は固定の配列なので、
+         *     「契約済みなら勝因」「競合負けなら価格差」のような条件つきは書けない。
+         *   ⚠️ 判定は informationUtils の `statusRequiredError()` に置いてある
+         *     （⚠️ **TableStatus.tsx のラベルと揃えること**）。
+         */
+        const statusError = statusRequiredError(information, category, information.status);
+        if (statusError !== null) {
+            alert(`必須項目が未入力です:${statusError}`);
+            return;
         }
 
         setSending(false);
