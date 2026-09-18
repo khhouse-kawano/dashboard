@@ -262,7 +262,8 @@ const CompetitorSummary: React.FC = () => {
                     type="button"
                     className="cs_num cs_lose cs_click"
                     title="クリックで敗因を表示"
-                    onClick={() => openCards(`${makerName} に負けた案件`, LOSE_FIELDS, records)}
+                    // ⚠️ 表記は「{競合会社名} 失注一覧」（2026-09-18 の指示）
+                    onClick={() => openCards(`${makerName} 失注一覧`, LOSE_FIELDS, records)}
                 >
                     {count}
                 </button>
@@ -366,21 +367,24 @@ const CompetitorSummary: React.FC = () => {
                             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
                 .cs_card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px;
                            background: #fff; }
-                .cs_card_head { display: flex; align-items: baseline; gap: 8px;
-                                border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;
-                                margin-bottom: 6px; }
-                .cs_card_name { font-weight: 700; font-size: 13px; color: #111827; }
-                .cs_card_shop { font-size: 10px; color: #6b7280; }
+                /**
+                 * ⚠️⚠️ **カードの中の文字は少しくすませる**（2026-09-18 の指示）。
+                 *   ⚠️ 表の数字（青・緑・赤）と同じ濃さだと、
+                 *     ⚠️ **自由記述のほうが目立って読みにくい。**
+                 *   ⚠️ 見出し #6b7280 → **#8b95a1**、本文 #1f2937 → **#4b5563**、
+                 *     札 #4b5563 → **#6b7280** と1段ずつ落としてある。
+                 *   ⚠️ ⚠️ **これ以上薄くしないこと。** 本文が読めなくなる。
+                 */
                 /* ⚠️ 担当店舗と反響媒体。⚠️ 自由記述と見分けがつくよう小さな札で出す */
                 .cs_meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-                .cs_chip { font-size: 10px; color: #4b5563; background: #f3f4f6;
+                .cs_chip { font-size: 10px; color: #6b7280; background: #f5f6f8;
                            border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 
                 .cs_field { margin-bottom: 6px; }
-                .cs_field_label { font-size: 10px; color: #6b7280; font-weight: 700; }
+                .cs_field_label { font-size: 10px; color: #8b95a1; font-weight: 700; }
                 /* ⚠️ 改行と長い語を折り返す。⚠️ 自由記述なので1語が長いことがある */
                 .cs_field_value { font-size: 12px; line-height: 1.6; white-space: pre-wrap;
-                                  word-break: break-word; color: #1f2937; }
+                                  word-break: break-word; color: #4b5563; }
                 .cs_empty { color: #9ca3af; font-size: 12px; }
 
                 .cs_page { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
@@ -533,9 +537,10 @@ const CompetitorSummary: React.FC = () => {
                 scrollable
             >
                 <Modal.Header closeButton className="border-bottom-0 pb-0">
-                    <Modal.Title style={{ fontSize: '15px', fontWeight: 700, color: '#374151' }}>
+                    {/* ⚠️ 見出しの色も1段くすませる（#374151 → #565f6b。2026-09-18 の指示） */}
+                    <Modal.Title style={{ fontSize: '15px', fontWeight: 700, color: '#565f6b' }}>
                         {cardModal.title}
-                        <span className="ms-2 text-muted" style={{ fontSize: '12px', fontWeight: 400 }}>
+                        <span className="ms-2" style={{ fontSize: '12px', fontWeight: 400, color: '#8b95a1' }}>
                             {cardModal.records.length}件
                         </span>
                     </Modal.Title>
@@ -550,15 +555,17 @@ const CompetitorSummary: React.FC = () => {
                                 const filled = cardModal.fields.filter(f => !isBlank(record[f.key]));
                                 return (
                                     <div className="cs_card" key={record.id || index}>
-                                        <div className="cs_card_head">
-                                            <span className="cs_card_name">{record.customer || '(氏名なし)'}</span>
-                                            <span className="cs_card_shop">{record.staff}</span>
-                                        </div>
                                         {/**
                                           * ⚠️⚠️ **担当店舗と反響媒体は勝ち・負けの両方で出す**（2026-09-18 の指示）。
                                           *   ⚠️ `shop` は `in_charge_store`、`medium` は `sales_promotion_name` の別名。
                                           *   ⚠️ **自由記述の項目より上に置く。** どの店舗のどの反響かが
                                           *     先に分からないと、勝因・敗因だけ読んでも判断できない。
+                                          *
+                                          * ⚠️⚠️ **お客様名（customer_contacts_name）と担当営業（in_charge_user）は出さない**
+                                          *   （2026-09-18 の指示）。⚠️ **個人が特定できる情報を並べない。**
+                                          *   ⚠️ ここは「どう勝ったか・どう負けたか」を読む場所である。
+                                          *   ⚠️ ② / ① の SELECT には `customer` と `staff` が**残してある**。
+                                          *     ⚠️ 応答の形を変えると ① との差分になるため。**画面で出さないだけ。**
                                           */}
                                         <div className="cs_meta">
                                             <span className="cs_chip">
