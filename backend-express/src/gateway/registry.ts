@@ -89,6 +89,7 @@ import {
 import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaignForm/entry';
 import { runCampaignSummary } from '../features/campaignSummary';
 import { runLostList } from '../features/lostList';
+import { runCompetitor } from '../features/competitor';
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
 import { runShopList } from '../features/shopList';
@@ -1827,6 +1828,24 @@ register({
   phpSource: 'backend/src/handlers/lostList.php',
   auth: 'staff',
   handler: async () => runLostList(),
+});
+
+// ---------------------------------------------------------------------------
+// 競合サマリー
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在する（competitor.php）ので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️⚠️ **`master_data` に勝因・敗因の5列が必要**（v2.2.136 の SQL）。
+//   ⚠️ 無いと `Unknown column` になり、⚠️ **② も ① も同じように失敗する。**
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'competitor',
+  summary: '競合サマリー（競合他社別の総数・契約・失注・追客）',
+  phpSource: 'backend/src/handlers/competitor.php',
+  auth: 'staff',
+  handler: async () => runCompetitor(),
 });
 
 // ---------------------------------------------------------------------------
