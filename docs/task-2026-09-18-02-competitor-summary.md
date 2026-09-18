@@ -1,3 +1,348 @@
+# 指示（2026-09-18）　競合サマリーの UI 改修と Express 化
+
+⚠️ 依頼（`ReadMeClaude.md` 要旨）: 「`header/CompetitorSummary.tsx` の改修。⚠️ **引き続き v2.2.137**。
+⚠️ **モーダルを fullscreen に**／⚠️ **左上にも閉じるボタン**／⚠️ **Saas 風のデザインに**（いずれも `GoogleReview.tsx` 参照）。
+⚠️ **先頭行の次の行に総数を挿入**（`targetSection`・`targetShop` が false なら **`注文営業全体`**、そのほかは `{targetSection}全体` / `{targetShop}全体`）。
+⚠️ **契約列**も `competitor_win_reason` がある場合は**クリックできるUI**に → モーダルで
+`competitor_win_reason` / `competitor_price_gap` / `competitor_sales_person` を**小さなカードのグリッド**で表示（⚠️ **競合に勝った案件のサマリ**）。
+⚠️ **失注列**はクリックで `customized_input_01JRF9CZSW65A151WR30NA4PB3` / `customized_input_01JSE7H4MQES619NBWX6PQDFRH` /
+`competitor_price_gap` / `competitor_sales_person` / `competitor_countermeasure` / `competitor_campaign` を**カードでグリッド表示**（⚠️ **競合に負けた案件のサマリ**）。
+⚠️ **Express 化**」
+
+⚠️ 追加の指示（作業中）: 「⚠️ **勝因、敗因ともに表示されるモーダルに `in_charge_store` と `sales_promotion_name` を表示**」
+
+---
+
+## ⚠️ 着手前に確認したこと（利用者が決定）
+
+| # | 論点 | ⚠️ 決定 |
+|---|---|---|
+| 1 | 追加する「総数行」は何を数えるか | ⚠️ **競合が記録された案件全体**（⚠️ **下の行の合計ではない**） |
+| 2 | 失注列の現在のモーダル（失注理由の件数集計表）をどうするか | ⚠️ **カードに置き換える** |
+
+---
+
+## ⚠️ 調査で分かったこと
+
+### ⚠️ fullscreen と左上の閉じるボタンは `Header.tsx` の仕事
+
+⚠️⚠️ **`isFullscreenMenu` の配列に1行足すだけ**で、次の3つが同時に効く。
+
+| | 内容 |
+|---|---|
+| 大きさ | `dialogClassName='modal-fullscreen'` |
+| 閉じるボタン | ⚠️ **見出しの隣（左上）にボタンが出る**（右上の × は消える） |
+| 本文 | `p-0 flex-grow-1` ／ `overflow: hidden` |
+
+⚠️ ⚠️ **コンポーネント側に閉じるボタンを実装しないこと。** ⚠️ **二重に出る。**
+
+### ⚠️ 既存の別名の重複（移植ではそのままにした）
+
+⚠️ `competitor.php` は `customized_input_01JRF9CZSW65A151WR30NA4PB3` を
+⚠️ **`reason` と `lost_reason_detail` の2つの別名**で返している。
+⚠️ 画面が使うのは `lost_reason_detail` だけだが、⚠️ **応答の形が変わると ① との差分になる**ため残した。
+
+### ⚠️⚠️ 列名から意味が読めない
+
+| 別名 | 実際の意味 |
+|---|---|
+| `lost_reason_detail` | ⚠️ **他決理由**（複数選択・カンマ区切り） |
+| ⚠️ `reason_detail` | ⚠️ **敗因**（⚠️ 名前からは読めない） |
+
+---
+
+## 変更したファイル
+
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| `frontend/src/components/header/` | ⚠️ `CompetitorSummary.tsx` | ⚠️ **全面的に書き直し** |
+| `frontend/src/components/header/` | `Header.tsx` | ⚠️ `isFullscreenMenu` に1行 |
+| `backend-express/src/features/` | ⚠️ `competitor.ts`（⚠️ **新規**） | `competitor.php` の移植 |
+| `backend-express/src/gateway/` | `registry.ts` | `request: 'competitor'` を登録 |
+| `backend/src/core/` | `express_proxy.php` | 許可リストに `'competitor'` |
+| `backend/src/handlers/` | ⚠️ `competitor.php` | ⚠️ **6列を追加（② と同じ）** |
+
+## 追加した定数・関数
+
+| 名前 | ファイル | 役割 |
+|---|---|---|
+| `BRANDS` | `CompetitorSummary.tsx` | ⚠️ ブランド列の定義（⚠️ **6つの `filter` のベタ書きをやめた**） |
+| `WIN_FIELDS` / `LOSE_FIELDS` | `CompetitorSummary.tsx` | カードに出す項目 |
+| `isBlank()` | `CompetitorSummary.tsx` | 空の判定（⚠️ `'null'` も空） |
+| ⚠️ `getTotals()` | `CompetitorSummary.tsx` | ⚠️ **総数行** |
+| `openCards()` / `brandCells()` / `subHeaders()` | `CompetitorSummary.tsx` | 描画 |
+| ⚠️ `runCompetitor()` | `backend-express/src/features/competitor.ts` | ⚠️ **新規** |
+
+---
+
+## ⚠️ 実装の考え方
+
+### ⚠️⚠️ 総数行は「下の行の合計」ではない
+
+```tsx
+    const getTotals = (dataSet: Summary[]): Metrics => {
+        const hasCompetitor = (d: Summary) => !isBlank(d.competitor);
+        const hasLost = (d: Summary) => !isBlank(d.lost_competitor);
+        const base = dataSet.filter(hasCompetitor);
+        return {
+            total: dataSet.filter(d => hasCompetitor(d) || hasLost(d)),
+            contract: base.filter(d => d.contract),
+            lose: dataSet.filter(hasLost),
+            follow: base.filter(d => d.status === '見込み' && !hasLost(d)),
+        };
+    };
+```
+
+⚠️⚠️ **1件の案件に競合が複数いると、それぞれの行に数えられる。**
+⚠️ そのため ⚠️ **縦に足すと実際の案件数より大きくなる**（延べ数）。
+⚠️ こちらは ⚠️ **案件を重複なく**数える。⚠️ **画面に注記を出してある。**
+
+⚠️⚠️ **`getMetrics` に空文字を渡してはいけない。**
+⚠️ `''.includes('')` は真なので、⚠️ **競合が空の案件まで数えてしまう。**
+⚠️ そのため専用の関数を作った。
+
+### ⚠️ 契約列を押せるのは「勝因が入っているとき」だけ
+
+```tsx
+        if (type === 'contract') {
+            const withReason = records.filter(r => !isBlank(r.win_reason));
+            if (withReason.length === 0) return <span className="cs_num cs_contract">{count}</span>;
+            return (
+                <button
+                    type="button"
+                    className="cs_num cs_contract cs_click"
+                    title={`クリックで勝因を表示（${withReason.length}件）`}
+                    onClick={() => openCards(`${makerName} に勝った案件`, WIN_FIELDS, withReason)}
+                >
+                    {count}
+                </button>
+            );
+        }
+```
+
+⚠️ ⚠️ **空のモーダルは開けない。** 開けると「壊れている」と受け取られる。
+⚠️ 数字は**契約の総数**のまま出し、⚠️ **カードには勝因が入っている案件だけ**を並べる。
+
+### ⚠️ カードに店舗と反響媒体を出す（追加の指示）
+
+```tsx
+                                        <div className="cs_meta">
+                                            <span className="cs_chip">
+                                                <i className="fa-solid fa-shop me-1" aria-hidden="true" />
+                                                {record.shop || '店舗未設定'}
+                                            </span>
+                                            <span className="cs_chip">
+                                                <i className="fa-solid fa-bullhorn me-1" aria-hidden="true" />
+                                                {isBlank(record.medium) ? '媒体未設定' : record.medium}
+                                            </span>
+                                        </div>
+```
+
+⚠️ `shop` は `in_charge_store`、`medium` は `sales_promotion_name` の別名。
+⚠️ ⚠️ **自由記述より上に置く。** ⚠️ どの店舗のどの反響か分からないと、勝因・敗因だけ読んでも判断できない。
+
+### ⚠️ 空の項目は行ごと出さない
+
+```tsx
+                                const filled = cardModal.fields.filter(f => !isBlank(record[f.key]));
+```
+
+⚠️ ⚠️ **空行だらけのカードは読めない。** ⚠️ すべて空なら「まだ入力されていません」と出す。
+
+---
+
+## `backend-express/src/features/competitor.ts`（⚠️ 新規・全文）
+
+```ts
+import type { RowDataPacket } from 'mysql2/promise';
+import { query } from '../db/pool';
+
+/**
+ * 競合サマリー（header/CompetitorSummary.tsx）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️ 移植元: `backend/src/handlers/competitor.php`
+ *
+ * ⚠️⚠️ **参照のみ。** 書き込みは一切しない。
+ *   ⚠️ ① に PHP ハンドラが実在するので、転送に失敗しても ① へ
+ *     自動フォールバックして動く（`expressProxyExclusive` には入れない）。
+ *
+ * ⚠️⚠️ **列と別名は移植元から1文字も変えないこと。**
+ *   ⚠️ 画面が別名をそのまま使っている（`competitor` / `lost_competitor` など）。
+ *   ⚠️ 読みやすい名前に変えると、**表が全部0件になる**（エラーは出ない）。
+ * ─────────────────────────────────────────────
+ */
+
+interface DynamicRow extends RowDataPacket {
+  [key: string]: unknown;
+}
+
+/**
+ * 店舗。
+ * ⚠️ `report_flag = 1` で絞るのは移植元と同じ。画面は `section` で店舗を束ねる。
+ */
+const SHOP_SQL = `
+  SELECT brand, shop, division, section, multi, report_flag
+    FROM shop_list
+   WHERE report_flag = 1
+`;
+
+const SECTION_SQL = 'SELECT division, name FROM section_list';
+
+/**
+ * 顧客一覧（注文事業）。
+ *
+ * ⚠️⚠️ **`customized_input_01JRF9CZSW65A151WR30NA4PB3` が
+ *   `reason` と `lost_reason_detail` の2つの別名で出ている。**
+ *   ⚠️ 移植元がそうなっている。⚠️ **画面は `lost_reason_detail` だけを使う。**
+ *   ⚠️ 直したくなるが、⚠️ **応答の形が変わると ① との差分になる**ので残す。
+ *
+ * ⚠️⚠️ **2026-09-18 に勝因・敗因の5列を足した。**
+ *   ⚠️ 契約列・失注列のモーダル（案件ごとのカード）で使う。
+ *   ⚠️ ⚠️ **`master_data` にこれらの列が無いと `Unknown column` で画面が開かない。**
+ *     ⚠️ v2.2.136 の `2026-09-17_master_data_win_lose.sql` を先に流すこと。
+ *   ⚠️ ① の competitor.php にも**同じ5行を足してある。** 片方だけにしないこと。
+ *
+ * ⚠️ 移植元は `master_data` を全件返している。⚠️ **絞り込みは画面側**である
+ *   （店舗・営業課・競合名）。⚠️ ここで絞ると画面の絞り込みと二重になる。
+ */
+const CONTRACT_SQL = `
+  SELECT
+    COALESCE(id, '') as id,
+    COALESCE(in_charge_store, '') as shop,
+    COALESCE(in_charge_user, '') as staff,
+    COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') as \`rank\`,
+    COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG, '') as contract,
+    COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') as reason,
+    COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') as reason_detail,
+    COALESCE(customer_contacts_annual_income, '') as income,
+    COALESCE(last_action_step_migration_item_name, '') as change_reason,
+    COALESCE(competitors_text, '') as competitor,
+    COALESCE(competitor_name, '') as lost_competitor,
+    COALESCE(competitor_lost_contract_reason, '') as lost_reason,
+    COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') as lost_reason_detail,
+    COALESCE(sales_promotion_name, '') as medium,
+    COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
+    COALESCE(step_migration_item_01JSENACS2FC422ZHEZWNSXNYA, '') as appointment,
+    COALESCE(step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR, '') as screening,
+    COALESCE(status, '') as status,
+    COALESCE(rank_period, '') as rank_period,
+    COALESCE(customer_contacts_name, '') as customer,
+    COALESCE(competitor_win_reason, '') as win_reason,
+    COALESCE(competitor_price_gap, '') as price_gap,
+    COALESCE(competitor_sales_person, '') as sales_person,
+    COALESCE(competitor_countermeasure, '') as countermeasure,
+    COALESCE(competitor_campaign, '') as rival_campaign
+  FROM master_data
+`;
+
+const MAKER_SQL = 'SELECT * FROM house_maker';
+
+export interface CompetitorResponse {
+  shop: Record<string, unknown>[];
+  section: Record<string, unknown>[];
+  contract: Record<string, unknown>[];
+  maker: Record<string, unknown>[];
+}
+
+export const runCompetitor = async (): Promise<CompetitorResponse> => {
+  // ⚠️ 4つとも独立しているので並べて取る。移植元は直列だった
+  const [shop, section, contract, maker] = await Promise.all([
+    query<DynamicRow>(SHOP_SQL),
+    query<DynamicRow>(SECTION_SQL),
+    query<DynamicRow>(CONTRACT_SQL),
+    query<DynamicRow>(MAKER_SQL),
+  ]);
+
+  return { shop, section, contract, maker };
+};
+
+```
+
+---
+
+## `backend-express/src/gateway/registry.ts`（追加分）
+
+```ts
+// ---------------------------------------------------------------------------
+// 競合サマリー
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在する（competitor.php）ので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️⚠️ **`master_data` に勝因・敗因の5列が必要**（v2.2.136 の SQL）。
+//   ⚠️ 無いと `Unknown column` になり、⚠️ **② も ① も同じように失敗する。**
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'competitor',
+  summary: '競合サマリー（競合他社別の総数・契約・失注・追客）',
+  phpSource: 'backend/src/handlers/competitor.php',
+  auth: 'staff',
+  handler: async () => runCompetitor(),
+});
+```
+
+## `backend/src/core/express_proxy.php`（追加分）
+
+```php
+        // -----------------------------------------------------------------
+        // 2026-09-18 移植。競合サマリー（参照のみ）。
+        //
+        // ⚠️ ① に PHP ハンドラが実在する（competitor.php）。この行を消せば即座に戻る。
+        // ⚠️ 書き込みは無いので expressProxyExclusive() へは入れない。
+        // ⚠️⚠️ **master_data に勝因・敗因の5列が要る**（v2.2.136 の SQL）。
+        // -----------------------------------------------------------------
+        'competitor',
+```
+
+## `backend/src/handlers/competitor.php`（追加分・⚠️ **フォールバック分**）
+
+```php
+    COALESCE(status, '') as status,
+    COALESCE(rank_period, '') as rank_period,
+    -- ⚠️ 2026-09-18 に追加。契約列・失注列のモーダル（案件ごとのカード）で使う。
+    -- ⚠️⚠️ **master_data にこれらの列が無いと Unknown column で画面が開かない。**
+    --   ⚠️ v2.2.136 の 2026-09-17_master_data_win_lose.sql を先に流すこと。
+    -- ⚠️ ② の backend-express/src/features/competitor.ts と**必ず揃えること**。
+    COALESCE(customer_contacts_name, '') as customer,
+    COALESCE(competitor_win_reason, '') as win_reason,
+    COALESCE(competitor_price_gap, '') as price_gap,
+    COALESCE(competitor_sales_person, '') as sales_person,
+    COALESCE(competitor_countermeasure, '') as countermeasure,
+    COALESCE(competitor_campaign, '') as rival_campaign
+FROM master_data";
+```
+
+## `frontend/src/components/header/Header.tsx`（追加分）
+
+```tsx
+        // ⚠️ 競合サマリーは**7ブランド × 4列＝28列**あり、xl では大半が隠れる。
+        //   ⚠️ 2026-09-18 の指示で全画面にした。
+        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る**（下の JSX を参照）。
+        //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
+        '他社動向/競合サマリー',
+```
+
+---
+
+## ⚠️ `frontend/src/components/header/CompetitorSummary.tsx`（⚠️ **全文**）
+
+⚠️ 書き直したので全文を載せる。⚠️ 主な変更点は次のとおり。
+
+| # | 内容 |
+|---|---|
+| 1 | ⚠️ **全画面に合わせた土台**（`cs_wrap` が高さを使い切り、⚠️ **表だけスクロール**） |
+| 2 | ⚠️ **Saas 風の見た目**（⚠️ Bootstrap のクラス頼みをやめ、⚠️ **コンポーネント専用の `<style>`**） |
+| 3 | ⚠️ **見出し2段＋総数行＋先頭列を固定**（⚠️ 28列を横スクロールしても迷わない） |
+| 4 | ⚠️ **総数行**を追加（⚠️ 見出しは絞り込みに追従） |
+| 5 | ⚠️ **契約列をクリック可能に**（⚠️ 勝因がある案件だけ） |
+| 6 | ⚠️ **失注列のモーダルをカードに置き換え** |
+| 7 | ⚠️ **カードに店舗と反響媒体**（追加の指示） |
+| 8 | ⚠️ `BRANDS` 配列で ⚠️ **6つの `filter` のベタ書きを廃止** |
+| 9 | ⚠️ **読み込み中と取得失敗を出す**（⚠️ 以前は `console.error` だけで、⚠️ **0件と区別できなかった**） |
+
+```tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
@@ -592,3 +937,84 @@ const CompetitorSummary: React.FC = () => {
 };
 
 export default CompetitorSummary;
+
+```
+
+---
+
+## 検証
+
+### ⚠️⚠️ ② と ① の SELECT が一致すること
+
+⚠️ 両方のファイルから別名を機械的に取り出して突き合わせた。
+
+| 確認 | 結果 |
+|---|---|
+| ② の列数 | ⚠️ **25** |
+| ① の列数 | ⚠️ **25** |
+| ⚠️ **順序まで完全一致** | ⚠️ **OK** |
+
+⚠️ ⚠️ **列名を1つでも変えると、画面の表が全部0件になる**（エラーは出ない）。ここを機械で見ておく価値がある。
+
+### SQL が通ること
+
+⚠️ 移植した `CONTRACT_SQL` をローカルDBへそのまま流した。
+
+| 確認 | 結果 |
+|---|---|
+| 返る列 | ⚠️ **25列**（`win_reason` / `price_gap` / `sales_person` / `countermeasure` / `rival_campaign` / `customer` を含む） |
+
+### ⚠️⚠️ ローカルDBの列が消えていた（作業中に気づいた）
+
+⚠️ 検証中に `Unknown column 'competitor_win_reason'` が出た。
+⚠️ ⚠️ **ローカルの MariaDB が1時間ほど前に作り直されており、v2.2.136 の5列が消えていた。**
+⚠️ `2026-09-17_master_data_win_lose.sql` を流し直して復旧した。
+
+⚠️⚠️ **本番でも同じことが起きる。** ⚠️ **SQL を先に流さないとこの画面は開かない。**
+⚠️ 手順書の先頭に置いてある。
+
+### ビルド・型
+
+| 確認 | 結果 |
+|---|---|
+| `npx tsc --noEmit`（② Express） | ⚠️ **エラー0** |
+| `npm run build`（フロント） | ⚠️ **成功**（`Compiled with warnings.`） |
+| ⚠️ `CompetitorSummary.tsx` の警告 | ⚠️ **0件** |
+| ⚠️ `Header.tsx` の警告 | ⚠️ **改修前からある1件のみ** |
+| `php -l`（`competitor.php` / `express_proxy.php`） | ⚠️ **構文エラーなし** |
+
+### ⚠️ 未実施
+
+⚠️⚠️ **画面を開いての確認は未実施。**
+
+| # | 確認 | 期待 |
+|---|---|---|
+| 1 | 他社動向 → 競合サマリー | ⚠️ **全画面で開く**／⚠️ **左上に「閉じる」** |
+| 2 | 横スクロール | ⚠️ **競合他社名の列と見出し2段が固定されたまま** |
+| 3 | ⚠️ **総数行** | ⚠️ 見出しのすぐ下・⚠️ **青い帯**・⚠️ **`注文営業全体`** |
+| 4 | 営業課／店舗を選ぶ | ⚠️ 総数行の名前が **`〇〇営業課全体` / `〇〇全体`** に変わる |
+| 5 | ⚠️ **契約の数字** | ⚠️ 勝因がある競合では**点線の下線が付き押せる**／⚠️ **無ければ押せない** |
+| 6 | ⚠️ 契約をクリック | ⚠️ **勝因・価格差・他社営業**のカード |
+| 7 | ⚠️ 失注をクリック | ⚠️ **他決理由・敗因・価格差・他社営業・今後の対策・他社のキャンペーン**のカード |
+| 8 | ⚠️ **カードの上部** | ⚠️ **店舗と反響媒体の札**が出る |
+| 9 | 価格差 | ⚠️ **「万円」が付く** |
+| 10 | ページ送り・検索 | ⚠️ **今までどおり動く** |
+| 11 | ⚠️ ② を止める | ⚠️ **① へ退避して同じ画面が出る**（⚠️ 参照のみなので落ちない） |
+
+---
+
+## ⚠️ 残作業
+
+⚠️ デプロイ手順は [deploy-v2.2.137.md](deploy-v2.2.137.md) に**追記してある**。
+
+| # | 内容 |
+|---|---|
+| 1 | ⚠️ 上の**画面での確認** |
+| 2 | ⚠️⚠️ **本番に v2.2.136 の `2026-09-17_master_data_win_lose.sql` が入っていること**（⚠️ **未適用なら先に**） |
+| 3 | ⚠️ ① で `2026-09-18_medium_kaeru_show_graph_web.sql` |
+| 4 | push → PR → `production` |
+| 5 | ⚠️ **② VPS で Express を再ビルド**（⚠️ **今回から必要**。`competitor.ts` を足したため） |
+| 6 | ⚠️ ① へフロント ⚠️ **＋ PHP 2ファイル**（`express_proxy.php` / `competitor.php`） |
+| 7 | ⚠️ ① で `2026-09-18_update_log_2.2.137.sql` |
+
+⚠️ ⚠️ **v2.2.137 は当初「フロントと DB のみ」だったが、この指示で ② と ① の PHP も対象になった。**
