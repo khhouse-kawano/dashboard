@@ -9,6 +9,8 @@ import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import apiClient from '../../utils/apiClient';
 import { sortShops } from '../header/useAmbassadorMaster';
 import { UNIT_PRICE_SERIES_SPEC } from './unitPriceSeries';
+// ⚠️ 表記ゆれの対応表は customer/CustomerKaeru.tsx と共有する。**別に作らないこと**
+import { normalizeMedium } from '../customer/customerKaeruUtils';
 
 /**
  * 店舗ランキング（建売分譲事業）。
@@ -112,7 +114,14 @@ const ShopKaeru = () => {
                 (!selectedShop || item.shop?.includes(selectedShop)) &&
                 (!selectedSection || sectionShops.includes(item.shop)) &&
                 (!selectedArea || areaValue.includes(item.shop)) &&
-                (!selectedMedium || item.medium === selectedMedium)
+                /**
+                 * ⚠️⚠️ **必ず `normalizeMedium()` を通してから比べる**（2026-09-18 の指示）。
+                 *   ⚠️ 顧客側は `ネット` / `athome` / `ALLGRIT` のように**別名で入っている。**
+                 *   ⚠️ 素の比較だと「Web検索」を選んでも ⚠️ **214件しか拾えなかった**
+                 *     （⚠️ 寄せると **5,129件**。`ネット` の 4,892件が漏れていた）。
+                 *   ⚠️ 対応表は customer/customerKaeruUtils.ts。**片方だけ直さないこと。**
+                 */
+                (!selectedMedium || normalizeMedium(item.medium) === normalizeMedium(selectedMedium))
             );
         });
     }, [originalList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea, selectedMedium]);
@@ -137,10 +146,20 @@ const ShopKaeru = () => {
                 (!endDate || targetDate <= endDate) &&
                 (!selectedShop || item.shop.includes(selectedShop)) &&
                 (!selectedSection || item.order_section.includes(selectedSection)) &&
-                (!selectedArea || areaValue.includes(item.shop))
+                (!selectedArea || areaValue.includes(item.shop)) &&
+                /**
+                 * ⚠️⚠️ **販促費も販促媒体で絞る**（2026-09-18 の指示）。
+                 *   ⚠️ 2026-09-18 まで**ここだけ絞っていなかった。**
+                 *     ⚠️ 顧客は「Web検索」だけになるのに販促費は**全額**乗っていたため、
+                 *       ⚠️ **単価が実態よりはるかに高く出ていた**
+                 *       （実測: ¥281,556,856 → **¥99,576,458**）。
+                 *   ⚠️ 顧客側と**同じ `normalizeMedium()`** を通すこと。
+                 *     ⚠️ 揃えないと分子と分母が別の媒体になる。
+                 */
+                (!selectedMedium || normalizeMedium(item.medium) === normalizeMedium(selectedMedium))
             );
         });
-    }, [originalBudgetList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
+    }, [originalBudgetList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea, selectedMedium]);
 
     useEffect(() => {
         /**
@@ -228,8 +247,27 @@ const ShopKaeru = () => {
             const applicationValue = filteredValue(value.shop, 'application', '');
             const contractValue = filteredValue(value.shop, 'contract', '');
 
-            const perContact = isNaN(contactValue / totalValue) ? 0 : Math.round((contactValue / totalValue) * 100);
-            const perContract = isNaN(contractValue / contactValue) ? 0 : Math.round((contractValue / contactValue) * 100);
+            /**
+             * 歩留まり。
+             *
+             * ─────────────────────────────────────────────
+             * ⚠️⚠️ **分母は「ひとつ左の工程」**（2026-09-18 の指示）。
+             *   ⚠️ customer/CustomerKaeru.tsx と**同じ考え方に揃えた。**
+             *
+             * ⚠️⚠️ **契約率の分母が変わった。** 2026-09-18 まで**接触数**だった。
+             *   ⚠️ 実測（グループ全体）で **10% → 57%** になる。⚠️ **不具合ではない。**
+             *   ⚠️ 同じ「契約率」が画面によって違う数字を指していたのを解消したもの。
+             *
+             * ⚠️ 分母が0なら0%。⚠️ `Infinity` や `NaN` を画面に出さない。
+             * ⚠️ ⚠️ **来場率・申込率の列はこの画面には足していない**（指示は契約率のみ）。
+             *   ⚠️ 足すときは CustomerKaeru.tsx の並びに合わせること。
+             * ─────────────────────────────────────────────
+             */
+            const rate = (numerator: number, denominator: number): number =>
+                denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
+
+            const perContact = rate(contactValue, totalValue);
+            const perContract = rate(contractValue, applicationValue);
 
             const totalBudget = filteredBudgets
                 .filter(item => isTotalRow || item.shop === value.shop)
@@ -375,8 +413,14 @@ const ShopKaeru = () => {
                     <div className="m-1">
                         <select className="target" onChange={(event) => handleSort(startMonth, endMonth, event.target.value, selectedShop, selectedSection, selectedArea)}>
                             <option value="" selected={selectedMedium === ''}>全販促媒体</option>
-                            {mediumArray.map((item, index) =>
-                                <option key={index} selected={selectedMedium === item.medium}>{item.medium}</option>
+                            {/**
+                              * ⚠️⚠️ **選択肢も表記を寄せて重複を落とす**（2026-09-18）。
+                              *   ⚠️ `medium_kaeru` には `Facebook`（→ Instagram）や
+                              *     `ネット広告`（→ Web検索）が別の行として入っている。
+                              *   ⚠️ 寄せないと ⚠️ **同じ中身の選択肢が2つ並ぶ。**
+                              */}
+                            {[...new Set(mediumArray.map(item => normalizeMedium(item.medium)))].map((medium, index) =>
+                                <option key={index} selected={selectedMedium === medium}>{medium}</option>
                             )}
                         </select>
                     </div>
@@ -436,7 +480,9 @@ const ShopKaeru = () => {
                                     {headCell('接触数', 'contact', `${periodLabel}の反響のうち接触した方の数（以降の工程に進んだ方を含む）`)}
                                     {headCell('来場・案内', 'interview', '来場または物件案内があった方の数（以降の工程に進んだ方を含む）')}
                                     {headCell('申込数', 'application', '申し込みに至った方の数（契約者を含む）')}
-                                    {headCell('契約率', 'perContract', '契約者数/接触者数')}
+                                    {/* ⚠️⚠️ **分母が「申込」に変わった**（2026-09-18）。
+                                           ⚠️ customer/CustomerKaeru.tsx と揃えてある */}
+                                    {headCell('契約率', 'perContract', '契約/申込')}
                                     {headCell('契約数', 'contract', '契約済みの方の数（仲介契約を含む。解約は含まない）')}
                                     {['S', 'A', 'B', 'C'].map(item =>
                                         <React.Fragment key={item}>
