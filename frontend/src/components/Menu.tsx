@@ -199,15 +199,19 @@ const Menu = ({ key, onReload }: Props) => {
          */
         { id: 'customer', path: '/customer', icon: 'fa-mobile-screen', label: '販促媒体別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
         /**
-         * ⚠️⚠️ **建売（spec）には出さない**（2026-09-16 の指示。要件の整理中）。
-         *   ⚠️ 2026-09-11 に `ShopKaeru.tsx` を足して spec にも出していたが、
-         *     いったん取り下げる。
-         *   ⚠️ **画面（shop/ShopKaeru.tsx）と ② の `shop:spec` は消していない。**
-         *     ⚠️ URL を直接開けば今までどおり見える。戻すのはこの1行を
-         *       `(category === 'order' || category === 'spec')` にするだけ。
+         * ⚠️⚠️ **建売（spec）にも出す**（2026-09-18 の指示で**戻した**）。
+         *   ⚠️ 経緯: 2026-09-11 に `ShopKaeru.tsx` を足して spec にも出していたが、
+         *     ⚠️ 2026-09-16 に「要件を整理するので一旦消す」と言われて外していた。
+         *     ⚠️ ⚠️ **画面（shop/ShopKaeru.tsx）と ② の `shop:spec` は消していない**ので、
+         *       この1行を戻すだけで済んだ。
          *   ⚠️ `used`（中古）は画面が無いので元から出していない。
+         *
+         * ⚠️⚠️ **建売では「販促媒体別広告費」と契約率の分母が違う**（2026-09-18 時点）。
+         *   店舗別広告費（ShopKaeru） … 契約率 ＝ 契約 ÷ **接触数**
+         *   販促媒体別広告費（CustomerKaeru） … 契約率 ＝ 契約 ÷ **申込**
+         *   ⚠️ **同じ名前の列で数字が違う。** 揃えるかは利用者の判断を待っている。
          */
-        { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && category === 'order', exact: true },
+        { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
         { id: 'property_used', path: '/property', icon: 'fa-house', label: '掲載物件一覧', show: category === 'planner', exact: false },
         { id: 'broker', path: '/broker', icon: 'fa-house', label: '媒介獲得台帳', show: category === 'planner', exact: false },
         { id: 'customerTrend', path: '/customerTrend', icon: 'fa-chart-bar', label: '販促媒体別反響推移', show: !isSp && (category === 'order' || category === 'spec'), exact: true },

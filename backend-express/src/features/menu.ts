@@ -126,9 +126,15 @@ const LOST_REQUIRED_COLUMNS = [
     'competitor_name',
     'customized_input_01JRF9CZSW65A151WR30NA4PB3',
     'customized_input_01JSE7H4MQES619NBWX6PQDFRH',
-    // ⚠️ 2026-09-17 に追加（価格差・今後の対策）
-    'competitor_price_gap',
-    'competitor_countermeasure',
+    /**
+     * ⚠️⚠️ **2026-09-17 に価格差・今後の対策を足したが、2026-09-18 に外した**（指示）。
+     *   ⚠️ 新しい列なので**既存が全件空**で、⚠️ **要回答がほぼ全件になっていた。**
+     *   ⚠️ ローカルの実測で **89件 → 4件**。
+     *   ⚠️ ⚠️ **フロントの `LOST_FIELDS` からも外れている。** 片方だけ戻さないこと。
+     *
+     * 'competitor_price_gap',
+     * 'competitor_countermeasure',
+     */
 ];
 
 /**

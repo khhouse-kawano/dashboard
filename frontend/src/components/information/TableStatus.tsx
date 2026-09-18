@@ -4,7 +4,7 @@ import { inputStyle } from '../../utils/informationUtils';
 import { dateFormate } from '../../utils/informationUtils';
 import { UNKNOWN_COMPETITOR, requiredStyle } from '../../utils/informationUtils';
 import {
-    COUNTERMEASURE_KEY, LOSE_REASON_KEY, LOST_REASON_KEY, LOST_REASON_OPTIONS,
+    COUNTERMEASURE_KEY, LOSE_REASON_KEY, LOST_DETAIL_KEY, LOST_REASON_KEY, LOST_REASON_OPTIONS,
     LOST_TO_COMPETITOR, PRICE_GAP_KEY, PRICE_GAP_UNIT, RIVAL_CAMPAIGN_KEY,
     SALES_PERSON_KEY, WIN_REASON_KEY, isBlank, lostFieldLabel,
 } from '../../utils/informationUtils';
@@ -335,7 +335,17 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
 
                             {/* ⚠️ 契約済みの「競合を選択」と同じもの。⚠️ **複製しない** */}
                             {competitorPicker('失注先')}
-                            <div className="fw-bold mb-2 text-secondary mt-3" style={{ fontSize: '12px' }}>詳細な他決・失注理由（複数選択可）</div>
+                            {/**
+                              * ⚠️⚠️ **この欄が「他決理由」で、2026-09-18 から必須になった**（指示）。
+                              *   ⚠️ 必須の印は注文事業だけに出す（⚠️ **建売・中古では保存を止めない**）。
+                              *   ⚠️ 判定は informationUtils の `LOST_FIELDS.blocksSave`。**揃えること。**
+                              */}
+                            <div className="fw-bold mb-2 text-secondary mt-3" style={{ fontSize: '12px' }}>
+                                詳細な他決・失注理由（複数選択可）
+                                {isOrder && <span style={requiredStyle}>必須</span>}
+                                {isOrder && isBlank(information[LOST_DETAIL_KEY]) &&
+                                    <i className="fa-solid fa-triangle-exclamation text-danger ms-2"></i>}
+                            </div>
                             <div className="d-flex flex-wrap gap-2 mb-3">
                                 {['価格・予算', '間取り・プラン提案', 'デザイン・外観', '性能', '土地・立地条件（他社物件）', '営業の対応（スピード・相性）', '保証・アフターサポート', '会社のブランド・信頼性', '縁戚・知人の紹介', 'その他'].map(reason => {
                                     const currentReasons = information.customized_input_01JRF9CZSW65A151WR30NA4PB3
@@ -392,9 +402,17 @@ const TableStatus = ({ information, setInformation, idMapping, setShowLostReason
                             {isOrder && (
                                 <>
                                     {freeField(SALES_PERSON_KEY, false, 'text', '競合の営業担当者名')}
+                                    {/**
+                                      * ⚠️⚠️ **2026-09-18 に価格差・今後の対策の必須をやめた**（指示）。
+                                      *   ⚠️ 必須は ⚠️ **他決理由と敗因の2つだけ**である。
+                                      *   ⚠️ ⚠️ **判定は informationUtils の `LOST_FIELDS.blocksSave`。**
+                                      *     ⚠️ ここの `required` は**見た目の印だけ**なので、
+                                      *       ⚠️ **向こうと必ず揃えること。** 食い違うと
+                                      *       「必須と出ているのに保存できる」「任意なのに止まる」になる。
+                                      */}
                                     {/* ⚠️ 単位は契約済み側と必ず同じにする（同じ列に入るため） */}
-                                    {freeField(PRICE_GAP_KEY, true, 'number', '他社との差額', PRICE_GAP_UNIT)}
-                                    {freeField(COUNTERMEASURE_KEY, true, 'textarea', '次に同じ競合と当たったときの対策')}
+                                    {freeField(PRICE_GAP_KEY, false, 'number', '他社との差額', PRICE_GAP_UNIT)}
+                                    {freeField(COUNTERMEASURE_KEY, false, 'textarea', '次に同じ競合と当たったときの対策')}
                                     {freeField(RIVAL_CAMPAIGN_KEY, false, 'textarea', '他社が実施していた特典・値引きなど')}
                                 </>
                             )}
