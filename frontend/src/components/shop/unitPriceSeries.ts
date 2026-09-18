@@ -59,3 +59,22 @@ export const UNIT_PRICE_SERIES_SPEC = [
     { key: 'applicationUnit', label: '申込単価', color: '#f28e2b' },
     { key: 'contractUnit', label: '契約単価', color: '#e15759' },
 ] as const;
+
+/**
+ * 建売分譲事業・来場単価つき（customer/CustomerKaeru.tsx）。
+ *
+ * ⚠️⚠️ **2026-09-18 に KPI を 総反響 → 接触 → 来場 → 申込 → 契約 の5段階にした**（指示）。
+ *   ⚠️ 上の `UNIT_PRICE_SERIES_SPEC`（4本）は ⚠️ **ShopKaeru.tsx がそのまま使っている。**
+ *     ⚠️ あちらの表はまだ4段階なので、⚠️ **系列を足すと表と食い違う。**
+ *     ⚠️ そのため**別の定数にしてある。**
+ *
+ * ⚠️ 来場単価の色は接触（緑）と申込（橙）の間に入れた。
+ *   ⚠️ 工程の進み方が色でも読めるようにするため。**並びを入れ替えないこと。**
+ */
+export const UNIT_PRICE_SERIES_SPEC_FULL = [
+    { key: 'registerUnit', label: '反響単価', color: '#4e79a7' },
+    { key: 'contactUnit', label: '接触単価', color: '#59a14f' },
+    { key: 'interviewUnit', label: '来場単価', color: '#8cb369' },
+    { key: 'applicationUnit', label: '申込単価', color: '#f28e2b' },
+    { key: 'contractUnit', label: '契約単価', color: '#e15759' },
+] as const;

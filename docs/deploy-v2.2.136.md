@@ -67,7 +67,7 @@
 ```sql
 ALTER TABLE master_data
   ADD COLUMN competitor_win_reason      TEXT DEFAULT NULL COMMENT '勝因。契約済みのとき必須',
-  ADD COLUMN competitor_price_gap       TEXT DEFAULT NULL COMMENT '競合との価格差。契約済み=任意／失注=必須',
+  ADD COLUMN competitor_price_gap       TEXT DEFAULT NULL COMMENT '競合との価格差（万円）。入力値そのまま。契約済み=任意／失注=必須',
   ADD COLUMN competitor_sales_person    TEXT DEFAULT NULL COMMENT '競合の営業担当。任意',
   ADD COLUMN competitor_countermeasure  TEXT DEFAULT NULL COMMENT '今後の対策。競合負けのとき必須',
   ADD COLUMN competitor_campaign        TEXT DEFAULT NULL COMMENT '他社のキャンペーン。任意';
@@ -76,13 +76,27 @@ ALTER TABLE master_data
 ⚠️⚠️ **対象は `master_data` だけ。** ⚠️ `master_data_kaeru` / `master_data_resale` には流さない
 （⚠️ 入力欄を注文事業にしか出していないため）。
 
+⚠️⚠️ **`価格差` の単位は「万円」。入力値をそのまま保存する（換算しない）。**
+⚠️ 単位を決めているのは**画面の表示**（`PRICE_GAP_UNIT`）と**この列コメント**だけである。
+⚠️ ⚠️ **片方だけ変えないこと。** 変えると既に入力済みの数字の意味まで変わる。
+
+### ⚠️ 既に ALTER を流したあとで単位の注記だけ足す場合
+
+⚠️ もう一度 `ADD COLUMN` を流すと `Duplicate column name` で失敗する。⚠️ **こちらを流す。**
+
+```sql
+ALTER TABLE master_data
+  MODIFY competitor_price_gap TEXT DEFAULT NULL COMMENT '競合との価格差（万円）。入力値そのまま。契約済み=任意／失注=必須';
+```
+
 ### 確認
 
 ```sql
-SHOW COLUMNS FROM master_data LIKE 'competitor%';
+SHOW FULL COLUMNS FROM master_data LIKE 'competitor%';
 ```
 
 ⚠️ ⚠️ **5列とも `text` / `Null=YES` / `Default=NULL`** であること。
+⚠️ ⚠️ **`competitor_price_gap` のコメントに「（万円）」が入っている**こと。
 
 ---
 
@@ -241,6 +255,8 @@ SELECT `no`, version, date FROM update_log ORDER BY `no` DESC LIMIT 3;
 | 「失注情報の入力」 | ⚠️ **出る**（⚠️ **競合負け以外では出ない**） |
 | 空のまま保存 | ⚠️ **敗因 → 価格差 → 今後の対策 の順で止まる** |
 | 見出し | ⚠️ **「価格差」「敗因」「今後の対策」「他社のキャンペーン」**（⚠️ キー名が出ていないこと） |
+| ⚠️ 価格差の欄 | ⚠️ **右横に「万円」**（⚠️ 入力しても消えないこと） |
+| ⚠️ 契約済み側の価格差 | ⚠️ **同じく「万円」**（⚠️ 同じ列なので単位が違うと事故る） |
 
 ### 7-3. ⚠️⚠️ 建売・中古が壊れていないこと
 

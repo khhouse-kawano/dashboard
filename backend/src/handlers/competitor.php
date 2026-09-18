@@ -35,7 +35,17 @@ $sql_contract = "SELECT
     COALESCE(step_migration_item_01JSENACS2FC422ZHEZWNSXNYA, '') as appointment,
     COALESCE(step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR, '') as screening,
     COALESCE(status, '') as status,
-    COALESCE(rank_period, '') as rank_period 
+    COALESCE(rank_period, '') as rank_period,
+    -- ⚠️ 2026-09-18 に追加。契約列・失注列のモーダル（案件ごとのカード）で使う。
+    -- ⚠️⚠️ **master_data にこれらの列が無いと Unknown column で画面が開かない。**
+    --   ⚠️ v2.2.136 の 2026-09-17_master_data_win_lose.sql を先に流すこと。
+    -- ⚠️ ② の backend-express/src/features/competitor.ts と**必ず揃えること**。
+    COALESCE(customer_contacts_name, '') as customer,
+    COALESCE(competitor_win_reason, '') as win_reason,
+    COALESCE(competitor_price_gap, '') as price_gap,
+    COALESCE(competitor_sales_person, '') as sales_person,
+    COALESCE(competitor_countermeasure, '') as countermeasure,
+    COALESCE(competitor_campaign, '') as rival_campaign
 FROM master_data";
 $stmt_contract = $pdo->prepare($sql_contract);
 $stmt_contract->execute();
