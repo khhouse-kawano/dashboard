@@ -249,7 +249,8 @@ const CompetitorSummary: React.FC = () => {
                     type="button"
                     className="cs_num cs_contract cs_click"
                     title={`クリックで勝因を表示（${withReason.length}件）`}
-                    onClick={() => openCards(`${makerName} に勝った案件`, WIN_FIELDS, withReason)}
+                    // ⚠️ 表記は「{競合会社名} 契約一覧」。⚠️ **失注側と揃えてある**（2026-09-18 の指示）
+                    onClick={() => openCards(`${makerName} 契約一覧`, WIN_FIELDS, withReason)}
                 >
                     {count}
                 </button>
