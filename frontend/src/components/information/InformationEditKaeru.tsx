@@ -8,6 +8,7 @@ import FamilyInfo from '../FamilyInfo';
 import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
 import { labelStyle } from '../../utils/informationUtils';
+import { kpiColumnFor } from '../../utils/interviewKpi';
 import { buttonStyle } from '../../utils/informationUtils';
 import { valueStyle } from '../../utils/informationUtils';
 import { inputStyle } from '../../utils/informationUtils';
@@ -319,12 +320,23 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
         const isAddInterview = interview.day && interview.action;
 
         if (isAddInterview) {
-            const key = actionMap[interview.action];
-            information[key] = interview.day;
-            updatedMasterData = {
-                ...information,
-                [key]: interview.day,
-            };
+            /**
+             * ⚠️⚠️ **`baseAction()` を通してから actionMap を引くこと**（2026-09-21 の修正）。
+             *   ⚠️ 自社契約・仲介契約・売買契約は TableInterview.tsx が
+             *     ⚠️ **`自社契約,物件名` という値**を option に出す。
+             *   ⚠️ 素の文字列で引くと `undefined` になり、
+             *     ⚠️ **`information['undefined']` に日付が入って KPI 列が空のまま**になる。
+             *     ⚠️ `interview_sheet` には残るので「登録できた」ように見える。
+             *   ⚠️ 判定は utils/interviewKpi.ts の `kpiColumnFor()` に集約してある。
+             *
+             * ⚠️ 対応表に無いアクションでは `undefined` が返る。
+             *   ⚠️ **その場合は KPI 列に触らない。** 従来は 'undefined' という列名で書いていた。
+             */
+            const key = kpiColumnFor(actionMap, interview.action);
+            if (key !== undefined) information[key] = interview.day;
+            updatedMasterData = key === undefined
+                ? information
+                : { ...information, [key]: interview.day };
             const newInterviewLog = {
                 ...interviewLog,
                 id: information.id,
