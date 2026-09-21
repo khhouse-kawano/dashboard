@@ -1886,7 +1886,17 @@ register({
   summary: 'ブラックリスト名簿の一覧（解除済みも含む）',
   phpSource: 'backend/src/handlers/header_blacklist_edit.php',
   auth: 'staff',
-  handler: async () => runBlacklistEdit(),
+  /**
+   * ⚠️⚠️ **`result.body` を返すこと。`result` をそのまま返さない。**
+   *   ⚠️ `runBlacklistEdit()` は `{ httpStatus, body }` を返す。
+   *   ⚠️ そのまま返すと応答が `{"httpStatus":200,"body":{"blacklist":[...]}}` になり、
+   *     ⚠️ 画面の `response.data.blacklist` が **undefined** になる。
+   *   ⚠️ ⚠️ **エラーにならず、一覧が空のまま出る**ので気づきにくい。
+   */
+  handler: async () => {
+    const result = await runBlacklistEdit();
+    return result.body;
+  },
 });
 
 register({
