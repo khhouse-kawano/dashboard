@@ -92,6 +92,13 @@ import { runLostList } from '../features/lostList';
 import { runCompetitor } from '../features/competitor';
 import { runBlacklistEdit, runBlacklistInsert, runBlacklistUpdate } from '../features/blacklist';
 import { runCompetitorPdf } from '../features/competitorPdf';
+import {
+  deleteReport,
+  getReport,
+  listReports,
+  MAX_HTML_BYTES,
+  saveReport,
+} from '../features/analysis/report';
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
 import { runShopList } from '../features/shopList';
@@ -1946,5 +1953,108 @@ register({
     const result = await runBlacklistUpdate(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 分析レポート（HTML）。2026-09-21 追加。
+//
+// ⚠️⚠️ **① に PHP ハンドラは無い。Express 専用である。**
+//   ⚠️ そのため ① の expressProxyRequests() と expressProxyExclusive() の
+//     ⚠️ **両方に入れること。** ⚠️ 片方だけだと ① が404を返す。
+//
+// ⚠️⚠️ **html は「こちらが書いたコード」ではない。**
+//   ⚠️ 画面では ⚠️ **iframe に sandbox="allow-scripts" で出す。**
+//   ⚠️ ⚠️ **allow-same-origin を付けないこと。**
+//     ⚠️ 付けると、レポートの中のスクリプトから
+//       ⚠️ **ダッシュボードのログイン情報を読めてしまう。**
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'analysis_report_list',
+  summary: '分析レポートの一覧（⚠️ 本文は含まない）',
+  // ⚠️ 移植元は無い。⚠️ **最初から Express だけにある**（① に PHP は置かない）
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const category = String(ctx.body.category ?? '');
+    return { reports: await listReports(category) };
+  },
+});
+
+register({
+  request: 'analysis_report_get',
+  summary: '分析レポートを1件、本文つきで取得',
+  // ⚠️ 移植元は無い。⚠️ **最初から Express だけにある**（① に PHP は置かない）
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const no = Number(ctx.body.no ?? 0);
+    if (!Number.isInteger(no) || no <= 0) {
+      return { status: 'error', message: 'レポートが指定されていません。' };
+    }
+
+    const report = await getReport(no);
+    if (report === null) {
+      return { status: 'error', message: 'レポートが見つかりませんでした。' };
+    }
+
+    return { report };
+  },
+});
+
+register({
+  request: 'analysis_report_upload',
+  summary: '【書き込み】分析レポート（HTML）を画面から登録する',
+  // ⚠️ 移植元は無い。⚠️ **最初から Express だけにある**（① に PHP は置かない）
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) => {
+    const title = String(ctx.body.title ?? '').trim();
+    const html = String(ctx.body.html ?? '');
+
+    if (title === '') {
+      return { status: 'error', message: '見出しを入力してください。' };
+    }
+    if (html.trim() === '') {
+      return { status: 'error', message: 'HTMLファイルを選んでください。' };
+    }
+    // ⚠️ 大きさだけは見る。⚠️ **DB と画面の両方が詰まるため**
+    if (Buffer.byteLength(html, 'utf8') > MAX_HTML_BYTES) {
+      return {
+        status: 'error',
+        message: `HTMLが大きすぎます（上限 ${Math.floor(MAX_HTML_BYTES / 1024)}KB）。`,
+      };
+    }
+
+    const no = await saveReport({
+      title,
+      category: String(ctx.body.category ?? 'competitor'),
+      division: String(ctx.body.division ?? ''),
+      period: String(ctx.body.period ?? ''),
+      html,
+      // ⚠️ MCP から入った分（staff = 'MCP'）と区別が付くようにする
+      staff: String(ctx.staff?.name ?? ''),
+      dataAsOf: String(ctx.body.dataAsOf ?? '') || undefined,
+    });
+
+    return { status: 'ok', no };
+  },
+});
+
+register({
+  request: 'analysis_report_delete',
+  summary: '【書き込み】分析レポートを削除する',
+  // ⚠️ 移植元は無い。⚠️ **最初から Express だけにある**（① に PHP は置かない）
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) => {
+    const no = Number(ctx.body.no ?? 0);
+    if (!Number.isInteger(no) || no <= 0) {
+      return { status: 'error', message: 'レポートが指定されていません。' };
+    }
+
+    await deleteReport(no);
+    return { status: 'ok' };
   },
 });

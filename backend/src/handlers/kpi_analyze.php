@@ -94,146 +94,6 @@ const KPI_ANALYSIS_SCHEMA = [
     ],
 ];
 
-/**
- * 競合分析の構造化出力。
- *
- * ⚠️⚠️ **KPI_ANALYSIS_SCHEMA に `competitors` を足した形**にしてある。
- *   ⚠️ 画面（ClaudeAnalysisResult.tsx）は headline / highlights / insights / actions を
- *     ⚠️ **他の分析と同じ部品で描く。** ⚠️ 形を変えないこと。
- *   ⚠️ `competitors` だけが競合分析にしかない欄で、⚠️ **勝敗表として描く。**
- *
- * ⚠️ API の制約: すべてのオブジェクトに additionalProperties:false と required が必要。
- *   ⚠️ maxItems などは使えないため、件数の上限は指示文で伝える。
- */
-const KPI_COMPETITOR_SCHEMA = [
-    'type'                 => 'object',
-    'additionalProperties' => false,
-    'required'             => ['headline', 'competitors', 'highlights', 'insights', 'actions'],
-    'properties'           => [
-        'headline' => [
-            'type'        => 'string',
-            'description' => '競合戦の全体像を1〜2文で。どこに negative な偏りがあるかを述べる。',
-        ],
-        'competitors' => [
-            'type'        => 'array',
-            'description' => '他社ごとの勝敗。件数の多い順に10件以内。',
-            'items' => [
-                'type'                 => 'object',
-                'additionalProperties' => false,
-                'required'             => ['name', 'wins', 'losses', 'reasons', 'battlefield', 'assessment'],
-                'properties'           => [
-                    'name'   => ['type' => 'string', 'description' => '他社名。渡されたデータの表記をそのまま使う'],
-                    'wins'   => ['type' => 'integer', 'description' => 'outcome = win の行のうち、この社名を含む件数'],
-                    'losses' => ['type' => 'integer', 'description' => 'outcome = lost の行のうち、この社名を含む件数'],
-                    'reasons' => [
-                        'type'        => 'string',
-                        'description' => '負けた理由の構成。lost_reason と memo から読み取れる範囲で。'
-                            . '読み取れなければ「記録なし」と書く',
-                    ],
-                    'battlefield' => [
-                        'type'        => 'string',
-                        'description' => '負けが発生している店舗・エリア。shop から読み取る',
-                    ],
-                    'assessment' => [
-                        'type' => 'string',
-                        'enum' => ['positive', 'negative', 'neutral'],
-                        'description' => 'positive = 勝ち越している / negative = 負け越している、または負けが急増',
-                    ],
-                ],
-            ],
-        ],
-        'highlights' => [
-            'type'        => 'array',
-            'description' => '注目すべき指標。3件以内。',
-            'items' => [
-                'type'                 => 'object',
-                'additionalProperties' => false,
-                'required'             => ['metric', 'observation', 'assessment'],
-                'properties'           => [
-                    'metric'      => ['type' => 'string'],
-                    'observation' => ['type' => 'string'],
-                    'assessment'  => ['type' => 'string', 'enum' => ['positive', 'negative', 'neutral']],
-                ],
-            ],
-        ],
-        'insights' => [
-            'type'        => 'array',
-            'description' => '要因の分析。5件以内。',
-            'items' => [
-                'type'                 => 'object',
-                'additionalProperties' => false,
-                'required'             => ['title', 'detail', 'basis'],
-                'properties'           => [
-                    'title'  => ['type' => 'string'],
-                    'detail' => ['type' => 'string'],
-                    'basis'  => [
-                        'type' => 'string',
-                        'enum' => ['data', 'hypothesis'],
-                        'description' => 'data=渡された行から数えられる事実 / hypothesis=推測',
-                    ],
-                ],
-            ],
-        ],
-        'actions' => [
-            'type'        => 'array',
-            'description' => '打ち手。3件以内。実行可能なものに限る。',
-            'items' => [
-                'type'                 => 'object',
-                'additionalProperties' => false,
-                'required'             => ['title', 'detail'],
-                'properties'           => [
-                    'title'  => ['type' => 'string'],
-                    'detail' => ['type' => 'string'],
-                ],
-            ],
-        ],
-    ],
-];
-
-const KPI_COMPETITOR_PROMPT = <<<'PROMPT'
-あなたは注文住宅・分譲住宅の営業を分析するデータアナリストです。
-競合他社との勝敗を分析してください。
-
-# データについて
-これまでの分析と違い、**集計値ではなく顧客1件ごとの行**を渡します。
-勝因・敗因は自由記述の中にしかなく、集計値では読み取れないためです。
-
-- outcome … win = 契約、lost = 失注（または追客終了）
-- competitors … その商談に出てきた他社名。競合欄と商談メモの両方から拾っている
-- own_group … 国分ハウジンググループ自身の社名。**競合ではなくグループ内での取り合い**
-- lost_reason … 選択式の失注理由。空欄が多い
-- memo … 商談メモと架電ログ。**他社名の前後を切り出したもの**
-- has_land … 顧客が土地を持っているか
-- budget … 予算の帯。金額そのものは渡していない
-
-# 個人情報について
-氏名・電話・メール・住所・物件名は渡していません。
-memo の中の **** は伏字です。**伏字の中身を推測しないでください。**
-
-# 必ず守ること（数え方）
-- competitors ごとの wins / losses は、**渡された行を実際に数えて**書いてください。
-  1行に複数の社名が入っている場合は、その全社に1件ずつ数えます。
-- counts.truncated = true のとき、渡した行は全件ではありません。
-  **勝率（wins ÷ (wins + losses)）を全社の実力値として語ってはいけません。**
-  件数は「渡されたデータの中での件数」と明記してください。
-- lost_reason が空の行が多いのは、入力されていないだけです。
-  **「理由不明＝理由がない」ではありません。** 記録率そのものを課題として扱ってください。
-
-# 着眼点
-- どの他社に負け越しているか。**勝ち越している相手と分けて**ください。
-- 負けが特定の店舗・エリアに集中していないか。
-- 敗因が「価格」なのか「土地」なのか「性能」なのかで、打ち手がまったく変わります。
-- has_land と outcome の関係。土地を持たない顧客で負けが多いなら、土地提案が課題です。
-- win の memo に共通する型（勝ちパターン）があれば、それを言語化してください。
-- own_group が出てくる行は、グループ内でお客様を取り合っています。別枠で扱ってください。
-
-# 厳守事項
-- 渡されたデータに無い数値を作らないこと。
-- insights の basis は必ず正しく設定すること。
-  data = 渡された行から数えられる事実 / hypothesis = データだけでは確認できない推測
-- competitors は10件以内、highlights は3件以内、insights は5件以内、actions は3件以内。
-PROMPT;
-
 const KPI_INQUIRY_TREND_PROMPT = <<<'PROMPT'
 あなたは不動産・インサイドセールス領域のデータアナリストです。
 反響を「取得月ごとのコホート」として捉えたデータを渡すので、経営会議で使える粒度で分析してください。
@@ -482,35 +342,6 @@ try {
             $intro      = '以下は' . $scopeIntro . 'の販促媒体別の営業ファネルデータです。';
             break;
 
-        case 'competitor':
-            $snapshot = buildCompetitorSnapshot($pdo, $division, $scope, $months);
-
-            /**
-             * ⚠️⚠️ **行が少なすぎるときは Claude を呼ばずに断る。**
-             *   ⚠️ 建売分譲事業は競合の記録がほとんど無い（2026-09-21 実測で5件）。
-             *   ⚠️ ⚠️ **このまま投げると、金だけかかって「データがありません」と返る。**
-             *   ⚠️ 何件あったかを画面に出し、記録を増やすべきことが分かるようにする。
-             */
-            if ($snapshot['counts']['rows'] < KPI_COMPETITOR_MIN_ROWS) {
-                http_response_code(400);
-                echo json_encode([
-                    'status'  => 'error',
-                    'message' => $scopeIntro . 'で競合の記録がある商談は '
-                        . $snapshot['counts']['rows'] . ' 件しかなく、分析できません（'
-                        . KPI_COMPETITOR_MIN_ROWS . ' 件以上必要）。'
-                        . '顧客詳細の競合欄・失注理由が入力されていない可能性があります。'
-                        . '期間を広げるか、絞り込みを外してお試しください。',
-                ], JSON_UNESCAPED_UNICODE);
-                exit;
-            }
-
-            $systemText = KPI_COMPETITOR_PROMPT . $scopeRule;
-            $schema     = KPI_COMPETITOR_SCHEMA;
-            $typeLabel  = '競合分析';
-            $intro      = '以下は' . $scopeIntro . 'の、競合の記録がある商談'
-                . $snapshot['counts']['rows'] . '件です。';
-            break;
-
         default:
             http_response_code(400);
             echo json_encode([
@@ -520,9 +351,32 @@ try {
             exit;
     }
 
-    $userText = $intro . "\n\n```json\n"
-        . json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-        . "\n```";
+    if ($type === 'competitor') {
+        /**
+         * ⚠️⚠️ **競合分析だけ、表を JSON の外に出す。**
+         *   ⚠️ JSON に入れると ⚠️ **タブが `\t` に、行ごとに引用符と字下げが付く。**
+         *     ⚠️ 実測で入力が1.5倍ほどに膨らむ。
+         *   ⚠️ ⚠️ **中身はまったく同じ。** 包み方を変えているだけである。
+         */
+        $table   = $snapshot['rows'];
+        $columns = $snapshot['columns'];
+
+        $head = $snapshot;
+        unset($head['rows']);
+
+        $userText = $intro . "\n\n```json\n"
+            . json_encode($head, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . "\n```\n\n"
+            . "以下がその一覧です。タブ区切りで、1行が商談1件です。\n\n"
+            . "```tsv\n"
+            . implode("\t", $columns) . "\n"
+            . implode("\n", $table)
+            . "\n```";
+    } else {
+        $userText = $intro . "\n\n```json\n"
+            . json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . "\n```";
+    }
 
     // -----------------------------------------------------------------
     // 5. Claude へ送信（ここから課金）

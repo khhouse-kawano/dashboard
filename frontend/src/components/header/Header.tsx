@@ -19,8 +19,8 @@ import CompetitorSummary from './CompetitorSummary';
 import RegisterBrokerageListings from './RegisterBrokerageListings';
 import DailyReports from './DailyReports';
 import ClaudeAnalysis from './ClaudeAnalysis';
-import type { AnalysisType } from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
+import CompetitorAnalysisReports from './CompetitorAnalysisReports';
 import AmbassadorList from './AmbassadorList';
 import { InquiryAmbassador } from './InquiryAmbassador';
 import InquiryIntroductory from './InquiryIntroductory';
@@ -36,12 +36,13 @@ type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地�
 /**
  * 他社動向メニューの最後に出す項目。
  *
- * ⚠️⚠️ **他の項目と違い、共通モーダル（editMapping）を使わない。**
- *   ⚠️ 押すと ⚠️ **Claudeによる分析のモーダル**が開く。
- *   ⚠️ ⚠️ **editMapping に足さないこと。** 足すと「準備中です」の画面が出る。
- *
  * ⚠️ 画面にはロゴ＋「による競合分析」で出す（ヘッダーの「による分析」と同じ形）。
  *   ⚠️ **この文字列そのものは画面に出さない。** 中で見分けるための鍵である。
+ *
+ * ⚠️⚠️ **開いても Claude は呼ばれない。課金は発生しない。**
+ *   ⚠️ 保存済みのレポート（HTML）を見るだけの画面である。
+ *   ⚠️ ⚠️ **2026-09-21 まで、ここは画面から Claude を実行していた。**
+ *     ⚠️ 1回あたり数百円かかったため、⚠️ **推論は各自の Claude アカウント（MCP）へ移した。**
  */
 const CLAUDE_COMPETITOR_ITEM = 'Claudeによる競合分析';
 
@@ -78,20 +79,11 @@ const Header = ({ }) => {
     // Claudeによる分析（menuMapping とは独立した導線）
     const [claudeModal, setClaudeModal] = useState<boolean>(false);
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
-    /**
-     * モーダルを開いたときに目立たせる分析。
-     *
-     * ⚠️ 他社動向 →「競合分析」から開いたときだけ `'competitor'` を入れる。
-     * ⚠️⚠️ **開いても分析は自動実行しない**（ClaudeAnalysis.tsx の initialType を参照）。
-     */
-    const [claudeInitial, setClaudeInitial] = useState<AnalysisType | undefined>(undefined);
-
-    const openClaude = (initial?: AnalysisType): void => {
+    const openClaude = (): void => {
         if (authority !== 'Master') {
             alert('権限がありません');
             return;
         }
-        setClaudeInitial(initial);
         setClaudeModal(true);
     };
 
@@ -168,6 +160,8 @@ const Header = ({ }) => {
         '他社動向/他社広告ライブラリ': <MetaAdsDashboard />,
         '土地・物件管理/土地情報同期': <SyncEstate setModal={setModal} />,
         '他社動向/他社資料': <CompetitorMaterials />,
+        // ⚠️ 保存済みレポートを見るだけの画面。⚠️ **Claude は呼ばない（課金なし）**
+        [`他社動向/${CLAUDE_COMPETITOR_ITEM}`]: <CompetitorAnalysisReports />,
         '土地・物件管理/土地情報一覧': <Estate estateId={estateId} setEstateId={setEstateId} source='header' />,
         '架電状況/注文営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='order' />,
         '架電状況/建売営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='spec' />,
@@ -233,6 +227,8 @@ const Header = ({ }) => {
         //   ⚠️ フォルダを並べる幅と、資料一覧の縦が要る。
         //   ⚠️ **外すとフォルダが1列になり、表も潰れる。**
         '他社動向/他社資料',
+        // ⚠️ レポートは左に一覧・右に本文を並べる。⚠️ **外すと本文が読めない幅になる**
+        `他社動向/${CLAUDE_COMPETITOR_ITEM}`,
         // ⚠️ ブラックリスト設定は住所・備考まで10列あり、xl では入力欄が潰れる。
         //   ⚠️ 2026-09-19 の SaaS 化に合わせて全画面にした。
         //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
@@ -344,12 +340,6 @@ const Header = ({ }) => {
                                             setEventBudget(true);
                                             return;
                                         }
-                                        // ⚠️ 競合分析だけは Claude のモーダルを開く。
-                                        //   ⚠️ **共通モーダルに入れないこと**（editMapping に無いため「準備中」になる）
-                                        if (item === CLAUDE_COMPETITOR_ITEM) {
-                                            openClaude('competitor');
-                                            return;
-                                        }
                                         // ⚠️ キーは `メニュー/項目`。項目名だけだと
                                         //   複数のメニューにある「反響一覧」が区別できない
                                         setEditMenu(`${menu}/${item}`);
@@ -382,7 +372,7 @@ const Header = ({ }) => {
                     </span>
                 </Modal.Header>
                 <Modal.Body className="pt-2" style={{ maxHeight: '80vh' }}>
-                    <ClaudeAnalysis initialType={claudeInitial} />
+                    <ClaudeAnalysis />
                 </Modal.Body>
             </Modal>
 
