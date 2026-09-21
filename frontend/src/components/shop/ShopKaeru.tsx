@@ -46,6 +46,17 @@ type Medium = { id: number; medium: string }
 type Section = { no: number, name: string };
 type Staff = { name: string; shop: string; rank: number };
 
+/**
+ * 統計値（全店舗の合計）の行の名前。
+ *
+ * ⚠️⚠️ **2026-09-18 に「グループ全体」から変えた**（指示）。
+ *   ⚠️ この画面は建売だけなので「グループ」では広すぎた。
+ * ⚠️⚠️ **`filteredValue()` と `aggregated` がこの文字列で合計行を見分けている。**
+ *   ⚠️ 直書きに戻すと、片方だけ直したときに**合計行が店舗名として扱われて0件になる。**
+ * ⚠️ 店舗を選ぶセレクトの「全店舗」とは**別物**。あちらは絞り込みの解除である。
+ */
+const TOTAL_ROW = '建売営業全体';
+
 const ShopKaeru = () => {
     const { category } = useContext(AuthContext);
     const [monthArray, setMonthArray] = useState<string[]>([]);
@@ -59,7 +70,6 @@ const ShopKaeru = () => {
     const [endMonth, setEndMonth] = useState<string>('');
     const [selectedShop, setSelectedShop] = useState<string>('');
     const [selectedSection, setSelectedSection] = useState<string>('');
-    const [selectedArea, setSelectedArea] = useState<string>('');
     const [selectedMedium, setSelectedMedium] = useState<string>('');
     const [sortKey, setSortKey] = useState<string>('');
     const [sortOrder, setSortOrder] = useState<string>('');
@@ -94,7 +104,6 @@ const ShopKaeru = () => {
 
     const filteredCustomers = useMemo(() => {
         if (!originalList.length) return [];
-        const areaValue = shopArray.filter(s => s.area === selectedArea).map(s => s.shop);
 
         let startDate: Date | undefined;
         if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
@@ -113,7 +122,6 @@ const ShopKaeru = () => {
                 (!endDate || targetDate <= endDate) &&
                 (!selectedShop || item.shop?.includes(selectedShop)) &&
                 (!selectedSection || sectionShops.includes(item.shop)) &&
-                (!selectedArea || areaValue.includes(item.shop)) &&
                 /**
                  * ⚠️⚠️ **必ず `normalizeMedium()` を通してから比べる**（2026-09-18 の指示）。
                  *   ⚠️ 顧客側は `ネット` / `athome` / `ALLGRIT` のように**別名で入っている。**
@@ -124,11 +132,10 @@ const ShopKaeru = () => {
                 (!selectedMedium || normalizeMedium(item.medium) === normalizeMedium(selectedMedium))
             );
         });
-    }, [originalList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea, selectedMedium]);
+    }, [originalList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedMedium]);
 
     const filteredBudgets = useMemo(() => {
         if (!originalBudgetList.length) return [];
-        const areaValue = shopArray.filter(s => s.area === selectedArea).map(s => s.shop);
 
         let startDate: Date | undefined;
         if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
@@ -146,7 +153,6 @@ const ShopKaeru = () => {
                 (!endDate || targetDate <= endDate) &&
                 (!selectedShop || item.shop.includes(selectedShop)) &&
                 (!selectedSection || item.order_section.includes(selectedSection)) &&
-                (!selectedArea || areaValue.includes(item.shop)) &&
                 /**
                  * ⚠️⚠️ **販促費も販促媒体で絞る**（2026-09-18 の指示）。
                  *   ⚠️ 2026-09-18 まで**ここだけ絞っていなかった。**
@@ -159,30 +165,28 @@ const ShopKaeru = () => {
                 (!selectedMedium || normalizeMedium(item.medium) === normalizeMedium(selectedMedium))
             );
         });
-    }, [originalBudgetList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea, selectedMedium]);
+    }, [originalBudgetList, startMonth, endMonth, selectedShop, selectedSection, selectedMedium]);
 
     useEffect(() => {
         /**
          * ⚠️ 店舗を 事業区分 → ブランド → id の順に並べる（sortShops）。
-         *   ⚠️ 「グループ全体」は sortShops に混ぜない。division が空で
+         *   ⚠️ 合計行（TOTAL_ROW）は sortShops に混ぜない。division が空で
          *     末尾に回されるため、先に並べてから先頭に付ける。
          */
         const sortedShops = sortShops(originalShopArray as never) as unknown as Shop[];
 
         const filteredShop = sortedShops.filter(item =>
             (!selectedShop || item.shop.includes(selectedShop)) &&
-            (!selectedSection || item.section === selectedSection) &&
-            (!selectedArea || item.area === selectedArea)
+            (!selectedSection || item.section === selectedSection)
         );
 
-        // ⚠️ 絞り込み中は「グループ全体」を出さない。一部だけの合計を
-        //   そう呼ぶと誤読される
-        const withTotal = (!selectedShop && !selectedSection && !selectedArea)
-            ? [{ id: 0, brand: '', shop: 'グループ全体', section: '', area: '' }, ...filteredShop]
+        // ⚠️ 絞り込み中は合計行を出さない。一部だけの合計をそう呼ぶと誤読される
+        const withTotal = (!selectedShop && !selectedSection)
+            ? [{ id: 0, brand: '', shop: TOTAL_ROW, section: '', area: '' }, ...filteredShop]
             : filteredShop;
 
         setShopArray(withTotal);
-    }, [originalShopArray, selectedShop, selectedSection, selectedArea]);
+    }, [originalShopArray, selectedShop, selectedSection]);
 
     /**
      * KPI ごとの件数。
@@ -204,7 +208,7 @@ const ShopKaeru = () => {
      * ─────────────────────────────────────────────
      */
     const filteredValue = (shopValue: string, kpi: string, rankValue: string) => {
-        const matchShop = (c: Customer) => shopValue !== 'グループ全体' ? c.shop === shopValue : true;
+        const matchShop = (c: Customer) => shopValue !== TOTAL_ROW ? c.shop === shopValue : true;
         const base = filteredCustomers.filter(matchShop);
 
         const isContract = (b: Customer) => (b.contract || b.contract_broker) && b.status === '契約済み';
@@ -239,7 +243,7 @@ const ShopKaeru = () => {
 
     const aggregated = useMemo(() => {
         return shopArray.map(value => {
-            const isTotalRow = value.shop === 'グループ全体';
+            const isTotalRow = value.shop === TOTAL_ROW;
 
             const totalValue = filteredValue(value.shop, '', '');
             const contactValue = filteredValue(value.shop, 'contact', '');
@@ -306,7 +310,7 @@ const ShopKaeru = () => {
 
     /**
      * 単価グラフのデータ。
-     * ⚠️ X軸は店舗。**先頭が「グループ全体」**になるよう shopArray の並びをそのまま使う。
+     * ⚠️ X軸は店舗。**先頭が合計行（TOTAL_ROW）**になるよう shopArray の並びをそのまま使う。
      */
     const graphData = useMemo(() => {
         if (!showGraph) return [];
@@ -351,13 +355,17 @@ const ShopKaeru = () => {
         return arr;
     }, [aggregated, sortKey, sortOrder]);
 
-    const handleSort = (start: string, end: string, medium: string, shop: string, section: string, area: string) => {
+    /**
+     * 絞り込みをまとめて差し替える。
+     * ⚠️ エリアは 2026-09-18 に廃止した（`selectedArea` ごと削除）。
+     *   ⚠️ 引数を減らしてあるので、呼び出し側の第6引数を消し忘れないこと。
+     */
+    const handleSort = (start: string, end: string, medium: string, shop: string, section: string) => {
         setStartMonth(start);
         setEndMonth(end);
         setSelectedMedium(medium);
         setSelectedShop(shop);
         setSelectedSection(section);
-        setSelectedArea(area);
     };
 
     const changeSort = (order: string, key: string) => {
@@ -398,20 +406,20 @@ const ShopKaeru = () => {
                 <div className='ps-2' style={{ fontSize: '13px' }}>※接触数・契約数は"反響日"起算となります。</div>
                 <div className="d-flex flex-wrap mb-3">
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(event.target.value, endMonth, selectedMedium, selectedShop, selectedSection, selectedArea)}>
+                        <select className="target" onChange={(event) => handleSort(event.target.value, endMonth, selectedMedium, selectedShop, selectedSection)}>
                             <option value="" selected>開始月</option>
                             {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <span className='d-flex align-items-center mx-1'>～</span>
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, event.target.value, selectedMedium, selectedShop, selectedSection, selectedArea)}>
+                        <select className="target" onChange={(event) => handleSort(startMonth, event.target.value, selectedMedium, selectedShop, selectedSection)}>
                             <option value="" selected>終了月</option>
                             {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, event.target.value, selectedShop, selectedSection, selectedArea)}>
+                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, event.target.value, selectedShop, selectedSection)}>
                             <option value="" selected={selectedMedium === ''}>全販促媒体</option>
                             {/**
                               * ⚠️⚠️ **選択肢も表記を寄せて重複を落とす**（2026-09-18）。
@@ -425,29 +433,19 @@ const ShopKaeru = () => {
                         </select>
                     </div>
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, event.target.value, '', '')}>
-                            <option value="">グループ全体</option>
+                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, event.target.value, '')}>
+                            <option value="">全店舗</option>
                             {originalShopArray.map((item, index) => (
                                 <option key={index} value={item.shop} selected={item.shop === selectedShop}>{item.shop}</option>
                             ))}
                         </select>
                     </div>
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, '', event.target.value, '')}>
-                            <option value="" selected={selectedSection === ''}>建売営業全体</option>
+                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, '', event.target.value)}>
+                            <option value="" selected={selectedSection === ''}>全課</option>
                             {sectionList.map((section, index) =>
                                 <option value={section.name} key={index}>{section.name}</option>
                             )}
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, '', '', event.target.value)}>
-                            <option value="" selected={selectedArea === ''}>全エリア</option>
-                            <option value="鹿児島県" selected={selectedArea === '鹿児島県'}>鹿児島県</option>
-                            <option value="宮崎県" selected={selectedArea === '宮崎県'}>宮崎県</option>
-                            <option value="大分県" selected={selectedArea === '大分県'}>大分県</option>
-                            <option value="熊本県" selected={selectedArea === '熊本県'}>熊本県</option>
-                            <option value="佐賀県" selected={selectedArea === '佐賀県'}>佐賀県</option>
                         </select>
                     </div>
                 </div>

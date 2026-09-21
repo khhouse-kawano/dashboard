@@ -37,6 +37,32 @@ export const handleBlack = async (brandValue: string, nameValue: string, mobileV
 export const toHalfWidth = (str: string): string =>
     str.normalize('NFKC').replace(/\D/g, '');
 
+/** 電話番号として成立する最低の桁数。⚠️ 固定電話の市外局番込みで10桁 */
+const MOBILE_MIN_DIGITS = 10;
+
+/**
+ * ブラックリストの突合に使える電話番号か。
+ *
+ * ⚠️⚠️ **不備のある番号で照合してはいけない**（2026-09-18 の指示）。
+ *   ⚠️ 突合は `includes()`（部分一致）なので、⚠️ **短い番号は必ず誰かに当たる。**
+ *     ⚠️ 実データに `090` `1` `8992521`（郵便番号らしきもの）が入っており、
+ *     ⚠️ **無関係な顧客が赤く表示されていた。**
+ *   ⚠️ 実測（注文）で ⚠️ **183件 → 141件**。⚠️ **42件が誤検知だった。**
+ *
+ * ⚠️⚠️ **記号は無視して数字だけで判定する**（2026-09-18 の指示）。
+ *   ⚠️ 実データの 4,561件が `="08064284025"` という Excel 由来の形になっている。
+ *     ⚠️ 中身は正しい携帯番号なので、⚠️ **記号で弾いてはいけない。**
+ *   ⚠️ `toHalfWidth()` が数字以外を落とすので、ハイフン付きもここを通る。
+ *
+ * ⚠️ `'false'` や `'null'` は数字が1つも無いので桁数0になり、自然に false になる。
+ *   ⚠️ それでも明示しているのは、⚠️ **実データにこの値が入る**ことを残すため。
+ */
+export const isValidMobile = (value: unknown): boolean => {
+    const raw = String(value ?? '').trim();
+    if (raw === '' || raw === 'null' || raw.toLowerCase() === 'false') return false;
+    return toHalfWidth(raw).length >= MOBILE_MIN_DIGITS;
+};
+
 export const styles = {
     label: { color: '#303030', fontSize: '11px', marginBottom: '4px', letterSpacing: '.6px', fontWeight: '500', display: 'block' },
     input: { border: '1px solid #D3D3D3', borderRadius: '4px', height: '35px', width: '100%', paddingLeft: '10px', color: '#303030', fontSize: '12px', letterSpacing: '.6px', backgroundColor: '#fff', outline: 'none', boxSizing: 'border-box' as const },

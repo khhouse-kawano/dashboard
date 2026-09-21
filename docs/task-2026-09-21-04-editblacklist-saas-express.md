@@ -1,3 +1,295 @@
+# 指示（2026-09-21）　EditBlackList を SaaS 風にし Express へ移す
+
+⚠️ 依頼（`ReadMeClaude.md`）:
+> `EditBlackList.tsx` の UI を Saas 風デザインへ改修 => `GoogleReview.tsx` や
+> `InquiryIntroductory.tsx` 参照
+> Express 化がまだであれば移行作業
+
+⚠️ ⚠️ **Express 化はまだだった**（① の PHP 3本だけ）。
+
+---
+
+## 変更・追加したファイル
+
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| `backend-express/src/features/` | ⚠️ **`blacklist.ts`（新規）** | ⚠️ PHP 3本の移植 |
+| `backend-express/src/gateway/` | `registry.ts` | ⚠️ **`register()` 3件と import** |
+| `backend/src/core/` | `express_proxy.php` | ⚠️ **許可リストに3件** |
+| `frontend/src/components/header/` | ⚠️ **`EditBlackList.tsx`（全面書き直し）** | SaaS 風 UI |
+| `frontend/src/components/header/` | `Header.tsx` | ⚠️ **`isFullscreenMenu` に1行** |
+
+⚠️ ⚠️ **PHP ハンドラ3本は消していない**（`header_blacklist_edit` / `_insert` / `_update`）。
+⚠️ フォールバック先として残す。
+
+---
+
+## ⚠️ 移植の方針
+
+### ⚠️ `expressProxyExclusive` には入れない
+
+⚠️⚠️ **`insert` と `update` は書き込みだが、あえてフォールバックを許している。**
+
+⚠️ ① に PHP ハンドラが3本とも実在するため、⚠️ **② が落ちても ① で動く。**
+⚠️ ⚠️ **二重に書かれることはない**（⚠️ 転送が成功した時点で ① 側は実行しない）。
+
+⚠️ ⚠️ **PHP を消すなら、同時に `expressProxyExclusive()` へ移すこと。**
+⚠️ 消しただけだと、② が落ちたときに ⚠️ **「成功したように見えて保存されない」** 状態になる。
+
+### ⚠️ 主キーは `no`
+
+⚠️⚠️ **`black_list` の主キーは `no`（AUTO_INCREMENT）。`id` ではない。**
+⚠️ `id` は text 列で、移植元が `uniqid('bl_')` を入れているだけの飾りである。
+⚠️ ⚠️ **画面も `no` で更新している。**
+
+### ⚠️ `note` は NOT NULL
+
+⚠️ ⚠️ **DEFAULT が無い。** ⚠️ 空文字を必ず入れる（⚠️ 省くと INSERT が落ちる）。
+
+---
+
+## ⚠️ 列の許可リスト
+
+⚠️⚠️ **列名をそのまま SQL に埋めるため、ここが唯一の防御である。**
+⚠️ ⚠️ **移植元（`header_blacklist_update.php`）と1語も違えないこと。**
+
+| PHP | TS |
+|---|---|
+| `['name', 'brand', 'mail', 'mobile', 'zip', 'full_address', 'note', 'show_key']` | ⚠️ **同じ8つ** |
+
+⚠️ `no` / `id` / `date` は ⚠️ **入れない**（主キー・採番・登録日）。
+
+---
+
+## ⚠️ UI の作り直し
+
+⚠️ `GoogleReview.tsx` に合わせ、⚠️ **`ebl_` 接頭辞の専用 `<style>`** を持たせた。
+
+| 要素 | 内容 |
+|---|---|
+| 見出し | タイトル＋一行の説明 |
+| ⚠️ **KPIカード** | ⚠️ **登録件数 / 有効 / 解除済み / 表示中** |
+| 絞り込みバー | ブランド／⚠️ **状態**／顧客名／「対象者を追加」 |
+| 表 | ⚠️ **見出し固定・顧客名/ブランド/登録日で並べ替え** |
+| 状態 | ⚠️ スイッチ → ⚠️ **バッジ（有効／解除済み）** |
+
+### ⚠️ ついでに直した既存の不具合
+
+| # | 内容 |
+|---|---|
+| 1 | ⚠️ **`targetStatus` の state だけあって選ぶ UI が無かった** → ⚠️ 「状態」の select を追加 |
+| 2 | ⚠️ **`blacklist` と `originalBlacklist` を二重に持っていた** → ⚠️ `useMemo` に変更（⚠️ 1文字打つたびに再レンダリングが2回走っていた） |
+| 3 | ⚠️ **`blacklist.sort()` が state の配列を破壊していた** → ⚠️ `[...filtered].sort()` |
+| 4 | ⚠️ **`o.name.includes()` が `name` null で落ちる** → ⚠️ `(o.name ?? '')` |
+| 5 | ⚠️ **ブランドの選択肢に `全社` が無く、既存行が空欄に見えた** → ⚠️ 選択肢に追加 |
+| 6 | ⚠️ **`date.replace(/\/g, '-')` がスラッシュを置換していなかった** → ⚠️ `/[/\]/g` |
+
+### ⚠️ 全画面メニューに追加した
+
+⚠️⚠️ **これは指示に無い変更である。**
+⚠️ 列が10あり、⚠️ **xl のモーダルでは入力欄が潰れて読めない**ため。
+
+```tsx
+        // ⚠️ ブラックリスト設定は住所・備考まで10列あり、xl では入力欄が潰れる。
+        //   ⚠️ 2026-09-19 の SaaS 化に合わせて全画面にした。
+        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
+        '反響管理/ブラックリスト設定',
+```
+
+⚠️ ⚠️ **不要なら1行消すだけで戻る。**
+
+---
+
+## ⚠️ 保存の仕組み（変えていない）
+
+⚠️⚠️ **保存ボタンは無い。⚠️ `onBlur` のたびに「1列だけ」送る。**
+
+⚠️ バックエンドも ⚠️ **「`no` と `request` 以外のキーが1つだけ」** を前提にしている。
+⚠️ ⚠️ **まとめて送る形に変えるならバックエンドも直すこと。**
+
+---
+
+## ⚠️ 追加したファイル（全文）
+
+### `backend-express/src/features/blacklist.ts`
+
+```ts
+import type { RowDataPacket } from 'mysql2/promise';
+import { query, execute } from '../db/pool';
+
+/**
+ * ブラックリスト名簿の編集（header/EditBlackList.tsx）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️ 移植元:
+ *     backend/src/handlers/header_blacklist_edit.php    （一覧）
+ *     backend/src/handlers/header_blacklist_insert.php  （追加）
+ *     backend/src/handlers/header_blacklist_update.php  （1列だけ更新）
+ *
+ * ⚠️⚠️ **`black_list` テーブル（名簿）と、反響の `black` タグはまったくの別物。**
+ *   ⚠️ タグ側は `inquiry_customer*` のフラグ列で、features/list/ が扱う。
+ *   ⚠️ ここは**名簿そのもの**で、反響一覧の突合に使われる元データである。
+ *
+ * ⚠️⚠️ **書き込みがある（insert / update）ので `expressProxyExclusive` には入れない。**
+ *   ⚠️ ① に PHP ハンドラが3本とも実在するため、② が落ちても ① へ
+ *     フォールバックして動く。⚠️ **二重に書かれることはない**
+ *     （転送が成功した時点で ① 側は実行しない）。
+ *
+ * ⚠️⚠️ **主キーは `no`（AUTO_INCREMENT）。`id` ではない。**
+ *   ⚠️ `id` は text 列で、移植元が `uniqid('bl_')` を入れているだけの飾りである。
+ *   ⚠️ 画面も `no` で更新している。⚠️ **`id` を WHERE に使わないこと。**
+ *
+ * ⚠️ `note` は **NOT NULL で DEFAULT が無い。** ⚠️ 空文字を必ず入れること。
+ * ─────────────────────────────────────────────
+ */
+
+interface DynamicRow extends RowDataPacket {
+  [key: string]: unknown;
+}
+
+export interface BlacklistResult {
+  httpStatus: number;
+  body: Record<string, unknown>;
+}
+
+/**
+ * 1列だけ更新できる列の許可リスト。
+ *
+ * ⚠️⚠️ **移植元（header_blacklist_update.php）と1語も違えないこと。**
+ *   ⚠️ 列名をそのまま SQL に埋めるため、⚠️ **ここが唯一の防御**である。
+ * ⚠️ `no` と `id` と `date` は入れない（主キーと採番、登録日は変えない）。
+ */
+const ALLOWED_COLUMNS = [
+  'name',
+  'brand',
+  'mail',
+  'mobile',
+  'zip',
+  'full_address',
+  'note',
+  'show_key',
+] as const;
+
+type AllowedColumn = (typeof ALLOWED_COLUMNS)[number];
+
+const isAllowedColumn = (value: string): value is AllowedColumn =>
+  (ALLOWED_COLUMNS as readonly string[]).includes(value);
+
+/** 文字列として受け取る。⚠️ null / undefined は空文字（列が NOT NULL のものがある） */
+const toText = (value: unknown): string => (value === null || value === undefined ? '' : String(value));
+
+/**
+ * `id` 列のダミー値。
+ * ⚠️ 移植元の PHP `uniqid('bl_')` に合わせた形。⚠️ **一意性に依存していない。**
+ *   ⚠️ 画面も検索もこの値を使わない。⚠️ 列が NULL 可なので本来は不要だが、
+ *     ⚠️ ① の挙動と揃えるために入れている。
+ */
+const newDummyId = (): string =>
+  `bl_${Date.now().toString(16)}${Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0')}`;
+
+// ---------------------------------------------------------------------------
+// 一覧
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️⚠️ **`show_key = 0`（解除済み）も返す。**
+ *   ⚠️ 画面に「有効/解除」のスイッチがあり、解除したものを戻せる必要がある。
+ *   ⚠️ 反響一覧の突合（features/list/queries.ts の BLACK_SQL）は
+ *     `show_key = 1` で絞っている。⚠️ **あちらと同じにしないこと。**
+ */
+export const runBlacklistEdit = async (): Promise<BlacklistResult> => {
+  const blacklist = await query<DynamicRow>('SELECT * FROM `black_list`');
+  return { httpStatus: 200, body: { blacklist } };
+};
+
+// ---------------------------------------------------------------------------
+// 追加
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️⚠️ **採番された `no` を必ず返すこと。**
+ *   ⚠️ 画面は返ってきた `no` をそのまま行のキーにして、
+ *     ⚠️ **続けて編集した内容を同じ行へ送る。**
+ *   ⚠️ 返さないと画面が `Date.now()` を仮のキーにするため、
+ *     ⚠️ **その直後の編集が DB の別の行を更新しようとする。**
+ */
+export const runBlacklistInsert = async (
+  body: Record<string, unknown>
+): Promise<BlacklistResult> => {
+  const name = toText(body.name).trim();
+  if (name === '') {
+    return { httpStatus: 400, body: { status: 'error', message: '顧客名を入力してください。' } };
+  }
+
+  // ⚠️ 画面が送ってくるが、無いときは今日（移植元と同じ `Y/m/d`）
+  const today = new Date();
+  const fallbackDate =
+    `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+
+  const result = await execute(
+    `INSERT INTO black_list (id, name, brand, date, mail, mobile, zip, full_address, note, show_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      toText(body.id) === '' ? newDummyId() : toText(body.id),
+      name,
+      toText(body.brand) === '' ? '全社' : toText(body.brand),
+      toText(body.date) === '' ? fallbackDate : toText(body.date),
+      toText(body.mail),
+      toText(body.mobile),
+      toText(body.zip),
+      toText(body.full_address),
+      // ⚠️ `note` は NOT NULL で DEFAULT が無い
+      toText(body.note),
+      body.show_key === undefined ? 1 : Number(body.show_key) === 1 ? 1 : 0,
+    ]
+  );
+
+  return { httpStatus: 200, body: { status: 'success', no: String(result.insertId) } };
+};
+
+// ---------------------------------------------------------------------------
+// 更新（1列だけ）
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️⚠️ **画面は「変えた1列だけ」を送ってくる**（`onBlur` ごとに1回）。
+ *   ⚠️ `no` と `request` 以外のキーが**ちょうど1つ**入っている前提である。
+ *   ⚠️ 移植元は `array_key_first()` で先頭を取っていた。ここでも同じく
+ *     **許可リストに載っている最初のキー**を採用する。
+ *
+ * ⚠️ 該当が無ければ `invalid_request` を返す（移植元と同じ文字列）。
+ *   ⚠️ 画面はこの値をコンソールに出すだけなので、⚠️ **黙って失敗して見える。**
+ */
+export const runBlacklistUpdate = async (
+  body: Record<string, unknown>
+): Promise<BlacklistResult> => {
+  const no = Number(toText(body.no));
+  if (!Number.isInteger(no) || no <= 0) {
+    return { httpStatus: 200, body: { status: 'invalid_request' } };
+  }
+
+  const column = Object.keys(body).find(key => isAllowedColumn(key));
+  if (column === undefined) {
+    return { httpStatus: 200, body: { status: 'invalid_request' } };
+  }
+
+  /**
+   * ⚠️ `show_key` だけは数値。⚠️ 文字列 `"0"` を入れると tinyint に 0 が入るので
+   *   実害は無いが、⚠️ **型を揃えておく**（画面は `"0"` / `"1"` を送ってくる）。
+   */
+  const value =
+    column === 'show_key' ? (Number(toText(body[column])) === 1 ? 1 : 0) : toText(body[column]);
+
+  // ⚠️ 列名は許可リストを通ったものだけ。⚠️ **値は必ずプレースホルダで渡す。**
+  const result = await execute(`UPDATE black_list SET \`${column}\` = ? WHERE \`no\` = ?`, [value, no]);
+
+  return { httpStatus: 200, body: { status: result.affectedRows >= 0 ? 'success' : 'error' } };
+};
+```
+
+### `frontend/src/components/header/EditBlackList.tsx`
+
+```tsx
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
@@ -556,3 +848,101 @@ const EditBlackList = () => {
 };
 
 export default EditBlackList;
+```
+
+---
+
+## ⚠️ registry.ts に足した登録
+
+```ts
+register({
+  request: 'header_blacklist_edit',
+  summary: 'ブラックリスト名簿の一覧（解除済みも含む）',
+  phpSource: 'backend/src/handlers/header_blacklist_edit.php',
+  auth: 'staff',
+  handler: async () => runBlacklistEdit(),
+});
+
+register({
+  request: 'header_blacklist_insert',
+  summary: '【書き込み】ブラックリスト名簿へ1件追加（採番された no を返す）',
+  phpSource: 'backend/src/handlers/header_blacklist_insert.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runBlacklistInsert(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'header_blacklist_update',
+  summary: '【書き込み】ブラックリスト名簿の1列だけ更新（許可リストあり）',
+  phpSource: 'backend/src/handlers/header_blacklist_update.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runBlacklistUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+```
+
+⚠️ `auth` は ⚠️ **`'staff'`**（⚠️ 画面からしか呼ばれない。sync は呼ばない）。
+
+---
+
+## ⚠️ express_proxy.php に足した許可
+
+```php
+        // -----------------------------------------------------------------
+        // 2026-09-19 移植。ブラックリスト名簿の編集。
+        //
+        // ⚠️⚠️ **insert / update は書き込みだが expressProxyExclusive() には入れない。**
+        //   ⚠️ ① に PHP ハンドラが3本とも実在する（header_blacklist_*.php）。
+        //   ⚠️ ② が落ちても ① へフォールバックして動く。
+        //   ⚠️ 転送が成功した時点で ① 側は実行しないので二重書き込みにはならない。
+        // -----------------------------------------------------------------
+        'header_blacklist_edit',
+        'header_blacklist_insert',
+        'header_blacklist_update',
+```
+
+---
+
+## ⚠️ やっていないこと
+
+| # | 内容 | 理由 |
+|---|---|---|
+| 1 | ⚠️ PHP ハンドラ3本の削除 | ⚠️ **フォールバック先として残す** |
+| 2 | ⚠️ 行の削除機能 | ⚠️ **元から無い。** 解除（`show_key = 0`）で運用している |
+| 3 | ⚠️ 電話番号の入力チェック（9桁以下を弾く） | ⚠️ **指示に無い**（⚠️ `isValidMobile` と揃えるかは要相談） |
+| 4 | ⚠️ まとめて保存 | ⚠️ **バックエンドの前提が変わる** |
+| 5 | ⚠️ `InquiryIntroductory.tsx` 側の変更 | ⚠️ **参照しただけ** |
+
+---
+
+## 検証
+
+| 確認 | 結果 |
+|---|---|
+| `npx tsc --noEmit`（backend-express） | ⚠️ **エラー0件** |
+| `npm run build`（frontend） | ⚠️ **成功** |
+| ⚠️ `EditBlackList.tsx` の警告 | ⚠️ **0件** |
+| ⚠️ `Header.tsx` の新規警告 | ⚠️ **0件** |
+| ⚠️ 許可リストの列（PHP ↔ TS） | ⚠️ **8列とも一致** |
+
+### ⚠️ 未実施
+
+⚠️⚠️ **Docker Desktop が起動していないため、② のローカル実行で確かめていない。**
+
+| # | 確認 | 期待 |
+|---|---|---|
+| 1 | ヘッダー → 反響管理 → ブラックリスト設定 | ⚠️ **全画面で開く。左上に閉じるボタン** |
+| 2 | KPIカード | ⚠️ **登録件数＝有効＋解除済み** |
+| 3 | 「状態」で「解除済み」を選ぶ | ⚠️ **薄い行だけが残る** |
+| 4 | 顧客名を編集して欄の外をクリック | ⚠️ **保存される**（⚠️ 再読み込みで残る） |
+| 5 | ⚠️ 「対象者を追加」→ 登録 → ⚠️ **続けてその行を編集** | ⚠️ **同じ行が更新される**（⚠️ `no` が返っている） |
+| 6 | 状態バッジを押す | ⚠️ **有効 ⇄ 解除済みが切り替わり保存される** |
+| 7 | ⚠️ 一般権限（ordinary）で開く | ⚠️ **すべて編集できない** |
+| 8 | ⚠️ 反響一覧（注文） | ⚠️ **赤い行が 183 → 141 に減る**（⚠️ 別の指示ぶん） |
