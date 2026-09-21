@@ -72,12 +72,22 @@ if ($id !== '' && $id !== 'new') {
     $stmt_interview->execute([$id]);
     $response_interview = $stmt_interview->fetch(PDO::FETCH_ASSOC) ?: new stdClass();
 
-    // 競合資料
-    $sql_pdf = "SELECT * FROM competitor_pdf WHERE id = ?";
+    /**
+     * 競合資料（PDF）。
+     *
+     * ⚠️⚠️ **2026-09-21 に competitor_pdf を「1ファイル1行」に作り替えた。**
+     *   ⚠️ 以前は顧客1人につき1行で、pdf_path に JSON 配列を持っていた。
+     *   ⚠️ **応答も1オブジェクトから配列に変わっている。**
+     *     ⚠️ 画面側は safeParse(pdf.pdf_path) をやめ、配列をそのまま使う。
+     *   ⚠️ backend-express/src/features/information/index.ts の PDF_SQL と対。
+     *     ⚠️ **片方だけ直さないこと。**
+     */
+    $sql_pdf = "SELECT `no`, `id`, `name`, `path`, `staff`, `company`, `category`
+                  FROM competitor_pdf WHERE id = ? ORDER BY `no`";
     $stmt_pdf = $pdo->prepare($sql_pdf);
-    // 【修正2】$data['id'] ではなく $id に統一
     $stmt_pdf->execute([$id]);
-    $response_pdf = $stmt_pdf->fetch(PDO::FETCH_ASSOC) ?: new stdClass();
+    // ⚠️ 1件も無ければ空配列。⚠️ new stdClass() に戻さないこと（画面が配列を期待する）
+    $response_pdf = $stmt_pdf->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
 // ==========================================

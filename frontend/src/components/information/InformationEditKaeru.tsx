@@ -29,6 +29,7 @@ import { dateFormate } from '../../utils/informationUtils';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
+import type { CompetitorPdfItem } from '../../utils/competitorPdfUpload';
 
 type Staff = { name: string; shop: string; category: number, section: string };
 type Customer = Record<string, string>;
@@ -196,7 +197,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
     const [introductoryList, setIntroductoryList] = useState<string[]>([]);
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [showLostReason, setShowLostReason] = useState(false);
-    const [competitorPdfFile, setCompetitorPdfFile] = useState<{ name: string, file: File | null, path?: string, staff?: string }[]>([]);
+    const [competitorPdfFile, setCompetitorPdfFile] = useState<CompetitorPdfItem[]>([]);
 
     useEffect(() => {
         if (!id) return;
@@ -273,7 +274,21 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                         add: false
                     };
                     setInterviewLog(interviewResData);
-                    setCompetitorPdfFile(safeParse(response.data.pdf.pdf_path));
+                    /**
+                     * ⚠️⚠️ **2026-09-21 に competitor_pdf を「1ファイル1行」へ作り替えた。**
+                     *   ⚠️ 以前は1行の `pdf_path`（JSON配列）を safeParse していた。
+                     *   ⚠️ ⚠️ **いまは行の配列がそのまま来る。**
+                     *   ⚠️ `file` は画面用の項目なので必ず null を入れる
+                     *     （⚠️ 入れないと「新規アップロード」と誤判定される）。
+                     */
+                    setCompetitorPdfFile((response.data.pdf ?? []).map((p: any) => ({
+                        name: p.name ?? '',
+                        file: null,
+                        path: p.path ?? '',
+                        staff: p.staff ?? '',
+                        company: p.company ?? '',
+                        category: p.category ?? '',
+                    })));
                 }
             } catch (error) {
                 console.error("データの取得に失敗しました", error);
@@ -957,6 +972,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                                 userName={userName}
                                                 setCompetitorPdfFile={setCompetitorPdfFile}
                                                 competitorPdfFile={competitorPdfFile}
+                                                competitorsText={information.competitors_text}
                                             />
                                         </td>
                                     </tr>
