@@ -24,23 +24,28 @@
 
 ---
 
-## ⚠️ 手順0　`production` ブランチの遅れを確認する
+## ⚠️ 手順0　`production` ブランチの位置を確認する
 
-⚠️⚠️ **`origin/production` は v2.2.137 のままである**（2026-09-21 時点）。
+⚠️⚠️ **② の VPS は `production` を checkout している。**
+⚠️ ⚠️ **今回は ② を再ビルドするので、`production` が進んでいないと新しい Express が入らない。**
+
+```bash
+git fetch origin
+git log --oneline origin/production -1
+```
+
+⚠️ ⚠️ **2026-09-21 に PR #47 で v2.2.138 まで追いついた。**
 
 ```
-origin/production … Merge pull request #44 from khhouse-kawano/v2.2.137
-origin/main       … Merge pull request #46 from khhouse-kawano/v2.2.138
+d7adf52a Merge pull request #47 from khhouse-kawano/v2.2.138
 ```
 
-⚠️ v2.2.138 は ⚠️ **`main` にはマージされたが `production` には入っていない。**
-⚠️ ⚠️ **本番のファイルは手で上げてあるので画面は動いている**が、
-⚠️ ⚠️ **ブランチが本番の状態を表していない。**
+⚠️ ⚠️ **これより古ければ、先に遅れているぶんを `production` へ入れること。**
 
-⚠️ ⚠️ **② の VPS は `production` を checkout している。**
-⚠️ ⚠️ **今回は ② を再ビルドするので、`production` を進めないと新しい Express が入らない。**
-
-⚠️ ⚠️ **手順4で `production` へ v2.2.138 と v2.2.139 の両方を入れること。**
+> ⚠️ 経緯: 一時 ⚠️ **v2.2.138 が `main` にだけマージされ `production` に入っていなかった。**
+> ⚠️ 本番のファイルは手で上げてあったので画面は動いていたが、
+> ⚠️ ⚠️ **ブランチが本番の状態を表していない**状態だった。
+> ⚠️ ⚠️ **版ごとに `main` と `production` の両方へ PR を出すこと。**
 
 ---
 
@@ -80,12 +85,10 @@ git push origin v2.2.139
 
 ---
 
-## ⚠️ 手順4　PR → `production`（⚠️ **今回は2本ぶん**）
+## ⚠️ 手順4　PR → `production`
 
-⚠️⚠️ **`production` は v2.2.137 で止まっている。**
-
-⚠️ `v2.2.139` ブランチには ⚠️ **v2.2.138 のコミットも含まれている**ので、
-⚠️ ⚠️ **`v2.2.139` → `production` の PR 1本でまとめて入る。**
+⚠️⚠️ **`main` へのマージとは別に、`production` への PR も必ず出すこと。**
+⚠️ ⚠️ **ここを飛ばすと ② の VPS に新しい Express が入らない。**
 
 ⚠️ マージ後、⚠️ **`origin/production` の先頭が v2.2.139 になっていることを確認する。**
 
@@ -303,4 +306,4 @@ INSERT INTO update_log (version, date, note) VALUES
 | 12 | ⚠️ `ShopTrendResale` で「中古住宅専門店」¥24,180,174 が内訳の行に出ない |
 | 13 | ⚠️ **期間フィルタ（`startDate`/`endDate`）が6画面以上に写してある** — ⚠️ まとめて共通化するか |
 | 14 | ⚠️ **`EditBlackList` で9桁以下の電話番号を登録できてしまう** — ⚠️ 入力チェックを足すか |
-| 15 | ⚠️ **`production` ブランチが本番の状態を表していなかった**（v2.2.138 が入っていない） — ⚠️ 版ごとに必ず PR を出す運用にするか |
+| 15 | ⚠️ **版ごとに `main` と `production` の両方へ PR を出す運用を徹底する**（⚠️ v2.2.138 で一度もれた） |
