@@ -9,7 +9,7 @@ import { generateULID } from '../../utils/createULID';
 import Modal from 'react-bootstrap/Modal';
 import { setStyleClassSpec } from '../../utils/setStyleClassSpec';
 import { thisYear } from '../../utils/thisYear';
-import { dateFormate, monthFormate, handleBlack, toHalfWidth, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH } from './listUtils';
+import { dateFormate, monthFormate, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH } from './listUtils';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { kataToHira } from '../../utils/kataToHira';
@@ -537,15 +537,13 @@ const ListKaeru = ({ onReload }: Props) => {
     /**
      * ブラックリスト該当か。
      * 名簿テーブル（black_list）に一致するか、この反響に black タグが立っている場合。
+     *
+     * ⚠️⚠️ **突合そのものは list/listUtils.ts の `matchesBlackList()` にある。**
+     *   ⚠️ 注文・建売・中古の**3画面で共有**している。⚠️ **ここに書き戻さないこと。**
+     *   ⚠️ 電話番号は `isValidMobile()` を通ったものだけを使う（2026-09-18 の指示）。
      */
-    const isBlack = (item: InquiryCustomer) => {
-        const safeMail = String(item.mail || '');
-        const safeMobile = String(item.mobile || '');
-        return blackList.some(b =>
-            (safeMail && b.mail.includes(safeMail)) ||
-            (toHalfWidth(safeMobile) && toHalfWidth(b.mobile).includes(toHalfWidth(safeMobile)))
-        ) || isTagOn(item, 'black');
-    };
+    const isBlack = (item: InquiryCustomer) =>
+        matchesBlackList(item.mail, item.mobile, blackList) || isTagOn(item, 'black');
 
     const closeInformationEdit = () => setEditId('');
 

@@ -90,6 +90,7 @@ import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaig
 import { runCampaignSummary } from '../features/campaignSummary';
 import { runLostList } from '../features/lostList';
 import { runCompetitor } from '../features/competitor';
+import { runBlacklistEdit, runBlacklistInsert, runBlacklistUpdate } from '../features/blacklist';
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
 import { runShopList } from '../features/shopList';
@@ -1864,4 +1865,49 @@ register({
   phpSource: 'backend/src/handlers/campaignSummary.php',
   auth: 'staff',
   handler: async () => runCampaignSummary(),
+});
+
+// ---------------------------------------------------------------------------
+// ブラックリスト名簿の編集（header/EditBlackList.tsx）
+//
+// ⚠️⚠️ **`black_list` テーブル（名簿）と、反響の `black` タグは別物。**
+//   ⚠️ タグ側は features/list/ が扱う。ここは名簿そのものである。
+//
+// ⚠️⚠️ **insert / update は書き込みだが `expressProxyExclusive` には入れない。**
+//   ⚠️ ① に PHP ハンドラが3本とも実在するため、② が落ちても ① で動く。
+//   ⚠️ 転送が成功した時点で ① 側は実行しないので、二重書き込みにはならない。
+//
+// ⚠️ 主キーは `no`（AUTO_INCREMENT）。⚠️ `id` は飾りの text 列である。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'header_blacklist_edit',
+  summary: 'ブラックリスト名簿の一覧（解除済みも含む）',
+  phpSource: 'backend/src/handlers/header_blacklist_edit.php',
+  auth: 'staff',
+  handler: async () => runBlacklistEdit(),
+});
+
+register({
+  request: 'header_blacklist_insert',
+  summary: '【書き込み】ブラックリスト名簿へ1件追加（採番された no を返す）',
+  phpSource: 'backend/src/handlers/header_blacklist_insert.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runBlacklistInsert(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'header_blacklist_update',
+  summary: '【書き込み】ブラックリスト名簿の1列だけ更新（許可リストあり）',
+  phpSource: 'backend/src/handlers/header_blacklist_update.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runBlacklistUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
 });
