@@ -108,7 +108,19 @@ const CALL_SQL = 'SELECT * FROM call_sheet WHERE id = ?';
 
 const INTERVIEW_SQL = 'SELECT * FROM interview_sheet WHERE id = ?';
 
-const PDF_SQL = 'SELECT * FROM competitor_pdf WHERE id = ?';
+/**
+ * 競合資料（PDF）。
+ *
+ * ⚠️⚠️ **2026-09-21 に competitor_pdf を「1ファイル1行」に作り替えた。**
+ *   ⚠️ 以前は顧客1人につき1行で、`pdf_path` に JSON 配列を持っていた。
+ *   ⚠️ **応答も1オブジェクトから配列に変わっている。**
+ *     ⚠️ 画面側は `safeParse(pdf.pdf_path)` をやめ、配列をそのまま使う。
+ *
+ * ⚠️ `no` は行の主キー。⚠️ **1件だけ消すときに使う。**
+ * ⚠️ 並びは登録順（`no`）。⚠️ 画面が並べ替えるので SQL では凝らない。
+ */
+const PDF_SQL =
+  'SELECT `no`, `id`, `name`, `path`, `staff`, `company`, `category` FROM competitor_pdf WHERE id = ? ORDER BY `no`';
 
 const BROKER_SQL = 'SELECT * FROM brokerage_listings WHERE master_data_id = ?';
 
@@ -153,17 +165,18 @@ const fetchIndividual = async (
   customer: Record<string, unknown> | EmptyObject;
   call: Record<string, unknown> | EmptyObject;
   interview: Record<string, unknown> | EmptyObject;
-  pdf: Record<string, unknown> | EmptyObject;
+  // ⚠️ pdf だけ配列。⚠️ 2026-09-21 に1ファイル1行へ変えた（PDF_SQL のコメント参照）
+  pdf: Record<string, unknown>[];
 }> => {
   if (!hasIndividualData(id)) {
-    return { customer: EMPTY, call: EMPTY, interview: EMPTY, pdf: EMPTY };
+    return { customer: EMPTY, call: EMPTY, interview: EMPTY, pdf: [] };
   }
 
   const [customer, call, interview, pdf] = await Promise.all([
     fetchOne(`SELECT * FROM ${tableName} WHERE id = ?`, id),
     fetchOne(CALL_SQL, id),
     fetchOne(INTERVIEW_SQL, id),
-    fetchOne(PDF_SQL, id),
+    query<DynamicRow>(PDF_SQL, [id]),
   ]);
 
   return { customer, call, interview, pdf };
@@ -182,7 +195,7 @@ export interface InformationOrderResponse {
   interview: Record<string, unknown> | EmptyObject;
   maker: Record<string, unknown>[];
   introductory: Record<string, unknown>[];
-  pdf: Record<string, unknown> | EmptyObject;
+  pdf: Record<string, unknown>[];
 }
 
 const runInformationOrder = async (id: string): Promise<InformationOrderResponse> => {
@@ -224,7 +237,7 @@ export interface InformationSpecResponse {
   interview: Record<string, unknown> | EmptyObject;
   maker: Record<string, unknown>[];
   introductory: Record<string, unknown>[];
-  pdf: Record<string, unknown> | EmptyObject;
+  pdf: Record<string, unknown>[];
 }
 
 const runInformationSpec = async (id: string): Promise<InformationSpecResponse> => {
@@ -266,7 +279,7 @@ export interface InformationUsedResponse {
   interview: Record<string, unknown> | EmptyObject;
   maker: Record<string, unknown>[];
   introductory: Record<string, unknown>[];
-  pdf: Record<string, unknown> | EmptyObject;
+  pdf: Record<string, unknown>[];
   /**
    * ⚠️⚠️ 該当なしのとき **`false`** を返す。`{}` ではない。
    *

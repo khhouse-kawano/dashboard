@@ -134,3 +134,39 @@ export const canClearColumn = (
     // (2) 現在値が削除した行の日付と一致するときだけ
     return normalizeDay(currentValue) === day;
 };
+
+/**
+ * これから追加する1件の商談ステップから、書き込む KPI 列を引く。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **必ず `baseAction()` を通してから引くこと。**
+ *
+ *   ⚠️ 建売・中古の「自社契約 / 仲介契約 / 売買契約」は、
+ *     TableInterview.tsx が**物件名を付けた値**を option に出す。
+ *
+ *       <option value={`${item},${property}`}>{item}({property})</option>
+ *
+ *     ⚠️ つまり `interview.action` は `自社契約,グランセレッソ○○` になる。
+ *
+ *   ⚠️⚠️ **2026-09-21 まで、保存側が素の文字列で actionMap を引いていた。**
+ *     ⚠️ `actionMap['自社契約,物件A']` は `undefined` になり、
+ *       ⚠️ **`information['undefined'] = 日付` が書かれていた。**
+ *     ⚠️ `interview_sheet` には記録されるので「登録できた」ように見え、
+ *       ⚠️ **master_data 系の KPI 列だけが空のまま**になっていた。
+ *       ⚠️ 歩留まりが合わない原因はこれである。
+ *     ⚠️ **物件名が登録されている顧客でだけ起きる**ので、
+ *       ⚠️ 「登録されることもある」という分かりにくい出方をしていた。
+ *
+ *   ⚠️ 中古は `actionMap[in_charge_store][action]` の二段。
+ *     ⚠️ `in_charge_store` が未設定の顧客では**1段目が undefined** で、
+ *       ⚠️ **例外になって保存が丸ごと止まっていた。**
+ *     ⚠️ ここで `?? {}` を挟んで止めない。
+ *
+ * ⚠️ 対応表に無いアクション（`actionMap` でコメントアウトされているもの等）は
+ *   `undefined` を返す。⚠️ **呼び出し側で必ず undefined を見てから書くこと。**
+ * ─────────────────────────────────────────────
+ */
+export const kpiColumnFor = (
+    actionMap: Record<string, string> | undefined | null,
+    action: unknown
+): string | undefined => (actionMap ?? {})[baseAction(action)];
