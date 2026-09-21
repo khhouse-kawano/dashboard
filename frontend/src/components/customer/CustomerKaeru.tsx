@@ -60,6 +60,24 @@ type Medium = { id?: number; no?: number; medium: string; show_graph?: number | 
  *     その媒体だけ二重に数えられる。
  */
 const HOMEPAGE_ROW = 'ホームページ反響';
+
+/**
+ * ⚠️⚠️ **`medium_kaeru` に無い媒体を受け止める行の名前**（2026-09-18 の指示）。
+ *
+ * ⚠️ この行を足すまで、⚠️ **各媒体の行を足しても「総反響」に届かなかった。**
+ *   ⚠️ `aggregated` は**足し算**で集計しており（引き算にしていない）、
+ *     ⚠️ どの行にも当てはまらない反響・販促費は**黙って消えていた。**
+ *   ⚠️ 実測（ローカル・建売の販促費）で ⚠️ **¥5,540,846** が消えていた
+ *     （タウンライフ / Amazonギフトカード / イベント / 販促物 / LP制作 / イエタッタ）。
+ *
+ * ⚠️⚠️ **`medium_kaeru` の `その他` とは別物である。**
+ *   ⚠️ あちらは `show_graph = 0` なので **`ホームページ反響` にまとめられる。**
+ *   ⚠️ 同じ名前にすると二重に数えられるので、⚠️ **`（未分類）` を外さないこと。**
+ *
+ * ⚠️ この行が大きいときは ⚠️ **`medium_kaeru` に媒体を足すか、
+ *   customerKaeruUtils.ts の `MEDIUM_ALIAS` に別名を足す**のが正しい対応である。
+ */
+const OTHER_ROW = 'その他（未分類）';
 type Section = { no: number, name: string }
 
 const CustomerKaeru = () => {
@@ -73,7 +91,6 @@ const CustomerKaeru = () => {
     const [endMonth, setEndMonth] = useState<string>('');
     const [selectedShop, setSelectedShop] = useState<string>('');
     const [selectedSection, setSelectedSection] = useState<string>('');
-    const [selectedArea, setSelectedArea] = useState<string>('');
     const [sortKey, setSortKey] = useState<string>('');
     const [sortOrder, setSortOrder] = useState<string>('');
     const [sectionList, setSectionList] = useState<Section[]>([]);
@@ -104,7 +121,6 @@ const CustomerKaeru = () => {
 
     const filteredCustomers = useMemo(() => {
         if (!originalList.length) return [];
-        const areaValue = shopArray.find(item => item.area === selectedArea);
 
         let startDate: Date | undefined;
         if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
@@ -122,15 +138,13 @@ const CustomerKaeru = () => {
                 (!startDate || targetDate >= startDate) &&
                 (!endDate || targetDate <= endDate) &&
                 (!selectedShop || item.shop?.includes(selectedShop)) &&
-                (!selectedSection || sectionShops.includes(item.shop)) &&
-                (!selectedArea || item.shop === areaValue?.shop)
+                (!selectedSection || sectionShops.includes(item.shop))
             );
         });
-    }, [originalList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
+    }, [originalList, shopArray, startMonth, endMonth, selectedShop, selectedSection]);
 
     const filteredBudgets = useMemo(() => {
         if (!originalBudgetList.length) return [];
-        const areaValue = shopArray.find(item => item.area === selectedArea);
 
         let startDate: Date | undefined;
         if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
@@ -147,11 +161,10 @@ const CustomerKaeru = () => {
                 (!startDate || targetDate >= startDate) &&
                 (!endDate || targetDate <= endDate) &&
                 (!selectedShop || item.shop.includes(selectedShop)) &&
-                (!selectedSection || item.order_section.includes(selectedSection)) &&
-                (!selectedArea || item.shop === areaValue?.shop)
+                (!selectedSection || item.order_section.includes(selectedSection))
             );
         });
-    }, [originalBudgetList, shopArray, startMonth, endMonth, selectedShop, selectedSection, selectedArea]);
+    }, [originalBudgetList, startMonth, endMonth, selectedShop, selectedSection]);
 
     /**
      * ⚠️⚠️ **まとめる側の媒体（`show_graph = 0`）の名前一覧。**
@@ -212,8 +225,26 @@ const CustomerKaeru = () => {
             ...shownMediums.map(medium => ({ medium })),
         ];
         // ⚠️ まとめる媒体が1つも無ければ、空の行を作らない
-        return groupedMediums.length > 0 ? [...base, { medium: HOMEPAGE_ROW }] : base;
+        const withHomepage = groupedMediums.length > 0 ? [...base, { medium: HOMEPAGE_ROW }] : base;
+
+        /**
+         * ⚠️⚠️ **「その他（未分類）」は件数が0でも必ず出す**（2026-09-18 の指示）。
+         *   ⚠️ 0 のときこそ「取りこぼしが無い」という情報になる。
+         *   ⚠️ 条件付きにすると、⚠️ **行が消えたのか取りこぼしが無いのか分からない。**
+         * ⚠️ 位置は**いちばん最後**。個別の媒体より先に出すと内訳に見えて誤読される。
+         */
+        return [...withHomepage, { medium: OTHER_ROW }];
     }, [shownMediums, groupedMediums]);
+
+    /**
+     * ⚠️ `medium_kaeru` に載っている媒体（表記を寄せたあとの名前）。
+     * ⚠️⚠️ **「その他（未分類）」はこれに**含まれない**ものを拾う。**
+     *   ⚠️ 顧客側と販促費側で**同じ配列**を使うこと。片方だけだと単価が合わない。
+     */
+    const knownMediums = useMemo(
+        () => [...shownMediums, ...groupedMediums],
+        [shownMediums, groupedMediums]
+    );
 
     /** 単価。⚠️ 分母が0や未定義なら null（表では '-'、グラフでは 0） */
     const unitPrice = (budget: number, count: number): number | null =>
@@ -243,6 +274,8 @@ const CustomerKaeru = () => {
                 //   ⚠️ 顧客側は `athome` / `ALLGRIT` / `ネット` のように別名で入っている
                 const medium = normalizeMedium(c.medium);
                 if (value.medium === HOMEPAGE_ROW) return groupedMediums.includes(medium);
+                // ⚠️ どの行にも当てはまらない反響。⚠️ **空の媒体もここに入る。**
+                if (value.medium === OTHER_ROW) return !knownMediums.includes(medium);
                 return medium === value.medium;
             });
 
@@ -314,6 +347,8 @@ const CustomerKaeru = () => {
                     // ⚠️ 販促費側は `SNS広告` / `インターネット検索` / `カゴスマ` で入っている
                     const medium = normalizeMedium(item.medium);
                     if (value.medium === HOMEPAGE_ROW) return groupedMediums.includes(medium);
+                    // ⚠️ 顧客側と同じ判定。⚠️ **揃えないと単価が合わない。**
+                    if (value.medium === OTHER_ROW) return !knownMediums.includes(medium);
                     return medium === value.medium;
                 })
                 .reduce((acc, cur) => acc + cur.budget_value, 0);
@@ -347,7 +382,7 @@ const CustomerKaeru = () => {
                 contractUnit: unitPrice(totalBudget, contractValue),
             };
         });
-    }, [rows, groupedMediums, filteredCustomers, filteredBudgets]);
+    }, [rows, groupedMediums, knownMediums, filteredCustomers, filteredBudgets]);
 
     /**
      * 単価グラフのデータ。
@@ -410,12 +445,16 @@ const CustomerKaeru = () => {
 
 
 
-    const handleSort = async (start: string, end: string, shop: string, section: string, area: string) => {
+    /**
+     * 絞り込みをまとめて差し替える。
+     * ⚠️ エリアは 2026-09-18 に廃止した（`selectedArea` ごと削除）。
+     *   ⚠️ 引数を減らしてあるので、呼び出し側の第5引数を消し忘れないこと。
+     */
+    const handleSort = async (start: string, end: string, shop: string, section: string) => {
         await setStartMonth(start);
         await setEndMonth(end);
         await setSelectedShop(shop);
         await setSelectedSection(section);
-        await setSelectedArea(area);
     };
 
     const changeSort = (order: string, key: string) => {
@@ -463,7 +502,7 @@ const CustomerKaeru = () => {
                 <div style={{ fontSize: '13px' }}>※来場数・契約数は"反響日"起算となります。</div>
                 <div className="d-flex flex-wrap mb-3">
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(event.target.value, endMonth, selectedShop, selectedSection, selectedArea)}>
+                        <select className="target" onChange={(event) => handleSort(event.target.value, endMonth, selectedShop, selectedSection)}>
                             <option value="" selected>開始月</option>
                             {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
@@ -471,36 +510,26 @@ const CustomerKaeru = () => {
                     </div>
                     <span className='d-flex align-items-center mx-1'>～</span>
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, event.target.value, selectedShop, selectedSection, selectedArea)}>
+                        <select className="target" onChange={(event) => handleSort(startMonth, event.target.value, selectedShop, selectedSection)}>
                             <option value="" selected>終了月</option>
                             {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, event.target.value, '', '')}>
-                            <option value="">グループ全体</option>
+                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, event.target.value, '')}>
+                            <option value="">全店舗</option>
                             {shopArray.map((item, index) => (
                                 <option key={index} value={item.shop} selected={item.shop === selectedShop}>{item.shop}</option>
                             ))}
                         </select>
                     </div>
                     <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, '', event.target.value, '')}>
-                            <option value="" selected={selectedSection === ''}>注文営業全体</option>
+                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, '', event.target.value)}>
+                            <option value="" selected={selectedSection === ''}>全課</option>
                             {sectionList.map((section, index) =>
                                 <option value={section.name} key={index}>{section.name}</option>
                             )}
-                        </select>
-                    </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, '', '', event.target.value)}>
-                            <option value="" selected={selectedArea === ''}>全エリア</option>
-                            <option value="鹿児島県" selected={selectedArea === '鹿児島県'}>鹿児島県</option>
-                            <option value="宮崎県" selected={selectedArea === '宮崎県'}>宮崎県</option>
-                            <option value="大分県" selected={selectedArea === '大分県'}>大分県</option>
-                            <option value="熊本県" selected={selectedArea === '熊本県'}>熊本県</option>
-                            <option value="佐賀県" selected={selectedArea === '佐賀県'}>佐賀県</option>
                         </select>
                     </div>
                 </div>
