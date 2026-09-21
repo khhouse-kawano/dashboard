@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import apiClient from '../../utils/apiClient';
+import AuthContext from '../../context/AuthContext';
 import {
     PDF_CATEGORIES,
     UNSORTED_CATEGORY,
     UNSORTED_COMPANY,
+    uploadCompetitorPdf,
 } from '../../utils/competitorPdfUpload';
+import type { PdfCategory } from '../../utils/competitorPdfUpload';
 
 /**
  * 他社資料一覧（ヘッダー → 他社動向 → 他社資料）。
@@ -29,6 +32,17 @@ import {
  * ⚠️ 表が横に広く、フォルダも並べるので Header.tsx の `isFullscreenMenu` に
  *   入れてある。⚠️ **外すと潰れる。**
  *   ⚠️ ⚠️ **閉じるボタンは Header.tsx 側が出す。ここに実装しないこと。**
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **2026-09-21 追加: この画面から「チラシ」を登録できる**（指示）。
+ *
+ *   ⚠️ 顧客詳細（InformationEdit）を経由せずに登録する経路である。
+ *   ⚠️ ⚠️ **顧客に紐づかない。** 販促用のチラシを置くための入口。
+ *   ⚠️ 種別は ⚠️ **チラシ固定**（`FLYER_CATEGORY`）。⚠️ **セレクトを足さないこと。**
+ *     ⚠️ 他の種別は顧客の商談資料なので、顧客詳細から登録する。
+ *   ⚠️ 社名は `house_maker`（379件）のサジェスト。
+ *     ⚠️ **候補は `competitor_pdf` の応答に `maker` として既に入っている。**
+ *     ⚠️ information/TableCompetitor.tsx と同じ絞り込み（`letter` か `label` の部分一致）。
  * ─────────────────────────────────────────────
  */
 
@@ -50,8 +64,67 @@ type Material = {
     section: string;
 };
 
+/** 他社名の候補。⚠️ `letter` は読み仮名で、絞り込みにだけ使う */
+type Maker = {
+    label: string;
+    letter: string;
+};
+
+/** 登録パネルの1行。⚠️ `file` が無い行は送らない */
+type NewEntry = {
+    file: File;
+    name: string;
+    company: string;
+};
+
 /** 表示のしかた。⚠️ 既定はフォルダ（指示） */
 type ViewMode = 'folder' | 'list';
+
+/**
+ * この画面から登録するときの種別。
+ *
+ * ⚠️⚠️ **チラシ固定である。** ⚠️ 画面にセレクトを出さないこと（指示）。
+ *   ⚠️ `PDF_CATEGORIES` の綴りと ⚠️ **1文字でも違うと ① が空文字にする**ので、
+ *     ⚠️ **直に書かず定数から取る。**
+ */
+const FLYER_CATEGORY: PdfCategory = PDF_CATEGORIES[2];
+
+/**
+ * 顧客に紐づかない資料の id の接頭辞。
+ *
+ * ⚠️⚠️ **`competitor_pdf.id` は本来 master_data\*.id だが、
+ *   チラシは顧客に紐づかないので独自の値を振る**（指示）。
+ *   ⚠️ 一覧 SQL は `LEFT JOIN` なので、⚠️ **顧客が引けなくても行は出る。**
+ */
+const STANDALONE_ID_PREFIX = 'marketing_';
+
+/**
+ * 登録1回ぶんの id を作る。
+ *
+ * ⚠️⚠️ **登録のたびに必ず新しい値にすること。**
+ *   ⚠️ ① の `competitor_pdf_upload.php` は
+ *     ⚠️ **`DELETE FROM competitor_pdf WHERE id = :id` で全部消してから入れ直す。**
+ *   ⚠️ ⚠️ **固定の id（'marketing' など）にすると、2回目の登録で
+ *     1回目のチラシが黙って消える。** ⚠️ エラーにもならない。
+ *
+ * ⚠️ 列は VARCHAR(64)。⚠️ この形で 30 文字ほどなので収まる。
+ */
+const makeStandaloneId = (): string => {
+    const d = new Date();
+    const p = (n: number): string => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`
+        + `_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    // ⚠️ 同じ秒に2人が登録しても衝突しないように乱数を足す
+    const rand = Math.random().toString(36).slice(2, 8);
+    return `${STANDALONE_ID_PREFIX}${stamp}_${rand}`;
+};
+
+/** 顧客に紐づかない資料か。⚠️ 一覧で札を出すのに使う */
+const isStandalone = (m: { id: string }): boolean =>
+    String(m.id ?? '').startsWith(STANDALONE_ID_PREFIX);
+
+/** 拡張子を落とした名前。⚠️ 表示名の既定値 */
+const baseName = (fileName: string): string => fileName.replace(/\.pdf$/i, '');
 
 /**
  * PDF の URL。
@@ -87,9 +160,21 @@ const CATEGORY_ICON: Record<string, string> = {
 };
 
 const CompetitorMaterials = () => {
+    const { token, userName } = useContext(AuthContext);
+
     const [materials, setMaterials] = useState<Material[]>([]);
+    const [makers, setMakers] = useState<Maker[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+
+    /** チラシの登録パネル */
+    const [registerOpen, setRegisterOpen] = useState(false);
+    const [entries, setEntries] = useState<NewEntry[]>([]);
+    /** サジェストを出している行。⚠️ -1 なら出さない */
+    const [suggestRow, setSuggestRow] = useState(-1);
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState('');
+    const [saveDone, setSaveDone] = useState('');
 
     const [view, setView] = useState<ViewMode>('folder');
     const [searchQuery, setSearchQuery] = useState('');
@@ -98,20 +183,120 @@ const CompetitorMaterials = () => {
     /** 開いている他社。⚠️ null なら他社の一覧 */
     const [openCompany, setOpenCompany] = useState<string | null>(null);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const res = await apiClient.post('', { request: 'competitor_pdf' });
-                setMaterials((res.data?.pdf ?? []) as Material[]);
-            } catch (err) {
-                console.error(err);
-                setError('他社資料を取得できませんでした。時間をおいて再度お試しください。');
-            } finally {
-                setLoading(false);
-            }
-        };
-        void fetchData();
+    /**
+     * 一覧の取得。
+     * ⚠️ 登録のあとにも呼ぶので `useCallback` で外に出してある。
+     * ⚠️ `maker`（他社名の候補）も同じ応答に入っている。⚠️ **別リクエストを足さないこと。**
+     */
+    const fetchData = useCallback(async () => {
+        try {
+            const res = await apiClient.post('', { request: 'competitor_pdf' });
+            setMaterials((res.data?.pdf ?? []) as Material[]);
+            setMakers((res.data?.maker ?? []) as Maker[]);
+            setError('');
+        } catch (err) {
+            console.error(err);
+            setError('他社資料を取得できませんでした。時間をおいて再度お試しください。');
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        void fetchData();
+    }, [fetchData]);
+
+    /* ───────────── チラシの登録 ───────────── */
+
+    const addFiles = (fileList: FileList | null) => {
+        const picked = [...(fileList ?? [])];
+        if (picked.length === 0) return;
+        setSaveDone('');
+
+        /**
+         * ⚠️⚠️ **PDF 以外はここで止める。**
+         *   ⚠️ ① の `competitor_pdf_upload.php` は PDF でないファイルを
+         *     ⚠️ **黙って捨てる**（エラーにしない）。
+         *   ⚠️ ⚠️ **`status: success` が返るのに1件も登録されない**ので、
+         *     ⚠️ 画面で気づけるようにしておく。
+         */
+        const pdfs = picked.filter(f => /\.pdf$/i.test(f.name));
+        const dropped = picked.length - pdfs.length;
+        setSaveError(dropped === 0 ? '' : `PDF以外の ${dropped} 件は登録できないため外しました。`);
+        if (pdfs.length === 0) return;
+
+        setEntries(prev => [
+            ...prev,
+            ...pdfs.map(file => ({ file, name: baseName(file.name), company: '' })),
+        ]);
+    };
+
+    const updateEntry = (index: number, patch: Partial<NewEntry>) => {
+        setEntries(prev => prev.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+    };
+
+    const removeEntry = (index: number) => {
+        setEntries(prev => prev.filter((_, i) => i !== index));
+        setSuggestRow(-1);
+    };
+
+    const closeRegister = () => {
+        setRegisterOpen(false);
+        setEntries([]);
+        setSuggestRow(-1);
+        setSaveError('');
+    };
+
+    /**
+     * 登録。
+     *
+     * ⚠️⚠️ **1回の登録につき id は1つだけ作り、ファイルはまとめて送る。**
+     *   ⚠️ ① は `existing_pdfs` ＋ 新規 ＝ 最終状態の完全上書き方式だが、
+     *     ⚠️ **新しい id なので消える既存行が無い。**
+     *   ⚠️ ⚠️ **既に登録済みのチラシには一切触らない。**
+     */
+    const handleRegister = async () => {
+        if (entries.length === 0) {
+            setSaveError('PDFを選んでください。');
+            return;
+        }
+        setSaving(true);
+        setSaveError('');
+        setSaveDone('');
+        try {
+            await uploadCompetitorPdf(
+                makeStandaloneId(),
+                entries.map(e => ({
+                    // ⚠️ 表示名を消されたらファイル名に戻す（名前なしの行を作らない）
+                    name: e.name.trim() === '' ? baseName(e.file.name) : e.name.trim(),
+                    file: e.file,
+                    staff: userName,
+                    company: e.company.trim(),
+                    category: FLYER_CATEGORY,
+                })),
+                token
+            );
+            setSaveDone(`${entries.length} 件のチラシを登録しました。`);
+            setEntries([]);
+            setSuggestRow(-1);
+            await fetchData();
+        } catch (err) {
+            console.error(err);
+            setSaveError(err instanceof Error ? err.message : 'チラシの登録に失敗しました。');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    /**
+     * 社名のサジェスト。
+     * ⚠️ information/TableCompetitor.tsx と同じ絞り込み（`letter` は読み仮名）。
+     */
+    const suggestFor = (text: string): Maker[] => {
+        const word = text.trim();
+        if (word === '') return [];
+        return makers.filter(m => m.letter.includes(word) || m.label.includes(word)).slice(0, 50);
+    };
 
     /**
      * 検索。
@@ -206,7 +391,12 @@ const CompetitorMaterials = () => {
                     </div>
                 )}
             </td>
-            <td className="cm_td">{m.customer_name ? `${m.customer_name} 様` : '－'}</td>
+            <td className="cm_td">
+                {/* ⚠️ この画面から登録したチラシは顧客に紐づかない。⚠️ 空欄との区別を付ける */}
+                {isStandalone(m)
+                    ? <span className="cm_tag is_house">社内登録</span>
+                    : (m.customer_name ? `${m.customer_name} 様` : '－')}
+            </td>
             <td className="cm_td"><span className="cm_tag">{m.shop_name || '未設定'}</span></td>
             <td className="cm_td">{m.brand || '－'}</td>
             <td className="cm_td">{m.staff || '－'}</td>
@@ -297,6 +487,54 @@ const CompetitorMaterials = () => {
                 .cm_empty { padding: 28px 12px; text-align: center; color: #9ca3af; font-size: 12px; }
                 .cm_error { font-size: 12px; color: #b91c1c; background: #fef2f2;
                             border: 1px solid #fecaca; border-radius: 8px; padding: 10px 12px; }
+                .cm_done { font-size: 12px; color: #166534; background: #f0fdf4;
+                           border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px; }
+
+                /* チラシの登録。⚠️ 一覧の上に開く（別画面にしない＝登録結果がすぐ見える） */
+                .cm_add { border: 0; border-radius: 8px; background: #2563eb; color: #fff;
+                          font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer;
+                          white-space: nowrap; }
+                .cm_add:hover { background: #1d4ed8; }
+                .cm_add.is_off { background: #fff; color: #4b5563; border: 1px solid #d1d5db; }
+
+                .cm_panel { background: #fff; border: 1px solid #bfdbfe; border-radius: 10px;
+                            padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+                .cm_panel_head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+                .cm_panel_title { font-weight: 700; font-size: 13px; }
+                .cm_panel_note { font-size: 11px; color: #6b7280; }
+                .cm_drop { border: 1px dashed #93c5fd; border-radius: 8px; background: #f8fafc;
+                           padding: 14px; text-align: center; font-size: 12px; color: #4b5563; }
+                .cm_drop input { display: block; margin: 8px auto 0; font-size: 12px; }
+
+                .cm_entries { display: flex; flex-direction: column; gap: 8px;
+                              max-height: 260px; overflow: auto; }
+                .cm_entry { display: flex; align-items: flex-start; gap: 8px;
+                            border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; }
+                .cm_entry_file { font-size: 11px; color: #6b7280; width: 160px; flex: none;
+                                 overflow-wrap: anywhere; }
+                .cm_input { border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 8px;
+                            font-size: 12px; background: #fff; color: #1f2937; outline: none; width: 100%; }
+                .cm_input:focus { border-color: #2563eb; }
+                .cm_entry_name { flex: 1 1 240px; }
+                /* ⚠️ サジェストを絶対配置で乗せるので position: relative が要る */
+                .cm_entry_company { flex: 1 1 200px; position: relative; }
+                .cm_sug { position: absolute; top: 100%; left: 0; width: 100%; margin-top: 2px;
+                          background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
+                          box-shadow: 0 4px 12px rgba(0,0,0,.08);
+                          max-height: 200px; overflow-y: auto; z-index: 1050; }
+                .cm_sug_item { padding: 5px 8px; font-size: 12px; cursor: pointer; }
+                .cm_sug_item:hover { background: #eff6ff; }
+                .cm_entry_del { border: 0; background: none; color: #9ca3af; cursor: pointer;
+                                font-size: 14px; padding: 4px 6px; }
+                .cm_entry_del:hover { color: #dc2626; }
+                .cm_panel_foot { display: flex; align-items: center; gap: 10px; }
+                .cm_save { border: 0; border-radius: 8px; background: #16a34a; color: #fff;
+                           font-size: 12px; font-weight: 700; padding: 7px 18px; cursor: pointer; }
+                .cm_save:disabled { background: #d1d5db; cursor: not-allowed; }
+                .cm_cancel { border: 1px solid #d1d5db; border-radius: 8px; background: #fff;
+                             color: #4b5563; font-size: 12px; padding: 7px 14px; cursor: pointer; }
+                /* 社内登録の札。⚠️ 顧客の商談資料と見分けるため */
+                .cm_tag.is_house { background: #eff6ff; color: #1d4ed8; }
             `}</style>
 
             <div className="cm_inner">
@@ -306,6 +544,7 @@ const CompetitorMaterials = () => {
                     </div>
                     <div className="cm_note">
                         顧客詳細の「他社資料」で登録された PDF を、種別と他社ごとにまとめて表示します。
+                        チラシはこの画面から登録できます。
                     </div>
                 </div>
 
@@ -341,7 +580,15 @@ const CompetitorMaterials = () => {
                         </span>
                     )}
 
-                    <div className="cm_spacer">
+                    <div className="cm_spacer d-flex align-items-center gap-2">
+                        <button
+                            type="button"
+                            className={`cm_add${registerOpen ? ' is_off' : ''}`}
+                            onClick={() => (registerOpen ? closeRegister() : setRegisterOpen(true))}
+                        >
+                            <i className={`fa-solid ${registerOpen ? 'fa-xmark' : 'fa-plus'} me-1`} aria-hidden="true" />
+                            {registerOpen ? '閉じる' : 'チラシを登録'}
+                        </button>
                         <div className="cm_toggle">
                             <button
                                 type="button"
@@ -360,6 +607,114 @@ const CompetitorMaterials = () => {
                         </div>
                     </div>
                 </div>
+
+                {saveDone !== '' && <div className="cm_done">{saveDone}</div>}
+
+                {registerOpen && (
+                    <div className="cm_panel">
+                        <div className="cm_panel_head">
+                            <span className="cm_panel_title">
+                                <i className="fa-solid fa-rectangle-ad me-2" aria-hidden="true" />チラシを登録
+                            </span>
+                            <span className="cm_panel_note">
+                                ⚠️ 種別は「チラシ」で登録されます。お客様には紐づきません。
+                                その他の資料はお客様の詳細画面から登録してください。
+                            </span>
+                        </div>
+
+                        <div className="cm_drop">
+                            PDF を選んでください（複数選べます）
+                            <input
+                                type="file"
+                                accept="application/pdf,.pdf"
+                                multiple
+                                onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
+                            />
+                        </div>
+
+                        {entries.length > 0 && (
+                            <div className="cm_entries">
+                                {entries.map((entry, index) => (
+                                    <div className="cm_entry" key={`${entry.file.name}_${index}`}>
+                                        <span className="cm_entry_file" title={entry.file.name}>
+                                            <i className="fa-solid fa-file-pdf text-danger me-1" aria-hidden="true" />
+                                            {entry.file.name}
+                                        </span>
+
+                                        <span className="cm_entry_name">
+                                            <input
+                                                type="text"
+                                                className="cm_input"
+                                                placeholder="表示名"
+                                                value={entry.name}
+                                                onChange={(e) => updateEntry(index, { name: e.target.value })}
+                                            />
+                                        </span>
+
+                                        <span className="cm_entry_company">
+                                            <input
+                                                type="text"
+                                                className="cm_input"
+                                                placeholder="他社名（任意）"
+                                                value={entry.company}
+                                                onFocus={() => setSuggestRow(index)}
+                                                onBlur={() => setSuggestRow(-1)}
+                                                onChange={(e) => {
+                                                    updateEntry(index, { company: e.target.value });
+                                                    setSuggestRow(index);
+                                                }}
+                                            />
+                                            {suggestRow === index && suggestFor(entry.company).length > 0 && (
+                                                <div className="cm_sug">
+                                                    {suggestFor(entry.company).map(m => (
+                                                        <div
+                                                            key={m.label}
+                                                            className="cm_sug_item"
+                                                            /* ⚠️ onClick だと先に onBlur で閉じてしまい選べない */
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                updateEntry(index, { company: m.label });
+                                                                setSuggestRow(-1);
+                                                            }}
+                                                        >
+                                                            {m.label}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </span>
+
+                                        <button
+                                            type="button"
+                                            className="cm_entry_del"
+                                            title="この行を外す"
+                                            onClick={() => removeEntry(index)}
+                                        >
+                                            <i className="fa-solid fa-xmark" aria-hidden="true" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {saveError !== '' && <div className="cm_error">{saveError}</div>}
+
+                        <div className="cm_panel_foot">
+                            <button
+                                type="button"
+                                className="cm_save"
+                                disabled={saving || entries.length === 0}
+                                onClick={() => { void handleRegister(); }}
+                            >
+                                {saving ? '登録中…' : `${entries.length} 件を登録`}
+                            </button>
+                            <button type="button" className="cm_cancel" onClick={closeRegister}>
+                                やめる
+                            </button>
+                            <span className="cm_panel_note">登録者: {userName || '－'}</span>
+                        </div>
+                    </div>
+                )}
 
                 {view === 'folder' && (
                     <div className="cm_crumb">
