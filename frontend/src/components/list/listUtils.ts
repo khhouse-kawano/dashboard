@@ -63,6 +63,39 @@ export const isValidMobile = (value: unknown): boolean => {
     return toHalfWidth(raw).length >= MOBILE_MIN_DIGITS;
 };
 
+/** ブラックリスト名簿の1件。⚠️ `black_list` テーブルから必要な2列だけ */
+export type BlackListEntry = { mobile: string; mail: string };
+
+/**
+ * ブラックリスト名簿に載っているか。
+ *
+ * ⚠️⚠️ **注文・建売・中古の3画面で共有している。**
+ *   ⚠️ 2026-09-21 まで**3ファイルに同じ式が写してあり**、
+ *     ⚠️ 片方だけ直すと画面によって赤くなる行が変わっていた。
+ *   ⚠️ 各画面の `isBlack()` は、これに**タグ（`isTagOn`）を OR する**だけにしてある。
+ *
+ * ⚠️⚠️ **電話番号は両側が `isValidMobile()` を通ったときだけ使う。**
+ *   ⚠️ 突合は `includes()`（部分一致）なので、⚠️ **短い番号は誰にでも当たる。**
+ *   ⚠️ 名簿側も見るのは、⚠️ **画面から短い番号を登録できてしまう**ため。
+ *
+ * ⚠️ メールは従来どおり素の部分一致。⚠️ **指示の対象外なので変えていない。**
+ */
+export const matchesBlackList = (
+    mail: unknown,
+    mobile: unknown,
+    blackList: ReadonlyArray<BlackListEntry>
+): boolean => {
+    const safeMail = String(mail ?? '');
+    const safeMobile = String(mobile ?? '');
+    const canUseMobile = isValidMobile(safeMobile);
+    const halfMobile = toHalfWidth(safeMobile);
+
+    return blackList.some(b =>
+        (safeMail !== '' && b.mail.includes(safeMail)) ||
+        (canUseMobile && isValidMobile(b.mobile) && toHalfWidth(b.mobile).includes(halfMobile))
+    );
+};
+
 export const styles = {
     label: { color: '#303030', fontSize: '11px', marginBottom: '4px', letterSpacing: '.6px', fontWeight: '500', display: 'block' },
     input: { border: '1px solid #D3D3D3', borderRadius: '4px', height: '35px', width: '100%', paddingLeft: '10px', color: '#303030', fontSize: '12px', letterSpacing: '.6px', backgroundColor: '#fff', outline: 'none', boxSizing: 'border-box' as const },

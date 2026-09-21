@@ -10,7 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import { setStyleClassUsed } from '../../utils/setStyleClassUsed';
 import { thisYear } from '../../utils/thisYear';
 import { useIsSp } from '../../utils/isSp';
-import { dateFormate, monthFormate, handleBlack, toHalfWidth, isValidMobile, positions, previousMonthValue, currentMonthValue, summaryTableWidth, SUMMARY_COLUMN_WIDTH } from './listUtils';
+import { dateFormate, monthFormate, handleBlack, toHalfWidth, matchesBlackList, positions, previousMonthValue, currentMonthValue, summaryTableWidth, SUMMARY_COLUMN_WIDTH } from './listUtils';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 
@@ -455,19 +455,13 @@ const ListResale = ({ onReload }: Props) => {
      * ブラックリスト該当か。
      * 名簿テーブル（black_list）に一致するか、この反響に black タグが立っている場合。
      *
-     * ⚠️⚠️ **電話番号は `isValidMobile()` を通ったときだけ使う**（2026-09-18 の指示）。
-     *   ⚠️ 9桁以下の番号で部分一致させると**無関係な顧客が当たる。**
-     *   ⚠️ 判定は list/listUtils.ts に置いてある。⚠️ **3画面とも同じものを使うこと。**
+     * ⚠️⚠️ **突合そのものは list/listUtils.ts の `matchesBlackList()` にある。**
+     *   ⚠️ 注文・建売・中古の**3画面で共有**している。⚠️ **ここに書き戻さないこと。**
+     *   ⚠️ 電話番号は `isValidMobile()` を通ったものだけを使う（2026-09-18 の指示）。
      */
-    const isBlack = (item: InquiryCustomer) => {
-        const safeMail = item.mail || '';
-        const safeMobile = item.mobile || '';
-        return blackList.some(b =>
-            (safeMail && b.mail.includes(safeMail)) ||
-            (isValidMobile(safeMobile) && isValidMobile(b.mobile)
-                && toHalfWidth(b.mobile).includes(toHalfWidth(safeMobile)))
-        ) || isTagOn(item, 'black');
-    };
+    const isBlack = (item: InquiryCustomer) =>
+        matchesBlackList(item.mail, item.mobile, blackList) || isTagOn(item, 'black');
+
 
     const closeInformationEdit = () => setEditId('');
 
