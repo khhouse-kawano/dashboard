@@ -172,6 +172,16 @@ const CompetitorMaterials = () => {
     const [entries, setEntries] = useState<NewEntry[]>([]);
     /** サジェストを出している行。⚠️ -1 なら出さない */
     const [suggestRow, setSuggestRow] = useState(-1);
+    /**
+     * サジェストを出す位置（画面座標）。
+     *
+     * ⚠️⚠️ **`position: absolute` では出せない。**
+     *   ⚠️ 親の `.cm_entries` が `overflow: auto` なので、
+     *     ⚠️ **はみ出した候補が切り落とされて見えない。**
+     *   ⚠️ ⚠️ **z-index を上げても直らない**（重なりではなく切り抜きのため）。
+     *   ⚠️ そこで入力欄の画面座標を測り、⚠️ **`position: fixed` で最前面に出す。**
+     */
+    const [suggestPos, setSuggestPos] = useState({ top: 0, left: 0, width: 0 });
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
     const [saveDone, setSaveDone] = useState('');
@@ -292,6 +302,13 @@ const CompetitorMaterials = () => {
      * 社名のサジェスト。
      * ⚠️ information/TableCompetitor.tsx と同じ絞り込み（`letter` は読み仮名）。
      */
+    /** 入力欄の真下に出すための座標を測る。⚠️ `fixed` なので画面座標でよい */
+    const openSuggest = (index: number, input: HTMLInputElement) => {
+        const r = input.getBoundingClientRect();
+        setSuggestPos({ top: r.bottom + 2, left: r.left, width: r.width });
+        setSuggestRow(index);
+    };
+
     const suggestFor = (text: string): Maker[] => {
         const word = text.trim();
         if (word === '') return [];
@@ -506,6 +523,7 @@ const CompetitorMaterials = () => {
                            padding: 14px; text-align: center; font-size: 12px; color: #4b5563; }
                 .cm_drop input { display: block; margin: 8px auto 0; font-size: 12px; }
 
+                /* ⚠️ overflow:auto なので、サジェストは fixed で外に出す（下の .cm_sug） */
                 .cm_entries { display: flex; flex-direction: column; gap: 8px;
                               max-height: 260px; overflow: auto; }
                 .cm_entry { display: flex; align-items: flex-start; gap: 8px;
@@ -516,12 +534,21 @@ const CompetitorMaterials = () => {
                             font-size: 12px; background: #fff; color: #1f2937; outline: none; width: 100%; }
                 .cm_input:focus { border-color: #2563eb; }
                 .cm_entry_name { flex: 1 1 240px; }
-                /* ⚠️ サジェストを絶対配置で乗せるので position: relative が要る */
-                .cm_entry_company { flex: 1 1 200px; position: relative; }
-                .cm_sug { position: absolute; top: 100%; left: 0; width: 100%; margin-top: 2px;
-                          background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
-                          box-shadow: 0 4px 12px rgba(0,0,0,.08);
-                          max-height: 200px; overflow-y: auto; z-index: 1050; }
+                .cm_entry_company { flex: 1 1 200px; }
+                /**
+                 * ⚠️⚠️ **position: fixed にすること。**
+                 *   ⚠️ ⚠️ **この <style> はテンプレートリテラルなので、
+                 *     コメントにもバッククォートを書かないこと**（文字列が閉じる）。
+                 *   ⚠️ 親の .cm_entries が overflow:auto、さらに全画面モーダルの
+                 *     Modal.Body も overflow:hidden なので、
+                 *     ⚠️ **absolute だと候補が切り落とされて見えない。**
+                 *   ⚠️ ⚠️ **「サジェストが出ない」ように見える不具合の正体がこれ。**
+                 *   ⚠️ 位置は JSX 側（openSuggest）で入力欄の座標から入れる。
+                 * ⚠️ モーダル（z-index 1055 前後）より上に出すため 2000 にしてある。
+                 */
+                .cm_sug { position: fixed; background: #fff; border: 1px solid #e5e7eb;
+                          border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.16);
+                          max-height: 220px; overflow-y: auto; z-index: 2000; }
                 .cm_sug_item { padding: 5px 8px; font-size: 12px; cursor: pointer; }
                 .cm_sug_item:hover { background: #eff6ff; }
                 .cm_entry_del { border: 0; background: none; color: #9ca3af; cursor: pointer;
@@ -657,15 +684,22 @@ const CompetitorMaterials = () => {
                                                 className="cm_input"
                                                 placeholder="他社名（任意）"
                                                 value={entry.company}
-                                                onFocus={() => setSuggestRow(index)}
+                                                onFocus={(e) => openSuggest(index, e.currentTarget)}
                                                 onBlur={() => setSuggestRow(-1)}
                                                 onChange={(e) => {
                                                     updateEntry(index, { company: e.target.value });
-                                                    setSuggestRow(index);
+                                                    openSuggest(index, e.currentTarget);
                                                 }}
                                             />
                                             {suggestRow === index && suggestFor(entry.company).length > 0 && (
-                                                <div className="cm_sug">
+                                                <div
+                                                    className="cm_sug"
+                                                    style={{
+                                                        top: suggestPos.top,
+                                                        left: suggestPos.left,
+                                                        width: suggestPos.width,
+                                                    }}
+                                                >
                                                     {suggestFor(entry.company).map(m => (
                                                         <div
                                                             key={m.label}

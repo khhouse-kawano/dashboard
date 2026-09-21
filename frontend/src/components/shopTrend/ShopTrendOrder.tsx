@@ -657,17 +657,36 @@ const ShopTrendOrder = () => {
                                                             ? mergeShops.flatMap(s => budgetFilter(baseBudget, targetSection, s, targetIndex))
                                                             : budgetFilter(baseBudget, targetSection, target.shop, targetIndex);
                                                         const formattedValue = filteredBudget.reduce((acc, cur) => acc + cur.budget_value, 0);
-                                                        const base = customerList.filter(item => (monthIndex >= 1 ? item.register.includes(month) : monthArray.includes(item.register.slice(0, 7))));
                                                         const lastYear = `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`
                                                         const lastYearMonthArray = monthArray.map(month => `${String(Number(month.split('/')[0]) - 1)}/${month.split('/')[1]}`);
                                                         const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
-                                                        const total = isMerged
-                                                            ? base.filter(item => mergeShops.includes(item.shop))
-                                                            : setSection(base, targetSection, target.section, target.shop, targetIndex, sectionShops);
-                                                        const baseLastYear = customerList.filter(item => (monthIndex >= 1 ? item.register.includes(lastYear) : monthArray.includes(item.register.slice(0, 7))));
-                                                        const totalLastYear = isMerged
-                                                            ? baseLastYear.filter(item => mergeShops.includes(item.shop))
-                                                            : setSection(baseLastYear, targetSection, target.section, target.shop, targetIndex);
+                                                        /**
+                                                         * ⚠️⚠️ **単価の分母は、上のKPI行に出ている件数そのものにすること。**
+                                                         *
+                                                         *   ⚠️ 2026-09-21 まで、ここは
+                                                         *     ⚠️ **「反響日がその月」で絞ってからフラグの有無を見ていた。**
+                                                         *   ⚠️ ⚠️ **上の歩留まりは「来場日／契約日がその月」で数えている**ので、
+                                                         *     ⚠️ **同じ月なのに分母が別物**になっていた。
+                                                         *
+                                                         *   ⚠️ ローカル実データ（2026/08・全社）での差:
+                                                         *     ⚠️ 実来場 **381件** に対し、旧の分母は **87件**（⚠️ 単価が約4.4倍）
+                                                         *     ⚠️ 契約   **54件** に対し、旧の分母は  **7件**（⚠️ 単価が約7.7倍）
+                                                         *   ⚠️ ⚠️ **8月の単価なのに 2024/10 に来場した人まで混ざっていた。**
+                                                         *   ⚠️ 旧の契約の分母は ⚠️ **status（契約済み/解約）も見ていなかった。**
+                                                         *
+                                                         *   ⚠️ ShopTrendKaeru.tsx / ShopTrendResale.tsx は元から
+                                                         *     ⚠️ **KPI行の件数をそのまま分母にしている。** ⚠️ **注文だけが古かった。**
+                                                         *   ⚠️ ⚠️ **`getValue()` を通すこと。** ⚠️ 自前で絞り直すと再発する。
+                                                         */
+                                                        const base = isMerged
+                                                            ? customerList.filter(c => mergeShops.includes(c.shop))
+                                                            : setSection(customerList, targetSection, target.section, target.shop, targetIndex, sectionShops);
+                                                        const total = getValue(base, monthIndex, month, 'register');
+                                                        const interview = getValue(base, monthIndex, month, 'interview');
+                                                        const contract = getValue(base, monthIndex, month, 'contract');
+                                                        const totalLastYear = getValue(base, monthIndex, lastYear, 'register', lastYearMonthArray);
+                                                        const interviewLastYear = getValue(base, monthIndex, lastYear, 'interview', lastYearMonthArray);
+                                                        const contractLastYear = getValue(base, monthIndex, lastYear, 'contract', lastYearMonthArray);
                                                         let formattedLastYearValue;
                                                         const isDisplayLastYear = (isLastYear(month) || monthIndex === 0) && checked.comparison.show;
                                                         const lastYearBudget = budgetList.filter(b =>
@@ -682,9 +701,10 @@ const ShopTrendOrder = () => {
                                                         return <td key={monthIndex} style={{ fontSize: '11px' }}>
                                                             {[{ label: '総額', color: '#c03442' }, { label: '反響単価', color: '#b02a37' }, { label: '来場単価', color: '#8a1e28' }, { label: '契約単価', color: '#64151c' }]
                                                                 .map((item, index) => {
-                                                                    const filteredLength = total.filter(t => index === 1 ? true : index === 2 ? (t.interview || t.appointment || t.screening || t.contract) : t.contract).length;
+                                                                    // ⚠️ index は上のラベルの並び。1=反響単価 / 2=来場単価 / 3=契約単価
+                                                                    const filteredLength = index === 1 ? total.length : index === 2 ? interview.length : contract.length;
                                                                     const formattedBudget = Number.isFinite(Math.ceil(formattedValue / filteredLength)) ? Math.ceil(formattedValue / filteredLength) : 0;
-                                                                    const lastYearFilteredLength = totalLastYear.filter(t => index === 1 ? true : index === 2 ? (t.interview || t.appointment || t.screening || t.contract) : t.contract).length;
+                                                                    const lastYearFilteredLength = index === 1 ? totalLastYear.length : index === 2 ? interviewLastYear.length : contractLastYear.length;
                                                                     const lastYearFormattedBudget = Number.isFinite(Math.ceil(formattedLastYearValue / lastYearFilteredLength)) ? Math.ceil(formattedLastYearValue / lastYearFilteredLength) : 0;
                                                                     return <div className="text-white rounded pe-2 py-1 mb-1" style={{ backgroundColor: item.color, textAlign: 'right' }} key={index}>{item.label}:￥{index === 0 ? formattedValue.toLocaleString() : formattedBudget.toLocaleString()}
                                                                         {isDisplayLastYear && <span className='bg-white text-danger rounded px-1 ms-1 fw-bold'>￥{index === 0 ? formattedLastYearValue.toLocaleString() : lastYearFormattedBudget.toLocaleString()}</span>}</div>
