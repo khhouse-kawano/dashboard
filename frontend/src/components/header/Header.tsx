@@ -19,6 +19,7 @@ import CompetitorSummary from './CompetitorSummary';
 import RegisterBrokerageListings from './RegisterBrokerageListings';
 import DailyReports from './DailyReports';
 import ClaudeAnalysis from './ClaudeAnalysis';
+import type { AnalysisType } from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
 import AmbassadorList from './AmbassadorList';
 import { InquiryAmbassador } from './InquiryAmbassador';
@@ -31,6 +32,18 @@ import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
 type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
+
+/**
+ * 他社動向メニューの最後に出す項目。
+ *
+ * ⚠️⚠️ **他の項目と違い、共通モーダル（editMapping）を使わない。**
+ *   ⚠️ 押すと ⚠️ **Claudeによる分析のモーダル**が開く。
+ *   ⚠️ ⚠️ **editMapping に足さないこと。** 足すと「準備中です」の画面が出る。
+ *
+ * ⚠️ 画面にはロゴ＋「による競合分析」で出す（ヘッダーの「による分析」と同じ形）。
+ *   ⚠️ **この文字列そのものは画面に出さない。** 中で見分けるための鍵である。
+ */
+const CLAUDE_COMPETITOR_ITEM = 'Claudeによる競合分析';
 
 const Header = ({ }) => {
     const { authority } = useContext(AuthContext);
@@ -65,6 +78,22 @@ const Header = ({ }) => {
     // Claudeによる分析（menuMapping とは独立した導線）
     const [claudeModal, setClaudeModal] = useState<boolean>(false);
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
+    /**
+     * モーダルを開いたときに目立たせる分析。
+     *
+     * ⚠️ 他社動向 →「競合分析」から開いたときだけ `'competitor'` を入れる。
+     * ⚠️⚠️ **開いても分析は自動実行しない**（ClaudeAnalysis.tsx の initialType を参照）。
+     */
+    const [claudeInitial, setClaudeInitial] = useState<AnalysisType | undefined>(undefined);
+
+    const openClaude = (initial?: AnalysisType): void => {
+        if (authority !== 'Master') {
+            alert('権限がありません');
+            return;
+        }
+        setClaudeInitial(initial);
+        setClaudeModal(true);
+    };
 
     const isSp = useIsSp();
 
@@ -109,7 +138,10 @@ const Header = ({ }) => {
         'スタッフ管理': ['スタッフ編集・追加', '権限編集'],
         '反響管理': authority === 'Master' ? ['販促媒体設定', 'ブラックリスト設定', '広告費シミュレーター', '事後アンケート'] : ['販促媒体設定', 'ブラックリスト設定', '事後アンケート'],
         '土地・物件管理': ['仲介物件登録', '土地情報同期', '土地情報一覧'],
-        '他社動向': ['他社広告ライブラリ', '他社資料', '競合サマリー'],
+        // ⚠️ 最後の1つは Claude による競合分析。⚠️ **Master のみ**（課金が発生するため）
+        '他社動向': authority === 'Master'
+            ? ['他社広告ライブラリ', '他社資料', '競合サマリー', CLAUDE_COMPETITOR_ITEM]
+            : ['他社広告ライブラリ', '他社資料', '競合サマリー'],
         '架電状況': ['注文営業', '建売営業', '中古営業'],
         '日報': ['月次日報'],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
@@ -241,13 +273,7 @@ const Header = ({ }) => {
                 {/* Claudeによる分析：menuMapping とは別の独立したボタン */}
                 <button
                     type="button"
-                    onClick={() => {
-                        if (authority !== 'Master') {
-                            alert('権限がありません');
-                            return;
-                        }
-                        setClaudeModal(true);
-                    }}
+                    onClick={() => openClaude()}
                     onMouseEnter={() => setClaudeHover(true)}
                     onMouseLeave={() => setClaudeHover(false)}
                     className="border-0 d-flex align-items-center px-2 py-1 me-2"
@@ -318,13 +344,26 @@ const Header = ({ }) => {
                                             setEventBudget(true);
                                             return;
                                         }
+                                        // ⚠️ 競合分析だけは Claude のモーダルを開く。
+                                        //   ⚠️ **共通モーダルに入れないこと**（editMapping に無いため「準備中」になる）
+                                        if (item === CLAUDE_COMPETITOR_ITEM) {
+                                            openClaude('competitor');
+                                            return;
+                                        }
                                         // ⚠️ キーは `メニュー/項目`。項目名だけだと
                                         //   複数のメニューにある「反響一覧」が区別できない
                                         setEditMenu(`${menu}/${item}`);
                                         setModal(true);
                                     }}
                                 >
-                                    {item}{isEstate(item) && <div className="position-absolute menu_sync" style={{ top: '12px', right: '10px' }}>新着 {newEstate}件</div>}
+                                    {/* ⚠️ 競合分析はロゴ＋文言で出す（ヘッダーの「による分析」と同じ形） */}
+                                    {item === CLAUDE_COMPETITOR_ITEM
+                                        ? <span className="d-flex align-items-center" style={{ gap: '2px' }}>
+                                            <ClaudeIcon height={14} />
+                                            による競合分析
+                                        </span>
+                                        : item}
+                                    {isEstate(item) && <div className="position-absolute menu_sync" style={{ top: '12px', right: '10px' }}>新着 {newEstate}件</div>}
                                 </Dropdown.Item>
                             ))}
                         </Dropdown.Menu>
@@ -343,7 +382,7 @@ const Header = ({ }) => {
                     </span>
                 </Modal.Header>
                 <Modal.Body className="pt-2" style={{ maxHeight: '80vh' }}>
-                    <ClaudeAnalysis />
+                    <ClaudeAnalysis initialType={claudeInitial} />
                 </Modal.Body>
             </Modal>
 

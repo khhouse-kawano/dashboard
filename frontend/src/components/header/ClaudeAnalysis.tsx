@@ -48,7 +48,7 @@ const DIVISIONS: { value: Division; label: string; shopDivision: string }[] = [
 
 const MENUS: MenuItem[] = [
     { type: 'inquiry_trend', label: '反響推移を分析', description: '月別の反響数と媒体構成の変化', icon: 'fa-chart-line' },
-    { type: 'competitor', label: '他社動向を分析', description: '競合の出現状況と失注理由', icon: 'fa-users-viewfinder' },
+    { type: 'competitor', label: '競合分析', description: '他社別の勝敗と、負けている理由', icon: 'fa-users-viewfinder' },
     { type: 'brand', label: 'ブランド別サマリー', description: 'KH / DJH / JH などブランド単位', icon: 'fa-layer-group' },
     { type: 'shop', label: '店舗別サマリー', description: '店舗ごとの反響・アポ・契約', icon: 'fa-store' },
     { type: 'medium', label: '販促媒体別サマリー', description: '媒体ごとの獲得数と契約率', icon: 'fa-bullhorn' },
@@ -60,13 +60,13 @@ const MENUS: MenuItem[] = [
  * ここに含まれないメニューはグレーアウトして押せなくする（表示自体は残す）。
  * 実装が済んだものからこのセットに追加していく。
  */
-const AVAILABLE: ReadonlySet<AnalysisType> = new Set<AnalysisType>(['inquiry_trend', 'shop', 'medium']);
+const AVAILABLE: ReadonlySet<AnalysisType> = new Set<AnalysisType>(['inquiry_trend', 'shop', 'medium', 'competitor']);
 
 /**
  * バックエンドと接続済みの分析タイプ。
  * ここに含まれないものは API を呼ばず、課金を発生させずにサンプルを表示する。
  */
-const IMPLEMENTED: ReadonlySet<AnalysisType> = new Set<AnalysisType>(['inquiry_trend', 'shop', 'medium']);
+const IMPLEMENTED: ReadonlySet<AnalysisType> = new Set<AnalysisType>(['inquiry_trend', 'shop', 'medium', 'competitor']);
 
 /** メニュー画面に出す保存済み分析の件数と、「もっと見る」1回あたりの追加件数 */
 const HISTORY_PREVIEW_COUNT = 5;
@@ -131,7 +131,22 @@ const formatSavedAt = (value: string): string => {
         + `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-const ClaudeAnalysis: React.FC = () => {
+type Props = {
+    /**
+     * 最初から目立たせておく分析。
+     *
+     * ⚠️ 他社動向 →「Claudeによる競合分析」から開いたときに `'competitor'` が来る。
+     *
+     * ⚠️⚠️ **これを受け取っても分析は自動では実行しない。**
+     *   ⚠️ 実行は1回ごとに課金される。
+     *   ⚠️ ⚠️ **開いた瞬間に走ると、部門・課・店舗を選ぶ前の範囲で課金される。**
+     *     ⚠️ メニューの押し間違いでも金がかかる。
+     *   ⚠️ 枠を目立たせるだけにして、⚠️ **実行は利用者のクリックに任せる。**
+     */
+    initialType?: AnalysisType;
+};
+
+const ClaudeAnalysis: React.FC<Props> = ({ initialType }) => {
     // 新規実行のときの「実行者」。保存済みを開いた場合は履歴の staff_name を使う
     const { userName } = useContext(AuthContext);
 
@@ -536,6 +551,8 @@ const ClaudeAnalysis: React.FC = () => {
                         // 店舗を絞り込んでいる間は「店舗別サマリー」を選べない
                         const blocked   = menu.type === 'shop' && shopSummaryBlocked;
                         const available = AVAILABLE.has(menu.type) && !blocked;
+                        // ⚠️ 他社動向から開いたときだけ、その枠を目立たせる（実行はしない）
+                        const spotlight = available && menu.type === initialType;
                         const badge     = blocked ? '対象外' : (!AVAILABLE.has(menu.type) ? '準備中' : null);
                         const tip       = blocked
                             ? '店舗・スタッフを絞り込んでいる間は選択できません'
@@ -551,9 +568,9 @@ const ClaudeAnalysis: React.FC = () => {
                                     className="btn w-100 h-100 text-start d-flex align-items-start gap-2 p-3 position-relative"
                                     style={{
                                         fontSize: '13px',
-                                        border: '1px solid #e8e6dc',
+                                        border: spotlight ? `2px solid ${CLAUDE_ORANGE}` : '1px solid #e8e6dc',
                                         borderRadius: '8px',
-                                        backgroundColor: available ? '#fff' : '#f5f4f0',
+                                        backgroundColor: spotlight ? '#fdf8f6' : (available ? '#fff' : '#f5f4f0'),
                                         boxShadow: 'none',
                                         // 選べないメニューは薄く見せる（表示自体は残す）
                                         opacity: available ? 1 : 0.5,
@@ -568,8 +585,9 @@ const ClaudeAnalysis: React.FC = () => {
                                     }}
                                     onMouseLeave={(e) => {
                                         if (!available) return;
-                                        e.currentTarget.style.borderColor = '#e8e6dc';
-                                        e.currentTarget.style.backgroundColor = '#fff';
+                                        // ⚠️ 目立たせている枠は戻さない（戻すと押す場所を見失う）
+                                        e.currentTarget.style.borderColor = spotlight ? CLAUDE_ORANGE : '#e8e6dc';
+                                        e.currentTarget.style.backgroundColor = spotlight ? '#fdf8f6' : '#fff';
                                     }}
                                 >
                                     <i

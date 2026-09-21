@@ -683,3 +683,659 @@ function buildInquiryTrendSnapshot(
     ];
 }
 
+
+// ===========================================================================
+// 競合分析（2026-09-21 追加）
+//
+// ⚠️⚠️ **この節だけ、集計値ではなく「顧客1件ごとの行」を Claude に渡す。**
+//   ⚠️ このファイルの冒頭には「生データは渡さない」と書いてあるが、
+//     ⚠️ **競合分析は集計値では成立しない**（指示）。
+//     ⚠️ 「誰にどの理由で負けたか」は自由記述の失注理由・商談メモの中にしかない。
+//
+//   ⚠️⚠️ **そのかわり、個人を特定できる値は1つも渡さない。**
+//     ⚠️ 氏名・電話・メール・住所・物件名は列ごと外し、
+//       ⚠️ **自由記述の中に紛れているものは伏字に置き換える**（kpiMaskPii）。
+//     ⚠️ ⚠️ **新しい列を足すときは、必ず KPI_COMPETITOR_PII_COLUMNS を見直すこと。**
+// ===========================================================================
+
+/**
+ * 1回の分析で渡す行数の上限。
+ *
+ * ⚠️⚠️ **増やすと課金が比例して増える。**
+ *   ⚠️ 1行あたり約100トークン。1,000行で約10万トークンになる。
+ *   ⚠️ ⚠️ **Master 権限・1日20回の上限があるとはいえ、実費が出る。**
+ */
+const KPI_COMPETITOR_MAX_ROWS = 1000;
+
+/** 商談メモ・架電ログから拾う文字数。⚠️ 長くすると課金が増える */
+const KPI_COMPETITOR_MEMO_CHARS = 160;
+
+/**
+ * これ未満の行数しか集まらなければ、Claude を呼ばずに断る。
+ *
+ * ⚠️⚠️ **建売分譲事業は競合の記録がほとんど無い**（2026-09-21 実測で2件）。
+ *   ⚠️ このまま投げると ⚠️ **金だけかかって「データがありません」と言われる。**
+ */
+const KPI_COMPETITOR_MIN_ROWS = 20;
+
+/**
+ * 伏字にする列。
+ *
+ * ⚠️⚠️ **ここに挙げた列は SELECT はするが、渡す行には入れない。**
+ *   ⚠️ 自由記述に紛れた同じ値を消すために値そのものは必要なため、取得はする。
+ */
+const KPI_COMPETITOR_PII_COLUMNS = [
+    'customer_contacts_name',
+    'customer_contacts_name_kana',
+    'customer_contacts_name_2',
+    'customer_contacts_mobile_phone_number',
+    'customer_contacts_phone_number',
+    'customer_contacts_email',
+    'full_address',
+    'planned_construction_site',
+];
+
+/**
+ * 部門ごとの競合関連の列。
+ *
+ * ⚠️⚠️ **建売分譲事業（master_data_kaeru）には勝因・価格差・対策の列が無い。**
+ *   ⚠️ 注文事業（master_data）にしか存在しない。
+ *   ⚠️ ⚠️ **両方に投げると「Unknown column」で落ちる。**
+ */
+const KPI_COMPETITOR_EXTRA_COLUMNS = [
+    'order' => [
+        'competitor_win_reason'     => 'win_reason',
+        'competitor_price_gap'      => 'price_gap',
+        'competitor_sales_person'   => 'rival_sales_person',
+        'competitor_countermeasure' => 'countermeasure',
+        'competitor_campaign'       => 'rival_campaign',
+    ],
+    'kaeru' => [],
+];
+
+/**
+ * 勝ち負けを決めるステータス。
+ *
+ * ⚠️⚠️ **ここに無いステータスの行は渡さない。**
+ *   ⚠️ 「見込み」「会社管理」はまだ決着していない（注文の約8割がこれ）。
+ *     ⚠️ ⚠️ **負けに数えると、負けが実際の5倍以上に膨らむ。**
+ *   ⚠️ 「重複」は同一顧客の二重登録なので数えない。
+ *
+ * ⚠️⚠️ **建売分譲事業には「失注」というステータスが無い**（2026-09-21 実測）。
+ *   ⚠️ いちばん近いのが「追客終了」なので、これを負けとして扱う。
+ *   ⚠️ ⚠️ **追客終了は他社に負けたとは限らない**（予算・時期の都合も含む）。
+ *     ⚠️ このことは Claude にも note で伝えている。
+ */
+const KPI_COMPETITOR_STATUSES = [
+    'order' => [
+        'win'  => ['契約済み', '解約', '解約済み'],
+        'lost' => ['失注'],
+    ],
+    'kaeru' => [
+        'win'  => ['契約済み', '解約', '解約済み'],
+        'lost' => ['追客終了'],
+    ],
+];
+
+/**
+ * 自社グループの社名。
+ *
+ * ⚠️⚠️ **house_maker には自社の社名も登録されている。**
+ *   ⚠️ 除外しないと ⚠️ **「国分ハウジング」が最大の競合として集計される**
+ *     （2026-09-21 実測: 注文71件・建売163件で1位だった）。
+ *   ⚠️ ⚠️ **商談メモには自社名がいくらでも出てくるため、必ず外れる。**
+ *
+ * ⚠️ 消すのではなく `own_group` として別の欄に出す。
+ *   ⚠️ **グループ内での取り合いは、それ自体が見たい情報**だからである。
+ * ⚠️ ⚠️ **「ジャストホーム」は自社ではない**（シアーズホーム系の他社）。入れないこと。
+ */
+const KPI_OWN_GROUP_NAMES = [
+    '国分ハウジング',
+    'デイジャストハウス',
+    'なごみ工務店',
+    'PGハウス',
+    'かえるホーム',
+];
+
+/**
+ * 個人情報を伏字にする。
+ *
+ * ⚠️⚠️ **自由記述（商談メモ・架電ログ・失注理由）に対して必ず通すこと。**
+ *   ⚠️ 顧客名や電話番号が本文に書かれていることが実際にある。
+ *
+ * ⚠️ 消すもの:
+ *   ⚠️ その顧客自身の氏名・カナ・電話・メール・住所・物件名（$secrets）
+ *   ⚠️ メールアドレスの形をしたもの
+ *   ⚠️ 数字が9桁以上つながっているもの（電話番号・口座番号）
+ *
+ * @param string[] $secrets その行の個人情報の値
+ */
+function kpiMaskPii(string $text, array $secrets): string
+{
+    if ($text === '') {
+        return '';
+    }
+
+    foreach ($secrets as $secret) {
+        $secret = trim((string)$secret);
+        // ⚠️ 1〜2文字を消すと日本語の本文が虫食いになる。氏名は2文字以上ある
+        if (mb_strlen($secret) < 3) {
+            continue;
+        }
+
+        // まず書かれたとおりの形で消す
+        $text = str_replace($secret, KPI_MASK, $text);
+
+        /**
+         * ⚠️⚠️ **文字の間に空白が入っていても消すこと。**
+         *   ⚠️ 台帳が「甲斐 彩香」でも、メモには「甲斐彩香」「甲斐　彩香」と
+         *     書かれていることがある。
+         *   ⚠️ ⚠️ **str_replace だけでは素通りする**（2026-09-21 に実データで1件漏れた）。
+         *
+         * ⚠️ ⚠️ **空白を除いて3文字未満のものには、この処理をかけない。**
+         *   ⚠️ 「吉 田」のような名前で `吉田` を全部伏字にすると、
+         *     ⚠️ **本文中の地名・他社名まで虫食いになる。**
+         */
+        $flat = (string)preg_replace('/[\s　]+/u', '', $secret);
+        if (mb_strlen($flat) < 3) {
+            continue;
+        }
+
+        $chars = preg_split('//u', $flat, -1, PREG_SPLIT_NO_EMPTY);
+        if ($chars === false || $chars === []) {
+            continue;
+        }
+        $pattern = '/' . implode(
+            '[\s　]*',
+            array_map(static fn(string $c): string => preg_quote($c, '/'), $chars)
+        ) . '/u';
+        $text = (string)preg_replace($pattern, KPI_MASK, $text);
+    }
+
+    $text = (string)preg_replace('/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/u', KPI_MASK, $text);
+    // ⚠️ ハイフン・空白をまたいだ数字の並びも電話番号として扱う
+    $text = (string)preg_replace('/[0-9０-９][0-9０-９\-－ 　]{7,}[0-9０-９]/u', KPI_MASK, $text);
+
+    return $text;
+}
+
+/** 伏字の記号。⚠️ 画面にもこの形で出る */
+const KPI_MASK = '****';
+
+/**
+ * 自由記述を分析に載る長さへ詰める。
+ *
+ * ⚠️ 改行と連続する空白を1つにまとめてから切る。
+ *   ⚠️ **切らないと、1件の商談メモだけで数千文字になることがある。**
+ */
+function kpiTrimMemo(string $text, int $limit = KPI_COMPETITOR_MEMO_CHARS): string
+{
+    $text = trim((string)preg_replace('/\s+/u', ' ', $text));
+    // ⚠️ remarks には 'null' や '0' が入っている行がある。⚠️ **本文ではない**
+    if ($text === '' || $text === 'null' || $text === '0') {
+        return '';
+    }
+    return mb_strlen($text) > $limit ? mb_substr($text, 0, $limit) . '…' : $text;
+}
+
+/**
+ * 他社名の前後を切り出す。
+ *
+ * ⚠️⚠️ **メモの先頭は反響フォームの定型文である。**
+ *   ⚠️ 「反響経路:… 検討時期:… 希望の広さ:…」が数百文字続き、
+ *     ⚠️ ⚠️ **頭から切ると、肝心の商談の中身が1文字も入らない。**
+ *   ⚠️ そこで ⚠️ **他社名が出てくる場所の前後**を取る。
+ *
+ * ⚠️ 他社名が見つからなければ、従来どおり先頭から切る。
+ *
+ * @param string[] $makers 見つかった他社名
+ */
+function kpiMemoAround(string $text, array $makers, int $limit = KPI_COMPETITOR_MEMO_CHARS): string
+{
+    $text = trim((string)preg_replace('/\s+/u', ' ', $text));
+    if ($text === '' || $text === 'null' || $text === '0') {
+        return '';
+    }
+    if ($makers === [] || mb_strlen($text) <= $limit) {
+        return kpiTrimMemo($text, $limit);
+    }
+
+    $at = false;
+    foreach ($makers as $maker) {
+        $found = mb_strpos($text, $maker);
+        if ($found !== false && ($at === false || $found < $at)) {
+            $at = $found;
+        }
+    }
+    if ($at === false) {
+        return kpiTrimMemo($text, $limit);
+    }
+
+    // ⚠️ 社名の少し手前から取る。⚠️ **理由は社名の前に書かれていることが多い**
+    $start = max(0, $at - (int)floor($limit / 3));
+    $cut   = mb_substr($text, $start, $limit);
+
+    return ($start > 0 ? '…' : '') . $cut . (mb_strlen($text) > $start + $limit ? '…' : '');
+}
+
+/**
+ * 他社名の一覧（house_maker.label）。
+ *
+ * ⚠️⚠️ **商談メモから社名を拾うために使う。**
+ *   ⚠️ 競合欄が空でも、⚠️ **メモには社名が書かれていることが多い。**
+ *   ⚠️ 参考資料（前期の競合分析）でも、競合ありの契約223件のうち
+ *     ⚠️ **153件はメモからしか分からなかった。**
+ *
+ * ⚠️ 2文字以下の社名は本文の別の語に当たるため使わない。
+ *
+ * @return string[]
+ */
+function kpiCompetitorMakers(PDO $pdo): array
+{
+    $labels = $pdo->query('SELECT label FROM house_maker')->fetchAll(PDO::FETCH_COLUMN);
+
+    $makers = [];
+    foreach ($labels as $label) {
+        $label = trim((string)$label);
+        if (mb_strlen($label) >= 3) {
+            $makers[] = $label;
+        }
+    }
+
+    return array_values(array_unique($makers));
+}
+
+/**
+ * 文字列から他社名を拾う。
+ *
+ * @param string[] $makers kpiCompetitorMakers() の戻り値
+ * @return string[]
+ */
+function kpiFindMakers(string $text, array $makers): array
+{
+    if ($text === '') {
+        return [];
+    }
+
+    $found = [];
+    foreach ($makers as $maker) {
+        if (mb_strpos($text, $maker) !== false) {
+            $found[] = $maker;
+        }
+    }
+
+    return $found;
+}
+
+/** 競合欄（カンマ・読点区切り）を配列にする */
+function kpiSplitCompetitors(string $text): array
+{
+    $text  = str_replace('、', ',', $text);
+    $parts = array_map('trim', explode(',', $text));
+
+    return array_values(array_filter($parts, static fn(string $v): bool => $v !== '' && $v !== 'null'));
+}
+
+/** 失注日（テキスト）から 'YYYY-MM' を取り出す。取れなければ null */
+function kpiCompetitorLostMonth(string $value): ?string
+{
+    $value = str_replace('/', '-', trim($value));
+    return preg_match('/^(\d{4}-\d{2})/', $value, $m) === 1 ? $m[1] : null;
+}
+
+/**
+ * 土地の有無。
+ * ⚠️ 入力が「有」「無」「1」「0」と揺れているため、文字で判定する。
+ */
+function kpiCompetitorHasLand(string $value): string
+{
+    $value = trim($value);
+    if ($value === '' || $value === 'null') {
+        return '未入力';
+    }
+    if (mb_strpos($value, '無') !== false || $value === '0') {
+        return 'なし';
+    }
+    return 'あり';
+}
+
+/**
+ * 予算を帯にまとめる。
+ *
+ * ⚠️⚠️ **金額そのものは渡さない。**
+ *   ⚠️ 帯にすれば傾向は読めるうえ、⚠️ **個人の特定に近づかない。**
+ * ⚠️ 入力は「4000万」「40,000,000」などと揺れるため、数字だけを取り出して判定する。
+ */
+function kpiCompetitorBudgetBand(string $value): string
+{
+    $digits = preg_replace('/[^0-9]/', '', $value);
+    if ($digits === '' || $digits === null) {
+        return '未入力';
+    }
+
+    $number = (int)$digits;
+    // ⚠️ 「4000」のような万円単位の入力を円に直す
+    if ($number < 100000) {
+        $number *= 10000;
+    }
+
+    if ($number < 25000000) {
+        return '2500万未満';
+    }
+    if ($number < 30000000) {
+        return '2500〜3000万';
+    }
+    if ($number < 35000000) {
+        return '3000〜3500万';
+    }
+    if ($number < 40000000) {
+        return '3500〜4000万';
+    }
+    if ($number < 45000000) {
+        return '4000〜4500万';
+    }
+    if ($number < 50000000) {
+        return '4500〜5000万';
+    }
+    return '5000万以上';
+}
+
+/**
+ * 台帳にある氏名を、渡す文章から一括で消す。
+ *
+ * ⚠️⚠️ **kpiMaskPii() は「その行自身の」氏名しか消せない。**
+ *   ⚠️ 商談メモには ⚠️ **別の顧客の名前**（紹介者・同行者・過去の担当案件）が
+ *     書かれていることが実際にある。
+ *   ⚠️ ⚠️ **2026-09-21 の実データで1件漏れた。** ⚠️ 行ごとの処理では防げない。
+ *
+ * ⚠️ 手順（総当たりを避けるため2段階にしている）:
+ *   ⚠️ 1. 渡す文章を全部つないで、空白を除いた1本の文字列にする
+ *   ⚠️ 2. 台帳の氏名をその文字列で探し、⚠️ **実際に出てくるものだけ**を置換する
+ *   ⚠️ 台帳は3万件あるが、1 の文字列は数十KBなので探すのは速い。
+ *
+ * ⚠️ ⚠️ **自社の営業担当の名前も、顧客として登録があれば一緒に消える。**
+ *   ⚠️ 競合分析に担当者名は要らないため、消えて困らない。
+ *
+ * @param string[] $textKeys 伏字をかける項目名
+ */
+function kpiMaskKnownNames(PDO $pdo, array $rows, array $textKeys): array
+{
+    $blob = '';
+    foreach ($rows as $r) {
+        foreach ($textKeys as $key) {
+            $blob .= ' ' . (string)($r[$key] ?? '');
+        }
+    }
+
+    $flatBlob = (string)preg_replace('/[\s　]+/u', '', $blob);
+    if ($flatBlob === '') {
+        return $rows;
+    }
+
+    // ⚠️ 3事業ぶん見る。⚠️ **注文のメモに建売の顧客名が出ることがある**
+    $names = $pdo->query(
+        'SELECT customer_contacts_name FROM master_data'
+        . ' UNION SELECT customer_contacts_name FROM master_data_kaeru'
+        . ' UNION SELECT customer_contacts_name FROM master_data_resale'
+    )->fetchAll(PDO::FETCH_COLUMN);
+
+    $hits = [];
+    foreach ($names as $name) {
+        $flat = (string)preg_replace('/[\s　]+/u', '', trim((string)$name));
+        // ⚠️ 2文字以下は本文の普通の語と当たる。消すと虫食いになる
+        if (mb_strlen($flat) < 3) {
+            continue;
+        }
+        if (mb_strpos($flatBlob, $flat) !== false) {
+            $hits[] = $flat;
+        }
+    }
+
+    if ($hits === []) {
+        return $rows;
+    }
+
+    $hits = array_values(array_unique($hits));
+    foreach ($rows as $i => $r) {
+        foreach ($textKeys as $key) {
+            $value = (string)($r[$key] ?? '');
+            if ($value !== '') {
+                $rows[$i][$key] = kpiMaskPii($value, $hits);
+            }
+        }
+    }
+
+    return $rows;
+}
+
+/**
+ * 「競合分析」用のスナップショット。
+ *
+ * ⚠️⚠️ **集計値ではなく、契約と失注の行そのものを渡す**（2026-09-21 の指示）。
+ *   ⚠️ 勝敗表・敗因の構成は Claude 側で作らせる。
+ *
+ * ⚠️ 渡す行の条件:
+ *   ⚠️ 競合欄・他決先・失注理由のどれかが入っている、または
+ *   ⚠️ **商談メモ・架電ログに他社名が見つかった**行。
+ *   ⚠️ ⚠️ **どちらも無い行は渡さない**（競合戦ではないため）。
+ *
+ * @param int $months 何ヶ月分さかのぼるか
+ */
+function buildCompetitorSnapshot(
+    PDO $pdo,
+    string $division = KPI_DEFAULT_DIVISION,
+    array $scope = [],
+    int $months = 12
+): array {
+    $table  = kpiResolveTable($division);
+    $extra  = KPI_COMPETITOR_EXTRA_COLUMNS[$division] ?? [];
+    $makers = kpiCompetitorMakers($pdo);
+
+    [$scopeSql, $scopeParams] = kpiScopeWhere($scope);
+
+    // ⚠️ 契約日・反響日・失注日のどれかが期間内にあるものを拾う。
+    //   ⚠️ **契約日だけで絞ると、失注（契約日が無い）が1件も入らない。**
+    $from = date('Y-m-d', strtotime('-' . $months . ' months'));
+
+    $select = [
+        'status',
+        'in_charge_store',
+        'brand',
+        'sales_promotion_name',
+        'has_owned_land',
+        'budget',
+        KPI_MD_RANK . ' AS rank_value',
+        'competitors_text',
+        'competitor_name',
+        'competitor',
+        'competitor_lost_contract_reason',
+        'competitor_lost_contract_date',
+        'remarks',
+        'call_log',
+        'DATE_FORMAT(' . KPI_MD_CONTRACT . ", '%Y-%m') AS contract_month",
+        'DATE_FORMAT(' . KPI_MD_REGISTERED . ", '%Y-%m') AS registered_month",
+    ];
+    foreach (array_keys($extra) as $column) {
+        $select[] = $column;
+    }
+    foreach (KPI_COMPETITOR_PII_COLUMNS as $column) {
+        $select[] = $column;
+    }
+
+    /**
+     * ⚠️⚠️ **勝ちと負けを別々に取る。**
+     *   ⚠️ 1本のクエリを日付順に切ると、⚠️ **件数の多い負けばかりが残る。**
+     *     ⚠️ 実測では 勝ち112 / 負け888 になり、勝敗表として成立しなかった。
+     *   ⚠️ ⚠️ **半分ずつの枠を与えること。**
+     */
+    $statuses = KPI_COMPETITOR_STATUSES[$division] ?? KPI_COMPETITOR_STATUSES['order'];
+    $quota    = (int)floor(KPI_COMPETITOR_MAX_ROWS / 2);
+
+    $fetchByStatus = static function (array $wanted, int $limit) use (
+        $pdo, $select, $table, $scopeSql, $scopeParams, $from
+    ): array {
+        $sql = 'SELECT ' . implode(', ', $select) . ' FROM ' . $table
+            . ' WHERE show_dashboard = 1'
+            . $scopeSql
+            . ' AND status IN (' . implode(',', array_fill(0, count($wanted), '?')) . ')'
+            . ' AND ('
+            . KPI_MD_CONTRACT . ' >= ?'
+            . ' OR ' . KPI_MD_REGISTERED . ' >= ?'
+            . " OR REPLACE(COALESCE(competitor_lost_contract_date, ''), '/', '-') >= ?"
+            . ')'
+            // ⚠️ 競合の手がかりがまったく無い行は最初から取らない
+            . ' AND ('
+            . " COALESCE(competitors_text, '') NOT IN ('', 'null')"
+            . " OR COALESCE(competitor_name, '') NOT IN ('', 'null')"
+            . " OR COALESCE(competitor, '') NOT IN ('', 'null')"
+            . " OR COALESCE(competitor_lost_contract_reason, '') NOT IN ('', 'null')"
+            . " OR COALESCE(remarks, '') NOT IN ('', 'null')"
+            . ')'
+            . ' ORDER BY COALESCE(' . KPI_MD_CONTRACT . ', ' . KPI_MD_REGISTERED . ') DESC'
+            // ⚠️ メモから社名を拾えない行が多いため、多めに取って PHP 側で絞る
+            . ' LIMIT ' . ($limit * 4);
+
+        $params = array_merge($scopeParams, $wanted, [$from, $from, $from]);
+
+        return kpiFetch($pdo, $sql, $params);
+    };
+
+    $wonRaw  = $fetchByStatus($statuses['win'], $quota);
+    $lostRaw = $fetchByStatus($statuses['lost'], $quota);
+
+    $rows          = [];
+    $fromMemoCount = 0;
+    $candidates    = count($wonRaw) + count($lostRaw);
+    $kept          = ['win' => 0, 'lost' => 0];
+
+    foreach (array_merge($wonRaw, $lostRaw) as $r) {
+        $secrets = [];
+        foreach (KPI_COMPETITOR_PII_COLUMNS as $column) {
+            $secrets[] = (string)($r[$column] ?? '');
+        }
+
+        $memo = kpiMaskPii(
+            (string)($r['remarks'] ?? '') . ' ' . (string)($r['call_log'] ?? ''),
+            $secrets
+        );
+
+        // 競合欄からの社名
+        $named = array_merge(
+            kpiSplitCompetitors((string)($r['competitors_text'] ?? '')),
+            kpiSplitCompetitors((string)($r['competitor_name'] ?? '')),
+            kpiSplitCompetitors((string)($r['competitor'] ?? ''))
+        );
+        // ⚠️ メモからの社名。⚠️ **競合欄が空の行を救うのはここだけ**
+        $inMemo = kpiFindMakers($memo, $makers);
+        if ($named === [] && $inMemo !== []) {
+            $fromMemoCount++;
+        }
+
+        $all = array_values(array_unique(array_merge($named, $inMemo)));
+
+        /**
+         * ⚠️⚠️ **自社グループの社名を競合から外す。**
+         *   ⚠️ 外さないと「国分ハウジング」が最大の競合として並ぶ。
+         *   ⚠️ **捨てずに own_group として別に持つ**（社内での取り合いも見たいため）。
+         */
+        $ownGroup    = array_values(array_intersect($all, KPI_OWN_GROUP_NAMES));
+        $competitors = array_values(array_diff($all, KPI_OWN_GROUP_NAMES));
+
+        $lostReason = trim((string)($r['competitor_lost_contract_reason'] ?? ''));
+        if ($lostReason === 'null') {
+            $lostReason = '';
+        }
+
+        // ⚠️ 他社名も失注理由も無い行は競合戦の証拠が無い。渡さない
+        //   ⚠️ **自社名しか出てこない行もここで落ちる**（競合戦ではない）
+        if ($competitors === [] && $lostReason === '') {
+            continue;
+        }
+
+        $status = (string)($r['status'] ?? '');
+        $won    = in_array($status, $statuses['win'], true);
+
+        // ⚠️ 片方だけで枠を使い切らないようにする
+        $bucket = $won ? 'win' : 'lost';
+        if ($kept[$bucket] >= $quota) {
+            continue;
+        }
+        $kept[$bucket]++;
+
+        $row = [
+            'outcome' => $won ? 'win' : 'lost',
+            'status'  => $status,
+            'month'   => $won
+                ? ($r['contract_month'] ?? $r['registered_month'])
+                : (kpiCompetitorLostMonth((string)($r['competitor_lost_contract_date'] ?? ''))
+                    ?? $r['registered_month']),
+            'shop'        => (string)($r['in_charge_store'] ?? ''),
+            'brand'       => (string)($r['brand'] ?? ''),
+            'medium'      => (string)($r['sales_promotion_name'] ?? ''),
+            'has_land'    => kpiCompetitorHasLand((string)($r['has_owned_land'] ?? '')),
+            'budget'      => kpiCompetitorBudgetBand((string)($r['budget'] ?? '')),
+            'rank'        => trim((string)($r['rank_value'] ?? '')),
+            'competitors' => $competitors,
+            'own_group'   => $ownGroup,
+            'lost_reason' => $lostReason,
+            // ⚠️ 他社名の前後を取る。⚠️ **頭から切るとフォームの定型文で埋まる**
+            'memo'        => kpiMemoAround($memo, $all),
+        ];
+
+        foreach ($extra as $column => $key) {
+            $value = trim((string)($r[$column] ?? ''));
+            $row[$key] = ($value === 'null' || $value === '') ? '' : kpiMaskPii($value, $secrets);
+        }
+
+        $rows[] = $row;
+        if (count($rows) >= KPI_COMPETITOR_MAX_ROWS) {
+            break;
+        }
+    }
+
+    /**
+     * ⚠️⚠️ **最後にもう一度、台帳の氏名を消す。**
+     *   ⚠️ 上の kpiMaskPii() は行ごとの氏名しか見ていない。
+     *   ⚠️ ⚠️ **ここを外すと、他の顧客の氏名がメモに残ったまま送られる。**
+     */
+    $rows = kpiMaskKnownNames($pdo, $rows, array_merge(
+        ['memo', 'lost_reason'],
+        array_values($extra)
+    ));
+
+    $wins = $kept['win'];
+
+    return [
+        'generated_at'  => date('Y-m-d H:i'),
+        'division'      => kpiDivisionLabel($division),
+        'scope_label'   => $scope['label'] ?? kpiDivisionLabel($division),
+        'scope'         => kpiScopeDescription($division, $scope),
+        'period_months' => $months,
+        'note'          => '1行が顧客1件。個人情報（氏名・電話・メール・住所・物件名）は列ごと外し、'
+            . '商談メモに紛れているものは ' . KPI_MASK . ' に置き換えてある。'
+            . 'competitors は競合欄と商談メモの両方から拾った他社名。'
+            . 'own_group は国分ハウジンググループ自身の社名で、競合ではなくグループ内での取り合いを表す。'
+            . 'outcome = win は ' . implode('・', $statuses['win']) . '、'
+            . 'lost は ' . implode('・', $statuses['lost']) . '。決着していない案件と重複は含めていない。'
+            . ($division === 'kaeru'
+                ? '建売分譲事業には「失注」というステータスが無いため「追客終了」を負けとして扱っている。'
+                . 'これは他社に負けたとは限らず、予算・時期の都合も含む。'
+                : '')
+            . 'wins と losses の上限はそれぞれ ' . (int)floor(KPI_COMPETITOR_MAX_ROWS / 2) . ' 件で、'
+            . 'この数に達している側は全件ではない。勝率をこの2つの数から計算してはならない。'
+            . 'lost_reason が空の行が多いのは入力されていないためで、理由が無いという意味ではない。'
+            . 'memo は他社名の前後を切り出したもので、先頭に … があるのは途中からという意味。',
+        'counts' => [
+            'rows'            => count($rows),
+            'wins'            => $wins,
+            'losses'          => count($rows) - $wins,
+            'quota_per_side'  => $quota,
+            'candidates'      => $candidates,
+            'found_from_memo' => $fromMemoCount,
+            'max_rows'        => KPI_COMPETITOR_MAX_ROWS,
+            // ⚠️ どちらかが枠いっぱいなら「全件ではない」。勝率の計算に使わせない
+            'truncated'       => $wins >= $quota || (count($rows) - $wins) >= $quota,
+        ],
+        'rows' => $rows,
+    ];
+}
