@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import axios from 'axios';
 import { headers } from '../../utils/headers';
@@ -12,6 +12,7 @@ import Estate from '../Estate';
 import KSnap from './KSnap';
 import IceWorld from '../IceWorld';
 import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate, statusRequiredError } from '../../utils/informationUtils';
+import { kpiColumnFor } from '../../utils/interviewKpi';
 import TableInput from './TableInput';
 import TableSelect from './TableSelect';
 import TableInterview from './TableInterview';
@@ -29,6 +30,7 @@ import FundingPlan from './FundingPlan';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
+import type { CompetitorPdfItem } from '../../utils/competitorPdfUpload';
 
 type Staff = { name: string; shop: string; category: number, section: string, period: string };
 type Customer = Record<string, string>;
@@ -197,34 +199,6 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
     const [originalMakerList, setOriginalMakerList] = useState<Maker[]>([]);
     const [makerList, setMakerList] = useState<Maker[]>([]);
 
-    /**
-     * 「デジシキ作成」ボタンを出すか。
-     *
-     * ─────────────────────────────────────────────
-     * ⚠️ 2026-09-10 より、開発者権限に加えて **KH久留米店の担当者**にも開放している。
-     *   店舗を増やすときは KH久留米店 の代わりに配列にすること。
-     *
-     * ⚠️⚠️ **`staffArray` は取得時に絞り込まれている。**
-     *   `category === 1 && period === String(thisYear)`（233行目付近）。
-     *   そのため period の条件はここでは実質重複だが、絞り込みの前提が
-     *   変わったときに壊れないよう明示して残す。
-     *   ⚠️ KH久留米店の在籍者5名は全員 category = 1 なので漏れない
-     *     （2026-09-10 に staff_list で確認）。category が違う職種を
-     *     対象に加えるなら、取得側の絞り込みから見直す必要がある。
-     *
-     * ⚠️ `staffArray` は API 取得後に埋まる。読み込み中の一瞬だけ
-     *   ボタンが出ないが、他の項目も同じ挙動なので許容する。
-     * ─────────────────────────────────────────────
-     */
-    const canUseFundingPlan = useMemo(() => {
-        if (authority === 'Master') return true;
-        return staffArray.some(item =>
-            item.name === userName &&
-            item.period === String(thisYear) &&
-            item.shop === 'KH久留米店'
-        );
-    }, [authority, staffArray, userName, thisYear]);
-
 
     const [kSnap, setKSnap] = useState('');
     const [showDetail, setShowDetail] = useState('');
@@ -232,7 +206,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
     const [rankSteps, setRankSteps] = useState<string[]>([]);
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [showLostReason, setShowLostReason] = useState(false);
-    const [competitorPdfFile, setCompetitorPdfFile] = useState<{ name: string, file: File | null, path?: string, staff?: string }[]>([]);
+    const [competitorPdfFile, setCompetitorPdfFile] = useState<CompetitorPdfItem[]>([]);
     const [showIceWorld, setShowIceWorld] = useState(false);
     const [editId, setEditId] = useState('');
     const isSp = useIsSp();
@@ -319,7 +293,21 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                     };
                     setInterviewLog(interviewResData);
 
-                    setCompetitorPdfFile(safeParse(response.data.pdf.pdf_path));
+                    /**
+                     * ⚠️⚠️ **2026-09-21 に competitor_pdf を「1ファイル1行」へ作り替えた。**
+                     *   ⚠️ 以前は1行の `pdf_path`（JSON配列）を safeParse していた。
+                     *   ⚠️ ⚠️ **いまは行の配列がそのまま来る。**
+                     *   ⚠️ `file` は画面用の項目なので必ず null を入れる
+                     *     （⚠️ 入れないと「新規アップロード」と誤判定される）。
+                     */
+                    setCompetitorPdfFile((response.data.pdf ?? []).map((p: any) => ({
+                        name: p.name ?? '',
+                        file: null,
+                        path: p.path ?? '',
+                        staff: p.staff ?? '',
+                        company: p.company ?? '',
+                        category: p.category ?? '',
+                    })));
                 }
             } catch (error) {
                 console.error("データの取得に失敗しました", error);
@@ -380,12 +368,23 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
         const isAddInterview = interview.day && interview.action;
 
         if (isAddInterview) {
-            const key = actionMap[interview.action];
-            information[key] = interview.day;
-            updatedMasterData = {
-                ...information,
-                [key]: interview.day,
-            };
+            /**
+             * ⚠️⚠️ **`baseAction()` を通してから actionMap を引くこと**（2026-09-21 の修正）。
+             *   ⚠️ 自社契約・仲介契約・売買契約は TableInterview.tsx が
+             *     ⚠️ **`自社契約,物件名` という値**を option に出す。
+             *   ⚠️ 素の文字列で引くと `undefined` になり、
+             *     ⚠️ **`information['undefined']` に日付が入って KPI 列が空のまま**になる。
+             *     ⚠️ `interview_sheet` には残るので「登録できた」ように見える。
+             *   ⚠️ 判定は utils/interviewKpi.ts の `kpiColumnFor()` に集約してある。
+             *
+             * ⚠️ 対応表に無いアクションでは `undefined` が返る。
+             *   ⚠️ **その場合は KPI 列に触らない。** 従来は 'undefined' という列名で書いていた。
+             */
+            const key = kpiColumnFor(actionMap, interview.action);
+            if (key !== undefined) information[key] = interview.day;
+            updatedMasterData = key === undefined
+                ? information
+                : { ...information, [key]: interview.day };
             const newInterviewLog = {
                 ...interviewLog,
                 id: information.id,
@@ -945,6 +944,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                 userName={userName}
                                                 setCompetitorPdfFile={setCompetitorPdfFile}
                                                 competitorPdfFile={competitorPdfFile}
+                                                competitorsText={information.competitors_text}
                                             />
                                         </td>
                                     </tr>
@@ -1233,9 +1233,17 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                 スマートフォンでは実用にならない。
                               ⚠️ ボタン自体を出さない（disabled にしない）。
                                 出すと押されて「開けません」と言われるだけになる。
-                              ⚠️ 表示条件は canUseFundingPlan（宣言箇所のコメント参照）。
+
+                              ⚠️⚠️ **2026-09-21 に全ユーザーへ開放した**（指示）。
+                                ⚠️ それまでは `canUseFundingPlan` で
+                                  **開発者権限（Master）と KH久留米店の担当者**だけに
+                                  出していた。⚠️ その判定ごと削除してある。
+                                ⚠️ **店舗や権限で再び絞るなら、ここに条件を戻すこと。**
+                                  ⚠️ 開く先（funding-plan/index.html）には権限の判定が無く、
+                                    `?id=` を知っていれば誰でも開ける。
+                                    ⚠️ **絞るならサーバ側（features/fundingPlan/）にも要る。**
                             */}
-                            {!isSp && canUseFundingPlan && (
+                            {!isSp && (
                                 <FundingPlan
                                     id={information.id}
                                     customerName={information.customer_contacts_name}

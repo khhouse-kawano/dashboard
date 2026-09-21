@@ -91,6 +91,7 @@ import { runCampaignSummary } from '../features/campaignSummary';
 import { runLostList } from '../features/lostList';
 import { runCompetitor } from '../features/competitor';
 import { runBlacklistEdit, runBlacklistInsert, runBlacklistUpdate } from '../features/blacklist';
+import { runCompetitorPdf } from '../features/competitorPdf';
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
 import { runShopList } from '../features/shopList';
@@ -1885,7 +1886,17 @@ register({
   summary: 'ブラックリスト名簿の一覧（解除済みも含む）',
   phpSource: 'backend/src/handlers/header_blacklist_edit.php',
   auth: 'staff',
-  handler: async () => runBlacklistEdit(),
+  /**
+   * ⚠️⚠️ **`result.body` を返すこと。`result` をそのまま返さない。**
+   *   ⚠️ `runBlacklistEdit()` は `{ httpStatus, body }` を返す。
+   *   ⚠️ そのまま返すと応答が `{"httpStatus":200,"body":{"blacklist":[...]}}` になり、
+   *     ⚠️ 画面の `response.data.blacklist` が **undefined** になる。
+   *   ⚠️ ⚠️ **エラーにならず、一覧が空のまま出る**ので気づきにくい。
+   */
+  handler: async () => {
+    const result = await runBlacklistEdit();
+    return result.body;
+  },
 });
 
 register({
@@ -1896,6 +1907,32 @@ register({
   handler: async (ctx) => {
     const result = await runBlacklistInsert(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 他社資料一覧（header/CompetitorMaterials.tsx）
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在する（competitor_pdf.php）ので、
+//   転送に失敗しても ① へ自動フォールバックして動く。
+//
+// ⚠️⚠️ **アップロードは ① に残す**（competitor_pdf_upload.php）。
+//   ⚠️ ファイルの実体は ① の uploads/competitors/ にあり、
+//     ⚠️ **② から ① のファイルシステムへは書けない。**
+//
+// ⚠️⚠️ **competitor_pdf は 2026-09-21 に「1ファイル1行」へ作り替えてある。**
+//   ⚠️ 2026-09-21_competitor_pdf_one_row_per_file.sql を先に流すこと。
+//   ⚠️ 流していないと `Unknown column 'path'` で失敗する。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'competitor_pdf',
+  summary: '他社資料一覧（PDF・顧客・店舗を結合したもの＋他社マスタ）',
+  phpSource: 'backend/src/handlers/competitor_pdf.php',
+  auth: 'staff',
+  handler: async () => {
+    const result = await runCompetitorPdf();
     return result.body;
   },
 });

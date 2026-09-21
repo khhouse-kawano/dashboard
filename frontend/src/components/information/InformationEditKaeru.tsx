@@ -8,6 +8,7 @@ import FamilyInfo from '../FamilyInfo';
 import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
 import { labelStyle } from '../../utils/informationUtils';
+import { kpiColumnFor } from '../../utils/interviewKpi';
 import { buttonStyle } from '../../utils/informationUtils';
 import { valueStyle } from '../../utils/informationUtils';
 import { inputStyle } from '../../utils/informationUtils';
@@ -28,6 +29,7 @@ import { dateFormate } from '../../utils/informationUtils';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
+import type { CompetitorPdfItem } from '../../utils/competitorPdfUpload';
 
 type Staff = { name: string; shop: string; category: number, section: string };
 type Customer = Record<string, string>;
@@ -195,7 +197,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
     const [introductoryList, setIntroductoryList] = useState<string[]>([]);
     const [eventList, setEventList] = useState<Record<string, string>[]>([]);
     const [showLostReason, setShowLostReason] = useState(false);
-    const [competitorPdfFile, setCompetitorPdfFile] = useState<{ name: string, file: File | null, path?: string, staff?: string }[]>([]);
+    const [competitorPdfFile, setCompetitorPdfFile] = useState<CompetitorPdfItem[]>([]);
 
     useEffect(() => {
         if (!id) return;
@@ -272,7 +274,21 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                         add: false
                     };
                     setInterviewLog(interviewResData);
-                    setCompetitorPdfFile(safeParse(response.data.pdf.pdf_path));
+                    /**
+                     * ⚠️⚠️ **2026-09-21 に competitor_pdf を「1ファイル1行」へ作り替えた。**
+                     *   ⚠️ 以前は1行の `pdf_path`（JSON配列）を safeParse していた。
+                     *   ⚠️ ⚠️ **いまは行の配列がそのまま来る。**
+                     *   ⚠️ `file` は画面用の項目なので必ず null を入れる
+                     *     （⚠️ 入れないと「新規アップロード」と誤判定される）。
+                     */
+                    setCompetitorPdfFile((response.data.pdf ?? []).map((p: any) => ({
+                        name: p.name ?? '',
+                        file: null,
+                        path: p.path ?? '',
+                        staff: p.staff ?? '',
+                        company: p.company ?? '',
+                        category: p.category ?? '',
+                    })));
                 }
             } catch (error) {
                 console.error("データの取得に失敗しました", error);
@@ -319,12 +335,23 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
         const isAddInterview = interview.day && interview.action;
 
         if (isAddInterview) {
-            const key = actionMap[interview.action];
-            information[key] = interview.day;
-            updatedMasterData = {
-                ...information,
-                [key]: interview.day,
-            };
+            /**
+             * ⚠️⚠️ **`baseAction()` を通してから actionMap を引くこと**（2026-09-21 の修正）。
+             *   ⚠️ 自社契約・仲介契約・売買契約は TableInterview.tsx が
+             *     ⚠️ **`自社契約,物件名` という値**を option に出す。
+             *   ⚠️ 素の文字列で引くと `undefined` になり、
+             *     ⚠️ **`information['undefined']` に日付が入って KPI 列が空のまま**になる。
+             *     ⚠️ `interview_sheet` には残るので「登録できた」ように見える。
+             *   ⚠️ 判定は utils/interviewKpi.ts の `kpiColumnFor()` に集約してある。
+             *
+             * ⚠️ 対応表に無いアクションでは `undefined` が返る。
+             *   ⚠️ **その場合は KPI 列に触らない。** 従来は 'undefined' という列名で書いていた。
+             */
+            const key = kpiColumnFor(actionMap, interview.action);
+            if (key !== undefined) information[key] = interview.day;
+            updatedMasterData = key === undefined
+                ? information
+                : { ...information, [key]: interview.day };
             const newInterviewLog = {
                 ...interviewLog,
                 id: information.id,
@@ -945,6 +972,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                                 userName={userName}
                                                 setCompetitorPdfFile={setCompetitorPdfFile}
                                                 competitorPdfFile={competitorPdfFile}
+                                                competitorsText={information.competitors_text}
                                             />
                                         </td>
                                     </tr>

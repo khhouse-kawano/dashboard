@@ -135,13 +135,27 @@ docker compose -f ~/dashboard/docker-compose.prod.yml --env-file ~/dashboard/.en
 
 ### ⚠️ 疎通の確認（② で実行）
 
+⚠️⚠️ **ホストから `http://localhost:3001` は叩けない。**
+⚠️ `docker-compose.prod.yml` が ⚠️ **express-api の 3001番を `ports` に書いていない**ため
+（⚠️ 書くと VPS のグローバルIPに口が開き、⚠️ **Caddy を迂回できてしまう**）。
+⚠️ ⚠️ **叩くと `000`（接続できず）になる。これは正常である。**
+
+⚠️ **Caddy 経由で確認する**（⚠️ 本番の経路と同じ）:
+
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:3001/api/gateway \
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api.khg-marketing.info/api/gateway \
   -H "Content-Type: application/json" -d '{"request":"header_blacklist_edit"}'
 ```
 
-⚠️⚠️ **`401` が返れば登録されている。**
+⚠️ コンテナの中から直接見たいときは:
+
+```bash
+dcp exec express-api node -e "fetch('http://localhost:3001/api/gateway',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request:'header_blacklist_edit'})}).then(r=>console.log(r.status))"
+```
+
+⚠️⚠️ **どちらも `401` が返れば登録されている。**
 ⚠️ ⚠️ **`404` なら未登録**（⚠️ ビルドが古い。⚠️ `dcp build` からやり直す）。
+⚠️ ⚠️ **`502` ならコンテナが起動していない**（⚠️ `dcp ps` と `dcp logs express-api` を見る）。
 
 ---
 

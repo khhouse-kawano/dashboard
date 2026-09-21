@@ -99,7 +99,8 @@ tbody tr:nth-child(even){background:#fafbfd}
 tr.tot{background:#e8eef8 !important;font-weight:900}
 tr.tot td{color:var(--navy)}
 table input,table select{background:var(--inbg);border:1px solid var(--inline);border-radius:4px;padding:3px 5px;font-size:12.5px}
-table input[type=number]{text-align:right}
+table input[type=number],table input.numonly{text-align:right}
+table input.fdate{width:100%;min-width:118px;text-align:center;font-size:12px;padding:2px 4px}
 .tw{overflow-x:auto}
 .tw table{min-width:660px}
 .xbtn{background:#f3f4f6;border:1px solid #d4d9e2;border-radius:5px;color:#9aa1ad;cursor:pointer;width:22px;height:22px;line-height:1;font-weight:900}
@@ -1199,8 +1200,9 @@ code{background:#eef2f8;border-radius:4px;padding:1px 5px;font-size:11px}
   <div class="card">
     <h3>スケジュール一覧<span class="sub">「日数」は前のステップからの日数です</span></h3>
     <div class="tw"><table id="tblFlow">
-      <thead><tr><th class="ctr" style="width:44px">No</th><th style="width:20%">ステップ</th><th class="ctr" style="width:74px">日数</th><th class="ctr" style="width:110px">予定日</th><th>内容</th><th class="ctr" style="width:60px">完了</th></tr></thead>
+      <thead><tr><th class="ctr" style="width:44px">No</th><th style="width:20%">ステップ</th><th class="ctr" style="width:66px">日数</th><th class="ctr" style="width:142px">予定日</th><th>内容</th><th class="ctr" style="width:60px">完了</th></tr></thead>
       <tbody></tbody></table></div>
+    <p class="note">※<b>STEP2〜7</b>は予定日を直接お選びください（日数は使いません）。<b>STEP8 ご契約</b>以降は前のステップからの日数で自動計算します。日付を空欄に戻すと自動計算に戻ります。</p>
   </div>
 
   <div class="card" id="cardSteps">
@@ -1749,7 +1751,8 @@ function DEF(){
     f_up:1.5, f_tedori:78, f_teinen:60, f_saikoyo:350, f_taishoku:1000, f_nenkin:240,
     f_seikatsu:20, f_kotei:12, f_shuzen:6, f_hoken:18, f_carCycle:10, f_carCost:200, f_other:24,
 
-    w_start: iso, w_days: FLOW.map(function(f){return f[1];}), w_done: FLOW.map(function(){return false;})
+    w_start: iso, w_days: FLOW.map(function(f){return f[1];}), w_done: FLOW.map(function(){return false;}),
+    w_dates: FLOW.map(function(){return "";})
   };
 }
 var S = DEF();
@@ -1882,8 +1885,17 @@ function renderDetail(key){
     "</tr>";
   }).join("");
 }
-function setD(key,i,f,v){ S[key][i][f] = (f==="a")?(parseFloat(v)||0):v;
-  if(f==="a"||f==="t"){ renderDetail(key); } mark(true); calc(); }
+function setD(key,i,f,v){
+  var r=S[key] && S[key][i]; if(!r) return;
+  r[f] = (f==="a")?(parseFloat(v)||0):v;
+  if(f==="a"||f==="t"){
+    /* 表ごと作り直すと入力中にフォーカスが外れるため、税別セルだけ書き換える */
+    var tb=$("#tbl"+key.toUpperCase());
+    var row=tb ? tb.querySelectorAll("tbody tr")[i] : null;
+    if(row && row.cells[2]) row.cells[2].textContent = cm(r.t ? Math.round((r.a||0)/1.1) : (r.a||0));
+  }
+  mark(true); calc();
+}
 function delRow(key,i){ S[key].splice(i,1); mark(true); renderDetail(key); calc(); }
 function addRow(key){
   if(key==="kids"){ S.kids.push({name:"",age:0,plan:1}); touch("kids"); renderKids(); }
@@ -1913,30 +1925,74 @@ function autoChukai(){
 }
 
 /* ---------- 家づくりの流れ ---------- */
+function ymd(d){
+  if(!d||isNaN(d)) return "";
+  var m=d.getMonth()+1, dd=d.getDate();
+  return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(dd<10?"0":"")+dd;
+}
+/* STEP1は起点日。STEP2〜7は日付を直接指定でき、指定があればそこから先を積み上げる。
+   STEP8以降は前ステップ＋日数で計算する。 */
 function flowDates(){
   var st = new Date(S.w_start||new Date()); if(isNaN(st)) st = new Date();
-  var d = new Date(st.getTime()), out=[];
-  for(var i=0;i<FLOW.length;i++){
+  var d = new Date(st.getTime()), out=[new Date(d.getTime())];
+  for(var i=1;i<FLOW.length;i++){
+    var fixed = (S.w_dates||[])[i];
+    if(i<=6 && fixed){
+      var fd=new Date(fixed);
+      if(!isNaN(fd)){ d=fd; out.push(new Date(d.getTime())); continue; }
+    }
     var off = parseFloat((S.w_days||[])[i]); if(!isFinite(off)) off = FLOW[i][1];
-    d = addDays(d, i===0?0:off);
+    d = addDays(d, off);
     out.push(new Date(d.getTime()));
   }
   return out;
 }
+/* 全角数字→半角に直し、半角数字以外を取り除く */
+function toHankakuNum(v){
+  return String(v==null?"":v)
+    .replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); })
+    .replace(/[^0-9]/g, "");
+}
+/* 入力欄の値を整えつつ、カーソル位置を保つ */
+function numOnly(el){
+  var v=el.value, c=toHankakuNum(v);
+  if(c!==v){
+    var pos=(el.selectionStart||0) - (v.length-c.length);
+    el.value=c;
+    try{ el.setSelectionRange(Math.max(0,pos), Math.max(0,pos)); }catch(e){}
+  }
+  return c;
+}
+function flowDayCell(i,f){
+  if(i===0) return "起点";
+  if(i<=6) return '<span style="color:var(--mu)">－</span>';  /* STEP2〜7は日付を直接指定 */
+  var d=(S.w_days||[])[i]; if(d===undefined||d===null||d==="") d=f[1];
+  return '<input type="number" value="'+d+'" oninput="setFlowDay('+i+',this.value)" style="width:56px">';
+}
+function flowDateCell(i,ds){
+  if(i>=1 && i<=6){  /* STEP2 資金概算提案 〜 STEP7 ローン事前審査承認 */
+    return '<input type="date" class="fdate" value="'+ymd(ds[i])+'" onchange="setFlowDate('+i+',this.value)">';
+  }
+  return fmtDate(ds[i]).replace(/^\d+年/,"");
+}
 function renderFlow(){
   var ds = flowDates();
   $("#tblFlow").querySelector("tbody").innerHTML = FLOW.map(function(f,i){
-    var ph = i<7?1:(i<12?2:3);
     return "<tr>"+
       '<td class="ctr"><b style="color:var(--navy)">'+(i+1)+'</b></td>'+
       "<td><b>"+esc(f[0])+"</b></td>"+
-      '<td class="num">'+(i===0?"起点":'<input type="number" value="'+((S.w_days||[])[i]||f[1])+'" oninput="setFlowDay('+i+',this.value)" style="width:56px">')+'</td>'+
-      '<td class="ctr">'+fmtDate(ds[i]).replace(/^\d+年/,"")+"</td>"+
+      '<td class="num ctr">'+flowDayCell(i,f)+'</td>'+
+      '<td class="ctr">'+flowDateCell(i,ds)+"</td>"+
       '<td style="white-space:pre-line;font-size:11.5px">'+esc(f[2])+"</td>"+
       '<td class="ctr"><input type="checkbox" '+((S.w_done||[])[i]?"checked":"")+' onchange="setFlowDone('+i+',this.checked)"></td>'+
     "</tr>";
   }).join("");
-  $("#stepGrid").innerHTML = FLOW.map(function(f,i){
+  renderSteps();
+}
+function renderSteps(){
+  var g=$("#stepGrid"); if(!g) return;
+  var ds = flowDates();
+  g.innerHTML = FLOW.map(function(f,i){
     var ph = i<7?"":(i<12?" ph2":" ph3");
     return '<div class="step'+ph+'"><span class="sn">STEP '+(i+1)+'</span>'+
       '<div class="st">'+esc(f[0])+((S.w_done||[])[i]?' <span class="pill g">完了</span>':"")+"</div>"+
@@ -1944,8 +2000,29 @@ function renderFlow(){
       '<div class="sdate">'+fmtDate(ds[i])+"</div></div>";
   }).join("");
 }
-function setFlowDay(i,v){ S.w_days[i]=parseFloat(v)||0; mark(true); renderFlow(); calc(); }
-function setFlowDone(i,v){ S.w_done[i]=!!v; mark(true); renderFlow(); }
+/* 入力欄はそのままに、予定日のセルとステップ図だけ書き換える（フォーカス維持） */
+function updateFlowDates(){
+  var tb=$("#tblFlow"); if(!tb) return;
+  var ds=flowDates(), rows=tb.querySelectorAll("tbody tr");
+  for(var i=0;i<rows.length && i<ds.length;i++){
+    var c=rows[i].cells[3]; if(!c) continue;
+    var inp=c.querySelector("input");
+    if(inp){ if(inp!==document.activeElement) inp.value = ymd(ds[i]); }
+    else c.textContent = fmtDate(ds[i]).replace(/^\d+年/,"");
+  }
+  renderSteps();
+}
+function setFlowDay(i,v,el){
+  if(el) v = numOnly(el);
+  S.w_days[i] = parseFloat(v)||0;
+  mark(true); updateFlowDates(); calc();
+}
+function setFlowDate(i,v){
+  if(!S.w_dates) S.w_dates = FLOW.map(function(){return "";});
+  S.w_dates[i] = v||"";
+  mark(true); updateFlowDates(); calc();
+}
+function setFlowDone(i,v){ S.w_done[i]=!!v; mark(true); renderSteps(); }
 
 /* ---------- バインド ---------- */
 function bindInputs(){
@@ -2285,7 +2362,7 @@ function calc(){
   calcBank(O);
   calcLand(O);
 
-  OUT=O; paint(); renderFlow(); renderLoans(); renderLands();
+  OUT=O; paint(); updateFlowDates(); renderLoans();
 }
 
 /* ---------- ⑨ 銀行金利比較（住宅ローン商品カタログ） ---------- */
@@ -2882,9 +2959,9 @@ function renderLands(){
     return "<tr>"+
       '<td><input type="text" value="'+esc(r.n)+'" oninput="setLd('+i+',\'n\',this.value)"></td>'+
       '<td><input type="text" value="'+esc(r.ad)+'" oninput="setLd('+i+',\'ad\',this.value)"></td>'+
-      '<td class="num"><input type="number" step="0.1" value="'+(r.ts||"")+'" oninput="setLd('+i+',\'ts\',this.value)"></td>'+
-      '<td class="num"><input type="number" step="0.1" value="'+(r.tk||"")+'" oninput="setLd('+i+',\'tk\',this.value)"></td>'+
-      '<td class="num"><input type="number" value="'+(r.pr||"")+'" oninput="setLd('+i+',\'pr\',this.value)"></td>'+
+      '<td class="num"><input type="number" step="0.1" value="'+(r.ts||"")+'" oninput="setLd('+i+',\'ts\',this.value,this)"></td>'+
+      '<td class="num"><input type="number" step="0.1" value="'+(r.tk||"")+'" oninput="setLd('+i+',\'tk\',this.value,this)"></td>'+
+      '<td class="num"><input type="number" value="'+(r.pr||"")+'" oninput="setLd('+i+',\'pr\',this.value,this)"></td>'+
       '<td><input type="text" value="'+esc(r.yt)+'" oninput="setLd('+i+',\'yt\',this.value)" placeholder="第一種低層など"></td>'+
       '<td><input type="text" value="'+esc(r.bk)+'" oninput="setLd('+i+',\'bk\',this.value)" placeholder="60/200"></td>'+
       '<td><input type="text" value="'+esc(r.hz)+'" oninput="setLd('+i+',\'hz\',this.value)" placeholder="浸水0.5m等"></td>'+
@@ -2895,14 +2972,20 @@ function renderLands(){
     "</tr>";
   }).join("") || '<tr><td colspan="10" class="ctr" style="color:var(--mu);padding:12px">「＋ 候補を追加」または「📍 選択地点から追加」で登録してください。</td></tr>';
 }
-function setLd(i,f,v){
+function setLd(i,f,v,el){
   var r=S.lands[i]; if(!r) return;
   if(f==="n"||f==="ad"||f==="yt"||f==="bk"||f==="hz"||f==="me"){ r[f]=v; }
   else {
     r[f]=parseFloat(v)||0;
-    if(f==="ts"||f==="tk"){ if(r.ts>0&&r.tk>0) r.pr=Math.round(r.ts*r.tk); }
-    else if(f==="pr"){ if(r.ts>0) r.tk=Math.round(r.pr/r.ts*10)/10; }
-    renderLands();
+    /* 表ごと作り直すとフォーカスが外れるので、連動する欄だけ書き換える */
+    var tb=$("#tblLands"), row=tb ? tb.querySelectorAll("tbody tr")[i] : null;
+    var put=function(ci,val){
+      if(!row||!row.cells[ci]) return;
+      var inp=row.cells[ci].querySelector("input");
+      if(inp && inp!==el) inp.value=val;
+    };
+    if(f==="ts"||f==="tk"){ if(r.ts>0&&r.tk>0){ r.pr=Math.round(r.ts*r.tk); put(4,r.pr); } }
+    else if(f==="pr"){ if(r.ts>0){ r.tk=Math.round(r.pr/r.ts*10)/10; put(3,r.tk); } }
   }
   mark(true); calc();
 }
@@ -3210,7 +3293,10 @@ function bootLoad(done){
 
        ⚠️ 2026-09-10 追加の土地検索（t_pref 等）は JSON 列ではないので
          ここに足す必要は無い。lands は配列なので JSON_KEYS に入れる。 */
-    var JSON_KEYS = ["kids","k_trigger","s1","s2","s3","s4","s5","loans","lands","w_days","w_done"];
+    /* ⚠️ 2026-09-21 に w_dates（⑨段取り表の予定日）を足した。
+         ⚠️ 配列なので必ずここに入れること。⚠️ 落とすと null で上書きされ、
+           setFlowDate() が S.w_dates[i] に代入するところで例外になる。 */
+    var JSON_KEYS = ["kids","k_trigger","s1","s2","s3","s4","s5","loans","lands","w_days","w_done","w_dates"];
 
     for(var k in plan){
       var v = plan[k];
