@@ -57,6 +57,22 @@ const filteredStaffName = (value: string) => {
 
 const dateFormate = (value: string) => (value ?? '').replace(/-/g, '/');
 
+/**
+ * インサイドセールスの対象店舗。
+ *
+ * ⚠️ 基本は `section === '熊本営業課'` だが、2026-09-18 の指示で
+ *   `PGH霧島店`（section は熊本営業課ではない）も対象に加えた。
+ * ⚠️ 絞り込み（targetShopList）と表の行（displayShops）の2か所で使う。
+ *   片方だけ直すと「表には出るのに数字が0」「数字はあるのに行が出ない」になる。
+ */
+const INSIDE_SALES_SECTION = '熊本営業課';
+const INSIDE_SALES_EXTRA_SHOPS = ['PGH霧島店'];
+const isInsideSalesShop = (s: shopList): boolean =>
+    s.section === INSIDE_SALES_SECTION || INSIDE_SALES_EXTRA_SHOPS.includes(s.shop);
+
+/** 合計行の見出し。⚠️ 熊本営業課以外も含むため「熊本営業課」とは書かない。 */
+const INSIDE_SALES_TOTAL_LABEL = 'インサイドセールス全体';
+
 const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) => {
     const [insideSalesCategory, setInsideSalesCategory] = useState('');
     const [targetShop, setTargetShop] = useState('');
@@ -114,7 +130,7 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
     const targetShopList = useMemo(() => {
         if (categoryValue === 'order') {
             if (targetShop === 'inside_sales') {
-                return shopArray.filter(s => s.section === '熊本営業課').map(s => s.shop);
+                return shopArray.filter(isInsideSalesShop).map(s => s.shop);
             }
             return shopArray.filter(s => s.shop === targetShop).map(s => s.shop);
         }
@@ -180,8 +196,11 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
     };
 
     const renderInsideSalesList = () => {
-        const displayShops = [{ brand: '', shop: '熊本営業課', section: '熊本営業課', show_flag: 1 }, ...shopArray]
-            .filter(s => s.section === '熊本営業課');
+        // ⚠️ 先頭は合計行。sIndex === 0 を isTotalRow として扱うので、並び順を変えないこと。
+        const displayShops: shopList[] = [
+            { brand: '', shop: INSIDE_SALES_TOTAL_LABEL, section: INSIDE_SALES_SECTION, show_flag: 1 },
+            ...shopArray.filter(isInsideSalesShop),
+        ];
         const metrics = ['総反響数', '対応反響数', '対応中', 'アポ取得数', '対応反響数からの来場数', '総架電数', '資料郵送数', 'SMS送信数', 'メール送信数'];
 
         return (
