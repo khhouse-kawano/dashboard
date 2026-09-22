@@ -176,22 +176,40 @@ curl -s -o /dev/null -w "%{http_code}\n" https://api.khg-marketing.info/api/v1/a
 
 ---
 
-## ⚠️ 手順7　MCP サーバーに道具を足す（⚠️ **別作業**）
+## ⚠️ 手順7　MCP サーバーを配り直す（⚠️ **v2.2.142 で実施**）
 
-⚠️⚠️ **ここはまだ出来ていない。** ⚠️ **② の口を用意しただけである。**
+⚠️⚠️ **この版（2.2.141）には入っていない。** ⚠️ **手順は `deploy-v2.2.142.md` にある。**
 
-⚠️ Claude Desktop から使うには、MCP サーバーに以下を呼ぶ道具を足す必要がある。
+⚠️ ⚠️ **サーバー（①②）の作業ではない。** ⚠️ **MCP サーバーは利用者のPCで動く。**
 
-| 呼ぶ先 | 用途 |
+⚠️ 2026-09-22 に ⚠️ **道具を5本足した**（`mcp-server/src/index.ts`）。
+
+| 道具 | 呼ぶ先 |
 |---|---|
-| `GET https://api.khg-marketing.info/api/v1/analysis/competitor?division=order&months=12` | データの取得 |
-| `GET https://api.khg-marketing.info/api/v1/analysis/report/spec` | ⚠️ **HTML の書き方** |
-| `POST https://api.khg-marketing.info/api/v1/analysis/report` | ⚠️ **HTML の保存** |
+| `get_competitor_deals` | `GET /api/v1/analysis/competitor?division=order&months=12` |
+| `get_report_spec` | `GET /api/v1/analysis/report/spec` |
+| ⚠️ `save_analysis_report` | ⚠️ **`POST /api/v1/analysis/report`** |
+| `list_analysis_reports` | `GET /api/v1/analysis/report` |
+| `get_analysis_report` | `GET /api/v1/analysis/report/:no` |
 
 ⚠️ 認証は ⚠️ **`Authorization: Bearer <分析APIキー>`**。
 ⚠️ ⚠️ **キーは Master のスタッフに紐づく。** ⚠️ 権限が Master でなくなると使えなくなる。
 
-⚠️ ⚠️ **道具が無くても、画面から HTML を手で上げれば使える。**
+### 【あなたのPC（PowerShell）】
+
+```powershell
+cd C:\Users\shinji-kawano\react\dashboard\mcp-server
+npm install
+npm run build
+```
+
+⚠️ ⚠️ **配布のしかたは `mcp-server/docs/manual-install-windows.md` のとおり**（変更なし）。
+⚠️ 既に配った人には ⚠️ **`dist` フォルダを差し替えてもらい、Claude Desktop を再起動**してもらう。
+⚠️ ⚠️ **`claude_desktop_config.json` は書き換え不要**（接続先もキーも変わっていない）。
+
+⚠️ ⚠️ **② の再ビルド（手順5）が先。** ⚠️ 先に配ると `/analysis/competitor` が 404 になる。
+
+⚠️ ⚠️ **道具を配らなくても、画面から HTML を手で上げれば使える。**
 
 ---
 
@@ -258,7 +276,7 @@ SELECT feature, COUNT(*) c, SUM(cost_usd) usd
 
 | 何 | なぜ |
 |---|---|
-| ⚠️⚠️ **MCP サーバー側の道具** | ⚠️ **② の口を用意しただけ**（手順7） |
+| ⚠️⚠️ **MCP サーバー側の道具** | ⚠️ **② の口を用意しただけ。** ⚠️ **道具は v2.2.142 で追加**（手順7） |
 | ⚠️ `consulting` 権限で全レスポンスを伏字にする | ⚠️ 利用者の判断で次の版へ |
 | ⚠️ Express `/analysis` の既存エンドポイントの建売対応 | ⚠️ 同上（⚠️ **競合分析だけは建売に対応済み**） |
 

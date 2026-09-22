@@ -50,8 +50,10 @@ Copy-Item -Path .\package-lock.json -Destination $out -Force
 Get-ChildItem $out
 ```
 
-⚠️ **`node_modules` は入れない。** 利用者のPCで `npm install` させる
-（OSやNodeのバージョンでネイティブ依存が変わる可能性があるため）。
+⚠️ `scripts` フォルダもそのまま入れる（`セットアップ.cmd` / `setup-windows.ps1` / `確認.ps1`）。
+⚠️⚠️ **`セットアップ.cmd` は `scripts` の中のままにすること。**
+⚠️ セットアップは **自分の1つ上のフォルダ**から `dist` を探すため、
+⚠️ **`dist` と同じ階層に出すと「配布ファイルが不足しています」で止まる。**
 
 ⚠️ **`src` も `.env` 系も入れない。** 実行に不要であり、
 配布物を増やすほど「どれが本物か」が分からなくなる。
@@ -61,6 +63,29 @@ zip にする。
 ```powershell
 Compress-Archive -Path $out -DestinationPath "$env:USERPROFILE\Desktop\khg-analysis-mcp.zip" -Force
 ```
+
+### ⚠️ オフライン版（⚠️ **`npm install` が通らない環境向け**）
+
+⚠️⚠️ **2026-09-22、利用者のPCで `npm install` が失敗した**（`node_modules` が作られていなかった）。
+⚠️ 社内ネットワークから `registry.npmjs.org` に出られていない可能性が高い。
+
+⚠️ ⚠️ **依存は `@modelcontextprotocol/server` と `zod` の3パッケージだけで、すべて純JS。**
+⚠️ **ネイティブ依存が無いので、こちらで用意したものをそのまま配ってよい。**
+
+```powershell
+$stage = "$env:TEMP\khg-mcp-offline"
+New-Item -ItemType Directory -Force -Path $stage | Out-Null
+Copy-Item .\package.json, .\package-lock.json $stage -Force
+Push-Location $stage
+npm.cmd install --omit=dev --no-audit --no-fund
+Pop-Location
+Copy-Item "$stage\node_modules" $out -Recurse -Force
+Compress-Archive -Path $out -DestinationPath "$env:USERPROFILE\Desktop\khg-analysis-mcp-offline.zip" -Force
+```
+
+⚠️ 約 3MB になる。
+⚠️ ⚠️ **`setup-windows.ps1` は `node_modules` が既にあれば `npm install` を飛ばす**ので、
+⚠️ 手順は変わらない（`セットアップ.cmd` をそのまま実行してもらう）。
 
 ---
 
