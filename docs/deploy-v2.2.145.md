@@ -12,7 +12,8 @@
 | 6 | ⚠️ **customer / shop / rank / map を SaaS 風に** | ① フロント |
 | 7 | ⚠️⚠️ **建売のホームページ反響を2画面で揃えた** | ① フロント |
 
-⚠️⚠️ **v2.2.144 を先に通しておくこと。**
+⚠️ ⚠️ **v2.2.143 / v2.2.144 はマージ済み**（2026-09-22 に確認。production = PR #58）。
+⚠️ **この版だけを出せばよい。**
 
 ---
 
@@ -98,6 +99,9 @@ curl -s -o /dev/null -w "%{http_code}\n" https://api.khg-marketing.info/api/v1/a
 
 ## 手順3　【① レンタルサーバーで実行】PHP のアップロード（⚠️ **6ファイル**）
 
+⚠️ ⚠️ **`git diff origin/production..HEAD` で確認した全件である**（2026-09-22）。
+⚠️ **① に上げる PHP はこの6つだけ。他の PHP は変えていない。**
+
 | ファイル | 置き場所 |
 |---|---|
 | ⚠️ **`backend/src/core/allowed_columns.php`** | `core/` |
@@ -113,13 +117,15 @@ curl -s -o /dev/null -w "%{http_code}\n" https://api.khg-marketing.info/api/v1/a
 
 ## 手順4　【あなたのPC（PowerShell）】フロント → ① へアップロード
 
-⚠️ ⚠️ **ビルド済み**（2026-09-22・`main.ee94e56a.js`。⚠️ **`2.2.145` を含むことを確認済み**）。
+⚠️ ⚠️ **ビルド済み**（2026-09-22 18:14）。
 
-| 何 | 備考 |
+| ファイル | 確認したこと |
 |---|---|
-| `index.html` | ⚠️ **必ず差し替える** |
-| `static/js/` | 新しい `main.*.js` |
-| `static/css/` | 新しい `main.*.css` |
+| `build/static/js/main.ee94e56a.js` | ⚠️ **`2.2.145` と `memo_marketing` を含む** |
+| `build/static/css/main.7c10f266.css` | ⚠️ **v2.2.144 から変わっていない**（⚠️ それでも一緒に上げてよい） |
+| `build/index.html` | ⚠️ **上の2つを参照している** |
+
+⚠️⚠️ **`index.html` を必ず差し替えること。** ⚠️ **古いままだと JS が読み込まれない。**
 
 ---
 
