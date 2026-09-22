@@ -694,8 +694,11 @@ const CustomerKaeru = () => {
                                     totalBudget,
                                 } = item;
 
+                                // ⚠️ ホームページ反響の行は文字色で目立たせる（2026-09-22 の指示）
+                                const isHomepageRow = value.medium === HOMEPAGE_ROW;
+
                                 return (
-                                    <tr className="rk_row" key={value.id ?? `medium-${index}`}>
+                                    <tr className={`rk_row${isHomepageRow ? ' rk_row_accent' : ''}`} key={value.id ?? `medium-${index}`}>
                                         <td className="rk_td rk_td_name">{value.medium}</td>
                                         {/* ⚠️ 見出しと同じ並び。入れ替えないこと */}
                                         <td className="rk_td">{totalValue.toLocaleString()}</td>

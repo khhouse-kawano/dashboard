@@ -74,6 +74,14 @@ export const RankingStyle = () => (
         .rk_row:hover > .rk_td_name { background: #f8fafc; }
         /* ⚠️ 率の列は数より薄くする。⚠️ 数と率が交互に並ぶため、目で追えなくなる */
         .rk_rate { color: #6b7280; }
+        /*
+          ⚠️ 目立たせたい行（2026-09-22 の指示）。
+            ⚠️⚠️ **背景ではなく文字色を変える。**
+              ⚠️ 背景を変えたら ⚠️ **かえって読みづらいと利用者から指摘があった。**
+            ⚠️ ⚠️ **1列目（固定列）にも効くよう、td ごとに色を当てている。**
+        */
+        .rk_row_accent > .rk_td { color: #2563eb; font-weight: 700; }
+        .rk_row_accent > .rk_td.rk_rate { color: #60a5fa; }
         /* ⚠️ 合計・全社などのまとめ行 */
         .rk_row_total > .rk_td { background: #f8fafc; font-weight: 700; }
         .rk_row_total > .rk_td_name { background: #f8fafc; }

@@ -481,3 +481,54 @@ export const FUNNEL_METRICS: MetricKey[] = [
 
 ⚠️ ⚠️ **「埋まっていること」と「運用として維持されていたこと」は別**なので、両方を meta に書いてある。
 ⚠️ **どちらを信じるかは Claude ではなく読む人が決められるようにした。**
+
+---
+
+## ⚠️ 7. ホームページ反響に Web検索・Instagram を丸める（2026-09-22 夜）
+
+⚠️ 指示:
+
+> CustomerKaeru.tsx のホームページ反響から Web検索と Instagram が抜けているので丸めること
+> 総反響と一致しなくてもよい
+> ホームページ反響は文字色を primary 等にする
+
+### 何が起きていたか
+
+⚠️ ホームページ反響の判定は `hp_campaign` 起点だった（`isHp`）。
+⚠️ ⚠️ **キャンペーン名にポータル名（SUUMO / タウンライフ / カゴスマ 等）が入っていると、
+  反響媒体が Web検索・Instagram でもホームページ反響に入らなかった。**
+
+### 直し方
+
+```ts
+export const HOMEPAGE_MEDIUMS: string[] = ['Web検索', 'Instagram'];
+
+export const isHomepageCustomer = (...) => {
+    // ⚠️ 2026-09-22 追加。⚠️ **ここだけは単独行より先に判定する**（丸めを優先する）
+    if (HOMEPAGE_MEDIUMS.includes(normalizeMedium(customerMedium))) return true;
+    ...
+};
+```
+
+⚠️⚠️ **`hp_campaign` を見ない。** ⚠️ **単独行（SUUMO 等）との二重計上が起きうる。**
+⚠️ ⚠️ **利用者の判断で許容している**（「総反響と一致しなくてもよい」）。
+
+⚠️ 実データ（`master_data_kaeru` / `show_dashboard = 1`）
+
+| | 件数 |
+|---|---|
+| Web検索系（インターネット検索・ネット 等を含む） | 5,129 |
+| Instagram系（SNS広告・Facebook を含む） | 270 |
+| ⚠️ **合計** | ⚠️ **5,399** |
+| ⚠️⚠️ **うち、今まで漏れていた分**（キャンペーン名にポータル名が入っていた） | ⚠️ **193** |
+
+### 文字色
+
+⚠️⚠️ **背景ではなく文字色**にした（⚠️ **背景は読みづらいと指摘があったため**）。
+
+```css
+.rk_row_accent > .rk_td { color: #2563eb; font-weight: 700; }
+.rk_row_accent > .rk_td.rk_rate { color: #60a5fa; }
+```
+
+⚠️ ⚠️ **`td` ごとに当てている**（1列目が固定列で、`tr` だけでは効かないため）。
