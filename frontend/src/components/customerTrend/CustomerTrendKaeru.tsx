@@ -9,6 +9,8 @@ import { get11MonthsAgoString } from "../../utils/get11MonthsAgoString";
 import apiClient from "../../utils/apiClient";
 import { chartColors } from "./utils";
 import CustomerListModal from "../CustomerListModal";
+// ⚠️ ホームページ反響に丸める媒体。⚠️ **顧客分析（CustomerKaeru.tsx）と同じものを使う**
+import { HOMEPAGE_MEDIUMS, normalizeMedium } from '../customer/customerKaeruUtils';
 import InformationEditKaeru from "../information/InformationEditKaeru";
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
@@ -351,7 +353,18 @@ const CustomerTrendKaeru: React.FC = () => {
     // 【修正】HPグループの判定
     // 条件: 「displayMediums に該当しない（!isAnyDisplayMedium）」かつ「HP系の条件を満たす」
     // --------------------------------------------------
-    const isHpGroup = !isAnyDisplayMedium && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign);
+    /**
+     * ⚠️⚠️ **Web検索・Instagram は無条件でホームページ反響に丸める**（2026-09-22 の指示）。
+     *   ⚠️ ⚠️ **キャンペーン名にポータル名（SUUMO / タウンライフ / カゴスマ 等）が
+     *     入っていると、以前はここから漏れていた**（実測193件）。
+     *   ⚠️ 顧客分析（customer/CustomerKaeru.tsx）と ⚠️ **同じ判定にするための行**である。
+     *     ⚠️ ⚠️ **片方だけ直さないこと。** ⚠️ 2つの画面で件数が食い違う。
+     *   ⚠️ 別名（インターネット検索 / ネット / SNS広告 / Facebook）も寄せる。
+     */
+    const isRolledUpMedium = HOMEPAGE_MEDIUMS.includes(normalizeMedium(o.medium ?? ''));
+
+    const isHpGroup = isRolledUpMedium
+      || (!isAnyDisplayMedium && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign));
 
     // 2. ホームページ反響計（合計）
     if (mediumIndex === 1) return isHpGroup;

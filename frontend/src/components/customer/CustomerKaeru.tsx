@@ -84,6 +84,14 @@ const HOMEPAGE_ROW = 'ホームページ反響';
  *   customerKaeruUtils.ts の `MEDIUM_ALIAS` に別名を足す**のが正しい対応である。
  */
 const OTHER_ROW = 'その他（未分類）';
+
+/**
+ * ⚠️⚠️ **集計の起点**（2026-09-22 の指示で追加）。
+ *   ⚠️ ⚠️ **反響推移（CustomerTrendKaeru.tsx）の月の一覧と同じにすること。**
+ *     ⚠️ あちらは `getYearMonthArray(2025, 1)`。
+ *   ⚠️ ⚠️ **片方だけ変えると「全期間」の件数が合わなくなる。**
+ */
+const PERIOD_START = '2025/01';
 type Section = { no: number, name: string }
 
 const CustomerKaeru = () => {
@@ -128,8 +136,18 @@ const CustomerKaeru = () => {
     const filteredCustomers = useMemo(() => {
         if (!originalList.length) return [];
 
-        let startDate: Date | undefined;
-        if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
+        /**
+         * ⚠️⚠️ **開始月を選んでいなくても 2025年1月より前は数えない**（2026-09-22 の指示）。
+         *
+         *   ⚠️ ⚠️ **反響推移（CustomerTrendKaeru.tsx）の「全期間」列と揃えるため。**
+         *     ⚠️ あちらの月の一覧は `getYearMonthArray(2025, 1)` で作られており、
+         *       ⚠️ **2025年1月以降しか数えていない。**
+         *   ⚠️ ⚠️ **揃える前は 2,545件（それ以前と反響日なし）だけ多く出ていた。**
+         *   ⚠️ 期間の起点を変えるときは ⚠️ **両方の画面を直すこと。**
+         */
+        const startDate = startMonth !== ''
+            ? new Date(`${startMonth}/01`)
+            : new Date(`${PERIOD_START}/01`);
 
         let endDate: Date | undefined;
         if (endMonth !== '') {
@@ -141,7 +159,8 @@ const CustomerKaeru = () => {
             const targetDate = new Date(item.register.replace(/\//g, '-'));
             const sectionShops = shopArray.filter(s => s.section === selectedSection).map(s => s.shop);
             return (
-                (!startDate || targetDate >= startDate) &&
+                // ⚠️ `startDate` は必ず入る（未選択なら PERIOD_START）
+                targetDate >= startDate &&
                 (!endDate || targetDate <= endDate) &&
                 (!selectedShop || item.shop?.includes(selectedShop)) &&
                 (!selectedSection || sectionShops.includes(item.shop))
@@ -152,8 +171,10 @@ const CustomerKaeru = () => {
     const filteredBudgets = useMemo(() => {
         if (!originalBudgetList.length) return [];
 
-        let startDate: Date | undefined;
-        if (startMonth !== '') startDate = new Date(`${startMonth}/01`);
+        // ⚠️ 販促費も顧客と同じ起点にする。⚠️ **揃えないと単価の分母と分子で期間が食い違う**
+        const startDate = startMonth !== ''
+            ? new Date(`${startMonth}/01`)
+            : new Date(`${PERIOD_START}/01`);
 
         let endDate: Date | undefined;
         if (endMonth !== '') {
@@ -164,7 +185,7 @@ const CustomerKaeru = () => {
         return originalBudgetList.filter(item => {
             const targetDate = new Date(item.budget_period);
             return (
-                (!startDate || targetDate >= startDate) &&
+                targetDate >= startDate &&
                 (!endDate || targetDate <= endDate) &&
                 (!selectedShop || item.shop.includes(selectedShop)) &&
                 (!selectedSection || item.order_section.includes(selectedSection))
