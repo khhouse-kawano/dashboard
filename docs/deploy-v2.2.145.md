@@ -113,6 +113,22 @@ curl -s -o /dev/null -w "%{http_code}\n" https://api.khg-marketing.info/api/v1/a
 
 ⚠️⚠️ **`allowed_columns.php` を忘れないこと。** ⚠️ **忘れるとメモが保存されない**（エラーは出ない）。
 
+⚠️⚠️ **ただし、これだけでは保存されない。**
+⚠️ ⚠️ **顧客情報の保存（`information:customer_info:*`）は ② が処理する**
+⚠️ （`express_proxy.php` の `expressProxyExclusive()`。⚠️ **① の PHP は動かない**）。
+⚠️ ⚠️ **② の許可リスト（`masterDataColumns.ts`）が古いと、`memo_marketing` は黙って捨てられる。**
+⚠️ **「保存しました」と出て、その列だけ入らない。**
+
+⚠️ 確認【② VPS で実行】
+
+```bash
+dcp exec express-api grep -c memo_marketing dist/features/information/masterDataColumns.js
+```
+
+⚠️ ⚠️ **`1` になっていること。** ⚠️ `0` なら手順2をやり直す。
+
+⚠️ ⚠️ **① の `allowed_columns.php` も上げること。** ⚠️ ② が落ちたときに ① が処理するため。
+
 ---
 
 ## 手順4　【あなたのPC（PowerShell）】フロント → ① へアップロード
