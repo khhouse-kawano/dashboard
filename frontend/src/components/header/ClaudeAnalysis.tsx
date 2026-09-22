@@ -48,7 +48,10 @@ const DIVISIONS: { value: Division; label: string; shopDivision: string }[] = [
 
 const MENUS: MenuItem[] = [
     { type: 'inquiry_trend', label: '反響推移を分析', description: '月別の反響数と媒体構成の変化', icon: 'fa-chart-line' },
-    { type: 'competitor', label: '他社動向を分析', description: '競合の出現状況と失注理由', icon: 'fa-users-viewfinder' },
+    // ⚠️⚠️ **競合分析はここから実行しない**（2026-09-21）。
+    //   ⚠️ 1回あたり数百円かかったため、⚠️ **推論は各自の Claude アカウント（MCP）へ移した。**
+    //   ⚠️ 画面は 他社動向 →「Claudeによる競合分析」で ⚠️ **保存済みのレポートを見るだけ**。
+    { type: 'competitor', label: '競合分析', description: '他社動向メニューから開いてください', icon: 'fa-users-viewfinder' },
     { type: 'brand', label: 'ブランド別サマリー', description: 'KH / DJH / JH などブランド単位', icon: 'fa-layer-group' },
     { type: 'shop', label: '店舗別サマリー', description: '店舗ごとの反響・アポ・契約', icon: 'fa-store' },
     { type: 'medium', label: '販促媒体別サマリー', description: '媒体ごとの獲得数と契約率', icon: 'fa-bullhorn' },

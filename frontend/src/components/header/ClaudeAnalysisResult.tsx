@@ -88,11 +88,26 @@ export type InquiryTrendSnapshot = {
     };
 };
 
+/** 他社1社ぶんの勝敗。⚠️ 競合分析のときだけ返る */
+export type CompetitorVerdict = {
+    name: string;
+    wins: number;
+    losses: number;
+    reasons: string;
+    battlefield: string;
+    assessment: 'positive' | 'negative' | 'neutral';
+};
+
 export type StructuredAnalysis = {
     headline: string;
     highlights: { metric: string; observation: string; assessment: 'positive' | 'negative' | 'neutral' }[];
     insights: { title: string; detail: string; basis: 'data' | 'hypothesis' }[];
     actions: { title: string; detail: string }[];
+    /**
+     * ⚠️ 競合分析のときだけ入る。
+     * ⚠️⚠️ **他の分析では undefined になる。** ⚠️ 必ず存在確認してから使うこと。
+     */
+    competitors?: CompetitorVerdict[];
 };
 
 /** 店舗別・媒体別で共通のファネル行（グループ名の列名だけが異なる） */
@@ -133,9 +148,37 @@ export type FunnelSnapshot = {
     cities?: FunnelRow[];
 };
 
-export type AnySnapshot = InquiryTrendSnapshot | FunnelSnapshot;
+/**
+ * 競合分析のスナップショット。
+ *
+ * ⚠️⚠️ **他の分析と違い、集計値ではなく顧客1件ごとの行が入っている。**
+ *   ⚠️ 個人情報は列ごと外し、⚠️ **自由記述に紛れたものは `****` に置き換え済み**
+ *     （backend/src/core/kpi.php の buildCompetitorSnapshot）。
+ *   ⚠️ ⚠️ **画面に rows をそのまま出さないこと。** ⚠️ 商談メモは分析の材料であって、
+ *     一覧で眺めるものではない（個人情報ではないが、量が多く読めない）。
+ */
+export type CompetitorSnapshot = {
+    generated_at: string;
+    scope: string;
+    scope_label?: string;
+    note: string;
+    period_months: number;
+    counts: {
+        rows: number;
+        wins: number;
+        losses: number;
+        quota_per_side: number;
+        candidates: number;
+        found_from_memo: number;
+        max_rows: number;
+        /** ⚠️ true なら渡した行は全件ではない。⚠️ **勝率として読ませない** */
+        truncated: boolean;
+    };
+};
 
-export type AnalysisKind = 'inquiry_trend' | 'shop' | 'medium';
+export type AnySnapshot = InquiryTrendSnapshot | FunnelSnapshot | CompetitorSnapshot;
+
+export type AnalysisKind = 'inquiry_trend' | 'shop' | 'medium' | 'competitor';
 
 type Props = {
     /** 分析の種類。描画するグラフを切り替える */
@@ -529,6 +572,111 @@ const ASSESSMENT_STYLE: Record<StructuredAnalysis['highlights'][number]['assessm
     neutral: { label: '中立', color: '#5c5a52', bg: '#f0efe9' },
 };
 
+/**
+ * 競合分析の見出しと勝敗表。
+ *
+ * ⚠️⚠️ **件数は Claude が数えた値である**（他の分析と違い、DBの集計値ではない）。
+ *   ⚠️ 渡しているのが顧客1件ごとの行なので、⚠️ **社名の数え上げは Claude 側でしかできない。**
+ *   ⚠️ ⚠️ **そのことを画面にも書くこと。** 集計値と同じ精度だと思われると困る。
+ */
+const CompetitorTable: React.FC<{ snapshot: CompetitorSnapshot; verdicts: CompetitorVerdict[] }> =
+    ({ snapshot, verdicts }) => {
+        const c = snapshot.counts;
+        // ⚠️ 負け越している相手を上に出す。⚠️ **探すのはそこだから**
+        const sorted = [...verdicts].sort((a, b) => (b.losses - b.wins) - (a.losses - a.wins));
+
+        return (
+            <div className="mb-3">
+                <div className="row g-2 mb-2">
+                    <div className="col-6 col-md-3">
+                        <StatCard label="分析した商談" value={`${c.rows.toLocaleString()}件`} sub={`直近${snapshot.period_months}ヶ月`} />
+                    </div>
+                    <div className="col-6 col-md-3">
+                        <StatCard label="契約（競合あり）" value={`${c.wins.toLocaleString()}件`} tone="up" />
+                    </div>
+                    <div className="col-6 col-md-3">
+                        <StatCard label="失注（競合あり）" value={`${c.losses.toLocaleString()}件`} tone="down" />
+                    </div>
+                    <div className="col-6 col-md-3">
+                        <StatCard
+                            label="商談メモから発見"
+                            value={`${c.found_from_memo.toLocaleString()}件`}
+                            sub="競合欄が空だった分"
+                        />
+                    </div>
+                </div>
+
+                {c.truncated && (
+                    <div className="px-3 py-2 mb-2" style={{
+                        fontSize: '11px', borderRadius: '6px',
+                        backgroundColor: '#fbeeea', color: '#8a3a2a', lineHeight: 1.7,
+                    }}>
+                        ⚠️ 該当する商談が多いため、契約・失注それぞれ {c.quota_per_side.toLocaleString()} 件までを
+                        新しい順に分析しています。<strong>全件ではないため、この件数から勝率は計算できません。</strong>
+                    </div>
+                )}
+
+                {sorted.length > 0 && (
+                    <>
+                        <SectionTitle hint="件数は渡した商談の中でClaudeが数えたもの。DBの集計値ではない">
+                            他社別の勝敗
+                        </SectionTitle>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', minWidth: '640px', fontSize: '12px', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr>
+                                        {['他社', '勝', '敗', '負けの理由', '負けが出ている先'].map((h, i) => (
+                                            <th key={h} style={{
+                                                textAlign: i === 1 || i === 2 ? 'right' : 'left',
+                                                padding: '6px 10px', whiteSpace: 'nowrap',
+                                                fontSize: '11px', color: '#5c5a52',
+                                                borderBottom: `1px solid ${COLORS.lightGray}`,
+                                            }}>{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sorted.map((v) => {
+                                        const style = ASSESSMENT_STYLE[v.assessment];
+                                        return (
+                                            <tr key={v.name}>
+                                                <td style={{ padding: '6px 10px', borderBottom: `1px solid ${COLORS.lightGray}` }}>
+                                                    <span className="fw-bold">{v.name}</span>
+                                                    <span className="ms-2 px-2 py-1" style={{
+                                                        fontSize: '10px', borderRadius: '4px', lineHeight: 1,
+                                                        backgroundColor: style.bg, color: style.color, whiteSpace: 'nowrap',
+                                                    }}>{style.label}</span>
+                                                </td>
+                                                <td style={{
+                                                    padding: '6px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+                                                    color: COLORS.green, fontWeight: 700,
+                                                    borderBottom: `1px solid ${COLORS.lightGray}`,
+                                                }}>{v.wins}</td>
+                                                <td style={{
+                                                    padding: '6px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+                                                    color: COLORS.red, fontWeight: 700,
+                                                    borderBottom: `1px solid ${COLORS.lightGray}`,
+                                                }}>{v.losses}</td>
+                                                <td style={{
+                                                    padding: '6px 10px', color: '#5c5a52', lineHeight: 1.6,
+                                                    borderBottom: `1px solid ${COLORS.lightGray}`,
+                                                }}>{v.reasons}</td>
+                                                <td style={{
+                                                    padding: '6px 10px', color: '#5c5a52', lineHeight: 1.6,
+                                                    borderBottom: `1px solid ${COLORS.lightGray}`,
+                                                }}>{v.battlefield}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+    };
+
 const ClaudeAnalysisResult: React.FC<Props> = ({ type, snapshot, analysis }) => (
     <div>
         {/* 総括。どの範囲を集計した結果かを取り違えないよう、範囲を見出しに添える */}
@@ -551,10 +699,15 @@ const ClaudeAnalysisResult: React.FC<Props> = ({ type, snapshot, analysis }) => 
             {analysis.headline}
         </div>
 
-        {/* グラフ（数値はすべてDBの集計値） */}
-        {type === 'inquiry_trend'
-            ? <InquiryTrendCharts snapshot={snapshot as InquiryTrendSnapshot} />
-            : <FunnelCharts snapshot={snapshot as FunnelSnapshot} type={type} />}
+        {/* グラフ（数値はすべてDBの集計値）。⚠️ 競合分析だけは勝敗表 */}
+        {type === 'competitor'
+            ? <CompetitorTable
+                snapshot={snapshot as CompetitorSnapshot}
+                verdicts={analysis.competitors ?? []}
+            />
+            : type === 'inquiry_trend'
+                ? <InquiryTrendCharts snapshot={snapshot as InquiryTrendSnapshot} />
+                : <FunnelCharts snapshot={snapshot as FunnelSnapshot} type={type} />}
 
         {/* 注目すべき指標 */}
         {analysis.highlights.length > 0 && (

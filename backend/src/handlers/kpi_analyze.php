@@ -351,9 +351,32 @@ try {
             exit;
     }
 
-    $userText = $intro . "\n\n```json\n"
-        . json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-        . "\n```";
+    if ($type === 'competitor') {
+        /**
+         * ⚠️⚠️ **競合分析だけ、表を JSON の外に出す。**
+         *   ⚠️ JSON に入れると ⚠️ **タブが `\t` に、行ごとに引用符と字下げが付く。**
+         *     ⚠️ 実測で入力が1.5倍ほどに膨らむ。
+         *   ⚠️ ⚠️ **中身はまったく同じ。** 包み方を変えているだけである。
+         */
+        $table   = $snapshot['rows'];
+        $columns = $snapshot['columns'];
+
+        $head = $snapshot;
+        unset($head['rows']);
+
+        $userText = $intro . "\n\n```json\n"
+            . json_encode($head, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . "\n```\n\n"
+            . "以下がその一覧です。タブ区切りで、1行が商談1件です。\n\n"
+            . "```tsv\n"
+            . implode("\t", $columns) . "\n"
+            . implode("\n", $table)
+            . "\n```";
+    } else {
+        $userText = $intro . "\n\n```json\n"
+            . json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . "\n```";
+    }
 
     // -----------------------------------------------------------------
     // 5. Claude へ送信（ここから課金）
