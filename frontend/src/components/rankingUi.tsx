@@ -84,7 +84,10 @@ export const RankingStyle = () => (
               ⚠️ **react-bootstrap の Table** を使っており、
               ⚠️ ⚠️ **セルの書き換えは数字のズレを招く。**
             ⚠️ そこで ⚠️ **中身には触らず、見た目だけを上書きする。**
-          ⚠️ `.rk_plain` を表の外側に付けて使う。
+          ⚠️ .rk_plain を表の外側に付けて使う。
+          ⚠️⚠️ **この style の中にバッククォートを書かないこと。**
+            ⚠️ ⚠️ **テンプレートリテラルがそこで閉じてビルドが壊れる。**
+            ⚠️ 2026-09-22、⚠️ **CSSのコメントに書いて実際に壊した。**
         */
         .rk_plain { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto; background: #fff; }
         .rk_plain table { margin-bottom: 0; font-size: 12px; }

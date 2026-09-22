@@ -285,8 +285,8 @@ const MapOrder: React.FC = () => {
         );
     }
 
+    // ⚠️ 見た目は customer/ shop/ rank/ と共通（rankingUi.tsx）。色と角だけを揃えている
     return (
-        /* ⚠️ 見た目は customer/ shop/ rank/ と共通。⚠️ **色と角だけを揃えている**（rankingUi.tsx） */
         <div className="container-fluid px-2 pt-4 rk_screen" style={{ fontSize: '13px' }}>
             <RankingStyle />
             <Card className="shadow-sm mb-4 border-0">
