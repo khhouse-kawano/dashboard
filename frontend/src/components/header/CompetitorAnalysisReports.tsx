@@ -98,7 +98,10 @@ const CompetitorAnalysisReports = () => {
 
     const fetchList = useCallback(async () => {
         try {
-            const res = await apiClient.post('', { request: 'analysis_report_list', category: 'competitor' });
+            // ⚠️⚠️ **`category` という名前で送らないこと。**
+            //   ⚠️ ② のゲートウェイは request / roll / category の3つで登録先を引く。
+            //   ⚠️ ⚠️ **category を入れると別のキー扱いになり、未登録として 502 になる。**
+            const res = await apiClient.post('', { request: 'analysis_report_list', reportCategory: 'competitor' });
             setReports((res.data?.reports ?? []) as ReportRow[]);
             setError('');
         } catch (err) {
@@ -186,7 +189,8 @@ const CompetitorAnalysisReports = () => {
             const res = await apiClient.post('', {
                 request: 'analysis_report_upload',
                 title: form.title.trim(),
-                category: 'competitor',
+                // ⚠️⚠️ **`category` は使えない**（上と同じ理由。② の振り分けキーと衝突する）
+                reportCategory: 'competitor',
                 division: form.division,
                 period: form.period.trim(),
                 dataAsOf: form.dataAsOf,

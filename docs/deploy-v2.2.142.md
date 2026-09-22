@@ -83,11 +83,26 @@ npm run build
 
 | 相手 | やること |
 |---|---|
-| ⚠️ **既に使っている人** | ⚠️ **`dist` フォルダを差し替え** → ⚠️ **Claude Desktop を再起動** |
+| ⚠️ **既に使っている人** | ⚠️ **`セットアップ.cmd` をもう一度実行** → ⚠️ **Claude Desktop を再起動** |
 | 初めての人 | ⚠️ `mcp-server/docs/manual-install-windows.md` のとおり |
+
+⚠️⚠️ **渡したフォルダを差し替えても意味がない。**
+⚠️ `セットアップ.cmd` は ⚠️ **中身を `%LOCALAPPDATA%\khg-analysis-mcp` にコピーしてから**
+⚠️ そこを `args` に書き込む。⚠️ ⚠️ **動いているのはコピー先である。**
+
+⚠️ 手で差し替えるなら ⚠️ **コピー先の `dist` を上書きする**こと（`node_modules` はそのままでよい）。
+⚠️ 実際の場所は ⚠️ **`args` を見れば確実**（`-InstallDir` を指定していれば別の場所になる）。
+
+```powershell
+(Get-Content "$env:APPDATA\Claude\claude_desktop_config.json" -Raw | ConvertFrom-Json).mcpServers.'khg-analysis'.args
+```
 
 ⚠️⚠️ **`claude_desktop_config.json` は書き換え不要。**
 ⚠️ **接続先もAPIキーも変わっていない。**
+
+⚠️⚠️ **Claude Desktop は × では終了しない。**
+⚠️ ⚠️ **通知領域のアイコンを右クリック → 終了**してから起動し直すこと。
+⚠️ **これをしないと設定が読み込まれない。**
 
 ⚠️ ⚠️ **APIキーは1人1本。** ⚠️ 使い回すと誰の操作か追えなくなる。
 

@@ -1977,7 +1977,13 @@ register({
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
-    const category = String(ctx.body.category ?? '');
+    // ⚠️⚠️ **`category` という名前は使えない。**
+    //   ⚠️ ゲートウェイは request / roll / category の3つで登録先を引く
+    //     （findEntry / gatewayKey）。⚠️ **完全一致でしか引かない。**
+    //   ⚠️ ⚠️ **body に category を入れると別のキーとして扱われ、未登録になる。**
+    //     ⚠️ 2026-09-22、画面が category: 'competitor' を送っていたため
+    //       ⚠️ **「ループ検知」で 502 になった。**
+    const category = String(ctx.body.reportCategory ?? '');
     return { reports: await listReports(category) };
   },
 });
@@ -2029,7 +2035,9 @@ register({
 
     const no = await saveReport({
       title,
-      category: String(ctx.body.category ?? 'competitor'),
+      // ⚠️⚠️ **`category` は使えない**（ゲートウェイの振り分けキーと衝突する）。
+      //   ⚠️ 詳しくは analysis_report_list の注記。
+      category: String(ctx.body.reportCategory ?? '') || 'competitor',
       division: String(ctx.body.division ?? ''),
       period: String(ctx.body.period ?? ''),
       html,
