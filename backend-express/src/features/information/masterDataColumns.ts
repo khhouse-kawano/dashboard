@@ -12,7 +12,7 @@
  * ⚠️ 元の PHP には contract_building_application_date が2回書かれている
  *   （PDO では最後が勝つだけで無害）。ここでは一意にしてある。
  *
- * 生成元: backend/src/core/allowed_columns.php（187件 → 一意 186件）
+ * 生成元: backend/src/core/allowed_columns.php（188件 → 一意 187件）
  *
  * ⚠️⚠️ **2026-09-17 に勝因・敗因の5列を追加した。**
  *   `competitor_campaign` / `competitor_countermeasure` / `competitor_price_gap`
@@ -78,7 +78,7 @@ export const MASTER_DATA_COLUMNS: readonly string[] = [
   'introduction_person_name', 'junior_high_school_id', 'k_snap', 'khg_id', 'land_budget',
   'last_action_step_migration_item_date', 'last_action_step_migration_item_name', 'lat_lng',
   'memo_developer_application_company', 'memo_fire_insurance', 'memo_ground_survey',
-  'memo_lawyer', 'memo_other_related_person', 'memo_site_survey', 'monthly_repayment_amount',
+  'memo_lawyer', 'memo_marketing', 'memo_other_related_person', 'memo_site_survey', 'monthly_repayment_amount',
   'no', 'planned_construction_site', 'planned_construction_site_2',
   'planned_construction_site_3', 'postal_code', 'property_contract_name', 'property_name',
   'property_tour_name', 'rank_period', 'rank_steps', 'reaction_date', 'remarks',

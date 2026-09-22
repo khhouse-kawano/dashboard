@@ -150,6 +150,7 @@ export type MasterDataSelected = {
   memo_fire_insurance: boolean;
   memo_site_survey: boolean;
   memo_ground_survey: boolean;
+  memo_marketing: boolean;
   memo_other_related_person: boolean;
   competitor_lost_contract_date: boolean;
   competitors_text: boolean;

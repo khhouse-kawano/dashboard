@@ -35,6 +35,7 @@ import { runDatabase } from '../features/database';
 import { runCustomer } from '../features/customer';
 import { runMap } from '../features/map';
 import type { MapCategory } from '../features/map/queries';
+import { runSatbaseList, runSatbaseUpdate } from '../features/satbase';
 import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
@@ -1643,6 +1644,41 @@ for (const category of mapCategories) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// SatBaseサマリー（header/SatBaseDatabase.tsx）。2026-09-22 新規。
+//
+// ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある。**
+//   ⚠️ そのため express_proxy.php の
+//     ⚠️ **expressProxyRequests() と expressProxyExclusive() の両方**に入れてある。
+//
+// ⚠️⚠️ **更新できるのは `ad_posted` と `instagram_posted` の2列だけ。**
+//   ⚠️ ⚠️ **列名は features/satbase.ts の許可リストで弾いている。**
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'satbase_list',
+  summary: 'SatBase の物件台帳の一覧（全件。絞り込みと並べ替えは画面）',
+  // ⚠️ 移植元は無い。⚠️ **最初から Express だけにある**（① に PHP は置かない）
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async () => runSatbaseList(),
+});
+
+register({
+  request: 'satbase_update',
+  summary: '【書き込み】広告出稿状況 / Instagram投稿状況のトグルを更新する',
+  // ⚠️ 移植元は無い。⚠️ **最初から Express だけにある**（① に PHP は置かない）
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) =>
+    runSatbaseUpdate({
+      propertyId: Number(ctx.body.propertyId ?? 0),
+      column: String(ctx.body.column ?? ''),
+      value: Number(ctx.body.value ?? 0),
+      staff: String(ctx.staff?.name ?? ''),
+    }),
+});
 
 // ---------------------------------------------------------------------------
 // Google クチコミの取得（projects/sync から呼ばれる。画面は無い）

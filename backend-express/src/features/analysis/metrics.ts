@@ -1,4 +1,6 @@
 import { ATTRIBUTES, daysBetween, phaseDate } from './columns';
+// ⚠️ 担当営業の式。⚠️ **軸と同じものを使う**（「◯◯店 管理」は旧担当に読み替える）
+import { STAFF_SQL } from './dimensions';
 import type { PhaseKey } from './columns';
 
 /**
@@ -14,6 +16,21 @@ import type { PhaseKey } from './columns';
 
 /** フェーズに到達した件数（そのフェーズの日付が入っている件数） */
 const reached = (phase: PhaseKey): string => `SUM(${phaseDate(phase)} IS NOT NULL)`;
+
+/**
+ * ⚠️⚠️ **上位の工程に進んだ人は、下位の工程も達成したものとして数える。**
+ *
+ * ⚠️ ⚠️ **理由は「営業が前の工程の日付を入れないから」である**（2026-09-22 に利用者から）。
+ *   ⚠️ 契約日は必ず入るが、⚠️ **初回面談日が空のまま契約済みの顧客が実在する。**
+ *   ⚠️ ⚠️ **実態として工程を飛ばしたわけではない。** ⚠️ 入力の問題である。
+ *   ⚠️ 素直に数えると ⚠️ **契約数 > 面談数**のような逆転が起きる。
+ *
+ * ⚠️ ⚠️ **ダッシュボードの KPI（shopTrend/ShopTrend*.tsx）はすべてこの数え方**であり、
+ *   ⚠️ **分析APIの firstInterview / secondInterview とは数字が違う。**
+ *   ⚠️ 画面と突き合わせるときは、⚠️ **こちらの指標を使うこと。**
+ */
+const reachedOrBeyond = (phases: PhaseKey[]): string =>
+  `SUM(${phases.map(p => `${phaseDate(p)} IS NOT NULL`).join(' OR ')})`;
 
 const toFirstInterview = daysBetween(phaseDate('reaction'), phaseDate('firstInterview'));
 const toContract = daysBetween(phaseDate('reaction'), phaseDate('contract'));
@@ -47,6 +64,40 @@ export const METRICS = {
   secondInterview: { kind: 'count', label: '第二面談に到達した件数', sql: reached('secondInterview') },
   preScreening: { kind: 'count', label: '事前審査に到達した件数', sql: reached('preScreening') },
   contracts: { kind: 'count', label: '契約に到達した件数', sql: reached('contract') },
+
+  // --- ダッシュボードのKPIと同じ数え方（2026-09-22 追加）------------------
+  //
+  // ⚠️⚠️ **上の firstInterview / secondInterview とは数え方が違う。**
+  //   ⚠️ こちらは ⚠️ **上位の工程に進んだ人を含める**（reachedOrBeyond を参照）。
+  //   ⚠️ ⚠️ **店舗別動向（ShopTrend）の数字と突き合わせられるのはこちら。**
+
+  visits: {
+    kind: 'count',
+    label:
+      '実来場数（初回面談・第二面談・事前審査・契約のいずれかに到達した件数）。' +
+      '⚠️ 店舗別動向の「実来場数」と同じ数え方。' +
+      '⚠️ firstInterview より必ず多くなる',
+    sql: reachedOrBeyond(['firstInterview', 'secondInterview', 'preScreening', 'contract']),
+  },
+  nextAppointments: {
+    kind: 'count',
+    label:
+      '次アポ数（第二面談・事前審査・契約のいずれかに到達した件数）。' +
+      '⚠️ 店舗別動向の「次アポ数」と同じ数え方。' +
+      '⚠️ secondInterview より必ず多くなる',
+    sql: reachedOrBeyond(['secondInterview', 'preScreening', 'contract']),
+  },
+  reservations: {
+    kind: 'count',
+    label:
+      '来場予約数（来場予約日が入っている、または初回面談に到達した件数）。' +
+      '⚠️ 店舗別動向の「来場予約数」と同じ数え方。' +
+      '⚠️ 予約せずに来場した人も初回面談として数に入る',
+    // ⚠️ `reserved_interview` は日付ではなく text。空文字と NULL の両方が入る
+    sql:
+      "SUM((m.reserved_interview IS NOT NULL AND m.reserved_interview <> '')" +
+      ` OR ${phaseDate('firstInterview')} IS NOT NULL)`,
+  },
 
   // --- ステータス内訳 -----------------------------------------------------
   lost: { kind: 'count', label: 'ステータスが「失注」の件数', sql: "SUM(m.status = '失注')" },
@@ -93,6 +144,27 @@ export const METRICS = {
     needsInterview: true,
     label: '1顧客あたりの平均面談ログ件数（interview_sheet）',
     sql: 'ROUND(AVG(COALESCE(iv.interview_count, 0)), 2)',
+  },
+  /**
+   * ⚠️ 2026-09-22 追加。⚠️ **担当者本人が面談したかどうか**（利用者の指示）。
+   *
+   * ⚠️ `interview_sheet.interview_log` の各面談に `staff`（実施した人）が入っている。
+   *   ⚠️ ⚠️ **担当営業（STAFF_SQL）と突き合わせている。**
+   *     ⚠️ `in_charge_user` そのままではない（⚠️ **72%が「◯◯店 管理」**）。
+   *
+   * ⚠️⚠️ **`staff` が入っている面談ログは全体の1割ほど**（実測 18,161行中 1,838行）。
+   *   ⚠️ ⚠️ **0 件でも「面談していない」という意味にはならない。**
+   *   ⚠️ **記録のある範囲での下限値**として扱うこと。
+   */
+  interviewsLed: {
+    kind: 'count',
+    needsInterview: true,
+    label:
+      '担当営業本人が実施した面談の記録がある顧客数（interview_sheet の staff と一致）。' +
+      '⚠️ staff が記録されている面談ログは全体の1割ほどしかないため、下限値である',
+    sql:
+      `SUM(${STAFF_SQL} IS NOT NULL AND ${STAFF_SQL} <> ''` +
+      ` AND JSON_SEARCH(iv.interview_log, 'one', ${STAFF_SQL}, NULL, '$[*].staff') IS NOT NULL)`,
   },
 
   // --- リードタイム -------------------------------------------------------
@@ -147,6 +219,15 @@ export const RATES = {
   preScreeningRatePct: { label: '事前審査率（事前審査 ÷ 反響数）', numerator: 'preScreening' },
   contractRatePct: { label: '契約率（契約 ÷ 反響数）', numerator: 'contracts' },
   lostRatePct: { label: '失注率（失注 ÷ 反響数）', numerator: 'lost' },
+  // ⚠️ 2026-09-22 追加。⚠️ **ダッシュボードのKPIと同じ数え方の比率**
+  visitRatePct: {
+    label: '実来場率（実来場 ÷ 反響数）。⚠️ 店舗別動向と同じ数え方',
+    numerator: 'visits',
+  },
+  nextAppointmentRatePct: {
+    label: '次アポ率（次アポ ÷ 反響数）。⚠️ 店舗別動向と同じ数え方',
+    numerator: 'nextAppointments',
+  },
 } as const satisfies Record<string, { label: string; numerator: MetricKey }>;
 
 export type RateKey = keyof typeof RATES;
@@ -163,7 +244,18 @@ export const FUNNEL_METRICS: MetricKey[] = [
   'leads',
   'energized',
   'firstInterview',
+  /**
+   * ⚠️⚠️ **2026-09-22 に `visits` と `nextAppointments` を既定に入れた**（利用者の指示）。
+   *
+   * > 数値が shopTrend ディレクトリの KPI 設定になり歩留まりが揃うことが大切
+   *
+   * ⚠️ ⚠️ **既定のファネルにこれが無いと、Claude は firstInterview を来場数として語る。**
+   *   ⚠️ ⚠️ **その数字はダッシュボードの画面と合わない。**
+   * ⚠️ 並びは ⚠️ **対応する工程のすぐ後ろ**に置く（firstInterview → visits）。
+   */
+  'visits',
   'secondInterview',
+  'nextAppointments',
   'preScreening',
   'contracts',
   'lost',

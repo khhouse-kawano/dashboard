@@ -219,6 +219,7 @@ $updateMasterSQL = 'UPDATE master_data_resale SET
             memo_fire_insurance = :memo_fire_insurance,
             memo_site_survey = :memo_site_survey,
             memo_ground_survey = :memo_ground_survey,
+            memo_marketing = :memo_marketing,
             memo_other_related_person = :memo_other_related_person,
             competitor_lost_contract_date = :competitor_lost_contract_date,
             competitors_text = :competitors_text,
@@ -384,6 +385,7 @@ $memo_lawyer = $data['memo_lawyer'] ?? null;
 $memo_fire_insurance = $data['memo_fire_insurance'] ?? null;
 $memo_site_survey = $data['memo_site_survey'] ?? null;
 $memo_ground_survey = $data['memo_ground_survey'] ?? null;
+$memo_marketing = $data['memo_marketing'] ?? null;
 $memo_other_related_person = $data['memo_other_related_person'] ?? null;
 $competitor_lost_contract_date = $data['competitor_lost_contract_date'] ?? null;
 $competitors_text = $data['competitors_text'] ?? null;
@@ -550,6 +552,7 @@ bindNullable($updateMasterStmt, ':memo_lawyer', $memo_lawyer);
 bindNullable($updateMasterStmt, ':memo_fire_insurance', $memo_fire_insurance);
 bindNullable($updateMasterStmt, ':memo_site_survey', $memo_site_survey);
 bindNullable($updateMasterStmt, ':memo_ground_survey', $memo_ground_survey);
+bindNullable($updateMasterStmt, ':memo_marketing', $memo_marketing);
 bindNullable($updateMasterStmt, ':memo_other_related_person', $memo_other_related_person);
 bindNullable($updateMasterStmt, ':competitor_lost_contract_date', $competitor_lost_contract_date);
 bindNullable($updateMasterStmt, ':competitors_text', $competitors_text);

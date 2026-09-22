@@ -171,11 +171,30 @@ export const matchesShownMedium = (
  *     ⚠️ 以前は `medium_kaeru` に載っている媒体だけを拾っていたため、
  *       ⚠️ **台帳に無い媒体の反響が「その他（未分類）」に落ちていた。**
  */
+/**
+ * ⚠️⚠️ **反響媒体がこれなら、無条件でホームページ反響に数える**（2026-09-22 の指示）。
+ *
+ * > CustomerKaeru.tsx のホームページ反響から Web検索と Instagram が抜けているので丸めること
+ * > 総反響と一致しなくてもよい
+ *
+ * ⚠️ ⚠️ **`hp_campaign` を見ない。**
+ *   ⚠️ ポータル名（SUUMO 等）がキャンペーン名に入っている顧客も、
+ *     ⚠️ **反響媒体が Web検索・Instagram ならホームページ反響に数える。**
+ *   ⚠️⚠️ **そのため SUUMO などの行と二重に数えられることがある。**
+ *     ⚠️ ⚠️ **利用者の判断で許容している**（「総反響と一致しなくてもよい」）。
+ *
+ * ⚠️ 名前は `medium_kaeru` の正式名で書くこと（別名は `normalizeMedium` が寄せる）。
+ */
+export const HOMEPAGE_MEDIUMS: string[] = ['Web検索', 'Instagram'];
+
 export const isHomepageCustomer = (
     customerMedium: string,
     hpCampaign: string,
     shownMediums: string[]
 ): boolean => {
+    // ⚠️ 2026-09-22 追加。⚠️ **ここだけは単独行より先に判定する**（丸めを優先する）
+    if (HOMEPAGE_MEDIUMS.includes(normalizeMedium(customerMedium))) return true;
+
     const matchesAnyShown = shownMediums.some(
         shown => matchesShownMedium(customerMedium, hpCampaign, shown)
     );

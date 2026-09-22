@@ -128,9 +128,18 @@ const buildFrom = (need: JoinNeed): { sql: string; params: SqlParam[] } => {
 
   if (need.interview) {
     // interview_log の note にも個人情報が入るため、件数のみ集計する
+    /**
+     * ⚠️ `interview_log` の本文も持ち出す（2026-09-22）。
+     *   ⚠️ ⚠️ **中身は返さない。** ⚠️ 担当者名と突き合わせて
+     *     ⚠️ **「本人が面談したか」を数えるためだけ**に使う（METRICS.interviewsLed）。
+     *   ⚠️ `MAX()` なのは、⚠️ **1顧客1行がほぼ前提**だから
+     *     （実測 18,161行 / 18,160人）。⚠️ 複数行あれば新しくない方を落とす。
+     */
     sql += `
     LEFT JOIN (
-      SELECT id, SUM(COALESCE(JSON_LENGTH(interview_log), 0)) AS interview_count
+      SELECT id,
+             SUM(COALESCE(JSON_LENGTH(interview_log), 0)) AS interview_count,
+             MAX(interview_log) AS interview_log
         FROM interview_sheet
        WHERE id <> ''
        GROUP BY id

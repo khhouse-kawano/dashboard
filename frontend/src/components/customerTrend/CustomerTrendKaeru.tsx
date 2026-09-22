@@ -9,6 +9,8 @@ import { get11MonthsAgoString } from "../../utils/get11MonthsAgoString";
 import apiClient from "../../utils/apiClient";
 import { chartColors } from "./utils";
 import CustomerListModal from "../CustomerListModal";
+// ⚠️ ホームページ反響に丸める媒体。⚠️ **顧客分析（CustomerKaeru.tsx）と同じものを使う**
+import { HOMEPAGE_MEDIUMS, normalizeMedium } from '../customer/customerKaeruUtils';
 import InformationEditKaeru from "../information/InformationEditKaeru";
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
@@ -18,7 +20,6 @@ type Shop = { brand: string; shop: string; section: string; area: string; }
  *   backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql を先に実行すること。
  *   ⚠️ DB から文字列で来ることがあるため Number() で比べる。
  */
-type MediumType = { medium: string, category: string, sort_key: number, response_medium: number, show_graph?: number | string };
 type CustomerList = Record<string, string>;
 type GraphData = { month: string, [key: string]: number | string };
 type CheckItem = {
@@ -34,7 +35,6 @@ const CustomerTrendKaeru: React.FC = () => {
   // ⚠️ token / authority は顧客詳細（InformationEditKaeru）に渡すために取る
   const { category, token, authority } = useContext(AuthContext);
   const [originalUserData, setOriginalUserData] = useState<CustomerList[]>([]);
-  const [mediumList, setMediumList] = useState<MediumType[]>([]);
   const [graphCategory, setGraphCategory] = useState('register');
   const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
   const [startMonth, setStartMonth] = useState(startMonthValue);
@@ -85,8 +85,8 @@ const CustomerTrendKaeru: React.FC = () => {
           medium: 'その他'
         }) : r);
         setOriginalUserData(responseCustomer);
-        // ⚠️ show_graph で表・グラフに出す媒体を決める（下の displayMediums）
-        setMediumList(response.data.medium);
+        // ⚠️ 応答には medium（medium_kaeru）も入っているが、⚠️ **この画面では使わない。**
+        //   ⚠️ 2026-09-22 に表の行を直書きへ戻したため（下の displayMediums）。
         setOriginalShopArray(response.data.shop);
         setBudget(response.data.budget);
       } catch (error) {
@@ -281,40 +281,32 @@ const CustomerTrendKaeru: React.FC = () => {
    * 表の行とグラフの系列に出す販促媒体。
    *
    * ─────────────────────────────────────────────
-   * ⚠️⚠️ **2026-09-11 に直書きをやめ、DB（medium_kaeru.show_graph）に移した。**
-   *   以前は
-   *     const displayMediums = ['SUUMO', `HOME'S`, 'ALLGRIT', 'アットホーム'];
-   *   と書いていた。媒体の増減は運用側で起こるため直書きは必ず腐る。
+   * ⚠️⚠️ **2026-09-22 に直書きへ戻した**（利用者の指示）。
    *
-   * ⚠️⚠️ **`mediumFormate()` を通してから配列にすること。**
-   *   DB の実データは `公式LINE` / `athome` だが、画面の表示名と
-   *   下の突き合わせ（`o.hp_campaign?.includes(medium)`）は
-   *   `ALLGRIT` / `アットホーム` を前提にしている。
-   *   生値のまま入れると、hp_campaign 側の一致が取れなくなり
-   *   **数字が静かに減る**。
+   *   ⚠️ 2026-09-11 に `medium_kaeru.show_graph = 1` から作る形へ変えていたが、
+   *     ⚠️ ⚠️ **運用側で `show_graph` が変わると、表の行が黙って増減する。**
+   *     ⚠️ 実際に ⚠️ **Web検索 と Instagram が独立行として出てしまった。**
+   *       ⚠️ ⚠️ **この2つはホームページ反響に丸めるのが正しい。**
    *
-   * ⚠️ 並び順は sort_key。グラフの色は添字で決まるので、
-   *   sort_key を変えると**色の対応が変わる**。
+   *   ⚠️ ⚠️ **ここは「KPIの定義」であって、媒体マスタの表示設定ではない。**
+   *     ⚠️ 勝手に変わってよい場所ではないため、コードで固定する。
+   *
+   * ⚠️⚠️ **`ALLGRIT` は公式LINE、`アットホーム` は athome の表示名である。**
+   *   ⚠️ DB の実データは `公式LINE` / `athome` だが、
+   *     ⚠️ 下の突き合わせ（`o.hp_campaign?.includes(medium)`）は
+   *       ⚠️ **`ALLGRIT` / `アットホーム` を前提にしている。**
+   *   ⚠️ ⚠️ **生値に書き換えないこと。** ⚠️ hp_campaign 側の一致が取れなくなり
+   *     ⚠️ **数字が静かに減る。**
+   *
+   * ⚠️ 並び順はこの配列の順。⚠️ **グラフの色は添字で決まる**ので、
+   *   ⚠️ 並べ替えると色の対応が変わる。
    *
    * ⚠️ `isHp()` のポータル一覧（タウンライフ・カゴスマを含む）は別物で、
    *   ここには連動しない。あちらは「HP反響かどうか」の判定であり、
    *   表に出すかどうかとは目的が違う。
-   *
-   * ⚠️⚠️ **SQL を先に実行すること。** `show_graph` 列がまだ無いと
-   *   `Number(undefined)` が NaN になって**空配列**になり、
-   *   表は「全販促媒体 / ホームページ反響計」の2行だけ、
-   *   グラフは1系列だけになる。**エラーは出ない。**
-   *   フロントより先に backend/scripts/sql/2026-09-11_medium_kaeru_show_graph.sql
-   *   を流すこと。
    * ─────────────────────────────────────────────
    */
-  const displayMediums = useMemo(() =>
-    mediumList
-      .filter(m => Number(m.show_graph) === 1)
-      .sort((a, b) => (Number(a.sort_key) || 0) - (Number(b.sort_key) || 0))
-      .map(m => mediumFormate(m.medium)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mediumList]);
+  const displayMediums = ['SUUMO', `HOME'S`, 'ALLGRIT', 'アットホーム'];
 
   const hpMediums = ['会員登録', '資料請求', '来場予約', '先取物件', 'その他'];
 
@@ -361,7 +353,18 @@ const CustomerTrendKaeru: React.FC = () => {
     // 【修正】HPグループの判定
     // 条件: 「displayMediums に該当しない（!isAnyDisplayMedium）」かつ「HP系の条件を満たす」
     // --------------------------------------------------
-    const isHpGroup = !isAnyDisplayMedium && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign);
+    /**
+     * ⚠️⚠️ **Web検索・Instagram は無条件でホームページ反響に丸める**（2026-09-22 の指示）。
+     *   ⚠️ ⚠️ **キャンペーン名にポータル名（SUUMO / タウンライフ / カゴスマ 等）が
+     *     入っていると、以前はここから漏れていた**（実測193件）。
+     *   ⚠️ 顧客分析（customer/CustomerKaeru.tsx）と ⚠️ **同じ判定にするための行**である。
+     *     ⚠️ ⚠️ **片方だけ直さないこと。** ⚠️ 2つの画面で件数が食い違う。
+     *   ⚠️ 別名（インターネット検索 / ネット / SNS広告 / Facebook）も寄せる。
+     */
+    const isRolledUpMedium = HOMEPAGE_MEDIUMS.includes(normalizeMedium(o.medium ?? ''));
+
+    const isHpGroup = isRolledUpMedium
+      || (!isAnyDisplayMedium && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign));
 
     // 2. ホームページ反響計（合計）
     if (mediumIndex === 1) return isHpGroup;
@@ -604,10 +607,22 @@ const CustomerTrendKaeru: React.FC = () => {
                 && (targetSection ? sectionShops.includes(b.shop) : true)
                 && (targetShop ? b.shop === targetShop : true));
 
+              /**
+               * ⚠️ ホームページ反響の行に色を付ける（2026-09-22 の指示）。
+               *   ⚠️ ⚠️ **「詳細を表示」で開く内訳（会員登録・資料請求など）も同じ色にする。**
+               *     ⚠️ 開いたときに ⚠️ **どこまでが内訳なのかが分からなくなる**ため。
+               *   ⚠️ `table-primary` は Bootstrap の行色。
+               *     ⚠️ ⚠️ **`sticky-column` の td にも当てること。**
+               *       ⚠️ 固定列は背景を自前で持っており、
+               *         ⚠️ **tr だけに付けると1列目が白いまま残る。**
+               */
+              const isHomepageRow = medium === 'ホームページ反響計'
+                || (showSummary && hpMediums.includes(medium));
+
               return (
                 <React.Fragment key={mediumIndex}>
-                  <tr>
-                    <td className='align-middle sticky-column text-center' style={theme.tdName} rowSpan={1}>
+                  <tr className={isHomepageRow ? 'table-primary' : undefined}>
+                    <td className={`align-middle sticky-column text-center${isHomepageRow ? ' table-primary' : ''}`} style={theme.tdName} rowSpan={1}>
                       <div className="mb-1">{medium}</div>
                       {medium === 'ホームページ反響計' &&
                         <div
