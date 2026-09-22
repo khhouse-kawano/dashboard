@@ -135,13 +135,21 @@ curl -s -o /dev/null -w "%{http_code}\n" https://api.khg-marketing.info/api/v1/a
 
 ⚠️ ⚠️ **今回は `dist\index.js` の上書きだけでよい**（`apiClient.ts` は変えていない）。
 
+⚠️⚠️ **PCによって `args` の指す先が違う。** ⚠️ **下のコマンドで必ず確かめること。**
+
+| PC | `args` の指す先 | やること |
+|---|---|---|
+| ⚠️ **開発機（このPC）** | ⚠️ **`...\react\dashboard\mcp-server\dist\index.js`** | ⚠️⚠️ **コピー不要。** ⚠️ ビルド済みなら再起動だけ |
+| 利用者のPC | ⚠️ `%LOCALAPPDATA%\khg-analysis-mcp\dist\index.js` | ⚠️ **そこへ `dist\index.js` を上書き** |
+
+⚠️ ⚠️ **開発機は `セットアップ.cmd` を使っておらず、リポジトリを直に指している。**
+
 | | |
 |---|---|
 | コピー元 | `...\react\dashboard\mcp-server\dist\index.js` |
-| ⚠️ **コピー先** | ⚠️ **`%LOCALAPPDATA%\khg-analysis-mcp\dist\index.js`** |
-| `node_modules` | ⚠️ **そのままでよい** |
+| `node_modules` | ⚠️ **そのままでよい**（依存は増えていない） |
 
-⚠️ ⚠️ **コピー後に Claude Desktop を通知領域から終了 → 起動。**
+⚠️ ⚠️ **どちらの場合も、最後に Claude Desktop を通知領域から終了 → 起動。**
 
 ⚠️ 実際の場所は `args` で確認できる。
 
