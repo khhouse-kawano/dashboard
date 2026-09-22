@@ -53,6 +53,10 @@ COALESCE(in_charge_store, '') as shop,
 COALESCE(in_charge_user, '') as staff,
 COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') as `rank`,
 COALESCE(sales_promotion_name, '') as medium,
+-- ⚠️ 2026-09-22 追加。⚠️ **ホームページ反響かどうかの判定に使う。**
+--   ⚠️ CustomerTrendKaeru.tsx と同じ判定にするため（利用者の指示）。
+--   ⚠️ ⚠️ **② の customer/queries.ts にも同じ行を足してあること。**
+COALESCE(hp_campaign, '') as hp_campaign,
 COALESCE(step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW, '') as contract,
 COALESCE(step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0, '') as contract_broker,
 COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,

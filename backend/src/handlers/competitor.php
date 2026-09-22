@@ -9,7 +9,10 @@ $response_shop = $stmt_shop->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 営業課
-$sql_section = "SELECT division, name FROM section_list";
+// ⚠️ 2026-09-22、⚠️ **no を足して no 昇順にした。**
+//   ⚠️ 画面（CompetitorSummary.tsx）の営業課の選択肢が直書きだったため。
+//   ⚠️ ⚠️ **② の competitor.ts も同じ SQL にしてあること。** 片方だけにしない。
+$sql_section = "SELECT no, division, name FROM section_list ORDER BY no";
 $stmt_section = $pdo->prepare($sql_section);
 $stmt_section->execute();
 $response_section = $stmt_section->fetchAll(PDO::FETCH_ASSOC);

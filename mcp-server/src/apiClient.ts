@@ -117,3 +117,69 @@ export const getJson = async (
     clearTimeout(timer);
   }
 };
+
+/**
+ * 分析APIのPOSTを叩く。いまはレポート（HTML）の保存だけが使う。
+ *
+ * ⚠️ GETと分けてあるのは、送る本文が大きいため。
+ *   レポート1件は60KB前後になるので、タイムアウトを別に取れるようにしてある。
+ */
+export const postJson = async (
+  config: Config,
+  path: string,
+  payload: unknown
+): Promise<unknown> => {
+  const url = new URL(`${config.baseUrl}/api/v1/analysis/${path}`);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new Error(
+        `分析APIが JSON 以外を返しました（HTTP ${response.status}）: ${text.slice(0, 300)}`
+      );
+    }
+
+    if (!response.ok) {
+      const apiError = (body as ApiErrorBody).error;
+      const detail =
+        apiError?.details === undefined ? '' : `\n詳細: ${JSON.stringify(apiError.details)}`;
+      const message = `${apiError?.message ?? text.slice(0, 300)}${detail}`;
+
+      if (response.status === 401) {
+        throw new Error(
+          `認証に失敗しました: ${message}。APIキーが失効している可能性があります。管理者に再発行を依頼してください。`
+        );
+      }
+      // 413 相当（HTMLが大きすぎる）は本文に上限が書いてあるので、そのまま渡す
+      throw new Error(`分析APIがエラーを返しました（HTTP ${response.status}）: ${message}`);
+    }
+
+    return body;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(
+        `分析APIの応答が ${config.timeoutMs / 1000} 秒以内に返りませんでした。HTMLが大きすぎないか確認してください。`
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+};

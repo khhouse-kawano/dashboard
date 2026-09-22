@@ -85,6 +85,15 @@ const CompetitorSummary: React.FC = () => {
     const [targetSection, setTargetSection] = useState('');
 
     /**
+     * 営業課の選択肢。
+     *
+     * ⚠️⚠️ **2026-09-22 まで画面に直書きだった。**
+     *   ⚠️ ⚠️ **実在しない課（大分・佐賀営業課）が入っていて、選んでも0件だった。**
+     *   ⚠️ 並び順は `section_list.no`（サーバー側で並べて返す）。
+     */
+    const [sections, setSections] = useState<string[]>([]);
+
+    /**
      * 案件カードのモーダル。
      * ⚠️ 勝ちと負けで**出す項目だけが違う**ので、1つの state にまとめてある。
      */
@@ -103,6 +112,15 @@ const CompetitorSummary: React.FC = () => {
                 setShops(response.data.shop.filter(
                     (s: any) => !s.shop.includes('未設定') && !s.shop.includes('全店舗')
                 ));
+                // ⚠️ 注文事業の課だけを、`no` の昇順で選択肢にする。
+                //   ⚠️ サーバーが `ORDER BY no` で返しているが、
+                //     ⚠️ **並び順を画面側でも保証しておく**（① と ② の両方を通るため）。
+                setSections(
+                    (response.data.section ?? [])
+                        .filter((s: any) => s.division === '注文事業')
+                        .sort((a: any, b: any) => Number(a.no) - Number(b.no))
+                        .map((s: any) => String(s.name))
+                );
             } catch (e) {
                 // ⚠️ 0件と取得失敗を見分けられるようにする（黙って空の表を出さない）
                 setError('競合情報を取得できませんでした。時間をおいて再度お試しください。');
@@ -429,11 +447,7 @@ const CompetitorSummary: React.FC = () => {
                                 onChange={(e) => { setTargetSection(e.target.value); setCurrentPage(1); }}
                             >
                                 <option value="">全課を表示</option>
-                                {/* ⚠️ 課の一覧は master ではなく画面に直書きのまま（改修前から）。
-                                       ⚠️ 触ると絞り込みの挙動が変わるので今回は残す */}
-                                {['鹿児島営業1課', '鹿児島営業2課', '鹿児島営業3課',
-                                    '宮崎営業課', '熊本営業課', '大分・佐賀営業課'].map(s =>
-                                        <option key={s} value={s}>{s}</option>)}
+                                {sections.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                         </div>
                         <div>

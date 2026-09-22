@@ -2,7 +2,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
-import { getJson, loadConfig } from './apiClient.js';
+import { getJson, loadConfig, postJson } from './apiClient.js';
 
 /**
  * 注文事業のKPI・歩留まりを Claude Desktop から問い合わせるための MCP サーバー。
@@ -45,6 +45,15 @@ const asToolError = (error: unknown) => ({
 const call = async (path: string, params: Record<string, string | undefined>) => {
   try {
     return asToolResult(await getJson(config, path, params));
+  } catch (error) {
+    return asToolError(error);
+  }
+};
+
+/** 保存系の実行部。GETと同じく例外をツールエラーに変換する */
+const send = async (path: string, payload: unknown) => {
+  try {
+    return asToolResult(await postJson(config, path, payload));
   } catch (error) {
     return asToolError(error);
   }
@@ -235,6 +244,135 @@ server.registerTool(
       from: args.from,
       to: args.to,
     })
+);
+
+// ---------------------------------------------------------------------------
+// 5. 競合分析（顧客1件ごと）
+// ---------------------------------------------------------------------------
+
+server.registerTool(
+  'get_competitor_deals',
+  {
+    title: '競合との勝敗（顧客1件ごと）',
+    description:
+      '競合の記録がある商談を、顧客1件ごとに返す。契約（win）と失注（lost）の両方が入っており、' +
+      '他社名・失注理由・面談メモ・予算帯・土地の有無が付いている。' +
+      '\n\n「どの会社に負けているか」「なぜ負けたのか」「勝ちパターンは何か」' +
+      'といった、集計値では答えられない質問に使う。' +
+      '\n\n⚠️ 他のツールと違い、これだけは集計値ではなく生の行を返す。' +
+      '行数が多いので、months を必要以上に広げないこと（既定の12ヶ月で足りることが多い）。' +
+      '\n\n⚠️ 応答の meta にある「データ品質の注意点」を必ず読むこと。' +
+      'とくに counts.truncated が true のときは全件ではないため、' +
+      'ここから勝率を出して全社の実力値として語ってはならない。' +
+      '\n\n⚠️ own_group は国分ハウジンググループ自身の社名で、競合ではない。勝敗に数えないこと。' +
+      '\n\n⚠️ memo の **** は伏字（個人情報）である。中身を推測しないこと。',
+    inputSchema: z.object({
+      division: z
+        .enum(['order', 'kaeru'])
+        .optional()
+        .describe('order = 注文事業（既定） / kaeru = 建売分譲事業'),
+      months: z
+        .number()
+        .int()
+        .min(1)
+        .max(36)
+        .optional()
+        .describe('さかのぼる月数。既定は12。24を超えると古すぎて打ち手に使えない'),
+    }),
+  },
+  async (args) =>
+    call('competitor', {
+      division: args.division,
+      months: args.months === undefined ? undefined : String(args.months),
+    })
+);
+
+// ---------------------------------------------------------------------------
+// 6. レポート（HTML）
+// ---------------------------------------------------------------------------
+
+server.registerTool(
+  'get_report_spec',
+  {
+    title: 'レポートHTMLの書き方',
+    description:
+      '分析レポートを HTML で書くときの決まり（1ファイル完結・外部読み込み禁止・必ず書くこと・' +
+      '書いてはいけないこと）と、保存のしかたを返す。' +
+      '\n\n⚠️ 「HTMLで出力して」「レポートにまとめて」と言われたら、書き始める前に必ず1度呼ぶこと。' +
+      'ここで体裁をそろえておかないと、過去の分析と読み比べられなくなる。',
+    inputSchema: z.object({}),
+  },
+  async () => call('report/spec', {})
+);
+
+server.registerTool(
+  'save_analysis_report',
+  {
+    title: 'レポート（HTML）を保存する',
+    description:
+      '書き上げた分析レポートの HTML をダッシュボードに保存する。保存すると' +
+      '「他社動向 → Claudeによる競合分析」から誰でも開けるようになる。' +
+      '\n\n⚠️ 呼ぶ前に get_report_spec を読むこと。体裁の決まりがある。' +
+      '\n\n⚠️ 上書きではなく毎回1件増える。作り直すたびに古い版も残る。' +
+      '\n\n⚠️ 利用者が「保存して」と言っていないのに勝手に保存しないこと。' +
+      '全社が見る画面に出るため。',
+    inputSchema: z.object({
+      title: z.string().describe('一覧に出す見出し。例: 競合別 勝因・敗因分析（2026年5月期）'),
+      html: z.string().describe('HTMLの全文。1ファイルで完結していること'),
+      category: z.string().optional().describe("分析の種類。いまは 'competitor' のみ（既定）"),
+      division: z
+        .enum(['order', 'kaeru', ''])
+        .optional()
+        .describe("'order' = 注文事業 / 'kaeru' = 建売分譲事業 / '' = 全社"),
+      period: z.string().optional().describe('分析の対象期間。例: 2025/06〜2026/05'),
+      dataAsOf: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD 形式')
+        .optional()
+        .describe(
+          'データを取得した日。⚠️ 画面に常時表示され、読む人が最新だと誤解しないための表示に使う'
+        ),
+    }),
+  },
+  async (args) =>
+    send('report', {
+      title: args.title,
+      html: args.html,
+      category: args.category,
+      division: args.division,
+      period: args.period,
+      dataAsOf: args.dataAsOf,
+    })
+);
+
+server.registerTool(
+  'list_analysis_reports',
+  {
+    title: '保存済みレポートの一覧',
+    description:
+      'ダッシュボードに保存されている分析レポートの一覧を返す（本文は含まない）。' +
+      '\n\n「前回はどう分析したか」「いつのデータで作ったか」を確かめるときに使う。' +
+      '本文を読みたいときは get_analysis_report を呼ぶこと。',
+    inputSchema: z.object({
+      category: z.string().optional().describe("種類で絞る。例: competitor"),
+    }),
+  },
+  async (args) => call('report', { category: args.category })
+);
+
+server.registerTool(
+  'get_analysis_report',
+  {
+    title: '保存済みレポートを1件読む',
+    description:
+      '保存済みの分析レポートを本文（HTML）つきで1件返す。' +
+      '\n\n⚠️ 本文は60KB前後ある。前回の内容を踏まえて書き直すときだけ呼ぶこと。' +
+      '一覧を見たいだけなら list_analysis_reports で足りる。',
+    inputSchema: z.object({
+      no: z.number().int().positive().describe('レポート番号。list_analysis_reports で確認する'),
+    }),
+  },
+  async (args) => call(`report/${args.no}`, {})
 );
 
 // ---------------------------------------------------------------------------

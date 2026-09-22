@@ -31,7 +31,17 @@ const SHOP_SQL = `
    WHERE report_flag = 1
 `;
 
-const SECTION_SQL = 'SELECT division, name FROM section_list';
+/**
+ * 営業課。
+ *
+ * ⚠️ 2026-09-22、⚠️ **`no` を足して `no` 昇順にした。**
+ *   ⚠️ 画面（CompetitorSummary.tsx）の営業課の選択肢が ⚠️ **直書きだった**ため。
+ *   ⚠️ ⚠️ **直書きには存在しない課（大分・佐賀営業課）が入っていて、選んでも0件だった。**
+ *   ⚠️ ⚠️ **並び順は画面が決めるのではなく、この `no` で決まる。**
+ *
+ * ⚠️ ⚠️ **① の competitor.php も同じ SQL にしてあること。** 片方だけにしない。
+ */
+const SECTION_SQL = 'SELECT no, division, name FROM section_list ORDER BY no';
 
 /**
  * 顧客一覧（注文事業）。

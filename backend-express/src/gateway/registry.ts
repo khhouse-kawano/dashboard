@@ -33,6 +33,8 @@ import { runInside } from '../features/inside';
 import { runBudgetSimulator } from '../features/budgetSimulator';
 import { runDatabase } from '../features/database';
 import { runCustomer } from '../features/customer';
+import { runMap } from '../features/map';
+import type { MapCategory } from '../features/map/queries';
 import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
@@ -1612,6 +1614,37 @@ for (const category of customerCategories) {
 }
 
 // ---------------------------------------------------------------------------
+// 地図（map/MapOrder.tsx / MapKaeru.tsx / MapResale.tsx）。2026-09-22 移植。
+//
+// ⚠️ 参照のみ。① に map.php / mapAction/map_{category}.php が実在するので
+//   フォールバックしてよい。
+//
+// ⚠️⚠️ **3事業とも登録する。** ⚠️ MapRouter.tsx は order / spec / used を
+//   すべて描画しており、① の map.php も3つを許可している。
+//
+// ⚠️⚠️ **画面は 2026-09-22 まで `axios` で ① の本番URLを直に叩いていた。**
+//   ⚠️ ⚠️ **ローカルで開発していても本番DBを見ていた。**
+//     ⚠️ 同時に `apiClient` 経由へ直してある。
+// ---------------------------------------------------------------------------
+
+const mapCategories: MapCategory[] = ['order', 'spec', 'used'];
+
+for (const category of mapCategories) {
+  register({
+    request: 'map',
+    category,
+    summary: `地図の初期データ（${category}）`,
+    phpSource: `backend/src/handlers/mapAction/map_${category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runMap(category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Google クチコミの取得（projects/sync から呼ばれる。画面は無い）
 //
 // ⚠️⚠️ **① に PHP ハンドラは無い。** 以前は post_review.php / shop_review.php が
@@ -1977,7 +2010,13 @@ register({
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
-    const category = String(ctx.body.category ?? '');
+    // ⚠️⚠️ **`category` という名前は使えない。**
+    //   ⚠️ ゲートウェイは request / roll / category の3つで登録先を引く
+    //     （findEntry / gatewayKey）。⚠️ **完全一致でしか引かない。**
+    //   ⚠️ ⚠️ **body に category を入れると別のキーとして扱われ、未登録になる。**
+    //     ⚠️ 2026-09-22、画面が category: 'competitor' を送っていたため
+    //       ⚠️ **「ループ検知」で 502 になった。**
+    const category = String(ctx.body.reportCategory ?? '');
     return { reports: await listReports(category) };
   },
 });
@@ -2029,7 +2068,9 @@ register({
 
     const no = await saveReport({
       title,
-      category: String(ctx.body.category ?? 'competitor'),
+      // ⚠️⚠️ **`category` は使えない**（ゲートウェイの振り分けキーと衝突する）。
+      //   ⚠️ 詳しくは analysis_report_list の注記。
+      category: String(ctx.body.reportCategory ?? '') || 'competitor',
       division: String(ctx.body.division ?? ''),
       period: String(ctx.body.period ?? ''),
       html,
