@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
+// ⚠️ 見た目は customer/ shop/ rank/ map/ で共通（components/rankingUi.tsx）
+import { RankingStyle } from '../rankingUi';
 import Table from "react-bootstrap/Table";
 import "../SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -461,19 +463,26 @@ const RankOrder = () => {
     };
 
     const searchParts = () => {
-        return <div className='bg-white p-2' style={{ width: isSp ? '1300px' : '1800px' }}>
-            <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-            <div className="row mt-3 mb-4" >
-                <div className="col d-flex">
-                    <select className="target" name="startMonth" onChange={(e) => setTargetMonth(e.target.value)}>
+        return <div className='bg-white rk_wrap' style={{ width: isSp ? '1300px' : '1800px' }}>
+            <RankingStyle />
+            <div className="rk_head">
+                <span className="rk_title">目標達成状況（建売分譲事業）</span>
+                <span className="rk_note">※来場数・契約数は"実績日"起算となります。</span>
+            </div>
+            <div className="rk_bar">
+                <div className="rk_field">
+                    <span className="rk_label">対象</span>
+                    <select className="rk_select" name="startMonth" value={targetMonth}
+                        onChange={(e) => setTargetMonth(e.target.value)}>
                         {getYears().map(year => <option key={year} value={year}>{year}年5月期</option>)}
                         {monthArray.map((month, index) => (
-                            <option key={index} value={month} selected={targetMonth === month}>{month}</option>
+                            <option key={index} value={month}>{month}</option>
                         ))}
                     </select>
                 </div>
             </div>
-            <div>
+            {/* ⚠️ 2段見出しの表なので中身は触らず、外側の見た目だけ揃えている（rankingUi.tsx） */}
+            <div className="rk_plain">
                 <Table bordered>
                     <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
                         <tr className="text-center">

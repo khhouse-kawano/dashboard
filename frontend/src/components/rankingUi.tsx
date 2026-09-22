@@ -77,6 +77,50 @@ export const RankingStyle = () => (
         /* ⚠️ 合計・全社などのまとめ行 */
         .rk_row_total > .rk_td { background: #f8fafc; font-weight: 700; }
         .rk_row_total > .rk_td_name { background: #f8fafc; }
+
+        /*
+          ⚠️⚠️ **既存の表にそのまま被せるための一式**（rank/ と map/ 用）。
+            ⚠️ あちらは ⚠️ **2段見出し（colSpan / rowSpan）** や
+              ⚠️ **react-bootstrap の Table** を使っており、
+              ⚠️ ⚠️ **セルの書き換えは数字のズレを招く。**
+            ⚠️ そこで ⚠️ **中身には触らず、見た目だけを上書きする。**
+          ⚠️ `.rk_plain` を表の外側に付けて使う。
+        */
+        .rk_plain { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto; background: #fff; }
+        .rk_plain table { margin-bottom: 0; font-size: 12px; }
+        .rk_plain th, .rk_plain td {
+            border-color: #eef2f7; padding: 7px 10px; vertical-align: middle;
+            font-variant-numeric: tabular-nums;
+        }
+        .rk_plain thead td, .rk_plain thead th, .rk_plain tr:first-child > td {
+            background: #f8fafc; font-weight: 700; font-size: 11px; color: #4b5563;
+        }
+        .rk_plain tbody tr:hover > td { background: #f8fafc; }
+
+        /*
+          ⚠️⚠️ **react-bootstrap の Card / Form.Select を使っている画面用**（map/）。
+            ⚠️ あちらは ⚠️ **地図と表が絡み合っており、要素の置き換えは事故になりやすい。**
+            ⚠️ そこで ⚠️ **外側に .rk_screen を付けて、色と角だけを揃える。**
+          ⚠️ ⚠️ **レイアウト（Row / Col）には触っていない。**
+        */
+        .rk_screen { color: #1f2937; }
+        .rk_screen .card { border: 1px solid #e5e7eb !important; border-radius: 10px;
+                           box-shadow: none !important; background: #f8fafc; }
+        .rk_screen .card .card-body { padding: 10px 12px; }
+        .rk_screen .form-select, .rk_screen .form-control {
+            border: 1px solid #d1d5db; border-radius: 8px; font-size: 12px; background-color: #fff;
+        }
+        .rk_screen .form-select:focus, .rk_screen .form-control:focus {
+            border-color: #2563eb; box-shadow: none;
+        }
+        .rk_screen .table { font-size: 12px; margin-bottom: 0; }
+        .rk_screen .table th, .rk_screen .table td {
+            border-color: #eef2f7; padding: 7px 10px; vertical-align: middle;
+            font-variant-numeric: tabular-nums;
+        }
+        .rk_screen .table thead th { background: #f8fafc; font-weight: 700; font-size: 11px; color: #4b5563; }
+        .rk_screen .btn-primary { background: #2563eb; border-color: #2563eb; }
+        .rk_screen .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
     `}</style>
 );
 

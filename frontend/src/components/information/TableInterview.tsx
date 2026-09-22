@@ -522,6 +522,17 @@ export default memo(TableInterview, (prevProps, nextProps) => {
     if (prevProps.interview !== nextProps.interview) return false;
     if (prevProps.interviewLog !== nextProps.interviewLog) return false;
 
+    /**
+     * ⚠️⚠️ **この画面で値を表示・入力している列は、すべてここに書くこと。**
+     *
+     *   ⚠️ ⚠️ **書き忘れると、入力しても画面に文字が出ない。**
+     *     ⚠️ `setInformation` は動いて値は保持されるが、
+     *       ⚠️ **この比較が true を返して再描画されない**ため、
+     *       ⚠️ ⚠️ **打った文字が消えたように見える。**
+     *     ⚠️ **エラーは出ない。**
+     *
+     *   ⚠️ 2026-09-22、⚠️ **`memo_marketing` を書き忘れて実際に起きた。**
+     */
     const fieldsToCheck = [
         'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
         'sales_promotion_name',
@@ -532,7 +543,9 @@ export default memo(TableInterview, (prevProps, nextProps) => {
         'customer_contacts_name',
         'call_status',
         'contraction_contract_price',
-        'additional_contraction_contract_price'
+        'additional_contraction_contract_price',
+        // ⚠️ マーケ用メモ欄（2026-09-22 追加）
+        'memo_marketing'
     ];
 
     for (const field of fieldsToCheck) {
