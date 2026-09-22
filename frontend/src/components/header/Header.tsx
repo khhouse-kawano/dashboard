@@ -6,9 +6,7 @@ import EditBlackList from './EditBlackList';
 import Modal from 'react-bootstrap/Modal';
 import Dropdown from 'react-bootstrap/Dropdown';
 import MetaAdsDashboard from './MetaAdsDashboard';
-import SyncEstate from './SyncEstate';
 import CompetitorMaterials from './CompetitorMaterials';
-import Estate from '../Estate';
 import CallStatus from '../CallStatusList';
 import { useIsSp } from '../../utils/isSp';
 import AuthContext from '../../context/AuthContext';
@@ -21,6 +19,7 @@ import DailyReports from './DailyReports';
 import ClaudeAnalysis from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
 import CompetitorAnalysisReports from './CompetitorAnalysisReports';
+import SatBaseDatabase from './SatBaseDatabase';
 import AmbassadorList from './AmbassadorList';
 import { InquiryAmbassador } from './InquiryAmbassador';
 import InquiryIntroductory from './InquiryIntroductory';
@@ -70,7 +69,6 @@ const Header = ({ }) => {
      */
     const [eventBudget, setEventBudget] = useState<boolean>(false);
     const [modal, setModal] = useState<boolean>(false);
-    const [estateId, setEstateId] = useState('search');
     const [callStatusShow, setCallStatusShow] = useState(true);
     const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
@@ -129,7 +127,10 @@ const Header = ({ }) => {
         '店舗管理': ['店舗編集'],
         'スタッフ管理': ['スタッフ編集・追加', '権限編集'],
         '反響管理': authority === 'Master' ? ['販促媒体設定', 'ブラックリスト設定', '広告費シミュレーター', '事後アンケート'] : ['販促媒体設定', 'ブラックリスト設定', '事後アンケート'],
-        '土地・物件管理': ['仲介物件登録', '土地情報同期', '土地情報一覧'],
+        // ⚠️⚠️ **2026-09-22 に土地情報同期・土地情報一覧をメニューから外した**（指示）。
+        //   ⚠️ ⚠️ **コンポーネント（SyncEstate / Estate）は消していない。**
+        //     ⚠️ Estate は顧客詳細からも開くため、消すとそちらが壊れる。
+        '土地・物件管理': ['仲介物件登録', 'SatBaseサマリー'],
         // ⚠️ 最後の1つは Claude による競合分析。⚠️ **Master のみ**（課金が発生するため）
         '他社動向': authority === 'Master'
             ? ['他社広告ライブラリ', '他社資料', '競合サマリー', CLAUDE_COMPETITOR_ITEM]
@@ -158,11 +159,9 @@ const Header = ({ }) => {
         '店舗管理/店舗編集': <EditShop />,
         '反響管理/ブラックリスト設定': <EditBlackList />,
         '他社動向/他社広告ライブラリ': <MetaAdsDashboard />,
-        '土地・物件管理/土地情報同期': <SyncEstate setModal={setModal} />,
         '他社動向/他社資料': <CompetitorMaterials />,
         // ⚠️ 保存済みレポートを見るだけの画面。⚠️ **Claude は呼ばない（課金なし）**
         [`他社動向/${CLAUDE_COMPETITOR_ITEM}`]: <CompetitorAnalysisReports />,
-        '土地・物件管理/土地情報一覧': <Estate estateId={estateId} setEstateId={setEstateId} source='header' />,
         '架電状況/注文営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='order' />,
         '架電状況/建売営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='spec' />,
         '架電状況/中古営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='used' />,
@@ -170,6 +169,8 @@ const Header = ({ }) => {
         '反響管理/事後アンケート': <AfterInterview name={''} staff={''} id={''} shop={''} />,
         '他社動向/競合サマリー': <CompetitorSummary />,
         '土地・物件管理/仲介物件登録': <RegisterBrokerageListings setModal={setModal} />,
+        // ⚠️ 物件台帳（satbase_property）の一覧。⚠️ **列が40あるので全画面**（下を参照）
+        '土地・物件管理/SatBaseサマリー': <SatBaseDatabase />,
         '日報/月次日報': <DailyReports />,
         '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
         '公式アンバサダー/反響一覧': <InquiryAmbassador />,
@@ -233,6 +234,10 @@ const Header = ({ }) => {
         //   ⚠️ 2026-09-19 の SaaS 化に合わせて全画面にした。
         //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
         '反響管理/ブラックリスト設定',
+        // ⚠️ SatBaseサマリーは**選べる列が40**あり、xl では数列しか入らない。
+        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
+        //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
+        '土地・物件管理/SatBaseサマリー',
     ].includes(editMenu);
 
     // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）
@@ -379,7 +384,7 @@ const Header = ({ }) => {
             <Modal
                 show={modal}
                 onHide={() => setModal(false)}
-                size={editMenu === '土地・物件管理/土地情報同期' ? 'sm' : isFullscreenMenu ? undefined : 'xl'}
+                size={isFullscreenMenu ? undefined : 'xl'}
                 // 全画面表示のときに centered を付けると上下に余白が生まれ、縦を使い切れない
                 centered={!isFullscreenMenu}
                 // fullscreen プロパティは型が 'true | string' のため、真偽値を渡せない。
