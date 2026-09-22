@@ -77,7 +77,8 @@ server.registerTool(
   {
     title: '分析APIで使える軸と指標の一覧',
     description:
-      '注文事業の分析APIで指定できる集計軸・指標・比率の一覧と、データ品質の注意点を返す。' +
+      '分析APIで指定できる集計軸・指標・比率の一覧と、データ品質の注意点を返す。' +
+      '⚠️ 注文事業（order）と建売分譲事業（kaeru）の両方に対応している。' +
       '\n\n他のツールを使う前に必ず1度呼ぶこと。軸や指標の正確な名前がわからないまま' +
       'query_analysis_pivot を呼ぶと、存在しない名前を指定してエラーになる。' +
       '\n\nこの応答には「フェーズの到達件数は単調減少しない」など、数字を読み違えないための' +
@@ -134,6 +135,15 @@ server.registerTool(
         .max(3)
         .optional()
         .describe('集計軸。最大3つ。省略すると month と section。例: ["month","store"]'),
+      division: z
+        .enum(['order', 'kaeru'])
+        .optional()
+        .describe(
+          '事業。order = 注文事業（既定） / kaeru = 建売分譲事業。' +
+            '⚠️ 建売は工程が違う（総反響→接触→来場・案内→次アポ→事前審査→申込→契約）。' +
+            '⚠️ 指標名は注文と揃えてあるが中身は切り替わる。' +
+            '⚠️ 建売に「失注」は無いため lost は null になる'
+        ),
       from: monthField.describe('開始月。省略すると最古のデータから'),
       to: monthField.describe('終了月。省略すると最新のデータまで'),
       section: z.string().optional().describe('営業課で絞る。例: 宮崎営業課'),
@@ -150,6 +160,7 @@ server.registerTool(
   async (args) =>
     call('funnel', {
       groupBy: csv(args.groupBy),
+      division: args.division,
       from: args.from,
       to: args.to,
       section: args.section,
@@ -191,6 +202,15 @@ server.registerTool(
         .array(z.string())
         .optional()
         .describe('比率。list_analysis_dimensions の「比率」から選ぶ'),
+      division: z
+        .enum(['order', 'kaeru'])
+        .optional()
+        .describe(
+          '事業。order = 注文事業（既定） / kaeru = 建売分譲事業。' +
+            '⚠️ 建売は工程が違う（総反響→接触→来場・案内→次アポ→事前審査→申込→契約）。' +
+            '⚠️ 指標名は注文と揃えてあるが中身は切り替わる。' +
+            '⚠️ 建売に「失注」は無いため lost は null になる'
+        ),
       basis: z
         .enum(['reaction', 'contract'])
         .optional()
@@ -211,6 +231,7 @@ server.registerTool(
       groupBy: csv(args.groupBy),
       metrics: csv(args.metrics),
       rates: csv(args.rates),
+      division: args.division,
       basis: args.basis,
       from: args.from,
       to: args.to,
