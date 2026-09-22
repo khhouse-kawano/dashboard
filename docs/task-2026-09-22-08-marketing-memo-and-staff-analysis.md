@@ -232,6 +232,47 @@ const reachedOrBeyond = (phases: PhaseKey[]): string =>
 
 ---
 
+## ⚠️ 5. ホームページ反響の行に色を付ける
+
+⚠️ 利用者の指示:
+
+> CustomerKaeru.tsx はこのままでよい(show_graph=1)
+> その代わり CustomerKaeru.tsx ではホームページ反響の行を table-primary 等で視認性よく
+> CustomerTrendKaeru.tsx も同様にホームページ反響及び展開した行を table-primary 等で視認性をよく
+
+⚠️ ⚠️ **`CustomerKaeru.tsx` は `show_graph = 1` のままにする**（利用者の判断）。
+⚠️ **2つの画面で行の顔ぶれが違いうることは、色を付けて見分けられるようにすることで受け入れる。**
+
+### `CustomerKaeru.tsx`
+
+```tsx
+                                    const isHomepageRow = value.medium === HOMEPAGE_ROW;
+
+                                    return (
+                                        <tr key={value.id ?? `medium-${index}`} className={isHomepageRow ? 'table-primary' : undefined}>
+                                            <td className={`sticky-column${isHomepageRow ? ' table-primary' : ''}`} style={{ textAlign: 'center' }}>{value.medium}</td>
+```
+
+### `CustomerTrendKaeru.tsx`
+
+```tsx
+              const isHomepageRow = medium === 'ホームページ反響計'
+                || (showSummary && hpMediums.includes(medium));
+
+              return (
+                <React.Fragment key={mediumIndex}>
+                  <tr className={isHomepageRow ? 'table-primary' : undefined}>
+                    <td className={`align-middle sticky-column text-center${isHomepageRow ? ' table-primary' : ''}`} style={theme.tdName} rowSpan={1}>
+```
+
+⚠️⚠️ **「詳細を表示」で開く内訳（会員登録・資料請求・来場予約・先取物件・その他）も同じ色にしている。**
+⚠️ ⚠️ **どこまでが内訳なのかが分からなくなるため。**
+
+⚠️⚠️ **`sticky-column` の `td` にも当てること。**
+⚠️ ⚠️ **固定列は背景を自前で持っており、`tr` だけに付けると1列目が白いまま残る。**
+
+---
+
 ## 確認（2026-09-22・ローカル）
 
 ### ⚠️ 分析API（一時キーで実測）
@@ -273,6 +314,8 @@ const reachedOrBeyond = (phases: PhaseKey[]): string =>
 - [ ] SatBaseサマリーの ⚠️ **余白が広がって読みやすい**
 - [ ] ⚠️⚠️ **反響推移（建売）の表が SUUMO / HOME'S / 公式LINE / アットホーム の4行**
 - [ ] ⚠️⚠️ **Web検索・Instagram が独立行として出ていない**
+- [ ] ⚠️ **ホームページ反響の行に色が付いている**（⚠️ **顧客分析・反響推移の両方**）
+- [ ] ⚠️⚠️ **「詳細を表示」で開いた内訳にも色が付いている**（⚠️ **1列目も含めて**）
 - [ ] Claude Desktop で「●●の契約実績を分析して」
 
 ---
@@ -281,7 +324,7 @@ const reachedOrBeyond = (phases: PhaseKey[]): string =>
 
 | # | 内容 |
 |---|---|
-| 1 | ⚠️⚠️ **`CustomerKaeru.tsx`（顧客分析・建売）は今も `show_graph = 1` を見ている。** ⚠️ **反響推移と行の顔ぶれがずれる可能性がある**（⚠️ v2.2.143 で揃えたばかり） |
+| 1 | ⚠️⚠️ **`CustomerKaeru.tsx` は `show_graph = 1` のまま**（利用者の判断）。⚠️ **反響推移と行の顔ぶれがずれうる**ので、⚠️ **両画面ともホームページ反響の行に色を付けて見分けられるようにした** |
 | 2 | ⚠️ `medium_kaeru.show_graph` は ⚠️ **他の画面がまだ使っている**。⚠️ **消さないこと** |
 | 3 | ⚠️ `interviewsLed` は ⚠️ **下限値**。⚠️ 面談ログに staff を入れる運用が広がれば精度が上がる |
 | 4 | ⚠️ スタッフ軸は ⚠️ **担当替えで過去の数字が動く**。⚠️ 月次で固定したいなら別の設計が要る |

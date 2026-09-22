@@ -594,10 +594,22 @@ const CustomerTrendKaeru: React.FC = () => {
                 && (targetSection ? sectionShops.includes(b.shop) : true)
                 && (targetShop ? b.shop === targetShop : true));
 
+              /**
+               * ⚠️ ホームページ反響の行に色を付ける（2026-09-22 の指示）。
+               *   ⚠️ ⚠️ **「詳細を表示」で開く内訳（会員登録・資料請求など）も同じ色にする。**
+               *     ⚠️ 開いたときに ⚠️ **どこまでが内訳なのかが分からなくなる**ため。
+               *   ⚠️ `table-primary` は Bootstrap の行色。
+               *     ⚠️ ⚠️ **`sticky-column` の td にも当てること。**
+               *       ⚠️ 固定列は背景を自前で持っており、
+               *         ⚠️ **tr だけに付けると1列目が白いまま残る。**
+               */
+              const isHomepageRow = medium === 'ホームページ反響計'
+                || (showSummary && hpMediums.includes(medium));
+
               return (
                 <React.Fragment key={mediumIndex}>
-                  <tr>
-                    <td className='align-middle sticky-column text-center' style={theme.tdName} rowSpan={1}>
+                  <tr className={isHomepageRow ? 'table-primary' : undefined}>
+                    <td className={`align-middle sticky-column text-center${isHomepageRow ? ' table-primary' : ''}`} style={theme.tdName} rowSpan={1}>
                       <div className="mb-1">{medium}</div>
                       {medium === 'ホームページ反響計' &&
                         <div

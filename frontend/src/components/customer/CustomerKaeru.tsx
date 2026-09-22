@@ -633,9 +633,20 @@ const CustomerKaeru = () => {
                                         totalBudget,
                                     } = item;
 
+                                    /**
+                                     * ⚠️ ホームページ反響の行は色を付ける（2026-09-22 の指示）。
+                                     *   ⚠️ ⚠️ **この画面でいちばん件数が大きい行**で、
+                                     *     ⚠️ 他の媒体と同じ見た目だと埋もれて見つけられない。
+                                     *   ⚠️ `table-primary` は Bootstrap の行色。
+                                     *     ⚠️ ⚠️ **`sticky-column` の td にも当てること。**
+                                     *       ⚠️ 固定列は背景を自前で持っているため、
+                                     *         ⚠️ **tr だけに付けると1列目が白いまま残る。**
+                                     */
+                                    const isHomepageRow = value.medium === HOMEPAGE_ROW;
+
                                     return (
-                                        <tr key={value.id ?? `medium-${index}`}>
-                                            <td className='sticky-column' style={{ textAlign: 'center' }}>{value.medium}</td>
+                                        <tr key={value.id ?? `medium-${index}`} className={isHomepageRow ? 'table-primary' : undefined}>
+                                            <td className={`sticky-column${isHomepageRow ? ' table-primary' : ''}`} style={{ textAlign: 'center' }}>{value.medium}</td>
                                             {/* ⚠️ 見出しと同じ並び。入れ替えないこと */}
                                             <td style={{ textAlign: 'center' }}>{totalValue.toLocaleString()}</td>
                                             <td style={{ textAlign: 'center' }}>{perContact}%</td>
