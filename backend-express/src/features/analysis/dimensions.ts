@@ -53,6 +53,23 @@ export const DIMENSIONS = {
     label: 'エリア（shop_list.area。店舗の所在地であって顧客の居住地ではない）',
     sql: () => groupExpr('s.area'),
   },
+  /**
+   * ⚠️ 2026-09-22 追加。⚠️ **スタッフ別の分析**（利用者の指示）。
+   *
+   * ⚠️⚠️ **氏名だが、これは顧客ではなく自社の担当者である。**
+   *   ⚠️ 個人情報の扱いとしては ⚠️ **店舗や営業課と同じ**（社内の所属情報）。
+   *   ⚠️ ⚠️ **顧客の氏名は今までどおり軸にしない。**
+   *
+   * ⚠️ 値は ⚠️ **その顧客の「現在の担当者」**であって、
+   *   ⚠️ ⚠️ **反響を取った人でも、面談をした人でもない。**
+   *     ⚠️ 担当替えがあると、⚠️ **過去の実績ごと新しい担当者に移る。**
+   */
+  staff: {
+    label:
+      '担当者（master_data.in_charge_user）。' +
+      '⚠️ 現在の担当者であり、担当替えがあると過去の実績ごと移る',
+    sql: () => groupExpr('m.in_charge_user'),
+  },
   medium: {
     label: '販促媒体（master_data.sales_promotion_name）',
     sql: () => groupExpr('m.sales_promotion_name'),

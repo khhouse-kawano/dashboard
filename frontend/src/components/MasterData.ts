@@ -148,6 +148,7 @@ export type MasterData = {
   memo_fire_insurance: string;
   memo_site_survey: string;
   memo_ground_survey: string;
+  memo_marketing: string;
   memo_other_related_person: string;
   competitor_lost_contract_date: string;
   competitors_text: string;

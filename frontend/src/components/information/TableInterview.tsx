@@ -305,6 +305,23 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
 
     return (
         <>
+            {/*
+              * ⚠️ マーケ用メモ欄（2026-09-22 の指示）。
+              *   ⚠️ 架電シート（TableCall.tsx）の「架電用メモ欄」と ⚠️ **同じ大きさ・同じ作り**。
+              *   ⚠️ ⚠️ **面談の記録（interview_log）とは別物**で、
+              *     ⚠️ 顧客台帳の `memo_marketing` 列に入る。
+              *   ⚠️ ⚠️ **3事業とも列がある**（master_data / _kaeru / _resale）。
+              *     ⚠️ 片方でも列が無いと、⚠️ **その事業の保存がまるごと失敗する。**
+              */}
+            <div className="mb-3">
+                <textarea style={{ ...inputStyle, width: '93%', height: 'auto' }} placeholder='マーケ用メモ欄'
+                    value={safeFormate(information.memo_marketing)}
+                    rows={Math.max(2, safeFormate(information.memo_marketing).length / 50)}
+                    onChange={(e) => setInformation(prev => ({
+                        ...prev,
+                        memo_marketing: e.target.value
+                    }))}></textarea>
+            </div>
             <div
                 className="text-primary text-center mb-3"
                 style={{ ...actionButton, width: '75px', cursor: 'pointer' }}

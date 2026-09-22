@@ -175,6 +175,7 @@ $insertMasterSQL = 'INSERT INTO master_data_kaeru (
             memo_fire_insurance,
             memo_site_survey,
             memo_ground_survey,
+            memo_marketing,
             memo_other_related_person,
             competitor_lost_contract_date,
             competitors_text,
@@ -340,6 +341,7 @@ $insertMasterSQL = 'INSERT INTO master_data_kaeru (
             :memo_fire_insurance,
             :memo_site_survey,
             :memo_ground_survey,
+            :memo_marketing,
             :memo_other_related_person,
             :competitor_lost_contract_date,
             :competitors_text,
@@ -507,6 +509,7 @@ $memo_lawyer = $data['memo_lawyer'] ?? null;
 $memo_fire_insurance = $data['memo_fire_insurance'] ?? null;
 $memo_site_survey = $data['memo_site_survey'] ?? null;
 $memo_ground_survey = $data['memo_ground_survey'] ?? null;
+$memo_marketing = $data['memo_marketing'] ?? null;
 $memo_other_related_person = $data['memo_other_related_person'] ?? null;
 $competitor_lost_contract_date = $data['competitor_lost_contract_date'] ?? null;
 $competitors_text = $data['competitors_text'] ?? null;
@@ -675,6 +678,7 @@ bindNullable($insertMasterStmt, ':memo_lawyer', $memo_lawyer);
 bindNullable($insertMasterStmt, ':memo_fire_insurance', $memo_fire_insurance);
 bindNullable($insertMasterStmt, ':memo_site_survey', $memo_site_survey);
 bindNullable($insertMasterStmt, ':memo_ground_survey', $memo_ground_survey);
+bindNullable($insertMasterStmt, ':memo_marketing', $memo_marketing);
 bindNullable($insertMasterStmt, ':memo_other_related_person', $memo_other_related_person);
 bindNullable($insertMasterStmt, ':competitor_lost_contract_date', $competitor_lost_contract_date);
 bindNullable($insertMasterStmt, ':competitors_text', $competitors_text);

@@ -160,6 +160,7 @@ $updateMasterSQL = 'UPDATE master_data SET
             introduction_person_category = :introduction_person_category,
             rank_steps = :rank_steps,
             competitor_lost_contract_reason = :competitor_lost_contract_reason,
+            memo_marketing = :memo_marketing,
             memo_other_related_person = :memo_other_related_person,
             competitor_name = :competitor_name,
             customized_input_01JRF9CZSW65A151WR30NA4PB3 = :customized_input_01JRF9CZSW65A151WR30NA4PB3,
@@ -232,6 +233,7 @@ $customer_contacts_birth_date = $data['customer_contacts_birth_date'] ?? null;
 $introduction_person_category = $data['introduction_person_category'] ?? null;
 $rank_steps = $data['rank_steps'] ?? null;
 $competitor_lost_contract_reason = $data['competitor_lost_contract_reason'] ?? null;
+$memo_marketing = $data['memo_marketing'] ?? null;
 $memo_other_related_person = $data['memo_other_related_person'] ?? null;
 $competitor_name = $data['competitor_name'] ?? null;
 $customized_input_01JRF9CZSW65A151WR30NA4PB3 = $data['customized_input_01JRF9CZSW65A151WR30NA4PB3'] ?? null;
@@ -304,6 +306,7 @@ bindNullable($updateMasterStmt, ':customer_contacts_birth_date', $customer_conta
 bindNullable($updateMasterStmt, ':introduction_person_category', $introduction_person_category);
 bindNullable($updateMasterStmt, ':rank_steps', $rank_steps);
 bindNullable($updateMasterStmt, ':competitor_lost_contract_reason', $competitor_lost_contract_reason);
+bindNullable($updateMasterStmt, ':memo_marketing', $memo_marketing);
 bindNullable($updateMasterStmt, ':memo_other_related_person', $memo_other_related_person);
 bindNullable($updateMasterStmt, ':competitor_name', $competitor_name);
 bindNullable($updateMasterStmt, ':customized_input_01JRF9CZSW65A151WR30NA4PB3', $customized_input_01JRF9CZSW65A151WR30NA4PB3);

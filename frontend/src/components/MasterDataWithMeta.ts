@@ -148,6 +148,7 @@ export type MasterDataWithMeta = {
     memo_fire_insurance: { value: string, updated: boolean },
     memo_site_survey: { value: string, updated: boolean },
     memo_ground_survey: { value: string, updated: boolean },
+    memo_marketing: { value: string, updated: boolean },
     memo_other_related_person: { value: string, updated: boolean },
     competitor_lost_contract_date: { value: string, updated: boolean },
     competitors_text: { value: string, updated: boolean },
