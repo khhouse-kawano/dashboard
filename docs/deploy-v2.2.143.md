@@ -94,13 +94,9 @@ dcp logs express-api | grep "map::"
 ⚠️ ⚠️ **`map::order` という文字列はソースに無い。**
 ⚠️ **キーは `gatewayKey(request, roll, category)` が実行時に組み立てている。**
 
-⚠️ ファイルで見るならこちら。
-
-```bash
-dcp exec express-api grep -c "地図の初期データ" dist/gateway/registry.js
-```
-
-⚠️ **3 になれば入っている。**
+⚠️⚠️ **ファイルを `grep -c` して「3」を期待しないこと。**
+⚠️ ⚠️ **`地図の初期データ（${category}）` はループの中に1回しか書かれていない**
+⚠️ （3つに展開されるのは実行時）。⚠️ **`1` が正しい。**
 
 ---
 
