@@ -10,6 +10,8 @@ import apiClient from '../../utils/apiClient';
 import UnitPriceGraphModal from '../shop/UnitPriceGraphModal';
 // ⚠️ 系列は5本（来場単価を含む）。⚠️ ShopKaeru.tsx は4本のままである
 import { UNIT_PRICE_SERIES_SPEC_FULL } from '../shop/unitPriceSeries';
+// ⚠️ 見た目は customer/ と shop/ の4画面で共通（components/rankingUi.tsx）
+import { RankingStyle, SortIcon } from '../rankingUi';
 import {
     isHomepageBudget,
     isHomepageCustomer,
@@ -506,7 +508,7 @@ const CustomerKaeru = () => {
         const active = sortKey === key && !plain;
         return (
             <th
-                className={`ck_th${plain ? ' ck_th_name' : ' ck_th_sort'}`}
+                className={`rk_th${plain ? ' rk_th_name' : ' rk_th_sort'}`}
                 onClick={plain ? undefined : () => changeSort(active && sortOrder === 'desc' ? 'asc' : 'desc', key)}
             >
                 {tip ? (
@@ -517,11 +519,7 @@ const CustomerKaeru = () => {
                         <span style={{ textDecoration: 'underline dotted' }}>{label}</span>
                     </OverlayTrigger>
                 ) : label}
-                {!plain && (
-                    <span className={`ck_sort_icon${active ? ' is_active' : ''}`}>
-                        {active ? (sortOrder === 'asc' ? '▲' : '▼') : '▾'}
-                    </span>
-                )}
+                {!plain && <SortIcon active={active} order={sortOrder} />}
             </th>
         );
     };
@@ -549,122 +547,65 @@ const CustomerKaeru = () => {
 
     return (
         <div className='content customer bg-white'>
-            <style>{`
-                /*
-                  ⚠️⚠️ 2026-09-22 に SaaS 風へ作り替えた（指示）。
-                    ⚠️ 中身（KPIの計算・並べ替え・絞り込み）は ⚠️ 1行も変えていない。
-                    ⚠️ ⚠️ 変えたのは見た目と配置だけである。
-                  ⚠️ 色は EditBlackList.tsx / SatBaseDatabase.tsx と同じ系統にしてある。
-                    ⚠️ ⚠️ 画面ごとに色を変えないこと。
-                */
-                .ck_wrap { font-size: 13px; color: #1f2937; padding: 16px 20px 24px; }
-                .ck_head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-                .ck_title { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
-                .ck_note { font-size: 11px; color: #6b7280; }
+            <RankingStyle />
 
-                .ck_kpi { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-                .ck_kpi_card { flex: 1 1 140px; background: #fff; border: 1px solid #e5e7eb;
-                               border-radius: 10px; padding: 10px 14px; }
-                .ck_kpi_label { font-size: 11px; color: #6b7280; }
-                .ck_kpi_value { font-size: 20px; font-weight: 700; line-height: 1.2;
-                                font-variant-numeric: tabular-nums; }
-                .ck_kpi_sub { font-size: 11px; color: #9ca3af; font-variant-numeric: tabular-nums; }
-
-                .ck_bar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
-                          background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px;
-                          padding: 10px 12px; margin-bottom: 12px; }
-                .ck_field { display: flex; flex-direction: column; }
-                .ck_label { font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 2px; }
-                .ck_select { border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px;
-                             font-size: 12px; background: #fff; color: #1f2937; outline: none; }
-                .ck_tilde { align-self: center; color: #9ca3af; padding: 0 2px; }
-                .ck_spacer { margin-left: auto; }
-                .ck_btn { border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700;
-                          cursor: pointer; border: 1px solid transparent; white-space: nowrap;
-                          background: #2563eb; color: #fff; }
-                .ck_btn:hover { background: #1d4ed8; }
-
-                /* ⚠️ 表。⚠️ 見出しと1列目を固定する（列が20あり横に長いため） */
-                .ck_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto;
-                                 background: #fff; max-height: 70vh; }
-                .ck_table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
-                .ck_th { position: sticky; top: 0; z-index: 2; background: #f8fafc;
-                         border-bottom: 1px solid #e5e7eb; padding: 9px 12px; text-align: center;
-                         font-weight: 700; font-size: 11px; color: #4b5563; white-space: nowrap; }
-                .ck_th_sort { cursor: pointer; user-select: none; }
-                .ck_th_sort:hover { background: #eef2f7; }
-                /* ⚠️⚠️ 1列目は左右どちらにも固定する。z-index は見出しより大きくすること */
-                .ck_th_name { position: sticky; left: 0; z-index: 3; text-align: left; }
-                .ck_sort_icon { margin-left: 6px; font-size: 10px; color: #cbd5e1; }
-                .ck_sort_icon.is_active { color: #2563eb; }
-
-                .ck_td { border-bottom: 1px solid #f1f5f9; padding: 7px 12px; text-align: center;
-                         white-space: nowrap; font-variant-numeric: tabular-nums; }
-                .ck_td_name { position: sticky; left: 0; z-index: 1; background: #fff;
-                              text-align: left; font-weight: 700; }
-                .ck_row:hover > .ck_td { background: #f8fafc; }
-                .ck_row:hover > .ck_td_name { background: #f8fafc; }
-                /* ⚠️ 率の列は数より薄くする。⚠️ 数と率が交互に並ぶため、目で追えなくなる */
-                .ck_rate { color: #6b7280; }
-            `}</style>
-
-            <div className="ck_wrap">
-                <div className="ck_head">
-                    <span className="ck_title">販促媒体別 反響・歩留まり（建売分譲事業）</span>
-                    <span className="ck_note">※来場数・契約数は"反響日"起算となります。</span>
+            <div className="rk_wrap">
+                <div className="rk_head">
+                    <span className="rk_title">販促媒体別 反響・歩留まり（建売分譲事業）</span>
+                    <span className="rk_note">※来場数・契約数は"反響日"起算となります。</span>
                 </div>
 
-                <div className="ck_kpi">
-                    <div className="ck_kpi_card">
-                        <div className="ck_kpi_label">総反響</div>
-                        <div className="ck_kpi_value">{summary.total.toLocaleString()}</div>
+                <div className="rk_kpi">
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">総反響</div>
+                        <div className="rk_kpi_value">{summary.total.toLocaleString()}</div>
                     </div>
-                    <div className="ck_kpi_card">
-                        <div className="ck_kpi_label">接触</div>
-                        <div className="ck_kpi_value">{summary.contact.toLocaleString()}</div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">接触</div>
+                        <div className="rk_kpi_value">{summary.contact.toLocaleString()}</div>
                     </div>
-                    <div className="ck_kpi_card">
-                        <div className="ck_kpi_label">来場</div>
-                        <div className="ck_kpi_value">{summary.interview.toLocaleString()}</div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">来場</div>
+                        <div className="rk_kpi_value">{summary.interview.toLocaleString()}</div>
                     </div>
-                    <div className="ck_kpi_card">
-                        <div className="ck_kpi_label">申込</div>
-                        <div className="ck_kpi_value">{summary.application.toLocaleString()}</div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">申込</div>
+                        <div className="rk_kpi_value">{summary.application.toLocaleString()}</div>
                     </div>
-                    <div className="ck_kpi_card">
-                        <div className="ck_kpi_label">契約</div>
-                        <div className="ck_kpi_value">{summary.contract.toLocaleString()}</div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">契約</div>
+                        <div className="rk_kpi_value">{summary.contract.toLocaleString()}</div>
                     </div>
-                    <div className="ck_kpi_card">
-                        <div className="ck_kpi_label">広告費</div>
-                        <div className="ck_kpi_value">¥{summary.budget.toLocaleString()}</div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">広告費</div>
+                        <div className="rk_kpi_value">¥{summary.budget.toLocaleString()}</div>
                         {/* ⚠️ 反響単価。⚠️ 分母が0なら '-'（0円と書くと「無料で取れた」と読める） */}
-                        <div className="ck_kpi_sub">反響単価 {unitText(summary.budget, summary.total)}</div>
+                        <div className="rk_kpi_sub">反響単価 {unitText(summary.budget, summary.total)}</div>
                     </div>
                 </div>
 
-                <div className="ck_bar">
-                    <div className="ck_field">
-                        <span className="ck_label">開始月</span>
-                        <select className="ck_select" value={startMonth}
+                <div className="rk_bar">
+                    <div className="rk_field">
+                        <span className="rk_label">開始月</span>
+                        <select className="rk_select" value={startMonth}
                             onChange={(event) => handleSort(event.target.value, endMonth, selectedShop, selectedSection)}>
                             <option value="">指定なし</option>
                             {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
-                    <span className="ck_tilde">～</span>
-                    <div className="ck_field">
-                        <span className="ck_label">終了月</span>
-                        <select className="ck_select" value={endMonth}
+                    <span className="rk_tilde">～</span>
+                    <div className="rk_field">
+                        <span className="rk_label">終了月</span>
+                        <select className="rk_select" value={endMonth}
                             onChange={(event) => handleSort(startMonth, event.target.value, selectedShop, selectedSection)}>
                             <option value="">指定なし</option>
                             {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
-                    <div className="ck_field">
-                        <span className="ck_label">店舗</span>
+                    <div className="rk_field">
+                        <span className="rk_label">店舗</span>
                         {/* ⚠️ 店舗を選んだら課は空にする（両方で絞ると必ず0件になる） */}
-                        <select className="ck_select" value={selectedShop}
+                        <select className="rk_select" value={selectedShop}
                             onChange={(event) => handleSort(startMonth, endMonth, event.target.value, '')}>
                             <option value="">全店舗</option>
                             {shopArray.map((item, index) => (
@@ -672,9 +613,9 @@ const CustomerKaeru = () => {
                             ))}
                         </select>
                     </div>
-                    <div className="ck_field">
-                        <span className="ck_label">営業課</span>
-                        <select className="ck_select" value={selectedSection}
+                    <div className="rk_field">
+                        <span className="rk_label">営業課</span>
+                        <select className="rk_select" value={selectedSection}
                             onChange={(event) => handleSort(startMonth, endMonth, '', event.target.value)}>
                             <option value="">全課</option>
                             {sectionList.map((section, index) =>
@@ -682,9 +623,9 @@ const CustomerKaeru = () => {
                             )}
                         </select>
                     </div>
-                    <div className="ck_spacer" />
+                    <div className="rk_spacer" />
                     {/* ⚠️ 表と同時に見ると視認性が悪いのでモーダルで出す */}
-                    <button className="ck_btn" onClick={() => setShowGraph(true)}>グラフを表示</button>
+                    <button className="rk_btn" onClick={() => setShowGraph(true)}>グラフを表示</button>
                 </div>
 
                 {/* ⚠️ X軸は販促媒体。`itemKey` を渡さないと店舗名を探して空になる */}
@@ -698,8 +639,8 @@ const CustomerKaeru = () => {
                     itemLabel='販促媒体'
                 />
 
-                <div className="ck_table_wrap">
-                    <table className="ck_table">
+                <div className="rk_table_wrap">
+                    <table className="rk_table">
                         <thead>
                             <tr>
                                 {/* ⚠️⚠️ 列の並びは shop/ShopKaeru.tsx と揃えてある。
@@ -754,28 +695,28 @@ const CustomerKaeru = () => {
                                 } = item;
 
                                 return (
-                                    <tr className="ck_row" key={value.id ?? `medium-${index}`}>
-                                        <td className="ck_td ck_td_name">{value.medium}</td>
+                                    <tr className="rk_row" key={value.id ?? `medium-${index}`}>
+                                        <td className="rk_td rk_td_name">{value.medium}</td>
                                         {/* ⚠️ 見出しと同じ並び。入れ替えないこと */}
-                                        <td className="ck_td">{totalValue.toLocaleString()}</td>
-                                        <td className="ck_td ck_rate">{perContact}%</td>
-                                        <td className="ck_td">{contactValue.toLocaleString()}</td>
-                                        <td className="ck_td ck_rate">{perInterview}%</td>
-                                        <td className="ck_td">{interviewValue.toLocaleString()}</td>
-                                        <td className="ck_td ck_rate">{perApplication}%</td>
-                                        <td className="ck_td">{applicationValue.toLocaleString()}</td>
-                                        <td className="ck_td ck_rate">{perContract}%</td>
-                                        <td className="ck_td">{contractValue.toLocaleString()}</td>
-                                        <td className="ck_td">{rankSValue.toLocaleString()}</td>
-                                        <td className="ck_td">{rankAValue.toLocaleString()}</td>
-                                        <td className="ck_td">{rankBValue.toLocaleString()}</td>
-                                        <td className="ck_td">{rankCValue.toLocaleString()}</td>
-                                        <td className="ck_td">{`¥${totalBudget.toLocaleString()}`}</td>
-                                        <td className="ck_td">{unitText(totalBudget, totalValue)}</td>
-                                        <td className="ck_td">{unitText(totalBudget, contactValue)}</td>
-                                        <td className="ck_td">{unitText(totalBudget, interviewValue)}</td>
-                                        <td className="ck_td">{unitText(totalBudget, applicationValue)}</td>
-                                        <td className="ck_td">{unitText(totalBudget, contractValue)}</td>
+                                        <td className="rk_td">{totalValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perContact}%</td>
+                                        <td className="rk_td">{contactValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perInterview}%</td>
+                                        <td className="rk_td">{interviewValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perApplication}%</td>
+                                        <td className="rk_td">{applicationValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perContract}%</td>
+                                        <td className="rk_td">{contractValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankSValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankAValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankBValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankCValue.toLocaleString()}</td>
+                                        <td className="rk_td">{`¥${totalBudget.toLocaleString()}`}</td>
+                                        <td className="rk_td">{unitText(totalBudget, totalValue)}</td>
+                                        <td className="rk_td">{unitText(totalBudget, contactValue)}</td>
+                                        <td className="rk_td">{unitText(totalBudget, interviewValue)}</td>
+                                        <td className="rk_td">{unitText(totalBudget, applicationValue)}</td>
+                                        <td className="rk_td">{unitText(totalBudget, contractValue)}</td>
                                     </tr>
                                 );
                             })}

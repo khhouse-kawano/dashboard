@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState, useContext } from 'react';
-import Table from "react-bootstrap/Table";
 import '../chartConfig';
 import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
@@ -11,6 +10,8 @@ import apiClient from '../../utils/apiClient';
 //   ⚠️ 同じものを2つ書くと、片方だけ直されて色や並びが食い違う
 import UnitPriceGraphModal from '../shop/UnitPriceGraphModal';
 import { UNIT_PRICE_SERIES } from '../shop/unitPriceSeries';
+// ⚠️ 見た目は customer/ と shop/ の4画面で共通（components/rankingUi.tsx）
+import { RankingStyle, SortIcon } from '../rankingUi';
 
 /**
  * 販促媒体別ランキング（注文事業）。
@@ -263,64 +264,152 @@ const CustomerOrder = () => {
         setSortOrder(order)
     };
 
-    const arrowStyle = { position: 'absolute' as const, right: '4px', cursor: 'pointer' as const, fontSize: '10px' };
+    /** 見出しの期間表示。⚠️ ツールチップの文言に使う */
+    const periodLabel = `${startMonth === '' ? '' : `${startMonth}から`}${endMonth === '' ? '' : `${endMonth}まで`}${startMonth !== '' && endMonth !== '' ? '' : '全期間'}`;
+
+    /**
+     * 見出しのセル。
+     *
+     * ⚠️⚠️ **2026-09-22 に SaaS 風の見た目へ作り替えた**（指示）。
+     *   ⚠️ 並べ替えは ⚠️ **見出しそのものを押す**形にした（▲▼の小さな矢印をやめた）。
+     *   ⚠️ ⚠️ **押すたびに 降順 → 昇順 → 降順 … と入れ替わる。**
+     *   ⚠️ 並べ替えのキーと計算は ⚠️ **1行も変えていない**（`sorted` を参照）。
+     *
+     * ⚠️ `plain` のときは並べ替えない（販促媒体名の列）。
+     */
+    const headCell = (label: string, key: string, tip?: string, plain?: boolean) => {
+        const active = sortKey === key && !plain;
+        return (
+            <th
+                key={key || label}
+                className={`rk_th${plain ? ' rk_th_name' : ' rk_th_sort'}`}
+                onClick={plain ? undefined : () => changeSort(active && sortOrder === 'desc' ? 'asc' : 'desc', key)}
+            >
+                {tip ? (
+                    <OverlayTrigger
+                        placement="top"
+                        overlay={<Tooltip id={`tooltip-${key}`} style={{ fontSize: '12px' }}>{tip}</Tooltip>}
+                    >
+                        <span style={{ textDecoration: 'underline dotted' }}>{label}</span>
+                    </OverlayTrigger>
+                ) : label}
+                {!plain && <SortIcon active={active} order={sortOrder} />}
+            </th>
+        );
+    };
+
+    /** 単価の表示。⚠️ 分母が0なら '-'（0円と書くと「無料で取れた」と読める） */
+    const unitText = (budget: number, count: number) =>
+        isFinite(budget / count) ? `¥${Math.round(budget / count).toLocaleString()}` : '-';
+
+    /**
+     * 画面上部のまとめ。
+     * ⚠️ 媒体ごとの行を足すのではなく、⚠️ **「総反響」の行をそのまま出す。**
+     *   ⚠️ ⚠️ **足し算だと、どの行にも乗らない顧客が抜ける。**
+     */
+    const summary = useMemo(() => {
+        const total = aggregated.find(a => a.value.medium === '総反響');
+        return {
+            total: total?.totalValue ?? 0,
+            reserve: total?.reserveValue ?? 0,
+            appointment: total?.appointmentValue ?? 0,
+            contract: total?.contractValue ?? 0,
+            budget: total?.totalBudget ?? 0,
+        };
+    }, [aggregated]);
 
     return (
-        <>
-            <div className='content customer bg-white p-2'>
-                <div style={{ fontSize: '13px' }}>※来場数・契約数は"反響日"起算となります。</div>
-                <div className="d-flex flex-wrap mb-3">
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(event.target.value, endMonth, selectedShop, selectedSection, selectedArea)}>
-                            <option value="" selected>開始月</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
-                            ))}
+        <div className='content customer bg-white'>
+            <RankingStyle />
+            <div className="rk_wrap">
+                <div className="rk_head">
+                    <span className="rk_title">販促媒体別 反響・歩留まり（注文事業）</span>
+                    <span className="rk_note">※来場数・契約数は"反響日"起算となります。</span>
+                </div>
+
+                <div className="rk_kpi">
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">総反響</div>
+                        <div className="rk_kpi_value">{summary.total.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">来場</div>
+                        <div className="rk_kpi_value">{summary.reserve.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">次アポ</div>
+                        <div className="rk_kpi_value">{summary.appointment.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">契約</div>
+                        <div className="rk_kpi_value">{summary.contract.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">広告費</div>
+                        <div className="rk_kpi_value">¥{summary.budget.toLocaleString()}</div>
+                        {/* ⚠️ 反響単価。⚠️ 分母が0なら '-'（0円と書くと「無料で取れた」と読める） */}
+                        <div className="rk_kpi_sub">反響単価 {unitText(summary.budget, summary.total)}</div>
+                    </div>
+                </div>
+
+                <div className="rk_bar">
+                    <div className="rk_field">
+                        <span className="rk_label">開始月</span>
+                        <select className="rk_select" value={startMonth}
+                            onChange={(event) => handleSort(event.target.value, endMonth, selectedShop, selectedSection, selectedArea)}>
+                            <option value="">指定なし</option>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
-                    <span className='d-flex align-items-center mx-1'>～</span>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, event.target.value, selectedShop, selectedSection, selectedArea)}>
-                            <option value="" selected>終了月</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
-                            ))}
+                    <span className="rk_tilde">～</span>
+                    <div className="rk_field">
+                        <span className="rk_label">終了月</span>
+                        <select className="rk_select" value={endMonth}
+                            onChange={(event) => handleSort(startMonth, event.target.value, selectedShop, selectedSection, selectedArea)}>
+                            <option value="">指定なし</option>
+                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, event.target.value, '', '')}>
+                    {/* ⚠️ 店舗・課・エリアは**どれか1つだけ**が効く（他は空にする）。
+                           ⚠️ 2つ同時に絞ると必ず0件になる */}
+                    <div className="rk_field">
+                        <span className="rk_label">店舗</span>
+                        <select className="rk_select" value={selectedShop}
+                            onChange={(event) => handleSort(startMonth, endMonth, event.target.value, '', '')}>
                             <option value="">グループ全体</option>
                             {shopArray.map((item, index) => (
-                                <option key={index} value={item.shop} selected={item.shop === selectedShop}>{item.shop}</option>
+                                <option key={index} value={item.shop}>{item.shop}</option>
                             ))}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, '', event.target.value, '')}>
-                            <option value="" selected={selectedSection === ''}>注文営業全体</option>
+                    <div className="rk_field">
+                        <span className="rk_label">営業課</span>
+                        <select className="rk_select" value={selectedSection}
+                            onChange={(event) => handleSort(startMonth, endMonth, '', event.target.value, '')}>
+                            <option value="">注文営業全体</option>
                             {sectionList.map((section, index) =>
                                 <option value={section.name} key={index}>{section.name}</option>
                             )}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, '', '', event.target.value)}>
-                            <option value="" selected={selectedArea === ''}>全エリア</option>
-                            <option value="鹿児島県" selected={selectedArea === '鹿児島県'}>鹿児島県</option>
-                            <option value="宮崎県" selected={selectedArea === '宮崎県'}>宮崎県</option>
-                            <option value="大分県" selected={selectedArea === '大分県'}>大分県</option>
-                            <option value="熊本県" selected={selectedArea === '熊本県'}>熊本県</option>
-                            <option value="佐賀県" selected={selectedArea === '佐賀県'}>佐賀県</option>
+                    <div className="rk_field">
+                        <span className="rk_label">エリア</span>
+                        <select className="rk_select" value={selectedArea}
+                            onChange={(event) => handleSort(startMonth, endMonth, '', '', event.target.value)}>
+                            <option value="">全エリア</option>
+                            <option value="鹿児島県">鹿児島県</option>
+                            <option value="宮崎県">宮崎県</option>
+                            <option value="大分県">大分県</option>
+                            <option value="熊本県">熊本県</option>
+                            <option value="佐賀県">佐賀県</option>
                         </select>
                     </div>
+                    <div className="rk_spacer" />
+                    {/* ⚠️ 表と同時に見ると視認性が悪いのでモーダルで出す。
+                           媒体数で全画面/xl が切り替わる（UnitPriceGraphModal.tsx） */}
+                    <button className="rk_btn" onClick={() => setShowGraph(true)}>グラフを表示</button>
                 </div>
-                <div className="d-flex flex-wrap mb-3">
-                    <div className="m-1">
-                        {/* ⚠️ 表と同時に見ると視認性が悪いのでモーダルで出す。
-                               媒体数で全画面/xl が切り替わる（UnitPriceGraphModal.tsx） */}
-                        <div className="bg-primary btn text-white rounded-pill px-3 py-1"
-                            style={{ fontSize: '12px', letterSpacing: '1px' }}
-                            onClick={() => setShowGraph(true)}>グラフを表示</div>
-                    </div>
-                </div>
+
                 {/* ⚠️ X軸は販促媒体。`itemKey` を渡さないと店舗名を探して空になる */}
                 <UnitPriceGraphModal
                     show={showGraph}
@@ -331,181 +420,81 @@ const CustomerOrder = () => {
                     itemKey='medium'
                     itemLabel='販促媒体'
                 />
-                <div className="table-wrapper mt-3">
-                    <div className="list_table">
-                        <Table striped style={{ fontSize: '12px' }} bordered>
-                            <tbody>
-                                <tr className='sticky-header'>
-                                    <td className='sticky-column budget' style={{ position: 'relative', textAlign: 'center' }}>販促媒体名</td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の総反響数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>総反響</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'total')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'total')}>▼</span>
-                                    </td>
-                                    {/* ⚠️⚠️ **列は「数 → 率」の順。** shop/ShopOrder.tsx と揃えてある
-                                           （2026-09-14 に「率 → 数」から入れ替えた）。
-                                           ⚠️ 片方だけ直すと画面ごとに並びが違って読み違える */}
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち来場した方の数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>来場数</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'reserve')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'reserve')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>来場者数/総反響数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>来場率</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perReserve')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perReserve')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち次回アポイントまで進んだ方の数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>次アポ数</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'appointment')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'appointment')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>次アポ数/来場者数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>次アポ率</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perAppointment')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perAppointment')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち契約した方の数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約数</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'contract')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'contract')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>
-                                        <OverlayTrigger
-                                            placement="top"
-                                            overlay={
-                                                <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>契約者数/来場者数</Tooltip>
-                                            }>
-                                            <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>契約率</span>
-                                        </OverlayTrigger>
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'perContract')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'perContract')}>▼</span>
-                                    </td>
-                                    {['S', 'A', 'B', 'C'].map(item =>
-                                        <td style={{ position: 'relative', textAlign: 'center' }}>
-                                            <OverlayTrigger
-                                                placement="top"
-                                                overlay={
-                                                    <Tooltip id="tooltip-top" style={{ fontSize: "12px" }}>{startMonth === '' || `${startMonth}から`}{endMonth === '' || `${endMonth}まで`}{startMonth !== '' && endMonth !== '' || '全期間'}の反響のうち{item}ランクの数</Tooltip>
-                                                }>
-                                                <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>{item}ランク</span>
-                                            </OverlayTrigger>
-                                            <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', item)}>▲</span>
-                                            <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', item)}>▼</span>
-                                        </td>
-                                    )}
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>総予算
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'totalBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'totalBudget')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>反響単価
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'registerBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'registerBudget')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>来場単価
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'reserveBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'reserveBudget')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>次アポ単価
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'appointmentBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'appointmentBudget')}>▼</span>
-                                    </td>
-                                    <td style={{ position: 'relative', textAlign: 'center' }}>契約単価
-                                        <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', 'contractBudget')}>▲</span>
-                                        <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', 'contractBudget')}>▼</span>
-                                    </td>
-                                </tr>
-                                {sorted.map((item, index) => {
-                                    const {
-                                        value,
-                                        totalValue,
-                                        reserveValue,
-                                        appointmentValue,
-                                        contractValue,
-                                        perReserve,
-                                        perAppointment,
-                                        perContract,
-                                        rankSValue,
-                                        rankAValue,
-                                        rankBValue,
-                                        rankCValue,
-                                        rankDValue,
-                                        totalBudget,
-                                    } = item;
 
-                                    return (
-                                        <tr key={value.id ?? `medium-${index}`}>
-                                            <td className='sticky-column' style={{ textAlign: 'center' }}>{value.medium}</td>
-                                            <td style={{ textAlign: 'center' }}>{totalValue.toLocaleString()}</td>
-                                            {/* ⚠️ 見出しと同じく「数 → 率」の順。入れ替えないこと */}
-                                            <td style={{ textAlign: 'center' }}>{reserveValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{perReserve}%</td>
-                                            <td style={{ textAlign: 'center' }}>{appointmentValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{perAppointment}%</td>
-                                            <td style={{ textAlign: 'center' }}>{contractValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{perContract}%</td>
-                                            <td style={{ textAlign: 'center' }}>{rankSValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{rankAValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{rankBValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{rankCValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{`¥${totalBudget.toLocaleString()}`}</td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {isFinite(totalBudget / totalValue) ? `¥${Math.round(totalBudget / totalValue).toLocaleString()}` : '-'}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {isFinite(totalBudget / reserveValue) ? `¥${Math.round(totalBudget / reserveValue).toLocaleString()}` : '-'}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {isFinite(totalBudget / appointmentValue) ? `¥${Math.round(totalBudget / appointmentValue).toLocaleString()}` : '-'}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {isFinite(totalBudget / contractValue) ? `¥${Math.round(totalBudget / contractValue).toLocaleString()}` : '-'}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </Table>
-                    </div>
+                <div className="rk_table_wrap">
+                    <table className="rk_table">
+                        <thead>
+                            <tr>
+                                {headCell('販促媒体名', '', '', true)}
+                                {headCell('総反響', 'total', `${periodLabel}の総反響数`)}
+                                {/* ⚠️⚠️ **列は「数 → 率」の順。** shop/ShopOrder.tsx と揃えてある
+                                       （2026-09-14 に「率 → 数」から入れ替えた）。
+                                       ⚠️ 片方だけ直すと画面ごとに並びが違って読み違える */}
+                                {headCell('来場数', 'reserve', `${periodLabel}の反響のうち来場した方の数`)}
+                                {headCell('来場率', 'perReserve', '来場者数/総反響数')}
+                                {headCell('次アポ数', 'appointment', `${periodLabel}の反響のうち次回アポイントまで進んだ方の数`)}
+                                {headCell('次アポ率', 'perAppointment', '次アポ数/来場者数')}
+                                {headCell('契約数', 'contract', `${periodLabel}の反響のうち契約した方の数`)}
+                                {headCell('契約率', 'perContract', '契約者数/来場者数')}
+                                {['S', 'A', 'B', 'C'].map(item =>
+                                    <React.Fragment key={item}>
+                                        {headCell(`${item}ランク`, item, `${periodLabel}の反響のうち${item}ランクの数`)}
+                                    </React.Fragment>
+                                )}
+                                {headCell('総予算', 'totalBudget')}
+                                {/* ⚠️ 単価はどれも「総予算 ÷ その工程の件数」。⚠️ **分母だけが変わる** */}
+                                {headCell('反響単価', 'registerBudget', '総予算/総反響')}
+                                {headCell('来場単価', 'reserveBudget', '総予算/来場数')}
+                                {headCell('次アポ単価', 'appointmentBudget', '総予算/次アポ数')}
+                                {headCell('契約単価', 'contractBudget', '総予算/契約数')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sorted.map((item, index) => {
+                                const {
+                                    value,
+                                    totalValue,
+                                    reserveValue,
+                                    appointmentValue,
+                                    contractValue,
+                                    perReserve,
+                                    perAppointment,
+                                    perContract,
+                                    rankSValue,
+                                    rankAValue,
+                                    rankBValue,
+                                    rankCValue,
+                                    totalBudget,
+                                } = item;
+
+                                return (
+                                    <tr className="rk_row" key={value.id ?? `medium-${index}`}>
+                                        <td className="rk_td rk_td_name">{value.medium}</td>
+                                        <td className="rk_td">{totalValue.toLocaleString()}</td>
+                                        {/* ⚠️ 見出しと同じく「数 → 率」の順。入れ替えないこと */}
+                                        <td className="rk_td">{reserveValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perReserve}%</td>
+                                        <td className="rk_td">{appointmentValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perAppointment}%</td>
+                                        <td className="rk_td">{contractValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perContract}%</td>
+                                        <td className="rk_td">{rankSValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankAValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankBValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankCValue.toLocaleString()}</td>
+                                        <td className="rk_td">{`¥${totalBudget.toLocaleString()}`}</td>
+                                        <td className="rk_td">{unitText(totalBudget, totalValue)}</td>
+                                        <td className="rk_td">{unitText(totalBudget, reserveValue)}</td>
+                                        <td className="rk_td">{unitText(totalBudget, appointmentValue)}</td>
+                                        <td className="rk_td">{unitText(totalBudget, contractValue)}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </>
+        </div>
     )
 }
 
