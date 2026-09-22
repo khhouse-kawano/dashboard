@@ -241,7 +241,18 @@ export const FUNNEL_METRICS: MetricKey[] = [
   'leads',
   'energized',
   'firstInterview',
+  /**
+   * ⚠️⚠️ **2026-09-22 に `visits` と `nextAppointments` を既定に入れた**（利用者の指示）。
+   *
+   * > 数値が shopTrend ディレクトリの KPI 設定になり歩留まりが揃うことが大切
+   *
+   * ⚠️ ⚠️ **既定のファネルにこれが無いと、Claude は firstInterview を来場数として語る。**
+   *   ⚠️ ⚠️ **その数字はダッシュボードの画面と合わない。**
+   * ⚠️ 並びは ⚠️ **対応する工程のすぐ後ろ**に置く（firstInterview → visits）。
+   */
+  'visits',
   'secondInterview',
+  'nextAppointments',
   'preScreening',
   'contracts',
   'lost',

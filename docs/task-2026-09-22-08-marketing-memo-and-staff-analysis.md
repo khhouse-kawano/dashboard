@@ -197,6 +197,43 @@ const reachedOrBeyond = (phases: PhaseKey[]): string =>
 ⚠️⚠️ **既存の `firstInterview` / `secondInterview` は変えていない。**
 ⚠️ ⚠️ **meta に「どちらを見るか」を書いた**（Claude Desktop には画面の文脈が無いため）。
 
+
+### ⚠️ 3-1. 既定のファネルにも入れた（2026-09-22 追記）
+
+⚠️ 利用者の指示:
+
+> 数値が shopTrend ディレクトリの KPI 設定になり歩留まりが揃うことが大切
+
+⚠️ ⚠️ **既定のファネル（`FUNNEL_METRICS`）に `visits` と `nextAppointments` を入れた。**
+⚠️ ⚠️ **入れないと、Claude は `firstInterview` を来場数として語る**（画面と合わない）。
+
+```ts
+export const FUNNEL_METRICS: MetricKey[] = [
+  'leads',
+  'energized',
+  'firstInterview',
+  'visits',
+  'secondInterview',
+  'nextAppointments',
+  'preScreening',
+  'contracts',
+  'lost',
+];
+```
+
+⚠️ 比率はファネルが全種返すので、⚠️ **`visitRatePct` / `nextAppointmentRatePct` も自動で入る。**
+
+### ⚠️ 3-2. MCP サーバー側の穴を塞いだ
+
+⚠️⚠️ **`get_funnel` の軸の一覧（`z.enum`）に `staff` が無く、Claude Desktop から弾かれていた。**
+⚠️ ⚠️ **② に軸を足しただけでは、MCP 経由では使えない。**
+
+| 直したところ | |
+|---|---|
+| 軸の一覧 | ⚠️ **`'staff'` を追加** |
+| 入力 | ⚠️ **`staff`（担当者で絞る）を追加** |
+| 説明文 | ⚠️ 担当者の質問への使い方／⚠️ **画面と突き合わせるなら visits を使う**こと |
+
 ---
 
 ## ⚠️ 4. CustomerTrendKaeru.tsx を直書きへ戻した

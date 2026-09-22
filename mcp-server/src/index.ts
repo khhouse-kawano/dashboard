@@ -103,7 +103,13 @@ server.registerTool(
       '（通電→初回面談など）を自分で計算してはならない。フェーズごとに入力率が' +
       '大きく違うため、意味のない数字になる。' +
       '\n\n⚠️ 直近3ヶ月は面談・契約がまだ出揃っておらず転換率が低く見える。' +
-      '応答の meta に「直近月の読み方」が入っているので必ず読むこと。',
+      '応答の meta に「直近月の読み方」が入っているので必ず読むこと。' +
+      '\n\n「●●さんの実績を教えて」のような担当者の質問には groupBy=["staff"] を使う。' +
+      '1人に絞るときは staff にその氏名を入れる。' +
+      '⚠️ staff は「現在の担当者」であり、担当替えがあると過去の実績ごと移る。' +
+      '\n\n⚠️ ダッシュボードの画面と数字を突き合わせるときは、firstInterview ではなく' +
+      'query_analysis_pivot の visits（実来場数）/ nextAppointments（次アポ数）を使うこと。' +
+      'これらは「上位の工程に進んだ人は下位も達成した」として数えており、画面と同じになる。',
     inputSchema: z.object({
       groupBy: z
         .array(
@@ -115,6 +121,8 @@ server.registerTool(
             'brand',
             'section',
             'area',
+            // ⚠️ 2026-09-22 追加。⚠️ **担当者別**（master_data.in_charge_user）
+            'staff',
             'medium',
             'rank',
             'status',
@@ -131,6 +139,8 @@ server.registerTool(
       section: z.string().optional().describe('営業課で絞る。例: 宮崎営業課'),
       store: z.string().optional().describe('店舗で絞る。例: KH鹿児島店'),
       brand: z.string().optional().describe('ブランドで絞る。例: KH'),
+      // ⚠️ 2026-09-22 追加。⚠️ **氏名は台帳の表記どおりに**（姓名の間に空白が入る）
+      staff: z.string().optional().describe('担当者で絞る。例: 中川 稜。⚠️ 姓名の間の空白も台帳どおりに'),
       excludeDuplicated: z
         .boolean()
         .optional()
@@ -145,6 +155,7 @@ server.registerTool(
       section: args.section,
       store: args.store,
       brand: args.brand,
+      staff: args.staff,
       excludeDuplicated: args.excludeDuplicated === true ? 'true' : undefined,
     })
 );
