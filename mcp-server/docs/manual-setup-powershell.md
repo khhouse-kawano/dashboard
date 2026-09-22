@@ -156,11 +156,34 @@ node "$dir\dist\index.js"
 
 ---
 
-## 手順9　設定ファイルの場所を用意する
+## ⚠️ 手順9　設定ファイルの場所を調べる
+
+⚠️⚠️ **ここがいちばん間違えやすい。**
+
+⚠️ ⚠️ **Microsoft Store 版の Claude Desktop は、設定ファイルの場所が違う。**
+⚠️ Store 版（MSIX）は ⚠️ **アプリから見えるフォルダが差し替えられている**ため、
+⚠️ ⚠️ **`%APPDATA%\Claude` に書いてもアプリからは一生見えない。**
+
+⚠️ ⚠️ **2026-09-22、これが「開発者設定に出てこない」の原因だった。**
 
 ```powershell
-$cfg = "$env:APPDATA\Claude\claude_desktop_config.json"
+$pkg = Get-ChildItem "$env:LOCALAPPDATA\Packages" -Filter "Claude_*" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
 ```
+
+```powershell
+$cfg = if ($pkg) { Join-Path $pkg.FullName "LocalCache\Roaming\Claude\claude_desktop_config.json" } else { "$env:APPDATA\Claude\claude_desktop_config.json" }
+```
+
+```powershell
+$cfg
+```
+
+| 出たパス | 版 |
+|---|---|
+| ⚠️ **`...\Packages\Claude_...\LocalCache\Roaming\Claude\...`** | ⚠️ **Store 版** |
+| `...\AppData\Roaming\Claude\...` | 公式サイト版 |
+
+⚠️ ⚠️ **どちらでもそのまま次へ進んでよい**（`$cfg` が正しい場所を指している）。
 
 ```powershell
 New-Item -ItemType Directory -Force -Path (Split-Path $cfg)
@@ -178,29 +201,38 @@ Copy-Item $cfg "$cfg.bak" -Force
 
 ---
 
-## ⚠️ 手順10　他のMCPが入っていないか見る
+## 手順10　いま何が入っているか見る
 
 ```powershell
 if (Test-Path $cfg) { (Get-Content $cfg -Raw | ConvertFrom-Json).mcpServers.PSObject.Properties.Name }
 ```
 
-⚠️ ⚠️ **何も出ない、または `khg-analysis` だけなら、そのまま次へ。**
-⚠️⚠️ **他の名前が出たら、ここで止めて管理者に連絡すること**（⚠️ **次の手順で消えてしまう**）。
+⚠️ 出た名前は ⚠️ **次の手順で消えない**（足すだけ）。⚠️ 控えとして見ておく。
 
 ---
 
 ## 手順11　設定を書く
+
+⚠️⚠️ **既存の設定に「足す」形にしてある。** ⚠️ **他のMCPを消さない。**
 
 ```powershell
 $entry = @{ command = "node"; args = @("$dir\dist\index.js"); env = @{ KHG_ANALYSIS_API_URL = "https://api.khg-marketing.info"; KHG_ANALYSIS_API_KEY = $key } }
 ```
 
 ```powershell
-$json = @{ mcpServers = @{ "khg-analysis" = $entry } } | ConvertTo-Json -Depth 6
+$conf = if (Test-Path $cfg) { Get-Content $cfg -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
 ```
 
 ```powershell
-[System.IO.File]::WriteAllText($cfg, $json, (New-Object System.Text.UTF8Encoding($false)))
+if (-not $conf.mcpServers) { $conf | Add-Member -NotePropertyName mcpServers -NotePropertyValue ([pscustomobject]@{}) -Force }
+```
+
+```powershell
+$conf.mcpServers | Add-Member -NotePropertyName "khg-analysis" -NotePropertyValue $entry -Force
+```
+
+```powershell
+[System.IO.File]::WriteAllText($cfg, ($conf | ConvertTo-Json -Depth 8), (New-Object System.Text.UTF8Encoding($false)))
 ```
 
 ⚠️ 何も表示されなければ成功。
@@ -256,8 +288,14 @@ Get-Process -Name Claude -ErrorAction SilentlyContinue
 
 ## 手順15　つながったか確かめる
 
+⚠️ ⚠️ **ログも設定ファイルと同じフォルダにある**（Store 版なら Store 版の場所）。
+
 ```powershell
-Get-ChildItem "$env:APPDATA\Claude\logs" | Select-Object Name, LastWriteTime
+$logs = Join-Path (Split-Path $cfg) "logs"
+```
+
+```powershell
+Get-ChildItem $logs -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime
 ```
 
 | 結果 | 意味 |
@@ -266,7 +304,7 @@ Get-ChildItem "$env:APPDATA\Claude\logs" | Select-Object Name, LastWriteTime
 | ⚠️⚠️ **そのログが無い** | ⚠️ **設定ファイルを読んでいない**（下の「それでもだめなとき」） |
 
 ```powershell
-Get-Content "$env:APPDATA\Claude\logs\mcp-server-khg-analysis.log" -Tail 20
+Get-Content "$logs\mcp-server-khg-analysis.log" -Tail 20
 ```
 
 ⚠️ ⚠️ **`起動しました` が出ていれば成功。**
@@ -285,14 +323,20 @@ Get-Content "$env:APPDATA\Claude\logs\mcp-server-khg-analysis.log" -Tail 20
 
 ### ⚠️ ログのフォルダに何も出ない場合
 
-⚠️⚠️ **Microsoft Store 版の Claude Desktop の可能性がある。**
-⚠️ ⚠️ **Store 版は設定ファイルの場所が違い、ここに書いても読まれない。**
+⚠️⚠️ **書いた場所が違う可能性がある。** ⚠️ 手順9をやり直し、`$cfg` を出し直す。
 
 ```powershell
-Get-AppxPackage *Claude* | Select-Object Name, InstallLocation
+Get-ChildItem "$env:LOCALAPPDATA\Packages" -Filter "Claude_*" -Directory | Select-Object Name
 ```
 
-⚠️ ⚠️ **何か出たら Store 版。** ⚠️ **一度アンインストールし、公式サイトの版を入れ直す。**
+| 結果 | 設定ファイルの場所 |
+|---|---|
+| ⚠️ **`Claude_xxxxxxxx` が出る（Store 版）** | ⚠️ **`%LOCALAPPDATA%\Packages\Claude_xxxxxxxx\LocalCache\Roaming\Claude\`** |
+| 何も出ない | `%APPDATA%\Claude\` |
+
+⚠️ ⚠️ **入れ直す必要はない。** ⚠️ **Store 版でも、正しい場所に書けば動く。**
+
+⚠️ ⚠️ **2026-09-22 はここで3日ぶんつまずいた。** ⚠️ **`%APPDATA%\Claude` に書き続けていた。**
 
 ### 送ってもらうもの
 

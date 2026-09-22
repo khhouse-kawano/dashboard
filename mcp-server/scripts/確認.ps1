@@ -23,7 +23,23 @@ if ($node) {
 }
 
 # --- 2. 設定ファイル --------------------------------------------------------
-$configPath = Join-Path $env:APPDATA 'Claude\claude_desktop_config.json'
+# ⚠️⚠️ **Microsoft Store 版は場所が違う。**
+#   ⚠️ Store 版（MSIX）は ⚠️ **アプリから見えるフォルダが差し替えられている**ため、
+#     ⚠️ ⚠️ **%APPDATA%\Claude に書いてもアプリからは見えない。**
+#   ⚠️ 2026-09-22、⚠️ **これが「開発者設定に出てこない」の原因だった。**
+#   ⚠️ `Get-AppxPackage` は数分かかることがあるので使わない。
+#     ⚠️ **フォルダの有無で判定する**（同じことが分かり、一瞬で済む）。
+$pkg = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Packages') -Filter 'Claude_*' -Directory -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+if ($pkg) {
+    $claudeDir = Join-Path $pkg.FullName 'LocalCache\Roaming\Claude'
+    Write-Host "[2] 版: Microsoft Store 版" -ForegroundColor Yellow
+} else {
+    $claudeDir = Join-Path $env:APPDATA 'Claude'
+    Write-Host "[2] 版: 公式サイト版"
+}
+Write-Host ("    設定の場所: " + $claudeDir)
+$configPath = Join-Path $claudeDir 'claude_desktop_config.json'
 if (-not (Test-Path $configPath)) {
     Write-Host "[2] 設定ファイル: ⚠️ ありません -> $configPath" -ForegroundColor Red
     return
@@ -119,7 +135,8 @@ if ($node -and $indexPath -and (Test-Path $indexPath)) {
 
 # --- 6. Claude Desktop のログ -----------------------------------------------
 # ⚠️ Claude Desktop が MCP の起動に失敗した理由はここにしか出ない。
-$logDir = Join-Path $env:APPDATA 'Claude\logs'
+# ⚠️ ログも設定ファイルと同じフォルダにある（Store 版なら Store 版の場所）
+$logDir = Join-Path $claudeDir 'logs'
 if (Test-Path $logDir) {
     $log = Get-ChildItem $logDir -Filter '*khg-analysis*' -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
