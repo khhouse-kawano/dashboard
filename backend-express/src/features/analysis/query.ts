@@ -1,9 +1,11 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { asDate, MIN_VALID_DATE, phaseDate, TARGET_DIVISION, UNSET_LABEL, groupExpr } from './columns';
+import type { AnalysisDivision } from './columns';
+import { DIVISION_CONFIG, phaseDateOf } from './columns';
 import type { DimensionKey } from './dimensions';
 import { dimension } from './dimensions';
 import type { MetricKey, RateKey } from './metrics';
-import { metric, RATES } from './metrics';
+import { medianValueSqlFor, metric, metricSqlFor, RATES } from './metrics';
 import { query } from '../../db/pool';
 import type { SqlParam } from '../../db/pool';
 import { AppError } from '../../errors/AppError';
@@ -61,6 +63,11 @@ export interface PivotOptions {
   filters: Partial<Record<DimensionKey, string>>;
   /** ステータスが「重複」の顧客を母数から除くか */
   excludeDuplicated: boolean;
+  /**
+   * ⚠️ 事業（2026-09-22 追加）。⚠️ **省略すると注文事業**（今までと同じ）。
+   *   ⚠️⚠️ **テーブルと工程の定義がまるごと変わる**（columns.ts の DIVISION_CONFIG）。
+   */
+  division?: AnalysisDivision;
 }
 
 export type PivotRow = Record<string, string | number | null>;
@@ -83,9 +90,15 @@ interface JoinNeed {
  *   そのまま JOIN すると COUNT(*) が水増しされるため、必ず事前集計してから結合する。
  *   shop_list も同名店舗が複数行ある場合に備えて shop 単位に畳む。
  */
-const buildFrom = (need: JoinNeed): { sql: string; params: SqlParam[] } => {
+const buildFrom = (
+  need: JoinNeed,
+  division: AnalysisDivision = 'order'
+): { sql: string; params: SqlParam[] } => {
+  // ⚠️⚠️ **テーブル名は許可表から引くこと。** ⚠️ リクエストの値を埋め込まない
+  const config = DIVISION_CONFIG[division];
+
   let sql = `
-    FROM master_data m
+    FROM ${config.table} m
     JOIN (
       SELECT shop,
              MIN(brand)   AS brand,
@@ -96,7 +109,7 @@ const buildFrom = (need: JoinNeed): { sql: string; params: SqlParam[] } => {
        GROUP BY shop
     ) s ON s.shop = m.in_charge_store`;
 
-  const params: SqlParam[] = [TARGET_DIVISION];
+  const params: SqlParam[] = [config.shopDivision];
 
   if (need.inquiry) {
     // 1顧客が複数の反響レコードを持つ場合（27件）は MIN で1件に寄せる。
@@ -217,9 +230,19 @@ export interface PivotResult {
   basis: (typeof BASES)[Basis];
 }
 
+/**
+ * 集計基準日を事業に合わせて引く（2026-09-22 追加）。
+ *
+ * ⚠️⚠️ **契約日の列が事業で違う。**
+ *   ⚠️ ⚠️ **建売で注文の列を使うと「申込日」で切ってしまう。**
+ */
+export const basisSqlFor = (basis: Basis, division: AnalysisDivision): string =>
+  basis === 'contract' ? phaseDateOf(division, 'contract') : phaseDateOf(division, 'reaction');
+
 export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
+  const division: AnalysisDivision = options.division ?? 'order';
   const basis = BASES[options.basis];
-  const basisSql = basis.sql;
+  const basisSql = basisSqlFor(options.basis, division);
 
   const requested = options.metrics;
   const medianMetrics = requested.filter((key) => metric(key).kind === 'median');
@@ -244,7 +267,7 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
     if (m.needsInterview === true) need.interview = true;
   }
 
-  const from = buildFrom(need);
+  const from = buildFrom(need, division);
   const where = buildWhere(options, basisSql);
   const params = [...from.params, ...where.params];
 
@@ -254,9 +277,8 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
     (key, i) => `${dimension(key).sql(basisSql)} AS d${i}`
   );
   const metricSelects = countMetrics.map((key, i) => {
-    const m = metric(key);
-    if (m.kind !== 'count') throw new Error(`件数指標ではありません: ${key}`);
-    return `${m.sql} AS a${i}`;
+    // ⚠️ 事業ごとに工程の列が違う（metricSqlFor）
+    return `${metricSqlFor(division, key)} AS a${i}`;
   });
 
   const groupNumbers = options.groupBy.map((_, i) => i + 1).join(', ');
@@ -336,7 +358,7 @@ const attachMedians = async (
   basisSql: string,
   need: JoinNeed
 ): Promise<void> => {
-  const from = buildFrom(need);
+  const from = buildFrom(need, options.division ?? 'order');
   const where = buildWhere(options, basisSql);
   const params = [...from.params, ...where.params];
 
@@ -354,7 +376,8 @@ const attachMedians = async (
     const m = metric(key);
     if (m.kind !== 'median') throw new Error(`中央値指標ではありません: ${key}`);
     // MEDIAN は NULL を無視するため、日数が算出できない顧客は自然に母数から外れる
-    selects.push(`MEDIAN(${m.valueSql}) OVER (${over}) AS m${i}`);
+    // ⚠️ 事業ごとに工程の列が違う（medianValueSqlFor）
+    selects.push(`MEDIAN(${medianValueSqlFor(options.division ?? 'order', key)}) OVER (${over}) AS m${i}`);
   });
 
   const raws = await query<DynamicRow>(
