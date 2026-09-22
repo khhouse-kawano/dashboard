@@ -33,6 +33,8 @@ import { runInside } from '../features/inside';
 import { runBudgetSimulator } from '../features/budgetSimulator';
 import { runDatabase } from '../features/database';
 import { runCustomer } from '../features/customer';
+import { runMap } from '../features/map';
+import type { MapCategory } from '../features/map/queries';
 import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
@@ -1605,6 +1607,37 @@ for (const category of customerCategories) {
     auth: 'staff',
     handler: async (ctx) => {
       const result = await runCustomer(category);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 地図（map/MapOrder.tsx / MapKaeru.tsx / MapResale.tsx）。2026-09-22 移植。
+//
+// ⚠️ 参照のみ。① に map.php / mapAction/map_{category}.php が実在するので
+//   フォールバックしてよい。
+//
+// ⚠️⚠️ **3事業とも登録する。** ⚠️ MapRouter.tsx は order / spec / used を
+//   すべて描画しており、① の map.php も3つを許可している。
+//
+// ⚠️⚠️ **画面は 2026-09-22 まで `axios` で ① の本番URLを直に叩いていた。**
+//   ⚠️ ⚠️ **ローカルで開発していても本番DBを見ていた。**
+//     ⚠️ 同時に `apiClient` 経由へ直してある。
+// ---------------------------------------------------------------------------
+
+const mapCategories: MapCategory[] = ['order', 'spec', 'used'];
+
+for (const category of mapCategories) {
+  register({
+    request: 'map',
+    category,
+    summary: `地図の初期データ（${category}）`,
+    phpSource: `backend/src/handlers/mapAction/map_${category}.php`,
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runMap(category);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },
