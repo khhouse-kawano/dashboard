@@ -1,4 +1,6 @@
 import { ATTRIBUTES, daysBetween, phaseDate } from './columns';
+// ⚠️ 担当営業の式。⚠️ **軸と同じものを使う**（「◯◯店 管理」は旧担当に読み替える）
+import { STAFF_SQL } from './dimensions';
 import type { PhaseKey } from './columns';
 
 /**
@@ -147,7 +149,8 @@ export const METRICS = {
    * ⚠️ 2026-09-22 追加。⚠️ **担当者本人が面談したかどうか**（利用者の指示）。
    *
    * ⚠️ `interview_sheet.interview_log` の各面談に `staff`（実施した人）が入っている。
-   *   ⚠️ ⚠️ **`master_data.in_charge_user`（現在の担当者）と突き合わせている。**
+   *   ⚠️ ⚠️ **担当営業（STAFF_SQL）と突き合わせている。**
+   *     ⚠️ `in_charge_user` そのままではない（⚠️ **72%が「◯◯店 管理」**）。
    *
    * ⚠️⚠️ **`staff` が入っている面談ログは全体の1割ほど**（実測 18,161行中 1,838行）。
    *   ⚠️ ⚠️ **0 件でも「面談していない」という意味にはならない。**
@@ -157,11 +160,11 @@ export const METRICS = {
     kind: 'count',
     needsInterview: true,
     label:
-      '担当者本人が実施した面談の記録がある顧客数（interview_sheet の staff と一致）。' +
+      '担当営業本人が実施した面談の記録がある顧客数（interview_sheet の staff と一致）。' +
       '⚠️ staff が記録されている面談ログは全体の1割ほどしかないため、下限値である',
     sql:
-      "SUM(m.in_charge_user IS NOT NULL AND m.in_charge_user <> ''" +
-      " AND JSON_SEARCH(iv.interview_log, 'one', m.in_charge_user, NULL, '$[*].staff') IS NOT NULL)",
+      `SUM(${STAFF_SQL} IS NOT NULL AND ${STAFF_SQL} <> ''` +
+      ` AND JSON_SEARCH(iv.interview_log, 'one', ${STAFF_SQL}, NULL, '$[*].staff') IS NOT NULL)`,
   },
 
   // --- リードタイム -------------------------------------------------------

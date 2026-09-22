@@ -24,6 +24,31 @@ export interface Dimension {
   needsInquiry?: boolean;
 }
 
+/**
+ * 担当営業の式。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **`in_charge_user` をそのまま使ってはいけない**（2026-09-22 に利用者から）。
+ *
+ * > master_data の in_charge_user は失注や案件の長期化が発生すると
+ * > **管理** に変更することがあるため first_interviewed_user のカラムも要確認
+ * > => 変更される前の営業が入る
+ *
+ * ⚠️ 実測（show_dashboard = 1 の 24,607件・2026-09-22）
+ *     ⚠️⚠️ **「◯◯店 管理」が 17,822件（72%）**（例: `KH鹿児島店 管理` 1,667件）
+ *     ⚠️ `first_interviewed_user`（列コメント「※旧担当」）が入っているのは 7,133件
+ *     ⚠️ ⚠️ **管理かつ旧担当あり 4,700件** … ここを救える
+ *     ⚠️ 契約済み 991件のうち、担当が管理になっているのは 49件
+ *
+ * ⚠️ ⚠️ **旧担当も空なら「◯◯店 管理」のまま出す。**
+ *   ⚠️ 勝手に「(未設定)」へ寄せない。⚠️ **救えなかった件数が見えなくなる。**
+ * ─────────────────────────────────────────────
+ */
+export const STAFF_SQL =
+  "CASE WHEN m.in_charge_user LIKE '%管理%'" +
+  " AND TRIM(COALESCE(m.first_interviewed_user, '')) <> ''" +
+  ' THEN m.first_interviewed_user ELSE m.in_charge_user END';
+
 export const DIMENSIONS = {
   month: {
     label: '月（集計基準日の年月。YYYY-MM）',
@@ -60,14 +85,23 @@ export const DIMENSIONS = {
    *   ⚠️ 個人情報の扱いとしては ⚠️ **店舗や営業課と同じ**（社内の所属情報）。
    *   ⚠️ ⚠️ **顧客の氏名は今までどおり軸にしない。**
    *
-   * ⚠️ 値は ⚠️ **その顧客の「現在の担当者」**であって、
+   * ⚠️⚠️ **中身は STAFF_SQL**（上）。⚠️ **「◯◯店 管理」は旧担当に読み替える。**
    *   ⚠️ ⚠️ **反響を取った人でも、面談をした人でもない。**
-   *     ⚠️ 担当替えがあると、⚠️ **過去の実績ごと新しい担当者に移る。**
+   *     ⚠️ 管理に付け替えられていない顧客は、⚠️ **担当替えで実績ごと移る。**
    */
   staff: {
     label:
-      '担当者（master_data.in_charge_user）。' +
-      '⚠️ 現在の担当者であり、担当替えがあると過去の実績ごと移る',
+      '担当営業。⚠️ 失注や長期化で担当が「◯◯店 管理」に付け替えられた顧客は、' +
+      'first_interviewed_user（旧担当）を担当として扱う。' +
+      '⚠️ 旧担当も空なら「◯◯店 管理」のまま出る（誰の実績か分からない顧客）',
+    // ⚠️ 実体は上の STAFF_SQL。⚠️ **絞り込みも同じ式を使う**（query.ts の buildWhere）
+    sql: () => groupExpr(STAFF_SQL),
+  },
+  staffCurrent: {
+    label:
+      '現在の担当者（master_data.in_charge_user をそのまま）。' +
+      '⚠️ 実測では72%が「◯◯店 管理」になっており、営業別の実績には使えない。' +
+      '⚠️ 誰が管理案件を抱えているかを見るときだけ使う',
     sql: () => groupExpr('m.in_charge_user'),
   },
   medium: {
