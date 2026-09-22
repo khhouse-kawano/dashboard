@@ -151,6 +151,7 @@ return [
 'memo_fire_insurance',
 'memo_ground_survey',
 'memo_lawyer',
+'memo_marketing',
 'memo_other_related_person',
 'memo_site_survey',
 'monthly_repayment_amount',

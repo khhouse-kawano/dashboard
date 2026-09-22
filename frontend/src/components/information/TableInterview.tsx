@@ -305,6 +305,23 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
 
     return (
         <>
+            {/*
+              * ⚠️ マーケ用メモ欄（2026-09-22 の指示）。
+              *   ⚠️ 架電シート（TableCall.tsx）の「架電用メモ欄」と ⚠️ **同じ大きさ・同じ作り**。
+              *   ⚠️ ⚠️ **面談の記録（interview_log）とは別物**で、
+              *     ⚠️ 顧客台帳の `memo_marketing` 列に入る。
+              *   ⚠️ ⚠️ **3事業とも列がある**（master_data / _kaeru / _resale）。
+              *     ⚠️ 片方でも列が無いと、⚠️ **その事業の保存がまるごと失敗する。**
+              */}
+            <div className="mb-3">
+                <textarea style={{ ...inputStyle, width: '93%', height: 'auto' }} placeholder='マーケ用メモ欄'
+                    value={safeFormate(information.memo_marketing)}
+                    rows={Math.max(2, safeFormate(information.memo_marketing).length / 50)}
+                    onChange={(e) => setInformation(prev => ({
+                        ...prev,
+                        memo_marketing: e.target.value
+                    }))}></textarea>
+            </div>
             <div
                 className="text-primary text-center mb-3"
                 style={{ ...actionButton, width: '75px', cursor: 'pointer' }}
@@ -505,6 +522,17 @@ export default memo(TableInterview, (prevProps, nextProps) => {
     if (prevProps.interview !== nextProps.interview) return false;
     if (prevProps.interviewLog !== nextProps.interviewLog) return false;
 
+    /**
+     * ⚠️⚠️ **この画面で値を表示・入力している列は、すべてここに書くこと。**
+     *
+     *   ⚠️ ⚠️ **書き忘れると、入力しても画面に文字が出ない。**
+     *     ⚠️ `setInformation` は動いて値は保持されるが、
+     *       ⚠️ **この比較が true を返して再描画されない**ため、
+     *       ⚠️ ⚠️ **打った文字が消えたように見える。**
+     *     ⚠️ **エラーは出ない。**
+     *
+     *   ⚠️ 2026-09-22、⚠️ **`memo_marketing` を書き忘れて実際に起きた。**
+     */
     const fieldsToCheck = [
         'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
         'sales_promotion_name',
@@ -515,7 +543,9 @@ export default memo(TableInterview, (prevProps, nextProps) => {
         'customer_contacts_name',
         'call_status',
         'contraction_contract_price',
-        'additional_contraction_contract_price'
+        'additional_contraction_contract_price',
+        // ⚠️ マーケ用メモ欄（2026-09-22 追加）
+        'memo_marketing'
     ];
 
     for (const field of fieldsToCheck) {

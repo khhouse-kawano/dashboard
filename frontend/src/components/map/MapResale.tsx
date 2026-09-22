@@ -1,5 +1,7 @@
 /* global google */
 import React, { useEffect, useState, useRef, useContext } from "react";
+// ⚠️ 見た目は customer/ shop/ rank/ map/ で共通（components/rankingUi.tsx）
+import { RankingStyle } from '../rankingUi';
 import { GoogleMap } from "@react-google-maps/api";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import apiClient from "../../utils/apiClient";
@@ -278,8 +280,10 @@ const MapResale: React.FC = () => {
         );
     }
 
+    // ⚠️ 見た目は customer/ shop/ rank/ と共通（rankingUi.tsx）。色と角だけを揃えている
     return (
-        <div className="container-fluid p-4" style={{ fontSize: '13px' }}>
+        <div className="container-fluid p-4 rk_screen" style={{ fontSize: '13px' }}>
+            <RankingStyle />
             <Card className="shadow-sm mb-4 border-0">
                 <Card.Body>
                     <Row className="g-2">

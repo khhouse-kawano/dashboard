@@ -315,34 +315,45 @@ const SatBaseDatabase = () => {
     return (
         <div className="sb_wrap">
             <style>{`
-                .sb_wrap { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-                .sb_bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+                /*
+                  ⚠️ 2026-09-22: モーダルの端まで表が広がって読みづらかったため、
+                    ⚠️ **左右と上下に余白を取り、要素の間隔も広げた**（指示）。
+                  ⚠️ ⚠️ **Bootstrap の p-5 は使っていない。**
+                    ⚠️ 全画面モーダルの中で高さを 100% 使う作りなので、
+                      ⚠️ **padding をクラスで付けると表の縦が足りなくなる。**
+                */
+                .sb_wrap {
+                    display: flex; flex-direction: column; height: 100%; min-height: 0;
+                    padding: 24px 32px 28px;
+                    box-sizing: border-box;
+                }
+                .sb_bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
                 .sb_input, .sb_select {
-                    font-size: 12px; padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px;
+                    font-size: 12px; padding: 6px 10px; border: 1px solid #ced4da; border-radius: 4px;
                     background: #fff; color: #212529;
                 }
-                .sb_input { width: 200px; }
+                .sb_input { width: 220px; }
                 .sb_count { font-size: 12px; color: #6c757d; margin-left: auto; }
                 .sb_btn {
-                    font-size: 12px; padding: 4px 10px; border: 1px solid #ced4da;
+                    font-size: 12px; padding: 6px 14px; border: 1px solid #ced4da;
                     border-radius: 4px; background: #fff; cursor: pointer;
                 }
                 .sb_btn:hover { background: #f1f3f5; }
                 .sb_panel {
-                    border: 1px solid #dee2e6; border-radius: 6px; padding: 10px;
-                    margin-bottom: 8px; background: #f8f9fa;
+                    border: 1px solid #dee2e6; border-radius: 6px; padding: 16px 20px;
+                    margin-bottom: 16px; background: #f8f9fa;
                 }
                 .sb_panel_head {
                     display: flex; align-items: center; gap: 10px;
                     font-size: 12px; font-weight: 600; margin-bottom: 8px;
                 }
                 .sb_panel_list {
-                    display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px;
+                    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 20px;
                 }
                 .sb_check { font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
                 .sb_scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid #dee2e6; border-radius: 6px; }
                 .sb_table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
-                .sb_table th, .sb_table td { padding: 6px 10px; border-bottom: 1px solid #eceef0; white-space: nowrap; }
+                .sb_table th, .sb_table td { padding: 9px 14px; border-bottom: 1px solid #eceef0; white-space: nowrap; }
                 .sb_table thead th {
                     position: sticky; top: 0; z-index: 2; background: #f8f9fa;
                     border-bottom: 1px solid #dee2e6; font-weight: 600; text-align: left;

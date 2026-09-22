@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useContext, useMemo } from 'react';
-import Table from "react-bootstrap/Table";
 import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
@@ -9,6 +8,8 @@ import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import apiClient from '../../utils/apiClient';
 import { sortShops } from '../header/useAmbassadorMaster';
 import { UNIT_PRICE_SERIES_SPEC } from './unitPriceSeries';
+// ⚠️ 見た目は customer/ と shop/ の4画面で共通（components/rankingUi.tsx）
+import { RankingStyle, SortIcon } from '../rankingUi';
 // ⚠️ 表記ゆれの対応表は customer/CustomerKaeru.tsx と共有する。**別に作らないこと**
 import { normalizeMedium } from '../customer/customerKaeruUtils';
 
@@ -373,54 +374,121 @@ const ShopKaeru = () => {
         setSortOrder(order);
     };
 
-    const arrowStyle = { position: 'absolute' as const, right: '4px', cursor: 'pointer' as const, fontSize: '10px' };
-
     /** 期間の説明。ツールチップで使い回す */
     const periodLabel = `${startMonth === '' ? '' : `${startMonth}から`}${endMonth === '' ? '' : `${endMonth}まで`}${startMonth !== '' || endMonth !== '' ? '' : '全期間'}`;
 
-    /** 並べ替えの矢印。列ごとに同じものを出す */
-    const sortArrows = (key: string) => (
-        <>
-            <span style={{ ...arrowStyle, top: '4px' }} onClick={() => changeSort('desc', key)}>▲</span>
-            <span style={{ ...arrowStyle, top: '14px' }} onClick={() => changeSort('asc', key)}>▼</span>
-        </>
-    );
+    /**
+     * 見出しのセル。
+     *
+     * ⚠️⚠️ **2026-09-22 に SaaS 風の見た目へ作り替えた**（指示）。
+     *   ⚠️ 並べ替えは ⚠️ **見出しそのものを押す**形にした（▲▼の小さな矢印をやめた）。
+     *   ⚠️ ⚠️ **押すたびに 降順 → 昇順 → 降順 … と入れ替わる。**
+     *   ⚠️ 並べ替えのキーと計算は ⚠️ **1行も変えていない**（`sorted` を参照）。
+     *
+     * ⚠️ `plain` のときは並べ替えない（店舗名・営業人数の列）。
+     */
+    const headCell = (label: string, key: string, tip?: string, plain?: boolean) => {
+        const active = sortKey === key && !plain;
+        return (
+            <th
+                key={key || label}
+                className={`rk_th${key === '' ? ' rk_th_name' : plain ? '' : ' rk_th_sort'}`}
+                onClick={plain ? undefined : () => changeSort(active && sortOrder === 'desc' ? 'asc' : 'desc', key)}
+            >
+                {tip ? (
+                    <OverlayTrigger
+                        placement="top"
+                        overlay={<Tooltip id={`tooltip-${key}`} style={{ fontSize: "12px" }}>{tip}</Tooltip>}>
+                        <span style={{ textDecoration: 'underline dotted' }}>{label}</span>
+                    </OverlayTrigger>
+                ) : label}
+                {!plain && <SortIcon active={active} order={sortOrder} />}
+            </th>
+        );
+    };
 
-    /** 見出しのセル。説明が要るものはツールチップを付ける */
-    const headCell = (label: string, key: string, tip?: string) => (
-        <td style={{ position: 'relative', textAlign: 'center' }}>
-            {tip ? (
-                <OverlayTrigger
-                    placement="top"
-                    overlay={<Tooltip id={`tooltip-${key}`} style={{ fontSize: "12px" }}>{tip}</Tooltip>}>
-                    <span style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>{label}</span>
-                </OverlayTrigger>
-            ) : label}
-            {sortArrows(key)}
-        </td>
-    );
+    /**
+     * 画面上部のまとめ。
+     * ⚠️ 店舗ごとの行を足すのではなく、⚠️ **合計行（TOTAL_ROW）をそのまま出す。**
+     *   ⚠️ ⚠️ **足し算だと、どの店舗にも紐づかない顧客が抜ける。**
+     *   ⚠️⚠️ **`sorted[0]` で取らないこと。** ⚠️ 並べ替えると合計行も動く。
+     */
+    const summary = useMemo(() => {
+        const head = aggregated.find(a => a.value.shop === TOTAL_ROW);
+        return {
+            total: head?.totalValue ?? 0,
+            contact: head?.contactValue ?? 0,
+            interview: head?.interviewValue ?? 0,
+            application: head?.applicationValue ?? 0,
+            contract: head?.contractValue ?? 0,
+            budget: head?.totalBudget ?? 0,
+            registerUnit: head?.registerUnit ?? null,
+        };
+    }, [aggregated]);
 
     return (
-        <>
-            <div className='content customer bg-white p-2'>
-                <div className='ps-2' style={{ fontSize: '13px' }}>※接触数・契約数は"反響日"起算となります。</div>
-                <div className="d-flex flex-wrap mb-3">
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(event.target.value, endMonth, selectedMedium, selectedShop, selectedSection)}>
-                            <option value="" selected>開始月</option>
+        <div className='content customer bg-white'>
+            <RankingStyle />
+            <div className="rk_wrap">
+                <div className="rk_head">
+                    <span className="rk_title">店舗別 反響・歩留まり（建売分譲事業）</span>
+                    <span className="rk_note">※接触数・契約数は"反響日"起算となります。</span>
+                </div>
+
+                <div className="rk_kpi">
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">総反響</div>
+                        <div className="rk_kpi_value">{summary.total.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">接触</div>
+                        <div className="rk_kpi_value">{summary.contact.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">来場・案内</div>
+                        <div className="rk_kpi_value">{summary.interview.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">申込</div>
+                        <div className="rk_kpi_value">{summary.application.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">契約</div>
+                        <div className="rk_kpi_value">{summary.contract.toLocaleString()}</div>
+                    </div>
+                    <div className="rk_kpi_card">
+                        <div className="rk_kpi_label">広告費</div>
+                        <div className="rk_kpi_value">¥{summary.budget.toLocaleString()}</div>
+                        {/* ⚠️ 分母が0のときは '-'。0円と書くと「無料で取れた」と読める */}
+                        <div className="rk_kpi_sub">
+                            反響単価 {summary.registerUnit === null ? '-' : `¥${summary.registerUnit.toLocaleString()}`}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="rk_bar">
+                    <div className="rk_field">
+                        <span className="rk_label">開始月</span>
+                        <select className="rk_select" value={startMonth}
+                            onChange={(event) => handleSort(event.target.value, endMonth, selectedMedium, selectedShop, selectedSection)}>
+                            <option value="">指定なし</option>
                             {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
-                    <span className='d-flex align-items-center mx-1'>～</span>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, event.target.value, selectedMedium, selectedShop, selectedSection)}>
-                            <option value="" selected>終了月</option>
+                    <span className="rk_tilde">～</span>
+                    <div className="rk_field">
+                        <span className="rk_label">終了月</span>
+                        <select className="rk_select" value={endMonth}
+                            onChange={(event) => handleSort(startMonth, event.target.value, selectedMedium, selectedShop, selectedSection)}>
+                            <option value="">指定なし</option>
                             {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, event.target.value, selectedShop, selectedSection)}>
-                            <option value="" selected={selectedMedium === ''}>全販促媒体</option>
+                    <div className="rk_field">
+                        <span className="rk_label">販促媒体</span>
+                        <select className="rk_select" value={selectedMedium}
+                            onChange={(event) => handleSort(startMonth, endMonth, event.target.value, selectedShop, selectedSection)}>
+                            <option value="">全販促媒体</option>
                             {/**
                               * ⚠️⚠️ **選択肢も表記を寄せて重複を落とす**（2026-09-18）。
                               *   ⚠️ `medium_kaeru` には `Facebook`（→ Instagram）や
@@ -428,37 +496,37 @@ const ShopKaeru = () => {
                               *   ⚠️ 寄せないと ⚠️ **同じ中身の選択肢が2つ並ぶ。**
                               */}
                             {[...new Set(mediumArray.map(item => normalizeMedium(item.medium)))].map((medium, index) =>
-                                <option key={index} selected={selectedMedium === medium}>{medium}</option>
+                                <option key={index} value={medium}>{medium}</option>
                             )}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, event.target.value, '')}>
+                    <div className="rk_field">
+                        <span className="rk_label">店舗</span>
+                        <select className="rk_select" value={selectedShop}
+                            onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, event.target.value, '')}>
                             <option value="">全店舗</option>
                             {originalShopArray.map((item, index) => (
-                                <option key={index} value={item.shop} selected={item.shop === selectedShop}>{item.shop}</option>
+                                <option key={index} value={item.shop}>{item.shop}</option>
                             ))}
                         </select>
                     </div>
-                    <div className="m-1">
-                        <select className="target" onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, '', event.target.value)}>
-                            <option value="" selected={selectedSection === ''}>全課</option>
+                    <div className="rk_field">
+                        <span className="rk_label">営業課</span>
+                        <select className="rk_select" value={selectedSection}
+                            onChange={(event) => handleSort(startMonth, endMonth, selectedMedium, '', event.target.value)}>
+                            <option value="">全課</option>
                             {sectionList.map((section, index) =>
                                 <option value={section.name} key={index}>{section.name}</option>
                             )}
                         </select>
                     </div>
-                </div>
-                <div className="d-flex flex-wrap mb-3">
-                    <div className="m-1">
-                        {/* ⚠️ 表と同時に見ると視認性が悪いのでモーダルで出す。
-                               店舗数で全画面/xl が切り替わる（UnitPriceGraphModal.tsx） */}
-                        <div className="bg-primary btn text-white rounded-pill px-3 py-1"
-                            style={{ fontSize: '12px', letterSpacing: '1px' }}
-                            onClick={() => setShowGraph(true)}>グラフを表示</div>
-                    </div>
+                    <div className="rk_spacer" />
+                    {/* ⚠️ 表と同時に見ると視認性が悪いのでモーダルで出す。
+                           店舗数で全画面/xl が切り替わる（UnitPriceGraphModal.tsx） */}
                     {/* ⚠️ 「併売店をまとめる」は置かない。建売に併売店の概念は無い */}
+                    <button className="rk_btn" onClick={() => setShowGraph(true)}>グラフを表示</button>
                 </div>
+
                 <UnitPriceGraphModal
                     show={showGraph}
                     onHide={() => setShowGraph(false)}
@@ -466,73 +534,81 @@ const ShopKaeru = () => {
                     series={UNIT_PRICE_SERIES_SPEC}
                     title='建売分譲事業'
                 />
-                <div className="table-wrapper">
-                    <div className="list_table">
-                        <Table striped style={{ fontSize: '12px' }} bordered>
-                            <tbody>
-                                <tr className='sticky-header'>
-                                    <td className='sticky-column budget' style={{ position: 'relative', textAlign: 'center' }}>店舗名</td>
-                                    <td className='text-center'>営業人数</td>
-                                    {headCell('総反響', 'total', `${periodLabel}の総反響数`)}
-                                    {headCell('接触率', 'perContact', '接触数/総反響数')}
-                                    {headCell('接触数', 'contact', `${periodLabel}の反響のうち接触した方の数（以降の工程に進んだ方を含む）`)}
-                                    {headCell('来場・案内', 'interview', '来場または物件案内があった方の数（以降の工程に進んだ方を含む）')}
-                                    {headCell('申込数', 'application', '申し込みに至った方の数（契約者を含む）')}
-                                    {/* ⚠️⚠️ **分母が「申込」に変わった**（2026-09-18）。
-                                           ⚠️ customer/CustomerKaeru.tsx と揃えてある */}
-                                    {headCell('契約率', 'perContract', '契約/申込')}
-                                    {headCell('契約数', 'contract', '契約済みの方の数（仲介契約を含む。解約は含まない）')}
-                                    {['S', 'A', 'B', 'C'].map(item =>
-                                        <React.Fragment key={item}>
-                                            {headCell(`${item}ランク`, item, `${periodLabel}の反響のうち${item}ランクの数`)}
-                                        </React.Fragment>
-                                    )}
-                                    {headCell('総予算', 'totalBudget')}
-                                    {headCell('反響単価', 'registerBudget')}
-                                    {headCell('接触単価', 'contactBudget')}
-                                    {headCell('申込単価', 'applicationBudget')}
-                                    {headCell('契約単価', 'contractBudget')}
-                                </tr>
-                                {sorted.map((item, index) => {
-                                    const {
-                                        value, totalValue, contactValue, interviewValue, applicationValue,
-                                        contractValue, perContact, perContract, staffValue,
-                                        rankSValue, rankAValue, rankBValue, rankCValue, totalBudget,
-                                        registerUnit, contactUnit, applicationUnit, contractUnit,
-                                    } = item;
 
-                                    /** ⚠️ 分母が0のときは '-'。0円と書くと「無料で取れた」と読める */
-                                    const yen = (v: number | null) => v === null ? '-' : `¥${v.toLocaleString()}`;
+                <div className="rk_table_wrap">
+                    <table className="rk_table">
+                        <thead>
+                            <tr>
+                                {headCell('店舗名', '', '', true)}
+                                {headCell('営業人数', 'staffCount', '', true)}
+                                {headCell('総反響', 'total', `${periodLabel}の総反響数`)}
+                                {headCell('接触率', 'perContact', '接触数/総反響数')}
+                                {headCell('接触数', 'contact', `${periodLabel}の反響のうち接触した方の数（以降の工程に進んだ方を含む）`)}
+                                {headCell('来場・案内', 'interview', '来場または物件案内があった方の数（以降の工程に進んだ方を含む）')}
+                                {headCell('申込数', 'application', '申し込みに至った方の数（契約者を含む）')}
+                                {/* ⚠️⚠️ **分母が「申込」に変わった**（2026-09-18）。
+                                       ⚠️ customer/CustomerKaeru.tsx と揃えてある */}
+                                {headCell('契約率', 'perContract', '契約/申込')}
+                                {headCell('契約数', 'contract', '契約済みの方の数（仲介契約を含む。解約は含まない）')}
+                                {['S', 'A', 'B', 'C'].map(item =>
+                                    <React.Fragment key={item}>
+                                        {headCell(`${item}ランク`, item, `${periodLabel}の反響のうち${item}ランクの数`)}
+                                    </React.Fragment>
+                                )}
+                                {headCell('総予算', 'totalBudget')}
+                                {headCell('反響単価', 'registerBudget')}
+                                {headCell('接触単価', 'contactBudget')}
+                                {headCell('申込単価', 'applicationBudget')}
+                                {headCell('契約単価', 'contractBudget')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sorted.map((item, index) => {
+                                const {
+                                    value, totalValue, contactValue, interviewValue, applicationValue,
+                                    contractValue, perContact, perContract, staffValue,
+                                    rankSValue, rankAValue, rankBValue, rankCValue, totalBudget,
+                                    registerUnit, contactUnit, applicationUnit, contractUnit,
+                                } = item;
 
-                                    return (
-                                        <tr key={value.id ?? `shop-${index}`}>
-                                            <td className='sticky-column' style={{ textAlign: 'center' }}>{value.shop}</td>
-                                            <td style={{ textAlign: 'center' }}>{staffValue}</td>
-                                            <td style={{ textAlign: 'center' }}>{totalValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{perContact}%</td>
-                                            <td style={{ textAlign: 'center' }}>{contactValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{interviewValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{applicationValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{perContract}%</td>
-                                            <td style={{ textAlign: 'center' }}>{contractValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{rankSValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{rankAValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{rankBValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{rankCValue.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'center' }}>{`¥${totalBudget.toLocaleString()}`}</td>
-                                            <td style={{ textAlign: 'center' }}>{yen(registerUnit)}</td>
-                                            <td style={{ textAlign: 'center' }}>{yen(contactUnit)}</td>
-                                            <td style={{ textAlign: 'center' }}>{yen(applicationUnit)}</td>
-                                            <td style={{ textAlign: 'center' }}>{yen(contractUnit)}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </Table>
-                    </div>
+                                /** ⚠️ 分母が0のときは '-'。0円と書くと「無料で取れた」と読める */
+                                const yen = (v: number | null) => v === null ? '-' : `¥${v.toLocaleString()}`;
+
+                                /**
+                                 * ⚠️ 合計行は背景を変えて店舗と見分ける。
+                                 *   ⚠️⚠️ **`index === 0` で判定しないこと。**
+                                 *     ⚠️ ⚠️ **並べ替えると合計行も動く**（`sorted` は全行を並べ替える）。
+                                 */
+                                const isTotalRow = value.shop === TOTAL_ROW;
+
+                                return (
+                                    <tr className={`rk_row${isTotalRow ? ' rk_row_total' : ''}`} key={value.id ?? `shop-${index}`}>
+                                        <td className="rk_td rk_td_name">{value.shop}</td>
+                                        <td className="rk_td">{staffValue}</td>
+                                        <td className="rk_td">{totalValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perContact}%</td>
+                                        <td className="rk_td">{contactValue.toLocaleString()}</td>
+                                        <td className="rk_td">{interviewValue.toLocaleString()}</td>
+                                        <td className="rk_td">{applicationValue.toLocaleString()}</td>
+                                        <td className="rk_td rk_rate">{perContract}%</td>
+                                        <td className="rk_td">{contractValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankSValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankAValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankBValue.toLocaleString()}</td>
+                                        <td className="rk_td">{rankCValue.toLocaleString()}</td>
+                                        <td className="rk_td">{`¥${totalBudget.toLocaleString()}`}</td>
+                                        <td className="rk_td">{yen(registerUnit)}</td>
+                                        <td className="rk_td">{yen(contactUnit)}</td>
+                                        <td className="rk_td">{yen(applicationUnit)}</td>
+                                        <td className="rk_td">{yen(contractUnit)}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </>
+        </div>
     )
 }
 
