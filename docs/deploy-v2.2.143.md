@@ -70,7 +70,7 @@ git checkout FETCH_HEAD
 ⚠️ 入ったことを ⚠️ **ファイルの中身で**確かめる（⚠️ `--depth 1` なのでログは1件しか無い）。
 
 ```bash
-grep -c "map::\|reportCategory" backend-express/src/gateway/registry.ts
+grep -c "地図の初期データ" backend-express/src/gateway/registry.ts
 ls backend-express/src/features/map/
 grep -c hp_campaign backend-express/src/features/customer/queries.ts
 ```
@@ -85,10 +85,18 @@ dcp up -d --force-recreate express-api
 ⚠️ コンテナの中にも入ったか確かめる。
 
 ```bash
-dcp exec express-api grep -c "map::order" dist/gateway/registry.js
+dcp logs express-api | grep "map::"
 ```
 
-⚠️ ⚠️ **1 以上になれば反映完了。**
+⚠️ ⚠️ **起動時の一覧に `map::order` / `map::spec` / `map::used` の3行が出れば反映完了。**
+
+⚠️⚠️ **`grep "map::order" dist/gateway/registry.js` では見つからない。**
+⚠️ ⚠️ **`map::order` という文字列はソースに無い。**
+⚠️ **キーは `gatewayKey(request, roll, category)` が実行時に組み立てている。**
+
+⚠️⚠️ **ファイルを `grep -c` して「3」を期待しないこと。**
+⚠️ ⚠️ **`地図の初期データ（${category}）` はループの中に1回しか書かれていない**
+⚠️ （3つに展開されるのは実行時）。⚠️ **`1` が正しい。**
 
 ---
 
