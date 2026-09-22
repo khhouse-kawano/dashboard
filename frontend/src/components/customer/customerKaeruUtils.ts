@@ -82,3 +82,106 @@ export const normalizeMedium = (value: string): string => {
     const cleaned = cleanMedium(value);
     return CANONICAL.get(cleaned) ?? cleaned;
 };
+
+// ---------------------------------------------------------------------------
+// ホームページ反響（2026-09-22 の指示）
+//
+// ⚠️⚠️ **判定は customerTrend/CustomerTrendKaeru.tsx の `matchesMediumRow()` と
+//   同じものにすること**（利用者の指示）。
+//   ⚠️ ⚠️ **片方だけ直すと、同じ「ホームページ反響」の件数が画面ごとに違う**という
+//     いちばん質の悪いズレ方をする。
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️⚠️ **ホームページ反響の広告費として数える `budget.medium`**（2026-09-22 の指示）。
+ *
+ * ⚠️ ⚠️ **`medium_kaeru` の名前ではなく、`budget` テーブルに実在する名前で書くこと。**
+ *   ⚠️ 例: 利用者の言う `Web検索` は、⚠️ **販促費側では `インターネット検索`** である。
+ *
+ * ⚠️ 実績（section = 'spec' / response_medium = 0・2026-09-22 時点）
+ *     インターネット検索      105,045,842
+ *     SNS広告                  93,702,101
+ *     Amazonギフトカード        3,600,828
+ *     チラシ                      801,819
+ *     LP制作                       66,399
+ */
+export const HOMEPAGE_BUDGET_MEDIUMS: string[] = [
+    'インターネット検索',
+    'SNS広告',
+    'Amazonギフトカード',
+    'チラシ',
+    'LP制作',
+];
+
+/** その販促費が「ホームページ反響」の広告費か */
+export const isHomepageBudget = (medium: string): boolean =>
+    HOMEPAGE_BUDGET_MEDIUMS.includes(cleanMedium(medium));
+
+/**
+ * ⚠️ ポータル経由かどうか。
+ *
+ * ⚠️⚠️ **CustomerTrendKaeru.tsx の `isHp()` をそのまま写したもの。**
+ *   ⚠️ ⚠️ **中身を変えないこと。** 変えるなら両方である。
+ *   ⚠️ `ALLGRIT` は公式LINE、`カゴスマ` は `カゴスマ・タテルヤ` の実データ名。
+ */
+const PORTALS: string[] = ['SUUMO', 'ALLGRIT', "HOME'S", 'アットホーム', 'タウンライフ', 'カゴスマ'];
+
+export const isHpCampaign = (value: string): boolean => {
+    if (!value) return false;
+    return !PORTALS.some(p => value.includes(p));
+};
+
+/** 正式名として扱う値の一覧（別名表に無ければ自分自身だけ） */
+const aliasesOf = (canonical: string): string[] => MEDIUM_ALIAS[canonical] ?? [canonical];
+
+/**
+ * その顧客が、単独行として出している媒体（`show_graph = 1`）に当たるか。
+ *
+ * ⚠️⚠️ **反響媒体だけでなく `hp_campaign` も見る**（CustomerTrendKaeru と同じ）。
+ *   ⚠️ ⚠️ **見ないと、ポータル経由の反響が「ホームページ反響」に流れ込む。**
+ *   ⚠️ 突き合わせは別名も含めて行う（`公式LINE` は実データでは `ALLGRIT`）。
+ */
+export const matchesShownMedium = (
+    customerMedium: string,
+    hpCampaign: string,
+    shownMedium: string
+): boolean => {
+    if (normalizeMedium(customerMedium) === shownMedium) return true;
+
+    const campaign = cleanMedium(hpCampaign);
+    if (campaign === '') return false;
+    return aliasesOf(shownMedium).some(alias => campaign.includes(alias));
+};
+
+/**
+ * その顧客が「ホームページ反響」に入るか。
+ *
+ * ⚠️⚠️ **CustomerTrendKaeru.tsx の `isHpGroup` と同じ式である。**
+ *
+ *   ```
+ *   const isHpGroup = !isAnyDisplayMedium
+ *       && (isHp(o.hp_campaign) || !o.medium || !o.hp_campaign);
+ *   ```
+ *
+ * ⚠️ ⚠️ **「単独行のどれにも当たらない」ことが先に来る。**
+ *   ⚠️ これが無いと ⚠️ **同じ顧客が SUUMO とホームページ反響の両方に数えられる。**
+ *
+ * ⚠️⚠️ **反響媒体が空の顧客もここに入る**（`!o.medium`）。
+ *   ⚠️ ⚠️ **`show_graph = 0` の媒体かどうかは、もう見ていない**（2026-09-22 に変更）。
+ *     ⚠️ 以前は `medium_kaeru` に載っている媒体だけを拾っていたため、
+ *       ⚠️ **台帳に無い媒体の反響が「その他（未分類）」に落ちていた。**
+ */
+export const isHomepageCustomer = (
+    customerMedium: string,
+    hpCampaign: string,
+    shownMediums: string[]
+): boolean => {
+    const matchesAnyShown = shownMediums.some(
+        shown => matchesShownMedium(customerMedium, hpCampaign, shown)
+    );
+    if (matchesAnyShown) return false;
+
+    return isHpCampaign(hpCampaign)
+        || cleanMedium(customerMedium) === ''
+        || cleanMedium(hpCampaign) === '';
+};

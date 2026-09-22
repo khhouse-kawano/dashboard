@@ -11,7 +11,12 @@ import apiClient from '../../utils/apiClient';
 import UnitPriceGraphModal from '../shop/UnitPriceGraphModal';
 // ⚠️ 系列は5本（来場単価を含む）。⚠️ ShopKaeru.tsx は4本のままである
 import { UNIT_PRICE_SERIES_SPEC_FULL } from '../shop/unitPriceSeries';
-import { normalizeMedium } from './customerKaeruUtils';
+import {
+    isHomepageBudget,
+    isHomepageCustomer,
+    matchesShownMedium,
+    normalizeMedium,
+} from './customerKaeruUtils';
 
 /**
  * 販促媒体別ランキング（建売分譲事業）。
@@ -183,22 +188,14 @@ const CustomerKaeru = () => {
         [mediumArray]
     );
 
-    const groupedMediums = useMemo(
-        () => [...new Set(
-            mediumArray.filter(m => Number(m.show_graph) !== 1).map(m => normalizeMedium(m.medium))
-        )]
-            /**
-             * ⚠️⚠️ **表示する行と同じ名前になったものは、まとめ側から外す。**
-             *   ⚠️ 2026-09-18 の表記統一で**実際に起きる**。
-             *     `ネット広告`（show_graph = 0）→ `Web検索`（show_graph = 1）
-             *     `Facebook`（show_graph = 0）→ `Instagram`（show_graph = 1）
-             *   ⚠️ 外さないと ⚠️ **同じ顧客が「Web検索」と「ホームページ反響」の
-             *     両方に数えられる**（販促費も同じく二重に足される）。
-             *   ⚠️ エラーは出ず、⚠️ **合計だけが増える**という気づきにくい壊れ方をする。
-             */
-            .filter(medium => !shownMediums.includes(medium)),
-        [mediumArray, shownMediums]
-    );
+    /**
+     * ⚠️⚠️ **2026-09-22 に `groupedMediums` と `knownMediums` を廃止した。**
+     *   ⚠️ 「ホームページ反響」を ⚠️ **`medium_kaeru` の `show_graph = 0` の一覧**で
+     *     決めていたが、⚠️ **CustomerTrendKaeru.tsx と同じ判定へ変えた**ため
+     *     （単独行のどれにも当たらない ＋ ポータル経由でない）不要になった。
+     *   ⚠️ ⚠️ **二重計上を防ぐ仕組みは無くなっていない。**
+     *     ⚠️ `isHomepageCustomer()` が ⚠️ **先に単独行との一致を見て弾いている。**
+     */
 
     /**
      * 表の行。
@@ -224,8 +221,13 @@ const CustomerKaeru = () => {
             { medium: '総反響' },
             ...shownMediums.map(medium => ({ medium })),
         ];
-        // ⚠️ まとめる媒体が1つも無ければ、空の行を作らない
-        const withHomepage = groupedMediums.length > 0 ? [...base, { medium: HOMEPAGE_ROW }] : base;
+        /**
+         * ⚠️⚠️ **2026-09-22 から常に出す。**
+         *   ⚠️ 以前は `medium_kaeru` に `show_graph = 0` の媒体があるときだけ出していた。
+         *   ⚠️ ⚠️ **いまの判定は `medium_kaeru` に載っているかを見ていない**
+         *     （反響媒体が空の顧客もここに入る）ので、⚠️ **台帳の中身で行が消えると困る。**
+         */
+        const withHomepage = [...base, { medium: HOMEPAGE_ROW }];
 
         /**
          * ⚠️⚠️ **「その他（未分類）」は件数が0でも必ず出す**（2026-09-18 の指示）。
@@ -234,17 +236,7 @@ const CustomerKaeru = () => {
          * ⚠️ 位置は**いちばん最後**。個別の媒体より先に出すと内訳に見えて誤読される。
          */
         return [...withHomepage, { medium: OTHER_ROW }];
-    }, [shownMediums, groupedMediums]);
-
-    /**
-     * ⚠️ `medium_kaeru` に載っている媒体（表記を寄せたあとの名前）。
-     * ⚠️⚠️ **「その他（未分類）」はこれに**含まれない**ものを拾う。**
-     *   ⚠️ 顧客側と販促費側で**同じ配列**を使うこと。片方だけだと単価が合わない。
-     */
-    const knownMediums = useMemo(
-        () => [...shownMediums, ...groupedMediums],
-        [shownMediums, groupedMediums]
-    );
+    }, [shownMediums]);
 
     /** 単価。⚠️ 分母が0や未定義なら null（表では '-'、グラフでは 0） */
     const unitPrice = (budget: number, count: number): number | null =>
@@ -270,13 +262,32 @@ const CustomerKaeru = () => {
              */
             const base = filteredCustomers.filter(c => {
                 if (value.medium === '総反響') return true;
-                // ⚠️⚠️ **必ず normalizeMedium を通してから比べる**（2026-09-18）。
-                //   ⚠️ 顧客側は `athome` / `ALLGRIT` / `ネット` のように別名で入っている
-                const medium = normalizeMedium(c.medium);
-                if (value.medium === HOMEPAGE_ROW) return groupedMediums.includes(medium);
-                // ⚠️ どの行にも当てはまらない反響。⚠️ **空の媒体もここに入る。**
-                if (value.medium === OTHER_ROW) return !knownMediums.includes(medium);
-                return medium === value.medium;
+
+                /**
+                 * ⚠️⚠️ **2026-09-22 に判定を CustomerTrendKaeru.tsx と同じものへ変えた**
+                 *   （利用者の指示）。⚠️ **`hp_campaign` も見るようになった。**
+                 *   ⚠️ ⚠️ **数字は変わる。** 以前は `medium_kaeru` に載っている
+                 *     `show_graph = 0` の媒体だけを拾っていたため、
+                 *     ⚠️ **台帳に無い媒体や空の媒体は「その他（未分類）」に落ちていた。**
+                 */
+                if (value.medium === HOMEPAGE_ROW) {
+                    return isHomepageCustomer(c.medium, c.hp_campaign, shownMediums);
+                }
+
+                /**
+                 * ⚠️ どの行にも当てはまらない反響。
+                 * ⚠️⚠️ **ホームページ反響に吸収された顧客は必ず外すこと。**
+                 *   ⚠️ 外さないと ⚠️ **同じ顧客が2つの行に数えられる。**
+                 */
+                if (value.medium === OTHER_ROW) {
+                    if (isHomepageCustomer(c.medium, c.hp_campaign, shownMediums)) return false;
+                    return !shownMediums.some(
+                        shown => matchesShownMedium(c.medium, c.hp_campaign, shown)
+                    );
+                }
+
+                // ⚠️ 単独行。⚠️ **反響媒体だけでなく `hp_campaign` も見る**（同上）
+                return matchesShownMedium(c.medium, c.hp_campaign, value.medium);
             });
 
             /**
@@ -344,11 +355,28 @@ const CustomerKaeru = () => {
             const totalBudget = filteredBudgets
                 .filter(item => {
                     if (value.medium === '総反響') return true;
+
+                    /**
+                     * ⚠️⚠️ **ホームページ反響の広告費は、媒体名を名指しで決めている**
+                     *   （2026-09-22 の指示。`HOMEPAGE_BUDGET_MEDIUMS`）。
+                     *   ⚠️ ⚠️ **顧客側と同じ判定にはできない。**
+                     *     ⚠️ 販促費に `hp_campaign` は無く、
+                     *       ⚠️ **`Amazonギフトカード` のように `medium_kaeru` に無い名前も含める**ため。
+                     */
+                    if (value.medium === HOMEPAGE_ROW) return isHomepageBudget(item.medium);
+
                     // ⚠️ 販促費側は `SNS広告` / `インターネット検索` / `カゴスマ` で入っている
                     const medium = normalizeMedium(item.medium);
-                    if (value.medium === HOMEPAGE_ROW) return groupedMediums.includes(medium);
-                    // ⚠️ 顧客側と同じ判定。⚠️ **揃えないと単価が合わない。**
-                    if (value.medium === OTHER_ROW) return !knownMediums.includes(medium);
+
+                    /**
+                     * ⚠️ どの行にも乗らなかった販促費。
+                     * ⚠️⚠️ **ホームページ反響に数えたものは必ず外すこと**（二重計上になる）。
+                     */
+                    if (value.medium === OTHER_ROW) {
+                        if (isHomepageBudget(item.medium)) return false;
+                        return !shownMediums.includes(medium);
+                    }
+
                     return medium === value.medium;
                 })
                 .reduce((acc, cur) => acc + cur.budget_value, 0);
@@ -382,7 +410,7 @@ const CustomerKaeru = () => {
                 contractUnit: unitPrice(totalBudget, contractValue),
             };
         });
-    }, [rows, groupedMediums, knownMediums, filteredCustomers, filteredBudgets]);
+    }, [rows, shownMediums, filteredCustomers, filteredBudgets]);
 
     /**
      * 単価グラフのデータ。

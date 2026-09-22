@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useContext } from "react";
 import { GoogleMap } from "@react-google-maps/api";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
-import axios from "axios";
+import apiClient from "../../utils/apiClient";
 import { useNavigate } from "react-router-dom";
 import { Card, Table, Row, Col, Form, Button, Badge } from "react-bootstrap";
 import AuthContext from "../../context/AuthContext";
@@ -52,7 +52,6 @@ const MapResale: React.FC = () => {
     const [endMonth, setEndMonth] = useState<string>("");
     const [targetMedium, setTargetMedium] = useState<string>("");
     const [targetBrand, setTargetBrand] = useState<string>("");
-    const [targetStatus, setTargetStatus] = useState<string>("");
     const [targetShop, setTargetShop] = useState<string>("");
     const [targetIncome, setTargetIncome] = useState<{ startIncome: number | null, endIncome: number | null }>({ startIncome: null, endIncome: null });
     const [contractType, setContractType] = useState('');
@@ -173,8 +172,13 @@ const MapResale: React.FC = () => {
 
         const fetchData = async () => {
             try {
-                const headers = { Authorization: "4081Kokubu", "Content-Type": "application/json" };
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "map", category }, { headers });
+                /**
+                 * ⚠️⚠️ **2026-09-22 に `axios` の直叩きをやめた。**
+                 *   ⚠️ 以前は本番URL（khg-marketing.info）を直に書いていたため、
+                 *     ⚠️ ⚠️ **ローカルで開発していても本番DBを見ていた。**
+                 *   ⚠️ `apiClient` は接続先を環境変数から決め、Token も自動で付ける。
+                 */
+                const response = await apiClient.post("", { request: "map", category });
 
                 const filtered = response.data.customer.filter((item: CustomerItem) => item.lat_lng);
                 setOriginalMarkers(filtered);
@@ -243,7 +247,6 @@ const MapResale: React.FC = () => {
                 (!endDate || targetDate <= endDate) &&
                 (!targetMedium || item.medium === targetMedium) &&
                 (!targetBrand || item.shop?.slice(0, 2) === targetBrand) &&
-                (!targetStatus || item.status === targetStatus) &&
                 (!targetShop || item.shop === targetShop) &&
                 (!contractType || (item.current_contract_type ?? '').includes(contractType)) &&
                 isIncomeMatch // ⭐ ここに年収の判定結果を組み込む
@@ -259,7 +262,7 @@ const MapResale: React.FC = () => {
         createMarkers(filtered);
     }, [
         isLoaded, isMapReady, startMonth, endMonth, originalMarkers,
-        targetMedium, targetBrand, targetStatus, targetShop,
+        targetMedium, targetBrand, targetShop,
         selectedPhase, targetIncome, contractType
     ]);
 
@@ -304,15 +307,6 @@ const MapResale: React.FC = () => {
                                     {medium.map((item, index) => (
                                         <option key={`medium-${index}`} value={item.medium}>{item.medium}</option>
                                     ))}
-                                </Form.Select>
-                            </Col>
-                            <Col xs={12} sm={6} md={2}>
-                                <Form.Select size="sm" value={targetStatus} onChange={(e) => setTargetStatus(e.target.value)} style={{ fontSize: '12px' }}>
-                                    <option value="">ステータスを選択</option>
-                                    <option value="見込み">見込み</option>
-                                    <option value="契約済み">契約済み</option>
-                                    <option value="会社管理">会社管理</option>
-                                    <option value="失注">失注</option>
                                 </Form.Select>
                             </Col>
                             <Col xs={12} sm={6} md={2}>
