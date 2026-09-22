@@ -114,6 +114,13 @@ const competitorQuery = z.object({
     .optional()
     .transform((v) => v ?? 'order'),
   months: z.coerce.number().int().min(1).max(36).optional().transform((v) => v ?? 12),
+  /**
+   * ⚠️ 2026-09-22 追加。⚠️ **担当者・店舗で絞れるようにした**（利用者の指示）。
+   *   > KH八代店のスタッフ井上健太郎の勝敗分析をhtmlで出力して
+   *   ⚠️⚠️ **担当者は「◯◯店 管理」に付け替えられた顧客も旧担当で拾う。**
+   */
+  staff: optionalText,
+  shop: optionalText,
 });
 
 /** レポートの保存。⚠️ html だけは長さの上限を別に見る */
@@ -298,6 +305,8 @@ export const analysis = defineFeature({
         const result = await runCompetitor({
           division: q.division as CompetitorDivision,
           months: q.months,
+          staff: q.staff,
+          shop: q.shop,
         });
 
         recordAnalysisQuery(ctx.req, {
@@ -313,10 +322,26 @@ export const analysis = defineFeature({
             generatedAt: new Date().toISOString(),
             対象: `${result.division}。show_dashboard = 1 の顧客のうち、競合の記録があるものだけ。`,
             期間: `直近 ${result.months} ヶ月`,
+            絞り込み: {
+              担当者: q.staff === undefined || q.staff === '' ? '（指定なし）' : q.staff,
+              店舗: q.shop === undefined || q.shop === '' ? '（指定なし）' : q.shop,
+              担当者の拾い方:
+                '⚠️ 3つの経路のいずれかに当たれば拾う。' +
+                '(1) 現在の担当（「◯◯店 管理」なら旧担当に読み替え）' +
+                '(2) first_interviewed_user（旧担当）' +
+                '(3) interview_sheet.interview_log の staff（実際に面談した人）。' +
+                '⚠️ そのため、いま担当していない商談も本人の実績として出る。',
+            },
             件数: result.counts,
             列の意味: {
               outcome: 'win = 契約（解約を含む） / lost = 失注。決着していない案件と重複は含まない',
               status: '台帳のステータスそのもの',
+              staff:
+                '担当営業。⚠️ 失注や長期化で担当が「◯◯店 管理」に付け替えられた顧客は、' +
+                'first_interviewed_user（旧担当）を担当として扱っている',
+              first_staff:
+                '旧担当（first_interviewed_user）。⚠️ 誰から引き継いだ商談かが分かる。' +
+                '⚠️ 2026年6月より前は記録の運用が始まっておらず、空のことがある',
               month: '契約月（win）または失注月（lost）。失注日が無ければ反響月',
               competitors: '競合欄と面談シートの両方から拾った他社名。複数は | 区切り',
               own_group:

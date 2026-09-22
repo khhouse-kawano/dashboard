@@ -1,5 +1,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { asDate, PHASES } from './columns';
+// ⚠️ 担当営業の式。⚠️ **「◯◯店 管理」は旧担当に読み替える**（dimensions.ts と同じもの）
+import { STAFF_SQL } from './dimensions';
 import { query } from '../../db/pool';
 import type { SqlParam } from '../../db/pool';
 
@@ -384,6 +386,14 @@ export interface CompetitorOptions {
   division: CompetitorDivision;
   /** 何ヶ月分さかのぼるか */
   months: number;
+  /**
+   * ⚠️ 担当営業で絞る（2026-09-22 追加）。
+   *   ⚠️⚠️ **「◯◯店 管理」に付け替えられた顧客は旧担当で拾う**（STAFF_SQL）。
+   *   ⚠️ ⚠️ **氏名は台帳の表記どおりに**（姓名の間の空白を含む）。
+   */
+  staff?: string;
+  /** ⚠️ 店舗で絞る（2026-09-22 追加）。⚠️ 例: KH八代店 */
+  shop?: string;
 }
 
 export interface CompetitorResult {
@@ -424,6 +434,9 @@ export const runCompetitor = async (options: CompetitorOptions): Promise<Competi
 
   const select = [
     'm.status',
+    `${STAFF_SQL} AS staff_name`,
+    // ⚠️ 旧担当そのもの。⚠️ **誰から引き継いだ商談かが分かる**
+    "COALESCE(m.first_interviewed_user, '') AS first_staff",
     'm.in_charge_store',
     'm.brand',
     'm.sales_promotion_name',
@@ -469,6 +482,22 @@ export const runCompetitor = async (options: CompetitorOptions): Promise<Competi
       ` AND (${contractDate} >= ? OR ${reactionDate} >= ?` +
       " OR REPLACE(COALESCE(m.competitor_lost_contract_date, ''), '/', '-') >= ?)" +
       // ⚠️ 競合の手がかりがまったく無い行は最初から取らない
+      // ⚠️ 2026-09-22 追加。⚠️ **担当者・店舗での絞り込み**
+      /**
+       * ⚠️⚠️ **担当者は3つの経路で拾う**（2026-09-22 の指示）。
+       *   ⚠️ 1. 現在の担当（⚠️ **「◯◯店 管理」なら旧担当に読み替え済み** = STAFF_SQL）
+       *   ⚠️ 2. ⚠️ **`first_interviewed_user`（旧担当）そのもの**
+       *        ⚠️ 別の営業に引き継がれた商談も、⚠️ **最初に面談した人の実績として拾う。**
+       *   ⚠️ 3. ⚠️ **`interview_sheet.interview_log` の `staff`**
+       *        ⚠️ ⚠️ **実際に面談した人**。⚠️ 担当でなくても同席・代行がある。
+       * ⚠️ ⚠️ **1つでも当たれば拾う**（OR）。⚠️ **絞りすぎると個人の商談が消える。**
+       */
+      (options.staff === undefined || options.staff === ''
+        ? ''
+        : ` AND (${STAFF_SQL} = ?` +
+          " OR TRIM(COALESCE(m.first_interviewed_user, '')) = ?" +
+          " OR JSON_SEARCH(i.interview_log, 'one', ?, NULL, '$[*].staff') IS NOT NULL)") +
+      (options.shop === undefined || options.shop === '' ? '' : ' AND m.in_charge_store = ?') +
       ' AND (' +
       " COALESCE(m.competitors_text, '') NOT IN ('', 'null')" +
       " OR COALESCE(m.competitor_name, '') NOT IN ('', 'null')" +
@@ -480,7 +509,16 @@ export const runCompetitor = async (options: CompetitorOptions): Promise<Competi
       // ⚠️ 自社名しか出てこない行が落ちるため、多めに取ってから絞る
       ` LIMIT ${quota * 4}`;
 
+    /**
+     * ⚠️⚠️ **並び順は SQL の出現順。**
+     *   ⚠️ ⚠️ **status → 日付3つ → 担当 → 店舗 の順に入れること。**
+     */
     const params: SqlParam[] = [...wanted, from, from, from];
+    // ⚠️ 担当者は3か所で使う（現在の担当 / 旧担当 / 面談シート）
+    if (options.staff !== undefined && options.staff !== '') {
+      params.push(options.staff, options.staff, options.staff);
+    }
+    if (options.shop !== undefined && options.shop !== '') params.push(options.shop);
     return query<DynamicRow>(sql, params);
   };
 
@@ -537,6 +575,8 @@ export const runCompetitor = async (options: CompetitorOptions): Promise<Competi
         ? String(r.contract_month ?? r.registered_month ?? '')
         : lostMonth(String(r.competitor_lost_contract_date ?? '')) ||
           String(r.registered_month ?? ''),
+      staff: String(r.staff_name ?? ''),
+      first_staff: String(r.first_staff ?? ''),
       shop: String(r.in_charge_store ?? ''),
       brand: String(r.brand ?? ''),
       medium: String(r.sales_promotion_name ?? ''),
