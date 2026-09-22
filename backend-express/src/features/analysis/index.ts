@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import { recordAnalysisQuery } from './audit';
+import type { CompetitorDivision } from './competitor';
+import { runCompetitor } from './competitor';
+import { getReport, listReports, MAX_HTML_BYTES, reportSpec, saveReport } from './report';
 import type { DimensionKey } from './dimensions';
 import { DIMENSION_KEYS } from './dimensions';
 import { buildCatalog, buildResponseMeta, unsyncedCaveats } from './meta';
@@ -97,6 +100,37 @@ const funnelQuery = z.object({
     .optional()
     .transform((v) => v ?? (['month', 'section'] as DimensionKey[])),
   ...commonQuery,
+});
+
+/**
+ * 競合分析のデータ。
+ *
+ * ⚠️ `months` は ⚠️ **そのまま渡す行数に効く**（＝Claude 側の読み込み量に効く）。
+ *   ⚠️ 既定は12ヶ月。⚠️ 24を超えると古すぎて打ち手に使えない。
+ */
+const competitorQuery = z.object({
+  division: z
+    .enum(['order', 'kaeru'])
+    .optional()
+    .transform((v) => v ?? 'order'),
+  months: z.coerce.number().int().min(1).max(36).optional().transform((v) => v ?? 12),
+});
+
+/** レポートの保存。⚠️ html だけは長さの上限を別に見る */
+const reportBody = z.object({
+  title: z.string().min(1, 'title は必須です').max(255),
+  category: z.string().max(64).optional().transform((v) => v ?? 'competitor'),
+  division: z.string().max(32).optional().transform((v) => v ?? ''),
+  period: z.string().max(64).optional().transform((v) => v ?? ''),
+  dataAsOf: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'dataAsOf は YYYY-MM-DD 形式で指定してください')
+    .optional(),
+  html: z.string().min(1, 'html は必須です'),
+});
+
+const reportListQuery = z.object({
+  category: z.string().max(64).optional(),
 });
 
 const unsyncedQuery = z.object({
@@ -250,6 +284,173 @@ export const analysis = defineFeature({
           `当月（${ym(0)}）は反響数そのものもまだ増える。`;
 
         return { meta, rows };
+      },
+    }),
+
+    'GET /competitor': route({
+      summary:
+        '競合との勝敗を分析するための、顧客1件ごとのデータを返す。' +
+        '個人情報は伏字。集計値ではないのはこのエンドポイントだけ',
+      auth: 'analysisKey',
+      query: competitorQuery,
+      handler: async ({ query: q, ctx }) => {
+        const startedAt = Date.now();
+        const result = await runCompetitor({
+          division: q.division as CompetitorDivision,
+          months: q.months,
+        });
+
+        recordAnalysisQuery(ctx.req, {
+          endpoint: 'competitor',
+          filters: { division: q.division },
+          rowCount: result.rows.length,
+          durationMs: Date.now() - startedAt,
+          status: 'ok',
+        });
+
+        return {
+          meta: {
+            generatedAt: new Date().toISOString(),
+            対象: `${result.division}。show_dashboard = 1 の顧客のうち、競合の記録があるものだけ。`,
+            期間: `直近 ${result.months} ヶ月`,
+            件数: result.counts,
+            列の意味: {
+              outcome: 'win = 契約（解約を含む） / lost = 失注。決着していない案件と重複は含まない',
+              status: '台帳のステータスそのもの',
+              month: '契約月（win）または失注月（lost）。失注日が無ければ反響月',
+              competitors: '競合欄と面談シートの両方から拾った他社名。複数は | 区切り',
+              own_group:
+                '国分ハウジンググループ自身の社名。' +
+                '⚠️ 競合ではなくグループ内での取り合いを表す。競合の勝敗に数えないこと',
+              lost_reason: '選択式の失注理由。⚠️ 空欄が多い',
+              memo:
+                '面談シート（面談ごとに担当者が書いた記録）。「日付 アクション: 内容」を / でつないだもの。' +
+                '⚠️ 他社名が出てくる面談を優先して入れてあり、全部の面談が入っているわけではない',
+              has_land: '顧客が土地を持っているか',
+              budget: '予算の帯。⚠️ 金額そのものは返していない',
+            },
+            データ品質の注意点: [
+              '⚠️ 最重要: counts.truncated = true のとき、返しているのは全件ではない。' +
+                '契約・失注それぞれ最大 ' +
+                `${result.counts.quotaPerSide} 件までを新しい順に返している。` +
+                '⚠️ wins と losses から勝率を計算し、全社の実力値として語ってはならない。',
+              '⚠️ lost_reason が空の行が多いのは入力されていないためで、理由が無いという意味ではない。' +
+                '記録率そのものを課題として扱うこと。',
+              '⚠️ competitors は自由記述から拾っているため、表記ゆれがある' +
+                '（例:「タマホーム」と「タマホーム_大安心の家」）。数えるときは寄せること。',
+              '⚠️ counts.foundFromMemo は、競合欄が空で面談シートからのみ他社名が見つかった件数。' +
+                '競合欄の記録率が低いことを示す。',
+              '⚠️ 建売分譲事業には「失注」というステータスが無いため「追客終了」を負けとして扱っている。' +
+                'これは他社に負けたとは限らず、予算・時期の都合も含む。',
+              '⚠️ 個人情報（氏名・電話・メール・住所・物件名）は含めていない。' +
+                'memo の中の **** は伏字である。⚠️ 中身を推測しないこと。',
+            ],
+            HTMLで出力したい場合: 'GET /analysis/report/spec に書き方の指示がある。',
+          },
+          columns: result.columns,
+          rows: result.rows,
+        };
+      },
+    }),
+
+    'GET /report/spec': route({
+      summary: '分析レポート（HTML）の書き方と、保存のしかたを返す',
+      auth: 'analysisKey',
+      handler: async ({ ctx }) => {
+        recordAnalysisQuery(ctx.req, { endpoint: 'report/spec', durationMs: 0, status: 'ok' });
+        return reportSpec();
+      },
+    }),
+
+    'GET /report': route({
+      summary: '保存済みの分析レポートの一覧（本文は含まない）',
+      auth: 'analysisKey',
+      query: reportListQuery,
+      handler: async ({ query: q, ctx }) => {
+        const startedAt = Date.now();
+        const rows = await listReports(q.category);
+
+        recordAnalysisQuery(ctx.req, {
+          endpoint: 'report/list',
+          rowCount: rows.length,
+          durationMs: Date.now() - startedAt,
+          status: 'ok',
+        });
+
+        return { rows };
+      },
+    }),
+
+    'POST /report': route({
+      summary: '書き上げた分析レポート（HTML）を保存する。ダッシュボードの画面に出る',
+      auth: 'analysisKey',
+      body: reportBody,
+      handler: async ({ body, ctx }) => {
+        const startedAt = Date.now();
+
+        /**
+         * ⚠️⚠️ **中身は検査しない。** ⚠️ 画面側で iframe に閉じ込める。
+         *   ⚠️ 検査ですり抜けを防ぐ設計にしないこと（必ず抜け道が残る）。
+         * ⚠️ 大きさだけは見る。⚠️ **DB と画面の両方が詰まるため。**
+         */
+        if (Buffer.byteLength(body.html, 'utf8') > MAX_HTML_BYTES) {
+          recordAnalysisQuery(ctx.req, {
+            endpoint: 'report/save',
+            durationMs: Date.now() - startedAt,
+            status: 'bad_request',
+            errorMessage: 'html too large',
+          });
+          throw new Error(
+            `HTML が大きすぎます（上限 ${Math.floor(MAX_HTML_BYTES / 1024)}KB）。` +
+              '画像を埋め込んでいる場合は外してください。'
+          );
+        }
+
+        const no = await saveReport({
+          title: body.title,
+          category: body.category,
+          division: body.division,
+          period: body.period,
+          html: body.html,
+          // ⚠️ MCP から入った分は誰が実行したか分からない。⚠️ **画面と区別が付くようにする**
+          staff: 'MCP',
+          dataAsOf: body.dataAsOf,
+        });
+
+        recordAnalysisQuery(ctx.req, {
+          endpoint: 'report/save',
+          rowCount: 1,
+          durationMs: Date.now() - startedAt,
+          status: 'ok',
+        });
+
+        return {
+          no,
+          message: '保存しました。ダッシュボードの 他社動向 → Claudeによる競合分析 から開けます。',
+        };
+      },
+    }),
+
+    'GET /report/:no': route({
+      summary: '保存済みの分析レポートを1件、本文つきで返す',
+      auth: 'analysisKey',
+      params: z.object({ no: z.coerce.number().int().positive() }),
+      handler: async ({ params, ctx }) => {
+        const startedAt = Date.now();
+        const row = await getReport(params.no);
+
+        recordAnalysisQuery(ctx.req, {
+          endpoint: 'report/get',
+          rowCount: row === null ? 0 : 1,
+          durationMs: Date.now() - startedAt,
+          status: row === null ? 'bad_request' : 'ok',
+        });
+
+        if (row === null) {
+          throw new Error(`レポート ${params.no} は見つかりませんでした。`);
+        }
+
+        return row;
       },
     }),
 
