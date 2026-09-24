@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
+// ⚠️ 見出しの折り返しを止める CSS（components/rankingUi.tsx）
+import { RankingStyle } from '../rankingUi';
 import Table from "react-bootstrap/Table";
 import "../SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -405,8 +407,10 @@ const RankResale = () => {
     };
 
     return (
-        <div style={{ overflowX: 'scroll' }}>
-            <div className='bg-white p-2' style={{ width: isSp ? '1200px' : '1600px' }}>
+        <div>
+            {/* ⚠️ 見出しが縦書きになるのを防ぐ CSS だけを借りている（rankingUi.tsx の .rk_scroll_x） */}
+            <RankingStyle />
+            <div className='bg-white p-2'>
                 <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                 <div className="row mt-3 mb-4" >
                     <div className="col d-flex">
@@ -418,7 +422,8 @@ const RankResale = () => {
                         </select>
                     </div>
                 </div>
-                <div>
+                {/* ⚠️⚠️ **表は横スクロール。** ⚠️ 見出しを折り返さず、はみ出したぶんを流す */}
+                <div className="rk_scroll_x">
                     <Table bordered>
                         <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
                             <tr className="text-center">

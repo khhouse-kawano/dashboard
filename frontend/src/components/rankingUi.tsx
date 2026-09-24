@@ -109,6 +109,26 @@ export const RankingStyle = () => (
         .rk_plain tbody tr:hover > td { background: #f8fafc; }
 
         /*
+          ⚠️⚠️ **見出しが縦書きになるのを防ぐ**（2026-09-24 の指示）。
+
+            ⚠️ 「粗利額/契約数(率)」のような長い見出しが、
+              ⚠️ ⚠️ **列幅に収まらず1文字ずつ改行されて縦に伸びていた。**
+
+            ⚠️ 直し方は ⚠️ **折り返さない ＋ はみ出したぶんは横スクロール。**
+              ⚠️ ⚠️ **表の幅をピクセルで決め打ちしない。**
+                ⚠️ 列の数と文字数は事業ごとに違い、⚠️ **決め打つと必ずどこかで溢れる。**
+              ⚠️ width: max-content で ⚠️ **中身に合わせて伸ばし**、
+                ⚠️ 外側（.rk_scroll_x）で受け止める。
+              ⚠️ min-width: 100% は ⚠️ **列が少ないときに表が痩せないため。**
+
+            ⚠️⚠️ **この style の中にバッククォートを書かないこと**（上にも同じ注意がある）。
+              ⚠️ ⚠️ **2026-09-22 と 2026-09-24 に、CSSのコメントに書いて2度壊した。**
+        */
+        .rk_scroll_x { width: 100%; overflow-x: auto; }
+        .rk_scroll_x > table { width: max-content; min-width: 100%; }
+        .rk_scroll_x th, .rk_scroll_x td { white-space: nowrap; }
+
+        /*
           ⚠️⚠️ **react-bootstrap の Card / Form.Select を使っている画面用**（map/）。
             ⚠️ あちらは ⚠️ **地図と表が絡み合っており、要素の置き換えは事故になりやすい。**
             ⚠️ そこで ⚠️ **外側に .rk_screen を付けて、色と角だけを揃える。**

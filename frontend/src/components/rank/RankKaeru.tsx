@@ -463,7 +463,7 @@ const RankOrder = () => {
     };
 
     const searchParts = () => {
-        return <div className='bg-white rk_wrap' style={{ width: isSp ? '1300px' : '1800px' }}>
+        return <div className='bg-white rk_wrap'>
             <RankingStyle />
             <div className="rk_head">
                 <span className="rk_title">目標達成状況（建売分譲事業）</span>
@@ -482,7 +482,7 @@ const RankOrder = () => {
                 </div>
             </div>
             {/* ⚠️ 2段見出しの表なので中身は触らず、外側の見た目だけ揃えている（rankingUi.tsx） */}
-            <div className="rk_plain">
+            <div className="rk_plain rk_scroll_x">
                 <Table bordered>
                     <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
                         <tr className="text-center">
@@ -599,7 +599,8 @@ const RankOrder = () => {
     };
 
     return (
-        <div style={{ overflowX: 'scroll' }}>
+        // ⚠️ 横スクロールは表の側（.rk_scroll_x）で受け持つ。⚠️ ここでは持たない
+        <div>
             {searchParts()}
             <Modal show={modalList.length > 0} onHide={modalClose} size='xl'>
                 <Modal.Header closeButton>
