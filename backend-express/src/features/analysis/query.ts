@@ -1,5 +1,19 @@
 import type { RowDataPacket } from 'mysql2/promise';
-import { asDate, MIN_VALID_DATE, phaseDate, TARGET_DIVISION, UNSET_LABEL, groupExpr } from './columns';
+import {
+  ACTUAL_SPEC,
+  actualDateExprs,
+  actualFromDateExpr,
+  assertBucket,
+  bucketExpr,
+  bucketsOf,
+  currentMonth,
+  DEFAULT_MONTHS,
+  MAX_BUCKETS,
+  monthRange,
+  monthsAgo,
+  TIME_DIMENSIONS,
+} from './actual';
+import { asDate, daysBetween, MIN_VALID_DATE, phaseDate, TARGET_DIVISION, UNSET_LABEL, groupExpr } from './columns';
 import type { AnalysisDivision } from './columns';
 import { DIVISION_CONFIG, phaseDateOf } from './columns';
 import type { DimensionKey } from './dimensions';
@@ -32,13 +46,34 @@ export const MAX_ROWS = 2000;
 export const MAX_BYTES = 250 * 1024;
 
 /** 集計の基準日。コホートをどちらの日付で切るか */
-export type Basis = 'reaction' | 'contract';
+export type Basis = 'reaction' | 'contract' | 'actual';
 
 export const BASES: Record<Basis, { sql: string; label: string; note: string }> = {
+  /**
+   * ⚠️⚠️ **2026-09-24 に追加し、既定にした**（利用者の指示）。
+   *   > とくに「反響日起算で」「実績日起算で」の文言がない場合、デフォルトは実績日起算とする
+   */
+  actual: {
+    // ⚠️ 指標ごとに日付が違うため、1つの式では表せない。組み立ては actual.ts
+    sql: '(指標ごとに異なる)',
+    label: '実績日',
+    note:
+      '⚠️ 指標ごとに「その出来事が起きた日」でその月に数える（契約数は契約日、来場数は来場日）。' +
+      '⚠️ ダッシュボードの店舗別動向（shopTrend）・反響推移（customerTrend）と同じ数え方であり、' +
+      '画面の数字と突き合わせられるのはこちら。' +
+      '⚠️ 反響の獲得月とは対応しない。1月に反響を取り3月に契約した顧客は、' +
+      'leads が1月、contracts が3月に立つ。' +
+      '⚠️ そのため同じ月の leads と contracts から転換率を出しても「その反響の契約率」にはならない。' +
+      'コホートとしての転換率を見たいときは basis = reaction を使うこと。' +
+      '⚠️ 実績日を持たない指標（lost / 架電・面談ログ系 / highRank など）は null を返す。0件ではない。',
+  },
   reaction: {
     sql: phaseDate('reaction'),
     label: '反響取得日',
-    note: 'その月に獲得した反響が、その後どこまで進んだかを見る（コホート集計）。',
+    note:
+      'その月に獲得した反響が、その後どこまで進んだかを見る（コホート集計）。' +
+      '⚠️ ダッシュボードの shop/ customer 画面と同じ数え方。' +
+      '⚠️ 「反響日起算で」と言われたらこれを使う。',
   },
   contract: {
     sql: phaseDate('contract'),
@@ -168,34 +203,57 @@ const buildFrom = (
  * ⚠️ プレースホルダはSQLの出現順にバインドされる。
  *   buildFrom() のパラメータを必ず先に並べること。
  */
+/**
+ * @param basisSql 集計基準日の式。
+ *   ⚠️⚠️ **`null` は実績日起算（basis = actual）を意味する。**
+ *     ⚠️ ⚠️ **基準日による絞り込みを一切しない。**
+ *       ⚠️ 絞ると「反響が期間外で、契約だけが期間内」の顧客が落ちる。
+ */
 const buildWhere = (
   options: PivotOptions,
-  basisSql: string
+  basisSql: string | null
 ): { sql: string; params: SqlParam[] } => {
-  const conditions = [
-    'm.show_dashboard = 1',
-    `${basisSql} IS NOT NULL`,
-    // 0004年のような入力ミスが実在し、月次軸を壊すため足切りする
-    `${basisSql} >= ?`,
-  ];
-  const params: SqlParam[] = [MIN_VALID_DATE];
+  const conditions = ['m.show_dashboard = 1'];
+  const params: SqlParam[] = [];
 
-  if (options.from !== undefined) {
-    conditions.push(`DATE_FORMAT(${basisSql}, '%Y-%m') >= ?`);
-    params.push(options.from);
+  if (basisSql !== null) {
+    conditions.push(`${basisSql} IS NOT NULL`);
+    // 0004年のような入力ミスが実在し、月次軸を壊すため足切りする
+    conditions.push(`${basisSql} >= ?`);
+    params.push(MIN_VALID_DATE);
+
+    if (options.from !== undefined) {
+      conditions.push(`DATE_FORMAT(${basisSql}, '%Y-%m') >= ?`);
+      params.push(options.from);
+    }
+    if (options.to !== undefined) {
+      conditions.push(`DATE_FORMAT(${basisSql}, '%Y-%m') <= ?`);
+      params.push(options.to);
+    }
   }
-  if (options.to !== undefined) {
-    conditions.push(`DATE_FORMAT(${basisSql}, '%Y-%m') <= ?`);
-    params.push(options.to);
-  }
+
   if (options.excludeDuplicated) {
     conditions.push("COALESCE(m.status, '') <> '重複'");
   }
 
   for (const [key, value] of Object.entries(options.filters)) {
     if (value === undefined) continue;
+
+    /**
+     * ⚠️⚠️ **実績日起算では月・四半期・年で絞り込めない。**
+     *   ⚠️ 指標ごとに日付が違うため、⚠️ **どの指標の月で絞るのかが決まらない。**
+     *   ⚠️ ⚠️ **from / to を使ってもらう。**
+     */
+    if (basisSql === null && TIME_DIMENSIONS.includes(key as DimensionKey)) {
+      throw AppError.badRequest(
+        `実績日起算（basis = actual）では ${key} での絞り込みはできません。` +
+          '指標ごとに見る日付が違うため、どの日付の月で絞るのかが決まらないためです。' +
+          'from / to で期間を指定するか、basis = reaction（反響日起算）を使ってください。'
+      );
+    }
+
     // 絞り込みも軸と同じ許可リストのSQL式を使う。値はプレースホルダ経由
-    conditions.push(`${dimension(key as DimensionKey).sql(basisSql)} = ?`);
+    conditions.push(`${dimension(key as DimensionKey).sql(basisSql ?? 'NULL')} = ?`);
     params.push(value);
   }
 
@@ -225,9 +283,21 @@ const assertPayloadSize = (rows: PivotRow[], groupBy: readonly string[]): void =
   }
 };
 
+/** ⚠️ 実績日起算のときだけ付く情報。meta に載せて Claude に渡す */
+export interface ActualInfo {
+  /** ⚠️ 省略されたときに補った期間も含む、実際に使った期間 */
+  from: string;
+  to: string;
+  /** 月・四半期・年のうち、バケットとして使った軸 */
+  bucketDimension?: DimensionKey;
+  /** ⚠️⚠️ **null を返した指標とその理由**（⚠️ 0件ではない） */
+  nullMetrics: Record<string, string>;
+}
+
 export interface PivotResult {
   rows: PivotRow[];
   basis: (typeof BASES)[Basis];
+  actual?: ActualInfo;
 }
 
 /**
@@ -240,6 +310,9 @@ export const basisSqlFor = (basis: Basis, division: AnalysisDivision): string =>
   basis === 'contract' ? phaseDateOf(division, 'contract') : phaseDateOf(division, 'reaction');
 
 export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
+  // ⚠️ 実績日起算は組み立てがまるごと違う（指標ごとに日付が変わる）
+  if (options.basis === 'actual') return runActualPivot(options);
+
   const division: AnalysisDivision = options.division ?? 'order';
   const basis = BASES[options.basis];
   const basisSql = basisSqlFor(options.basis, division);
@@ -342,6 +415,240 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
   assertPayloadSize(rows, options.groupBy);
 
   return { rows, basis };
+};
+
+/**
+ * 実績日起算（basis = actual）の集計。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **反響日起算と決定的に違う点**
+ *
+ *   1. ⚠️ **WHERE で基準日を絞らない。**
+ *      ⚠️ 絞ると「反響は期間外、契約だけ期間内」の顧客が落ちる。
+ *   2. ⚠️ **指標ごとに見る日付が違う。**
+ *      ⚠️ そのため `metricSqlFor()` は使わず、actual.ts の定義から組み立てる。
+ *   3. ⚠️⚠️ **月の軸は顧客の列からではなく、こちらが作った月のカレンダーから出す。**
+ *      ⚠️ 1行の顧客が複数の月に数えられるため、CROSS JOIN で月を掛ける。
+ *
+ * ⚠️ 期間を省略すると ⚠️ **直近24ヶ月**になる（全期間だと月×全行で重い）。
+ * ─────────────────────────────────────────────
+ */
+const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
+  const division: AnalysisDivision = options.division ?? 'order';
+  const basis = BASES.actual;
+
+  // ⚠️ 期間を確定する。⚠️ **省略されたら補う**（実績日起算では必須）
+  const to = options.to ?? currentMonth();
+  const from = options.from ?? monthsAgo(DEFAULT_MONTHS - 1);
+
+  if (from > to) {
+    throw AppError.badRequest(`from（${from}）が to（${to}）より後になっています。`);
+  }
+
+  const months = monthRange(from, to);
+  if (months.length > MAX_BUCKETS) {
+    throw AppError.badRequest(
+      `実績日起算で指定できる期間は最大 ${MAX_BUCKETS} ヶ月です（指定: ${from} 〜 ${to}）。` +
+        'from / to で期間を絞ってください。'
+    );
+  }
+
+  /**
+   * ⚠️⚠️ **時間軸は1つまで。**
+   *   ⚠️ 月と年を同時に指定されても、⚠️ **どちらのバケットで数えるか決まらない。**
+   */
+  const timeDimensions = options.groupBy.filter((key) => TIME_DIMENSIONS.includes(key));
+  if (timeDimensions.length > 1) {
+    throw AppError.badRequest(
+      `実績日起算では時間の軸（${TIME_DIMENSIONS.join(' / ')}）を同時に2つ以上は使えません` +
+        `（指定: ${timeDimensions.join(', ')}）。1つに絞ってください。`
+    );
+  }
+  const timeDimension = timeDimensions[0];
+  const buckets =
+    timeDimension === undefined ? null : bucketsOf(timeDimension, months).map(assertBucket);
+
+  const requested = options.metrics;
+  const medianMetrics = requested.filter((key) => metric(key).kind === 'median');
+
+  // 比率の算出に必要な件数指標は、明示的に要求されていなくても内部で取得する
+  const needed = new Set<MetricKey>(requested);
+  if (options.rates.length > 0) {
+    needed.add('leads');
+    for (const rate of options.rates) needed.add(RATES[rate].numerator);
+  }
+  const countMetrics = [...needed].filter((key) => metric(key).kind === 'count');
+
+  /**
+   * ⚠️ 実績日起算では架電・面談ログの指標は null を返すため、
+   *   ⚠️ ⚠️ **重い JOIN が要るのは軸だけ**になる。
+   */
+  const need: JoinNeed = { inquiry: false, call: false, interview: false };
+  for (const key of [...options.groupBy, ...(Object.keys(options.filters) as DimensionKey[])]) {
+    if (dimension(key).needsInquiry === true) need.inquiry = true;
+  }
+
+  const fromClause = buildFrom(need, division);
+  const where = buildWhere(options, null);
+
+  let fromSql = fromClause.sql;
+  if (buckets !== null) {
+    /**
+     * ⚠️⚠️ **バケットはSQLに直接書き込んでいる。**
+     *   ⚠️ 値は from / to から**組み立てた**もので、⚠️ `assertBucket()` を通してある。
+     *   ⚠️ ⚠️ **ここを緩めないこと。**
+     */
+    const rows = buckets.map((bucket) => `SELECT '${bucket}' AS bucket`).join('\n      UNION ALL ');
+    fromSql += `\n    CROSS JOIN (\n      ${rows}\n    ) cal`;
+  }
+
+  // ⚠️ SELECT 句のプレースホルダは FROM / WHERE より**先に**並べること
+  const selectParams: SqlParam[] = [];
+
+  /** その日付が、いま数えているバケット（または期間全体）に入るか */
+  const inRange = (dateExpr: string): string => {
+    if (buckets !== null && timeDimension !== undefined) {
+      return `${bucketExpr(timeDimension, dateExpr)} = cal.bucket`;
+    }
+    selectParams.push(from, to);
+    return `DATE_FORMAT(${dateExpr}, '%Y-%m') BETWEEN ? AND ?`;
+  };
+
+  const dimensionSelects = options.groupBy.map((key, i) =>
+    key === timeDimension
+      ? `cal.bucket AS d${i}`
+      : // ⚠️ 時間以外の軸は基準日を使わない。ダミーを渡す
+        `${dimension(key).sql('NULL')} AS d${i}`
+  );
+
+  const nullMetrics: Record<string, string> = {};
+
+  const metricSelects = countMetrics.map((key, i) => {
+    const spec = ACTUAL_SPEC[key];
+
+    // ⚠️⚠️ **実績日が無い指標は null。** ⚠️ **0 にしないこと**
+    if (spec.kind === 'none') {
+      if (requested.includes(key)) nullMetrics[key] = spec.reason;
+      return `NULL AS a${i}`;
+    }
+
+    if (spec.kind === 'avgDays') {
+      // ⚠️ 終点の日がその期間にある顧客だけで平均する（例: その月に契約した人）
+      const end = phaseDateOf(division, spec.phase);
+      if (end === 'NULL') return `NULL AS a${i}`;
+      const value = daysBetween(actualFromDateExpr(division, spec.from), end);
+      return `ROUND(AVG(CASE WHEN ${inRange(end)} THEN ${value} END), 1) AS a${i}`;
+    }
+
+    const dates = actualDateExprs(division, spec);
+    // ⚠️ その事業に無い工程（注文の「申込」など）は常に0件
+    if (dates.length === 0) return `0 AS a${i}`;
+
+    const hit = dates.map((dateExpr) => `(${inRange(dateExpr)})`).join(' OR ');
+    /**
+     * ⚠️⚠️ **`COALESCE` を外さないこと。**
+     *   ⚠️ 日付が NULL の行では比較結果も NULL になり、
+     *     ⚠️ ⚠️ **全行が NULL だと SUM が 0 ではなく NULL を返す。**
+     */
+    return `SUM(COALESCE(${hit}, 0)) AS a${i}`;
+  });
+
+  const groupNumbers = options.groupBy.map((_, i) => i + 1).join(', ');
+  const groupByClause = options.groupBy.length === 0 ? '' : `GROUP BY ${groupNumbers}`;
+  const orderByClause = options.groupBy.length === 0 ? '' : `ORDER BY ${groupNumbers}`;
+
+  const raws = await query<DynamicRow>(
+    `
+    SELECT ${[...dimensionSelects, ...metricSelects].join(',\n           ')}
+    ${fromSql}
+    ${where.sql}
+    ${groupByClause}
+    ${orderByClause}
+    LIMIT ${MAX_ROWS + 1}
+  `,
+    [...selectParams, ...fromClause.params, ...where.params]
+  );
+
+  if (raws.length > MAX_ROWS) {
+    throw AppError.badRequest(
+      `集計結果が ${MAX_ROWS} 行を超えました。groupBy の軸を減らすか、from / to で期間を絞ってください。` +
+        `（指定された軸: ${options.groupBy.join(', ')}）`
+    );
+  }
+
+  const rows: PivotRow[] = raws.map((raw) => {
+    const row: PivotRow = {};
+    options.groupBy.forEach((key, i) => {
+      row[key] = (raw[`d${i}`] as string | null) ?? UNSET_LABEL;
+    });
+
+    const values = new Map<MetricKey, number | null>();
+    countMetrics.forEach((key, i) => values.set(key, toNumber(raw[`a${i}`])));
+
+    for (const key of requested) {
+      const m = metric(key);
+      if (m.kind !== 'count') continue;
+      const value = values.get(key) ?? null;
+      row[key] = value !== null && m.decimal !== true ? Math.round(value) : value;
+    }
+
+    const leads = values.get('leads');
+    for (const rate of options.rates) {
+      const numerator = values.get(RATES[rate].numerator);
+      row[rate] =
+        leads === null || leads === undefined || leads === 0 || numerator === null || numerator === undefined
+          ? null
+          : Math.round((numerator / leads) * 1000) / 10;
+    }
+
+    return row;
+  });
+
+  if (medianMetrics.length > 0) {
+    await attachMediansActual(rows, medianMetrics, options, need, division, from, to, nullMetrics);
+  }
+
+  assertPayloadSize(rows, options.groupBy);
+
+  return {
+    rows,
+    basis,
+    actual: { from, to, bucketDimension: timeDimension, nullMetrics },
+  };
+};
+
+/**
+ * 実績日起算の中央値。
+ *
+ * ⚠️⚠️ **中央値だけは指標ごとに基準日を差し替えて、普通のコホート集計として取る。**
+ *   ⚠️ 例: `medianDaysToContract` は ⚠️ **契約日を基準日にする**。
+ *     ⚠️ ⚠️ **その月に契約した顧客のリードタイム**になり、画面の読み方と一致する。
+ *   ⚠️ 月のバケットは `DATE_FORMAT(契約日, '%Y-%m')` になるので、
+ *     ⚠️ **上のカレンダー由来のバケット文字列とそのまま突き合う。**
+ */
+const attachMediansActual = async (
+  rows: PivotRow[],
+  medianMetrics: MetricKey[],
+  options: PivotOptions,
+  need: JoinNeed,
+  division: AnalysisDivision,
+  from: string,
+  to: string,
+  nullMetrics: Record<string, string>
+): Promise<void> => {
+  for (const key of medianMetrics) {
+    const spec = ACTUAL_SPEC[key];
+    const basisSql = spec.kind === 'median' ? phaseDateOf(division, spec.phase) : 'NULL';
+
+    // ⚠️ その事業に無い工程。⚠️ 0 ではなく null を返す
+    if (basisSql === 'NULL') {
+      nullMetrics[key] = `${division === 'kaeru' ? '建売分譲事業' : '注文事業'}にこの工程が無いため算出できない。`;
+      for (const row of rows) row[key] = null;
+      continue;
+    }
+
+    await attachMedians(rows, [key], { ...options, from, to }, basisSql, need);
+  }
 };
 
 /**

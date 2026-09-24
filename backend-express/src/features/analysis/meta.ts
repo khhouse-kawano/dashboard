@@ -4,8 +4,9 @@ import type { DimensionKey } from './dimensions';
 import { DIMENSION_KEYS, dimension } from './dimensions';
 import type { MetricKey, RateKey } from './metrics';
 import { METRIC_KEYS, metric, RATE_KEYS, RATES } from './metrics';
-import type { Basis } from './query';
+import type { ActualInfo, Basis } from './query';
 import { BASES, MAX_BYTES, MAX_ROWS, UNSYNCED_DIMENSION_KEYS, unsyncedDimensionLabel } from './query';
+import { DEFAULT_MONTHS } from './actual';
 
 /**
  * レスポンスに添える説明文。
@@ -29,10 +30,30 @@ export const caveats = (): string[] => [
     '実際に顧客が紐づく店舗は28店舗、対象は約23,000件（2026-08時点）。' +
     '件数は日々増えるため、正確な母数を知りたいときは groupBy を空にして leads を取ること。' +
     '既存のKPI分析画面と同じ絞り込み条件。',
-  'さらに「集計基準日が有効に入っている行」だけを集計する。' +
-    'basis = reaction（既定）では反響取得日が空の約2,300件が母数から外れ、対象は約20,500件になる。' +
+  '⚠️⚠️ 最重要: 集計基準日（basis）には「実績日起算」と「反響日起算」の2通りがあり、' +
+    '同じ質問でも数字がまったく変わる。' +
+    '⚠️ basis = actual（実績日起算。**既定**）… 指標ごとに「その出来事が起きた日」で数える。' +
+    'ダッシュボードの店舗別動向（shopTrend）・反響推移（customerTrend）と同じ数え方で、' +
+    '画面の数字と突き合わせられるのはこちら。' +
+    '⚠️ basis = reaction（反響日起算）… その月に獲得した反響が、その後どこまで進んだかを追う（コホート）。' +
+    'ダッシュボードの shop / customer 画面と同じ数え方。' +
+    '⚠️⚠️ 利用者が「反響日起算で」と言ったときだけ reaction を指定し、' +
+    '「実績日起算で」または**どちらとも言わなかったとき**は指定しない（＝actual）。',
+  'さらに basis = reaction / contract では「集計基準日が有効に入っている行」だけを集計する。' +
+    'basis = reaction では反響取得日が空の約2,300件が母数から外れ、対象は約20,500件になる。' +
     'basis = contract では契約日が入っている約950件だけが対象になり母数が大きく変わるため、' +
-    'basis の違う結果同士を件数で比較してはならない。',
+    'basis の違う結果同士を件数で比較してはならない。' +
+    '⚠️ basis = actual は基準日で母数を絞らない（指標ごとに見る日付が違うため）。',
+  '⚠️⚠️ basis = actual では、同じ行の leads と contracts は別々の顧客である。' +
+    '1月に反響を取り3月に契約した顧客は leads が1月、contracts が3月に立つ。' +
+    '⚠️ そのため同じ月の contracts ÷ leads を「その月の反響の契約率」と読んではならない。' +
+    '⚠️ それを知りたいときは basis = reaction を使うこと。' +
+    '⚠️ 月ごとの実績の推移を見るのが実績日起算の目的である。',
+  '⚠️⚠️ basis = actual では、実績日を持たない指標は null を返す（0件ではない）。' +
+    '該当するのは lost / prospective / duplicated / highRank（台帳のステータスや評価で、日付が無い）と ' +
+    'callCountAvg / callConnectedAvg / noCallRecord / interviewLogAvg / interviewsLed（ログ件数の現在値）。' +
+    '⚠️ これらを知りたいときは basis = reaction で取り直すこと。' +
+    '⚠️ null を「0件」と述べてはならない。',
   'master_data は全列が text 型。日付は同じ列に「YYYY/MM/DD」と「YYYY-MM-DD」が混在しており' +
     '（反響取得日では約97%がスラッシュ形式）、API側で区切り文字を正規化してから集計している。',
   '⚠️ 最重要: フェーズの到達件数は単調減少しない。各フェーズの日付は担当者が個別に入力する運用で、' +
@@ -156,9 +177,16 @@ export const buildCatalog = (): Record<string, unknown> => ({
     groupBy: '集計軸。カンマ区切りまたは繰り返し指定。最大3個。',
     metrics: '指標。カンマ区切り。pivot でのみ指定できる。',
     rates: '比率。カンマ区切り。funnel では全種類が自動で付く。',
-    basis: '集計基準日。reaction（既定）または contract。',
-    from: '開始月。YYYY-MM 形式。省略すると最古のデータから。',
-    to: '終了月。YYYY-MM 形式。省略すると最新のデータまで。',
+    basis:
+      '⚠️⚠️ 集計基準日。actual（実績日起算。**既定**）/ reaction（反響日起算）/ contract。' +
+      '⚠️ 利用者が「実績日起算で」と言った場合、または**どちらとも言わなかった場合**は指定しない（＝actual）。' +
+      '⚠️ 利用者が「反響日起算で」と言った場合だけ reaction を指定する。' +
+      '⚠️⚠️ MCPサーバーの説明文には「既定は reaction」と書かれているが**古い**。こちらが正しい。',
+    from:
+      '開始月。YYYY-MM 形式。' +
+      `⚠️ basis=actual では省略すると直近 ${DEFAULT_MONTHS} ヶ月になる（全期間ではない）。` +
+      'basis=reaction / contract では省略すると最古のデータから。',
+    to: '終了月。YYYY-MM 形式。省略すると当月（basis=actual）または最新のデータまで。',
     excludeDuplicated: 'true にするとステータス「重複」を母数から外す。既定は false。',
     division:
       '事業。order（注文事業。既定）または kaeru（建売分譲事業）。' +
@@ -200,6 +228,8 @@ export interface ResponseMetaInput {
   rowCount: number;
   /** ⚠️ 事業（2026-09-22 追加）。省略すると注文事業 */
   division?: AnalysisDivision;
+  /** ⚠️ 実績日起算のときだけ付く（2026-09-24 追加） */
+  actual?: ActualInfo;
 }
 
 /** 集計レスポンスに添える meta を組み立てる */
@@ -228,10 +258,54 @@ export const buildResponseMeta = (input: ResponseMetaInput): Record<string, unkn
       }
     : {}),
   集計基準日: `${input.basis.label} … ${input.basis.note}`,
-  期間: {
-    from: input.from ?? '指定なし（最古のデータから）',
-    to: input.to ?? '指定なし（最新のデータまで）',
-  },
+  期間:
+    input.actual === undefined
+      ? {
+          from: input.from ?? '指定なし（最古のデータから）',
+          to: input.to ?? '指定なし（最新のデータまで）',
+        }
+      : {
+          from: input.actual.from,
+          to: input.actual.to,
+          // ⚠️ 補ったことを必ず伝える。黙って24ヶ月に絞ると「全期間の数字」と誤読される
+          補足:
+            input.from === undefined || input.to === undefined
+              ? `⚠️ 期間の指定が無かったため、直近 ${DEFAULT_MONTHS} ヶ月（${input.actual.from} 〜 ${input.actual.to}）に絞って集計した。` +
+                '⚠️ 全期間の数字ではない。別の期間を見たいときは from / to を指定すること。'
+              : '指定された期間で集計した。',
+        },
+  ...(input.actual === undefined
+    ? {}
+    : {
+        /**
+         * ⚠️⚠️ **null と 0 を必ず区別させる。**
+         *   ⚠️ ⚠️ **書かないと Claude が「失注0件」と語る。**
+         */
+        ...(Object.keys(input.actual.nullMetrics).length === 0
+          ? {}
+          : {
+              実績日が無く算出できなかった指標: {
+                説明:
+                  '⚠️⚠️ これらは null を返している。0件という意味ではない。' +
+                  '⚠️ 件数を知りたいときは basis=reaction（反響日起算）で取り直すこと。',
+                内訳: input.actual.nullMetrics,
+              },
+            }),
+        ...(input.actual.bucketDimension === undefined
+          ? {
+              実績日起算の数え方:
+                '⚠️ 時間の軸（month / quarter / year）を指定していないため、' +
+                '指定期間の中でその出来事が起きた件数を1つにまとめている。',
+            }
+          : {
+              実績日起算の数え方:
+                `⚠️ ${input.actual.bucketDimension} ごとに、その期間に起きた出来事を数えている。` +
+                '⚠️⚠️ 同じ顧客が複数の期間に数えられることがある' +
+                '（1月に来場し3月に契約した顧客は、visits では1月と3月の両方に立つ）。' +
+                '⚠️ ダッシュボードの画面もそうなっており、意図した挙動である。' +
+                '⚠️ 期間をまたいで合計すると実人数より多くなるため、合計してはならない。',
+            }),
+      }),
   集計軸: input.groupBy.map((key) => `${key} = ${dimension(key).label}`),
   指標の意味: {
     ...fromEntries([...input.metrics], (key) => metric(key).label),

@@ -85,7 +85,19 @@ const commonQuery = {
     .enum(['order', 'kaeru'])
     .optional()
     .transform((v) => v ?? 'order'),
-  basis: z.enum(['reaction', 'contract']).optional().transform((v) => v ?? 'reaction'),
+  /**
+   * ⚠️⚠️ **2026-09-24 に既定を実績日起算（actual）へ変えた**（利用者の指示）。
+   *   > とくに「反響日起算で」「実績日起算で」の文言がない場合、デフォルトは実績日起算とする
+   *
+   * ⚠️ ⚠️ **MCP サーバーは変えていない。**
+   *   ⚠️ MCP の `basis` は `enum(['reaction','contract'])` のままだが、
+   *     ⚠️ ⚠️ **実績日起算は「指定しない」で出せる**ので不足しない。
+   *   ⚠️ 「反響日起算で」と言われたら `basis=reaction` を送ればよく、これは今の enum で通る。
+   *   ⚠️⚠️ **MCP の説明文には「既定は reaction」と書いてあり、そこだけ古い。**
+   *     ⚠️ そのため ⚠️ **カタログ（GET /meta）と毎回の応答 meta に既定を明記している。**
+   *     ⚠️⚠️ **コメントに「アスタリスク＋スラッシュ」を書かないこと。** ⚠️ ここでコメントが閉じる。
+   */
+  basis: z.enum(['actual', 'reaction', 'contract']).optional().transform((v) => v ?? 'actual'),
   from: monthString.optional(),
   to: monthString.optional(),
   excludeDuplicated: booleanQuery.optional().transform((v) => v === true),
@@ -187,7 +199,7 @@ export const analysis = defineFeature({
         const startedAt = Date.now();
 
         try {
-          const { rows, basis } = await runPivot({
+          const { rows, basis, actual } = await runPivot({
             groupBy: q.groupBy,
             metrics: q.metrics,
             rates: q.rates,
@@ -224,6 +236,7 @@ export const analysis = defineFeature({
               excludeDuplicated: q.excludeDuplicated,
               rowCount: rows.length,
               division: q.division as AnalysisDivision,
+              actual,
             }),
             rows,
           };
@@ -254,7 +267,7 @@ export const analysis = defineFeature({
         const filters = extractFilters(q);
         const startedAt = Date.now();
 
-        const { rows, basis } = await runPivot({
+        const { rows, basis, actual } = await runPivot({
           groupBy: q.groupBy,
           metrics: FUNNEL_METRICS,
           rates: RATE_KEYS,
@@ -290,6 +303,7 @@ export const analysis = defineFeature({
           excludeDuplicated: q.excludeDuplicated,
           rowCount: rows.length,
           division: q.division as AnalysisDivision,
+          actual,
         });
 
         // 直近の月は「まだ結果が出ていない」だけで、成績が悪いわけではない。
@@ -300,9 +314,20 @@ export const analysis = defineFeature({
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         };
         meta['直近月の読み方'] =
-          `契約までは平均で2ヶ月前後かかる。basis = reaction の場合、直近3ヶ月（${ym(-2)} 以降）の` +
-          `コホートは面談・契約の数がまだ出揃っていないため、転換率が低く見える。` +
-          `当月（${ym(0)}）は反響数そのものもまだ増える。`;
+          q.basis === 'reaction'
+            ? `契約までは平均で2ヶ月前後かかる。basis = reaction の場合、直近3ヶ月（${ym(-2)} 以降）の` +
+              `コホートは面談・契約の数がまだ出揃っていないため、転換率が低く見える。` +
+              `当月（${ym(0)}）は反響数そのものもまだ増える。`
+            : /**
+               * ⚠️⚠️ **実績日起算では「コホートが育っていない」問題は起きない。**
+               *   ⚠️ その月に起きたことを数えるだけなので、⚠️ **過去月の数字は後から増えない。**
+               *   ⚠️ ⚠️ **代わりに当月だけは締まっていない。**
+               */
+              `⚠️ 実績日起算では、その月に起きた出来事を数えている。` +
+              `過去の月の数字は後から大きく増えたりしないため、月同士をそのまま比べてよい。` +
+              `⚠️ ただし当月（${ym(0)}）だけは月の途中であり、まだ件数が増える。` +
+              `⚠️ 同じ月の leads と contracts は別々の顧客である。` +
+              `その比率を「この月の反響の契約率」と読んではならない（それは basis = reaction）。`;
 
         return { meta, rows };
       },
