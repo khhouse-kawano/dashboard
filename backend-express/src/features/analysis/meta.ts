@@ -230,6 +230,8 @@ export interface ResponseMetaInput {
   division?: AnalysisDivision;
   /** ⚠️ 実績日起算のときだけ付く（2026-09-24 追加） */
   actual?: ActualInfo;
+  /** ⚠️ 建売で販促媒体を使ったときだけ付く項目名の説明（2026-09-24 追加） */
+  mediumNote?: string;
 }
 
 /** 集計レスポンスに添える meta を組み立てる */
@@ -307,6 +309,7 @@ export const buildResponseMeta = (input: ResponseMetaInput): Record<string, unkn
             }),
       }),
   集計軸: input.groupBy.map((key) => `${key} = ${dimension(key).label}`),
+  ...(input.mediumNote === undefined ? {} : { 販促媒体の項目名: input.mediumNote }),
   指標の意味: {
     ...fromEntries([...input.metrics], (key) => metric(key).label),
     ...fromEntries([...input.rates], (key) => RATES[key].label),

@@ -16,6 +16,12 @@ import {
 import { asDate, daysBetween, MIN_VALID_DATE, phaseDate, TARGET_DIVISION, UNSET_LABEL, groupExpr } from './columns';
 import type { AnalysisDivision } from './columns';
 import { DIVISION_CONFIG, phaseDateOf } from './columns';
+import {
+  fetchShownMediums,
+  kaeruMediumNote,
+  kaeruMediumSqlActual,
+  kaeruMediumSqlCohort,
+} from './kaeruMedium';
 import type { DimensionKey } from './dimensions';
 import { dimension } from './dimensions';
 import type { MetricKey, RateKey } from './metrics';
@@ -118,6 +124,35 @@ interface JoinNeed {
 }
 
 /**
+ * 軸のSQL式を引く。
+ *
+ * ⚠️⚠️ **建売の販促媒体だけは表から引けない**（2026-09-24 追加）。
+ *   ⚠️ 画面と同じ項目名にまとめる必要があり、
+ *     ⚠️ ⚠️ **反響日起算では `medium_kaeru` を読んでから式を組み立てる**ため。
+ *   ⚠️ 組み立ては features/analysis/kaeruMedium.ts。
+ *
+ * ⚠️ ⚠️ **軸・絞り込み・中央値の3箇所すべてでこれを使うこと。**
+ *   ⚠️ 1箇所でも `dimension().sql()` を直に呼ぶと、そこだけ生値になって食い違う。
+ */
+const dimensionSql = (
+  key: DimensionKey,
+  basisSql: string,
+  mediumSql: string | null
+): string => (key === 'medium' && mediumSql !== null ? mediumSql : dimension(key).sql(basisSql));
+
+/**
+ * 建売の販促媒体の式を用意する。⚠️ 注文事業では `null`（今までどおり生値）。
+ */
+const resolveMediumSql = async (
+  division: AnalysisDivision,
+  basis: Basis
+): Promise<string | null> => {
+  if (division !== 'kaeru') return null;
+  if (basis === 'actual') return kaeruMediumSqlActual();
+  return kaeruMediumSqlCohort(await fetchShownMediums());
+};
+
+/**
  * FROM 句を組み立てる。
  *
  * ⚠️ 結合先の3テーブルは master_data.id に対して重複行を持つ
@@ -211,7 +246,8 @@ const buildFrom = (
  */
 const buildWhere = (
   options: PivotOptions,
-  basisSql: string | null
+  basisSql: string | null,
+  mediumSql: string | null
 ): { sql: string; params: SqlParam[] } => {
   const conditions = ['m.show_dashboard = 1'];
   const params: SqlParam[] = [];
@@ -253,7 +289,9 @@ const buildWhere = (
     }
 
     // 絞り込みも軸と同じ許可リストのSQL式を使う。値はプレースホルダ経由
-    conditions.push(`${dimension(key as DimensionKey).sql(basisSql ?? 'NULL')} = ?`);
+    conditions.push(
+      `${dimensionSql(key as DimensionKey, basisSql ?? 'NULL', mediumSql)} = ?`
+    );
     params.push(value);
   }
 
@@ -298,6 +336,8 @@ export interface PivotResult {
   rows: PivotRow[];
   basis: (typeof BASES)[Basis];
   actual?: ActualInfo;
+  /** ⚠️ 建売で販促媒体を使ったときだけ付く、項目名の説明（2026-09-24 追加） */
+  mediumNote?: string;
 }
 
 /**
@@ -340,14 +380,17 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
     if (m.needsInterview === true) need.interview = true;
   }
 
+  // ⚠️ 建売の販促媒体だけ、画面と同じ項目名にまとめる式に差し替える
+  const mediumSql = await resolveMediumSql(division, options.basis);
+
   const from = buildFrom(need, division);
-  const where = buildWhere(options, basisSql);
+  const where = buildWhere(options, basisSql, mediumSql);
   const params = [...from.params, ...where.params];
 
   // 軸は d0,d1… / 指標は a0,a1… の別名で受け取り、アプリ側でキー名に戻す。
   // 日本語のキー名をSQLの別名にすると識別子のクォートで事故りやすいため。
   const dimensionSelects = options.groupBy.map(
-    (key, i) => `${dimension(key).sql(basisSql)} AS d${i}`
+    (key, i) => `${dimensionSql(key, basisSql, mediumSql)} AS d${i}`
   );
   const metricSelects = countMetrics.map((key, i) => {
     // ⚠️ 事業ごとに工程の列が違う（metricSqlFor）
@@ -409,12 +452,31 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
   });
 
   if (medianMetrics.length > 0) {
-    await attachMedians(rows, medianMetrics, options, basisSql, need);
+    await attachMedians(rows, medianMetrics, options, basisSql, need, mediumSql);
   }
 
   assertPayloadSize(rows, options.groupBy);
 
-  return { rows, basis };
+  return { rows, basis, mediumNote: await mediumNoteFor(division, options, false) };
+};
+
+/**
+ * 建売で販促媒体を使ったときだけ、項目名の説明を添える。
+ * ⚠️⚠️ **書かないと、画面の「Web検索」行と件数が合わない理由が伝わらない。**
+ */
+const mediumNoteFor = async (
+  division: AnalysisDivision,
+  options: PivotOptions,
+  basisIsActual: boolean
+): Promise<string | undefined> => {
+  if (division !== 'kaeru') return undefined;
+
+  const used =
+    options.groupBy.includes('medium') || options.filters.medium !== undefined;
+  if (!used) return undefined;
+
+  const shown = basisIsActual ? [] : await fetchShownMediums();
+  return kaeruMediumNote(basisIsActual, shown);
 };
 
 /**
@@ -488,8 +550,11 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
     if (dimension(key).needsInquiry === true) need.inquiry = true;
   }
 
+  // ⚠️ 建売の販促媒体だけ、画面と同じ項目名にまとめる式に差し替える
+  const mediumSql = await resolveMediumSql(division, 'actual');
+
   const fromClause = buildFrom(need, division);
-  const where = buildWhere(options, null);
+  const where = buildWhere(options, null, mediumSql);
 
   let fromSql = fromClause.sql;
   if (buckets !== null) {
@@ -518,7 +583,7 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
     key === timeDimension
       ? `cal.bucket AS d${i}`
       : // ⚠️ 時間以外の軸は基準日を使わない。ダミーを渡す
-        `${dimension(key).sql('NULL')} AS d${i}`
+        `${dimensionSql(key, 'NULL', mediumSql)} AS d${i}`
   );
 
   const nullMetrics: Record<string, string> = {};
@@ -605,7 +670,17 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
   });
 
   if (medianMetrics.length > 0) {
-    await attachMediansActual(rows, medianMetrics, options, need, division, from, to, nullMetrics);
+    await attachMediansActual(
+      rows,
+      medianMetrics,
+      options,
+      need,
+      division,
+      from,
+      to,
+      nullMetrics,
+      mediumSql
+    );
   }
 
   assertPayloadSize(rows, options.groupBy);
@@ -614,6 +689,7 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
     rows,
     basis,
     actual: { from, to, bucketDimension: timeDimension, nullMetrics },
+    mediumNote: await mediumNoteFor(division, options, true),
   };
 };
 
@@ -634,7 +710,8 @@ const attachMediansActual = async (
   division: AnalysisDivision,
   from: string,
   to: string,
-  nullMetrics: Record<string, string>
+  nullMetrics: Record<string, string>,
+  mediumSql: string | null
 ): Promise<void> => {
   for (const key of medianMetrics) {
     const spec = ACTUAL_SPEC[key];
@@ -647,7 +724,7 @@ const attachMediansActual = async (
       continue;
     }
 
-    await attachMedians(rows, [key], { ...options, from, to }, basisSql, need);
+    await attachMedians(rows, [key], { ...options, from, to }, basisSql, need, mediumSql);
   }
 };
 
@@ -663,16 +740,17 @@ const attachMedians = async (
   medianMetrics: MetricKey[],
   options: PivotOptions,
   basisSql: string,
-  need: JoinNeed
+  need: JoinNeed,
+  mediumSql: string | null
 ): Promise<void> => {
   const from = buildFrom(need, options.division ?? 'order');
-  const where = buildWhere(options, basisSql);
+  const where = buildWhere(options, basisSql, mediumSql);
   const params = [...from.params, ...where.params];
 
   const selects: string[] = [];
   const partition: string[] = [];
   options.groupBy.forEach((key, i) => {
-    const expr = dimension(key).sql(basisSql);
+    const expr = dimensionSql(key, basisSql, mediumSql);
     selects.push(`${expr} AS d${i}`);
     partition.push(expr);
   });
