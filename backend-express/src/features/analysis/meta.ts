@@ -1,4 +1,5 @@
-import { PHASES, PHASE_KEYS, TARGET_DIVISION, UNSET_LABEL } from './columns';
+import { DIVISION_CONFIG, PHASES, PHASE_KEYS, TARGET_DIVISION, UNSET_LABEL } from './columns';
+import type { AnalysisDivision } from './columns';
 import type { DimensionKey } from './dimensions';
 import { DIMENSION_KEYS, dimension } from './dimensions';
 import type { MetricKey, RateKey } from './metrics';
@@ -159,6 +160,11 @@ export const buildCatalog = (): Record<string, unknown> => ({
     from: '開始月。YYYY-MM 形式。省略すると最古のデータから。',
     to: '終了月。YYYY-MM 形式。省略すると最新のデータまで。',
     excludeDuplicated: 'true にするとステータス「重複」を母数から外す。既定は false。',
+    division:
+      '事業。order（注文事業。既定）または kaeru（建売分譲事業）。' +
+      '⚠️ 建売は参照するテーブルも工程も違う（総反響 → 接触 → 来場・案内 → 次アポ → 事前審査 → 申込 → 契約）。' +
+      '⚠️ 指標名は注文と揃えてあるが、中身は事業ごとに切り替わる。' +
+      '⚠️ 建売に「失注」は無いため lost / lostRatePct は null になる。',
     '（軸名）': '軸と同じ名前のパラメータで等値の絞り込みができる。例: section=宮崎営業課',
   },
   集計軸: fromEntries(DIMENSION_KEYS, (key) => dimension(key).label),
@@ -192,12 +198,35 @@ export interface ResponseMetaInput {
   filters: Partial<Record<DimensionKey, string>>;
   excludeDuplicated: boolean;
   rowCount: number;
+  /** ⚠️ 事業（2026-09-22 追加）。省略すると注文事業 */
+  division?: AnalysisDivision;
 }
 
 /** 集計レスポンスに添える meta を組み立てる */
-export const buildResponseMeta = (input: ResponseMetaInput): Record<string, unknown> => ({
+export const buildResponseMeta = (input: ResponseMetaInput): Record<string, unknown> => {
+  const division = input.division ?? 'order';
+  const config = DIVISION_CONFIG[division];
+
+  return {
   generatedAt: new Date().toISOString(),
-  対象: `${TARGET_DIVISION}（master_data）。show_dashboard = 1 かつ report_flag = 1 の店舗に限定。既存のKPI分析画面と同じ母数。`,
+  対象: `${config.label}（${config.table}）。show_dashboard = 1 かつ report_flag = 1 の店舗に限定。既存のKPI分析画面と同じ母数。`,
+  /**
+   * ⚠️⚠️ **建売は工程がまるごと違う。**
+   *   ⚠️ ⚠️ **Claude は注文の前提で読もうとするので、毎回書いて渡す。**
+   */
+  ...(division === 'kaeru'
+    ? {
+        建売の工程:
+          '総反響 → 接触 → 来場・案内 → 次アポ → 事前審査 → 申込 → 契約。' +
+          '⚠️ 来場は「面談」と「物件案内」のどちらか、事前審査は「事前審査」と「現金確認」のどちらか、' +
+          '契約は「自社契約」と「仲介契約」のどちらかで数えている。' +
+          '⚠️⚠️ 注文事業に「申込」は無く、注文で契約として使っている列は建売では申込である。' +
+          '⚠️ 指標名は注文と揃えてあるが、中身は事業ごとに切り替わる。',
+        建売の失注:
+          '⚠️⚠️ 建売分譲事業に「失注」ステータスは存在しないため、lost と lostRatePct は null を返す。' +
+          '⚠️ 代わりに「追客終了」があるが、他社に負けたとは限らない（予算・時期の都合も含む）ため指標にしていない。',
+      }
+    : {}),
   集計基準日: `${input.basis.label} … ${input.basis.note}`,
   期間: {
     from: input.from ?? '指定なし（最古のデータから）',
@@ -214,4 +243,5 @@ export const buildResponseMeta = (input: ResponseMetaInput): Record<string, unkn
     : 'ステータス「重複」の顧客も母数に含む',
   行数: input.rowCount,
   データ品質の注意点: caveats(),
-});
+  };
+};

@@ -1,4 +1,5 @@
-import { ATTRIBUTES, daysBetween, phaseDate } from './columns';
+import { ATTRIBUTES, daysBetween, phaseDate, phaseDateOf, PHASE_ORDER, phaseReached } from './columns';
+import type { AnalysisDivision, AnalysisPhase } from './columns';
 // ⚠️ 担当営業の式。⚠️ **軸と同じものを使う**（「◯◯店 管理」は旧担当に読み替える）
 import { STAFF_SQL } from './dimensions';
 import type { PhaseKey } from './columns';
@@ -16,6 +17,37 @@ import type { PhaseKey } from './columns';
 
 /** フェーズに到達した件数（そのフェーズの日付が入っている件数） */
 const reached = (phase: PhaseKey): string => `SUM(${phaseDate(phase)} IS NOT NULL)`;
+
+/**
+ * 事業ごとの工程に到達した件数（2026-09-22 追加）。
+ *
+ * ⚠️⚠️ **注文と建売で列が違う**（columns.ts の PHASE_COLUMNS）。
+ *   ⚠️ ⚠️ **その事業に無い工程は 0 を返す**（例: 注文に「申込」は無い）。
+ */
+const reachedIn = (division: AnalysisDivision, phase: AnalysisPhase): string => {
+  const expr = phaseReached(division, phase);
+  return expr === 'NULL' ? '0' : `SUM(${expr})`;
+};
+
+/**
+ * ⚠️⚠️ **上位の工程に進んだ人を含めて数える**（事業別）。
+ *   ⚠️ 並びは PHASE_ORDER。⚠️ **指定した工程から契約までのどれかに当たれば1。**
+ *   ⚠️ ⚠️ **その事業に無い工程は自動的に外れる。**
+ */
+const reachedFrom = (division: AnalysisDivision, phase: AnalysisPhase): string => {
+  /**
+   * ⚠️⚠️ **その事業に無い工程は 0 を返す。**
+   *   ⚠️ ⚠️ **ここを飛ばすと、上位工程だけで数えてしまう。**
+   *     ⚠️ 実際に ⚠️ **注文の「申込」が契約と同じ件数になった**（2026-09-22）。
+   */
+  if (phaseReached(division, phase) === 'NULL') return '0';
+
+  const start = PHASE_ORDER.indexOf(phase);
+  const parts = PHASE_ORDER.slice(start)
+    .map((p) => phaseReached(division, p))
+    .filter((expr) => expr !== 'NULL');
+  return parts.length === 0 ? '0' : `SUM(${parts.join(' OR ')})`;
+};
 
 /**
  * ⚠️⚠️ **上位の工程に進んだ人は、下位の工程も達成したものとして数える。**
@@ -97,6 +129,25 @@ export const METRICS = {
     sql:
       "SUM((m.reserved_interview IS NOT NULL AND m.reserved_interview <> '')" +
       ` OR ${phaseDate('firstInterview')} IS NOT NULL)`,
+  },
+
+  /**
+   * ⚠️ 2026-09-22 追加。⚠️ **注文と建売で同じ名前にした指標**（利用者の指示）。
+   *   ⚠️ ⚠️ **中身は事業ごとに切り替わる**（metricSqlFor を参照）。
+   */
+  contacts: {
+    kind: 'count',
+    label:
+      '接触数（注文は通電、建売は接触。以降の工程に進んだ人を含む）。' +
+      '⚠️ 店舗別動向と同じ数え方',
+    sql: reachedFrom('order', 'contact'),
+  },
+  applications: {
+    kind: 'count',
+    label:
+      '申込数（契約者を含む）。⚠️⚠️ **建売分譲事業だけの工程**。' +
+      '⚠️ 注文事業では常に 0 を返す',
+    sql: reachedFrom('order', 'application'),
   },
 
   // --- ステータス内訳 -----------------------------------------------------
@@ -196,6 +247,77 @@ export const METRICS = {
     valueSql: interviewToContract,
   },
 } as const satisfies Record<string, Metric>;
+
+/**
+ * 事業ごとの指標SQL（2026-09-22 追加）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **注文の定義をそのまま建売に当ててはいけない。**
+ *   ⚠️ ⚠️ **`01J82Z5F1RR18Z792C7KZS88QG` は注文＝契約 / 建売＝申込**である。
+ *   ⚠️ 当てると ⚠️ **申込を契約として数える**（契約数が3倍近くに膨らむ）。
+ *
+ * ⚠️ 建売の工程は ⚠️ **shopTrend/ShopTrendKaeru.tsx に合わせてある。**
+ *     総反響 → 接触 → 来場・案内 → 次アポ → 事前審査 → 申込 → 契約
+ *
+ * ⚠️⚠️ **`lost` は建売では返さない**（利用者の判断）。
+ *   ⚠️ 建売に「失注」ステータスは無く、⚠️ **代わりの「追客終了」は他社に負けたとは限らない。**
+ * ─────────────────────────────────────────────
+ */
+const KAERU_SQL: Partial<Record<MetricKey, string>> = {
+  zeroReception: reachedIn('kaeru', 'zeroReception'),
+  // ⚠️ 注文の「通電」に当たる工程。建売の画面では「接触」と呼ぶ
+  energized: reachedIn('kaeru', 'contact'),
+  // ⚠️ 建売の来場は ⚠️ **面談 ＋ 物件案内**
+  firstInterview: reachedIn('kaeru', 'visit'),
+  secondInterview: reachedIn('kaeru', 'nextAppointment'),
+  // ⚠️ 建売の事前審査は ⚠️ **事前審査 ＋ 現金確認**
+  preScreening: reachedIn('kaeru', 'preScreening'),
+  // ⚠️ 建売の契約は ⚠️ **自社契約 ＋ 仲介契約**
+  contracts: reachedIn('kaeru', 'contract'),
+
+  contacts: reachedFrom('kaeru', 'contact'),
+  visits: reachedFrom('kaeru', 'visit'),
+  nextAppointments: reachedFrom('kaeru', 'nextAppointment'),
+  applications: reachedFrom('kaeru', 'application'),
+  reservations:
+    "SUM((m.reserved_interview IS NOT NULL AND m.reserved_interview <> '')" +
+    ` OR ${phaseReached('kaeru', 'visit')})`,
+
+  // ⚠️⚠️ **建売では返さない**（上の注記）。⚠️ NULL にして「0件」と区別する
+  lost: 'NULL',
+};
+
+/**
+ * 指標のSQLを事業に合わせて引く。
+ * ⚠️ ⚠️ **表に無い指標は注文の定義をそのまま使う**（架電ログなど事業に依らないもの）。
+ */
+/**
+ * 中央値の対象式を事業に合わせて引く（2026-09-22 追加）。
+ *
+ * ⚠️⚠️ **建売は「来場」も「契約」も列が違う。**
+ *   ⚠️ ⚠️ **注文の式のままだと、申込までの日数を契約までの日数として返す。**
+ */
+export const medianValueSqlFor = (division: AnalysisDivision, key: MetricKey): string => {
+  const base = METRICS[key];
+  if (base.kind !== 'median') throw new Error(`中央値の指標ではありません: ${key}`);
+  if (division === 'order') return base.valueSql;
+
+  const reaction = phaseDateOf('kaeru', 'reaction');
+  const visit = phaseDateOf('kaeru', 'visit');
+  const contract = phaseDateOf('kaeru', 'contract');
+
+  if (key === 'medianDaysToFirstInterview') return daysBetween(reaction, visit);
+  if (key === 'medianDaysToContract') return daysBetween(reaction, contract);
+  if (key === 'medianDaysFirstInterviewToContract') return daysBetween(visit, contract);
+  return base.valueSql;
+};
+
+export const metricSqlFor = (division: AnalysisDivision, key: MetricKey): string => {
+  const base = METRICS[key];
+  if (base.kind !== 'count') throw new Error(`件数指標ではありません: ${key}`);
+  if (division === 'kaeru') return KAERU_SQL[key] ?? base.sql;
+  return base.sql;
+};
 
 export type MetricKey = keyof typeof METRICS;
 

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { recordAnalysisQuery } from './audit';
+import type { AnalysisDivision } from './columns';
+import { DIVISION_CONFIG } from './columns';
 import type { CompetitorDivision } from './competitor';
 import { runCompetitor } from './competitor';
 import { getReport, listReports, MAX_HTML_BYTES, reportSpec, saveReport } from './report';
@@ -75,6 +77,14 @@ const extractFilters = (source: Record<string, unknown>): Record<string, string>
 };
 
 const commonQuery = {
+  /**
+   * ⚠️ 事業（2026-09-22 追加）。⚠️ **省略すると注文事業**（今までと同じ結果）。
+   *   ⚠️⚠️ **建売は工程がまるごと違う**（接触・来場・申込・契約）。
+   */
+  division: z
+    .enum(['order', 'kaeru'])
+    .optional()
+    .transform((v) => v ?? 'order'),
   basis: z.enum(['reaction', 'contract']).optional().transform((v) => v ?? 'reaction'),
   from: monthString.optional(),
   to: monthString.optional(),
@@ -186,6 +196,7 @@ export const analysis = defineFeature({
             to: q.to,
             filters,
             excludeDuplicated: q.excludeDuplicated,
+            division: q.division as AnalysisDivision,
           });
 
           recordAnalysisQuery(ctx.req, {
@@ -212,6 +223,7 @@ export const analysis = defineFeature({
               filters,
               excludeDuplicated: q.excludeDuplicated,
               rowCount: rows.length,
+              division: q.division as AnalysisDivision,
             }),
             rows,
           };
@@ -251,6 +263,7 @@ export const analysis = defineFeature({
           to: q.to,
           filters,
           excludeDuplicated: q.excludeDuplicated,
+          division: q.division as AnalysisDivision,
         });
 
         recordAnalysisQuery(ctx.req, {
@@ -276,6 +289,7 @@ export const analysis = defineFeature({
           filters,
           excludeDuplicated: q.excludeDuplicated,
           rowCount: rows.length,
+          division: q.division as AnalysisDivision,
         });
 
         // 直近の月は「まだ結果が出ていない」だけで、成績が悪いわけではない。
