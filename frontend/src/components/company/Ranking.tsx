@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Modal, Table, Badge, Nav } from 'react-bootstrap';
 import AuthContext from "../../context/AuthContext";
+import { thisYear } from "../../utils/thisYear";
 type Staff = { name: string, shop: string, section: string, report: number, sort: number, multi: number, status: string, period: string, position: string, khg_id: string };
 
 type Customer = Record<string, string>;
@@ -25,8 +26,22 @@ type RankedRow = {
     periodCount: number;
     /** 予算。店舗別のときだけ使う。個人別では常に0 */
     budget: number;
+    /**
+     * 達成率（%）。⚠️ **店舗別のときだけ使う。個人別では常に0。**
+     *
+     * ⚠️⚠️ **分子は期間指定の有無で変わる**（指定あり＝期間計 / 指定なし＝総計）。
+     *   ⚠️ ⚠️ **予算（budget）も同じ期間で集計してある。** ⚠️ 揃えないと比較の意味が無くなる。
+     * ⚠️ ソートに使うため、表示のたびに計算せず行に持たせる。
+     */
+    rate: number;
     rank: number;
 };
+
+/**
+ * 並べ替えの対象。
+ * ⚠️ `rate` は ⚠️ **店舗別のときだけ意味がある**（個人別に予算が無い）。
+ */
+type SortKey = 'total' | 'period' | 'rate';
 
 type Props = {
     showRanking: boolean,
@@ -47,13 +62,28 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
     const [startMonth, setStartMonth] = useState('');
     const [endMonth, setEndMonth] = useState('');
 
-    const [sortConfig, setSortConfig] = useState<{ key: 'total' | 'period', direction: 'desc' | 'asc' }>({
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey, direction: 'desc' | 'asc' }>({
         key: 'total',
         direction: 'desc'
     });
 
     const formate = (value: string) => {
         return (value ?? '').replace(/\//g, '-').slice(0, 7);
+    };
+
+    /** 期間が指定されているか。⚠️ 実績・予算・達成率のすべてがこれで切り替わる */
+    const showPeriodCol = startMonth !== '' || endMonth !== '';
+
+    /**
+     * 達成率（%）。小数第一位を切り上げた整数で返す。
+     *
+     * ⚠️ 予算が0だと Infinity、実績も0だと NaN になる。
+     *   予算未設定の店舗が「Infinity%」と表示されるのを防ぐため 0% に丸める。
+     */
+    const achievementRate = (count: number, budget: number): number => {
+        const rate = (count / budget) * 100;
+        if (!Number.isFinite(rate)) return 0;
+        return Math.ceil(rate);
     };
 
     useEffect(() => {
@@ -104,10 +134,35 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
                 (!endMonth || formate(c.contract) <= endMonth)
             );
 
-            // 個人別のときの所属店舗。
-            // 実績0の場合 target が空になるため、母集団側から探す
+            /**
+             * 個人別のときの「所属」。
+             *
+             * ─────────────────────────────────────────────
+             * ⚠️⚠️ **今年の所属ではなく「実際に契約を上げた店舗」を出す**（オーナー改修）。
+             *   ⚠️ 期中に異動した担当者がいるため、⚠️ **マスタの所属だけだと
+             *     どこで上げた実績か分からなくなる。**
+             *   ⚠️ 複数店舗で上げていれば ⚠️ **カンマでつなぐ。**
+             *
+             * ⚠️ 契約が1件も無い担当者は、⚠️ **今年のマスタの所属**を出す
+             *   （⚠️ 実績0でも一覧には出すため）。
+             * ─────────────────────────────────────────────
+             *
+             * ⚠️ 判定は `monthArray`（今期）の契約日だけを見る。
+             *   ⚠️⚠️ **ステータスは見ていない**（解約も所属の手がかりとして残す）。
+             *   ⚠️ ⚠️ **そのため件数（totalCount）が0でも所属が出ることがある。**
+             */
+            const contractedShops = [...new Set(
+                inCategory
+                    .filter(c => c.staff === key && monthArray.includes(formate(c.contract)))
+                    .map(c => c.shop)
+                    // ⚠️ 空の店舗を混ぜないこと。⚠️ `A,,B` のような表示になる
+                    .filter(shop => shop)
+            )];
+
             const sub = mode === 'staff'
-                ? (inCategory.find(c => c.staff === key)?.shop ?? '')
+                ? (contractedShops.length > 0
+                    ? contractedShops.join(',')
+                    : staffList.find(s => s.name === key && String(s.period) === String(thisYear))?.shop ?? '')
                 : (sectionByShop.get(key) ?? '');
 
             // 予算。店舗別のときだけ集計する。
@@ -134,14 +189,38 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
                 sub,
                 totalCount: target.length,
                 periodCount: periodTarget.length,
-                budget
+                budget,
+                /**
+                 * ⚠️⚠️ **分子は予算と同じ期間のものを使う。**
+                 *   ⚠️ 期間指定があれば期間計、無ければ総計。
+                 *   ⚠️ ⚠️ **揃えないと「総計の実績 ÷ 期間の予算」になり、意味の無い数字が出る。**
+                 * ⚠️ 個人別は予算が無いので常に0（列も出さない）。
+                 */
+                rate: mode === 'shop'
+                    ? achievementRate(showPeriodCol ? periodTarget.length : target.length, budget)
+                    : 0
             };
         });
 
+        /**
+         * 並べ替えと順位付けに使う値。
+         *
+         * ⚠️⚠️ **ソート・順位・足切りの3箇所で必ず同じものを使うこと。**
+         *   ⚠️ ⚠️ **1箇所でも食い違うと、並びと順位が合わない表になる。**
+         *
+         * ⚠️ 達成率は店舗別にしか無いため、個人別では総計に読み替える
+         *   （⚠️ **店舗別で達成率ソートにしたまま個人別へ切り替えたとき**に効く）。
+         */
+        const valueOf = (item: { totalCount: number, periodCount: number, rate: number }): number => {
+            if (sortConfig.key === 'period') return item.periodCount;
+            if (sortConfig.key === 'rate') return mode === 'shop' ? item.rate : item.totalCount;
+            return item.totalCount;
+        };
+
         // 💡 3. ソート処理
         formattedList.sort((a, b) => {
-            const valA = sortConfig.key === 'total' ? a.totalCount : a.periodCount;
-            const valB = sortConfig.key === 'total' ? b.totalCount : b.periodCount;
+            const valA = valueOf(a);
+            const valB = valueOf(b);
 
             if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -153,7 +232,7 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
         let actualRank = 1;
 
         const rankedList: RankedRow[] = formattedList.map((item, index) => {
-            const currentValue = sortConfig.key === 'total' ? item.totalCount : item.periodCount;
+            const currentValue = valueOf(item);
             if (currentValue !== previousValue) {
                 actualRank = index + 1;
             }
@@ -164,16 +243,17 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
         // 💡 5. フェアな足切りロジック（Master権限の場合は全件表示）
         let displayList = rankedList;
         if (authority !== 'Master' && rankedList.length > 10) {
-            const thresholdScore = sortConfig.key === 'total' ? rankedList[9].totalCount : rankedList[9].periodCount;
+            const thresholdScore = valueOf(rankedList[9]);
             displayList = rankedList.filter(item => {
-                const val = sortConfig.key === 'total' ? item.totalCount : item.periodCount;
+                const val = valueOf(item);
                 if (sortConfig.direction === 'desc') return val >= thresholdScore;
                 return val <= thresholdScore;
             });
         }
 
         setTargetCustomer(displayList);
-    }, [customerList, monthArray, category, authority, startMonth, endMonth, sortConfig, staffList, mode, achievement]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [customerList, monthArray, category, authority, startMonth, endMonth, sortConfig, staffList, mode, achievement, showPeriodCol]);
 
     const renderRankIcon = (rank: number) => {
         if (sortConfig.direction === 'asc') return `${rank}位`;
@@ -184,7 +264,7 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
         return `${rank}位`;
     };
 
-    const handleSort = (key: 'total' | 'period') => {
+    const handleSort = (key: SortKey) => {
         let direction: 'desc' | 'asc' = 'desc';
         if (sortConfig.key === key && sortConfig.direction === 'desc') {
             direction = 'asc';
@@ -192,35 +272,12 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
         setSortConfig({ key, direction });
     };
 
-    const getSortIcon = (key: 'total' | 'period') => {
+    const getSortIcon = (key: SortKey) => {
         if (sortConfig.key !== key) return <i className="fa-solid fa-sort ms-1" style={{ color: '#dee2e6' }}></i>;
         return sortConfig.direction === 'desc'
             ? <i className="fa-solid fa-sort-down ms-1 text-primary"></i>
             : <i className="fa-solid fa-sort-up ms-1 text-primary"></i>;
     };
-
-    const showPeriodCol = startMonth !== '' || endMonth !== '';
-
-    /**
-     * 達成率（%）。小数第一位を切り上げた整数で返す。
-     *
-     * ⚠️ 予算が0だと Infinity、実績も0だと NaN になる。
-     *   予算未設定の店舗が「Infinity%」と表示されるのを防ぐため 0% に丸める。
-     */
-    const achievementRate = (count: number, budget: number): number => {
-        const rate = (count / budget) * 100;
-        if (!Number.isFinite(rate)) return 0;
-        return Math.ceil(rate);
-    };
-
-    /**
-     * 達成率を出す対象の列。
-     *
-     * ⚠️ 予算は期間指定の有無で総計分／期間分が切り替わる（集計側の budget）。
-     *   達成率もそれに合わせないと「総計の実績 ÷ 期間の予算」になり、
-     *   意味のない数字が出る。
-     */
-    const rateBaseIsPeriod = showPeriodCol;
 
     return (
         <Modal show={showRanking} onHide={() => setShowRanking(false)} centered>
@@ -294,20 +351,39 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
                             {showPeriodCol && (
                                 <th
                                     className="py-2 text-info"
-                                    style={{ width: mode === 'shop' ? '110px' : '80px', cursor: 'pointer', userSelect: 'none' }}
+                                    style={{ width: '80px', cursor: 'pointer', userSelect: 'none' }}
                                     onClick={() => handleSort('period')}
                                 >
-                                    期間計{mode === 'shop' && rateBaseIsPeriod ? '(達成率)' : ''} {getSortIcon('period')}
+                                    期間計{getSortIcon('period')}
                                 </th>
                             )}
 
                             <th
                                 className="py-2"
-                                style={{ width: mode === 'shop' && !rateBaseIsPeriod ? '110px' : '80px', cursor: 'pointer', userSelect: 'none' }}
+                                style={{ width: '80px', cursor: 'pointer', userSelect: 'none' }}
                                 onClick={() => handleSort('total')}
                             >
-                                総計{mode === 'shop' && !rateBaseIsPeriod ? '(達成率)' : ''} {getSortIcon('total')}
+                                総計{getSortIcon('total')}
                             </th>
+
+                            {/*
+                              * ⚠️⚠️ **達成率は常に独立した列にする**（2026-09-24 の指示）。
+                              *   ⚠️ 以前は総計・期間計のセルに括弧書きで同居させていた。
+                              *   ⚠️ ⚠️ **同居していると並べ替えの対象にできない。**
+                              * ⚠️ 見出しに「期間／総計」のどちらを割ったかを必ず出すこと。
+                              */}
+                            {mode === 'shop' && (
+                                <th
+                                    className="py-2 text-success"
+                                    style={{ width: '90px', cursor: 'pointer', userSelect: 'none' }}
+                                    onClick={() => handleSort('rate')}
+                                >
+                                    達成率{getSortIcon('rate')}
+                                    <div className="fw-normal text-muted" style={{ fontSize: '10px' }}>
+                                        {showPeriodCol ? '期間計÷予算' : '総計÷予算'}
+                                    </div>
+                                </th>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
@@ -330,27 +406,24 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
                                 {showPeriodCol && (
                                     <td className="text-info fw-bold py-2" style={{ fontSize: '13px' }}>
                                         {item.periodCount}
-                                        {mode === 'shop' && rateBaseIsPeriod && (
-                                            <span className="fw-normal ms-1" style={{ fontSize: '11px' }}>
-                                                ({achievementRate(item.periodCount, item.budget)}%)
-                                            </span>
-                                        )}
                                     </td>
                                 )}
 
                                 <td className="text-primary fw-bold py-2" style={{ fontSize: '13px' }}>
                                     {item.totalCount}
-                                    {mode === 'shop' && !rateBaseIsPeriod && (
-                                        <span className="fw-normal ms-1" style={{ fontSize: '11px' }}>
-                                            ({achievementRate(item.totalCount, item.budget)}%)
-                                        </span>
-                                    )}
                                 </td>
+
+                                {mode === 'shop' && (
+                                    <td className="text-success fw-bold py-2" style={{ fontSize: '13px' }}>
+                                        {item.rate}%
+                                    </td>
+                                )}
                             </tr>
                         ))}
                         {targetCustomer.length === 0 && (
                             <tr>
-                                <td colSpan={4 + (showPeriodCol ? 1 : 0) + (mode === 'shop' ? 1 : 0)} className="py-4 text-muted">該当するデータがありません</td>
+                                {/* ⚠️ 順位・名前・所属・総計の4列 ＋ 期間計 ＋ 店舗別の予算と達成率 */}
+                                <td colSpan={4 + (showPeriodCol ? 1 : 0) + (mode === 'shop' ? 2 : 0)} className="py-4 text-muted">該当するデータがありません</td>
                             </tr>
                         )}
                     </tbody>
