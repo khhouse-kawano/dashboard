@@ -1,9 +1,10 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import {
-  ACTUAL_SPEC,
-  actualDateExprs,
+  actualCountSql,
+  actualEndDateExpr,
   actualFromDateExpr,
   assertBucket,
+  NO_ACTUAL_DATE,
   bucketExpr,
   bucketsOf,
   currentMonth,
@@ -21,11 +22,11 @@ import {
   kaeruMediumNote,
   kaeruMediumSqlActual,
   kaeruMediumSqlCohort,
-} from './kaeruMedium';
+} from './trendMedium';
 import type { DimensionKey } from './dimensions';
 import { dimension } from './dimensions';
 import type { MetricKey, RateKey } from './metrics';
-import { medianValueSqlFor, metric, metricSqlFor, RATES } from './metrics';
+import { denominatorFor, medianValueSqlFor, metric, metricSqlFor, RATES } from './metrics';
 import { query } from '../../db/pool';
 import type { SqlParam } from '../../db/pool';
 import { AppError } from '../../errors/AppError';
@@ -129,7 +130,7 @@ interface JoinNeed {
  * ⚠️⚠️ **建売の販促媒体だけは表から引けない**（2026-09-24 追加）。
  *   ⚠️ 画面と同じ項目名にまとめる必要があり、
  *     ⚠️ ⚠️ **反響日起算では `medium_kaeru` を読んでから式を組み立てる**ため。
- *   ⚠️ 組み立ては features/analysis/kaeruMedium.ts。
+ *   ⚠️ 組み立ては features/analysis/trendMedium.ts。
  *
  * ⚠️ ⚠️ **軸・絞り込み・中央値の3箇所すべてでこれを使うこと。**
  *   ⚠️ 1箇所でも `dimension().sql()` を直に呼ぶと、そこだけ生値になって食い違う。
@@ -364,7 +365,12 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
   const needed = new Set<MetricKey>(requested);
   if (options.rates.length > 0) {
     needed.add('leads');
-    for (const rate of options.rates) needed.add(RATES[rate].numerator);
+    for (const rate of options.rates) {
+      needed.add(RATES[rate].numerator);
+      // ⚠️ 分母の指標も取らないと比率が出せない
+      // ⚠️ ここはコホート（反響日起算・契約日起算）側なので分母は leads
+      needed.add(denominatorFor(rate, options.division ?? 'order', false));
+    }
   }
   const countMetrics = [...needed].filter((key) => metric(key).kind === 'count');
 
@@ -439,13 +445,15 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
       row[key] = value !== null && m.decimal !== true ? Math.round(value) : value;
     }
 
-    const leads = values.get('leads');
     for (const rate of options.rates) {
       const numerator = values.get(RATES[rate].numerator);
+      // ⚠️ 反響日起算の分母は今までどおり leads
+      const denominator = values.get(denominatorFor(rate, division, false));
       row[rate] =
-        leads === null || leads === undefined || leads === 0 || numerator === null || numerator === undefined
+        denominator === null || denominator === undefined || denominator === 0
+          || numerator === null || numerator === undefined
           ? null
-          : Math.round((numerator / leads) * 1000) / 10;
+          : Math.round((numerator / denominator) * 1000) / 10;
     }
 
     return row;
@@ -537,7 +545,12 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
   const needed = new Set<MetricKey>(requested);
   if (options.rates.length > 0) {
     needed.add('leads');
-    for (const rate of options.rates) needed.add(RATES[rate].numerator);
+    for (const rate of options.rates) {
+      needed.add(RATES[rate].numerator);
+      // ⚠️ 分母の指標も取らないと比率が出せない
+      // ⚠️ 実績日起算は画面と同じ分母（次アポ率なら実来場）を取る
+      needed.add(denominatorFor(rate, division, true));
+    }
   }
   const countMetrics = [...needed].filter((key) => metric(key).kind === 'count');
 
@@ -589,33 +602,35 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
   const nullMetrics: Record<string, string> = {};
 
   const metricSelects = countMetrics.map((key, i) => {
-    const spec = ACTUAL_SPEC[key];
-
-    // ⚠️⚠️ **実績日が無い指標は null。** ⚠️ **0 にしないこと**
-    if (spec.kind === 'none') {
-      if (requested.includes(key)) nullMetrics[key] = spec.reason;
-      return `NULL AS a${i}`;
-    }
-
-    if (spec.kind === 'avgDays') {
-      // ⚠️ 終点の日がその期間にある顧客だけで平均する（例: その月に契約した人）
-      const end = phaseDateOf(division, spec.phase);
+    /**
+     * リードタイムの平均。
+     * ⚠️ 終点の日がその期間にある顧客だけで平均する（例: その月に契約した人）。
+     */
+    if (key === 'avgDaysToFirstInterview' || key === 'avgDaysToContract') {
+      const end = actualEndDateExpr(division, key === 'avgDaysToContract' ? 'contract' : 'visit');
       if (end === 'NULL') return `NULL AS a${i}`;
-      const value = daysBetween(actualFromDateExpr(division, spec.from), end);
+      const value = daysBetween(actualFromDateExpr(division), end);
       return `ROUND(AVG(CASE WHEN ${inRange(end)} THEN ${value} END), 1) AS a${i}`;
     }
 
-    const dates = actualDateExprs(division, spec);
-    // ⚠️ その事業に無い工程（注文の「申込」など）は常に0件
-    if (dates.length === 0) return `0 AS a${i}`;
+    const sql = actualCountSql(division, key, inRange);
 
-    const hit = dates.map((dateExpr) => `(${inRange(dateExpr)})`).join(' OR ');
+    // ⚠️⚠️ **実績日が無い指標は null。** ⚠️ **0 にしないこと**
+    if (sql === null) {
+      const reason = NO_ACTUAL_DATE[key];
+      if (requested.includes(key) && reason !== undefined) nullMetrics[key] = reason;
+      return `NULL AS a${i}`;
+    }
+
+    // ⚠️ その事業に無い工程（注文の「申込」など）は常に0件
+    if (sql === '') return `0 AS a${i}`;
+
     /**
      * ⚠️⚠️ **`COALESCE` を外さないこと。**
      *   ⚠️ 日付が NULL の行では比較結果も NULL になり、
      *     ⚠️ ⚠️ **全行が NULL だと SUM が 0 ではなく NULL を返す。**
      */
-    return `SUM(COALESCE(${hit}, 0)) AS a${i}`;
+    return `SUM(COALESCE(${sql}, 0)) AS a${i}`;
   });
 
   const groupNumbers = options.groupBy.map((_, i) => i + 1).join(', ');
@@ -657,13 +672,18 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
       row[key] = value !== null && m.decimal !== true ? Math.round(value) : value;
     }
 
-    const leads = values.get('leads');
     for (const rate of options.rates) {
       const numerator = values.get(RATES[rate].numerator);
+      /**
+       * ⚠️⚠️ **実績日起算の分母は画面（反響推移）に合わせる。**
+       *   ⚠️ 例: 注文の次アポ率・契約率の分母は ⚠️ **実来場**であって総反響ではない。
+       */
+      const denominator = values.get(denominatorFor(rate, division, true));
       row[rate] =
-        leads === null || leads === undefined || leads === 0 || numerator === null || numerator === undefined
+        denominator === null || denominator === undefined || denominator === 0
+          || numerator === null || numerator === undefined
           ? null
-          : Math.round((numerator / leads) * 1000) / 10;
+          : Math.round((numerator / denominator) * 1000) / 10;
     }
 
     return row;
@@ -714,8 +734,14 @@ const attachMediansActual = async (
   mediumSql: string | null
 ): Promise<void> => {
   for (const key of medianMetrics) {
-    const spec = ACTUAL_SPEC[key];
-    const basisSql = spec.kind === 'median' ? phaseDateOf(division, spec.phase) : 'NULL';
+    /**
+     * ⚠️ 中央値は ⚠️ **終点の日を基準日にして**、普通のコホート集計として取る。
+     *   ⚠️ 例: `medianDaysToContract` は ⚠️ **その月に契約した顧客**のリードタイムになる。
+     */
+    const basisSql = actualEndDateExpr(
+      division,
+      key === 'medianDaysToFirstInterview' ? 'visit' : 'contract'
+    );
 
     // ⚠️ その事業に無い工程。⚠️ 0 ではなく null を返す
     if (basisSql === 'NULL') {
