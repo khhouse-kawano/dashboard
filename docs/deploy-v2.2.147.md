@@ -95,16 +95,16 @@ INSERT INTO update_log (version, date, note) VALUES
 
 ⚠️ ⚠️ **フロントの変更はバージョン表示だけ**（`version.ts` の `2.2.147`）。
 
-```powershell
-cd C:\Users\shinji-kawano\react\dashboard\frontend
-npm run build
-```
+⚠️ ⚠️ **ビルド済み**（2026-09-24）。
 
 | ファイル | |
 |---|---|
-| `build/static/js/main.*.js` | ⚠️ **ビルドで出た最新のもの** |
-| `build/static/css/main.*.css` | 一緒に上げてよい |
+| ⚠️ **`build/static/js/main.7f7ac5e8.js`** | ⚠️ **`2.2.147` を含む** |
+| `build/static/css/main.7c10f266.css` | ⚠️ **変わっていない**（一緒に上げてよい） |
 | ⚠️ **`build/index.html`** | ⚠️⚠️ **必ず差し替える** |
+
+⚠️⚠️ **古いビルドを使わないこと。**
+⚠️ `main.899bbfff.js` … ⚠️ **v2.2.146**
 
 ⚠️⚠️ **コードを直したら必ずビルドし直し、ハッシュが変わったことを確かめること。**
 ⚠️ ⚠️ **2026-09-22 に、直したあとビルドせず古い版を上げて本番で崩れた。**
