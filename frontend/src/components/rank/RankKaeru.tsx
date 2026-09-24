@@ -600,7 +600,7 @@ const RankOrder = () => {
 
     return (
         // ⚠️ 横スクロールは表の側（.rk_scroll_x）で受け持つ。⚠️ ここでは持たない
-        <div>
+        <div className="rk_page">
             {searchParts()}
             <Modal show={modalList.length > 0} onHide={modalClose} size='xl'>
                 <Modal.Header closeButton>

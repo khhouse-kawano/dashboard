@@ -124,9 +124,43 @@ export const RankingStyle = () => (
             ⚠️⚠️ **この style の中にバッククォートを書かないこと**（上にも同じ注意がある）。
               ⚠️ ⚠️ **2026-09-22 と 2026-09-24 に、CSSのコメントに書いて2度壊した。**
         */
-        .rk_scroll_x { width: 100%; overflow-x: auto; }
+        /*
+          ⚠️⚠️ **画面の一番外側に付ける**（2026-09-24）。
+
+            ⚠️ App.tsx はメニューと本文を ⚠️ **d-flex** で並べており、
+              ⚠️ ⚠️ **flex の子は既定（min-width: auto）で中身より小さくならない。**
+            ⚠️ ⚠️ **そのため囲みが表の幅まで広がり、スクロールが起きなかった。**
+              ⚠️ 2026-09-24、⚠️ **「スクロールもできない」と実際に報告を受けた。**
+            ⚠️ ⚠️ **min-width: 0 を付けて初めて中の overflow が効く。**
+        */
+        .rk_page { flex: 1 1 auto; min-width: 0; width: 100%; }
+
+        .rk_scroll_x {
+            width: 100%;
+            overflow: auto;
+            /*
+              ⚠️⚠️ **高さを画面内に収めること**（2026-09-24 の追加指示）。
+                ⚠️ 高さを決めないと ⚠️ **横スクロールバーが表の一番下に付く。**
+                  ⚠️ ⚠️ **行が多いと画面の外に出てしまい、利用者からは見えない。**
+                ⚠️ 78vh は ⚠️ **見出しと絞り込みのぶんを引いた残り**の目安。
+            */
+            max-height: 78vh;
+        }
         .rk_scroll_x > table { width: max-content; min-width: 100%; }
         .rk_scroll_x th, .rk_scroll_x td { white-space: nowrap; }
+
+        /*
+          ⚠️⚠️ **スクロールバーを必ず見えるようにする。**
+            ⚠️ Windows でも macOS でも、⚠️ **既定では触るまで出ないことがある。**
+            ⚠️ ⚠️ **横に隠れている列があると気づけないのがいちばん困る。**
+        */
+        .rk_scroll_x { scrollbar-width: auto; scrollbar-color: #94a3b8 #eef2f7; }
+        .rk_scroll_x::-webkit-scrollbar { width: 12px; height: 12px; }
+        .rk_scroll_x::-webkit-scrollbar-track { background: #eef2f7; border-radius: 999px; }
+        .rk_scroll_x::-webkit-scrollbar-thumb {
+            background: #94a3b8; border-radius: 999px; border: 3px solid #eef2f7;
+        }
+        .rk_scroll_x::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
         /*
           ⚠️⚠️ **react-bootstrap の Card / Form.Select を使っている画面用**（map/）。

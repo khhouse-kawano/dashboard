@@ -424,7 +424,7 @@ const RankOrder = () => {
     };
 
     return (
-        <div>
+        <div className="rk_page">
             <RankingStyle />
             <div className='bg-white rk_wrap'>
                 <div className="rk_head">

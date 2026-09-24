@@ -407,7 +407,7 @@ const RankResale = () => {
     };
 
     return (
-        <div>
+        <div className="rk_page">
             {/* ⚠️ 見出しが縦書きになるのを防ぐ CSS だけを借りている（rankingUi.tsx の .rk_scroll_x） */}
             <RankingStyle />
             <div className='bg-white p-2'>
