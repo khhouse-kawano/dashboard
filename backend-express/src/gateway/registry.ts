@@ -104,6 +104,7 @@ import {
 } from '../features/analysis/report';
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runPropertySuumo } from '../features/property';
+import { runSuumoPropertyInsert } from '../features/suumoProperty';
 import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
 import type { GatewayEntry, GatewayKey } from './types';
@@ -760,6 +761,40 @@ register({
   phpSource: 'backend/src/handlers/propertyAction/property_suumo.php',
   auth: 'none',
   handler: async () => runPropertySuumo(),
+});
+
+// ---------------------------------------------------------------------------
+// SUUMO 掲載順位の収集（書き込み）。2026-09-24 移植。
+//
+// ⚠️⚠️ **呼び出し元は画面ではない。**
+//   `C:\Users\shinji-kawano\extensions\meta_scraper\suumo_scraper.ts`
+//   （playwright）を **オーナーが週1回ローカルで実行**する。
+//   ⚠️ 送信先は ① のゲートウェイのままで、① が ② へ転送する。
+//     スクレイパーは改造していないので、再配布は不要。
+//
+// ⚠️⚠️ **`suumo_property` には UNIQUE キーが無い。**
+//   ⚠️ 二重実行で同じ物件が2行できるため、① では
+//     `expressProxyExclusive()`（フォールバック禁止）に登録している。
+//   ⚠️ **`expressProxyRequests()` へ移してはいけない。**
+//
+// ⚠️ auth: 'none'。⚠️⚠️ **スクレイパーは Token を送らない**（Content-Type のみ）。
+//   ⚠️ 'staff' にすると収集が全件 401 で止まる。
+//   ⚠️ google_review:save と同じ状態であり、認証強化は
+//     GATEWAY_REQUIRE_AUTH の一括適用で行う。
+//
+// ⚠️ 読み出し側は上の property::suumo。同じテーブルだがファイルが別。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'suumo_property',
+  summary: '【書き込み・フォールバック禁止】SUUMO掲載順位の収集結果を1件保存する',
+  phpSource: 'backend/src/handlers/suumo_property.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runSuumoPropertyInsert(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
 });
 
 // ---------------------------------------------------------------------------
