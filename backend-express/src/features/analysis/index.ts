@@ -199,7 +199,7 @@ export const analysis = defineFeature({
         const startedAt = Date.now();
 
         try {
-          const { rows, basis, actual } = await runPivot({
+          const { rows, basis, actual, mediumNote } = await runPivot({
             groupBy: q.groupBy,
             metrics: q.metrics,
             rates: q.rates,
@@ -237,6 +237,7 @@ export const analysis = defineFeature({
               rowCount: rows.length,
               division: q.division as AnalysisDivision,
               actual,
+              mediumNote,
             }),
             rows,
           };
@@ -267,7 +268,7 @@ export const analysis = defineFeature({
         const filters = extractFilters(q);
         const startedAt = Date.now();
 
-        const { rows, basis, actual } = await runPivot({
+        const { rows, basis, actual, mediumNote } = await runPivot({
           groupBy: q.groupBy,
           metrics: FUNNEL_METRICS,
           rates: RATE_KEYS,
@@ -304,6 +305,7 @@ export const analysis = defineFeature({
           rowCount: rows.length,
           division: q.division as AnalysisDivision,
           actual,
+          mediumNote,
         });
 
         // 直近の月は「まだ結果が出ていない」だけで、成績が悪いわけではない。
