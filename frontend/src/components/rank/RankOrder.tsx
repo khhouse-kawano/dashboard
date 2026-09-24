@@ -424,9 +424,9 @@ const RankOrder = () => {
     };
 
     return (
-        <div style={{ overflowX: 'scroll' }}>
+        <div className="rk_page">
             <RankingStyle />
-            <div className='bg-white rk_wrap' style={{ width: isSp ? '1200px' : '1600px' }}>
+            <div className='bg-white rk_wrap'>
                 <div className="rk_head">
                     <span className="rk_title">目標達成状況（注文事業）</span>
                     <span className="rk_note">※来場数・契約数は"実績日"起算となります。</span>
@@ -444,7 +444,7 @@ const RankOrder = () => {
                     </div>
                 </div>
                 {/* ⚠️ 2段見出しの表なので中身は触らず、外側の見た目だけ揃えている（rankingUi.tsx） */}
-                <div className="rk_plain">
+                <div className="rk_plain rk_scroll_x">
                     <Table bordered>
                         <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
                             <tr className="text-center">

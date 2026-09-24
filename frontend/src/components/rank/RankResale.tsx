@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
+// ⚠️ 見出しの折り返しを止める CSS（components/rankingUi.tsx）
+import { RankingStyle } from '../rankingUi';
 import Table from "react-bootstrap/Table";
 import "../SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -272,6 +274,18 @@ const RankResale = () => {
 
 
 
+
+    /**
+     * 粗利額の合計（万円）。
+     *
+     * ⚠️⚠️ **小数第1位で丸めること。**
+     *   ⚠️ `budget_total` は万円単位の小数で、⚠️ **そのまま足すと二進小数の誤差が出る。**
+     *   ⚠️ ⚠️ **本番で `584.3000000000001万円` と表示され、列がはみ出した**（2026-09-22）。
+     *   ⚠️ ⚠️ **`toFixed()` は使わない。** ⚠️ `584.0` のように無駄な 0 が付く。
+     */
+    const grossTotal = (list: { budget_total?: string | number }[]): number =>
+        Math.round(list.reduce((acc, cur) => acc + Number(cur.budget_total ?? 0), 0) * 10) / 10;
+
     const perFormate = (value: number) => {
         return Number.isFinite(value) ? Math.ceil(value * 1000) / 10 : 0;
     };
@@ -393,8 +407,10 @@ const RankResale = () => {
     };
 
     return (
-        <div style={{ overflowX: 'scroll' }}>
-            <div className='bg-white p-2' style={{ width: isSp ? '1200px' : '1600px' }}>
+        <div className="rk_page">
+            {/* ⚠️ 見出しが縦書きになるのを防ぐ CSS だけを借りている（rankingUi.tsx の .rk_scroll_x） */}
+            <RankingStyle />
+            <div className='bg-white p-2'>
                 <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
                 <div className="row mt-3 mb-4" >
                     <div className="col d-flex">
@@ -406,7 +422,8 @@ const RankResale = () => {
                         </select>
                     </div>
                 </div>
-                <div>
+                {/* ⚠️⚠️ **表は横スクロール。** ⚠️ 見出しを折り返さず、はみ出したぶんを流す */}
+                <div className="rk_scroll_x">
                     <Table bordered>
                         <tbody style={{ fontSize: isSp ? '8px' : '12px' }} className='align-middle'>
                             <tr className="text-center">
@@ -506,7 +523,7 @@ const RankResale = () => {
                                             }}
                                                 className={contract.length === 0 ? 'table-white' : ''}
                                                 key={targetIndex}>
-                                                {contract.reduce((acc, cur) => acc + Number(cur.budget_total ?? 0), 0)}<span style={{ fontSize: '7px', fontWeight: 'bold' }}>万円</span>
+                                                {grossTotal(contract)}<span style={{ fontSize: '7px', fontWeight: 'bold' }}>万円</span>
                                                 <br />{contract.length}<span style={{ fontSize: '9px', fontWeight: 'bold' }}>件</span>({perFormate(contract.length / interview.length)}%)</td>
                                             <td onClick={() => contract.length > 0 ? setModalList([...contract, ...rankS]) : null} style={{
                                                 textDecoration: contract.length > 0 ? 'underline' : ''
@@ -514,7 +531,7 @@ const RankResale = () => {
                                             }}
                                                 className={contract.length === 0 ? 'table-white' : ''}
                                                 key={targetIndex}>
-                                                {[...contract, ...rankS].reduce((acc, cur) => acc + Number(cur.budget_total ?? 0), 0)}<span style={{ fontSize: '7px', fontWeight: 'bold' }}>万円</span>
+                                                {grossTotal([...contract, ...rankS])}<span style={{ fontSize: '7px', fontWeight: 'bold' }}>万円</span>
                                                 <br />{contract.length + rankS.length}<span style={{ fontSize: '9px', fontWeight: 'bold' }}>件</span></td>                                            <td>{target.category === 'staff' ? '-' : goal}</td>
                                             <td>{goal ? perFormate(contract.length / Number(goal)) : 0}%
                                                 (<span className='text-primary'>{goal ? perFormate((contract.length + rankS.length) / Number(goal)) : 0}%</span>)</td>
