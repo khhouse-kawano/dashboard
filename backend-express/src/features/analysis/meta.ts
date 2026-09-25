@@ -3,7 +3,7 @@ import type { AnalysisDivision } from './columns';
 import type { DimensionKey } from './dimensions';
 import { DIMENSION_KEYS, dimension } from './dimensions';
 import type { MetricKey, RateKey } from './metrics';
-import { METRIC_KEYS, metric, RATE_KEYS, RATES } from './metrics';
+import { denominatorFor, METRIC_KEYS, metric, RATE_KEYS, RATES } from './metrics';
 import type { ActualInfo, Basis } from './query';
 import { BASES, MAX_BYTES, MAX_ROWS, UNSYNCED_DIMENSION_KEYS, unsyncedDimensionLabel } from './query';
 import { DEFAULT_MONTHS } from './actual';
@@ -49,6 +49,25 @@ export const caveats = (): string[] => [
     '⚠️ そのため同じ月の contracts ÷ leads を「その月の反響の契約率」と読んではならない。' +
     '⚠️ それを知りたいときは basis = reaction を使うこと。' +
     '⚠️ 月ごとの実績の推移を見るのが実績日起算の目的である。',
+  '⚠️⚠️ basis = actual の数え方は、ダッシュボードの反響推移（customerTrend）に合わせてある。' +
+    '⚠️ 建売は「その工程の最も古い日付。空なら上位工程の最も古い日付」で到達日を1つに決めるため、' +
+    '1人は1つの月にしか立たない。' +
+    '⚠️⚠️ 注文は「面談日があればその月。無いときだけ下位工程の日付で拾う」という数え方で、' +
+    '拾い方が OR のため1人が複数の月に立つことがある（画面がそうなっている）。' +
+    '⚠️ そのため注文の実来場数・次アポ数は、月をまたいで合計すると実人数を超える。' +
+    '⚠️⚠️ 注文の「次アポ数」は、面談日がある顧客を「面談した月」に数えている。' +
+    '「次アポを取った月」ではない。',
+  '⚠️⚠️ 契約として数えるステータスは事業で違う。' +
+    '注文は「契約済み」と「解約」、建売は「契約済み」のみ。これも画面に合わせてある。',
+  '⚠️⚠️ basis = actual の数字は画面（反響推移）と突き合わせて一致を確認してあるが、' +
+    '母数の絞り込みだけは画面と違う。' +
+    '⚠️ このAPIは shop_list.report_flag = 1 の店舗に紐づく顧客だけを集計するが、' +
+    '⚠️ **画面は店舗で絞っていない**。' +
+    '⚠️⚠️ そのため注文事業では画面より件数がわずかに少なく出る' +
+    '（直近12ヶ月で236件。うち190件は report_flag = 0 の「JH八代店」、' +
+    '残りは「グループ管理」などの管理用の行）。' +
+    '⚠️ 建売分譲事業ではこの差は出ない（実測0件）。' +
+    '⚠️ 画面と数件ずれたときは、まずこの差を疑うこと。',
   '⚠️⚠️ basis = actual では、実績日を持たない指標は null を返す（0件ではない）。' +
     '該当するのは lost / prospective / duplicated / highRank（台帳のステータスや評価で、日付が無い）と ' +
     'callCountAvg / callConnectedAvg / noCallRecord / interviewLogAvg / interviewsLed（ログ件数の現在値）。' +
@@ -199,8 +218,13 @@ export const buildCatalog = (): Record<string, unknown> => ({
   指標: fromEntries(METRIC_KEYS, (key) => metric(key).label),
   比率: {
     説明:
-      '件数から算出する比率。単位はパーセント（12.5 は 12.5% の意味）。' +
-      '分母はすべて反響数（leads）。母数が0の場合は null。',
+      '件数から算出する比率。単位はパーセント（12.5 は 12.5% の意味）。母数が0の場合は null。' +
+      '⚠️⚠️ 分母は基準日で変わる。' +
+      '⚠️ basis=reaction / contract … すべて反響数（leads）が分母。' +
+      '⚠️ basis=actual（既定）… ダッシュボードの反響推移の画面と同じ分母になる。' +
+      '注文は「次アポ率・契約率の分母が実来場」、' +
+      '建売は「来場率・申込率の分母が接触、契約率の分母が来場」である。' +
+      '⚠️ どの分母を使ったかは各レスポンスの meta「比率の分母」に書いてある。',
     一覧: fromEntries(RATE_KEYS, (key) => RATES[key].label),
   },
   集計基準日: fromEntries(
@@ -314,6 +338,21 @@ export const buildResponseMeta = (input: ResponseMetaInput): Record<string, unkn
     ...fromEntries([...input.metrics], (key) => metric(key).label),
     ...fromEntries([...input.rates], (key) => RATES[key].label),
   },
+  /**
+   * ⚠️⚠️ **どの指標で割ったかを必ず返す。**
+   *   ⚠️ 実績日起算では分母が leads ではないものがあり、
+   *     ⚠️ ⚠️ **書かないと Claude が自分で leads で割り直して食い違う。**
+   */
+  ...(input.rates.length === 0
+    ? {}
+    : {
+        比率の分母: Object.fromEntries(
+          input.rates.map((key) => [
+            key,
+            `${RATES[key].numerator} ÷ ${denominatorFor(key, division, input.actual !== undefined)}`,
+          ])
+        ),
+      }),
   絞り込み: Object.keys(input.filters).length === 0 ? 'なし' : input.filters,
   重複ステータスの扱い: input.excludeDuplicated
     ? 'ステータス「重複」の顧客を母数から除外した'

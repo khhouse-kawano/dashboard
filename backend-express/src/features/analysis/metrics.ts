@@ -350,11 +350,69 @@ export const RATES = {
     label: '次アポ率（次アポ ÷ 反響数）。⚠️ 店舗別動向と同じ数え方',
     numerator: 'nextAppointments',
   },
+  /**
+   * ⚠️ 2026-09-24 追加。⚠️ **建売の画面（反響推移）にある行**。
+   *   ⚠️ 注文にも同じ名前で用意してある（中身は通電）。
+   */
+  contactRatePct: {
+    label: '接触率（接触 ÷ 反響数）。⚠️ 反響推移（建売）と同じ数え方',
+    numerator: 'contacts',
+  },
+  applicationRatePct: {
+    label: '申込率（申込 ÷ 接触数）。⚠️⚠️ **建売だけの工程**。注文では null',
+    numerator: 'applications',
+  },
 } as const satisfies Record<string, { label: string; numerator: MetricKey }>;
 
 export type RateKey = keyof typeof RATES;
 
 export const RATE_KEYS = Object.keys(RATES) as RateKey[];
+
+/**
+ * 比率の分母（2026-09-24 追加）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **反響日起算では今までどおり全部 `leads`（総反響）。**
+ *   ⚠️ ⚠️ **変えないこと。** ⚠️ コホートの歩留まりの意味が変わる。
+ *
+ * ⚠️⚠️ **実績日起算だけ、画面（反響推移）と同じ分母にする**（利用者の指示）。
+ *
+ *   注文（CustomerTrendOrder.tsx）
+ *     実来場率 = 実来場 ÷ 総反響
+ *     ⚠️ **次アポ率 = 次アポ ÷ 実来場**
+ *     ⚠️ **契約率   = 契約   ÷ 実来場**
+ *
+ *   建売（CustomerTrendKaeru.tsx）
+ *     接触率   = 接触   ÷ 総反響
+ *     ⚠️ **来場率   = 来場   ÷ 接触**
+ *     ⚠️ **申込率   = 申込   ÷ 接触**
+ *     ⚠️ **契約率   = 契約   ÷ 来場**
+ *
+ * ⚠️ ⚠️ **ここに無い比率は `leads` のまま。**
+ * ─────────────────────────────────────────────
+ */
+const ACTUAL_DENOMINATOR: Record<AnalysisDivision, Partial<Record<RateKey, MetricKey>>> = {
+  order: {
+    nextAppointmentRatePct: 'visits',
+    contractRatePct: 'visits',
+  },
+  kaeru: {
+    visitRatePct: 'contacts',
+    applicationRatePct: 'contacts',
+    nextAppointmentRatePct: 'visits',
+    contractRatePct: 'visits',
+  },
+};
+
+/** 比率の分母を引く。⚠️ 実績日起算のときだけ画面に合わせる */
+export const denominatorFor = (
+  key: RateKey,
+  division: AnalysisDivision,
+  basisIsActual: boolean
+): MetricKey => {
+  if (!basisIsActual) return 'leads';
+  return ACTUAL_DENOMINATOR[division][key] ?? 'leads';
+};
 
 /**
  * ファネル分析で使う指標のセット。
