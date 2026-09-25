@@ -29,6 +29,8 @@ import TableCheckboxGroup from './TableCheckboxGroup';
 import FundingPlan from './FundingPlan';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import NexusBadge, { NEXUS_HEADER_LABEL } from '../NexusBadge';
+import { isNexus, nexusNameMessages, nexusRankMessage } from '../../utils/nexusUtils';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
 import type { CompetitorPdfItem } from '../../utils/competitorPdfUpload';
 
@@ -123,6 +125,21 @@ const footerButtonStyle = {
     letterSpacing: '0',
     whiteSpace: 'nowrap' as const
 };
+
+/**
+ * Nexus 連携の注意書き。
+ *
+ * ⚠️⚠️ **保存は止めない。** 赤字で促すだけである（2026-09-25 の指示）。
+ * ⚠️ 何を出すかは utils/nexusUtils.ts が決める。⚠️ **ここで条件を書かないこと。**
+ * ⚠️ 文字は 11px の表の中に置くので**小さめ**にしてある。
+ */
+const NexusNotice = ({ messages }: { messages: string[] }) => (
+    messages.length === 0 ? null : (
+        <div className='text-danger fw-bold mt-1' style={{ fontSize: '10px', lineHeight: '1.5' }}>
+            {messages.map((message) => <div key={message}>{message}</div>)}
+        </div>
+    )
+);
 
 const steps = [
     '事前審査提出',
@@ -357,6 +374,15 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
             alert(`必須項目が未入力です:${statusError}`);
             return;
         }
+
+        /**
+         * ⚠️⚠️ **Nexus の条件では保存を止めないこと**（2026-09-25 の指示）。
+         *   ⚠️ 一時は alert で return していたが、⚠️ **やめた。**
+         *     ⚠️ 面談中に聞き取った内容を保存できないほうが困るためである。
+         *   ⚠️ 代わりに**お客様名と顧客ランクの欄に赤字**を出している
+         *     （⚠️ 下の `nexusNameMessages()` / `nexusRankMessage()`）。
+         *   ⚠️⚠️ **ここに検査を戻さないこと。**
+         */
 
         setSending(false);
 
@@ -813,7 +839,11 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                     handleClose();
                 }}
             >
-                <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
+                <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }} className='d-flex align-items-center'>
+                    {/* ⚠️ Nexus へ移行できる形のときだけ出す。⚠️ 新規登録中は判定しない（まだ空） */}
+                    {/* ⚠️ 見出しは**文字で「Nexus連携済み」**（2026-09-25 の指示）。⚠️ 一覧の丸囲み `N` とは形が違う */}
+                    {id !== 'new' && isNexus(information) && <NexusBadge className='me-1' label={NEXUS_HEADER_LABEL} />}
+                    {id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
                     <div style={{ background: 'rgb(233, 233, 233)', fontSize: '11px' }} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
                 </Modal.Header>
                 <Modal.Body>
@@ -826,12 +856,14 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={{ ...valueStyle, width: '40%' }} className='table-secondary'>
                                             <div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey={idMapping('お客様名')} defaultValue='氏名①' />
-                                                <TableInput information={information} setInformation={setInformation} itemKey={idMapping('名前（かな）')} defaultValue='ふりがな①' />
+                                                <TableInput information={information} setInformation={setInformation} itemKey={idMapping('名前（かな）')} defaultValue='フリガナ①' />
                                             </div>
                                             <div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_2' defaultValue='氏名②' />
-                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_kana_2' defaultValue='ふりがな②' />
+                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_kana_2' defaultValue='フリガナ②' />
                                             </div>
+                                            {/* ⚠️ 見るのは**氏名①・フリガナ①だけ**。⚠️ 入力し直せば消える */}
+                                            <NexusNotice messages={nexusNameMessages(information)} />
                                         </td>
                                         <td style={{ ...labelStyle, width: '10%' }}>連絡先</td>
                                         <td style={{ ...valueStyle, width: '40%' }}>
@@ -899,6 +931,8 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                 thisMonth={thisMonth}
                                                 setShowDetail={setShowDetail}
                                             />
+                                            {/* ⚠️ ランク未設定か Eランクのときだけ出る */}
+                                            <NexusNotice messages={[nexusRankMessage(information)].filter((m): m is string => m !== null)} />
                                         </td>
                                         <td style={labelStyle}>反響媒体<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>
