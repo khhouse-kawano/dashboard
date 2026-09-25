@@ -95,23 +95,87 @@ export const hasHalfWidthSpace = (value: string): boolean => {
 };
 
 /**
+ * Nexus へ連携する顧客ランク。
+ *
+ * ⚠️⚠️ **Eランクと未設定は連携しない**（2026-09-25 の指示）。
+ * ⚠️ 値は `TableRank.tsx` の option と同じ文字列。
+ *   ⚠️ **`Sランク` のように「ランク」まで含めて持っている。**
+ *   ⚠️ 顧客データベースの表示だけ `.replace('ランク','')` で落としているので、
+ *     ⚠️ **判定は落とす前の値で行うこと。**
+ */
+export const NEXUS_RANKS: string[] = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク'];
+
+/** ⚠️ 顧客ランクの列は `customized_input_01J82Z5F366ZQ897PXWF6H5ZAM` */
+export const RANK_KEY = 'customized_input_01J82Z5F366ZQ897PXWF6H5ZAM';
+
+export const isNexusRank = (rank?: string): boolean =>
+    NEXUS_RANKS.includes((rank ?? '').trim());
+
+/** ⚠️ 一覧・編集のどちらからも同じ判定を通すための素の関数 */
+const nexusOk = (name?: string, kana?: string, rank?: string): boolean =>
+    hasHalfWidthSpace(name ?? '')
+    && isKatakanaOnly(kana ?? '')
+    && hasHalfWidthSpace(kana ?? '')
+    && isNexusRank(rank);
+
+/**
  * Nexus へ移行できる顧客か。
  *
- * ⚠️ 画面では **この結果でアイコンを出すだけ**である。
- *   保存を止めるのは handleSave 側の個別チェック（文言が項目ごとに違うため）。
+ * ⚠️⚠️ **条件は4つ**（2026-09-25 に 3・4 を追加）。
+ *   1. 氏名①の姓名間に半角スペース
+ *   2. フリガナ①がカタカナ
+ *   3. ⚠️ **フリガナ①の姓名間にも半角スペース**
+ *   4. ⚠️ **顧客ランクが S〜D**
+ *
+ * ⚠️ 画面では **この結果で印を出すだけ**である。
+ *   ⚠️⚠️ **保存は止めない**（2026-09-25 に alert をやめ、欄の下に赤字を出す形にした）。
  */
 export const isNexus = (information: Record<string, string>): boolean =>
-    hasHalfWidthSpace(information?.customer_contacts_name ?? '')
-    && isKatakanaOnly(information?.customer_contacts_name_kana ?? '');
+    nexusOk(
+        information?.customer_contacts_name,
+        information?.customer_contacts_name_kana,
+        information?.[RANK_KEY]
+    );
 
-/** 一覧の行（`customer` / `customer_contacts_name_kana`）用。⚠️ 中身の判定は isNexus と同じ */
-export const isNexusRow = (name?: string, kana?: string): boolean =>
-    hasHalfWidthSpace(name ?? '') && isKatakanaOnly(kana ?? '');
+/**
+ * 一覧の行用。
+ *
+ * ⚠️ 顧客一覧APIは `customer` / `customer_contacts_name_kana` / `rank` という別名で返す。
+ *   ⚠️ **中身の判定は isNexus と同じ**（どちらも nexusOk を通る）。
+ */
+export const isNexusRow = (name?: string, kana?: string, rank?: string): boolean =>
+    nexusOk(name, kana, rank);
 
-/** ⚠️ 指示書の文言そのまま。変えるときはオーナーに確認すること */
-export const NEXUS_ALERT_SPACE = '姓名間に半角スペースを入力すること。例）×国分太郎 〇国分 太郎';
-export const NEXUS_ALERT_KANA = 'ふりがなはカタカナで入力すること。';
+/**
+ * お客様名の欄に出す注意書き。
+ *
+ * ⚠️⚠️ **保存は止めない。** 出るのは赤字のメッセージだけである。
+ *   ⚠️ 連絡先や住所と違い、⚠️ **顧客名はこちらでコントロールできる**ので促すだけにする。
+ * ⚠️ 文言は指示書のまま。⚠️ **変えるときはオーナーに確認すること。**
+ * ⚠️ 見るのは **氏名①・フリガナ①だけ**。氏名②は空のことが多い。
+ */
+export const nexusNameMessages = (information: Record<string, string>): string[] => {
+    const name = information?.customer_contacts_name ?? '';
+    const kana = information?.customer_contacts_name_kana ?? '';
+    const messages: string[] = [];
+
+    if (!hasHalfWidthSpace(name)) messages.push('Nexus連携のためには姓名間に半角スペースが必要');
+    if (hasHiragana(kana)) messages.push('Nexus連携のためにはふりがなをカタカナで表記');
+    if (!hasHalfWidthSpace(kana)) messages.push('Nexus連携のためにはフリガナの姓名間に半角スペースが必要');
+
+    return messages;
+};
+
+/**
+ * 顧客ランクの欄に出す注意書き。
+ *
+ * ⚠️ **ランク未設定か Eランクのときだけ**返す。⚠️ それ以外は null。
+ */
+export const nexusRankMessage = (information: Record<string, string>): string | null =>
+    isNexusRank(information?.[RANK_KEY]) ? null : 'S~Dランクの顧客がNexusに連携されます';
 ```
+
+⚠️⚠️ **`NEXUS_ALERT_SPACE` / `NEXUS_ALERT_KANA` は削除した**（⚠️ alert をやめたため）。
 
 ### 2. `frontend/src/components/NexusBadge.tsx`（新規コンポネント）
 
@@ -281,27 +345,56 @@ import NexusBadge from '../NexusBadge';
 import { isNexus, hasHalfWidthSpace, hasHiragana, NEXUS_ALERT_SPACE, NEXUS_ALERT_KANA } from '../../utils/nexusUtils';
 ```
 
-**(b) `handleSave` — `statusRequiredError()` の直後に検査を追加**
+**(b) `handleSave` — ⚠️⚠️ 検査は置かない**
+
+⚠️⚠️ **一度 alert + return で入れたが、2026-09-25 に取りやめた。**
+⚠️ **面談中に聞き取った内容を保存できないほうが困る**ため。⚠️ コメントだけ残している。
 
 ```tsx
         /**
-         * ⚠️⚠️ **Nexus へ移行できる形かどうかの検査**（2026-09-25 の指示）。
-         *   ⚠️ 顧客名とフリガナは**こちらでコントロールできる**ので保存前に止める。
-         *     ⚠️ **連絡先・住所は止めないこと。** 聞き取れずに空のままになる顧客がいる。
-         *   ⚠️ 見るのは **氏名①・フリガナ①だけ**。氏名②は空のことが多い。
-         *   ⚠️ 判定と文言は utils/nexusUtils.ts に置いてある。
+         * ⚠️⚠️ **Nexus の条件では保存を止めないこと**（2026-09-25 の指示）。
+         *   ⚠️ 一時は alert で return していたが、⚠️ **やめた。**
+         *     ⚠️ 面談中に聞き取った内容を保存できないほうが困るためである。
+         *   ⚠️ 代わりに**お客様名と顧客ランクの欄に赤字**を出している
+         *     （⚠️ 下の `nexusNameMessages()` / `nexusRankMessage()`）。
+         *   ⚠️⚠️ **ここに検査を戻さないこと。**
          */
-        if (!hasHalfWidthSpace(information.customer_contacts_name ?? '')) {
-            alert(NEXUS_ALERT_SPACE);
-            return;
-        }
-        if (hasHiragana(information.customer_contacts_name_kana ?? '')) {
-            alert(NEXUS_ALERT_KANA);
-            return;
-        }
 ```
 
-⚠️ 置いた場所が ⚠️ **`setSending(false)` より前**であること。⚠️ 後ろに置くと ⚠️ **保存ボタンが押せないまま戻る。**
+**(b-2) 赤字を出す小さなコンポネント（⚠️ 同ファイル内・`steps` の直前）**
+
+```tsx
+/**
+ * Nexus 連携の注意書き。
+ *
+ * ⚠️⚠️ **保存は止めない。** 赤字で促すだけである（2026-09-25 の指示）。
+ * ⚠️ 何を出すかは utils/nexusUtils.ts が決める。⚠️ **ここで条件を書かないこと。**
+ * ⚠️ 文字は 11px の表の中に置くので**小さめ**にしてある。
+ */
+const NexusNotice = ({ messages }: { messages: string[] }) => (
+    messages.length === 0 ? null : (
+        <div className='text-danger fw-bold mt-1' style={{ fontSize: '10px', lineHeight: '1.5' }}>
+            {messages.map((message) => <div key={message}>{message}</div>)}
+        </div>
+    )
+);
+```
+
+**(b-3) お客様名の `td`（⚠️ フリガナ②の div の直後）**
+
+```tsx
+                                            {/* ⚠️ 見るのは**氏名①・フリガナ①だけ**。⚠️ 入力し直せば消える */}
+                                            <NexusNotice messages={nexusNameMessages(information)} />
+```
+
+**(b-4) 顧客ランクの `td`（⚠️ `TableRank` の直後）**
+
+```tsx
+                                            {/* ⚠️ ランク未設定か Eランクのときだけ出る */}
+                                            <NexusNotice messages={[nexusRankMessage(information)].filter((m): m is string => m !== null)} />
+```
+
+⚠️ import は `import { isNexus, nexusNameMessages, nexusRankMessage } from '../../utils/nexusUtils';`
 
 **(c) `Modal.Header` — アイコンを付ける**
 
@@ -351,7 +444,8 @@ import { isNexusRow } from '../../utils/nexusUtils';
                                                 ⚠️ **改行しないこと。** 行の高さが揃わなくなり、一覧が読みにくくなる。
                                             */}
                                             <td><GiftDot gift={item.gift} />
-                                                {isNexusRow(item.customer, item.customer_contacts_name_kana) && <NexusBadge className='me-1' />}
+                                                {/* ⚠️ `item.rank` は `Sランク` の形。⚠️ **表示用に「ランク」を落とす前の値**を渡すこと */}
+                                                {isNexusRow(item.customer, item.customer_contacts_name_kana, item.rank) && <NexusBadge className='me-1' />}
                                                 {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
 ```
 
@@ -456,13 +550,19 @@ export const newVersion = '2.2.149';
 
 ⚠️⚠️ **半角カナは直らない**（⚠️ `kana` 34件 / `kana_2` 1件）。⚠️ **手で直すしかない。**
 
-変換後の `show_dashboard = 1` の顧客（24,609件）:
+変換後の `show_dashboard = 1` の顧客（24,609件）を ⚠️ **4条件（最終版）**で数えた:
 
-| | 件数 |
+| 条件 | 満たす件数 |
 |---|---|
-| 姓名間に半角スペースあり | 21,279 |
-| フリガナが入っている | 22,083 |
-| ⚠️⚠️ **`isNexus` が真になる** | ⚠️ **19,486（79%）** |
+| 氏名①に半角スペース | 21,279 |
+| フリガナ①がカタカナ | 22,418 |
+| ⚠️ **フリガナ①に半角スペース** | 19,372 |
+| ⚠️⚠️ **ランクが S〜D** | ⚠️ **1,735** |
+| ⚠️⚠️ **4つすべて（`isNexus`）** | ⚠️ **1,555** |
+
+⚠️⚠️ **ランク条件が効いて一気に絞られる。** ⚠️ 名前とフリガナだけなら19,000件台だが、
+⚠️ **ランクが S〜D の顧客がそもそも 1,735件しかいない。**
+⚠️ ⚠️ **印が付くのは全体の6%程度**になる。
 
 ⚠️ ⚠️ **本番①ではまだ実行していない。** ⚠️ デプロイ手順書に手順として載せてある。
 
@@ -511,8 +611,8 @@ export const newVersion = '2.2.149';
 |---|---|
 | 1 | ⚠️⚠️ **顧客名の注意書き（`InformationEditKaeru.tsx` の `OverlayTriggerComponent` 参考）はオーナー対応。** ⚠️ 今回は入れていない |
 | 2 | ⚠️⚠️ **半角カナは SQL でも画面でも直らない。** ⚠️ 手順1-2 の件数を見て手で直すこと |
-| 3 | ⚠️ `handleSave` の検査は ⚠️ **注文事業だけ**。⚠️ 建売・中古で同じことをするなら `InformationEditKaeru.tsx` / `InformationEditResale.tsx` にも同じ4行を足す |
-| 4 | ⚠️⚠️ **既存顧客を開いて保存すると、スペースが無いだけで止まる。** ⚠️ 19,486/24,609 は通るが、⚠️ **残り2割は保存時に必ず直すことになる**（狙いどおりだが問い合わせが来る想定） |
+| 3 | ⚠️ 赤字の注意書きは ⚠️ **注文事業だけ**。⚠️ 建売・中古で同じことをするなら `InformationEditKaeru.tsx` / `InformationEditResale.tsx` にも `NexusNotice` を足す |
+| 4 | ⚠️⚠️ **保存は止めない。** ⚠️ **`handleSave` に検査を戻さないこと**（⚠️ 面談中に保存できないほうが困る） |
 | 5 | ⚠️ 退避テーブル `master_data_kana_backup_20260925` は ⚠️ **数日おいてから消すこと** |
 | 6 | ⚠️ 判定を変えるときは ⚠️ **`nexusUtils.ts` だけを直す。** 画面3箇所すべてがここを通っている |
 | 7 | ⚠️⚠️ **アイコンを四角い「Nexus」タグに戻さないこと。** ⚠️ **リンクに見える**と指摘を受けて丸囲みの `N` にした |

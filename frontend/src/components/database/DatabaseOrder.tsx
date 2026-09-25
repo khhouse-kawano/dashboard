@@ -651,7 +651,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                                 ⚠️ **改行しないこと。** 行の高さが揃わなくなり、一覧が読みにくくなる。
                                             */}
                                             <td><GiftDot gift={item.gift} />
-                                                {isNexusRow(item.customer, item.customer_contacts_name_kana) && <NexusBadge className='me-1' />}
+                                                {/* ⚠️ `item.rank` は `Sランク` の形。⚠️ **表示用に「ランク」を落とす前の値**を渡すこと */}
+                                                {isNexusRow(item.customer, item.customer_contacts_name_kana, item.rank) && <NexusBadge className='me-1' />}
                                                 {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
                                             <td>{safeFormate(item.staff)}</td>
                                             <td>{safeFormate(item.status)}</td>

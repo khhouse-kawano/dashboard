@@ -30,7 +30,7 @@ import FundingPlan from './FundingPlan';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import NexusBadge, { NEXUS_HEADER_LABEL } from '../NexusBadge';
-import { isNexus, hasHalfWidthSpace, hasHiragana, NEXUS_ALERT_SPACE, NEXUS_ALERT_KANA } from '../../utils/nexusUtils';
+import { isNexus, nexusNameMessages, nexusRankMessage } from '../../utils/nexusUtils';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
 import type { CompetitorPdfItem } from '../../utils/competitorPdfUpload';
 
@@ -125,6 +125,21 @@ const footerButtonStyle = {
     letterSpacing: '0',
     whiteSpace: 'nowrap' as const
 };
+
+/**
+ * Nexus 連携の注意書き。
+ *
+ * ⚠️⚠️ **保存は止めない。** 赤字で促すだけである（2026-09-25 の指示）。
+ * ⚠️ 何を出すかは utils/nexusUtils.ts が決める。⚠️ **ここで条件を書かないこと。**
+ * ⚠️ 文字は 11px の表の中に置くので**小さめ**にしてある。
+ */
+const NexusNotice = ({ messages }: { messages: string[] }) => (
+    messages.length === 0 ? null : (
+        <div className='text-danger fw-bold mt-1' style={{ fontSize: '10px', lineHeight: '1.5' }}>
+            {messages.map((message) => <div key={message}>{message}</div>)}
+        </div>
+    )
+);
 
 const steps = [
     '事前審査提出',
@@ -361,20 +376,13 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
         }
 
         /**
-         * ⚠️⚠️ **Nexus へ移行できる形かどうかの検査**（2026-09-25 の指示）。
-         *   ⚠️ 顧客名とフリガナは**こちらでコントロールできる**ので保存前に止める。
-         *     ⚠️ **連絡先・住所は止めないこと。** 聞き取れずに空のままになる顧客がいる。
-         *   ⚠️ 見るのは **氏名①・フリガナ①だけ**。氏名②は空のことが多い。
-         *   ⚠️ 判定と文言は utils/nexusUtils.ts に置いてある。
+         * ⚠️⚠️ **Nexus の条件では保存を止めないこと**（2026-09-25 の指示）。
+         *   ⚠️ 一時は alert で return していたが、⚠️ **やめた。**
+         *     ⚠️ 面談中に聞き取った内容を保存できないほうが困るためである。
+         *   ⚠️ 代わりに**お客様名と顧客ランクの欄に赤字**を出している
+         *     （⚠️ 下の `nexusNameMessages()` / `nexusRankMessage()`）。
+         *   ⚠️⚠️ **ここに検査を戻さないこと。**
          */
-        if (!hasHalfWidthSpace(information.customer_contacts_name ?? '')) {
-            alert(NEXUS_ALERT_SPACE);
-            return;
-        }
-        if (hasHiragana(information.customer_contacts_name_kana ?? '')) {
-            alert(NEXUS_ALERT_KANA);
-            return;
-        }
 
         setSending(false);
 
@@ -854,6 +862,8 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_2' defaultValue='氏名②' />
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_kana_2' defaultValue='フリガナ②' />
                                             </div>
+                                            {/* ⚠️ 見るのは**氏名①・フリガナ①だけ**。⚠️ 入力し直せば消える */}
+                                            <NexusNotice messages={nexusNameMessages(information)} />
                                         </td>
                                         <td style={{ ...labelStyle, width: '10%' }}>連絡先</td>
                                         <td style={{ ...valueStyle, width: '40%' }}>
@@ -921,6 +931,8 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                 thisMonth={thisMonth}
                                                 setShowDetail={setShowDetail}
                                             />
+                                            {/* ⚠️ ランク未設定か Eランクのときだけ出る */}
+                                            <NexusNotice messages={[nexusRankMessage(information)].filter((m): m is string => m !== null)} />
                                         </td>
                                         <td style={labelStyle}>反響媒体<span style={requiredStyle}>必須</span></td>
                                         <td style={valueStyle}>

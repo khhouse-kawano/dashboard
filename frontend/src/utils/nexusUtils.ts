@@ -65,19 +65,81 @@ export const hasHalfWidthSpace = (value: string): boolean => {
 };
 
 /**
+ * Nexus へ連携する顧客ランク。
+ *
+ * ⚠️⚠️ **Eランクと未設定は連携しない**（2026-09-25 の指示）。
+ * ⚠️ 値は `TableRank.tsx` の option と同じ文字列。
+ *   ⚠️ **`Sランク` のように「ランク」まで含めて持っている。**
+ *   ⚠️ 顧客データベースの表示だけ `.replace('ランク','')` で落としているので、
+ *     ⚠️ **判定は落とす前の値で行うこと。**
+ */
+export const NEXUS_RANKS: string[] = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク'];
+
+/** ⚠️ 顧客ランクの列は `customized_input_01J82Z5F366ZQ897PXWF6H5ZAM` */
+export const RANK_KEY = 'customized_input_01J82Z5F366ZQ897PXWF6H5ZAM';
+
+export const isNexusRank = (rank?: string): boolean =>
+    NEXUS_RANKS.includes((rank ?? '').trim());
+
+/** ⚠️ 一覧・編集のどちらからも同じ判定を通すための素の関数 */
+const nexusOk = (name?: string, kana?: string, rank?: string): boolean =>
+    hasHalfWidthSpace(name ?? '')
+    && isKatakanaOnly(kana ?? '')
+    && hasHalfWidthSpace(kana ?? '')
+    && isNexusRank(rank);
+
+/**
  * Nexus へ移行できる顧客か。
  *
- * ⚠️ 画面では **この結果でアイコンを出すだけ**である。
- *   保存を止めるのは handleSave 側の個別チェック（文言が項目ごとに違うため）。
+ * ⚠️⚠️ **条件は4つ**（2026-09-25 に 3・4 を追加）。
+ *   1. 氏名①の姓名間に半角スペース
+ *   2. フリガナ①がカタカナ
+ *   3. ⚠️ **フリガナ①の姓名間にも半角スペース**
+ *   4. ⚠️ **顧客ランクが S〜D**
+ *
+ * ⚠️ 画面では **この結果で印を出すだけ**である。
+ *   ⚠️⚠️ **保存は止めない**（2026-09-25 に alert をやめ、欄の下に赤字を出す形にした）。
  */
 export const isNexus = (information: Record<string, string>): boolean =>
-    hasHalfWidthSpace(information?.customer_contacts_name ?? '')
-    && isKatakanaOnly(information?.customer_contacts_name_kana ?? '');
+    nexusOk(
+        information?.customer_contacts_name,
+        information?.customer_contacts_name_kana,
+        information?.[RANK_KEY]
+    );
 
-/** 一覧の行（`customer` / `customer_contacts_name_kana`）用。⚠️ 中身の判定は isNexus と同じ */
-export const isNexusRow = (name?: string, kana?: string): boolean =>
-    hasHalfWidthSpace(name ?? '') && isKatakanaOnly(kana ?? '');
+/**
+ * 一覧の行用。
+ *
+ * ⚠️ 顧客一覧APIは `customer` / `customer_contacts_name_kana` / `rank` という別名で返す。
+ *   ⚠️ **中身の判定は isNexus と同じ**（どちらも nexusOk を通る）。
+ */
+export const isNexusRow = (name?: string, kana?: string, rank?: string): boolean =>
+    nexusOk(name, kana, rank);
 
-/** ⚠️ 指示書の文言そのまま。変えるときはオーナーに確認すること */
-export const NEXUS_ALERT_SPACE = '姓名間に半角スペースを入力すること。例）×国分太郎 〇国分 太郎';
-export const NEXUS_ALERT_KANA = 'ふりがなはカタカナで入力すること。';
+/**
+ * お客様名の欄に出す注意書き。
+ *
+ * ⚠️⚠️ **保存は止めない。** 出るのは赤字のメッセージだけである。
+ *   ⚠️ 連絡先や住所と違い、⚠️ **顧客名はこちらでコントロールできる**ので促すだけにする。
+ * ⚠️ 文言は指示書のまま。⚠️ **変えるときはオーナーに確認すること。**
+ * ⚠️ 見るのは **氏名①・フリガナ①だけ**。氏名②は空のことが多い。
+ */
+export const nexusNameMessages = (information: Record<string, string>): string[] => {
+    const name = information?.customer_contacts_name ?? '';
+    const kana = information?.customer_contacts_name_kana ?? '';
+    const messages: string[] = [];
+
+    if (!hasHalfWidthSpace(name)) messages.push('Nexus連携のためには姓名間に半角スペースが必要');
+    if (hasHiragana(kana)) messages.push('Nexus連携のためにはふりがなをカタカナで表記');
+    if (!hasHalfWidthSpace(kana)) messages.push('Nexus連携のためにはフリガナの姓名間に半角スペースが必要');
+
+    return messages;
+};
+
+/**
+ * 顧客ランクの欄に出す注意書き。
+ *
+ * ⚠️ **ランク未設定か Eランクのときだけ**返す。⚠️ それ以外は null。
+ */
+export const nexusRankMessage = (information: Record<string, string>): string | null =>
+    isNexusRank(information?.[RANK_KEY]) ? null : 'S~Dランクの顧客がNexusに連携されます';
