@@ -29,6 +29,8 @@ import TableCheckboxGroup from './TableCheckboxGroup';
 import FundingPlan from './FundingPlan';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import NexusBadge from '../NexusBadge';
+import { isNexus, hasHalfWidthSpace, hasHiragana, NEXUS_ALERT_SPACE, NEXUS_ALERT_KANA } from '../../utils/nexusUtils';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
 import type { CompetitorPdfItem } from '../../utils/competitorPdfUpload';
 
@@ -355,6 +357,22 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
         const statusError = statusRequiredError(information, category, information.status);
         if (statusError !== null) {
             alert(`必須項目が未入力です:${statusError}`);
+            return;
+        }
+
+        /**
+         * ⚠️⚠️ **Nexus へ移行できる形かどうかの検査**（2026-09-25 の指示）。
+         *   ⚠️ 顧客名とフリガナは**こちらでコントロールできる**ので保存前に止める。
+         *     ⚠️ **連絡先・住所は止めないこと。** 聞き取れずに空のままになる顧客がいる。
+         *   ⚠️ 見るのは **氏名①・フリガナ①だけ**。氏名②は空のことが多い。
+         *   ⚠️ 判定と文言は utils/nexusUtils.ts に置いてある。
+         */
+        if (!hasHalfWidthSpace(information.customer_contacts_name ?? '')) {
+            alert(NEXUS_ALERT_SPACE);
+            return;
+        }
+        if (hasHiragana(information.customer_contacts_name_kana ?? '')) {
+            alert(NEXUS_ALERT_KANA);
             return;
         }
 
@@ -813,7 +831,10 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                     handleClose();
                 }}
             >
-                <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
+                <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }} className='d-flex align-items-center'>
+                    {/* ⚠️ Nexus へ移行できる形のときだけ出す。⚠️ 新規登録中は判定しない（まだ空） */}
+                    {id !== 'new' && isNexus(information) && <NexusBadge className='me-1' />}
+                    {id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
                     <div style={{ background: 'rgb(233, 233, 233)', fontSize: '11px' }} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
                 </Modal.Header>
                 <Modal.Body>
@@ -826,11 +847,11 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                         <td style={{ ...valueStyle, width: '40%' }} className='table-secondary'>
                                             <div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey={idMapping('お客様名')} defaultValue='氏名①' />
-                                                <TableInput information={information} setInformation={setInformation} itemKey={idMapping('名前（かな）')} defaultValue='ふりがな①' />
+                                                <TableInput information={information} setInformation={setInformation} itemKey={idMapping('名前（かな）')} defaultValue='フリガナ①' />
                                             </div>
                                             <div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_2' defaultValue='氏名②' />
-                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_kana_2' defaultValue='ふりがな②' />
+                                                <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_name_kana_2' defaultValue='フリガナ②' />
                                             </div>
                                         </td>
                                         <td style={{ ...labelStyle, width: '10%' }}>連絡先</td>

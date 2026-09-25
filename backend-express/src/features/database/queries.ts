@@ -61,6 +61,12 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
   id,
   ${giftBaseSelectSql()},
   COALESCE(customer_contacts_name, '') AS customer,
+  /*
+    ⚠️ 2026-09-25 に追加。DatabaseOrder.tsx の Nexus アイコンの判定で使う。
+      ⚠️ 返さないと画面側が undefined になり、⚠️ **アイコンが一切出なくなる。**
+      ⚠️ ① の database_order.php にも同じ1行を足してある。
+  */
+  COALESCE(customer_contacts_name_kana, '') AS customer_contacts_name_kana,
   COALESCE(in_charge_store, '') AS shop,
   COALESCE(in_charge_user, '') AS staff,
   COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') AS \`rank\`,

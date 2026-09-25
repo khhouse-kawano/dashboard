@@ -17,6 +17,8 @@ import { thisYear } from '../../utils/thisYear';
 import { missingLostFields } from '../../utils/informationUtils';
 // ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
 import { sortStaff } from '../header/useAmbassadorMaster';
+import NexusBadge from '../NexusBadge';
+import { isNexusRow } from '../../utils/nexusUtils';
 
 // --- 型定義 ---
 type ShopList = { brand: string; shop: string; section: string };
@@ -40,6 +42,8 @@ interface CustomerItem extends Record<string, any> {
     medium?: string;
     status?: string;
     customer?: string;
+    /** フリガナ。⚠️ Nexus アイコンの判定にだけ使う（検索には使っていない） */
+    customer_contacts_name_kana?: string;
     staff?: string;
     phone_number?: string;
     full_address?: string;
@@ -641,7 +645,9 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                                     setEditId(item.id);
                                                 }}>編集</div></td>
                                             <td>{safeFormate(item.shop)}</td>
-                                            <td><GiftDot gift={item.gift} />{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
+                                            {/* ⚠️ Nexus アイコンは顧客名の**下（改行して2行目）**に出す。指示どおり横には並べない */}
+                                            <td><GiftDot gift={item.gift} />{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}
+                                                {isNexusRow(item.customer, item.customer_contacts_name_kana) && <><br /><NexusBadge /></>}</td>
                                             <td>{safeFormate(item.staff)}</td>
                                             <td>{safeFormate(item.status)}</td>
                                             <td>{safeFormate(item.register)}</td>
