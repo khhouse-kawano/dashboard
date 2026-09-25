@@ -614,7 +614,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
                     </div>
                 </div>
                 <div className="w-100 mb-1">
-                    <GiftLegend />
+                    {/* ⚠️ nexus は**注文事業だけ**。建売分譲にはこのアイコンを出していない */}
+                    <GiftLegend nexus />
                 </div>
                 <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <div style={{ width: '1600px' }}>
@@ -645,9 +646,13 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                                     setEditId(item.id);
                                                 }}>編集</div></td>
                                             <td>{safeFormate(item.shop)}</td>
-                                            {/* ⚠️ Nexus アイコンは顧客名の**下（改行して2行目）**に出す。指示どおり横には並べない */}
-                                            <td><GiftDot gift={item.gift} />{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}
-                                                {isNexusRow(item.customer, item.customer_contacts_name_kana) && <><br /><NexusBadge /></>}</td>
+                                            {/*
+                                              ⚠️⚠️ **Nexus アイコンはギフトのドットの隣に置く**（2026-09-25 の指示）。
+                                                ⚠️ **改行しないこと。** 行の高さが揃わなくなり、一覧が読みにくくなる。
+                                            */}
+                                            <td><GiftDot gift={item.gift} />
+                                                {isNexusRow(item.customer, item.customer_contacts_name_kana) && <NexusBadge className='me-1' />}
+                                                {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
                                             <td>{safeFormate(item.staff)}</td>
                                             <td>{safeFormate(item.status)}</td>
                                             <td>{safeFormate(item.register)}</td>

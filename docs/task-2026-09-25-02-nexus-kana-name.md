@@ -115,6 +115,10 @@ export const NEXUS_ALERT_KANA = 'ふりがなはカタカナで入力するこ�
 
 ### 2. `frontend/src/components/NexusBadge.tsx`（新規コンポネント）
 
+⚠️⚠️ **2026-09-25 に見た目を2度直している。**
+⚠️ 当初は角丸の「Nexus」タグだったが、⚠️ **リンクに見える**との指摘で ⚠️ **丸囲みの `N`** にした。
+⚠️ ただし ⚠️ **顧客情報編集の見出しだけは文字で「Nexus連携済み」**（オーナー指定）。
+
 ```tsx
 import React from 'react';
 
@@ -124,32 +128,110 @@ import React from 'react';
  * ⚠️ 出すかどうかは呼び出し側が `isNexus()` / `isNexusRow()` で決める。
  *   ⚠️ **このコンポネント自身は判定しない**（画面ごとにデータの形が違うため）。
  *
- * ⚠️ 色は指示どおり **ネイビー背景・白文字**で固定。
- *   ⚠️ Bootstrap の `bg-primary` は明るい青なので使わないこと。
+ * ⚠️⚠️ **角丸の「Nexus」タグにしないこと**（2026-09-25 の指示）。
+ *   ⚠️ 文字を四角で囲むと **リンクかボタンに見える。**
+ *   ⚠️ **押しても何も起きない**ので、問い合わせのもとになる。
+ *   ⚠️ 大文字の `N` を**ネイビーの丸で囲む**形で固定する。
+ *
+ * ⚠️ Nexus へ直接リンクする案は **2026-09-25 に見送った。**
+ *   ⚠️ Nexus 側の ID は **乱数の UUID** で、Dashboard の ULID からは導けない。
+ *   ⚠️ **対応表を持たないかぎりリンクは作れない**（作るなら列の追加が要る）。
  */
 type Props = {
     /** 余白の付け方が画面ごとに違うので外から渡す（例: 'me-1' / 'mt-1'） */
     className?: string;
+    /**
+     * 文字で出すときの文言。
+     *
+     * ⚠️ 渡さなければ **丸囲みの `N`**（一覧の行に置く形）。
+     * ⚠️ 渡すと **その文字を入れた帯**になる（顧客情報編集の見出しに置く形）。
+     *   ⚠️⚠️ **一覧の行には渡さないこと。** 行が横に伸びてリンクに見える。
+     */
+    label?: string;
 };
 
-const NexusBadge = ({ className }: Props) => (
-    <span
-        className={`d-inline-block rounded fw-bold ${className ?? ''}`}
-        style={{
-            backgroundColor: '#1b2a56',
-            color: '#ffffff',
-            fontSize: '9px',
-            letterSpacing: '0.5px',
-            padding: '1px 5px',
-            whiteSpace: 'nowrap'
-        }}
-        title="Nexusへ移行できる形式です（フリガナがカタカナ・姓名間が半角スペース）"
-    >
-        Nexus
-    </span>
+/** ⚠️ 丸の直径。⚠️ **文字サイズと揃えること**（ずらすと楕円になる） */
+const CIRCLE_SIZE = '14px';
+
+/** ⚠️ 顧客データベースの凡例に出す文言（2026-09-25 の指示どおり） */
+export const NEXUS_LEGEND_LABEL = '国分Nexus連携済み';
+/** ⚠️ 顧客情報編集の見出しに出す文言（⚠️ **こちらは「国分」を付けない**） */
+export const NEXUS_HEADER_LABEL = 'Nexus連携済み';
+
+const BASE_STYLE = {
+    backgroundColor: '#1b2a56',
+    color: '#ffffff',
+    fontSize: '9px',
+    lineHeight: 1,
+    verticalAlign: 'middle' as const
+};
+
+const NexusBadge = ({ className, label }: Props) => (
+    label === undefined
+        ? (
+            <span
+                className={`d-inline-flex align-items-center justify-content-center rounded-circle fw-bold ${className ?? ''}`}
+                style={{ ...BASE_STYLE, width: CIRCLE_SIZE, height: CIRCLE_SIZE }}
+                title={NEXUS_LEGEND_LABEL}
+            >
+                N
+            </span>
+        )
+        : (
+            <span
+                className={`d-inline-block rounded fw-bold ${className ?? ''}`}
+                style={{ ...BASE_STYLE, letterSpacing: '0.5px', padding: '2px 6px', whiteSpace: 'nowrap' }}
+            >
+                {label}
+            </span>
+        )
 );
 
 export default NexusBadge;
+```
+
+### 2-b. `frontend/src/components/database/GiftMark.tsx`（⚠️ **凡例を1つ増やした**）
+
+⚠️ `GiftLegend` に `nexus` を足した。⚠️⚠️ **注文事業だけ true にすること。**
+
+```tsx
+import NexusBadge, { NEXUS_LEGEND_LABEL } from '../NexusBadge';
+
+type GiftLegendProps = {
+    /**
+     * ⚠️ Nexus アイコンの説明も並べる。
+     *   ⚠️⚠️ **注文事業（DatabaseOrder）だけ true にすること。**
+     *     ⚠️ 建売分譲にはこのアイコンを出していないので、
+     *       ⚠️ **凡例だけ出すと「どこにも無い印」の説明になる。**
+     */
+    nexus?: boolean;
+};
+
+/** テーブル上部に置く凡例 */
+export const GiftLegend = ({ nexus }: GiftLegendProps) => (
+    <div className="d-flex align-items-center" style={{ fontSize: '10px', gap: '12px' }}>
+        <span>
+            <i
+                className="fa-solid fa-circle me-1 text-success"
+                style={{ fontSize: DOT_SIZE, verticalAlign: 'middle' }}
+            />
+            {GREEN_LABEL}
+        </span>
+        <span>
+            <i
+                className="fa-solid fa-circle me-1 text-danger"
+                style={{ fontSize: DOT_SIZE, verticalAlign: 'middle' }}
+            />
+            {RED_LABEL}
+        </span>
+        {nexus && (
+            <span className="d-flex align-items-center">
+                <NexusBadge className="me-1" />
+                {NEXUS_LEGEND_LABEL}
+            </span>
+        )}
+    </div>
+);
 ```
 
 ### 3. `backend/scripts/sql/2026-09-25_kana_to_katakana.sql`（新規・生成物）
@@ -223,10 +305,12 @@ import { isNexus, hasHalfWidthSpace, hasHiragana, NEXUS_ALERT_SPACE, NEXUS_ALERT
 
 **(c) `Modal.Header` — アイコンを付ける**
 
+⚠️ import は `import NexusBadge, { NEXUS_HEADER_LABEL } from '../NexusBadge';`
+
 ```tsx
                 <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }} className='d-flex align-items-center'>
-                    {/* ⚠️ Nexus へ移行できる形のときだけ出す。⚠️ 新規登録中は判定しない（まだ空） */}
-                    {id !== 'new' && isNexus(information) && <NexusBadge className='me-1' />}
+                    {/* ⚠️ 見出しは**文字で「Nexus連携済み」**（2026-09-25 の指示）。⚠️ 一覧の丸囲み `N` とは形が違う */}
+                    {id !== 'new' && isNexus(information) && <NexusBadge className='me-1' label={NEXUS_HEADER_LABEL} />}
                     {id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
                     <div style={{ background: 'rgb(233, 233, 233)', fontSize: '11px' }} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
                 </Modal.Header>
@@ -259,10 +343,23 @@ import { isNexusRow } from '../../utils/nexusUtils';
 
 **(c) 顧客名のセル**
 
+⚠️⚠️ **当初は改行して2行目に置いていたが、2026-09-25 にドットの隣へ移した。**
+
 ```tsx
-                                            {/* ⚠️ Nexus アイコンは顧客名の**下（改行して2行目）**に出す。指示どおり横には並べない */}
-                                            <td><GiftDot gift={item.gift} />{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}
-                                                {isNexusRow(item.customer, item.customer_contacts_name_kana) && <><br /><NexusBadge /></>}</td>
+                                            {/*
+                                              ⚠️⚠️ **Nexus アイコンはギフトのドットの隣に置く**（2026-09-25 の指示）。
+                                                ⚠️ **改行しないこと。** 行の高さが揃わなくなり、一覧が読みにくくなる。
+                                            */}
+                                            <td><GiftDot gift={item.gift} />
+                                                {isNexusRow(item.customer, item.customer_contacts_name_kana) && <NexusBadge className='me-1' />}
+                                                {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
+```
+
+**(d) 凡例に `nexus` を渡す**
+
+```tsx
+                    {/* ⚠️ nexus は**注文事業だけ**。建売分譲にはこのアイコンを出していない */}
+                    <GiftLegend nexus />
 ```
 
 ### 7. ⚠️⚠️ API の2箇所（⚠️ **注文の一覧はフリガナを返していなかった**）
@@ -381,6 +478,33 @@ export const newVersion = '2.2.149';
 
 ---
 
+## ⚠️⚠️ Nexus へのリンクは作れない（2026-09-25 に調べた結論）
+
+⚠️ オーナーから ⚠️ **「URL を比べてリンクを作れないか」**と相談があったので調べた。⚠️⚠️ **できない。**
+
+| | |
+|---|---|
+| Dashboard | ⚠️ **ULID**（26文字）`01VTQ9GW7JXKJKQRR67W7W46W2` |
+| Nexus | `/crm/{UUID}/contracts/{UUID}/site-surveys` |
+
+⚠️ ULID を128bitとして UUID の形に直すと `01deae98-70f2-ece5-3be3-063f0fc21b82` になり、
+⚠️⚠️ **Nexus の `002947d0-deac-…` とは全くの別物。**
+
+⚠️⚠️ **Nexus の2本はどちらもバージョン4の UUID（＝乱数）である。**
+⚠️ **ULID からも氏名からも計算で導けない。** ⚠️ **変換関数は原理的に作れない。**
+
+⚠️ オーナーの話では ⚠️ **2本目（`contracts/` の後ろ）が顧客に紐づく ID**。
+
+⚠️ DB 側にも対応表は無い。
+⚠️ ⚠️ **`nexus` という テーブルが1つあるが**、⚠️ 2025-07-14 の書き出し用（144行・列は氏名や店舗のみ）で
+⚠️⚠️ **UUID を持っておらず、コードからも一切参照されていない。**
+
+⚠️ 作るなら `master_data` に ⚠️ **`nexus_id` 列を足し、Nexus からのエクスポートと
+氏名＋フリガナ＋電話で突合して埋める**しかない。
+⚠️⚠️ **2026-09-25 にオーナー判断で「一旦やめる」となった。**
+
+---
+
 ## 申し送り
 
 | # | 内容 |
@@ -391,3 +515,6 @@ export const newVersion = '2.2.149';
 | 4 | ⚠️⚠️ **既存顧客を開いて保存すると、スペースが無いだけで止まる。** ⚠️ 19,486/24,609 は通るが、⚠️ **残り2割は保存時に必ず直すことになる**（狙いどおりだが問い合わせが来る想定） |
 | 5 | ⚠️ 退避テーブル `master_data_kana_backup_20260925` は ⚠️ **数日おいてから消すこと** |
 | 6 | ⚠️ 判定を変えるときは ⚠️ **`nexusUtils.ts` だけを直す。** 画面3箇所すべてがここを通っている |
+| 7 | ⚠️⚠️ **アイコンを四角い「Nexus」タグに戻さないこと。** ⚠️ **リンクに見える**と指摘を受けて丸囲みの `N` にした |
+| 8 | ⚠️ `GiftLegend` の `nexus` は ⚠️ **注文事業だけ**。⚠️ 建売で true にすると ⚠️ **無い印の説明が出る** |
+| 9 | ⚠️⚠️ **Nexus へのリンクは作れない**（上記）。⚠️ 作るなら ⚠️ **`master_data` への列追加と突合**が要る |

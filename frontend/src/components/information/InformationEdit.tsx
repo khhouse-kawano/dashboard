@@ -29,7 +29,7 @@ import TableCheckboxGroup from './TableCheckboxGroup';
 import FundingPlan from './FundingPlan';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
-import NexusBadge from '../NexusBadge';
+import NexusBadge, { NEXUS_HEADER_LABEL } from '../NexusBadge';
 import { isNexus, hasHalfWidthSpace, hasHiragana, NEXUS_ALERT_SPACE, NEXUS_ALERT_KANA } from '../../utils/nexusUtils';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
 import type { CompetitorPdfItem } from '../../utils/competitorPdfUpload';
@@ -833,7 +833,8 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
             >
                 <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }} className='d-flex align-items-center'>
                     {/* ⚠️ Nexus へ移行できる形のときだけ出す。⚠️ 新規登録中は判定しない（まだ空） */}
-                    {id !== 'new' && isNexus(information) && <NexusBadge className='me-1' />}
+                    {/* ⚠️ 見出しは**文字で「Nexus連携済み」**（2026-09-25 の指示）。⚠️ 一覧の丸囲み `N` とは形が違う */}
+                    {id !== 'new' && isNexus(information) && <NexusBadge className='me-1' label={NEXUS_HEADER_LABEL} />}
                     {id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
                     <div style={{ background: 'rgb(233, 233, 233)', fontSize: '11px' }} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
                 </Modal.Header>
