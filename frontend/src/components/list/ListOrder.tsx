@@ -14,6 +14,7 @@ import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './
 import type { TagKey } from './listTags';
 import { useIsSp } from '../../utils/isSp';
 import OrderModal from './OrderModal';
+import { hiraToKata } from '../../utils/nexusUtils';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -285,7 +286,14 @@ const ListOrder = ({ onReload }: Props) => {
                 inquiry_id: filteredCustomer.inquiry_id,
                 in_charge_user: filteredCustomer.staff ? filteredCustomer.staff : `${filteredShop} 管理`,
                 customer_contacts_name: `${filteredCustomer.first_name || ''} ${filteredCustomer.last_name || ''}`,
-                customer_contacts_name_kana: `${filteredCustomer.first_name_kana || ''} ${filteredCustomer.last_name_kana || ''}`,
+                /**
+                 * ⚠️⚠️ **フリガナは必ずカタカナに直してから登録する**（2026-09-25 の指示）。
+                 *   ⚠️ 反響フォームは**ひらがなで送ってくる顧客が多い。**
+                 *   ⚠️ Nexus へ移行できるのはカタカナだけなので、**入口で揃えておく。**
+                 *   ⚠️ 変換は utils/nexusUtils.ts の `hiraToKata()`。
+                 *   ⚠️ 姓名間の半角スペースは**この行がもともと入れている。**
+                 */
+                customer_contacts_name_kana: hiraToKata(`${filteredCustomer.first_name_kana || ''} ${filteredCustomer.last_name_kana || ''}`).trim(),
                 in_charge_store: filteredShop,
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date || '',
                 customer_contacts_mobile_phone_number: phone_number_1,

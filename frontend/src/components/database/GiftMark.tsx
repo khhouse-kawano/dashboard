@@ -1,4 +1,5 @@
 import React from 'react';
+import NexusBadge, { NEXUS_LEGEND_LABEL } from '../NexusBadge';
 
 /**
  * ギフト進呈可否を表す信号機ドットと、その凡例。
@@ -44,8 +45,18 @@ export const GiftDot = ({ gift }: GiftDotProps) => {
     );
 };
 
+type GiftLegendProps = {
+    /**
+     * ⚠️ Nexus アイコンの説明も並べる。
+     *   ⚠️⚠️ **注文事業（DatabaseOrder）だけ true にすること。**
+     *     ⚠️ 建売分譲にはこのアイコンを出していないので、
+     *       ⚠️ **凡例だけ出すと「どこにも無い印」の説明になる。**
+     */
+    nexus?: boolean;
+};
+
 /** テーブル上部に置く凡例 */
-export const GiftLegend = () => (
+export const GiftLegend = ({ nexus }: GiftLegendProps) => (
     <div className="d-flex align-items-center" style={{ fontSize: '10px', gap: '12px' }}>
         <span>
             <i
@@ -61,5 +72,11 @@ export const GiftLegend = () => (
             />
             {RED_LABEL}
         </span>
+        {nexus && (
+            <span className="d-flex align-items-center">
+                <NexusBadge className="me-1" />
+                {NEXUS_LEGEND_LABEL}
+            </span>
+        )}
     </div>
 );

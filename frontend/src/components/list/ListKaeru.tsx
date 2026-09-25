@@ -13,6 +13,7 @@ import { dateFormate, monthFormate, handleBlack, toHalfWidth, matchesBlackList, 
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { kataToHira } from '../../utils/kataToHira';
+import { hiraToKata } from '../../utils/nexusUtils';
 import { extractNumbers } from '../../utils/extraNumbers';
 import { useIsSp } from '../../utils/isSp';
 
@@ -326,7 +327,16 @@ const ListKaeru = ({ onReload }: Props) => {
                 inquiry_id: filteredCustomer.inquiry_id,
                 in_charge_user: filteredCustomer.staff ? filteredCustomer.staff : `${filteredShop} 管理`,
                 customer_contacts_name: `${filteredCustomer.first_name || ''} ${filteredCustomer.last_name || ''}`,
-                customer_contacts_name_kana: `${filteredCustomer.first_name_kana || ''} ${filteredCustomer.last_name_kana || ''}`,
+                /**
+                 * ⚠️⚠️ **フリガナは必ずカタカナに直してから登録する**（2026-09-25 の指示）。
+                 *   ⚠️ 反響フォームは**ひらがなで送ってくる顧客が多い。**
+                 *   ⚠️ Nexus へ移行できるのはカタカナだけなので、**入口で揃えておく。**
+                 *
+                 * ⚠️ **画面の検索（ふりがな）は `kataToHira()` を通しているので影響しない。**
+                 *   ⚠️ 検索しているのは `first_name_kana` という**元データ側**であり、
+                 *     ⚠️ ここで作るのは **Dashboard へ登録する値**である（別物）。
+                 */
+                customer_contacts_name_kana: hiraToKata(`${filteredCustomer.first_name_kana || ''} ${filteredCustomer.last_name_kana || ''}`).trim(),
                 in_charge_store: filteredShop,
                 step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: filteredCustomer.inquiry_date || '',
                 customer_contacts_phone_number: phone_number_1,

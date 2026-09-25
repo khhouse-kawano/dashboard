@@ -17,6 +17,8 @@ import { thisYear } from '../../utils/thisYear';
 import { missingLostFields } from '../../utils/informationUtils';
 // ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
 import { sortStaff } from '../header/useAmbassadorMaster';
+import NexusBadge from '../NexusBadge';
+import { isNexusRow } from '../../utils/nexusUtils';
 
 // --- 型定義 ---
 type ShopList = { brand: string; shop: string; section: string };
@@ -40,6 +42,8 @@ interface CustomerItem extends Record<string, any> {
     medium?: string;
     status?: string;
     customer?: string;
+    /** フリガナ。⚠️ Nexus アイコンの判定にだけ使う（検索には使っていない） */
+    customer_contacts_name_kana?: string;
     staff?: string;
     phone_number?: string;
     full_address?: string;
@@ -610,7 +614,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
                     </div>
                 </div>
                 <div className="w-100 mb-1">
-                    <GiftLegend />
+                    {/* ⚠️ nexus は**注文事業だけ**。建売分譲にはこのアイコンを出していない */}
+                    <GiftLegend nexus />
                 </div>
                 <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <div style={{ width: '1600px' }}>
@@ -641,7 +646,14 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                                     setEditId(item.id);
                                                 }}>編集</div></td>
                                             <td>{safeFormate(item.shop)}</td>
-                                            <td><GiftDot gift={item.gift} />{item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
+                                            {/*
+                                              ⚠️⚠️ **Nexus アイコンはギフトのドットの隣に置く**（2026-09-25 の指示）。
+                                                ⚠️ **改行しないこと。** 行の高さが揃わなくなり、一覧が読みにくくなる。
+                                            */}
+                                            <td><GiftDot gift={item.gift} />
+                                                {/* ⚠️ `item.rank` は `Sランク` の形。⚠️ **表示用に「ランク」を落とす前の値**を渡すこと */}
+                                                {isNexusRow(item.customer, item.customer_contacts_name_kana, item.rank) && <NexusBadge className='me-1' />}
+                                                {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
                                             <td>{safeFormate(item.staff)}</td>
                                             <td>{safeFormate(item.status)}</td>
                                             <td>{safeFormate(item.register)}</td>
