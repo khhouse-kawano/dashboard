@@ -17,12 +17,7 @@ import {
 import { asDate, daysBetween, MIN_VALID_DATE, phaseDate, TARGET_DIVISION, UNSET_LABEL, groupExpr } from './columns';
 import type { AnalysisDivision } from './columns';
 import { DIVISION_CONFIG, phaseDateOf } from './columns';
-import {
-  fetchShownMediums,
-  kaeruMediumNote,
-  kaeruMediumSqlActual,
-  kaeruMediumSqlCohort,
-} from './trendMedium';
+import { resolveTrendMedium, trendMediumNote } from './trendMedium';
 import type { DimensionKey } from './dimensions';
 import { dimension } from './dimensions';
 import type { MetricKey, RateKey } from './metrics';
@@ -142,16 +137,16 @@ const dimensionSql = (
 ): string => (key === 'medium' && mediumSql !== null ? mediumSql : dimension(key).sql(basisSql));
 
 /**
- * 建売の販促媒体の式を用意する。⚠️ 注文事業では `null`（今までどおり生値）。
+ * 販促媒体の式と項目名を用意する。
+ *
+ * ⚠️⚠️ **2026-09-25 から注文事業も対象**（それまでは建売だけだった）。
+ *   ⚠️ ⚠️ **事業と基準日の4通りで項目名が違う**（trendMedium.ts）。
  */
-const resolveMediumSql = async (
+const resolveMedium = async (
   division: AnalysisDivision,
   basis: Basis
-): Promise<string | null> => {
-  if (division !== 'kaeru') return null;
-  if (basis === 'actual') return kaeruMediumSqlActual();
-  return kaeruMediumSqlCohort(await fetchShownMediums());
-};
+): Promise<{ sql: string; items: string[] }> =>
+  resolveTrendMedium(division, basis === 'actual');
 
 /**
  * FROM 句を組み立てる。
@@ -386,8 +381,9 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
     if (m.needsInterview === true) need.interview = true;
   }
 
-  // ⚠️ 建売の販促媒体だけ、画面と同じ項目名にまとめる式に差し替える
-  const mediumSql = await resolveMediumSql(division, options.basis);
+  // ⚠️ 販促媒体は、画面と同じ項目名にまとめる式に差し替える
+  const medium = await resolveMedium(division, options.basis);
+  const mediumSql = medium.sql;
 
   const from = buildFrom(need, division);
   const where = buildWhere(options, basisSql, mediumSql);
@@ -465,26 +461,23 @@ export const runPivot = async (options: PivotOptions): Promise<PivotResult> => {
 
   assertPayloadSize(rows, options.groupBy);
 
-  return { rows, basis, mediumNote: await mediumNoteFor(division, options, false) };
+  return { rows, basis, mediumNote: mediumNoteFor(division, options, false, medium.items) };
 };
 
 /**
- * 建売で販促媒体を使ったときだけ、項目名の説明を添える。
- * ⚠️⚠️ **書かないと、画面の「Web検索」行と件数が合わない理由が伝わらない。**
+ * 販促媒体を使ったときだけ、項目名の説明を添える。
+ * ⚠️⚠️ **書かないと、画面の行と件数が合わない理由が伝わらない。**
  */
-const mediumNoteFor = async (
+const mediumNoteFor = (
   division: AnalysisDivision,
   options: PivotOptions,
-  basisIsActual: boolean
-): Promise<string | undefined> => {
-  if (division !== 'kaeru') return undefined;
-
-  const used =
-    options.groupBy.includes('medium') || options.filters.medium !== undefined;
+  basisIsActual: boolean,
+  items: string[]
+): string | undefined => {
+  const used = options.groupBy.includes('medium') || options.filters.medium !== undefined;
   if (!used) return undefined;
 
-  const shown = basisIsActual ? [] : await fetchShownMediums();
-  return kaeruMediumNote(basisIsActual, shown);
+  return trendMediumNote(division, basisIsActual, items);
 };
 
 /**
@@ -563,8 +556,9 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
     if (dimension(key).needsInquiry === true) need.inquiry = true;
   }
 
-  // ⚠️ 建売の販促媒体だけ、画面と同じ項目名にまとめる式に差し替える
-  const mediumSql = await resolveMediumSql(division, 'actual');
+  // ⚠️ 販促媒体は、画面と同じ項目名にまとめる式に差し替える
+  const medium = await resolveMedium(division, 'actual');
+  const mediumSql = medium.sql;
 
   const fromClause = buildFrom(need, division);
   const where = buildWhere(options, null, mediumSql);
@@ -709,7 +703,7 @@ const runActualPivot = async (options: PivotOptions): Promise<PivotResult> => {
     rows,
     basis,
     actual: { from, to, bucketDimension: timeDimension, nullMetrics },
-    mediumNote: await mediumNoteFor(division, options, true),
+    mediumNote: mediumNoteFor(division, options, true, medium.items),
   };
 };
 
