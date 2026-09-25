@@ -92,8 +92,27 @@ export const METRICS = {
   leads: { kind: 'count', label: '反響数（集計対象の顧客数）', sql: 'COUNT(*)' },
   zeroReception: { kind: 'count', label: '0次接客に到達した件数', sql: reached('zeroReception') },
   energized: { kind: 'count', label: '通電に到達した件数', sql: reached('energized') },
-  firstInterview: { kind: 'count', label: '初回面談に到達した件数', sql: reached('firstInterview') },
-  secondInterview: { kind: 'count', label: '第二面談に到達した件数', sql: reached('secondInterview') },
+  /**
+   * ⚠️⚠️ **これは画面の「実来場数」ではない。**
+   *   ⚠️ 初回面談日そのものが入っている件数である。
+   *   ⚠️ ⚠️ **来場数を語るときは `visits` を使うこと。**
+   */
+  firstInterview: {
+    kind: 'count',
+    label:
+      '初回面談日が入っている件数。' +
+      '⚠️ これは画面の「実来場数」ではない。' +
+      '⚠️ 来場数として使ってはならない。来場数は visits',
+    sql: reached('firstInterview'),
+  },
+  secondInterview: {
+    kind: 'count',
+    label:
+      '第二面談日が入っている件数。' +
+      '⚠️ これは画面の「次アポ数」ではない。' +
+      '⚠️ 次アポ数として使ってはならない。次アポ数は nextAppointments',
+    sql: reached('secondInterview'),
+  },
   preScreening: { kind: 'count', label: '事前審査に到達した件数', sql: reached('preScreening') },
   contracts: { kind: 'count', label: '契約に到達した件数', sql: reached('contract') },
 
@@ -106,24 +125,32 @@ export const METRICS = {
   visits: {
     kind: 'count',
     label:
-      '実来場数（初回面談・第二面談・事前審査・契約のいずれかに到達した件数）。' +
-      '⚠️ 店舗別動向の「実来場数」と同じ数え方。' +
-      '⚠️ firstInterview より必ず多くなる',
+      '実来場数。⚠️ ダッシュボードの画面と突き合わせられるのはこの指標である。' +
+      '面談日が入っていればその日、空のときだけ上位工程（第二面談・事前審査・契約）で拾う。' +
+      '⚠️ 画面（反響推移）がまったく同じ数え方をしているので、' +
+      '⚠️ 来場数を聞かれたら必ずこれを使うこと',
     sql: reachedOrBeyond(['firstInterview', 'secondInterview', 'preScreening', 'contract']),
   },
   nextAppointments: {
     kind: 'count',
     label:
-      '次アポ数（第二面談・事前審査・契約のいずれかに到達した件数）。' +
-      '⚠️ 店舗別動向の「次アポ数」と同じ数え方。' +
-      '⚠️ secondInterview より必ず多くなる',
+      '次アポ数。⚠️ ダッシュボードの画面と突き合わせられるのはこの指標である。' +
+      '⚠️ 画面（反響推移・店舗別動向とも）がまったく同じ数え方をしているので、' +
+      '⚠️ 次アポ数を聞かれたら必ずこれを使うこと',
     sql: reachedOrBeyond(['secondInterview', 'preScreening', 'contract']),
   },
+  /**
+   * ⚠️⚠️ **画面の「来場予約数」とは数え方が違う。**
+   *   ⚠️ 画面は「面談日が無く予約日がその月の人」＋「面談日がその月の人」。
+   *   ⚠️ こちらは「予約日がその月」または「面談日がその月」の OR である。
+   *   ⚠️ ⚠️ **予約月と来場月が違う顧客が両方の月に立つ。**
+   *   ⚠️ 2026-09-25 に利用者の判断で **そろえないことにした**（画面での利用が主のため）。
+   */
   reservations: {
     kind: 'count',
     label:
       '来場予約数（来場予約日が入っている、または初回面談に到達した件数）。' +
-      '⚠️ 店舗別動向の「来場予約数」と同じ数え方。' +
+      '⚠️ 画面の「来場予約数」とは数え方が違うので、画面と突き合わせてはならない。' +
       '⚠️ 予約せずに来場した人も初回面談として数に入る',
     // ⚠️ `reserved_interview` は日付ではなく text。空文字と NULL の両方が入る
     sql:
@@ -423,18 +450,21 @@ export const denominatorFor = (
 export const FUNNEL_METRICS: MetricKey[] = [
   'leads',
   'energized',
-  'firstInterview',
   /**
-   * ⚠️⚠️ **2026-09-22 に `visits` と `nextAppointments` を既定に入れた**（利用者の指示）。
+   * ⚠️⚠️ **2026-09-25 に `firstInterview` と `secondInterview` を既定から外した**（利用者の指示）。
    *
-   * > 数値が shopTrend ディレクトリの KPI 設定になり歩留まりが揃うことが大切
+   * ⚠️ 経緯: ⚠️ **既定に並んでいたため、Claude が来場数・次アポ数として
+   *   そちらを選んでしまい、画面と合わない実績表が出来上がった。**
+   *   ⚠️ 「visits / nextAppointments は1人が複数月に立つ」と注記していたことが
+   *     ⚠️ **かえって「使ってはいけない指標」と読まれた。**
+   *   ⚠️ ⚠️ **実測では次アポ数が 1,093 と出た（画面は 1,177）。**
    *
-   * ⚠️ ⚠️ **既定のファネルにこれが無いと、Claude は firstInterview を来場数として語る。**
-   *   ⚠️ ⚠️ **その数字はダッシュボードの画面と合わない。**
-   * ⚠️ 並びは ⚠️ **対応する工程のすぐ後ろ**に置く（firstInterview → visits）。
+   * ⚠️⚠️ **両者を既定に並べないこと。** ⚠️ 並べると必ず取り違えられる。
+   *   ⚠️ 日付そのものの件数が要るときは**指標名を明示して呼べば取れる。**
+   *
+   * ⚠️ `visits` / `nextAppointments` が ⚠️ **画面と同じ数え方**である。
    */
   'visits',
-  'secondInterview',
   'nextAppointments',
   'preScreening',
   'contracts',
