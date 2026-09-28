@@ -10,13 +10,17 @@ require_once __DIR__ . '/../core/bulk_upsert.php';
  * 【PG HOUSE九州】資料請求メールからの反響を取り込む。
  *
  * ```
- * Gmail ─(GAS)→ sync の Express ─(postGateway 'pgh_order')→ ここ → inquiry_customer
+ * Gmail ─(GAS backend/scripts/gas/runPghCatalog.gs)→ ここ → inquiry_customer
  * ```
  *
- * ⚠️ 送り元: projects/sync の src/services/runPghCatalog.ts
- *
  * ─────────────────────────────────────────────
- * ⚠️⚠️ **受け口テーブル（*_db）を作っていない。**
+ * ⚠️⚠️ **値の組み立ては全部ここでやる。**
+ *   ⚠️ GAS は**本文を見出しで割って送るだけ**にしてある。
+ *   ⚠️ ⚠️ **GAS に判断を持たせないこと。** 直すたびに Apps Script を開いて
+ *     貼り替えが要るため、⚠️ **変わりやすい決め事（媒体名・住所の分け方・
+ *     カナ変換）はこちら側に置く。**
+ *
+ * ⚠️⚠️ **受け口テーブル（*_db）は作っていない。**
  *   ⚠️ SUUMO などのポータルは、ポータル側の生データを残すために `suumo_db` を持つ。
  *   ⚠️ ⚠️ **こちらはメール本文そのものを `remarks` に入れてある**ので、
  *     ⚠️ 生データを別に持つ意味が薄い。⚠️ **テーブルを1つ増やさない判断。**
@@ -27,40 +31,146 @@ require_once __DIR__ . '/../core/bulk_upsert.php';
  *   ⚠️ `portalInsertNewOnly()` が「既にある鍵を SELECT してから入れる」ので、
  *     ⚠️ **必ずこれを通すこと。**
  *
- * ⚠️⚠️ **値の組み立ては sync 側（Express）がやる。** ここは**列を絞って入れるだけ。**
- *   ⚠️ 媒体名・住所の分け方・カナ変換を変えるときは sync を直す。
- *   ⚠️ ⚠️ **ただし列の顔ぶれを増やすときは、下の許可リストも直すこと。**
- *     ⚠️ ここに無い列は**黙って捨てられる。**
+ * ⚠️ `express_proxy.php` には足さないこと。
+ *   ⚠️⚠️ **書き込みを ② へ転送すると、自動フォールバックで二重に走る。**
  * ─────────────────────────────────────────────
  */
 
+/** ⚠️ ブランドと店舗は固定（利用者の指示。2026-09-28） */
+const PGH_BRAND = 'PGH';
+const PGH_SHOP  = 'PGH店舗未設定';
+
 /**
- * `inquiry_customer` に入れてよい列。
- *
- * ⚠️ 送られてきても、⚠️ **ここに無いものは入れない。**
- *   ⚠️ 外から任意の列を書き込まれないようにするため。
- * ⚠️ ⚠️ **`sync` / `delete_flag` などの運用フラグは受け取らない。**
- *   ⚠️ 既定値のまま「未同期」で入るのが正しい。
+ * ⚠️ 媒体。
+ *   ⚠️ `medium` は ⚠️ **「ホームページ反響」で固定**（利用者の指示）。
+ *   ⚠️ `response_medium` は ⚠️ **「お申込のきっかけ」をそのまま**入れる。
+ *     ⚠️⚠️ **medium_list に無い値が入りうる。** その場合は販促媒体別の集計から漏れる。
+ *     ⚠️ 新しい値が出てきたら medium_list に足すこと。
  */
-$allowedColumns = [
-    'inquiry_id',
-    'inquiry_date',
-    'medium',
-    'response_medium',
-    'first_name',
-    'last_name',
-    'first_name_kana',
-    'last_name_kana',
-    'mobile',
-    'mail',
-    'zip',
-    'pref',
-    'building',
-    'brand',
-    'shop',
-    'hp_campaign',
-    'remarks',
+const PGH_MEDIUM      = 'ホームページ反響';
+const PGH_HP_CAMPAIGN = '資料請求';
+
+/** ⚠️ 都道府県。⚠️ 住所の先頭を切り出すために使う */
+const PGH_PREFECTURES = [
+    '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
+    '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
+    '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県',
+    '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県',
+    '奈良県', '和歌山県', '鳥取県', '島根県', '岡山県', '広島県', '山口県',
+    '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県',
+    '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県',
 ];
+
+/**
+ * ひらがなをカタカナに直す。
+ *
+ * ⚠️⚠️ **frontend/src/utils/nexusUtils.ts の hiraToKata と同じ挙動にしてある。**
+ *   ⚠️ v2.2.149 で「フリガナはカタカナ」に揃えたので、⚠️ **入口でも合わせる。**
+ *   ⚠️ ⚠️ **ここでひらがなのまま入れると、Nexus へ移行できない顧客が増える。**
+ *
+ * ⚠️ `mb_convert_kana($s, 'C')` は**ひらがな→カタカナ**の変換。
+ *   ⚠️ 繰り返し記号（ゝ ゞ）も併せて直す（⚠️ `C` では変わらない）。
+ */
+function pghHiraToKata(string $value): string
+{
+    $converted = mb_convert_kana($value, 'C', 'UTF-8');
+    return str_replace(['ゝ', 'ゞ'], ['ヽ', 'ヾ'], $converted);
+}
+
+/**
+ * 反響日。
+ *
+ * ⚠️⚠️ **`YYYY/MM/DD` のスラッシュ区切りにすること。**
+ *   ⚠️ メニューの未同期バッジは `SUBSTRING(inquiry_date, 1, 7)` を
+ *     `'2025/06'` と比べている（backend-express/src/features/menu.ts）。
+ *   ⚠️ ⚠️ **ハイフンで入れるとバッジにも「要確認」にも出てこない。**
+ */
+function pghInquiryDate(string $registered): string
+{
+    $head = str_replace('-', '/', substr(trim($registered), 0, 10));
+    return preg_match('#^\d{4}/\d{2}/\d{2}$#', $head) === 1 ? $head : '';
+}
+
+/**
+ * 住所を都道府県とそれ以降に割る。
+ *
+ * ⚠️ 見本は `鹿児島県 霧島市国分重久1063-1-201`（⚠️ **県のあとに空白**）。
+ * ⚠️⚠️ **市区町村までは割らない。** 表記が安定せず、誤って割ると住所が壊れる。
+ *   ⚠️ 既存の townlife / catalog も同じ判断で building にまとめている。
+ *
+ * @return array{0:string,1:string} [pref, building]
+ */
+function pghSplitAddress(string $address): array
+{
+    $text = trim(preg_replace('/\s+/u', ' ', $address) ?? '');
+
+    foreach (PGH_PREFECTURES as $pref) {
+        if (mb_strpos($text, $pref) === 0) {
+            return [$pref, trim(mb_substr($text, mb_strlen($pref)))];
+        }
+    }
+    return ['', $text];
+}
+
+/**
+ * 電話番号。
+ *
+ * ⚠️ 既存の取り込み（townlife など）に合わせて ⚠️ **`mobile` に入れる。**
+ *   ⚠️ 固定電話か携帯かはメール本文から判別できない。
+ * ⚠️ 全角数字やハイフンが混ざることがあるので、⚠️ **数字だけにする。**
+ */
+function pghTel(string $tel): string
+{
+    $halfWidth = mb_convert_kana($tel, 'n', 'UTF-8');
+    return preg_replace('/\D/', '', $halfWidth) ?? '';
+}
+
+/**
+ * GAS から届いた1通ぶんを `inquiry_customer` の形に直す。
+ *
+ * ⚠️⚠️ **氏名は分割しない**（利用者の判断。2026-09-28）。
+ *   ⚠️ 本文が `中島健太` のように**区切りを持たない**ため、姓名を推測すると誤る。
+ *   ⚠️ ⚠️ **まるごと `first_name` に入れ、`last_name` は空にする。**
+ *   ⚠️ 既存の資料請求（catalog_resale）も同じ扱いにしてある。
+ *   ⚠️ ⚠️ **同期するときに人が直す前提。**
+ *
+ * @return array<string,string>|null 鍵か氏名が無ければ null
+ */
+function pghToInquiry(array $row): ?array
+{
+    $messageId = trim((string)($row['messageId'] ?? ''));
+    $name      = trim((string)($row['name'] ?? ''));
+
+    // ⚠️ 鍵と氏名が無いものは作らない。⚠️ **誰のことか分からない行を増やさない**
+    if ($messageId === '' || $name === '') {
+        return null;
+    }
+
+    [$pref, $building] = pghSplitAddress((string)($row['address'] ?? ''));
+    $trigger = trim((string)($row['trigger'] ?? ''));
+
+    return [
+        // ⚠️ 接頭辞を付けて他の媒体と衝突させない（例: townlife は 'townlife' + id）
+        'inquiry_id'      => 'pgh_hp_' . $messageId,
+        'inquiry_date'    => pghInquiryDate((string)($row['registered'] ?? '')),
+        'medium'          => PGH_MEDIUM,
+        'response_medium' => $trigger !== '' ? $trigger : PGH_MEDIUM,
+        'first_name'      => $name,
+        'last_name'       => '',
+        'first_name_kana' => pghHiraToKata(trim((string)($row['kana'] ?? ''))),
+        'last_name_kana'  => '',
+        'mobile'          => pghTel((string)($row['tel'] ?? '')),
+        'mail'            => trim((string)($row['email'] ?? '')),
+        'zip'             => trim((string)($row['zip'] ?? '')),
+        'pref'            => $pref,
+        'building'        => $building,
+        'brand'           => PGH_BRAND,
+        'shop'            => PGH_SHOP,
+        'hp_campaign'     => PGH_HP_CAMPAIGN,
+        // ⚠️ 本文まるごと。⚠️ 連絡可能時間・ご質問等・紹介者はここから読める
+        'remarks'         => trim((string)($row['remarks'] ?? '')),
+    ];
+}
 
 $rows = portalReadBulkPayload('pgh_order');
 
@@ -74,14 +184,12 @@ foreach (array_chunk($rows, $batchSize) as $chunk) {
         if (!is_array($row)) {
             continue;
         }
-        // ⚠️ NOT NULL の列があるため、空文字のまま入れる（null にしない）
-        $filtered = portalNormalizeRow(portalFilterAllowed($row, $allowedColumns, ''), false);
-
-        // ⚠️⚠️ **鍵の無い行は入れない。** 重複排除ができず、毎回増え続けるため
-        if (trim((string)($filtered['inquiry_id'] ?? '')) === '') {
+        $inquiry = pghToInquiry($row);
+        if ($inquiry === null) {
             continue;
         }
-        $inquiryRows[] = $filtered;
+        // ⚠️ NOT NULL の列があるため、空文字のまま入れる（null にしない）
+        $inquiryRows[] = portalNormalizeRow($inquiry, false);
     }
 
     if (count($inquiryRows) === 0) {
