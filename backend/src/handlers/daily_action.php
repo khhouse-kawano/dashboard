@@ -139,7 +139,10 @@ $sql_unsync = "SELECT 'unsync' AS kind,
          " . dailyActionShop('i.shop', 'i.brand') . " AS shop,
          DATE_FORMAT($inquiry_date, '%Y-%m-%d') AS register,
          TRIM(CONCAT(COALESCE(i.first_name, ''), ' ', COALESCE(i.last_name, ''))) AS customer,
-         COALESCE(NULLIF(TRIM(i.response_medium), ''), NULLIF(TRIM(i.medium), ''), '') AS medium
+         COALESCE(NULLIF(TRIM(i.response_medium), ''), NULLIF(TRIM(i.medium), ''), '') AS medium,
+         /* ⚠️ キャンペーン名（2026-09-28）。⚠️ **未同期の表にだけ出す。**
+            ⚠️ 実測では9割以上が空。⚠️ **空文字で返し、画面が `-` と出す。** */
+         COALESCE(NULLIF(TRIM(i.hp_campaign), ''), '') AS campaign
     FROM inquiry_customer i
     LEFT JOIN $visible_shops s ON s.shop = TRIM(i.shop)
    WHERE COALESCE(i.sync, 0) = 0
@@ -221,13 +224,16 @@ $response_cancel = $to_int_days($response_cancel);
  * ⚠️ 並びは Express の runDailyAction() と**同じ順**にすること。
  */
 $sections = [
-    ["label" => "未同期", "hasDays" => true, "rows" => $response_unsync],
-    ["label" => "来場日未入力", "hasDays" => true, "rows" => $response_cancel],
+    // ⚠️ hasCampaign は**未同期だけ true**（2026-09-28 の指示）。
+    //   ⚠️ 来場日未入力・本日の予定は master_data 由来で、この列を返していない。
+    ["label" => "未同期", "hasDays" => true, "hasCampaign" => true, "rows" => $response_unsync],
+    ["label" => "来場日未入力", "hasDays" => true, "hasCampaign" => false, "rows" => $response_cancel],
 ];
 foreach ($today_steps as $step) {
     $sections[] = [
         "label" => "本日の" . $step['label'],
         "hasDays" => false,
+        "hasCampaign" => false,
         // ⚠️ array_values で添字を詰める。詰めないと json_encode がオブジェクトにする
         "rows" => array_values(array_filter($response_today, function ($row) use ($step) {
             return $row['step'] === $step['label'];

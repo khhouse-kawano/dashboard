@@ -13,8 +13,6 @@ import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import CustomerDetail from './CustomerDetail';
 import Ranking from './Ranking';
-import DailyAction from '../DailyAction';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { sortStyle, tableStyle, tdStyle, dateFormate, monthFormate, lastYearMonthFormate, formattedThisMonth, cancelStyle, lastYearStyle } from './companyUtils';
 
 type Staff = { name: string, shop: string, section: string, report: number, sort: number, multi: number, status: string, period: string, position: string, khg_id: string };
@@ -31,31 +29,12 @@ type Achievement = { category: string, name: string, period: string, value: stri
 
 const Company = () => {
     const { token, authority, category } = useContext(AuthContext);
-    const location = useLocation();
-    const navigate = useNavigate();
-
     /**
-     * ⚠️⚠️ **本日のアクションのモーダル**（2026-09-28）。
-     *
-     * ⚠️ `Category.tsx` の `goToDashboard` から来たときだけ出す。
-     *   ⚠️ ⚠️ **あちらで出すことはできない。** 直後に `navigate()` するため、
-     *     ⚠️ **出した瞬間に消える。**
-     *
-     * ⚠️ 目印は `location.state.fromCategory`。⚠️ 開いたら**すぐ消す**
-     *   （⚠️ 消さないと**再読み込みのたびに出る**）。
-     *
-     * ⚠️ 出す条件（`!isSp` / `category === 'order'`）は
-     *   ⚠️ **モーダル側が持っている。** ⚠️ ここで二重に書かないこと。
+     * ⚠️⚠️ **「要確認」モーダルはこの画面が持っていない**（2026-09-28 に移した）。
+     *   ⚠️ 以前は `location.state.fromCategory` を見てここで開いていたが、
+     *     ⚠️ ⚠️ **「URL が変わるたびに出す」へ変わった**ため `App.tsx` に1つだけ置いてある。
+     *   ⚠️ ⚠️ **ここに戻さないこと。** 会社実績を開いたときしか出なくなる。
      */
-    const [showDailyAction, setShowDailyAction] = useState(false);
-
-    useEffect(() => {
-        if ((location.state as { fromCategory?: boolean } | null)?.fromCategory !== true) return;
-        setShowDailyAction(true);
-        // ⚠️ replace で目印だけ落とす。履歴を増やさない
-        navigate(location.pathname + location.search, { replace: true, state: null });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.state]);
 
     const [originalStaffList, setOriginalStaffList] = useState<Staff[]>([]);
     const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -1183,8 +1162,6 @@ const Company = () => {
             <InformationEditKaeru id={editId.kaeru} token={token} onClose={informationEditClose} authority={authority} />
             <InformationEditResale id={editId.resale} token={token} onClose={informationEditClose} authority={authority} />
             <Ranking showRanking={showRanking} setShowRanking={setShowRanking} customerList={customerList} monthArray={monthArray} staffList={staffList} achievement={achievement}/>
-            {/* ⚠️ 出す・出さないの判定はモーダル側。⚠️ ここは「来たかどうか」だけを渡す */}
-            <DailyAction show={showDailyAction} onClose={() => setShowDailyAction(false)} />
         </>
     )
 }

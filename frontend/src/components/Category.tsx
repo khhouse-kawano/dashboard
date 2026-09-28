@@ -39,12 +39,13 @@ const Category = () => {
         };
         await setCategory(categoryValue);
         /**
-         * ⚠️⚠️ **`fromCategory` は「本日のアクション」のモーダルの目印**（2026-09-28）。
-         *   ⚠️ 遷移先（`Company.tsx`）がこれを見て1回だけ開き、⚠️ **すぐ消す。**
+         * ⚠️ ここから遷移すると「要確認」モーダルも出る（2026-09-28）。
+         *   ⚠️ ⚠️ **目印は渡していない。** `App.tsx` の `DailyAction` が
+         *     ⚠️ **URL の変化そのものを見て開く**ため、この遷移でも必ず動く。
          *   ⚠️ ⚠️ **ここでモーダルを出すことはできない。**
          *     ⚠️ 直後に `navigate()` するので**出した瞬間に消える。**
          */
-        await navigate(navigateMap[categoryValue] ?? '/home', { state: { fromCategory: true } });
+        await navigate(navigateMap[categoryValue] ?? '/home');
     };
 
     return (

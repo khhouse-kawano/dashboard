@@ -136,7 +136,16 @@ const UNSYNC_SQL = `
          ${shopLabel('i.shop', 'i.brand')} AS shop,
          DATE_FORMAT(${INQUIRY_DATE}, '%Y-%m-%d') AS register,
          TRIM(CONCAT(COALESCE(i.first_name, ''), ' ', COALESCE(i.last_name, ''))) AS customer,
-         COALESCE(NULLIF(TRIM(i.response_medium), ''), NULLIF(TRIM(i.medium), ''), '') AS medium
+         COALESCE(NULLIF(TRIM(i.response_medium), ''), NULLIF(TRIM(i.medium), ''), '') AS medium,
+         /*
+           ⚠️ キャンペーン名（2026-09-28 の指示）。⚠️ **未同期の表にだけ出す。**
+             ⚠️ 実測では ⚠️ **9割以上が空**（1,400件中 1,306件）。
+             ⚠️ ⚠️ **空文字で返し、画面がハイフンと出す。**
+           ⚠️ 20250426【KH共通】ゴールデンウィークマイホームフェア のように**長い**。
+             ⚠️ 画面側で省略表示にしてある。
+           ⚠️⚠️ **ここはテンプレートリテラルの中なのでバッククォートを書かないこと**（文字列が終わる）。
+         */
+         COALESCE(NULLIF(TRIM(i.hp_campaign), ''), '') AS campaign
     FROM inquiry_customer i
     LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(i.shop)
    WHERE COALESCE(i.sync, 0) = 0
@@ -228,6 +237,8 @@ export interface AttentionRow extends RowDataPacket {
   register: string;
   customer: string;
   medium: string;
+  /** ⚠️ キャンペーン名。⚠️ **未同期の行だけが持つ**（来場日未入力には無い） */
+  campaign?: string;
 }
 
 export interface TodayRow extends RowDataPacket {
@@ -250,6 +261,12 @@ export interface DailySection {
   label: string;
   /** ⚠️ 放置日数の列を出すかどうか。⚠️ **本日の予定には無い** */
   hasDays: boolean;
+  /**
+   * ⚠️ キャンペーンの列を出すかどうか。
+   *   ⚠️⚠️ **未同期だけ true**（2026-09-28 の指示）。
+   *   ⚠️ 来場日未入力・本日の予定は `master_data` 由来で、⚠️ **この列を返していない。**
+   */
+  hasCampaign: boolean;
   rows: (AttentionRow | TodayRow)[];
 }
 
@@ -310,11 +327,12 @@ export const runDailyAction = async (staffId: number | null): Promise<DailyActio
    *   ⚠️ ⚠️ **並びは `TODAY_STEPS` のとおり**（商談が進む順）。入れ替えないこと。
    */
   const sections: DailySection[] = [
-    { label: '未同期', hasDays: true, rows: unsync },
-    { label: '来場日未入力', hasDays: true, rows: cancel },
+    { label: '未同期', hasDays: true, hasCampaign: true, rows: unsync },
+    { label: '来場日未入力', hasDays: true, hasCampaign: false, rows: cancel },
     ...TODAY_STEPS.map((step) => ({
       label: `本日の${step.label}`,
       hasDays: false,
+      hasCampaign: false,
       rows: today.filter((row) => row.step === step.label),
     })),
   ];

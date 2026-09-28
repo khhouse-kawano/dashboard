@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useContext } from 'react';
+import { useLocation } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../context/AuthContext';
 import apiClient from '../utils/apiClient';
@@ -18,9 +19,12 @@ import { useIsSp } from '../utils/isSp';
  *   ⚠️⚠️ **`staff.check_daily_action` が本日でないこと**（サーバーが `show` で返す）
  *   ⚠️⚠️ **件数が0件のときは出さない**（見せるものが無い）
  *
- * ⚠️⚠️ **`Category.tsx` の `goToDashboard` では出せない。**
- *   ⚠️ あの関数は直後に `navigate()` するので、⚠️ **出した瞬間に消える。**
- *   ⚠️ 遷移先（`Company.tsx`）に置くこと。
+ * ⚠️⚠️ **2026-09-28 に「URL が変わるたびに出す」へ変えた**（利用者の相談）。
+ *   ⚠️ 置き場所は `Menu.tsx`（⚠️ **`/login` と `/home` 以外の全ページで動く**）。
+ *   ⚠️ ⚠️ **`Company.tsx` と `Category.tsx` の `fromCategory` は不要になったので消した。**
+ *   ⚠️ きっかけは `useLocation()` の `pathname + search` の変化である。
+ *   ⚠️ ⚠️ **背景クリックで閉じても、次に画面を移ると again 出る。**
+ *     ⚠️ 止まるのは **「確認しました」を押したときだけ**（利用者の判断）。
  *
  * ⚠️⚠️ **モーダルの外をクリックすれば閉じられる**（2026-09-28 の指示）。
  *   ⚠️ 「確認せずに急ぎ作業を進めたい場合がある」ため。
@@ -38,19 +42,39 @@ type Row = {
     register: string;
     customer: string;
     medium: string;
+    /** ⚠️ 未同期だけが持つ。⚠️ 空文字で届く（画面で `-` と出す） */
+    campaign?: string;
 };
 
 type Section = {
     label: string;
     hasDays: boolean;
+    /** ⚠️⚠️ **未同期だけ true**。⚠️ 他はこの列を持っていない */
+    hasCampaign: boolean;
     rows: Row[];
 };
 
-type Props = {
-    /** ⚠️ 開いてよいか。⚠️ 呼び出し側が「トップから来たか」を管理する */
-    show: boolean;
-    onClose: () => void;
+type ListResponse = {
+    sections?: Section[];
+    total?: number;
+    truncated?: boolean;
+    show?: boolean;
 };
+
+/**
+ * ⚠️⚠️ **取得はブラウザのセッション中で使い回す**（`Menu.tsx` の `fetchMenuOnce` と同じ考え方）。
+ *   ⚠️ URL が変わるたびに出す作りなので、⚠️ **毎回取りに行くと ① のDBに負担がかかる。**
+ *   ⚠️ ⚠️ **ただし古い数字を出し続けないよう、5分で取り直す。**
+ *     ⚠️ 同期や入力を済ませた直後は、⚠️ **最大5分は古い件数が出る。**
+ */
+const CACHE_MS = 5 * 60 * 1000;
+let cached: { at: number; promise: Promise<ListResponse> } | null = null;
+
+/**
+ * ⚠️⚠️ **「確認しました」を押したらこのタブでは二度と出さない。**
+ *   ⚠️ サーバーの `show` も false になるが、⚠️ **キャッシュを見に行かせないため**に持つ。
+ */
+let sessionChecked = false;
 
 /**
  * 放置日数の見た目。
@@ -72,45 +96,69 @@ const daysClass = (days: number): string => {
 /** ⚠️ 空の値は「(未設定)」と出す。空欄だと入力漏れなのか取得漏れなのか分からない */
 const orUnset = (value: string): string => (value ?? '').trim() === '' ? '(未設定)' : value;
 
-const DailyAction = ({ show, onClose }: Props) => {
+/**
+ * キャンペーン名。
+ *
+ * ⚠️ 指示どおり ⚠️ **空なら `-`**（⚠️ 「(未設定)」ではない）。
+ *   ⚠️ 実測で ⚠️ **9割以上が空**なので、⚠️ **短い記号のほうが表が静かになる。**
+ */
+const orDash = (value?: string): string => (value ?? '').trim() === '' ? '-' : (value ?? '');
+
+const DailyAction = () => {
     const { category } = useContext(AuthContext);
     const isSp = useIsSp();
+    const location = useLocation();
+    /** ⚠️ 画面が変わったことの目印。⚠️ `Menu.tsx` の `fullPath` と同じ作り方 */
+    const fullPath = location.pathname + location.search;
 
     const [sections, setSections] = useState<Section[]>([]);
     const [total, setTotal] = useState(0);
     const [truncated, setTruncated] = useState(false);
-    const [allowed, setAllowed] = useState(false);
-    const [loaded, setLoaded] = useState(false);
-    const [error, setError] = useState('');
+    const [open, setOpen] = useState(false);
     const [sending, setSending] = useState(false);
 
-    /** ⚠️ 取りに行ってよいか。⚠️ **通信の前に判定する**（無駄な通信を避ける） */
-    const canFetch = show && !isSp && category === 'order';
+    /** ⚠️ そもそも出す対象か。⚠️ **通信の前に判定する**（無駄な通信を避ける） */
+    const isTarget = !isSp && category === 'order';
 
     useEffect(() => {
-        if (!canFetch || loaded) return;
+        if (!isTarget || sessionChecked) return;
 
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post('', { request: 'daily_action', roll: 'list', category });
-                setSections(response.data?.sections ?? []);
-                setTotal(Number(response.data?.total ?? 0));
-                setTruncated(response.data?.truncated === true);
-                setAllowed(response.data?.show === true);
-            } catch (e) {
+        let alive = true;
+        const now = Date.now();
+        if (cached === null || now - cached.at > CACHE_MS) {
+            cached = {
+                at: now,
+                promise: apiClient
+                    .post('', { request: 'daily_action', roll: 'list', category })
+                    .then((response) => (response.data ?? {}) as ListResponse),
+            };
+        }
+
+        cached.promise
+            .then((data) => {
+                if (!alive) return;
+                setSections(data.sections ?? []);
+                setTotal(Number(data.total ?? 0));
+                setTruncated(data.truncated === true);
+                // ⚠️⚠️ **0件・確認済みなら開かない。** ⚠️ 空の枠を出しても意味がない
+                setOpen(data.show === true && Number(data.total ?? 0) > 0);
+            })
+            .catch((e) => {
                 /**
                  * ⚠️ 黙らせない。⚠️ **空なのか取得に失敗したのかが区別できないと、
                  *   「今日は0件だった」と誤解される。**
-                 * ⚠️ ⚠️ ただし**モーダルは開かない。** 空の枠だけ出しても意味がない
+                 * ⚠️ ⚠️ ただし**モーダルは開かない。** 空の枠だけ出しても意味がない。
+                 * ⚠️ ⚠️ **失敗したキャッシュは捨てる。** 残すと次の画面でも失敗したままになる
                  */
+                cached = null;
+                if (!alive) return;
                 console.error('要確認の取得に失敗しました', e);
-                setError('要確認を取得できませんでした。');
-            } finally {
-                setLoaded(true);
-            }
-        };
-        fetchData();
-    }, [canFetch, loaded, category]);
+                setOpen(false);
+            });
+
+        return () => { alive = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fullPath, isTarget, category]);
 
     /**
      * 「確認しました」。
@@ -126,19 +174,24 @@ const DailyAction = ({ show, onClose }: Props) => {
         } catch (e) {
             console.error('確認済みの記録に失敗しました', e);
         } finally {
+            /**
+             * ⚠️⚠️ **このタブではもう出さない。**
+             *   ⚠️ サーバーの `show` も false になるが、⚠️ **キャッシュが残っている間は
+             *     それを見に行ってしまう**ので、手元にも目印を持つ。
+             */
+            sessionChecked = true;
             setSending(false);
-            onClose();
+            setOpen(false);
         }
     };
 
-    // ⚠️ 出さない条件。⚠️ **0件・確認済み・取得失敗のいずれでも出さない**
-    if (!canFetch || !loaded || error !== '' || !allowed || total === 0) return null;
+    if (!open) return null;
 
     const visible = sections.filter((section) => section.rows.length > 0);
 
     return (
         <Modal
-            show={show}
+            show={open}
             size='lg'
             centered
             scrollable
@@ -147,7 +200,11 @@ const DailyAction = ({ show, onClose }: Props) => {
              *   ⚠️ `backdrop='static'` を付け直さないこと。
              *   ⚠️ ⚠️ **閉じただけでは確認済みにならない**（`check` を送らない）。
              */
-            onHide={onClose}
+            /**
+             * ⚠️⚠️ **閉じても「確認済み」にはならない**（`check` を送らない）。
+             *   ⚠️ ⚠️ **次に画面を移るとまた出る**（2026-09-28 の判断）。
+             */
+            onHide={() => setOpen(false)}
             dialogClassName='da_dialog'
         >
             {/* ⚠️ このコンポネント専用のスタイル。共通CSSを汚さない（GoogleReview.tsx と同じ方針） */}
@@ -225,6 +282,19 @@ const DailyAction = ({ show, onClose }: Props) => {
                 .da_days_low { background: #fef9c3; color: #854d0e; }
                 .da_days_mid { background: #ffedd5; color: #9a3412; }
                 .da_days_high { background: #fee2e2; color: #b91c1c; }
+
+                /**
+                 * ⚠️ キャンペーン名は長い（20250426【KH共通】ゴールデンウィーク… のような値）。
+                 *   ⚠️⚠️ **ここは <style>{...} のテンプレートリテラルの中。**
+                 *     ⚠️ **バッククォートを書かないこと**（文字列が終わってビルドが落ちる）。
+                 *   ⚠️⚠️ **折り返すと行の高さが揃わなくなる**ので省略表示にする。
+                 *   ⚠️ 全文は title 属性（hover）で読める。
+                 *   ⚠️ ⚠️ **table-layout: fixed が要る。** 無いと max-width が効かず、
+                 *     ⚠️ 列が横に伸びて表がはみ出す。
+                 */
+                .da_table { table-layout: fixed; }
+                .da_ellipsis { max-width: 0; overflow: hidden; text-overflow: ellipsis;
+                               white-space: nowrap; }
             `}</style>
 
             {/* ⚠️ closeButton は付けない（指示）。閉じるのは背景クリックか「確認しました」 */}
@@ -283,6 +353,8 @@ const DailyAction = ({ show, onClose }: Props) => {
                                         <th className='da_th' style={{ width: '100px' }}>反響日</th>
                                         <th className='da_th'>顧客名</th>
                                         <th className='da_th' style={{ width: '130px' }}>反響媒体</th>
+                                        {/* ⚠️ キャンペーンは**未同期の表だけ**。⚠️ 右端に置く（指示） */}
+                                        {section.hasCampaign && <th className='da_th' style={{ width: '170px' }}>キャンペーン</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -299,6 +371,12 @@ const DailyAction = ({ show, onClose }: Props) => {
                                             <td className='da_td da_date'>{orUnset(row.register)}</td>
                                             <td className='da_td da_name'>{orUnset(row.customer)}</td>
                                             <td className='da_td da_muted'>{orUnset(row.medium)}</td>
+                                            {section.hasCampaign && (
+                                                /* ⚠️ 長い名前が多いので省略表示。⚠️ **全文は hover で出す** */
+                                                <td className='da_td da_muted da_ellipsis' title={orDash(row.campaign)}>
+                                                    {orDash(row.campaign)}
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
