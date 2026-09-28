@@ -126,6 +126,39 @@ function pghTel(string $tel): string
 }
 
 /**
+ * 重複排除の鍵。
+ *
+ * ⚠️⚠️ **Gmail のメッセージIDは使わない**（2026-09-28 に直した）。
+ *   ⚠️ ⚠️ **同じ問い合わせが2通届くことがある**（受信箱に別アドレス宛の控えも入る）。
+ *     ⚠️ メッセージIDは通ごとに違うため、⚠️ **2件とも入ってしまっていた。**
+ *
+ * ⚠️ 既存の `catalog_resale` は `UNIQUE(email, registered)` で、
+ *   ⚠️ ⚠️ **「誰が・いつ」で内容によって弾いている。** ⚠️ **それに合わせる。**
+ *
+ * ⚠️ 日付までで見る（⚠️ **時刻は見ない**）。
+ *   ⚠️ ⚠️ **控えは数秒ずれて届く**ので、秒まで見ると弾けない。
+ *   ⚠️ ⚠️ **同じ人が同じ日に2回出すと1件に畳まれる。** これは承知のうえ
+ *     （⚠️ メール本文だけでは本当に2回目なのか控えなのか区別できない）。
+ *
+ * ⚠️ メールが空のときは電話、それも空なら氏名で代用する。
+ *   ⚠️ ⚠️ **全部空なら空文字を返す。** 呼び出し側がその行を捨てる。
+ */
+function pghInquiryKey(array $row, string $inquiryDate): string
+{
+    $mail = trim((string)($row['email'] ?? ''));
+    $tel  = pghTel((string)($row['tel'] ?? ''));
+    $name = trim((string)($row['name'] ?? ''));
+
+    $who = $mail !== '' ? $mail : ($tel !== '' ? $tel : $name);
+    if ($who === '' || $inquiryDate === '') {
+        return '';
+    }
+
+    // ⚠️ 生のメールアドレスを inquiry_id に入れない。⚠️ 画面や一覧に出る列のため
+    return 'pgh_hp_' . md5($who . '|' . $inquiryDate);
+}
+
+/**
  * GAS から届いた1通ぶんを `inquiry_customer` の形に直す。
  *
  * ⚠️⚠️ **氏名は分割しない**（利用者の判断。2026-09-28）。
@@ -138,11 +171,21 @@ function pghTel(string $tel): string
  */
 function pghToInquiry(array $row): ?array
 {
-    $messageId = trim((string)($row['messageId'] ?? ''));
-    $name      = trim((string)($row['name'] ?? ''));
+    $name = trim((string)($row['name'] ?? ''));
 
-    // ⚠️ 鍵と氏名が無いものは作らない。⚠️ **誰のことか分からない行を増やさない**
-    if ($messageId === '' || $name === '') {
+    // ⚠️ 氏名が無いものは作らない。⚠️ **誰のことか分からない行を増やさない**
+    if ($name === '') {
+        return null;
+    }
+
+    $inquiryDate = pghInquiryDate((string)($row['registered'] ?? ''));
+
+    /**
+     * ⚠️⚠️ **同じ問い合わせが2通届く**（利用者の確認。2026-09-28）。
+     *   ⚠️ ⚠️ **鍵は「誰が・いつ」で作る。** ⚠️ **メッセージIDでは弾けない。**
+     */
+    $inquiryId = pghInquiryKey($row, $inquiryDate);
+    if ($inquiryId === '') {
         return null;
     }
 
@@ -151,8 +194,8 @@ function pghToInquiry(array $row): ?array
 
     return [
         // ⚠️ 接頭辞を付けて他の媒体と衝突させない（例: townlife は 'townlife' + id）
-        'inquiry_id'      => 'pgh_hp_' . $messageId,
-        'inquiry_date'    => pghInquiryDate((string)($row['registered'] ?? '')),
+        'inquiry_id'      => $inquiryId,
+        'inquiry_date'    => $inquiryDate,
         'medium'          => PGH_MEDIUM,
         'response_medium' => $trigger !== '' ? $trigger : PGH_MEDIUM,
         'first_name'      => $name,
