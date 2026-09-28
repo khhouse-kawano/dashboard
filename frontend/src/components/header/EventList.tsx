@@ -7,6 +7,7 @@ import apiClient from '../../utils/apiClient';
 import { generateULID } from '../../utils/createULID';
 import { thisYear } from '../../utils/thisYear';
 import AuthContext from '../../context/AuthContext';
+import { filterReportShops, sortShops, MasterShop } from './useAmbassadorMaster';
 
 /**
  * イベント予約1件。
@@ -203,6 +204,13 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
     const [syncShow, setSyncShow] = useState(false);
     const [syncTarget, setSyncTarget] = useState<CustomerData | null>(null);
     const [targetStaff, setTargetStaff] = useState('');
+    /**
+     * ⚠️⚠️ **同期先の担当店舗**（2026-09-28 追加）。
+     *   ⚠️ `event_db.shop` が空の予約があり、⚠️ **そのままでは同期できなかった。**
+     *   ⚠️ ⚠️ **入っている場合もここに入れて、選び直せるようにする**（指示）。
+     */
+    const [syncShop, setSyncShop] = useState('');
+    const [shopList, setShopList] = useState<MasterShop[]>([]);
 
     // ⚠️ QRコードの読み取り（受付）は 2026-09-07 にこの画面から外した。
     //   受付はスタッフが自分のスマホで来場者のQRを読み、
@@ -233,6 +241,8 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                 .filter((s: Staff) => s.period === String(thisYear) && Number(s.rank) === 1)
                 .sort((a: Staff, b: Staff) => positionIndex(a.position) - positionIndex(b.position));
             setStaffArray(responseStaff);
+            // ⚠️ 並び替えは下の shopOptions で行う。ここでは受け取るだけ
+            setShopList(response.data.shop ?? []);
         } catch (err) {
             setError("データの取得に失敗しました");
             console.error(err)
@@ -413,15 +423,46 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
         fetchData();
     };
 
-    // 対象行の店舗に紐づくスタッフ + 「〇〇店 管理」
+    /**
+     * 担当店舗の選択肢。
+     *
+     * ⚠️⚠️ **既存の `filterReportShops` / `sortShops` をそのまま使う**
+     *   （`components/header/useAmbassadorMaster.ts`）。
+     *   ⚠️ 絞り込み: `report_flag = 1`（⚠️ **管理用の擬似店舗を外す**）
+     *   ⚠️ 並び替え: 事業区分 → ブランド → id
+     *   ⚠️ ⚠️ **規則を写さないこと。** 片方だけ直すと画面ごとに順が変わる。
+     *
+     * ⚠️ 事業区分では絞っていない（指示）。⚠️ イベントには複数ブランドの来場者が混ざる。
+     */
+    const shopOptions = useMemo(() => {
+        const sorted = sortShops(filterReportShops(shopList));
+        const seen = new Set<string>();
+        const names: string[] = [];
+        sorted.forEach(s => {
+            const name = (s.shop ?? '').trim();
+            if (name === '' || seen.has(name)) return;
+            seen.add(name);
+            names.push(name);
+        });
+        return names;
+    }, [shopList]);
+
+    /**
+     * 選んだ店舗に紐づくスタッフ ＋ 「〇〇店 管理」。
+     *
+     * ⚠️⚠️ **`syncTarget.shop` ではなく `syncShop` を見る**（2026-09-28 に変更）。
+     *   ⚠️ 店舗を選び直したとき、⚠️ **担当者の候補も入れ替わらないと辻褄が合わない。**
+     */
     const staffOptions = useMemo(() => {
-        if (!syncTarget) return [];
-        return [...staffArray.filter(s => s.shop === syncTarget.shop).map(s => s.name), `${syncTarget.shop} 管理`];
-    }, [staffArray, syncTarget]);
+        if (syncShop === '') return [];
+        return [...staffArray.filter(s => s.shop === syncShop).map(s => s.name), `${syncShop} 管理`];
+    }, [staffArray, syncShop]);
 
     const handleSync = (item: CustomerData) => {
         setSyncTarget(item);
         setTargetStaff('');
+        // ⚠️ 既に入っていればそれを既定にする（指示）。⚠️ 空なら選んでもらう
+        setSyncShop((item.shop ?? '').trim());
         setSyncShow(true);
     };
 
@@ -432,10 +473,19 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
         setSyncShow(false);
         setSyncTarget(null);
         setTargetStaff('');
+        setSyncShop('');
     };
 
     const syncStart = async () => {
-        if (!syncTarget || targetStaff === '') {
+        /**
+         * ⚠️⚠️ **店舗が空のまま同期させない**（2026-09-28 追加）。
+         *   ⚠️ 空で入れると ⚠️ **担当者の画面に出てこない顧客**ができる。
+         */
+        if (!syncTarget || syncShop === '') {
+            alert('担当店舗を選択してください');
+            return;
+        }
+        if (targetStaff === '') {
             alert('スタッフを選択してください');
             return;
         }
@@ -443,7 +493,8 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
         const postData: Record<string, string> = {
             ...createSyncPayload(syncTarget),
             in_charge_user: targetStaff,
-            in_charge_store: syncTarget.shop,
+            // ⚠️⚠️ **選び直した店舗を使う。** ⚠️ `syncTarget.shop` は空のことがある
+            in_charge_store: syncShop,
             request: 'list',
             roll: 'insert',
             category
@@ -645,8 +696,23 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                 </Modal.Header>
                 <Modal.Body className="p-3">
                     <div className="mb-2" style={{ fontSize: '11px', color: '#8898aa' }}>
-                        {syncTarget ? `${syncTarget.shop} / ${syncTarget.name} 様` : ''}
+                        {syncTarget ? `${syncTarget.name} 様` : ''}
                     </div>
+
+                    {/*
+                      ⚠️⚠️ **担当店舗（2026-09-28 追加）。**
+                        ⚠️ `event_db.shop` が空の予約があり、⚠️ **同期できなかった。**
+                        ⚠️ ⚠️ **入っている場合も選び直せる**（指示）。
+                        ⚠️ 店舗を変えたら**担当者は選び直してもらう**（候補が入れ替わるため）。
+                    */}
+                    <select className='mb-2'
+                        style={{ ...compactInputStyle, height: '28px', fontSize: '12px' }}
+                        value={syncShop}
+                        onChange={(e) => { setSyncShop(e.target.value); setTargetStaff(''); }}>
+                        <option value="">担当店舗を選択</option>
+                        {shopOptions.map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+
                     <select style={{ ...compactInputStyle, height: '28px', fontSize: '12px' }} value={targetStaff} onChange={(e) => setTargetStaff(e.target.value)}>
                         <option value="">担当営業を選択</option>
                         {staffOptions.map(name => <option key={name} value={name}>{name}</option>)}
