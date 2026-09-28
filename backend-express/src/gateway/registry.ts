@@ -221,13 +221,25 @@ register({
  *     ⚠️ 自動フォールバックがあるため、書き込みを転送すると**二重に走りうる。**
  *   ⚠️ ① の express_proxy.php でも 'daily_action:list' とだけ書いてある。
  */
-register({
-  request: 'daily_action',
-  roll: 'list',
-  summary: '要確認の顧客（未同期・来場日未入力）と本日の予定',
-  phpSource: 'backend/src/handlers/daily_action.php',
-  auth: 'staff',
-  handler: async (ctx) => runDailyAction(ctx.staff?.id ?? null),
+/**
+ * ⚠️⚠️ **`category` ごとに登録すること**（2026-09-28 に気づいて足した）。
+ *   ⚠️ 鍵は `request:roll:category` の**完全一致**である（`findEntry` を参照）。
+ *   ⚠️ ⚠️ **DailyAction.tsx は `category` を送っている**ため、
+ *     ⚠️ `category` 無しの登録だけだと**毎回ここで外れ、502 を返して ① へ落ちていた。**
+ *     ⚠️ 画面は ① のフォールバックで動くので、⚠️ **ログを見ないと気づけない。**
+ *   ⚠️ 出るのは注文（order）だけだが、⚠️ **`category` 無しも残す**
+ *     （⚠️ 比較ツールなど `category` を送らない呼び出しのため）。
+ */
+['', 'order'].forEach((category) => {
+  register({
+    request: 'daily_action',
+    roll: 'list',
+    category,
+    summary: '要確認の顧客（未同期・来場日未入力）と本日の予定',
+    phpSource: 'backend/src/handlers/daily_action.php',
+    auth: 'staff',
+    handler: async (ctx) => runDailyAction(ctx.staff?.id ?? null),
+  });
 });
 
 /** ヘッダーの新着物件バッジ。件数だけを返す */

@@ -167,6 +167,12 @@ $sql_cancel = "SELECT 'cancel' AS kind,
          " . dailyActionShop('m.in_charge_store', 'm.brand') . " AS shop,
          COALESCE(DATE_FORMAT($register_date, '%Y-%m-%d'), '') AS register,
          COALESCE(m.customer_contacts_name, '') AS customer,
+         /* ⚠️ 担当営業（2026-09-28）。⚠️ **来場日未入力と本日の予定にだけ出す。**
+            ⚠️ 未同期は inquiry_customer 由来で、⚠️ **まだ担当が決まっていない。**
+            ⚠️⚠️ **in_charge_user をそのまま出す**（指示）。
+              ⚠️ 「◯◯店 管理」に付け替えられている行はそのまま表示される。
+              ⚠️ 旧担当（first_interviewed_user）には**寄せていない**。 */
+         COALESCE(NULLIF(TRIM(m.in_charge_user), ''), '') AS staff,
          COALESCE(m.sales_promotion_name, '') AS medium
     FROM master_data m
     LEFT JOIN $visible_shops s ON s.shop = TRIM(m.in_charge_store)
@@ -193,6 +199,12 @@ foreach ($today_steps as $index => $step) {
          " . dailyActionShop('m.in_charge_store', 'm.brand') . " AS shop,
          COALESCE(DATE_FORMAT($register_date, '%Y-%m-%d'), '') AS register,
          COALESCE(m.customer_contacts_name, '') AS customer,
+         /* ⚠️ 担当営業（2026-09-28）。⚠️ **来場日未入力と本日の予定にだけ出す。**
+            ⚠️ 未同期は inquiry_customer 由来で、⚠️ **まだ担当が決まっていない。**
+            ⚠️⚠️ **in_charge_user をそのまま出す**（指示）。
+              ⚠️ 「◯◯店 管理」に付け替えられている行はそのまま表示される。
+              ⚠️ 旧担当（first_interviewed_user）には**寄せていない**。 */
+         COALESCE(NULLIF(TRIM(m.in_charge_user), ''), '') AS staff,
          COALESCE(m.sales_promotion_name, '') AS medium
     FROM master_data m
     LEFT JOIN $visible_shops s ON s.shop = TRIM(m.in_charge_store)
@@ -226,14 +238,16 @@ $response_cancel = $to_int_days($response_cancel);
 $sections = [
     // ⚠️ hasCampaign は**未同期だけ true**（2026-09-28 の指示）。
     //   ⚠️ 来場日未入力・本日の予定は master_data 由来で、この列を返していない。
-    ["label" => "未同期", "hasDays" => true, "hasCampaign" => true, "rows" => $response_unsync],
-    ["label" => "来場日未入力", "hasDays" => true, "hasCampaign" => false, "rows" => $response_cancel],
+    // ⚠️ hasStaff は**未同期以外 true**（2026-09-28）。⚠️ 未同期はまだ担当が決まっていない
+    ["label" => "未同期", "hasDays" => true, "hasCampaign" => true, "hasStaff" => false, "rows" => $response_unsync],
+    ["label" => "来場日未入力", "hasDays" => true, "hasCampaign" => false, "hasStaff" => true, "rows" => $response_cancel],
 ];
 foreach ($today_steps as $step) {
     $sections[] = [
         "label" => "本日の" . $step['label'],
         "hasDays" => false,
         "hasCampaign" => false,
+        "hasStaff" => true,
         // ⚠️ array_values で添字を詰める。詰めないと json_encode がオブジェクトにする
         "rows" => array_values(array_filter($response_today, function ($row) use ($step) {
             return $row['step'] === $step['label'];

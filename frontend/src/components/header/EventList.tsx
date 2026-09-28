@@ -151,7 +151,22 @@ const createSyncPayload = (item: CustomerData): Record<string, string> => ({
     id: generateULID(),
     customer_contacts_name: item.name || '',
     full_address: `${item.address || ''}${item.street || ''}`,
-    step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: formatToYYYYMMDD(item.check_in_time),
+    /**
+     * 反響取得日。
+     *
+     * ⚠️⚠️ **`reserved_at`（予約を受け付けた日時）を入れる**（2026-09-28 の指示）。
+     *   ⚠️ それまでは `check_in_time`（来場した日時）を入れていた。
+     *   ⚠️ ⚠️ **反響取得日は「問い合わせが来た日」**なので、予約日のほうが正しい。
+     *
+     * ⚠️ `reserved_at` は ⚠️ **手入力で作られた行には入らない**（実測で203件中89件が空）。
+     *   ⚠️ ⚠️ **空のときは従来どおり `check_in_time` を使う。**
+     *     ⚠️ ここを空で入れると、⚠️ **反響一覧にも推移にも出てこない顧客**ができる。
+     *
+     * ⚠️ `formatToYYYYMMDD` は `YYYY/MM/DD`（0埋めあり）を返す。
+     *   ⚠️⚠️ **スラッシュ区切りであること。** ハイフンだと画面の集計から漏れる。
+     */
+    step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99:
+        formatToYYYYMMDD(item.reserved_at) || formatToYYYYMMDD(item.check_in_time),
     customer_contacts_mobile_phone_number: item.phone || '',
     customer_contacts_email: item.mail || '',
     postal_code: item.zip || '',
