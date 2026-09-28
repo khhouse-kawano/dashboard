@@ -1,9 +1,8 @@
 # 2026-09-28 (6) 【PG HOUSE九州】資料請求メールの取り込み
 
 ⚠️ ⚠️ **このタスクは v2.2.150 とは別物**（⚠️ フロントは触っていない）。
-⚠️ ⚠️ **リポジトリを2つ跨ぐ**（⚠️ `react/dashboard` と ⚠️ `projects/sync`）。
 
-## 依頼（`ReadMeClaude.md`）
+## 依頼（`ReadMeClaude.md` と、その後のやりとり）
 
 - ⚠️ **GASファイル作成** — 下記のメールを取得してテーブルに保存する
 
@@ -25,42 +24,53 @@ from : no-reply@kyusyu.pg-house.jp
 問い合わせのページURL：https://kyusyu.pg-house.jp/contact/
 ```
 
-- ⚠️ **Express を `C:\Users\shinji-kawano\projects\sync` に構築**
 - ⚠️ 保存テーブルは `inquiry_customer` ／ ⚠️ ブランドは `PGH` ／ ⚠️ 店舗は `PGH店舗未設定`
 - ⚠️ 追記: ⚠️ **`medium` はホームページ反響とする**
 - ⚠️ 追記: ⚠️ **GASファイルは作ってもらえれば自分で貼り付ける**
+- ⚠️⚠️ **訂正: 「Express を `C:\Users\shinji-kawano\projects\sync` に構築」は誤り。**
+  ⚠️ ⚠️ **DB登録は Dashboard プロジェクト内から行う。**
 
 ## オーナー判断
 
 | 論点 | 回答 |
 |---|---|
-| 受け側の置き場所 | ⚠️ **既存の `projects\sync` に足す** |
 | 区切りの無い氏名・ふりがな | ⚠️⚠️ **全体を `first_name` へ**（⚠️ `last_name` は空） |
 | 反響媒体 | ⚠️ **「お申込のきっかけ」を `response_medium` に使う** |
 | `medium` | ⚠️ **「ホームページ反響」で固定** |
+| ⚠️ 置き場所 | ⚠️⚠️ **Dashboard 内**（⚠️ `projects/sync` は使わない） |
+
+---
+
+## ⚠️ 経緯（⚠️ **一度作って戻した**）
+
+⚠️ 当初「`projects/sync` に Express を構築」という指示だったため、⚠️ そちらに
+route / controller / service と GAS を作った。⚠️⚠️ **その後「誤り」との訂正があり、全て取り消した。**
+
+⚠️ 取り消したもの（⚠️ **いずれも未コミットだったため痕跡は残っていない**）:
+
+```
+projects/sync/gas/runPghCatalog.gs               … 削除
+projects/sync/src/services/runPghCatalog.ts      … 削除
+projects/sync/src/controllers/pghCatalogController.ts … 削除
+projects/sync/src/routes/pghCatalogRoutes.ts     … 削除
+projects/sync/src/app.ts                         … git checkout で復元
+```
+
+⚠️ ⚠️ **`projects/sync` に元からあった変更（`runCompetitorPlaces` 等）には触れていない。**
+
+⚠️ この寄り道で分かったこと（⚠️ **今後の判断材料として残す**）:
+
+| # | |
+|---|---|
+| 1 | ⚠️ `projects\sync` は ⚠️ **既存の大きな Express + TS プロジェクト**。⚠️ 新規の空フォルダではない |
+| 2 | ⚠️⚠️ **MySQL ドライバを持っていない。** ⚠️ 書き込みは全部 `postGateway()` で ① 経由 |
+| 3 | ⚠️ `runPGMail.ts` は ⚠️ **資料請求の「お礼メールを送る側」**。⚠️ 取り込みとは別物 |
 
 ---
 
 ## ⚠️ 調べて分かったこと
 
-### ⚠️ 1. `projects\sync` は既存の大きなプロジェクトだった
-
-⚠️ **新規の空フォルダではない。** ⚠️ Express + TypeScript の構成が既にある。
-
-```
-src/app.ts        … ルーティング（/api/portal, /api/mail_scraping …）
-src/routes/       … Router を返すだけ
-src/controllers/  … 受けて service を呼ぶだけ
-src/services/     … 実処理（runSuumoOrder, runTownlifeOrder, runPGMail …）
-src/utils/postGateway.ts … ① の api/gateway/ へ 500件ずつ送る
-```
-
-⚠️⚠️ **MySQL ドライバを持っていない。** ⚠️ 書き込みは ⚠️ **すべて ① 経由**である。
-⚠️ ⚠️ **そのため ① 側にもハンドラが1本要る**（⚠️ 依頼には書かれていないが必須）。
-
-⚠️ `runPGMail.ts` が既にあるが、⚠️ **あれは資料請求の「お礼メールを送る側」**で別物。
-
-### ⚠️ 2. 参照GASとは本文の書式が違う
+### ⚠️ 1. 参照GASとは本文の書式が違う
 
 | | 参照GAS（catalog_resale） | ⚠️ **今回** |
 |---|---|---|
@@ -68,7 +78,7 @@ src/utils/postGateway.ts … ① の api/gateway/ へ 500件ずつ送る
 
 ⚠️ ⚠️ **抽出ロジックは流用できず、コロンで割る形に書き直した。**
 
-### ⚠️⚠️ 3. `inquiry_customer` に `inquiry_id` の一意キーが無い
+### ⚠️⚠️ 2. `inquiry_customer` に `inquiry_id` の一意キーが無い
 
 ```
 PRIMARY         id
@@ -79,7 +89,7 @@ idx_ic_response response_medium （非ユニーク）
 ⚠️⚠️ **`INSERT IGNORE` では重複を防げない。**
 ⚠️ 既存のポータル取り込みは `portalInsertNewOnly()`（⚠️ **鍵を SELECT してから入れる**）で防いでいる。⚠️ **今回もこれを通す。**
 
-### ⚠️ 4. 反響日はスラッシュ区切りでないと画面に出ない
+### ⚠️ 3. 反響日はスラッシュ区切りでないと画面に出ない
 
 ⚠️ メニューの未同期バッジは `SUBSTRING(inquiry_date, 1, 7)` を `'2025/06'` と比べている
 （`backend-express/src/features/menu.ts`）。
@@ -87,15 +97,31 @@ idx_ic_response response_medium （非ユニーク）
 
 ---
 
+## 構成
+
+```
+Gmail ─(GAS)→ ① https://khg-marketing.info/dashboard/api/gateway/
+             → backend/src/handlers/pgh_order.php
+             → inquiry_customer
+```
+
+⚠️ ⚠️ **既存の GAS（catalog_resale）とまったく同じ入口**である。
+
+---
+
 ## 追加したファイル
 
-### ⚠️ 1. `projects/sync/gas/runPghCatalog.gs`（新規・⚠️ **利用者が貼り付ける**）
+### ⚠️ 1. `backend/scripts/gas/runPghCatalog.gs`（新規・⚠️ **利用者が貼り付ける**）
 
-⚠️⚠️ **貼り付けたあと、先頭の2つを書き換えること。**
+⚠️⚠️ **書き換えるところはない。** ⚠️ 送り先は既存の入口と同じ。
 
 ```js
-const PGH_CATALOG_API_URL = 'https://（sync の公開URL）/api/pgh_catalog';
-const PGH_CATALOG_TOKEN = '（受け側と同じ合い言葉）';
+/**
+ * ⚠️ 送信先。
+ *   ⚠️ 既存の GAS（catalog_resale）と**同じ入口**である。
+ *   ⚠️ ⚠️ **書き換える必要はない。**
+ */
+const PGH_CATALOG_API_URL = 'https://khg-marketing.info/dashboard/api/gateway/';
 ```
 
 ⚠️ 拾う項目（⚠️ **左がメール本文の見出し**）:
@@ -164,38 +190,59 @@ function extractPghCatalogData(text) {
 }
 ```
 
-⚠️ メイン（⚠️ **トリガーはこれを指定する**）:
+⚠️ 送信（⚠️⚠️ **`{ request, data: [...] }` の形が必須**）:
+
+```js
+/**
+ * ⚠️⚠️ **`{ request, data: [...] }` の形にすること。**
+ *   ⚠️ 受け側の `portalReadBulkPayload()` がこの2つを見ている。
+ *   ⚠️ ⚠️ **形が違うと 400 で弾かれる。**
+ */
+function postPghCatalog(rows) {
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ request: 'pgh_order', data: rows }),
+    muteHttpExceptions: true
+  };
+  ...
+}
+```
+
+⚠️ メイン（⚠️ **トリガーはこれを指定する**。⚠️ **まとめて1回で送る**）:
 
 ```js
 function runPghCatalog() {
   // ⚠️ 1日以内。⚠️⚠️ **重複は受け側が messageId で弾く**ので、既読判定はしない
   const query = 'from:no-reply@kyusyu.pg-house.jp subject:"資料請求" newer_than:1d';
-  const threads = GmailApp.search(query);
   ...
-      const payload = {
+      // ⚠️ 氏名が取れないものは送らない。⚠️ **誰のことか分からない行を作らない**
+      if (!extracted.name) {
+        Logger.log('お名前が取れなかったためスキップ: ' + msg.getId());
+        continue;
+      }
+
+      rows.push({
         ...extracted,
         registered: registered,
         // ⚠️⚠️ **重複排除の鍵。** ⚠️ 受け側が inquiry_id に使う
         messageId: msg.getId(),
         // ⚠️ 取りこぼしても後から読めるよう、本文をそのまま添える
         remarks: body
-      };
-
-      // ⚠️ 氏名が取れないものは送らない。⚠️ **誰のことか分からない行を作らない**
-      if (payload.name) { postPghCatalog(payload); }
+      });
+  ...
+  postPghCatalog(rows);
 }
 ```
 
-⚠️ 送信は `X-Sync-Token` ヘッダ付き・`muteHttpExceptions: true`（⚠️ **失敗の中身をログに残すため**）。
+### ⚠️ 2. `backend/src/handlers/pgh_order.php`（新規）
 
-### ⚠️ 2. `projects/sync/src/services/runPghCatalog.ts`（新規）
+⚠️⚠️ **値の組み立ては全部ここ。** ⚠️ GAS は割って送るだけ。
 
-⚠️⚠️ **判断はここに集めた。** ⚠️ GAS は**割って送るだけ**（⚠️ 貼り替えが要るため）。
-
-```ts
+```php
 /** ⚠️ ブランドと店舗は固定（利用者の指示。2026-09-28） */
-const BRAND = "PGH";
-const SHOP = "PGH店舗未設定";
+const PGH_BRAND = 'PGH';
+const PGH_SHOP  = 'PGH店舗未設定';
 
 /**
  * ⚠️ 媒体。
@@ -204,206 +251,148 @@ const SHOP = "PGH店舗未設定";
  *     ⚠️⚠️ **medium_list に無い値が入りうる。** その場合は販促媒体別の集計から漏れる。
  *     ⚠️ 新しい値が出てきたら medium_list に足すこと。
  */
-const MEDIUM = "ホームページ反響";
-const HP_CAMPAIGN = "資料請求";
+const PGH_MEDIUM      = 'ホームページ反響';
+const PGH_HP_CAMPAIGN = '資料請求';
 ```
 
-⚠️ カナ変換（⚠️ **v2.2.149 の `nexusUtils.ts` と同じ実装**）:
+**追加した関数**
 
-```ts
+```php
 /**
- * ⚠️⚠️ **ダッシュボードの frontend/src/utils/nexusUtils.ts と同じ実装。**
+ * ひらがなをカタカナに直す。
+ *
+ * ⚠️⚠️ **frontend/src/utils/nexusUtils.ts の hiraToKata と同じ挙動にしてある。**
  *   ⚠️ v2.2.149 で「フリガナはカタカナ」に揃えたので、⚠️ **入口でも合わせる。**
  *   ⚠️ ⚠️ **ここでひらがなのまま入れると、Nexus へ移行できない顧客が増える。**
- * ⚠️ 繰り返し記号（ゝ ゞ）は +0x60 の範囲外なので個別に直す。
+ *
+ * ⚠️ `mb_convert_kana($s, 'C')` は**ひらがな→カタカナ**の変換。
+ *   ⚠️ 繰り返し記号（ゝ ゞ）も併せて直す（⚠️ `C` では変わらない）。
  */
-const hiraToKata = (value: string): string =>
-    (value ?? "").replace(/[\u3041-\u3096\u309D\u309E]/gu, (char) => {
-        if (char === "\u309D") return "\u30FD";
-        if (char === "\u309E") return "\u30FE";
-        return String.fromCharCode(char.charCodeAt(0) + 0x60);
-    });
-```
+function pghHiraToKata(string $value): string
+{
+    $converted = mb_convert_kana($value, 'C', 'UTF-8');
+    return str_replace(['ゝ', 'ゞ'], ['ヽ', 'ヾ'], $converted);
+}
 
-⚠️ 反響日（⚠️⚠️ **スラッシュ区切り必須**）:
-
-```ts
 /**
+ * 反響日。
+ *
  * ⚠️⚠️ **`YYYY/MM/DD` のスラッシュ区切りにすること。**
  *   ⚠️ メニューの未同期バッジは `SUBSTRING(inquiry_date, 1, 7)` を
  *     `'2025/06'` と比べている（backend-express/src/features/menu.ts）。
  *   ⚠️ ⚠️ **ハイフンで入れるとバッジにも「要確認」にも出てこない。**
  */
-const toInquiryDate = (registered: string): string => {
-    const head = (registered ?? "").trim().slice(0, 10).replace(/-/g, "/");
-    return /^\d{4}\/\d{2}\/\d{2}$/.test(head) ? head : "";
-};
-```
+function pghInquiryDate(string $registered): string
+{
+    $head = str_replace('-', '/', substr(trim($registered), 0, 10));
+    return preg_match('#^\d{4}/\d{2}/\d{2}$#', $head) === 1 ? $head : '';
+}
 
-⚠️ 住所（⚠️ **都道府県だけ切り出す**）:
-
-```ts
 /**
+ * 住所を都道府県とそれ以降に割る。
+ *
  * ⚠️ 見本は `鹿児島県 霧島市国分重久1063-1-201`（⚠️ **県のあとに空白**）。
  * ⚠️⚠️ **市区町村までは割らない。** 表記が安定せず、誤って割ると住所が壊れる。
  *   ⚠️ 既存の townlife / catalog も同じ判断で building にまとめている。
+ *
+ * @return array{0:string,1:string} [pref, building]
  */
-const splitAddress = (address: string): { pref: string; building: string } => {
-    const text = (address ?? "").replace(/\s+/gu, " ").trim();
-    const pref = PREFECTURES.find((p) => text.startsWith(p)) ?? "";
-    const building = pref === "" ? text : text.slice(pref.length).trim();
-    return { pref, building };
-};
-```
+function pghSplitAddress(string $address): array
+{
+    $text = trim(preg_replace('/\s+/u', ' ', $address) ?? '');
 
-⚠️ 変換の本体:
+    foreach (PGH_PREFECTURES as $pref) {
+        if (mb_strpos($text, $pref) === 0) {
+            return [$pref, trim(mb_substr($text, mb_strlen($pref)))];
+        }
+    }
+    return ['', $text];
+}
 
-```ts
 /**
+ * 電話番号。
+ *
+ * ⚠️ 既存の取り込み（townlife など）に合わせて ⚠️ **`mobile` に入れる。**
+ *   ⚠️ 固定電話か携帯かはメール本文から判別できない。
+ * ⚠️ 全角数字やハイフンが混ざることがあるので、⚠️ **数字だけにする。**
+ */
+function pghTel(string $tel): string
+{
+    $halfWidth = mb_convert_kana($tel, 'n', 'UTF-8');
+    return preg_replace('/\D/', '', $halfWidth) ?? '';
+}
+
+/**
+ * GAS から届いた1通ぶんを `inquiry_customer` の形に直す。
+ *
  * ⚠️⚠️ **氏名は分割しない**（利用者の判断。2026-09-28）。
  *   ⚠️ 本文が `中島健太` のように**区切りを持たない**ため、姓名を推測すると誤る。
  *   ⚠️ ⚠️ **まるごと `first_name` に入れ、`last_name` は空にする。**
  *   ⚠️ 既存の資料請求（catalog_resale）も同じ扱いにしてある。
  *   ⚠️ ⚠️ **同期するときに人が直す前提。**
+ *
+ * @return array<string,string>|null 鍵か氏名が無ければ null
  */
-export const toInquiryRow = (payload: PghCatalogPayload): GatewayRow | null => {
-    const messageId = (payload.messageId ?? "").trim();
-    const name = (payload.name ?? "").trim();
+function pghToInquiry(array $row): ?array
+{
+    $messageId = trim((string)($row['messageId'] ?? ''));
+    $name      = trim((string)($row['name'] ?? ''));
 
     // ⚠️ 鍵と氏名が無いものは作らない。⚠️ **誰のことか分からない行を増やさない**
-    if (messageId === "" || name === "") return null;
-
-    const { pref, building } = splitAddress(payload.address ?? "");
-
-    return {
-        // ⚠️ 接頭辞を付けて他の媒体と衝突させない（例: townlife は 'townlife' + id）
-        inquiry_id: `pgh_hp_${messageId}`,
-        inquiry_date: toInquiryDate(payload.registered ?? ""),
-        medium: MEDIUM,
-        response_medium: (payload.trigger ?? "").trim() || MEDIUM,
-        first_name: name,
-        last_name: "",
-        first_name_kana: hiraToKata((payload.kana ?? "").trim()),
-        last_name_kana: "",
-        mobile: toTel(payload.tel ?? ""),
-        mail: (payload.email ?? "").trim(),
-        zip: (payload.zip ?? "").trim(),
-        pref,
-        building,
-        brand: BRAND,
-        shop: SHOP,
-        hp_campaign: HP_CAMPAIGN,
-        // ⚠️ 本文まるごと。⚠️ 連絡可能時間・ご質問等・紹介者はここから読める
-        remarks: (payload.remarks ?? "").trim(),
-    };
-};
-```
-
-⚠️ 送信（⚠️ **配列でも受けられる**）:
-
-```ts
-export const runPghCatalog = async (
-    input: PghCatalogPayload | PghCatalogPayload[]
-): Promise<{ received: number; sent: number; inserted: number; errors: string[] }> => {
-    const payloads = Array.isArray(input) ? input : [input];
-    const rows: GatewayRow[] = [];
-    for (const payload of payloads) {
-        const row = toInquiryRow(payload);
-        if (row === null) { console.warn("[pgh_order] messageId か お名前 が無いためスキップ"); continue; }
-        rows.push(row);
+    if ($messageId === '' || $name === '') {
+        return null;
     }
-    if (rows.length === 0) return { received: payloads.length, sent: 0, inserted: 0, errors: [] };
-    const result = await postGateway("pgh_order", rows);
-    return { received: payloads.length, sent: result.total, inserted: result.inserted, errors: result.errors };
-};
+
+    [$pref, $building] = pghSplitAddress((string)($row['address'] ?? ''));
+    $trigger = trim((string)($row['trigger'] ?? ''));
+
+    return [
+        // ⚠️ 接頭辞を付けて他の媒体と衝突させない（例: townlife は 'townlife' + id）
+        'inquiry_id'      => 'pgh_hp_' . $messageId,
+        'inquiry_date'    => pghInquiryDate((string)($row['registered'] ?? '')),
+        'medium'          => PGH_MEDIUM,
+        'response_medium' => $trigger !== '' ? $trigger : PGH_MEDIUM,
+        'first_name'      => $name,
+        'last_name'       => '',
+        'first_name_kana' => pghHiraToKata(trim((string)($row['kana'] ?? ''))),
+        'last_name_kana'  => '',
+        'mobile'          => pghTel((string)($row['tel'] ?? '')),
+        'mail'            => trim((string)($row['email'] ?? '')),
+        'zip'             => trim((string)($row['zip'] ?? '')),
+        'pref'            => $pref,
+        'building'        => $building,
+        'brand'           => PGH_BRAND,
+        'shop'            => PGH_SHOP,
+        'hp_campaign'     => PGH_HP_CAMPAIGN,
+        // ⚠️ 本文まるごと。⚠️ 連絡可能時間・ご質問等・紹介者はここから読める
+        'remarks'         => trim((string)($row['remarks'] ?? '')),
+    ];
+}
 ```
 
-### ⚠️ 3. `projects/sync/src/controllers/pghCatalogController.ts`（新規）
-
-⚠️⚠️ **合い言葉を必ず確かめる**（⚠️ **未設定なら素通しにせず 503**）。
-
-```ts
-        const expected = (process.env.PGH_CATALOG_TOKEN ?? "").trim();
-        const given = String(req.headers["x-sync-token"] ?? "").trim();
-
-        if (expected === "") {
-            console.error("[pgh_order] PGH_CATALOG_TOKEN が未設定のため受け付けません");
-            res.status(503).json({ ok: false, message: "受け口が設定されていません" });
-            return;
-        }
-        if (given !== expected) {
-            console.warn("[pgh_order] 合い言葉が違うため拒否しました");
-            res.status(401).json({ ok: false, message: "認証が必要です" });
-            return;
-        }
-```
-
-⚠️⚠️ **他の取り込みと違って、先に 200 を返さない。**
-
-```ts
- * ⚠️⚠️ **他の取り込みと違って、応答を返し切ってから処理しない。**
- *   ⚠️ 他（portal / mailScraping）は数分かかるので先に 200 を返しているが、
- *     ⚠️ ⚠️ **こちらは1通ぶんで1秒もかからない。**
- *   ⚠️ ⚠️ **先に返すと、GAS のログに「入ったのか落ちたのか」が残らない。**
- *     ⚠️ 反響は取りこぼすと気づけないため、結果まで見せる。
-```
-
-### ⚠️ 4. `projects/sync/src/routes/pghCatalogRoutes.ts`（新規）
-
-```ts
-import { Router } from "express";
-import { pghCatalogController } from "../controllers/pghCatalogController";
-
-const router = Router();
-
-router.options("/", (_req, res) => {
-    res.sendStatus(200);
-});
-
-router.post("/", pghCatalogController.handlePghCatalog);
-export default router;
-```
-
-### ⚠️ 5. `projects/sync/src/app.ts`（1行追加）
-
-```ts
-// 【PG HOUSE九州】資料請求メール。⚠️ 送り元は Gmail の GAS（gas/runPghCatalog.gs）
-app.use("/api/pgh_catalog", pghCatalogRoutes);
-```
-
-### ⚠️ 6. `backend/src/handlers/pgh_order.php`（新規・⚠️ **① 側**）
-
-⚠️⚠️ **受け口テーブル（`*_db`）を作っていない。**
+**本体**
 
 ```php
- * ⚠️⚠️ **受け口テーブル（*_db）を作っていない。**
- *   ⚠️ SUUMO などのポータルは、ポータル側の生データを残すために `suumo_db` を持つ。
- *   ⚠️ ⚠️ **こちらはメール本文そのものを `remarks` に入れてある**ので、
- *     ⚠️ 生データを別に持つ意味が薄い。⚠️ **テーブルを1つ増やさない判断。**
- *   ⚠️ そのため `portalRunBulkImport()` は使わず、`portalInsertNewOnly()` を直接呼ぶ。
-```
+$rows = portalReadBulkPayload('pgh_order');
 
-⚠️ 許可した列だけ入れる（⚠️⚠️ **`sync` などの運用フラグは受け取らない**）:
+foreach (array_chunk($rows, $batchSize) as $chunk) {
+    $inquiryRows = [];
 
-```php
-$allowedColumns = [
-    'inquiry_id', 'inquiry_date', 'medium', 'response_medium',
-    'first_name', 'last_name', 'first_name_kana', 'last_name_kana',
-    'mobile', 'mail', 'zip', 'pref', 'building',
-    'brand', 'shop', 'hp_campaign', 'remarks',
-];
-```
-
-```php
-        // ⚠️⚠️ **鍵の無い行は入れない。** 重複排除ができず、毎回増え続けるため
-        if (trim((string)($filtered['inquiry_id'] ?? '')) === '') {
-            continue;
-        }
-```
-
-```php
+    foreach ($chunk as $row) {
+        if (!is_array($row)) { continue; }
+        $inquiry = pghToInquiry($row);
+        if ($inquiry === null) { continue; }
+        // ⚠️ NOT NULL の列があるため、空文字のまま入れる（null にしない）
+        $inquiryRows[] = portalNormalizeRow($inquiry, false);
+    }
+    ...
         $res = portalInsertNewOnly($pdo, 'inquiry_customer', $inquiryRows, 'inquiry_id');
+    ...
+}
 ```
+
+⚠️⚠️ **`pghToInquiry()` が作る列しか入らない。** ⚠️ **GAS が余計な値を送っても無視される**
+（⚠️ 実測で `sync:1` `delete_flag:1` を送っても 0 のままだった）。
 
 ⚠️ ⚠️ **`express_proxy.php` には足していない。** ⚠️ **書き込みなので ② へ転送してはいけない**（⚠️ 自動フォールバックで二重に走る）。
 
@@ -411,33 +400,38 @@ $allowedColumns = [
 
 ## 確認したこと（ローカル）
 
+⚠️ ⚠️ **GAS が送る形（`{request, data:[...]}`）そのままで通した。**
+
 | | |
 |---|---|
-| `npx tsc --noEmit`（sync） | ⚠️ **エラーなし** |
-| ⚠️ **見本メールの抽出** | ⚠️ **12項目すべて取れた** |
-| ⚠️ **ふりがなのカタカナ変換** | ⚠️⚠️ **`なかしまけんた` → `ナカシマケンタ`** |
-| ⚠️ **住所の分解** | ⚠️ `鹿児島県` / `霧島市国分重久1063-1-201` |
-| ⚠️ **① への投入** | ⚠️ **1回目 `inserted:1`** |
-| ⚠️⚠️ **重複排除** | ⚠️⚠️ **2回目 `inserted:0 / skipped:1`** |
-| ⚠️⚠️ **許可列の絞り込み** | ⚠️⚠️ **`sync:1` を送っても `sync` は 0 のまま**（弾けている） |
+| ⚠️ **1回目** | ⚠️ **`inserted:1 / skipped:0`** |
+| ⚠️⚠️ **2回目（同じ内容）** | ⚠️⚠️ **`inserted:0 / skipped:1`**（重複排除） |
+| ⚠️ **氏名なしの行** | ⚠️⚠️ **捨てられた**（2行送って1行だけ入った） |
+| ⚠️⚠️ **余計な列** | ⚠️⚠️ **`sync:1` `delete_flag:1` を送っても 0 のまま** |
+| ⚠️ 郵便番号 `〒899-4301` | ⚠️ **`8994301`** |
+| ⚠️ 電話 `080-6450-8761` | ⚠️ **`08064508761`** |
+| ⚠️ ふりがな | ⚠️⚠️ **`なかしまけんた` → `ナカシマケンタ`** |
 | ⚠️ 後片付け | ⚠️ **試した行はローカルDBから削除済み** |
 
 ⚠️ 入った行:
 
 ```json
 {
-    "inquiry_id": "pgh_hp_TESTMSG0001",
+    "inquiry_id": "pgh_hp_TESTMSG0002",
     "inquiry_date": "2026/09/28",
     "medium": "ホームページ反響",
     "response_medium": "Youtube",
     "first_name": "中島健太",
     "first_name_kana": "ナカシマケンタ",
+    "mobile": "08064508761",
+    "zip": "8994301",
     "pref": "鹿児島県",
     "building": "霧島市国分重久1063-1-201",
     "brand": "PGH",
     "shop": "PGH店舗未設定",
     "hp_campaign": "資料請求",
-    "sync": 0
+    "sync": 0,
+    "delete_flag": 0
 }
 ```
 
@@ -447,10 +441,9 @@ $allowedColumns = [
 
 | # | |
 |---|---|
-| 1 | ⚠️⚠️ **`projects/sync` の `.env` に `PGH_CATALOG_TOKEN` を足す**（⚠️ **こちらでは触っていない**） |
-| 2 | ⚠️ **GAS を Apps Script に貼り、先頭2つを書き換え、トリガーを設定**（⚠️ 利用者が実施） |
-| 3 | ⚠️ **`pgh_order.php` を ① へアップロード** |
-| 4 | ⚠️ `projects/sync` を公開先へ反映（⚠️ **未コミット。別リポジトリのため触っていない**） |
+| 1 | ⚠️ **`pgh_order.php` を ① へアップロード** |
+| 2 | ⚠️ **GAS を Apps Script に貼り、トリガーを設定**（⚠️ **書き換えるところは無い**） |
+| 3 | ⚠️ 本番のメールで1通、⚠️ **反響一覧に出ることを確認** |
 
 ---
 
@@ -461,8 +454,9 @@ $allowedColumns = [
 | 1 | ⚠️⚠️ **`inquiry_date` は `YYYY/MM/DD`。** ⚠️ ハイフンにすると **バッジにも要確認にも出ない** |
 | 2 | ⚠️⚠️ **`inquiry_customer` に一意キーが無い。** ⚠️ **必ず `portalInsertNewOnly()` を通すこと** |
 | 3 | ⚠️⚠️ **`pgh_order` を `express_proxy.php` に足さないこと**（⚠️ 書き込みが二重に走る） |
-| 4 | ⚠️ 列を増やすときは ⚠️ **`pgh_order.php` の許可リストも直す**（⚠️ **無い列は黙って捨てられる**） |
+| 4 | ⚠️ 列を増やすときは ⚠️ **`pghToInquiry()` を直す**（⚠️ **ここに無い列は入らない**） |
 | 5 | ⚠️ `response_medium` に ⚠️ **`medium_list` に無い値が入りうる**。⚠️ 集計から漏れるので、出てきたら足す |
 | 6 | ⚠️⚠️ **氏名は分割していない。** ⚠️ Nexus（v2.2.149）の半角スペース条件は満たさない。⚠️ **同期時に人が直す前提** |
 | 7 | ⚠️ 見本では ⚠️ **`連絡可能時間` に電話番号が入っていた**（⚠️ フォーム側の不具合と思われる）。⚠️ `remarks` で追える |
 | 8 | ⚠️ GAS の検索は ⚠️ **`newer_than:1d`**。⚠️ **1日以上止まると取りこぼす**（⚠️ 既読判定をしていないため、広げても重複はしない） |
+| 9 | ⚠️ この入口は ⚠️ **合い言葉を持たない**（⚠️ 既存の `catalog_resale_update` と同じ）。⚠️ 認証を入れるなら**既存の取り込みと一括で**行うこと |
