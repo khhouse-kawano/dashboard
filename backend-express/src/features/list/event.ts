@@ -95,13 +95,24 @@ const toSqlParam = (value: unknown): SqlParam => {
  */
 const runLoad = async (): Promise<ListEventResult> => {
   // ⚠️ 並列で投げる。PHP は逐次だったが結果は同じ
-  const [summary, staff] = await Promise.all([
+  const [summary, staff, shop] = await Promise.all([
     query<DynamicRow>('SELECT * FROM event_db'),
     query<DynamicRow>('SELECT * FROM staff_list'),
+    /**
+     * ⚠️⚠️ **担当店舗を選び直すために返す**（2026-09-28 追加）。
+     *   ⚠️ event_db.shop が空の予約があり、⚠️ **そのままでは同期できなかった。**
+     *
+     * ⚠️ 絞り込み（report_flag = 1）と並び替えは**フロントがやる**
+     *   （⚠️ `filterReportShops` / `sortShops`。⚠️ **規則を2箇所に置かない**）。
+     * ⚠️ ⚠️ **`id` と `division` を必ず含めること。** `sortShops` が見ている。
+     */
+    query<DynamicRow>('SELECT id, brand, shop, section, area, division, report_flag FROM shop_list'),
   ]);
 
-  // ⚠️ キー名は PHP と同じ。フロントは response.data.summary / .staff で読む
-  return { httpStatus: 200, body: { summary, staff } };
+  // ⚠️ キー名は PHP と同じ。フロントは response.data.summary / .staff / .shop で読む
+  //   ⚠️⚠️ **① の list_event.php と揃えること。** 片方だけ足すと、
+  //     ⚠️ **どちらが応答したかで店舗が出たり出なかったりする。**
+  return { httpStatus: 200, body: { summary, staff, shop } };
 };
 
 /**

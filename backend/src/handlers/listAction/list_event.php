@@ -14,9 +14,25 @@ if ($function && $function === 'load') {
     $stmt_staff->execute();
     $response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
 
+    // 店舗。
+    //
+    // ⚠️⚠️ **担当店舗を選び直すために返す**（2026-09-28 追加）。
+    //   ⚠️ event_db.shop が空の予約があり、⚠️ **そのままでは同期できなかった。**
+    //
+    // ⚠️ 絞り込み（report_flag = 1）と並び替えは**フロントがやる**
+    //   （⚠️ `filterReportShops` / `sortShops`。⚠️ **規則を2箇所に置かない**）。
+    // ⚠️ ⚠️ **`id` と `division` を必ず含めること。** `sortShops` が見ている。
+    $sql_shop = "SELECT id, brand, shop, section, area, division, report_flag FROM shop_list";
+    $stmt_shop = $pdo->prepare($sql_shop);
+    $stmt_shop->execute();
+    $response_shop = $stmt_shop->fetchAll(PDO::FETCH_ASSOC);
+
+    // ⚠️⚠️ **キーの顔ぶれは ② の backend-express/src/features/list/event.ts と揃えること。**
+    //   ⚠️ `list` は ② へ転送される。⚠️ **片方だけ足すと、②が応答したときに店舗が出ない。**
     $result = [
         "summary" => $response_summary,
-        "staff" => $response_staff
+        "staff" => $response_staff,
+        "shop" => $response_shop
     ];
 
     echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
