@@ -65,9 +65,46 @@ function dailyActionDate(string $column): string
     return "STR_TO_DATE(REPLACE(SUBSTRING($column, 1, 10), '/', '-'), '%Y-%m-%d')";
 }
 
-$inquiry_date = dailyActionDate('inquiry_date');
-$reserved_date = dailyActionDate('reserved_interview');
-$register_date = dailyActionDate('step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99');
+// ⚠️⚠️ **別名（i. / m.）を必ず付けること。** shop_list を LEFT JOIN しているため
+$inquiry_date = dailyActionDate('i.inquiry_date');
+$reserved_date = dailyActionDate('m.reserved_interview');
+$register_date = dailyActionDate('m.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99');
+
+/**
+ * 店舗名の表示。
+ *
+ * ⚠️⚠️ **`shop_list` の `show_flag = 1` に無い店舗名は `{ブランド}未設定` と出す**
+ *   （2026-09-28 の指示）。
+ *   ⚠️ 実データに `KH国分ハウジング` `PGH` `なごみ姶良霧島店` のような、
+ *     ⚠️ **店舗マスタに無い値**が入っている（反響フォーム側の自由入力）。
+ *
+ * ⚠️ ブランドの言い換えは frontend/src/utils/shopFormate.ts と**同じ**にすること。
+ *   ⚠️ `Nagomi` → `なごみ` ／ `PG HOUSE` → `PGH`
+ * ⚠️⚠️ **出す文字列は `{ブランド}店舗未設定`。** ⚠️ `{ブランド}未設定` ではない。
+ *   ⚠️ shop_list に `KH店舗未設定` `DJH店舗未設定` などが**実在する**（show_flag = 1）。
+ *   ⚠️ ⚠️ **別の文字列にすると、同じ意味の行が2種類並ぶ。**
+ * ⚠️ ⚠️ **Express の dailyAction.ts と必ず揃えること。**
+ */
+function dailyActionShop(string $shopColumn, string $brandColumn): string
+{
+    $brand = "CASE TRIM(COALESCE($brandColumn, ''))
+                WHEN 'Nagomi' THEN 'なごみ'
+                WHEN 'PG HOUSE' THEN 'PGH'
+                ELSE TRIM(COALESCE($brandColumn, ''))
+              END";
+    return "CASE
+              WHEN s.shop IS NOT NULL THEN TRIM($shopColumn)
+              WHEN $brand <> '' THEN CONCAT($brand, '店舗未設定')
+              ELSE ''
+            END";
+}
+
+/**
+ * 表示対象の店舗。
+ * ⚠️ **`show_flag = 1` だけで絞る**（指示）。⚠️ 事業では絞らない。
+ * ⚠️ GROUP BY で重複を潰す。⚠️ **潰さないと JOIN で行が増える。**
+ */
+$visible_shops = "(SELECT shop FROM shop_list WHERE show_flag = 1 AND TRIM(COALESCE(shop, '')) <> '' GROUP BY shop)";
 
 /** 本日の予定に出す4つの工程。⚠️ 表示名は Express 側と揃えること */
 $today_steps = [
@@ -95,24 +132,22 @@ $row_limit = 200;
 // ⚠️⚠️ **氏名（first_name）が入っている行だけを出す**（2026-09-28 の追記）。
 //   ⚠️ 実測47件のうち17件は氏名が空だった（反響フォーム側の取りこぼし）。
 //   ⚠️ ⚠️ **誰のことか分からない行を晒しても動きようがない。**
-// ⚠️ 店舗 … 空なら「ブランド + 店舗未設定」（shopFormate() の言い方に合わせた）
+// ⚠️ 店舗 … shop_list(show_flag=1) に無ければ「{ブランド}未設定」（dailyActionShop）
 // ⚠️ 媒体 … 空なら medium（こちらは全件埋まっている）
-// ⚠️ shopFormate() は店舗マスタの配列が要るのでそのままは使えない。
 $sql_unsync = "SELECT 'unsync' AS kind,
          DATEDIFF(CURDATE(), $inquiry_date) AS days,
-         CASE WHEN TRIM(COALESCE(shop, '')) <> '' THEN TRIM(shop)
-              WHEN TRIM(COALESCE(brand, '')) <> '' THEN CONCAT(TRIM(brand), '店舗未設定')
-              ELSE '' END AS shop,
+         " . dailyActionShop('i.shop', 'i.brand') . " AS shop,
          DATE_FORMAT($inquiry_date, '%Y-%m-%d') AS register,
-         TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))) AS customer,
-         COALESCE(NULLIF(TRIM(response_medium), ''), NULLIF(TRIM(medium), ''), '') AS medium
-    FROM inquiry_customer
-   WHERE COALESCE(sync, 0) = 0
-     AND COALESCE(duplicate_flag, 0) <> 1
-     AND COALESCE(support_flag, 0) <> 1
-     AND COALESCE(black_flag, 0) <> 1
-     AND TRIM(COALESCE(first_name, '')) <> ''
-     AND SUBSTRING(inquiry_date, 1, 7) BETWEEN :start_month AND DATE_FORMAT(NOW(), '%Y/%m')
+         TRIM(CONCAT(COALESCE(i.first_name, ''), ' ', COALESCE(i.last_name, ''))) AS customer,
+         COALESCE(NULLIF(TRIM(i.response_medium), ''), NULLIF(TRIM(i.medium), ''), '') AS medium
+    FROM inquiry_customer i
+    LEFT JOIN $visible_shops s ON s.shop = TRIM(i.shop)
+   WHERE COALESCE(i.sync, 0) = 0
+     AND COALESCE(i.duplicate_flag, 0) <> 1
+     AND COALESCE(i.support_flag, 0) <> 1
+     AND COALESCE(i.black_flag, 0) <> 1
+     AND TRIM(COALESCE(i.first_name, '')) <> ''
+     AND SUBSTRING(i.inquiry_date, 1, 7) BETWEEN :start_month AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), $inquiry_date) > 0
    ORDER BY days DESC
    LIMIT $row_limit";
@@ -126,15 +161,16 @@ $response_unsync = $stmt_unsync->fetchAll(PDO::FETCH_ASSOC);
 //   バッジの件数よりここの行数は少し少なくなる。
 $sql_cancel = "SELECT 'cancel' AS kind,
          DATEDIFF(CURDATE(), $reserved_date) AS days,
-         COALESCE(NULLIF(TRIM(in_charge_store), ''), '') AS shop,
+         " . dailyActionShop('m.in_charge_store', 'm.brand') . " AS shop,
          COALESCE(DATE_FORMAT($register_date, '%Y-%m-%d'), '') AS register,
-         COALESCE(customer_contacts_name, '') AS customer,
-         COALESCE(sales_promotion_name, '') AS medium
-    FROM master_data
-   WHERE show_dashboard = 1
-     AND COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') = ''
-     AND COALESCE(cancel_status, '') = ''
-     AND COALESCE(status, '') <> '重複'
+         COALESCE(m.customer_contacts_name, '') AS customer,
+         COALESCE(m.sales_promotion_name, '') AS medium
+    FROM master_data m
+    LEFT JOIN $visible_shops s ON s.shop = TRIM(m.in_charge_store)
+   WHERE m.show_dashboard = 1
+     AND COALESCE(m.step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') = ''
+     AND COALESCE(m.cancel_status, '') = ''
+     AND COALESCE(m.status, '') <> '重複'
      AND $reserved_date > '2026-01-01'
      AND DATEDIFF(CURDATE(), $reserved_date) > 0
    ORDER BY days DESC
@@ -149,15 +185,16 @@ $response_cancel = $stmt_cancel->fetchAll(PDO::FETCH_ASSOC);
 $today_parts = [];
 $today_params = [];
 foreach ($today_steps as $index => $step) {
-    $step_date = dailyActionDate($step['column']);
+    $step_date = dailyActionDate('m.' . $step['column']);
     $today_parts[] = "SELECT :label$index AS step,
-         COALESCE(NULLIF(TRIM(in_charge_store), ''), '') AS shop,
+         " . dailyActionShop('m.in_charge_store', 'm.brand') . " AS shop,
          COALESCE(DATE_FORMAT($register_date, '%Y-%m-%d'), '') AS register,
-         COALESCE(customer_contacts_name, '') AS customer,
-         COALESCE(sales_promotion_name, '') AS medium
-    FROM master_data
-   WHERE show_dashboard = 1
-     AND COALESCE(status, '') <> '重複'
+         COALESCE(m.customer_contacts_name, '') AS customer,
+         COALESCE(m.sales_promotion_name, '') AS medium
+    FROM master_data m
+    LEFT JOIN $visible_shops s ON s.shop = TRIM(m.in_charge_store)
+   WHERE m.show_dashboard = 1
+     AND COALESCE(m.status, '') <> '重複'
      AND $step_date = CURDATE()";
     $today_params[":label$index"] = $step['label'];
 }

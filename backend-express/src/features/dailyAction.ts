@@ -37,9 +37,68 @@ import type { RowDataPacket } from 'mysql2/promise';
 const asDate = (column: string): string =>
   `STR_TO_DATE(REPLACE(SUBSTRING(${column}, 1, 10), '/', '-'), '%Y-%m-%d')`;
 
-const INQUIRY_DATE = asDate('inquiry_date');
-const RESERVED_DATE = asDate('reserved_interview');
-const REGISTER_DATE = asDate('step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99');
+/**
+ * ⚠️⚠️ **別名（`i.` / `m.`）を必ず付けること。**
+ *   ⚠️ 2026-09-28 に `shop_list` を LEFT JOIN したため、
+ *     ⚠️ **列名だけだと将来あいまいになる。**
+ */
+const INQUIRY_DATE = asDate('i.inquiry_date');
+const RESERVED_DATE = asDate('m.reserved_interview');
+const REGISTER_DATE = asDate('m.step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99');
+
+/**
+ * 店舗名の表示。
+ *
+ * ⚠️⚠️ **`shop_list` の `show_flag = 1` に無い店舗名は `{ブランド}未設定` と出す**
+ *   （2026-09-28 の指示）。
+ *   ⚠️ 実データに `KH国分ハウジング` `PGH` `なごみ姶良霧島店` のような、
+ *     ⚠️ **店舗マスタに無い値**が入っている（反響フォーム側の自由入力）。
+ *   ⚠️ ⚠️ **そのまま出すと実在しない店舗名が並び、誰の担当か分からない。**
+ *
+ * ⚠️ ブランドの言い換えは ⚠️ **`frontend/src/utils/shopFormate.ts` と同じ**にすること。
+ *   ⚠️ `Nagomi` → `なごみ` ／ `PG HOUSE` → `PGH`
+ *   ⚠️ ⚠️ **片方だけ直すと画面ごとに違う店舗名が出る。**
+ *
+ * ⚠️⚠️ **出す文字列は `{ブランド}店舗未設定`。** ⚠️ `{ブランド}未設定` ではない。
+ *   ⚠️ `shop_list` に ⚠️ **`KH店舗未設定` `DJH店舗未設定` などが実在する**
+ *     （⚠️ `show_flag = 1`。⚠️ ListOrder が同期時に入れた値がそのまま店舗になっている）。
+ *   ⚠️ ⚠️ **別の文字列にすると、同じ意味の行が2種類並ぶ**（`KH未設定` と `KH店舗未設定`）。
+ *   ⚠️ `shopFormate()` の言い方とも一致する。
+ *
+ * ⚠️ ブランドも空のときは空文字。⚠️ 画面側が `(未設定)` と出す。
+ */
+const BRAND_LABEL = `
+  CASE TRIM(COALESCE(%BRAND%, ''))
+    WHEN 'Nagomi' THEN 'なごみ'
+    WHEN 'PG HOUSE' THEN 'PGH'
+    ELSE TRIM(COALESCE(%BRAND%, ''))
+  END`;
+
+/**
+ * 店舗名を出す式。
+ *
+ * ⚠️ `%SHOP%` … 元の店舗名の列 ／ `%BRAND%` … ブランドの列
+ * ⚠️ ⚠️ **`shop_list` は `s.shop` で LEFT JOIN 済みであること。**
+ *   ⚠️ 一致しなければ `s.shop IS NULL` になる。
+ */
+const shopLabel = (shopColumn: string, brandColumn: string): string => {
+  const brand = BRAND_LABEL.replace(/%BRAND%/gu, brandColumn);
+  return `
+    CASE
+      WHEN s.shop IS NOT NULL THEN TRIM(${shopColumn})
+      WHEN ${brand} <> '' THEN CONCAT(${brand}, '店舗未設定')
+      ELSE ''
+    END`;
+};
+
+/**
+ * 表示対象の店舗。
+ *
+ * ⚠️ ⚠️ **`show_flag = 1` だけで絞る**（指示）。⚠️ 事業では絞らない。
+ *   ⚠️ 未同期の反響には建売・中古の店舗も混ざりうるため。
+ * ⚠️ `GROUP BY` で重複を潰す。⚠️ **潰さないと JOIN で行が増える。**
+ */
+const VISIBLE_SHOPS = `(SELECT shop FROM shop_list WHERE show_flag = 1 AND TRIM(COALESCE(shop, '')) <> '' GROUP BY shop)`;
 
 /** 本日の予定に出す4つの工程。⚠️ 表示名は画面（TableInterview）の言い方に揃える */
 const TODAY_STEPS: { column: string; label: string }[] = [
@@ -74,19 +133,18 @@ const TODAY_STEPS: { column: string; label: string }[] = [
 const UNSYNC_SQL = `
   SELECT 'unsync' AS kind,
          DATEDIFF(CURDATE(), ${INQUIRY_DATE}) AS days,
-         CASE WHEN TRIM(COALESCE(shop, '')) <> '' THEN TRIM(shop)
-              WHEN TRIM(COALESCE(brand, '')) <> '' THEN CONCAT(TRIM(brand), '店舗未設定')
-              ELSE '' END AS shop,
+         ${shopLabel('i.shop', 'i.brand')} AS shop,
          DATE_FORMAT(${INQUIRY_DATE}, '%Y-%m-%d') AS register,
-         TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))) AS customer,
-         COALESCE(NULLIF(TRIM(response_medium), ''), NULLIF(TRIM(medium), ''), '') AS medium
-    FROM inquiry_customer
-   WHERE COALESCE(sync, 0) = 0
-     AND COALESCE(duplicate_flag, 0) <> 1
-     AND COALESCE(support_flag, 0) <> 1
-     AND COALESCE(black_flag, 0) <> 1
-     AND TRIM(COALESCE(first_name, '')) <> ''
-     AND SUBSTRING(inquiry_date, 1, 7) BETWEEN ? AND DATE_FORMAT(NOW(), '%Y/%m')
+         TRIM(CONCAT(COALESCE(i.first_name, ''), ' ', COALESCE(i.last_name, ''))) AS customer,
+         COALESCE(NULLIF(TRIM(i.response_medium), ''), NULLIF(TRIM(i.medium), ''), '') AS medium
+    FROM inquiry_customer i
+    LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(i.shop)
+   WHERE COALESCE(i.sync, 0) = 0
+     AND COALESCE(i.duplicate_flag, 0) <> 1
+     AND COALESCE(i.support_flag, 0) <> 1
+     AND COALESCE(i.black_flag, 0) <> 1
+     AND TRIM(COALESCE(i.first_name, '')) <> ''
+     AND SUBSTRING(i.inquiry_date, 1, 7) BETWEEN ? AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), ${INQUIRY_DATE}) > 0
    ORDER BY days DESC
    LIMIT ?
@@ -108,15 +166,16 @@ const UNSYNC_SQL = `
 const CANCEL_SQL = `
   SELECT 'cancel' AS kind,
          DATEDIFF(CURDATE(), ${RESERVED_DATE}) AS days,
-         COALESCE(NULLIF(TRIM(in_charge_store), ''), '') AS shop,
+         ${shopLabel('m.in_charge_store', 'm.brand')} AS shop,
          COALESCE(DATE_FORMAT(${REGISTER_DATE}, '%Y-%m-%d'), '') AS register,
-         COALESCE(customer_contacts_name, '') AS customer,
-         COALESCE(sales_promotion_name, '') AS medium
-    FROM master_data
-   WHERE show_dashboard = 1
-     AND COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') = ''
-     AND COALESCE(cancel_status, '') = ''
-     AND COALESCE(status, '') <> '重複'
+         COALESCE(m.customer_contacts_name, '') AS customer,
+         COALESCE(m.sales_promotion_name, '') AS medium
+    FROM master_data m
+    LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(m.in_charge_store)
+   WHERE m.show_dashboard = 1
+     AND COALESCE(m.step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') = ''
+     AND COALESCE(m.cancel_status, '') = ''
+     AND COALESCE(m.status, '') <> '重複'
      AND ${RESERVED_DATE} > '2026-01-01'
      AND DATEDIFF(CURDATE(), ${RESERVED_DATE}) > 0
    ORDER BY days DESC
@@ -134,14 +193,15 @@ const TODAY_SQL = `
   ${TODAY_STEPS.map(
     (step) => `
   SELECT ? AS step,
-         COALESCE(NULLIF(TRIM(in_charge_store), ''), '') AS shop,
+         ${shopLabel('m.in_charge_store', 'm.brand')} AS shop,
          COALESCE(DATE_FORMAT(${REGISTER_DATE}, '%Y-%m-%d'), '') AS register,
-         COALESCE(customer_contacts_name, '') AS customer,
-         COALESCE(sales_promotion_name, '') AS medium
-    FROM master_data
-   WHERE show_dashboard = 1
-     AND COALESCE(status, '') <> '重複'
-     AND ${asDate(step.column)} = CURDATE()`
+         COALESCE(m.customer_contacts_name, '') AS customer,
+         COALESCE(m.sales_promotion_name, '') AS medium
+    FROM master_data m
+    LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(m.in_charge_store)
+   WHERE m.show_dashboard = 1
+     AND COALESCE(m.status, '') <> '重複'
+     AND ${asDate(`m.${step.column}`)} = CURDATE()`
   ).join('\n   UNION ALL\n')}
    ORDER BY shop, customer
    LIMIT ?
