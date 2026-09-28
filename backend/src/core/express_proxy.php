@@ -68,7 +68,12 @@ function expressProxyRequests(): array
         // 2026-09-28 追加。参照のみ。
         // ⚠️ 判定条件は menu と同じ母集団で、返す列だけが違う。
         //   ⚠️ **menu の条件を直したら daily_action も直すこと**（両方とも ①②）。
-        'daily_action',
+        //
+        // ⚠️⚠️ **roll まで書いていることに意味がある。**
+        //   ⚠️ 'daily_action' とだけ書くと roll = 'check'（UPDATE）も転送される。
+        //   ⚠️ ⚠️ **自動フォールバックがあるため、書き込みは二重に走りうる。**
+        //   ⚠️ 「確認しました」の記録は ① だけで処理すること。
+        'daily_action:list',
 
         // 2026-09-02 移植。KPI分析の参照系のみ。
         //

@@ -55,14 +55,21 @@ const TODAY_STEPS: { column: string; label: string }[] = [
  * ⚠️ 条件は menu.ts の `SYNC_SQL` と同じ。⚠️ **期間も同じ（2025/06 〜 当月）。**
  * ⚠️⚠️ **当日の反響は出さない**（指示）。⚠️ `DATEDIFF > 0` がそれである。
  *
- * ⚠️⚠️ **反響一覧に載る前の行なので、空の列が多い。**（実測47件中）
- *   ⚠️ 店舗が空 17件 ／ ⚠️ `response_medium` が空 18件 ／ ⚠️ 氏名が空 17件。
- *   ⚠️ ⚠️ **そのまま返すと表がほぼ空になる**ので、埋められるものは埋める。
- *     ⚠️ 店舗 … 空なら `ブランド + 店舗未設定`（⚠️ `shopFormate()` の言い方に合わせた）
- *     ⚠️ 媒体 … 空なら `medium`（⚠️ **こちらは47件すべて埋まっている**）
- *   ⚠️ 氏名だけは埋めようがない。⚠️ **画面側で「(未設定)」と出す。**
+ * ⚠️⚠️ **氏名（`first_name`）が入っている行だけを出す**（2026-09-28 の追記）。
+ *   ⚠️ 実測47件のうち ⚠️ **17件は氏名が空**だった（反響フォーム側の取りこぼし）。
+ *   ⚠️ ⚠️ **誰のことか分からない行を晒しても動きようがない。**
+ *   ⚠️ そのぶん ⚠️ **メニューのバッジより少なく出る。**
+ *
+ * ⚠️ 店舗・媒体は埋められるものは埋める。
+ *   ⚠️ 店舗 … 空なら `ブランド + 店舗未設定`（⚠️ `shopFormate()` の言い方に合わせた）
+ *   ⚠️ 媒体 … 空なら `medium`（⚠️ **こちらは全件埋まっている**）
  *
  * ⚠️ `shopFormate()`（フロント）はそのままは使えない。店舗マスタの配列が要るため。
+ *
+ * ⚠️⚠️ **当日の反響は出さない**（`DATEDIFF > 0`）。⚠️ まだ「放置」ではないため。
+ *   ⚠️ 2026-09-28 に一度「Menu.tsx のバッジに揃える」と言われたが、
+ *     ⚠️ ⚠️ **同日中に「該当日を含まないを優先してよい」と訂正があった。**
+ *   ⚠️ ⚠️ **そのぶんバッジより少なく出る。これは不具合ではない。**
  */
 const UNSYNC_SQL = `
   SELECT 'unsync' AS kind,
@@ -78,6 +85,7 @@ const UNSYNC_SQL = `
      AND COALESCE(duplicate_flag, 0) <> 1
      AND COALESCE(support_flag, 0) <> 1
      AND COALESCE(black_flag, 0) <> 1
+     AND TRIM(COALESCE(first_name, '')) <> ''
      AND SUBSTRING(inquiry_date, 1, 7) BETWEEN ? AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), ${INQUIRY_DATE}) > 0
    ORDER BY days DESC
@@ -170,32 +178,107 @@ export interface TodayRow extends RowDataPacket {
   medium: string;
 }
 
-export interface DailyActionResponse {
-  attention: AttentionRow[];
-  today: TodayRow[];
-  /** ⚠️ 上限で切り捨てたかどうか。⚠️ 画面に「他◯件」と出すために返す */
-  truncated: boolean;
+/**
+ * 1つの表。
+ *
+ * ⚠️⚠️ **2026-09-28 に「全て別のテーブルで表示する」へ変わった。**
+ *   ⚠️ 以前は未同期と来場未入力を1つに混ぜ、本日の予定も1表にしていた。
+ *   ⚠️ ⚠️ **混ぜると何をすればよいかが読み取れない**というのが変更の理由。
+ */
+export interface DailySection {
+  /** ⚠️ 画面の見出しにそのまま出す */
+  label: string;
+  /** ⚠️ 放置日数の列を出すかどうか。⚠️ **本日の予定には無い** */
+  hasDays: boolean;
+  rows: (AttentionRow | TodayRow)[];
 }
 
-export const runDailyAction = async (): Promise<DailyActionResponse> => {
-  // ⚠️ 3クエリは互いに独立しているので並列で投げる
-  const [unsync, cancel, today] = await Promise.all([
+export interface DailyActionResponse {
+  /** ⚠️ 表示する順に並べてある。⚠️ **0件の表も含む**（画面側で落とす） */
+  sections: DailySection[];
+  /** ⚠️ 全部の合計。⚠️⚠️ **0 ならモーダルを出さない** */
+  total: number;
+  /** ⚠️ 上限で切り捨てたかどうか。⚠️ 画面に断りを出すために返す */
+  truncated: boolean;
+  /**
+   * ⚠️⚠️ **モーダルを出してよいか。**
+   *   ⚠️ `staff.check_daily_action` が**本日**なら false。
+   *   ⚠️ ⚠️ **誰か分からない（Token が無い）ときは true。**
+   *     ⚠️ 出しすぎるほうが、出ないより安全という判断。
+   */
+  show: boolean;
+}
+
+/**
+ * その人が今日もう確認したか。
+ *
+ * ⚠️ `staff` はログインに使うテーブル（⚠️ **`staff_list` ではない**）。
+ * ⚠️ 列は backend/scripts/sql/2026-09-28_staff_check_daily_action.sql で追加した。
+ */
+const CHECKED_SQL = `
+  SELECT COUNT(*) AS c
+    FROM staff
+   WHERE id = ?
+     AND check_daily_action = CURDATE()
+`;
+
+/** ⚠️ 「確認しました」を押したときに入れる。⚠️ **押した日だけを持つ**（履歴ではない） */
+const CHECK_SQL = `
+  UPDATE staff
+     SET check_daily_action = CURDATE()
+   WHERE id = ?
+`;
+
+interface CountRow extends RowDataPacket {
+  c: number;
+}
+
+export const runDailyAction = async (staffId: number | null): Promise<DailyActionResponse> => {
+  // ⚠️ クエリは互いに独立しているので並列で投げる
+  const [unsync, cancel, today, checked] = await Promise.all([
     query<AttentionRow>(UNSYNC_SQL, [SYNC_START_MONTH, ROW_LIMIT]),
     query<AttentionRow>(CANCEL_SQL, [ROW_LIMIT]),
     query<TodayRow>(TODAY_SQL, [...TODAY_STEPS.map((s) => s.label), ROW_LIMIT]),
+    staffId === null
+      ? Promise.resolve([] as CountRow[])
+      : query<CountRow>(CHECKED_SQL, [staffId]),
   ]);
 
   /**
-   * ⚠️ 2つの表を1つに混ぜ、⚠️ **放置日数の長い順**に並べ直す。
-   *   ⚠️ 種類ごとに分けると「どちらがより放置されているか」が見えない。
+   * ⚠️ 本日の予定は工程ごとの表に割る。
+   *   ⚠️ `TODAY_SQL` は工程名を `step` に入れて返しているので、それで振り分ける。
+   *   ⚠️ ⚠️ **並びは `TODAY_STEPS` のとおり**（商談が進む順）。入れ替えないこと。
    */
-  const attention = [...unsync, ...cancel].sort((a, b) => Number(b.days) - Number(a.days));
+  const sections: DailySection[] = [
+    { label: '未同期', hasDays: true, rows: unsync },
+    { label: '来場日未入力', hasDays: true, rows: cancel },
+    ...TODAY_STEPS.map((step) => ({
+      label: `本日の${step.label}`,
+      hasDays: false,
+      rows: today.filter((row) => row.step === step.label),
+    })),
+  ];
+
+  const total = sections.reduce((sum, section) => sum + section.rows.length, 0);
 
   return {
-    attention,
-    today,
+    sections,
+    total,
     truncated: unsync.length >= ROW_LIMIT || cancel.length >= ROW_LIMIT,
+    show: Number(checked[0]?.c ?? 0) === 0,
   };
+};
+
+/**
+ * 「確認しました」を記録する。
+ *
+ * ⚠️⚠️ **誰か分からないときは何もしない**（⚠️ `false` を返す）。
+ *   ⚠️ 全員の行を更新してしまう事故を避けるため、⚠️ **`id` が無い UPDATE は投げない。**
+ */
+export const runDailyActionCheck = async (staffId: number | null): Promise<{ status: string }> => {
+  if (staffId === null) return { status: 'error' };
+  await query(CHECK_SQL, [staffId]);
+  return { status: 'success' };
 };
 
 export const dailyAction = defineFeature({
@@ -203,10 +286,10 @@ export const dailyAction = defineFeature({
   basePath: '/daily-action',
   routes: {
     'GET /': route({
-      summary: '要確認の顧客（未同期・来場未入力）と本日の予定',
+      summary: '要確認の顧客（未同期・来場日未入力）と本日の予定',
       auth: true,
       query: z.object({}).optional(),
-      handler: async () => runDailyAction(),
+      handler: async ({ ctx }) => runDailyAction(ctx.staff?.id ?? null),
     }),
   },
 });

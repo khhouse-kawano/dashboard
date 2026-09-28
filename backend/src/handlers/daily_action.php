@@ -21,6 +21,39 @@
  */
 
 /**
+ * 「確認しました」の記録（roll = 'check'）。
+ *
+ * ⚠️⚠️ **② へは転送していない。**（express_proxy.php は 'daily_action:list' だけ）
+ *   ⚠️ UPDATE なので、⚠️ **自動フォールバックで二重に走ると困る。**
+ *
+ * ⚠️ `staff` はログインに使うテーブル（⚠️ **`staff_list` ではない**）。
+ * ⚠️⚠️ **誰か分からないときは何もしない。** ⚠️ 全員の行を更新する事故を避ける。
+ */
+$roll = $data['roll'] ?? '';
+
+/**
+ * トークンからログイン中のスタッフを引く。
+ *
+ * ⚠️ `$headers` は db.php が `getallheaders()` で用意している。
+ * ⚠️ ⚠️ **`requireStaff()` は使わない。** あれは 401 を返して `exit` する。
+ *   ⚠️ 一覧のほうは**誰か分からなくても出したい**（出ないより出しすぎるほうが安全）。
+ */
+$daily_action_token = $headers['Token'] ?? $headers['token'] ?? '';
+$daily_action_user = $daily_action_token === '' ? false : getUserByToken($pdo, $daily_action_token);
+
+if ($roll === 'check') {
+    // ⚠️⚠️ **誰か分からないときは何もしない。** 全員の行を更新する事故を避ける
+    if (!$daily_action_user || empty($daily_action_user['id'])) {
+        echo json_encode(["status" => "error"], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $stmt_check = $pdo->prepare("UPDATE staff SET check_daily_action = CURDATE() WHERE id = ?");
+    $stmt_check->execute([$daily_action_user['id']]);
+    echo json_encode(["status" => "success"], JSON_UNESCAPED_UNICODE);
+    return;
+}
+
+/**
  * 日付の列を DATE に揃える式。
  *
  * ⚠️⚠️ **本番データは 'YYYY/MM/DD' と 'YYYY-MM-DD' が混在している。**
@@ -59,10 +92,11 @@ $row_limit = 200;
 
 // 未同期の反響（まだ顧客になっていない）。
 // ⚠️⚠️ **当日の反響は出さない**（DATEDIFF > 0）。まだ「放置」ではないため。
-// ⚠️⚠️ **反響一覧に載る前の行なので、空の列が多い**（実測47件中 店舗17・媒体18・氏名17）。
-//   ⚠️ 店舗 … 空なら「ブランド + 店舗未設定」（shopFormate() の言い方に合わせた）
-//   ⚠️ 媒体 … 空なら medium（こちらは全件埋まっている）
-//   ⚠️ 氏名だけは埋めようがない。画面側で「(未設定)」と出す。
+// ⚠️⚠️ **氏名（first_name）が入っている行だけを出す**（2026-09-28 の追記）。
+//   ⚠️ 実測47件のうち17件は氏名が空だった（反響フォーム側の取りこぼし）。
+//   ⚠️ ⚠️ **誰のことか分からない行を晒しても動きようがない。**
+// ⚠️ 店舗 … 空なら「ブランド + 店舗未設定」（shopFormate() の言い方に合わせた）
+// ⚠️ 媒体 … 空なら medium（こちらは全件埋まっている）
 // ⚠️ shopFormate() は店舗マスタの配列が要るのでそのままは使えない。
 $sql_unsync = "SELECT 'unsync' AS kind,
          DATEDIFF(CURDATE(), $inquiry_date) AS days,
@@ -77,6 +111,7 @@ $sql_unsync = "SELECT 'unsync' AS kind,
      AND COALESCE(duplicate_flag, 0) <> 1
      AND COALESCE(support_flag, 0) <> 1
      AND COALESCE(black_flag, 0) <> 1
+     AND TRIM(COALESCE(first_name, '')) <> ''
      AND SUBSTRING(inquiry_date, 1, 7) BETWEEN :start_month AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), $inquiry_date) > 0
    ORDER BY days DESC
@@ -131,24 +166,59 @@ $stmt_today = $pdo->prepare($sql_today);
 $stmt_today->execute($today_params);
 $response_today = $stmt_today->fetchAll(PDO::FETCH_ASSOC);
 
-// ⚠️ 2つの表を1つに混ぜ、放置日数の長い順に並べ直す。
-//   ⚠️ 種類ごとに分けると「どちらがより放置されているか」が見えない。
-$attention = array_merge($response_unsync, $response_cancel);
-usort($attention, function ($a, $b) {
-    return (int) $b['days'] - (int) $a['days'];
-});
-
 // ⚠️ days は PDO が文字列で返すため、Express と同じ数値に揃える
-foreach ($attention as &$row) {
-    $row['days'] = (int) $row['days'];
+$to_int_days = function (array $rows): array {
+    foreach ($rows as &$row) {
+        $row['days'] = (int) $row['days'];
+    }
+    unset($row);
+    return $rows;
+};
+$response_unsync = $to_int_days($response_unsync);
+$response_cancel = $to_int_days($response_cancel);
+
+/**
+ * ⚠️⚠️ **表は種類ごとに分ける**（2026-09-28 の指示）。
+ *   ⚠️ 以前は未同期と来場日未入力を1つに混ぜていた。
+ *   ⚠️ ⚠️ **混ぜると何をすればよいかが読み取れない**というのが変更の理由。
+ * ⚠️ 並びは Express の runDailyAction() と**同じ順**にすること。
+ */
+$sections = [
+    ["label" => "未同期", "hasDays" => true, "rows" => $response_unsync],
+    ["label" => "来場日未入力", "hasDays" => true, "rows" => $response_cancel],
+];
+foreach ($today_steps as $step) {
+    $sections[] = [
+        "label" => "本日の" . $step['label'],
+        "hasDays" => false,
+        // ⚠️ array_values で添字を詰める。詰めないと json_encode がオブジェクトにする
+        "rows" => array_values(array_filter($response_today, function ($row) use ($step) {
+            return $row['step'] === $step['label'];
+        })),
+    ];
 }
-unset($row);
+
+$total = 0;
+foreach ($sections as $section) {
+    $total += count($section['rows']);
+}
+
+/**
+ * ⚠️⚠️ **その人が今日もう確認したか。**
+ *   ⚠️ `staff.check_daily_action` が本日なら出さない。
+ *   ⚠️ ⚠️ **誰か分からないときは出す**（出ないより出しすぎるほうが安全）。
+ */
+$show = true;
+if ($daily_action_user && !empty($daily_action_user['check_daily_action'])) {
+    $show = $daily_action_user['check_daily_action'] !== date('Y-m-d');
+}
 
 // ⚠️ キーの順序も Express と揃えている
 $result = [
-    "attention" => $attention,
-    "today" => $response_today,
+    "sections" => $sections,
+    "total" => $total,
     "truncated" => count($response_unsync) >= $row_limit || count($response_cancel) >= $row_limit,
+    "show" => $show,
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

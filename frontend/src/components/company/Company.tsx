@@ -13,7 +13,7 @@ import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import CustomerDetail from './CustomerDetail';
 import Ranking from './Ranking';
-import DailyActionModal from '../DailyActionModal';
+import DailyAction from '../DailyAction';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { sortStyle, tableStyle, tdStyle, dateFormate, monthFormate, lastYearMonthFormate, formattedThisMonth, cancelStyle, lastYearStyle } from './companyUtils';
 
@@ -1184,7 +1184,7 @@ const Company = () => {
             <InformationEditResale id={editId.resale} token={token} onClose={informationEditClose} authority={authority} />
             <Ranking showRanking={showRanking} setShowRanking={setShowRanking} customerList={customerList} monthArray={monthArray} staffList={staffList} achievement={achievement}/>
             {/* ⚠️ 出す・出さないの判定はモーダル側。⚠️ ここは「来たかどうか」だけを渡す */}
-            <DailyActionModal show={showDailyAction} onClose={() => setShowDailyAction(false)} />
+            <DailyAction show={showDailyAction} onClose={() => setShowDailyAction(false)} />
         </>
     )
 }

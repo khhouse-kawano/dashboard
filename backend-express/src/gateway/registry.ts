@@ -208,19 +208,26 @@ register({
 });
 
 /**
- * 注文営業のダッシュボードを開いたときのモーダル（要確認・本日の予定）。
+ * 注文営業のダッシュボードを開いたときのモーダル（要確認）。
  *
- * ⚠️ auth は menu と揃えて 'none' にしてある。
- *   ⚠️ 中身は menu のバッジと同じ母集団で、⚠️ **顧客名を返す点だけが違う。**
- *   ⚠️ ⚠️ **認証を掛けるなら menu と同時に掛けること**（片方だけだと
- *     バッジは出るのに一覧が 401、という分かりにくい状態になる）。
+ * ⚠️⚠️ **`auth: 'staff'` にしてある。** ⚠️ menu（'none'）とはここが違う。
+ *   ⚠️ 「その人が今日もう確認したか」を `staff.check_daily_action` で見るため、
+ *     ⚠️ ⚠️ **誰が見ているかが分からないと判定できない。**
+ *   ⚠️ フロント（utils/apiClient.ts）は `Token` ヘッダを必ず付けている。
+ *
+ * ⚠️⚠️ **roll は 'list'（参照）だけを登録する。**
+ *   ⚠️ 「確認しました」の記録（roll: 'check'）は **UPDATE** なので、
+ *     ⚠️ ⚠️ **② へ転送しない。① だけで処理する。**
+ *     ⚠️ 自動フォールバックがあるため、書き込みを転送すると**二重に走りうる。**
+ *   ⚠️ ① の express_proxy.php でも 'daily_action:list' とだけ書いてある。
  */
 register({
   request: 'daily_action',
-  summary: '要確認の顧客（未同期・来場未入力）と本日の予定',
+  roll: 'list',
+  summary: '要確認の顧客（未同期・来場日未入力）と本日の予定',
   phpSource: 'backend/src/handlers/daily_action.php',
-  auth: 'none',
-  handler: async () => runDailyAction(),
+  auth: 'staff',
+  handler: async (ctx) => runDailyAction(ctx.staff?.id ?? null),
 });
 
 /** ヘッダーの新着物件バッジ。件数だけを返す */
