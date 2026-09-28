@@ -44,6 +44,8 @@ type Row = {
     medium: string;
     /** ⚠️ 未同期だけが持つ。⚠️ 空文字で届く（画面で `-` と出す） */
     campaign?: string;
+    /** ⚠️ 担当営業。⚠️ **未同期以外が持つ**（未同期はまだ担当が決まっていない） */
+    staff?: string;
 };
 
 type Section = {
@@ -51,6 +53,8 @@ type Section = {
     hasDays: boolean;
     /** ⚠️⚠️ **未同期だけ true**。⚠️ 他はこの列を持っていない */
     hasCampaign: boolean;
+    /** ⚠️⚠️ **未同期以外 true**（2026-09-28）。⚠️ 未同期はまだ担当が決まっていない */
+    hasStaff: boolean;
     rows: Row[];
 };
 
@@ -435,6 +439,8 @@ const DailyAction = () => {
                                         <th className='da_th' style={{ width: '150px' }}>店舗</th>
                                         <th className='da_th' style={{ width: '100px' }}>反響日</th>
                                         <th className='da_th'>顧客名</th>
+                                        {/* ⚠️ 担当営業は**顧客名のすぐ右**（指示）。⚠️ 未同期には出さない */}
+                                        {section.hasStaff && <th className='da_th' style={{ width: '120px' }}>担当営業</th>}
                                         <th className='da_th' style={{ width: '130px' }}>反響媒体</th>
                                         {/* ⚠️ キャンペーンは**未同期の表だけ**。⚠️ 右端に置く（指示） */}
                                         {section.hasCampaign && <th className='da_th' style={{ width: '170px' }}>キャンペーン</th>}
@@ -453,6 +459,12 @@ const DailyAction = () => {
                                             <td className='da_td'>{orUnset(row.shop)}</td>
                                             <td className='da_td da_date'>{orUnset(row.register)}</td>
                                             <td className='da_td da_name'>{orUnset(row.customer)}</td>
+                                            {section.hasStaff && (
+                                                /* ⚠️ 「◯◯店 管理」のままの行もある。⚠️ **そのまま出す**（誰の担当か分からない状態が正） */
+                                                <td className='da_td da_ellipsis' title={orUnset(row.staff ?? '')}>
+                                                    {orUnset(row.staff ?? '')}
+                                                </td>
+                                            )}
                                             <td className='da_td da_muted'>{orUnset(row.medium)}</td>
                                             {section.hasCampaign && (
                                                 /* ⚠️ 長い名前が多いので省略表示。⚠️ **全文は hover で出す** */

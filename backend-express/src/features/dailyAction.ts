@@ -178,6 +178,16 @@ const CANCEL_SQL = `
          ${shopLabel('m.in_charge_store', 'm.brand')} AS shop,
          COALESCE(DATE_FORMAT(${REGISTER_DATE}, '%Y-%m-%d'), '') AS register,
          COALESCE(m.customer_contacts_name, '') AS customer,
+         /*
+           ⚠️ 担当営業（2026-09-28 の指示）。⚠️ **来場日未入力と本日の予定にだけ出す。**
+             ⚠️ 未同期は inquiry_customer 由来で、⚠️ **まだ担当が決まっていない。**
+           ⚠️⚠️ **in_charge_user をそのまま出す**（指示）。
+             ⚠️ 失注や長期化で **「◯◯店 管理」に付け替えられている**ことがあり、
+             ⚠️ ⚠️ **そのまま「◯◯店 管理」と表示される。** 誰の担当か分からない行はそれが正しい。
+             ⚠️ 旧担当（first_interviewed_user）には**寄せていない**。
+           ⚠️⚠️ **ここはテンプレートリテラルの中。バッククォートを書かないこと**（文字列が終わる）。
+         */
+         COALESCE(NULLIF(TRIM(m.in_charge_user), ''), '') AS staff,
          COALESCE(m.sales_promotion_name, '') AS medium
     FROM master_data m
     LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(m.in_charge_store)
@@ -205,6 +215,16 @@ const TODAY_SQL = `
          ${shopLabel('m.in_charge_store', 'm.brand')} AS shop,
          COALESCE(DATE_FORMAT(${REGISTER_DATE}, '%Y-%m-%d'), '') AS register,
          COALESCE(m.customer_contacts_name, '') AS customer,
+         /*
+           ⚠️ 担当営業（2026-09-28 の指示）。⚠️ **来場日未入力と本日の予定にだけ出す。**
+             ⚠️ 未同期は inquiry_customer 由来で、⚠️ **まだ担当が決まっていない。**
+           ⚠️⚠️ **in_charge_user をそのまま出す**（指示）。
+             ⚠️ 失注や長期化で **「◯◯店 管理」に付け替えられている**ことがあり、
+             ⚠️ ⚠️ **そのまま「◯◯店 管理」と表示される。** 誰の担当か分からない行はそれが正しい。
+             ⚠️ 旧担当（first_interviewed_user）には**寄せていない**。
+           ⚠️⚠️ **ここはテンプレートリテラルの中。バッククォートを書かないこと**（文字列が終わる）。
+         */
+         COALESCE(NULLIF(TRIM(m.in_charge_user), ''), '') AS staff,
          COALESCE(m.sales_promotion_name, '') AS medium
     FROM master_data m
     LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(m.in_charge_store)
@@ -239,6 +259,8 @@ export interface AttentionRow extends RowDataPacket {
   medium: string;
   /** ⚠️ キャンペーン名。⚠️ **未同期の行だけが持つ**（来場日未入力には無い） */
   campaign?: string;
+  /** ⚠️ 担当営業。⚠️ **来場日未入力の行だけが持つ**（未同期にはまだ担当がいない） */
+  staff?: string;
 }
 
 export interface TodayRow extends RowDataPacket {
@@ -246,6 +268,8 @@ export interface TodayRow extends RowDataPacket {
   shop: string;
   register: string;
   customer: string;
+  /** ⚠️ 担当営業（`master_data.in_charge_user`） */
+  staff: string;
   medium: string;
 }
 
@@ -267,6 +291,12 @@ export interface DailySection {
    *   ⚠️ 来場日未入力・本日の予定は `master_data` 由来で、⚠️ **この列を返していない。**
    */
   hasCampaign: boolean;
+  /**
+   * ⚠️ 担当営業の列を出すかどうか。
+   *   ⚠️⚠️ **未同期以外は true**（2026-09-28 の指示）。
+   *   ⚠️ 未同期は `inquiry_customer` 由来で、⚠️ **まだ担当が決まっていない。**
+   */
+  hasStaff: boolean;
   rows: (AttentionRow | TodayRow)[];
 }
 
@@ -327,12 +357,13 @@ export const runDailyAction = async (staffId: number | null): Promise<DailyActio
    *   ⚠️ ⚠️ **並びは `TODAY_STEPS` のとおり**（商談が進む順）。入れ替えないこと。
    */
   const sections: DailySection[] = [
-    { label: '未同期', hasDays: true, hasCampaign: true, rows: unsync },
-    { label: '来場日未入力', hasDays: true, hasCampaign: false, rows: cancel },
+    { label: '未同期', hasDays: true, hasCampaign: true, hasStaff: false, rows: unsync },
+    { label: '来場日未入力', hasDays: true, hasCampaign: false, hasStaff: true, rows: cancel },
     ...TODAY_STEPS.map((step) => ({
       label: `本日の${step.label}`,
       hasDays: false,
       hasCampaign: false,
+      hasStaff: true,
       rows: today.filter((row) => row.step === step.label),
     })),
   ];
