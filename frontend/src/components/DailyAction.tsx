@@ -77,6 +77,26 @@ let cached: { at: number; promise: Promise<ListResponse> } | null = null;
 let sessionChecked = false;
 
 /**
+ * ⚠️⚠️ **自動では出さない画面。**
+ *   ⚠️ `App.tsx` の「メニューを出す条件」と同じにしてある。
+ *   ⚠️ ⚠️ **手動（ActiveUser の「要確認」ボタン）では出せる。**
+ */
+const NO_AUTO_OPEN: string[] = ['/home', '/login'];
+
+/**
+ * ⚠️⚠️ **外から開くための入口**（2026-09-28）。
+ *   ⚠️ `ActiveUser.tsx` の「要確認」ボタンが呼ぶ。
+ *   ⚠️ ⚠️ **状態を持ち回さずに済ませるため、purpose を絞った小さな購読にしてある。**
+ *     ⚠️ Context を足すと `App.tsx` の階層を触ることになり、影響範囲が広い。
+ *   ⚠️ 実体は `DailyAction` が1つだけ描画されている前提（⚠️ `App.tsx` を参照）。
+ */
+type Listener = () => void;
+const listeners = new Set<Listener>();
+export const openDailyAction = (): void => {
+    listeners.forEach((listener) => listener());
+};
+
+/**
  * 放置日数の見た目。
  *
  * ⚠️ 段階はオーナー指定（2026-09-28）。
@@ -116,16 +136,25 @@ const DailyAction = () => {
     const [truncated, setTruncated] = useState(false);
     const [open, setOpen] = useState(false);
     const [sending, setSending] = useState(false);
+    /**
+     * ⚠️⚠️ **今日もう「確認しました」を押しているか。**
+     *   ⚠️ 押していれば ⚠️ **自動では出さない**が、⚠️ **ボタンからは開ける。**
+     *   ⚠️ そのときの閉じるボタンは ⚠️ **「閉じる」**（⚠️ 二重に記録しない）。
+     */
+    const [alreadyChecked, setAlreadyChecked] = useState(false);
 
     /** ⚠️ そもそも出す対象か。⚠️ **通信の前に判定する**（無駄な通信を避ける） */
     const isTarget = !isSp && category === 'order';
 
-    useEffect(() => {
-        if (!isTarget || sessionChecked) return;
-
-        let alive = true;
+    /**
+     * 件数を取ってくる。
+     *
+     * ⚠️ `force` … ⚠️ **ボタンから開いたときは取り直す**（⚠️ 古い数字を見せたくない）。
+     *   ⚠️ 自動で出すときは ⚠️ **5分キャッシュ**を使う（⚠️ 画面を移るたびに叩かないため）。
+     */
+    const load = (force: boolean): Promise<ListResponse> => {
         const now = Date.now();
-        if (cached === null || now - cached.at > CACHE_MS) {
+        if (force || cached === null || now - cached.at > CACHE_MS) {
             cached = {
                 at: now,
                 promise: apiClient
@@ -133,32 +162,68 @@ const DailyAction = () => {
                     .then((response) => (response.data ?? {}) as ListResponse),
             };
         }
+        return cached.promise;
+    };
 
-        cached.promise
+    /** ⚠️ 受け取った結果を画面の状態へ移す。⚠️ 自動・手動の両方から呼ぶ */
+    const apply = (data: ListResponse): void => {
+        setSections(data.sections ?? []);
+        setTotal(Number(data.total ?? 0));
+        setTruncated(data.truncated === true);
+        setAlreadyChecked(data.show !== true);
+    };
+
+    /**
+     * ⚠️ 取得に失敗したとき。
+     *
+     * ⚠️ 黙らせない。⚠️ **空なのか取得に失敗したのかが区別できないと、
+     *   「今日は0件だった」と誤解される。**
+     * ⚠️ ⚠️ **失敗したキャッシュは捨てる。** 残すと次の画面でも失敗したままになる。
+     */
+    const fail = (e: unknown): void => {
+        cached = null;
+        console.error('要確認の取得に失敗しました', e);
+        setOpen(false);
+    };
+
+    // --- 自動で出す（URL が変わるたび）---
+    useEffect(() => {
+        if (!isTarget || sessionChecked) return;
+        // ⚠️ トップとログインでは自動で出さない（⚠️ ボタンからは開ける）
+        if (NO_AUTO_OPEN.includes(location.pathname)) return;
+
+        let alive = true;
+        load(false)
             .then((data) => {
                 if (!alive) return;
-                setSections(data.sections ?? []);
-                setTotal(Number(data.total ?? 0));
-                setTruncated(data.truncated === true);
+                apply(data);
                 // ⚠️⚠️ **0件・確認済みなら開かない。** ⚠️ 空の枠を出しても意味がない
                 setOpen(data.show === true && Number(data.total ?? 0) > 0);
             })
-            .catch((e) => {
-                /**
-                 * ⚠️ 黙らせない。⚠️ **空なのか取得に失敗したのかが区別できないと、
-                 *   「今日は0件だった」と誤解される。**
-                 * ⚠️ ⚠️ ただし**モーダルは開かない。** 空の枠だけ出しても意味がない。
-                 * ⚠️ ⚠️ **失敗したキャッシュは捨てる。** 残すと次の画面でも失敗したままになる
-                 */
-                cached = null;
-                if (!alive) return;
-                console.error('要確認の取得に失敗しました', e);
-                setOpen(false);
-            });
+            .catch((e) => { if (alive) fail(e); });
 
         return () => { alive = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fullPath, isTarget, category]);
+
+    // --- ボタンから開く（ActiveUser.tsx）---
+    useEffect(() => {
+        if (!isTarget) return;
+
+        const onOpen = () => {
+            // ⚠️⚠️ **押したときは取り直す。** ⚠️ 対応した直後に古い件数を見せない
+            load(true)
+                .then((data) => {
+                    apply(data);
+                    // ⚠️⚠️ **0件でも開く。** ⚠️ 押した反応が無いほうが困る
+                    setOpen(true);
+                })
+                .catch(fail);
+        };
+        listeners.add(onOpen);
+        return () => { listeners.delete(onOpen); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isTarget, category]);
 
     /**
      * 「確認しました」。
@@ -168,6 +233,14 @@ const DailyAction = () => {
      */
     const handleCheck = async () => {
         if (sending) return;
+        /**
+         * ⚠️⚠️ **今日もう押している人は記録しない**（2026-09-28 の指示）。
+         *   ⚠️ ボタンの文字も「閉じる」になっている。⚠️ **閉じるだけ。**
+         */
+        if (alreadyChecked) {
+            setOpen(false);
+            return;
+        }
         setSending(true);
         try {
             await apiClient.post('', { request: 'daily_action', roll: 'check', category });
@@ -250,6 +323,9 @@ const DailyAction = () => {
                               background: #fffbeb; border: 1px solid #fde68a;
                               border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
 
+                .da_none { font-size: 12px; color: #6b7280; background: #f8fafc;
+                           border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px;
+                           text-align: center; }
                 .da_section { margin-bottom: 18px; }
                 .da_section:last-child { margin-bottom: 0; }
                 .da_section_head { display: flex; align-items: baseline; gap: 8px;
@@ -311,6 +387,7 @@ const DailyAction = () => {
                 */}
                 <div className='da_summary'>
                     <div className='da_kpi'>
+                        {/* ⚠️ 0件のときはカードが1枚も出ない。⚠️ **ボタンだけが残る** */}
                         {visible.map((section) => (
                             <div
                                 key={section.label}
@@ -323,8 +400,9 @@ const DailyAction = () => {
                             </div>
                         ))}
                     </div>
+                    {/* ⚠️⚠️ **確認済みなら「閉じる」**（⚠️ 押しても記録しない） */}
                     <button className='da_btn' onClick={handleCheck} disabled={sending}>
-                        確認しました
+                        {alreadyChecked ? '閉じる' : '確認しました'}
                     </button>
                 </div>
             </Modal.Header>
@@ -335,6 +413,11 @@ const DailyAction = () => {
                     <div className='da_caution'>
                         件数が多いため、放置日数の長い順に一部だけ表示しています。
                     </div>
+                )}
+
+                {/* ⚠️ ボタンから開いたときは0件でも開く。⚠️ **空の枠だけ出さない** */}
+                {visible.length === 0 && (
+                    <div className='da_none'>対応が必要な顧客はありません。本日の予定もありません。</div>
                 )}
 
                 {visible.map((section) => (
