@@ -1,5 +1,6 @@
 import type { Feature } from '../core/feature';
 import { analysis } from './analysis';
+import { dailyAction } from './dailyAction';
 import { menu } from './menu';
 import { staff } from './staff';
 import { versions } from './versions';
@@ -14,4 +15,4 @@ import { versions } from './versions';
  *
  * PHP から移植するときの対応表は README を参照。
  */
-export const features: Feature[] = [versions, staff, analysis, menu];
+export const features: Feature[] = [versions, staff, analysis, menu, dailyAction];

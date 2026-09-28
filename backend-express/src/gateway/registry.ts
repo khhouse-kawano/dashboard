@@ -82,6 +82,7 @@ import {
   runKSnapShow,
 } from '../features/ksnap';
 import { runMenu } from '../features/menu';
+import { runDailyAction } from '../features/dailyAction';
 import {
   runCampaignFormDetail,
   runCampaignFormInsert,
@@ -204,6 +205,22 @@ register({
   phpSource: 'backend/src/handlers/menu.php',
   auth: 'none',
   handler: async () => runMenu(),
+});
+
+/**
+ * 注文営業のダッシュボードを開いたときのモーダル（要確認・本日の予定）。
+ *
+ * ⚠️ auth は menu と揃えて 'none' にしてある。
+ *   ⚠️ 中身は menu のバッジと同じ母集団で、⚠️ **顧客名を返す点だけが違う。**
+ *   ⚠️ ⚠️ **認証を掛けるなら menu と同時に掛けること**（片方だけだと
+ *     バッジは出るのに一覧が 401、という分かりにくい状態になる）。
+ */
+register({
+  request: 'daily_action',
+  summary: '要確認の顧客（未同期・来場未入力）と本日の予定',
+  phpSource: 'backend/src/handlers/daily_action.php',
+  auth: 'none',
+  handler: async () => runDailyAction(),
 });
 
 /** ヘッダーの新着物件バッジ。件数だけを返す */

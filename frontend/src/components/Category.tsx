@@ -38,7 +38,13 @@ const Category = () => {
             planner: '/summary'
         };
         await setCategory(categoryValue);
-        await navigate(navigateMap[categoryValue] ?? '/home');
+        /**
+         * ⚠️⚠️ **`fromCategory` は「本日のアクション」のモーダルの目印**（2026-09-28）。
+         *   ⚠️ 遷移先（`Company.tsx`）がこれを見て1回だけ開き、⚠️ **すぐ消す。**
+         *   ⚠️ ⚠️ **ここでモーダルを出すことはできない。**
+         *     ⚠️ 直後に `navigate()` するので**出した瞬間に消える。**
+         */
+        await navigate(navigateMap[categoryValue] ?? '/home', { state: { fromCategory: true } });
     };
 
     return (

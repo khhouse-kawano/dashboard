@@ -65,6 +65,11 @@ function expressProxyRequests(): array
         'update_log',
         'callStatusList',
 
+        // 2026-09-28 追加。参照のみ。
+        // ⚠️ 判定条件は menu と同じ母集団で、返す列だけが違う。
+        //   ⚠️ **menu の条件を直したら daily_action も直すこと**（両方とも ①②）。
+        'daily_action',
+
         // 2026-09-02 移植。KPI分析の参照系のみ。
         //
         // ⚠️ kpi_analyze（Claude API呼び出し＋INSERT）と
