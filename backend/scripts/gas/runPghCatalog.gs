@@ -16,6 +16,10 @@
 //   ⚠️ 氏名の扱い・カナ変換・住所の分解・媒体の決定は
 //     ⚠️ **すべて pgh_order.php がやる。**
 //   ⚠️ ⚠️ **GAS に判断を持たせないこと。** 直すたびに貼り替えが要るため。
+//
+// ⚠️⚠️ **同じ問い合わせが2通届く**（2026-09-28 に判明）。
+//   ⚠️ 受け側が「誰が・いつ」で弾くので、⚠️ **ここでは気にしなくてよい。**
+//   ⚠️ ⚠️ **ただしスレッド内の関係ないメールは送らない**（下の絞り込みを参照）。
 // =====================================================================
 
 /**
@@ -92,6 +96,20 @@ function extractPghCatalogData(text) {
   return result;
 }
 
+/**
+ * ⚠️⚠️ **そのメールが取り込み対象かを確かめる。**
+ *
+ * ⚠️ `GmailApp.search()` が返すのは ⚠️ **スレッド**である。
+ *   ⚠️ ⚠️ **`thread.getMessages()` は、条件に合わない返信や自動応答も返す。**
+ *   ⚠️ 絞らないと、⚠️ **無関係なメールから空の行を作ってしまう。**
+ */
+function isPghCatalogMail(msg) {
+  const from = String(msg.getFrom() || '');
+  const subject = String(msg.getSubject() || '');
+  return from.indexOf('no-reply@kyusyu.pg-house.jp') !== -1
+      && subject.indexOf('資料請求') !== -1;
+}
+
 /** ⚠️ 日時の桁合わせ。⚠️ 他のGASと関数名が衝突しないよう接頭辞を付けている */
 function padZeroPghCatalog(num) {
   return ('0' + num).slice(-2);
@@ -147,6 +165,9 @@ function runPghCatalog() {
     const messages = thread.getMessages();
 
     for (const msg of messages) {
+      // ⚠️⚠️ **スレッドに混ざった別のメールは送らない**
+      if (!isPghCatalogMail(msg)) continue;
+
       const body = msg.getPlainBody();
       const extracted = extractPghCatalogData(body);
 
@@ -167,7 +188,7 @@ function runPghCatalog() {
       rows.push({
         ...extracted,
         registered: registered,
-        // ⚠️⚠️ **重複排除の鍵。** ⚠️ 受け側が inquiry_id に使う
+        // ⚠️ 追跡用。⚠️⚠️ **重複排除には使われない**（受け側が「誰が・いつ」で弾く）
         messageId: msg.getId(),
         // ⚠️ 取りこぼしても後から読めるよう、本文をそのまま添える
         remarks: body
