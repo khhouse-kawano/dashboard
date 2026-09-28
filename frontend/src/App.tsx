@@ -3,6 +3,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import Calendar from "./components/calendar/Calendar";
 import Category from "./components/Category";
+import DailyAction from "./components/DailyAction";
 import ShopRouter from './components/shop/ShopRouter';
 import BudgetAccounting from "./components/BudgetAccounting";
 import DatabaseRouter from "./components/database/DatabaseRouter";
@@ -81,6 +82,17 @@ function AppInner() {
   return (
     <>
       <ActiveUser />
+      {/*
+        ⚠️⚠️ **「要確認」モーダル（2026-09-28）。**
+          ⚠️ ⚠️ **ここに1つだけ置くこと。** MenuD は **PC用とSP用で2回**描画されるので、
+            ⚠️ Menu.tsx の中に置くと**モーダルが二重に出る。**
+          ⚠️ ⚠️ **ActiveUser と同じ並びに置く**（2026-09-28）。
+            ⚠️ あちらの「要確認」ボタンは `/home` でも出るので、
+            ⚠️ **メニューの条件の中に入れるとボタンを押しても開かない。**
+          ⚠️ 出す・出さないの判定（注文営業のみ・スマホでは出さない・本日確認済みか・
+            0件か・自動で出さない画面か）は **DailyAction.tsx 側が持っている。**
+      */}
+      <DailyAction />
       <div className='outer-container'>
         {currentPath !== '/login' && <Header key={menuKey} />}
         {/**
@@ -120,6 +132,7 @@ function AppInner() {
               />
               <MenuD key={menuKey} onReload={reload} />
             </div>
+
           </>}
           <Routes>
             <Route path="/" element={<Category />} />

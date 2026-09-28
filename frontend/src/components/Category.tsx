@@ -38,6 +38,13 @@ const Category = () => {
             planner: '/summary'
         };
         await setCategory(categoryValue);
+        /**
+         * ⚠️ ここから遷移すると「要確認」モーダルも出る（2026-09-28）。
+         *   ⚠️ ⚠️ **目印は渡していない。** `App.tsx` の `DailyAction` が
+         *     ⚠️ **URL の変化そのものを見て開く**ため、この遷移でも必ず動く。
+         *   ⚠️ ⚠️ **ここでモーダルを出すことはできない。**
+         *     ⚠️ 直後に `navigate()` するので**出した瞬間に消える。**
+         */
         await navigate(navigateMap[categoryValue] ?? '/home');
     };
 

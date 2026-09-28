@@ -29,6 +29,13 @@ type Achievement = { category: string, name: string, period: string, value: stri
 
 const Company = () => {
     const { token, authority, category } = useContext(AuthContext);
+    /**
+     * ⚠️⚠️ **「要確認」モーダルはこの画面が持っていない**（2026-09-28 に移した）。
+     *   ⚠️ 以前は `location.state.fromCategory` を見てここで開いていたが、
+     *     ⚠️ ⚠️ **「URL が変わるたびに出す」へ変わった**ため `App.tsx` に1つだけ置いてある。
+     *   ⚠️ ⚠️ **ここに戻さないこと。** 会社実績を開いたときしか出なくなる。
+     */
+
     const [originalStaffList, setOriginalStaffList] = useState<Staff[]>([]);
     const [staffList, setStaffList] = useState<Staff[]>([]);
     const [shopList, setShopList] = useState<Shop[]>([]);
