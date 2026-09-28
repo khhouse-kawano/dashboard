@@ -2,11 +2,32 @@ import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import AuthContext from '../context/AuthContext';
 import { useLocation } from "react-router-dom";
 import apiClient from '../utils/apiClient';
+import { openDailyAction } from './DailyAction';
 
 type User = { id?: string | number, name: string, heartbeat: string };
 
+/**
+ * 「要確認」ボタンの見た目。
+ *
+ * ⚠️ ⚠️ **この枠は position: fixed で常に浮いている。** ⚠️ 幅が狭いので**1行に収める。**
+ * ⚠️ 色は DailyAction.tsx の見出しと合わせてある（⚠️ 放置＝赤）。
+ */
+const alertButtonStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#fef2f2',
+    border: '1px solid #fecaca',
+    color: '#b91c1c',
+    borderRadius: 8,
+    padding: '5px 10px',
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: 'pointer',
+    marginBottom: 8,
+    whiteSpace: 'nowrap',
+};
+
 const ActiveUser: React.FC = () => {
-    const { token, userName } = useContext(AuthContext);
+    const { token, userName, category } = useContext(AuthContext);
     const location = useLocation();
     const [activeUsers, setActiveUsers] = useState<User[]>([]);
     const [isInactive, setIsInactive] = useState(false);
@@ -252,6 +273,24 @@ const ActiveUser: React.FC = () => {
                 aria-label="Active users fixed"
             >
                 <div style={containerStyle} aria-label="Active users">
+                    {/*
+                      ⚠️⚠️ **「要確認」ボタン（2026-09-28 の指示）。**
+                        ⚠️ ⚠️ **注文営業のときだけ・常に出す**（⚠️ 今日もう確認していても出す）。
+                        ⚠️ 押すと `App.tsx` に1つだけ置いた `DailyAction` が開く。
+                        ⚠️ ⚠️ **確認済みなら中のボタンは「閉じる」**になり、記録はしない。
+                        ⚠️ この枠自体が `width >= 768` のときしか出ないので、
+                          ⚠️ **スマホでは出ない**（DailyAction 側の条件とも一致する）。
+                    */}
+                    {category === 'order' && (
+                        <button
+                            type="button"
+                            style={alertButtonStyle}
+                            onClick={openDailyAction}
+                            aria-label="要確認の顧客を表示"
+                        >
+                            要確認
+                        </button>
+                    )}
                     <div style={headerStyle}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ color: '#0d6efd' }}>●</span>
