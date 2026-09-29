@@ -4,6 +4,7 @@ import AuthContext from '../../context/AuthContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
+import { toLocalDate } from '../../utils/toLocalDate';
 import Category from '../Category';
 import apiClient from '../../utils/apiClient';
 // ⚠️ グラフとその系列は shop/ と共有する。X軸が店舗名か販促媒体名かだけが違う。
@@ -88,7 +89,8 @@ const CustomerOrder = () => {
         }
 
         return originalList.filter(item => {
-            const targetDate = new Date(item.register.replace(/\//g, '-'));
+            // ⚠️⚠️ **ハイフンに直して読まないこと**（UTCの0時になり末日が落ちる）。utils/toLocalDate.ts
+            const targetDate = toLocalDate(item.register);
             const sectionShops = shopArray.filter(s => s.section === selectedSection).map(s => s.shop);
             return (
                 (!startDate || targetDate >= startDate) &&
