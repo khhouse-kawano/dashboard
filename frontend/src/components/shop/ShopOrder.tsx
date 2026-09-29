@@ -5,6 +5,7 @@ import Tooltip from 'react-bootstrap/Tooltip';
 // ⚠️ グラフは UnitPriceGraphModal.tsx に移した。ここでは recharts を使わない
 import UnitPriceGraphModal from './UnitPriceGraphModal';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
+import { toLocalDate } from '../../utils/toLocalDate';
 import apiClient from '../../utils/apiClient';
 import { sortShops } from '../header/useAmbassadorMaster';
 import { UNIT_PRICE_SERIES } from './unitPriceSeries';
@@ -129,7 +130,8 @@ const ShopOrder = () => {
         }
 
         return originalList.filter(item => {
-            const targetDate = new Date(item.register.replace(/\//g, '-'));
+            // ⚠️⚠️ **ハイフンに直して読まないこと**（UTCの0時になり末日が落ちる）。utils/toLocalDate.ts
+            const targetDate = toLocalDate(item.register);
             const sectionShops = shopArray.filter(s => s.section === selectedSection).map(s => s.shop);
             return (
                 (!startDate || targetDate >= startDate) &&
