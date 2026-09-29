@@ -251,8 +251,20 @@ const budgetMediumSql = (division: AnalysisDivision, items: string[], hpRow: str
   return `CASE ${whens.join(' ')} ELSE ${lit(OTHER_ROW)} END`;
 };
 
-/** 販促費の月。⚠️ `budget_period` は `YYYY/MM/DD` の text */
-const BUDGET_MONTH = "SUBSTRING(REPLACE(TRIM(COALESCE(b.budget_period, '')), '/', '-'), 1, 7)";
+/**
+ * 販促費の月。
+ *
+ * ⚠️⚠️ **`budget_period` は text で、ゼロ埋めされていない行が混ざっている。**
+ *   ⚠️ 実データ: `2026/01/15` のほかに ⚠️ **`2026/1/15` と `2026/01/5` が各17行**（2026-09-29 時点）。
+ *
+ * ⚠️ ⚠️ **文字列の先頭7文字を切り出してはならない。**
+ *   ⚠️ `2026/1/15` が `2026-1-` になり、⚠️⚠️ **月の大小比較が壊れて期間から落ちる。**
+ *   ⚠️ 実際にこれで ⚠️⚠️ **建売の広告費が 5,739,342 円少なく出ていた**（v2.2.153 の初版）。
+ *
+ * ⚠️ `STR_TO_DATE` はゼロ埋めが無くても読めるので、⚠️ **日付にしてから月を作る。**
+ */
+const BUDGET_MONTH =
+  "DATE_FORMAT(STR_TO_DATE(REPLACE(TRIM(COALESCE(b.budget_period, '')), '/', '-'), '%Y-%m-%d'), '%Y-%m')";
 
 const fetchAdSpend = async (
   options: AdspendOptions,
