@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { adspendMeta, runAdspend } from './adspend';
 import { recordAnalysisQuery } from './audit';
 import type { AnalysisDivision } from './columns';
 import { DIVISION_CONFIG } from './columns';
@@ -160,6 +161,25 @@ const reportBody = z.object({
 
 const reportListQuery = z.object({
   category: z.string().max(64).optional(),
+});
+
+/**
+ * 広告費とKPI単価（2026-09-29 追加）。
+ *
+ * ⚠️⚠️ **`basis` を受け取らない。** ⚠️ 反響日起算で固定である（adspend.ts の注記）。
+ * ⚠️ ⚠️ **軸も受け取らない。** ⚠️ 販促媒体でしか割れない（広告費がそこまでしか無い）。
+ */
+const adspendQuery = z.object({
+  division: z
+    .enum(['order', 'kaeru'])
+    .optional()
+    .transform((v) => v ?? 'order'),
+  from: monthString.optional(),
+  to: monthString.optional(),
+  medium: optionalText,
+  shop: optionalText,
+  section: optionalText,
+  area: optionalText,
 });
 
 const unsyncedQuery = z.object({
@@ -517,6 +537,47 @@ export const analysis = defineFeature({
         }
 
         return row;
+      },
+    }),
+
+    'GET /adspend': route({
+      summary:
+        '販促媒体ごとの広告費と、反響・来場・次アポ・契約の単価を返す。' +
+        '⚠️ ダッシュボードの「顧客分析」の画面とまったく同じ歩留まり・単価。反響日起算で固定',
+      auth: 'analysisKey',
+      query: adspendQuery,
+      handler: async ({ query: q, ctx }) => {
+        const startedAt = Date.now();
+        const options = {
+          division: q.division as AnalysisDivision,
+          from: q.from,
+          to: q.to,
+          medium: q.medium,
+          shop: q.shop,
+          section: q.section,
+          area: q.area,
+        };
+
+        const result = await runAdspend(options);
+
+        recordAnalysisQuery(ctx.req, {
+          endpoint: 'adspend',
+          basis: 'reaction',
+          from: q.from,
+          to: q.to,
+          filters: {
+            division: q.division,
+            ...(q.medium === undefined ? {} : { medium: q.medium }),
+            ...(q.shop === undefined ? {} : { shop: q.shop }),
+            ...(q.section === undefined ? {} : { section: q.section }),
+            ...(q.area === undefined ? {} : { area: q.area }),
+          },
+          rowCount: result.rows.length,
+          durationMs: Date.now() - startedAt,
+          status: 'ok',
+        });
+
+        return { meta: adspendMeta(options, result), rows: result.rows };
       },
     }),
 

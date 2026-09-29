@@ -186,8 +186,10 @@ server.registerTool(
       '\n\n指定できる軸と指標の正確な名前は list_analysis_dimensions で確認すること。' +
       '\n\n⚠️ basis="contract" にすると契約日が入っている顧客だけが母数になり、' +
       'leads と contracts が必ず同じ値・契約率が常に100%になる。' +
-      '転換率を見たいときは basis を指定しない（既定の reaction）こと。' +
-      'basis="contract" は「その月に何件契約したか」の内訳を見るためのもの。',
+      'basis="contract" は「その月に何件契約したか」の内訳を見るためのもの。' +
+      '\n\n⚠️ basis を指定しないときは実績日起算になる（画面と突き合わせられる数え方）。' +
+      'コホートとしての転換率（その月に取った反響が後にどこまで進んだか）を見たいときは' +
+      'basis="reaction" を明示すること。',
     inputSchema: z.object({
       groupBy: z
         .array(z.string())
@@ -214,7 +216,10 @@ server.registerTool(
       basis: z
         .enum(['reaction', 'contract'])
         .optional()
-        .describe('集計基準日。既定は reaction（反響取得日）'),
+        .describe(
+          '集計基準日。⚠️ 省略すると実績日起算（その出来事が起きた月に数える。画面と同じ）。' +
+            'reaction = 反響取得日でのコホート集計 / contract = 契約日'
+        ),
       from: monthField.describe('開始月'),
       to: monthField.describe('終了月'),
       section: z.string().optional().describe('営業課で絞る'),
@@ -275,6 +280,62 @@ server.registerTool(
       groupBy: csv(args.groupBy),
       from: args.from,
       to: args.to,
+    })
+);
+
+// ---------------------------------------------------------------------------
+// 4-2. 広告費とKPI単価
+// ---------------------------------------------------------------------------
+
+server.registerTool(
+  'get_ad_spend',
+  {
+    title: '販促媒体ごとの広告費とKPI単価',
+    description:
+      '販促媒体ごとの広告費（総額）と、反響・来場・次アポ・契約それぞれの単価を返す。' +
+      '歩留まり（各工程の通過率）も一緒に返す。' +
+      '\n\n「指定期間の◯◯（媒体名）の広告費を」「指定期間の販促媒体ごとの広告費を」' +
+      '「反響単価が高いのはどの媒体か」「どこに予算を寄せるべきか」といった質問に使う。' +
+      '\n\n⚠️ 広告費を扱えるのはこのツールだけである。query_analysis_pivot では取れない。' +
+      '広告費は 媒体 × 月 × 店舗 でしか持っておらず、担当者別・ランク別には割り振れない。' +
+      '\n\n⚠️ このツールだけは反響日起算で固定されている（他のツールの既定は実績日起算）。' +
+      'ダッシュボードの「顧客分析」の画面とまったく同じ歩留まり・単価を返すためである。' +
+      '⚠️ そのため query_analysis_pivot の visits / contracts とは数字が一致しない。' +
+      '広告費や単価を語るときは、件数もこのツールが返したものを使うこと。' +
+      '\n\n⚠️ 予算の増減を助言する前に、応答の meta にある' +
+      '「予算適正化を助言するときに必ず踏まえること」を必ず読むこと。' +
+      '件数の少ない媒体の単価は数件で大きく動き、広告費0円の媒体は単価が null になる。',
+    inputSchema: z.object({
+      division: z
+        .enum(['order', 'kaeru'])
+        .optional()
+        .describe(
+          '事業。order = 注文事業（既定） / kaeru = 建売分譲事業。' +
+            '⚠️ 工程が違う（注文: 反響→来場→次アポ→契約 / 建売: 反響→接触→来場→申込→契約）'
+        ),
+      from: monthField.describe('開始月。省略すると最古のデータから（建売は2025-01から）'),
+      to: monthField.describe('終了月。省略すると最新のデータまで'),
+      medium: z
+        .string()
+        .optional()
+        .describe(
+          '販促媒体で絞る。例: SUUMO。⚠️ 名前は list_analysis_dimensions の medium 軸と同じ。' +
+            '⚠️ 指定しても総反響の行は必ず返る（全体に対する位置が分かるように）'
+        ),
+      shop: z.string().optional().describe('店舗で絞る。例: KH鹿児島店'),
+      section: z.string().optional().describe('営業課で絞る。例: 宮崎営業課'),
+      area: z.string().optional().describe('エリアで絞る。例: 鹿児島県'),
+    }),
+  },
+  async (args) =>
+    call('adspend', {
+      division: args.division,
+      from: args.from,
+      to: args.to,
+      medium: args.medium,
+      shop: args.shop,
+      section: args.section,
+      area: args.area,
     })
 );
 
