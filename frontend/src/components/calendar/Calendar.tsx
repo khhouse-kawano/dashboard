@@ -125,16 +125,21 @@ const Company = () => {
 
 
         const fetchData = async () => {
-            const [calendarRes, shopRes, calenderRegisterRes] = await Promise.all([
-                axios.post("https://khg-marketing.info/dashboard/api/", { demand: "event_calendar" }, { headers }),
+            /**
+             * ⚠️⚠️ **2026-09-30（v2.2.155）に旧APIから移した。**
+             *   ⚠️ 旧: `demand: 'event_calendar'` と `demand: 'calendar_list'` の2回。
+             *     ⚠️ ⚠️ **旧APIはサーバーから失われている。**
+             *   ⚠️ 新: `request: 'calendar'` の1回で `event` と `reserved` が返る。
+             */
+            const [calendarRes, shopRes] = await Promise.all([
+                apiClient.post('', { request: 'calendar' }),
                 apiClient.post('', { request: 'shop_list' }),
-                axios.post("https://khg-marketing.info/dashboard/api/", { demand: "calendar_list" }, { headers }),
             ]);
-            setCalendar(calendarRes.data);
-            setModalOriginalList(calendarRes.data);
+            setCalendar(calendarRes.data.event ?? []);
+            setModalOriginalList(calendarRes.data.event ?? []);
             const newShopList = [{ shop: 'khg', brand: '' }, ...shopRes.data]
             setShopList(newShopList);
-            setOriginalResponse(calenderRegisterRes.data);
+            setOriginalResponse(calendarRes.data.reserved ?? []);
         };
 
         fetchData();
@@ -345,11 +350,11 @@ const Company = () => {
 
                 for (const s of targets) {
                     try {
-                        const response = await axios.post(url, {
+                        const response = await apiClient.post('', {
                             ...newEventData,
                             shop: s.shop,
-                            demand: 'calendar_add'
-                        }, { headers });
+                            request: 'calendar_add'
+                        });
 
                         setCalendar(response.data);
                         setModalOriginalList(response.data);
@@ -365,10 +370,10 @@ const Company = () => {
                 const postData = {
                     ...newEventData,
                     shop: targetShop,
-                    demand: 'calendar_add'
+                    request: 'calendar_add'
                 };
                 const fetchData = async () => {
-                    const response = await axios.post(url, postData, { headers });
+                    const response = await apiClient.post('', postData);
                     setCalendar(response.data);
                     setModalOriginalList(response.data);
                 };
@@ -410,15 +415,20 @@ const Company = () => {
         if (eventData.url !== '') requestArray.push('url');
 
         if (numberKey.some(n => requestArray.includes(n))) {
+            /**
+             * ⚠️⚠️ **枝分かれは `roll` で指定する**（2026-09-30 / v2.2.155）。
+             *   ⚠️ 旧APIは `request` を使っていたが、
+             *     ⚠️ ⚠️ **新しいAPIでは `request` が振り分けそのものに使われる。**
+             */
             const postData = {
                 ...eventData,
                 id: eventData.id ?? 0,
-                demand: 'calendar_change',
-                request: 'response_change',
+                request: 'calendar_change',
+                roll: 'response_change',
                 requestArray: requestArray
             };
             const fetchData = async () => {
-                const response = await axios.post(url, postData, { headers });
+                const response = await apiClient.post('', postData);
                 setOriginalResponse(response.data);
             };
             await fetchData();
@@ -427,13 +437,12 @@ const Company = () => {
         if (eventKey.some(n => requestArray.includes(n))) {
             const postData = {
                 ...eventData,
-                demand: 'calendar_change',
                 request: 'calendar_change',
+                roll: 'calendar_change',
                 requestArray: requestArray
             };
-            console.log(postData)
             const fetchData = async () => {
-                const response = await axios.post(url, postData, { headers });
+                const response = await apiClient.post('', postData);
                 setCalendar(response.data);
                 setModalOriginalList(response.data);
             };
@@ -461,15 +470,14 @@ const Company = () => {
     };
 
     const deleteEvent = async (idValue: number) => {
-        const url = 'https://khg-marketing.info/dashboard/api/';
         const postData = {
             id: idValue,
-            demand: 'calendar_change',
-            request: 'delete_calendar'
+            request: 'calendar_change',
+            roll: 'delete_calendar'
         }
 
         const fetchData = async () => {
-            const response = await axios.post(url, postData, { headers });
+            const response = await apiClient.post('', postData);
             console.log(postData)
             console.log(response.data)
 

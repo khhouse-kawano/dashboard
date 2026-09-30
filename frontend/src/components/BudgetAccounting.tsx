@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext } from "react";
 import Table from "react-bootstrap/Table";
-import axios from "axios";
+import apiClient from '../utils/apiClient';
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 
 type Medium = { medium: string, category: string, sort_key: number, response_medium: number, list_medium: number, ma_medium: number, ma_category: string };
@@ -27,19 +27,20 @@ const BudgetAccounting = () => {
   const [staff, setStaff] = useState<Staff[]>([]);
 
   useEffect(() => {
-    const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
+    /**
+     * ⚠️⚠️ **2026-09-30（v2.2.155）に旧APIから移した。**
+     *   ⚠️ 旧: `https://khg-marketing.info/dashboard/api/` へ `demand` を4回。
+     *     ⚠️ ⚠️ **旧APIはサーバーから失われている。**
+     *   ⚠️ 新: `apiClient` で `request: 'budget_accounting'` を1回。
+     *   ⚠️ ⚠️ **合い言葉（Authorization）の直書きもやめた。** ⚠️ apiClient が持っている。
+     */
     const fetchData = async () => {
-      const [shopRes, mediumRes, budgetRes, staffRes] = await Promise.all([
-        axios.post("https://khg-marketing.info/dashboard/api/", { demand: "shop_list_accounting" }, { headers }),
-        axios.post("https://khg-marketing.info/dashboard/api/", { demand: "medium_list_accounting" }, { headers }),
-        axios.post("https://khg-marketing.info/dashboard/api/", { demand: "budget_accounting" }, { headers }),
-        axios.post("https://khg-marketing.info/dashboard/api/", { demand: "staff_count" }, { headers }),
-      ]);
+      const res = await apiClient.post('', { request: 'budget_accounting' });
 
-      setShop(shopRes.data);
-      setMedium(mediumRes.data);
-      setOriginalBudget(budgetRes.data);
-      setStaff(staffRes.data);
+      setShop(res.data.shop ?? []);
+      setMedium(res.data.medium ?? []);
+      setOriginalBudget(res.data.budget ?? []);
+      setStaff(res.data.staff ?? []);
     };
     setOriginalMonthArray(getYearMonthArray(2025, 6));
     fetchData();
