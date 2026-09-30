@@ -46,6 +46,12 @@ interface CustomerItem extends Record<string, any> {
     customer_contacts_name_kana?: string;
     staff?: string;
     phone_number?: string;
+    /**
+     * メールアドレス。
+     * ⚠️⚠️ **2026-09-30 に返すようにした列**（v2.2.154）。
+     *   ⚠️ ⚠️ **①② の両方のSQLに入っていないと undefined になり、検索が常に0件になる。**
+     */
+    mail?: string;
     full_address?: string;
     search_address?: string;
     _cleanCustomer?: string;
@@ -68,6 +74,16 @@ type Props = {
 const safeFormate = (value?: string) => (value ?? '').replace(/-/g, '/');
 const dateFormate = (value?: string) => (value ?? '').replace(/\//g, '-');
 const strIncludes = (val: any, sub: string) => sub ? String(val ?? '').includes(sub) : true;
+/**
+ * 大文字小文字を区別しない部分一致。
+ *
+ * ⚠️⚠️ **メールアドレスの検索にだけ使う**（2026-09-30 / v2.2.154）。
+ *   ⚠️ ⚠️ **他の検索欄は区別する作りのまま。** ⚠️ 勝手に揃えないこと。
+ *   ⚠️ メールは台帳に `Taro@…` と `taro@…` が混在するため、
+ *     ⚠️ **区別すると「あるはずの顧客が出ない」という形で外れる。**
+ */
+const strIncludesCI = (val: any, sub: string) =>
+    sub ? String(val ?? '').toLowerCase().includes(sub.toLowerCase()) : true;
 const arrIncludes = (arr: any, v: any) => v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true;
 
 
@@ -126,6 +142,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
     const staffSearch = useDebounce('', 300);
     const phoneSearch = useDebounce('', 300);
     const addressSearch = useDebounce('', 300);
+    /** ⚠️ メールアドレス。⚠️ **大文字小文字を区別しない**（strIncludesCI） */
+    const mailSearch = useDebounce('', 300);
     const familySearch = useDebounce('', 300);
     const isSp = useIsSp();
 
@@ -254,6 +272,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
                 && ((phoneSearch.debouncedValue || nameSearch.debouncedValue) ? strIncludes(item.phone_number, formattedNumber) : true)
                 && (formattedAddress ? strIncludes(item.full_address, formattedAddress) : true)
                 && (addressSearch.debouncedValue ? strIncludes(item.search_address, addressSearch.debouncedValue) : true)
+                // ⚠️ メールだけ大文字小文字を区別しない（strIncludesCI）
+                && (mailSearch.debouncedValue ? strIncludesCI(item.mail, mailSearch.debouncedValue) : true)
                 && (familySearch.debouncedValue ? filteredFamilyID.includes(item.id) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
                 && (familyStatus ? familyIds.includes(item.id) : true)
@@ -287,6 +307,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
         originalDatabase, selectedShop, selectedStaff, selectedRegister, selectedReserve,
         selectedRank, selectedMedium, selectedStatus, nameSearch.debouncedValue,
         staffSearch.debouncedValue, phoneSearch.debouncedValue, callStatus, addressSearch.debouncedValue,
+        // ⚠️⚠️ **入れ忘れると、入力しても一覧が絞り込まれない**
+        mailSearch.debouncedValue,
         familySearch.debouncedValue, selectedIntroductory, trash, familyList, familyStatus,
         snapStatus, searchedEvent, hotleadStatus, hotleadList
     ]);
@@ -537,6 +559,11 @@ const DatabaseOrder = ({ onReload }: Props) => {
                         <div className="m-1">
                             <input className="target" placeholder='電話番号で検索'
                                 value={phoneSearch.inputValue} onChange={phoneSearch.onChange} />
+                        </div>
+                        <div className="m-1">
+                            {/* ⚠️ 電話番号の隣に置く（⚠️ **連絡先の欄をまとめる**）。⚠️ 大文字小文字は区別しない */}
+                            <input className="target" placeholder='メールアドレスで検索'
+                                value={mailSearch.inputValue} onChange={mailSearch.onChange} />
                         </div>
                         <div className="m-1">
                             <input className="target" placeholder='住所で検索'
