@@ -4,6 +4,8 @@ import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../context/AuthContext';
 import apiClient from '../utils/apiClient';
 import { useIsSp } from '../utils/isSp';
+// ⚠️ 店舗名 → ブランド色。⚠️ **対応表はあちらに持たせたまま使う**（brandColor を参照）
+import { setStyleClass } from '../utils/setStyleClass';
 
 /**
  * 注文営業のダッシュボードを開いた直後に出す「要確認」。
@@ -134,6 +136,20 @@ const orDash = (value?: string): string => (value ?? '').trim() === '' ? '-' : (
  *   ⚠️ ⚠️ **店舗別カードはこの表の上にだけ出す。**
  */
 const UNSYNC_LABEL = '未同期';
+
+/**
+ * 店舗名からブランドの色を引く（2026-09-30 追加）。
+ *
+ * ⚠️⚠️ **色の対応表は `utils/setStyleClass.ts` に持たせたまま使う。**
+ *   ⚠️ ⚠️ **ここに書き写さないこと。** ⚠️ ブランドが増えたときに片方だけ古くなる。
+ *   ⚠️ あちらは「ベタ塗り＋白文字」の style を返すので、⚠️ **背景色だけ borrow する。**
+ *
+ * ⚠️ 該当が無ければ灰色（⚠️ `店舗未設定` や新しいブランド）。
+ */
+const brandColor = (shop: string): string => {
+    const color = setStyleClass(shop).backgroundColor;
+    return typeof color === 'string' && color !== '' ? color : '#9ca3af';
+};
 
 /**
  * 未同期の行を店舗ごとに数える（2026-09-30 追加）。
@@ -337,10 +353,19 @@ const DailyAction = () => {
                  *   ⚠️ 上のまとめ（da_kpi_card）より一回り小さくする。
                  */
                 .da_shops { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-                .da_shop_card { display: inline-flex; align-items: baseline; gap: 6px;
-                                background: #fef2f2; border: 1px solid #fecaca;
+                /*
+                 * ⚠️⚠️ **ブランド色は「点」にだけ使う**（2026-09-30 の指示）。
+                 *   ⚠️ setStyleClass はベタ塗り＋白文字を返すが、
+                 *     ⚠️ ⚠️ **14枚も並ぶとベタ塗りでは色がうるさく、件数が読みにくい。**
+                 *   ⚠️ ⚠️ **#28aeba のような明るい色は、白地の小さな文字だと読めない**ため
+                 *     ⚠️ **文字色には使わない。**
+                 *   ⚠️⚠️ **点＝どのブランドか / 赤い数字＝放置件数**、と役割を分けてある。
+                 */
+                .da_shop_card { display: inline-flex; align-items: center; gap: 6px;
+                                background: #fff; border: 1px solid #e5e7eb;
                                 border-radius: 999px; padding: 3px 10px; font-size: 11px;
-                                color: #7f1d1d; white-space: nowrap; }
+                                color: #374151; white-space: nowrap; }
+                .da_shop_dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
                 .da_shop_count { font-weight: 700; color: #b91c1c;
                                  font-variant-numeric: tabular-nums; }
 
@@ -492,6 +517,11 @@ const DailyAction = () => {
                             <div className='da_shops'>
                                 {countByShop(section.rows).map((item) => (
                                     <span className='da_shop_card' key={item.shop}>
+                                        {/* ⚠️ ブランド色は点だけ。⚠️ **文字色には使わない**（薄い色が読めない） */}
+                                        <span
+                                            className='da_shop_dot'
+                                            style={{ backgroundColor: brandColor(item.shop) }}
+                                        />
                                         {item.shop}
                                         <span className='da_shop_count'>{item.count.toLocaleString()}</span>
                                     </span>
