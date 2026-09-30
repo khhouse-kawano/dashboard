@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react'
 import { Table, Modal, Button, Form, Badge, ButtonGroup } from "react-bootstrap";
-import axios from 'axios';
-import { headers } from '../utils/headers';
+import apiClient from '../utils/apiClient';
 import InformationEdit from './information/InformationEdit';
 import AuthContext from '../context/AuthContext';
 
@@ -31,7 +30,7 @@ const CancelList = ({ cancelListShow, setCancelListShow, onReload, shopArray }: 
         if (!cancelListShow) return;
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'cancelList' }, { headers });
+                const response = await apiClient.post('', { request: 'cancelList' });
                 setForm(response.data.form);
                 setSurveyList(response.data.survey);
                 setOriginalMasterDataList(response.data.customer);
@@ -70,7 +69,7 @@ const CancelList = ({ cancelListShow, setCancelListShow, onReload, shopArray }: 
         }
 
         try {
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+            const response = await apiClient.post('', postData);
             setMasterDataList(response.data.customer);
         } catch (e) {
             console.log(e);

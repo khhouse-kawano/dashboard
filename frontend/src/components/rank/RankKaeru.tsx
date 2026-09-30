@@ -337,7 +337,10 @@ const RankOrder = () => {
 
         const postData = {
             ...newExpected,
-            demand: 'contract_ex_update'
+            // ⚠️⚠️ **2026-09-30（v2.2.155）に旧APIから移した。**
+            //   ⚠️ 受け口（handlers/contract_ex_update.php）は元からあり、
+            //     ⚠️ ⚠️ **フロントだけが旧APIを向いていた。**
+            request: 'contract_ex_update'
         };
         const fetchData = async () => {
             try {
