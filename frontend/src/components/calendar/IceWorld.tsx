@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Table from "react-bootstrap/Table";
 import Modal from "react-bootstrap/Modal";
-import axios from "axios";
-import { headers } from '../utils/headers';
+import apiClient from '../../utils/apiClient';
 import Badge from 'react-bootstrap/Badge';
 
 type Shop = { brand: string, shop: string };

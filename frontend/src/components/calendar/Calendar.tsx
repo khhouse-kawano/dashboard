@@ -4,7 +4,7 @@ import Table from "react-bootstrap/Table";
 import apiClient from '../../utils/apiClient';
 import { colorCodes } from "../../utils/colors";
 import Modal from 'react-bootstrap/Modal';
-import IceWorld from '../IceWorld';
+import IceWorld from './IceWorld';
 import CalendarHeader from './CalendarHeader';
 
 type Calendar = { id: number, shop: string, startDate: string, endDate: string, category: string, title: string, flag: number, color: string, note: string, url: string };
