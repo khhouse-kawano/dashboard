@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
-import axios from 'axios';
-import { headers } from '../../utils/headers';
+import apiClient from '../../utils/apiClient';
 import { dateFormate } from '../list/listUtils';
 
 type Props = {
@@ -22,7 +21,7 @@ export const PastCustomer = ({ pastCustomerShow, setPastCustomerShow }: Props) =
         if (!pastCustomerShow) return;
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'past_customer' }, { headers });
+                const response = await apiClient.post('', { request: 'past_customer' });
                 setCustomers(response.data.customer);
             } catch (error) {
                 console.error("Error fetching data:", error);

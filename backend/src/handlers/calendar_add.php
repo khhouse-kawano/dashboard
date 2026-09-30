@@ -11,19 +11,16 @@
  *   ⚠️ reserved / new / next / registered は ⚠️ **登録時は使わない**（あとで実績として入れる）。
  *
  * ⚠️⚠️ **登録後、イベントの一覧をそのまま返す。**
- *   ⚠️ 画面が返り値をそのまま `setCalendar` に入れるため。
- *   ⚠️ ⚠️ **形を変えないこと。** ⚠️ `calendar.php` の `event` と同じ形である。
+ *   ⚠️ 画面が返り値をそのまま `setCalendar` に入れるため。⚠️ **形を変えないこと。**
  *
  * ⚠️ 全店舗へ登録するときは、⚠️ **画面が店舗ごとにこの処理を呼ぶ**（ここは1件ずつ）。
  * ─────────────────────────────────────────────
  */
 
-/**
- * ⚠️⚠️ **ログインしている利用者だけに返す。**
- *   ⚠️ ⚠️ **旧APIは合い言葉（Authorization）だけで誰でも叩けた。**
- *     ⚠️ 移植にあわせて、⚠️ **他の画面と同じトークン確認に揃えてある。**
- */
 require_once __DIR__ . '/../core/authz.php';
+require_once __DIR__ . '/../core/calendar.php';
+
+/** ⚠️⚠️ **ログインしている利用者だけ。** ⚠️ 旧APIは合い言葉だけだった */
 requireStaff($pdo, $headers);
 
 $title     = trim((string)($data['title'] ?? ''));
@@ -46,8 +43,7 @@ try {
                 (startDate, endDate, category, title, shop, flag, `new`, reserved, registered, `next`, note, url)
             VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
+    $pdo->prepare($sql)->execute([
         $startDate,
         $endDate,
         (string)($data['category'] ?? ''),
@@ -59,12 +55,7 @@ try {
         (string)($data['url'] ?? ''),
     ]);
 
-    // ⚠️⚠️ **一覧を返す。** ⚠️ `flag = 1` の条件は calendar.php と揃えること
-    $event = $pdo
-        ->query('SELECT * FROM event_calendar WHERE flag = 1')
-        ->fetchAll(PDO::FETCH_ASSOC);
-
-    echo json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    echo json_encode(calendarEvents($pdo), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode([

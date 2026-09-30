@@ -3,7 +3,6 @@ import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
 import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
-import axios from 'axios';
 import {
   Bar,
   BarChart,

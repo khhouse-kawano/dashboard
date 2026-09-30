@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import Table from 'react-bootstrap/Table';
 import BsForm from 'react-bootstrap/Form';
-import axios from 'axios';
 import { headers } from '../../utils/headers';
 import AuthContext from '../../context/AuthContext';
 import apiClient from '../../utils/apiClient';
