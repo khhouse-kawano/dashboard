@@ -10,7 +10,7 @@ import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
 import Estate from '../Estate';
 import KSnap from './KSnap';
-import IceWorld from '../IceWorld';
+import IceWorld from '../calendar/IceWorld';
 import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate, statusRequiredError } from '../../utils/informationUtils';
 import { kpiColumnFor } from '../../utils/interviewKpi';
 import TableInput from './TableInput';

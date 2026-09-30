@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Table from "react-bootstrap/Table";
-import { headers } from '../utils/headers';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import Form from 'react-bootstrap/Form';
 import Modal from 'react-bootstrap/Modal';
 
@@ -45,7 +44,7 @@ const SurveyList = ({ surveyShow, setSurveyShow }: Props) => {
         if (!surveyShow) return;
         const fetchData = async () => {
             try {
-                const response = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: 'survey' }, { headers });
+                const response = await apiClient.post('', { request: 'survey' });
                 const filteredShop = response.data.shop.filter(s => !s.shop.includes('未設定'));
                 const checkedShop = {};
                 filteredShop.forEach(s => {

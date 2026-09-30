@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
-import axios from 'axios';
-import { headers } from '../utils/headers';
+import apiClient from '../utils/apiClient';
 import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import { useContext } from "react";
 import { GoogleMapContext } from "../context/GoogleMapContext";
@@ -41,7 +40,7 @@ const EstateInfo = ({ propertyId, setPropertyId }: Props) => {
     useEffect(() => {
         if (!targetId) return;
         const fetchData = async () => {
-            const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: 'estateInfo', id: targetId }, { headers });
+            const response = await apiClient.post('', { request: 'estateInfo', id: targetId });
             setPropertyInfo(response.data.estate);
         };
 

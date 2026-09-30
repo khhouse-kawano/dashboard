@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Table from "react-bootstrap/Table";
 import Modal from "react-bootstrap/Modal";
-import axios from "axios";
-import { headers } from '../utils/headers';
+import apiClient from '../../utils/apiClient';
 import Badge from 'react-bootstrap/Badge';
 
 type Shop = { brand: string, shop: string };
@@ -31,7 +30,7 @@ const IceWorld = ({ shopList, editId, showIceWorld, setShowIceWorld }: Props) =>
     useEffect(() => {
         if (!showIceWorld) return;
         const fetchData = async () => {
-            const customerResponse = await axios.post("https://khg-marketing.info/dashboard/api/gateway/", { request: "ice_world" }, { headers });
+            const customerResponse = await apiClient.post('', { request: 'ice_world' });
             setOriginalCustomerList(customerResponse.data.customer);
             setCustomerList(customerResponse.data.customer);
         };
@@ -134,10 +133,13 @@ const IceWorld = ({ shopList, editId, showIceWorld, setShowIceWorld }: Props) =>
         const postData = {
             id: reserve.id,
             ice_world: newIceWorldValue,
-            demand: 'update_iceWorld'
+            // ⚠️⚠️ **2026-09-30（v2.2.155）に旧APIから移した。**
+            //   ⚠️ 旧: demand: 'update_iceWorld'（⚠️ **旧APIは失われている**）
+            //   ⚠️ 新: handlers/ice_world.php が id つきの呼び出しを更新として扱う
+            request: 'ice_world'
         };
         try {
-            await axios.post("https://khg-marketing.info/dashboard/api/", postData, { headers });
+            await apiClient.post('', postData);
 
             setOriginalCustomerList(prev =>
                 prev.map(c => c.id === reserve.id ? { ...c, ice_world: newIceWorldValue } : c)

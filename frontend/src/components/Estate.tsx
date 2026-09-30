@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Table from 'react-bootstrap/Table';
-import axios from 'axios';
-import { headers } from '../utils/headers';
+import apiClient from '../utils/apiClient';
 import { townList } from '../utils/townList';
 import Modal from 'react-bootstrap/Modal';
 import EstateInfo from './EstateInfo';
@@ -78,7 +77,7 @@ const Estate = ({ estateId, setEstateId, source }: Props) => {
 
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: 'estate', id: targetId }, { headers, timeout: 20000 });
+                const response = await apiClient.post('', { request: 'estate', id: targetId }, { timeout: 20000 });
                 setOriginalList(response.data.estate);
 
                 const rawArea = response.data.area?.area;
@@ -218,7 +217,7 @@ const Estate = ({ estateId, setEstateId, source }: Props) => {
             }
             console.log(postData)
             if (estateId !== 'search') {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', postData, { headers });
+                const response = await apiClient.post('', postData);
             }
 
             setEstateId('');

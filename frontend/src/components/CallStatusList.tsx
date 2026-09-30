@@ -3,8 +3,7 @@ import Table from 'react-bootstrap/Table';
 import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
 import Badge from 'react-bootstrap/Badge';
-import axios from 'axios';
-import { headers } from '../utils/headers';
+import apiClient from '../utils/apiClient';
 import { staffSorter } from '../utils/staffSorter';
 import { getYearMonthArray } from '../utils/getYearMonthArray';
 import { thisYear } from '../utils/thisYear';
@@ -93,7 +92,7 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
         if (!callStatusShow) return;
         const fetchData = async () => {
             try {
-                const response = await axios.post('https://khg-marketing.info/dashboard/api/gateway/', { request: 'callStatusList', category: categoryValue }, { headers });
+                const response = await apiClient.post('', { request: 'callStatusList', category: categoryValue });
                 setCallLogList(response.data.callLog);
                 const divisionMapping: Record<string, string> = {
                     'order': '注文事業',
