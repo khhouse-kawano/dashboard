@@ -4,6 +4,8 @@ import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../context/AuthContext';
 import apiClient from '../utils/apiClient';
 import { useIsSp } from '../utils/isSp';
+// ⚠️ 店舗名 → ブランド色。⚠️ **対応表はあちらに持たせたまま使う**（brandColor を参照）
+import { setStyleClass } from '../utils/setStyleClass';
 
 /**
  * 注文営業のダッシュボードを開いた直後に出す「要確認」。
@@ -127,6 +129,48 @@ const orUnset = (value: string): string => (value ?? '').trim() === '' ? '(未�
  *   ⚠️ 実測で ⚠️ **9割以上が空**なので、⚠️ **短い記号のほうが表が静かになる。**
  */
 const orDash = (value?: string): string => (value ?? '').trim() === '' ? '-' : (value ?? '');
+
+/**
+ * ⚠️⚠️ **未同期の表の見出し。**
+ *   ⚠️ サーバー（features/dailyAction.ts）が付けている名前と同じにすること。
+ *   ⚠️ ⚠️ **店舗別カードはこの表の上にだけ出す。**
+ */
+const UNSYNC_LABEL = '未同期';
+
+/**
+ * 店舗名からブランドの色を引く（2026-09-30 追加）。
+ *
+ * ⚠️⚠️ **色の対応表は `utils/setStyleClass.ts` に持たせたまま使う。**
+ *   ⚠️ ⚠️ **ここに書き写さないこと。** ⚠️ ブランドが増えたときに片方だけ古くなる。
+ *   ⚠️ あちらは「ベタ塗り＋白文字」の style を返すので、⚠️ **背景色だけ borrow する。**
+ *
+ * ⚠️ 該当が無ければ灰色（⚠️ `店舗未設定` や新しいブランド）。
+ */
+const brandColor = (shop: string): string => {
+    const color = setStyleClass(shop).backgroundColor;
+    return typeof color === 'string' && color !== '' ? color : '#9ca3af';
+};
+
+/**
+ * 未同期の行を店舗ごとに数える（2026-09-30 追加）。
+ *
+ * ⚠️⚠️ **件数の多い店舗から並べる**（指示）。
+ *   ⚠️ 同数のときは ⚠️ **店舗名の順**にする（⚠️ **並びが毎回変わるのを防ぐため**）。
+ *
+ * ⚠️ ⚠️ **数えているのは「画面に出ている行」である。**
+ *   ⚠️⚠️ **上限（200行）で切られているときは実際より少ない。**
+ *     ⚠️ そのことは `truncated` の注意書きで伝えている。
+ */
+const countByShop = (rows: Row[]): { shop: string; count: number }[] => {
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+        const shop = orUnset(row.shop);
+        counts.set(shop, (counts.get(shop) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+        .map(([shop, count]) => ({ shop, count }))
+        .sort((a, b) => (b.count - a.count) || a.shop.localeCompare(b.shop, 'ja'));
+};
 
 const DailyAction = () => {
     const { category } = useContext(AuthContext);
@@ -294,6 +338,36 @@ const DailyAction = () => {
                 .da_title { font-weight: 700; font-size: 15px; letter-spacing: .02em;
                             color: #1f2937; }
                 .da_note { font-size: 11px; color: #6b7280; }
+                /*
+                 * ⚠️ 見落とされると困る但し書き（2026-09-30 の指示）。
+                 *   ⚠️⚠️ **太字にして、少しだけ目立たせる。**
+                 *   ⚠️ ⚠️ **赤にはしない。** ⚠️ 放置日数の赤と意味が混ざる。
+                 */
+                .da_note_strong { font-size: 11px; font-weight: 700; color: #b45309;
+                                  background: #fffbeb; border: 1px solid #fde68a;
+                                  border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+
+                /*
+                 * ⚠️ 未同期のある店舗のカード（2026-09-30 の指示）。
+                 *   ⚠️⚠️ **未同期の表の上にだけ出す。** ⚠️ 他の表には出さない。
+                 *   ⚠️ 上のまとめ（da_kpi_card）より一回り小さくする。
+                 */
+                .da_shops { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+                /*
+                 * ⚠️⚠️ **ブランド色は「点」にだけ使う**（2026-09-30 の指示）。
+                 *   ⚠️ setStyleClass はベタ塗り＋白文字を返すが、
+                 *     ⚠️ ⚠️ **14枚も並ぶとベタ塗りでは色がうるさく、件数が読みにくい。**
+                 *   ⚠️ ⚠️ **#28aeba のような明るい色は、白地の小さな文字だと読めない**ため
+                 *     ⚠️ **文字色には使わない。**
+                 *   ⚠️⚠️ **点＝どのブランドか / 赤い数字＝放置件数**、と役割を分けてある。
+                 */
+                .da_shop_card { display: inline-flex; align-items: center; gap: 6px;
+                                background: #fff; border: 1px solid #e5e7eb;
+                                border-radius: 999px; padding: 3px 10px; font-size: 11px;
+                                color: #374151; white-space: nowrap; }
+                .da_shop_dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+                .da_shop_count { font-weight: 700; color: #b91c1c;
+                                 font-variant-numeric: tabular-nums; }
 
                 /**
                  * ⚠️⚠️ **サマリーは Modal.Body の外（ヘッダー側）に置いてある。**
@@ -379,9 +453,12 @@ const DailyAction = () => {
 
             {/* ⚠️ closeButton は付けない（指示）。閉じるのは背景クリックか「確認しました」 */}
             <Modal.Header className='da_head'>
-                <div className='d-flex align-items-baseline' style={{ gap: '10px' }}>
+                {/* ⚠️ 但し書きが増えたので折り返す。⚠️ **狭い画面ではみ出さないように** */}
+                <div className='d-flex align-items-baseline flex-wrap' style={{ gap: '10px' }}>
                     <span className='da_title'>要確認</span>
                     <span className='da_note'>対応が必要な顧客と、本日の予定です</span>
+                    {/* ⚠️⚠️ **本日ぶんを数えていないことを明示する**（2026-09-30 の指示） */}
+                    <span className='da_note_strong'>本日の反響については未同期数に含みません</span>
                 </div>
 
                 {/*
@@ -430,6 +507,28 @@ const DailyAction = () => {
                             <span className='da_section_title'>{section.label}</span>
                             <span className='da_section_count'>{section.rows.length.toLocaleString()}件</span>
                         </div>
+
+                        {/*
+                          ⚠️⚠️ **未同期の表の上にだけ、店舗ごとの件数を出す**（2026-09-30 の指示）。
+                            ⚠️ ⚠️ **多い店舗から並べる。**
+                            ⚠️ 他の表（来場日未入力・本日の予定）には出さない。
+                        */}
+                        {section.label === UNSYNC_LABEL && (
+                            <div className='da_shops'>
+                                {countByShop(section.rows).map((item) => (
+                                    <span className='da_shop_card' key={item.shop}>
+                                        {/* ⚠️ ブランド色は点だけ。⚠️ **文字色には使わない**（薄い色が読めない） */}
+                                        <span
+                                            className='da_shop_dot'
+                                            style={{ backgroundColor: brandColor(item.shop) }}
+                                        />
+                                        {item.shop}
+                                        <span className='da_shop_count'>{item.count.toLocaleString()}</span>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
                         <div className='da_table_wrap'>
                             <table className='da_table'>
                                 <thead>
