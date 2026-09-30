@@ -86,6 +86,14 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
   COALESCE(full_address, '') AS full_address,
   COALESCE(hp_campaign, '') AS hp_campaign,
   COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number,
+  /*
+    ⚠️ 2026-09-30 に追加（v2.2.154）。DatabaseOrder.tsx のメールアドレス検索で使う。
+      ⚠️ ⚠️ **返さないと画面側が undefined になり、検索しても常に0件になる。**
+      ⚠️ ① の databaseAction/database_order.php にも同じ1行を足してある。
+      ⚠️⚠️ **建売・中古は mail_2（extra_address_info）も返しているが、注文には無い。**
+      ⚠️⚠️ **ここはテンプレート文字列の中なのでバッククォートを書かないこと**（文字列が終わる）。
+  */
+  COALESCE(customer_contacts_email, '') AS mail,
   COALESCE(introduction_person_category, '') AS introduction_person_category,
   COALESCE(competitor_lost_contract_reason, '') AS competitor_lost_contract_reason,
   COALESCE(competitors_text, '') AS competitors_text,
