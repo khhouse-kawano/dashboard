@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react'
 import { useLocation } from "react-router-dom";
 import Table from "react-bootstrap/Table";
-import axios from "axios";
 import apiClient from '../../utils/apiClient';
 import { colorCodes } from "../../utils/colors";
 import Modal from 'react-bootstrap/Modal';
@@ -115,8 +114,6 @@ const Company = () => {
     const todayDate = today.getDate();
     const year = today.getFullYear();
     const month = today.getMonth() + 1;
-    const headers = { Authorization: '4081Kokubu', 'Content-Type': 'application/json' };
-    const url = 'https://khg-marketing.info/dashboard/api/';
     const numberKey = ['reserved', 'new', 'next', 'registered'];
     const eventKey = ['title', 'startDate', 'endDate', 'note', 'url'];
 
@@ -151,7 +148,9 @@ const Company = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const response = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "customer_list" }, { headers });
+            // ⚠️⚠️ **2026-09-30（v2.2.155）に旧APIから移した。**
+            //   ⚠️ ⚠️ **PGクラウド側の実績**（表の括弧内の数値）
+            const response = await apiClient.post('', { request: 'customer_list' });
             setCustomer(response.data);
         };
 
