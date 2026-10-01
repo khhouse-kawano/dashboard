@@ -87,6 +87,22 @@ const COMMON_SELECT = `
  *
  * ⚠️ `i.no` を返すこと。⚠️ 画面側で反響と顧客を対応づけるのに使う。
  */
+/**
+ * その顧客テーブルに入る事業区分。
+ *
+ * ⚠️⚠️ **突合は `master_data_id` だけで行わない。`division` と組で見る。**
+ *   ⚠️ ⚠️ **id は3つのテーブルで重複しうる**（⚠️ ULIDを別々に採番している）。
+ *     ⚠️ 区分を見ないと、⚠️⚠️ **注文の反響が中古の顧客に当たって
+ *       同じ反響が2回数えられる**ことがある。
+ *   ⚠️ ⚠️ **同期先は区分で決まっている**（features/ambassador/index.ts）。
+ *     ⚠️ 区分で絞るのが本来の姿である。
+ */
+const DIVISION_OF: Record<string, string> = {
+  master_data: '注文',
+  master_data_kaeru: '建売',
+  master_data_resale: '中古',
+};
+
 const selectFor = (table: string): string => {
   const contract = CONTRACT_COLUMNS[table];
 
@@ -109,6 +125,9 @@ const selectFor = (table: string): string => {
      WHERE i.ambassador_no IS NOT NULL
        AND i.sync = 1
        AND COALESCE(i.master_data_id, '') <> ''
+       -- ⚠️⚠️ **区分でも絞る。** ⚠️ id だけで突合すると、
+       --   ⚠️ 別テーブルの同じ id に当たって**同じ反響が2回数えられる。**
+       AND i.division = ?
   `;
 };
 
@@ -165,11 +184,15 @@ const INQUIRY_SQL = `
  *   ⚠️ 将来increaseしたら、画面側の集計をサーバーへ寄せることを検討する。
  */
 export const runAmbassadorKpi = async (): Promise<AmbassadorResult> => {
+  // ⚠️ 区分は値なのでプレースホルダで渡す。⚠️ テーブル名だけが組み立て
+  const forTable = (table: string) =>
+    query<CustomerRow>(selectFor(table), [DIVISION_OF[table]]);
+
   const [inquiry, order, spec, used] = await Promise.all([
     query<InquiryRow>(INQUIRY_SQL),
-    query<CustomerRow>(selectFor('master_data')),
-    query<CustomerRow>(selectFor('master_data_kaeru')),
-    query<CustomerRow>(selectFor('master_data_resale')),
+    forTable('master_data'),
+    forTable('master_data_kaeru'),
+    forTable('master_data_resale'),
   ]);
 
   return {
