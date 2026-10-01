@@ -8,6 +8,7 @@ import {
 } from '../features/ambassador';
 import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
 import { runAmbassadorKpi } from '../features/ambassador/kpi';
+import { runStaffContract } from '../features/staffContract';
 import { runAmbassadorMaster } from '../features/ambassador/master';
 import {
   runInquiryIntroductoryList,
@@ -2343,6 +2344,51 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runInquiryUpdateNewCustomer(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 営業別の契約率（日報 → 営業別契約率）
+//
+// ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある。**
+//   ⚠️ ⚠️ **core/express_proxy.php の両方のリストに入れること**
+//     （expressProxyRequests と expressProxyExclusive）。
+//     ⚠️ 片方だけだと ① が404を返し、画面には何も出ない。
+//
+// ⚠️⚠️ **Master と BrandAdmin だけが見られる**（Header.tsx のメニューと同じ条件）。
+//   ⚠️ ⚠️ **画面で隠すだけにしないこと。** ⚠️ 直接叩けば誰でも取れてしまう。
+//
+// ⚠️⚠️ **`auth: 'master'` は使えない。** ⚠️ あちらは `Master` しか通さない。
+//   ⚠️ `auth: 'staff'` で本人を特定したうえで、⚠️ **ここで権限を確かめる。**
+//   ⚠️ ⚠️ **応答の形は `auth: 'master'` と同じ**にしてある
+//     （⚠️ 403 ＋ 「この操作を行う権限がありません。」）。
+// ---------------------------------------------------------------------------
+
+/**
+ * 営業別契約率を見られる権限。
+ *
+ * ⚠️⚠️ **`BrandAdimn`（綴り違い）が実データに1件ある。** ⚠️ **ここには入れない。**
+ *   ⚠️ 権限の判定を綴り違いに合わせると、⚠️ **誤記がそのまま仕様になる。**
+ *   ⚠️ ⚠️ **staff 側の値を直すこと。**
+ */
+const STAFF_CONTRACT_AUTHORITY = ['Master', 'BrandAdmin'];
+
+register({
+  request: 'staff_contract',
+  summary: '営業別の商談顧客数・次アポ数・契約数（Master / BrandAdmin のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const brand = ctx.staff?.brand ?? '';
+    if (!STAFF_CONTRACT_AUTHORITY.includes(brand)) {
+      ctx.res.status(403);
+      return { status: 'error', message: 'この操作を行う権限がありません。' };
+    }
+
+    const period = typeof ctx.body.period === 'string' ? ctx.body.period : '';
+    const result = await runStaffContract(period);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
