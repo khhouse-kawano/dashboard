@@ -14,7 +14,7 @@
 | 要るもの | |
 |---|---|
 | Node.js 20 以上 | ⚠️ 入っていなければ https://nodejs.org/ の LTS |
-| ⚠️ **展開済みのフォルダ** | ⚠️ `khg-analysis-mcp-offline.zip` を展開したもの（⚠️ **`node_modules` 入り**） |
+| ⚠️ **展開済みのフォルダ** | ⚠️ 配られた zip を展開したもの（⚠️ **`node_modules` 入り**） |
 | APIキー | ⚠️ `khg_kpi_` で始まる文字列 |
 
 ⚠️⚠️ **PowerShell は「Windows PowerShell」を1つだけ開き、最後まで同じ窓で行う。**
@@ -46,7 +46,10 @@ node -v
 $src = "ここに貼る"
 ```
 
-⚠️ 例: `$src = "C:\Users\user\Documents\khg-analysis-mcp-offline\khg-analysis-mcp-offline"`
+⚠️ 例: `$src = "C:\Users\user\Documents\tsconfig"`
+
+⚠️⚠️ **`dist` と `node_modules` が直接入っているフォルダ**を指すこと。
+⚠️ ⚠️ **展開の仕方によっては1つ深くなる**（⚠️ `...\tsconfig\tsconfig`）。⚠️ 次の手順で確かめる。
 
 ---
 
@@ -340,8 +343,24 @@ Get-ChildItem "$env:LOCALAPPDATA\Packages" -Filter "Claude_*" -Directory | Selec
 
 ### 送ってもらうもの
 
+⚠️⚠️ **`確認.ps1` は配布zipに入っていない。** ⚠️ 代わりに次の4行の結果を送る。
+⚠️ ⚠️ **APIキーの値は出ない**（⚠️ 文字数だけ）。
+
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$dir\scripts\確認.ps1"
+node -v
 ```
 
-⚠️ ⚠️ **APIキーの値は表示されない**（文字数だけ）。⚠️ **出た内容をすべて管理者へ。**
+```powershell
+$cfg
+```
+
+```powershell
+(Get-Content $cfg -Raw | ConvertFrom-Json).mcpServers.'khg-analysis' | ConvertTo-Json -Depth 5 -Compress
+```
+
+⚠️⚠️ **この出力には APIキーがそのまま含まれる。**
+⚠️ ⚠️ **チャットに貼る前に `KHG_ANALYSIS_API_KEY` の値を伏せること。**
+
+```powershell
+Get-ChildItem (Join-Path (Split-Path $cfg) "logs") -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime
+```
