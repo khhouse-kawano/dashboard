@@ -8,6 +8,7 @@ import {
 } from '../features/ambassador';
 import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
 import { runAmbassadorKpi } from '../features/ambassador/kpi';
+import { runStaffContract } from '../features/staffContract';
 import { runAmbassadorMaster } from '../features/ambassador/master';
 import {
   runInquiryIntroductoryList,
@@ -2343,6 +2344,31 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runInquiryUpdateNewCustomer(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 営業別の契約率（日報 → 営業別契約率）
+//
+// ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある。**
+//   ⚠️ ⚠️ **core/express_proxy.php の両方のリストに入れること**
+//     （expressProxyRequests と expressProxyExclusive）。
+//     ⚠️ 片方だけだと ① が404を返し、画面には何も出ない。
+//
+// ⚠️ auth: 'master'。⚠️⚠️ **メニュー自体が Master 限定**（Header.tsx）。
+//   ⚠️ ⚠️ **画面で隠すだけにしないこと。** ⚠️ 直接叩けば誰でも取れてしまう。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'staff_contract',
+  summary: '営業別の商談顧客数・次アポ数・契約数（商談ログの担当営業で集計）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) => {
+    const period = typeof ctx.body.period === 'string' ? ctx.body.period : '';
+    const result = await runStaffContract(period);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
