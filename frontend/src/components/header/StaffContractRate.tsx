@@ -18,7 +18,7 @@ import apiClient from '../../utils/apiClient';
  *   ⚠️⚠️ **顧客DB側で率を出さないこと。** ⚠️ 商談顧客数と母集団が違う。
  *
  * ⚠️ 見た目は GoogleReview.tsx に合わせてある（⚠️ 並べ替えは見出しクリック）。
- * ⚠️ ⚠️ **モーダルは `lg`**（Header.tsx）。⚠️ 表は横スクロールする。
+ * ⚠️ モーダルは `xl`（Header.tsx の既定）。⚠️ 狭い画面では表が横スクロールする。
  * ─────────────────────────────────────────────
  */
 
@@ -29,15 +29,16 @@ type Row = {
     section: string;
     talk: number;
     next: number;
-    /** ⚠️ 商談顧客のうちの契約。⚠️ **契約率の分子** */
+    /**
+     * 契約数。⚠️⚠️ **顧客DBの `status = 契約済み` を現担当で数えたもの。**
+     *   ⚠️ 商談ログでは数えない（⚠️ 記録が11.4%しか無いため）。
+     */
     contract: number;
-    /** ⚠️ 顧客DB上の契約。⚠️ **率は出さない** */
-    contractDb: number;
 };
 
 type Coverage = { sheets: number; withStaff: number };
 
-type SortKey = 'name' | 'shop' | 'section' | 'talk' | 'next' | 'nextRate' | 'contract' | 'contractRate' | 'contractDb';
+type SortKey = 'name' | 'shop' | 'section' | 'talk' | 'next' | 'nextRate' | 'contract' | 'contractRate';
 type SortOrder = 'asc' | 'desc';
 
 /**
@@ -60,7 +61,6 @@ const valueOf = (row: Row, key: SortKey): number | string => {
         case 'nextRate': return rate(row.next, row.talk) ?? -1;
         case 'contract': return row.contract;
         case 'contractRate': return rate(row.contract, row.talk) ?? -1;
-        case 'contractDb': return row.contractDb;
     }
 };
 
@@ -118,7 +118,6 @@ const StaffContractRate = () => {
         talk: rows.reduce((a, r) => a + r.talk, 0),
         next: rows.reduce((a, r) => a + r.next, 0),
         contract: rows.reduce((a, r) => a + r.contract, 0),
-        contractDb: rows.reduce((a, r) => a + r.contractDb, 0),
     }), [rows]);
 
     const percent = (value: number | null) => (value === null ? '—' : `${value.toFixed(1)}%`);
@@ -170,8 +169,8 @@ const StaffContractRate = () => {
                               border-radius: 8px; padding: 8px 12px; }
                 .sc_caution b { color: #78350f; }
 
-                /* ⚠️ モーダルは lg（Header.tsx）。⚠️ 列が9つあるので**横スクロールする**。
-                   ⚠️ 縦は 60vh で止めて、見出しを固定したまま中だけ流す */
+                /* ⚠️ 縦は 60vh で止めて、見出しを固定したまま中だけ流す。
+                   ⚠️ min-width を外すと狭い画面で列が潰れる */
                 .sc_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto;
                                  background: #fff; max-height: 60vh; }
                 .sc_table { width: 100%; border-collapse: separate; border-spacing: 0;
@@ -236,23 +235,22 @@ const StaffContractRate = () => {
                             <div className="sc_kpi_value">{total.next.toLocaleString()}</div>
                         </div>
                         <div className="sc_kpi_card">
-                            <div className="sc_kpi_label">契約数（商談）</div>
+                            <div className="sc_kpi_label">契約数</div>
                             <div className="sc_kpi_value">{total.contract.toLocaleString()}</div>
-                        </div>
-                        <div className="sc_kpi_card">
-                            <div className="sc_kpi_label">契約数（顧客DB）</div>
-                            <div className="sc_kpi_value">{total.contractDb.toLocaleString()}</div>
                         </div>
                     </div>
 
                     {/* ⚠️⚠️ **この注記を外さないこと。** 記録の有無が数字を大きく左右する */}
                     <div className="sc_caution mb-2">
-                        ※ 商談顧客数・次アポ数・契約率は、<b>商談ログに担当営業が記録されているぶんだけ</b>を数えています
+                        ※ 商談顧客数は、<b>商談シートに記録がある顧客</b>と、<b>顧客情報に商談フェーズの日付が入っている顧客</b>の
+                        どちらかに当てはまる人数です。次アポ数はそのうち第二面談・事前審査・契約まで進んだ人数です。
+                        <br />
+                        ※ <b>契約数は顧客情報の状況が「契約済み」の人数</b>です（商談ログでは数えていません）。
+                        <br />
+                        ※ 誰の実績かは<b>顧客の担当営業</b>で決めています。商談ログに担当営業が書かれている記録はそちらを優先します
                         （全 {coverage.sheets.toLocaleString()} 件中 <b>{coverage.withStaff.toLocaleString()} 件</b>
                         {coverage.sheets === 0 ? '' : `・${(coverage.withStaff / coverage.sheets * 100).toFixed(1)}%`}）。
-                        <br />
-                        ※ <b>契約数（顧客DB）</b>は顧客情報の担当営業で数えた実数です。商談ステップを入力しない営業の実績もここに出ます。
-                        <b>商談顧客数とは母集団が違うため、こちらから率は出していません。</b>
+                        <b>担当変更があった顧客は、現在の担当の実績になります。</b>
                         <br />
                         ※ 数えているのは商談の回数ではなく<b>顧客の人数</b>です。
                     </div>
@@ -267,12 +265,10 @@ const StaffContractRate = () => {
                                     <SortHead label="商談顧客数" keyName="talk" align="right" width="86px" />
                                     <SortHead label="次アポ数" keyName="next" align="right" width="78px" />
                                     <SortHead label="次アポ率" keyName="nextRate" align="right" width="80px" />
-                                    <SortHead label="契約数(商談)" keyName="contract" align="right" width="92px"
-                                        note="商談顧客のうち契約済みの人数。契約率の分子" />
+                                    <SortHead label="契約数" keyName="contract" align="right" width="80px"
+                                        note="顧客情報の状況が「契約済み」の人数" />
                                     <SortHead label="契約率" keyName="contractRate" align="right" width="78px"
-                                        note="契約数(商談) ÷ 商談顧客数" />
-                                    <SortHead label="契約数(顧客DB)" keyName="contractDb" align="right" width="100px"
-                                        note="顧客情報の担当営業で数えた実数。商談顧客数とは母集団が違う" />
+                                        note="契約数 ÷ 商談顧客数" />
                                 </tr>
                             </thead>
                             <tbody>
@@ -289,14 +285,13 @@ const StaffContractRate = () => {
                                             <td className="sc_td sc_rate">{percent(nextRate)}</td>
                                             <td className={`sc_td sc_num${row.contract === 0 ? ' sc_zero' : ''}`}>{row.contract}</td>
                                             <td className="sc_td sc_rate sc_main">{percent(contractRate)}</td>
-                                            <td className={`sc_td sc_db${row.contractDb === 0 ? ' sc_zero' : ''}`}>{row.contractDb}</td>
                                         </tr>
                                     );
                                 })}
 
                                 {sorted.length === 0 && (
                                     <tr>
-                                        <td className="sc_empty" colSpan={9}>対象の営業がいません。</td>
+                                        <td className="sc_empty" colSpan={8}>対象の営業がいません。</td>
                                     </tr>
                                 )}
                             </tbody>

@@ -44,7 +44,28 @@ interface StaffRow extends RowDataPacket {
 interface ContractRow extends RowDataPacket {
   id: string;
   in_charge_user: string | null;
+  status: string | null;
+  col_interview: string | null;
+  col_screening: string | null;
+  col_appointment: string | null;
+  col_contract: string | null;
 }
+
+/**
+ * `master_data` の商談フェーズの列。
+ *
+ * ⚠️⚠️ **DBのコメントは当てにならない。列IDで指定すること。**
+ *   ⚠️ 特に ⚠️ **第二面談は `01JSENACS…`**（⚠️ 過去に別の列を掴んだ経緯がある）。
+ *
+ * ⚠️ 移植元は features/shopTrend/queries.ts。⚠️ **あちらを直したらここも直す。**
+ */
+const COL_INTERVIEW = 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7';   // 初回面談
+const COL_SCREENING = 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR';   // 事前審査
+const COL_APPOINTMENT = 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA'; // 第二面談
+const COL_CONTRACT = 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG';    // 契約
+
+/** 日付が入っているか。⚠️ 空白だけも「無し」とみなす */
+const hasValue = (value: unknown): boolean => String(value ?? '').trim() !== '';
 
 /**
  * 空白（半角・全角）を落として突合する。
@@ -99,19 +120,14 @@ export interface StaffContractRow {
   talk: number;
   next: number;
   /**
-   * 契約数（商談顧客のうち）。
+   * 契約数。
    *
-   * ⚠️⚠️ **`talk` の部分集合。** ⚠️ **契約率の分子はこちら。**
+   * ⚠️⚠️ **`master_data.status = '契約済み'` を現担当で数えたもの**（顧客DBの実数）。
+   *   ⚠️ ⚠️ **商談ログや契約日の列では数えない。**
+   *   ⚠️ 実測では ⚠️ **841件中837件が `talk` にも入っており、
+   *     契約数が商談顧客数を超える営業は0名**（⚠️ 率は100%を超えない）。
    */
   contract: number;
-  /**
-   * 契約数（顧客DB）。
-   *
-   * ⚠️⚠️ **`master_data.in_charge_user` で数えたもの。**
-   *   ⚠️ ⚠️ **商談顧客数とは無関係**なので、⚠️ **率を出してはいけない。**
-   *   ⚠️ 商談ステップを入力しない営業の実績を拾うための列である。
-   */
-  contractDb: number;
 }
 
 export interface StaffContractResult {
@@ -143,31 +159,23 @@ export const runStaffContract = async (period: string): Promise<StaffContractRes
     // ⚠️ 2列だけ引く。⚠️⚠️ **`SELECT *` にすると不要な列まで流れる**
     query<SheetRow>('SELECT id, interview_log FROM interview_sheet'),
     /**
-     * 契約済みの顧客。⚠️⚠️ **2つの数え方の両方に使う。**
+     * 顧客。⚠️⚠️ **商談フェーズの列と担当営業を一緒に引く。**
      *
-     *   ⚠️ **契約数（商談）** … 商談顧客の中で契約済みのもの。
-     *     ⚠️ ⚠️ **契約率の分子はこちら**（⚠️ 分母の商談顧客数と揃うため）。
-     *
-     *   ⚠️ **契約数（顧客DB）** … `in_charge_user` で数えたもの。
-     *     ⚠️⚠️ **商談ステップを入力しない営業がいる**ため、
-     *       ⚠️ 商談側だけだと**その人の契約が丸ごと0に見える。**
-     *     ⚠️ ⚠️ **商談顧客数とは無関係**なので、率は出さない。
+     * ⚠️ ⚠️ **`status` も使う**（⚠️ 契約数は `契約済み` で数える）。
      */
     query<ContractRow>(
-      "SELECT id, in_charge_user FROM master_data WHERE status = '契約済み'"
+      `SELECT id, in_charge_user, status,
+              ${COL_INTERVIEW} AS col_interview,
+              ${COL_SCREENING} AS col_screening,
+              ${COL_APPOINTMENT} AS col_appointment,
+              ${COL_CONTRACT} AS col_contract
+         FROM master_data`
     ),
   ]);
 
-  /** 契約済みの顧客id。⚠️ 突合は `interview_sheet.id` = `master_data.id` */
-  const contractIds = new Set(contracted.map((row) => row.id));
-
-  /** 営業（空白を落とした名前）→ 顧客DB上の契約数 */
-  const contractByStaff = new Map<string, number>();
-  for (const row of contracted) {
-    const key = norm(row.in_charge_user);
-    if (key === '') continue;
-    contractByStaff.set(key, (contractByStaff.get(key) ?? 0) + 1);
-  }
+  /** 顧客id → 現担当（空白を落としたもの） */
+  const ownerOf = new Map<string, string>();
+  for (const row of contracted) ownerOf.set(row.id, norm(row.in_charge_user));
 
   // 営業（空白を落とした名前）→ 顧客idの集合
   const byStaff = new Map<string, { talk: Set<string>; next: Set<string> }>();
@@ -182,18 +190,76 @@ export const runStaffContract = async (period: string): Promise<StaffContractRes
   /** 担当営業が入っている商談シートの数。⚠️ 画面の注記に出す */
   let sheetsWithStaff = 0;
 
+  // -------------------------------------------------------------------------
+  // ① 商談シート（interview_sheet）から拾う
+  //
+  // ⚠️⚠️ **`staff` が空の記録は「現担当がやった」とみなす。**
+  //   ⚠️ ⚠️ **`staff` は後から追加された項目で、18,470件中2,103件（11.4%）**
+  //     にしか入っていない。⚠️ **突合キーにするとほとんど拾えない**
+  //     （⚠️ 実測: 商談顧客数 1,536 → 3,309 に増える）。
+  //
+  // ⚠️ ⚠️ **前任（`first_interviewed_user`）は使わない**（2026-10-01 の判断）。
+  //   ⚠️ 併用すると、前任として名前が残っているだけで分母が増え、
+  //   ⚠️⚠️ **引き継いだ人ほど率が下がる。**
+  // -------------------------------------------------------------------------
   for (const sheet of sheets) {
+    const fallback = ownerOf.get(sheet.id) ?? '';
     let had = false;
-    for (const entry of toLog(sheet.interview_log)) {
-      const who = norm(entry.staff);
-      if (who === '') continue;
-      had = true;
 
+    for (const entry of toLog(sheet.interview_log)) {
       const action = String(entry.action ?? '');
+      const logged = norm(entry.staff);
+      if (logged !== '') had = true;
+
+      const who = logged !== '' ? logged : fallback;
+      if (who === '') continue;
+
       if (TALK_ACTIONS.has(action)) bucketOf(who).talk.add(sheet.id);
       if (NEXT_ACTIONS.has(action)) bucketOf(who).next.add(sheet.id);
     }
     if (had) sheetsWithStaff += 1;
+  }
+
+  // -------------------------------------------------------------------------
+  // ② 顧客（master_data）のフェーズ列から拾う
+  //
+  // ⚠️⚠️ **商談シートが無いまま契約まで進む顧客がいる。**
+  //   ⚠️ ⚠️ **シートだけだと169人を取りこぼす**（実測）。
+  //   ⚠️ 担当は `in_charge_user`。⚠️ シート側と同じ集合に足し込む（⚠️ 重複しない）。
+  // -------------------------------------------------------------------------
+  for (const row of contracted) {
+    const who = norm(row.in_charge_user);
+    if (who === '') continue;
+
+    const talk = hasValue(row.col_interview) || hasValue(row.col_screening)
+      || hasValue(row.col_appointment) || hasValue(row.col_contract);
+    if (!talk) continue;
+
+    bucketOf(who).talk.add(row.id);
+
+    // ⚠️ 次アポは初回面談を除く3つ。⚠️ **初回面談だけの顧客を混ぜない**
+    if (hasValue(row.col_screening) || hasValue(row.col_appointment) || hasValue(row.col_contract)) {
+      bucketOf(who).next.add(row.id);
+    }
+  }
+
+  /**
+   * 営業（空白を落とした名前）→ 契約数。
+   *
+   * ⚠️⚠️ **`status = '契約済み'` を現担当で数える**（2026-10-01 の指示）。
+   *   ⚠️ ⚠️ **契約日の列では数えない。**
+   *     ⚠️ 列は入っているのに `status` が `解約` などの顧客が47件あり、
+   *     ⚠️ **列で数えると顧客DBの実数（841件）より多く出る**（888件）。
+   *
+   * ⚠️ 実測（2026-10-01）: ⚠️ **841件中837件は商談顧客数にも入っている。**
+   *   ⚠️ ⚠️ **契約数が商談顧客数を超える営業は0名。** ⚠️ 率は100%を超えない。
+   */
+  const contractByStaff = new Map<string, number>();
+  for (const row of contracted) {
+    if (row.status !== '契約済み') continue;
+    const key = norm(row.in_charge_user);
+    if (key === '') continue;
+    contractByStaff.set(key, (contractByStaff.get(key) ?? 0) + 1);
   }
 
   /**
@@ -222,10 +288,8 @@ export const runStaffContract = async (period: string): Promise<StaffContractRes
       talk: talk.size,
       // ⚠️⚠️ **次アポは「商談顧客」の中から数える。** ⚠️ 外から混ぜない
       next: hit === undefined ? 0 : [...hit.next].filter((id) => talk.has(id)).length,
-      // ⚠️⚠️ **契約率の分子。** ⚠️ 商談顧客の中だけを数える（⚠️ 分母と揃える）
-      contract: [...talk].filter((id) => contractIds.has(id)).length,
-      // ⚠️⚠️ **顧客DB上の契約数。** ⚠️ 商談顧客とは無関係なので**率は出さない**
-      contractDb: contractByStaff.get(key) ?? 0,
+      // ⚠️⚠️ **顧客DBの契約済み数**（⚠️ 契約率の分子もこれ）
+      contract: contractByStaff.get(key) ?? 0,
     };
   });
 
