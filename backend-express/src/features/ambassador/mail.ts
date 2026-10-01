@@ -25,6 +25,13 @@ export interface InquiryMailData {
   mail: string;
   phone: string;
   account: string;
+  /**
+   * ご質問やご要望（任意入力）。
+   *
+   * ⚠️⚠️ **改行を含む。** 他の項目のように1行に収まらない。
+   * ⚠️ 連絡方法・連絡時間の希望が書かれるため、⚠️ **社内宛では特に重要。**
+   */
+  message: string;
   /** 紹介元。台帳に照合できたときだけ入る */
   ambassadorNo: number | null;
   ambassadorName: string;
@@ -47,6 +54,13 @@ const detailLines = (data: InquiryMailData): string =>
     `メールアドレス：${orBlank(data.mail)}`,
     `電話番号：${orBlank(data.phone)}`,
     `インスタグラムのアカウント名：${data.account.trim() === '' ? '（未入力）' : `@${data.account.trim()}`}`,
+    // ⚠️⚠️ **複数行で届くため、`項目：値` の1行にしない。**
+    //   ⚠️ 1行に押し込むと、2行目以降が次の項目のように見える。
+    //   ⚠️ 見出しだけの行にして、本文は次の行から置く。
+    //
+    // ⚠️ ⚠️ **いちばん最後に置くこと。** 途中に挟むと、
+    //   ⚠️ **本文の2行目以降が次の項目の値に見える。**
+    `ご質問やご要望：\n${orBlank(data.message)}`,
   ].join('\n');
 
 /** 日時。⚠️ ② のコンテナは UTC のことがあるため、日本時間に直して書く */

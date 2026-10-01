@@ -37,6 +37,14 @@ type Inquiry = {
     address: string | null;
     /** ⚠️ address（現住所）とは別物。これから建てたい場所 */
     build_area: string | null;
+    /**
+     * ご質問やご要望（任意入力）。
+     *
+     * ⚠️⚠️ **お客様本人が書いた文章である。** 社内で書き換えない。
+     * ⚠️ 未入力なら NULL。⚠️ **NULL のときは何も出さない**（「—」も出さない）。
+     * ⚠️ 改行を含む。⚠️ `white-space: pre-wrap` で出すこと。
+     */
+    message: string | null;
     mobile: string | null;
     mail: string | null;
     /** 反響時点のアカウント */
@@ -172,6 +180,8 @@ export const InquiryAmbassador = () => {
                     [
                         i.name, i.kana, i.account, i.mobile, i.mail,
                         i.ambassador_name, i.ambassador_account, i.build_area,
+                        // ⚠️ 本人の記入も検索対象にする。「平日」「夜」などで拾えるようにする
+                        i.message,
                     ].filter(Boolean).join(' ')
                 );
                 if (!haystack.includes(key)) return false;
@@ -487,7 +497,7 @@ export const InquiryAmbassador = () => {
                 </div>
             ) : (
                 <div className="table-responsive border rounded" style={{ maxHeight: '65vh' }}>
-                    <Table hover bordered className="mb-0 align-middle text-nowrap" style={{ fontSize: '12px', minWidth: '1800px' }}>
+                    <Table hover bordered className="mb-0 align-middle text-nowrap" style={{ fontSize: '12px', minWidth: '2040px' }}>
                         <thead className="bg-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                             <tr>
                                 <th className="bg-light text-center" style={{ width: '90px' }}>同期</th>
@@ -499,6 +509,8 @@ export const InquiryAmbassador = () => {
                                 <th className="bg-light" style={{ width: '260px' }}>住所</th>
                                 {/* ⚠️ 住所とは別。担当店舗の割り振りはここを見て決める */}
                                 <th className="bg-light" style={{ width: '160px' }}>建築希望地</th>
+                                {/* ⚠️ お客様本人の記入。連絡時間の希望などが入る */}
+                                <th className="bg-light" style={{ width: '240px' }}>ご質問やご要望</th>
                                 {/* ⚠️ 同期先のテーブルが変わる項目。店舗より先に選ぶ */}
                                 <th className="bg-light" style={{ width: '90px' }}>事業区分</th>
                                 <th className="bg-light" style={{ width: '170px' }}>担当店舗</th>
@@ -564,6 +576,16 @@ export const InquiryAmbassador = () => {
                                         </td>
 
                                         <td style={{ whiteSpace: 'normal' }}>{item.build_area ?? ''}</td>
+
+                                        {/*
+                                          ⚠️ 未入力なら**何も出さない。**
+                                            ⚠️ 「—」や「なし」を出すと、記入のある行を
+                                              目で探すときに雑音になる（大半は未入力）。
+                                          ⚠️ 改行をそのまま見せる（連絡時間の希望が複数行で届く）。
+                                        */}
+                                        <td style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {item.message ?? ''}
+                                        </td>
 
                                         {/* ⚠️ 事業区分。同期先のテーブルがこれで決まる */}
                                         <td>
@@ -678,7 +700,7 @@ export const InquiryAmbassador = () => {
 
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={14} className="text-center text-muted py-5">
+                                    <td colSpan={15} className="text-center text-muted py-5">
                                         該当する反響がありません
                                     </td>
                                 </tr>
