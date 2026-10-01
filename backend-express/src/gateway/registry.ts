@@ -94,6 +94,15 @@ import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaig
 import { runCampaignSummary } from '../features/campaignSummary';
 import { runLostList } from '../features/lostList';
 import { runCompetitor } from '../features/competitor';
+import {
+  runInquiryUpdateBeforeSurvey,
+  runInquiryUpdateDuplicate,
+  runInquiryUpdateNewCustomer,
+  runInquiryUpdateNote,
+  runInquiryUpdateRobo,
+  runInquiryUpdateSync,
+  runInquiryUpdateSyncError,
+} from '../features/inquiryUpdate';
 import { runBlacklistEdit, runBlacklistInsert, runBlacklistUpdate } from '../features/blacklist';
 import { runCompetitorPdf } from '../features/competitorPdf';
 import {
@@ -2204,5 +2213,115 @@ register({
 
     await deleteReport(no);
     return { status: 'ok' };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// 反響の付帯情報の更新（同期サービス projects/sync から呼ばれる）
+//
+// ⚠️⚠️ **旧API `dashboard/api/changeShop.php` からの移植**（2026-09-30 / v2.2.155）。
+//   ⚠️ 枝分かれは旧APIの `demand` を `roll` に読み替えてある。
+//
+// ⚠️⚠️ **`auth: 'none'` は意図的である。**
+//   ⚠️ 呼び出し元は画面ではなく**サーバー**であり、⚠️ **トークンを持てない。**
+//   ⚠️ 移植元の旧APIも合い言葉すら見ていなかった。
+//
+// ⚠️⚠️ **書き込みだが `expressProxyExclusive()` には入れない。**
+//   ⚠️ ① に PHP ハンドラが実在する（inquiry_update.php）ので、
+//     ⚠️ ② が落ちても ① へ自動フォールバックして動く。
+//   ⚠️ ⚠️ **二重書き込みにはならない**（転送が成功した時点で ① は実行しない）。
+//
+// ⚠️⚠️ **`shop` / `staff` / `tag` はここに無い。**
+//   ⚠️ すでに `list:shop_change` などで移植済み。**二重に持たせない。**
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'inquiry_update',
+  roll: 'robo',
+  summary: '【書き込み】反響にマイホームロボのID・URLを入れる',
+  phpSource: 'backend/src/handlers/inquiry_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runInquiryUpdateRobo(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inquiry_update',
+  roll: 'before_survey',
+  summary: '【書き込み】事前アンケートを同期済みにする',
+  phpSource: 'backend/src/handlers/inquiry_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runInquiryUpdateBeforeSurvey(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inquiry_update',
+  roll: 'sync',
+  summary: '【書き込み】反響を同期済みにして pg_id を入れる',
+  phpSource: 'backend/src/handlers/inquiry_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runInquiryUpdateSync(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inquiry_update',
+  roll: 'sync_error',
+  summary: '【書き込み】反響の同期済みを取り消す',
+  phpSource: 'backend/src/handlers/inquiry_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runInquiryUpdateSyncError(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inquiry_update',
+  roll: 'note',
+  summary: '【書き込み】反響の備考を更新する',
+  phpSource: 'backend/src/handlers/inquiry_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runInquiryUpdateNote(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inquiry_update',
+  roll: 'duplicate',
+  summary: '【書き込み】反響を重複名簿として伏せる',
+  phpSource: 'backend/src/handlers/inquiry_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runInquiryUpdateDuplicate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'inquiry_update',
+  roll: 'new_customer',
+  summary: '【書き込み】顧客を作る（customers と master_data。無いときだけ）',
+  phpSource: 'backend/src/handlers/inquiry_update.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runInquiryUpdateNewCustomer(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
   },
 });
