@@ -61,6 +61,30 @@ const clean = (value: unknown, maxLength: number): string => {
   return String(value).replace(CONTROL_CHARS, '').trim().slice(0, maxLength);
 };
 
+/**
+ * 複数行の自由入力。改行だけは残して取り出す。
+ *
+ * ⚠️⚠️ **`clean()` と使い分けること。** `clean()` は改行も制御文字として落とす。
+ *   ⚠️ 1行項目（氏名・住所など）に改行が入ると一覧やCSVが壊れるため、
+ *     ⚠️ **既定は落とす側が正しい。** ここはその例外である。
+ *
+ * ⚠️ 改行は `\n` に揃える。⚠️ ブラウザは `\r\n` で送ってくる。
+ *   ⚠️ **揃えないと、画面で空行が二重に見える。**
+ *
+ * ⚠️ 連続した空行は2行までに抑える。⚠️ 一覧の行が無駄に高くなるのを防ぐ。
+ */
+const CONTROL_CHARS_KEEP_NEWLINE = /[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g;
+
+const cleanMultiline = (value: unknown, maxLength: number): string => {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value)
+    .replace(/\r\n?/g, '\n')
+    .replace(CONTROL_CHARS_KEEP_NEWLINE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, maxLength);
+};
+
 /** 空文字は NULL で保存する。'' と NULL が混在すると絞り込みが面倒になる */
 const orNull = (value: string): string | null => (value === '' ? null : value);
 
@@ -171,6 +195,20 @@ export const runAmbassadorInquiry = async (
   const buildArea = clean(body.area, 255);
   const account = normalizeAccount(clean(body.insta, 100));
 
+  /**
+   * ご質問やご要望（任意入力）。
+   *
+   * ⚠️⚠️ **未入力でも反響は受け付ける。** フォーム側も必須にしていない。
+   * ⚠️ 上限は 1,000 文字。⚠️ **超えても弾かず切り詰める**（他の項目と同じ方針）。
+   *   ⚠️ フォームの textarea にも maxlength="1000" を入れてあるが、
+   *     ⚠️ **curl では無視できる**ため、ここでも必ず掛ける。
+   *
+   * ⚠️⚠️ **`clean()` は改行も落とす**（CONTROL_CHARS に \n が含まれる）。
+   *   ⚠️ ⚠️ **この項目だけは改行を残す。** 連絡時間の希望などが
+   *     複数行で届き、1行に潰すと読めなくなるため。
+   */
+  const message = cleanMultiline(body.message, 1000);
+
   const values: SqlParam[] = [
     ambassadorNo,
     orNull(ambassadorId),
@@ -179,6 +217,7 @@ export const runAmbassadorInquiry = async (
     orNull(zip),
     orNull(address),
     orNull(buildArea),
+    orNull(message),
     orNull(phone),
     orNull(mail),
     orNull(account),
@@ -196,13 +235,14 @@ export const runAmbassadorInquiry = async (
       zip,
       address,
       build_area,
+      message,
       mobile,
       mail,
       account,
       inquiry_date,
       agreed,
       sync
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
   `;
 
   let inquiryNo = 0;

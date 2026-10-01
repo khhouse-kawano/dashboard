@@ -325,12 +325,27 @@ export const runInquiryAmbassadorSync = async (
   //   営業は master_data しか見ない）。
   const buildArea = asString(inquiry.build_area).trim();
 
+  /**
+   * お客様が書いた「ご質問やご要望」（任意入力）。
+   *
+   * ⚠️⚠️ **必ず備考へ引き継ぐこと。** `master_data` 側に専用の列が無いため、
+   *   ⚠️ ⚠️ **ここで落とすと営業の画面からは完全に消える**
+   *     （反響一覧には残るが、営業は顧客ページしか見ない）。
+   *   ⚠️ 連絡方法・連絡時間の希望が書かれる欄であり、⚠️ **初回架電の成否に直結する。**
+   *
+   * ⚠️⚠️ **複数行で届く。** 見出しを付けて最後に置く。
+   *   ⚠️ 途中に挟むと、2行目以降が「建築希望地」の続きに見える。
+   */
+  const message = asString(inquiry.message).trim();
+
   const remarksLines = [
     account === '' ? '' : `紹介アンバサダー: ${account}`,
     buildArea === '' ? '' : `建築希望地: ${buildArea}`,
     // ⚠️ 中古は in_charge_store に取引区分が入り、店舗名が顧客側に残らない。
     //   どの店舗へ割り振った反響なのかを備考で追えるようにする
     DIVISIONS[division].storeIsShop ? '' : `担当店舗: ${shop}`,
+    // ⚠️ 本人の記入はいちばん最後。⚠️ 見出しを別行にして本文と混ざらないようにする
+    message === '' ? '' : `【ご質問やご要望】\n${message}`,
   ].filter((line) => line !== '');
 
   let id = '';
