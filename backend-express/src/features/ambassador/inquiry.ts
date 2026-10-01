@@ -294,6 +294,7 @@ export const runAmbassadorInquiry = async (
     mail,
     phone,
     account,
+    message,
     ambassadorNo,
     ambassadorName,
     ambassadorAccount,
