@@ -16,6 +16,7 @@ import apiClient from '../../utils/apiClient';
 import CompetitorSummary from './CompetitorSummary';
 import RegisterBrokerageListings from './RegisterBrokerageListings';
 import DailyReports from './DailyReports';
+import StaffContractRate from './StaffContractRate';
 import ClaudeAnalysis from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
 import CompetitorAnalysisReports from './CompetitorAnalysisReports';
@@ -143,7 +144,14 @@ const Header = ({ }) => {
         //   ⚠️⚠️ **ここを戻すだけでは権限は閉じない**（⚠️ メニューから消えるだけ）。
         '他社動向': ['他社広告ライブラリ', '他社資料', '競合サマリー', CLAUDE_COMPETITOR_ITEM],
         '架電状況': ['注文営業', '建売営業', '中古営業'],
-        '日報': ['月次日報'],
+        // ⚠️ 営業別契約率は ⚠️⚠️ **Master と BrandAdmin のみ。**
+        //   ⚠️ 個人別の成績が並ぶため、全員には出さない。
+        //   ⚠️ ⚠️ **ここを外すだけでは権限は閉じない**（⚠️ メニューから消えるだけ）。
+        //     ⚠️ ② 側も `staff_contract` で同じ2つを確かめている。
+        //   ⚠️ 他の管理者向け画面（Menu.tsx の予算詳細など）と同じ条件に揃えてある。
+        '日報': (authority === 'Master' || authority === 'BrandAdmin')
+            ? ['月次日報', '営業別契約率']
+            : ['月次日報'],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
         '紹介キャンペーン': ['反響一覧'],
         '集客イベント': ['反響一覧', '集客サマリー', '広告費入力'],
@@ -179,6 +187,7 @@ const Header = ({ }) => {
         // ⚠️ 物件台帳（satbase_property）の一覧。⚠️ **列が40あるので全画面**（下を参照）
         '土地・物件管理/SatBaseサマリー': <SatBaseDatabase />,
         '日報/月次日報': <DailyReports />,
+        '日報/営業別契約率': <StaffContractRate />,
         '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
         '公式アンバサダー/反響一覧': <InquiryAmbassador />,
         '紹介キャンペーン/反響一覧': <InquiryIntroductory />,
