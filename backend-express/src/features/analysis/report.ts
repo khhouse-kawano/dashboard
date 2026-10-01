@@ -1,5 +1,6 @@
 import type { RowDataPacket } from 'mysql2/promise';
-import { execute, query } from '../../db/pool';
+// ⚠️ `executeLarge` は HTML を書くところだけ。⚠️ 他は従来どおり `execute`
+import { execute, executeLarge, query } from '../../db/pool';
 
 /**
  * Claude が書いた分析レポート（HTML）の保存と取り出し。
@@ -46,7 +47,19 @@ export interface ReportInput {
  *     （参考資料も「前期 vs 今期」で比較していた）。
  */
 export const saveReport = async (input: ReportInput): Promise<number> => {
-  const result = await execute(
+  /**
+   * ⚠️⚠️ **`execute()` ではなく `executeLarge()` を使うこと。**
+   *
+   *   ⚠️ ⚠️ **mysql2 は 65,535 バイト以上の値をプリペアドで送れない**
+   *     （⚠️ 3.24.1 で実測。⚠️ `db/pool.ts` の `executeLarge()` に詳細）。
+   *
+   *       Internal error: COM_STMT_EXECUTE serialized 99018 bytes, expected 99019
+   *
+   *   ⚠️⚠️ **レポートは普通に 64KB を超える。** ⚠️ 上限は 2MB にしてある。
+   *   ⚠️ ⚠️ **戻すと、大きいレポートの登録だけが 500 で落ちる**
+   *     （⚠️ 画面には 502 と出る。⚠️ **小さいものは通るので気づきにくい**）。
+   */
+  const result = await executeLarge(
     'INSERT INTO analysis_report (title, category, division, period, html, staff, data_as_of)' +
       ' VALUES (?, ?, ?, ?, ?, ?, ?)',
     [

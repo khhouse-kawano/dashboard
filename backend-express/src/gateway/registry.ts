@@ -7,6 +7,7 @@ import {
   runInquiryAmbassadorUpdate,
 } from '../features/ambassador';
 import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
+import { runAmbassadorKpi } from '../features/ambassador/kpi';
 import { runAmbassadorMaster } from '../features/ambassador/master';
 import {
   runInquiryIntroductoryList,
@@ -344,6 +345,27 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await runAmbassadorList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 台帳のKPI（紹介した顧客の歩留まり）。
+ *
+ * ⚠️⚠️ **`ambassador_list` とは別の request にしてある。**
+ *   ⚠️ 台帳は1セル保存のたびに一覧を引き直すため、
+ *     ⚠️ ⚠️ **同じ口にすると保存のたびに3テーブルを舐めることになる。**
+ *
+ * ⚠️ 集計はせず行を返すだけ。⚠️ **モーダルの一覧にも同じ行を使う。**
+ */
+register({
+  request: 'ambassador_kpi',
+  summary: 'アンバサダーが紹介した顧客の行（歩留まりの集計は画面側）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runAmbassadorKpi();
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

@@ -89,8 +89,8 @@ ALTER TABLE `inquiry_ambassador`
 
 ```js
       /* ⚠️ 任意の項目が未入力でも行ごと消さない。 */
-      if (value === "" && field.emptyText) {
-        dd.textContent = field.emptyText;
+      if (value === "" && field.optional) {
+        dd.textContent = EMPTY_TEXT;
         dd.classList.add("confirm-empty");
       } else {
         dd.textContent = value;
@@ -109,18 +109,19 @@ ALTER TABLE `inquiry_ambassador`
 ⚠️ ⚠️ **この項目だけが例外**なので、関数を分けた。
 
 ```ts
+/** 同じく制御文字だが、⚠️⚠️ **改行だけ残す**（\u000A を範囲から外してある） */
 const CONTROL_CHARS_KEEP_NEWLINE = /[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g;
 
-const cleanMultiline = (value: unknown, maxLength: number): string => {
-  if (typeof value !== 'string' && typeof value !== 'number') return '';
-  return String(value)
+const cleanMultiline = (value: unknown, maxLength: number): string =>
+  asText(value)
     .replace(/\r\n?/g, '\n')
     .replace(CONTROL_CHARS_KEEP_NEWLINE, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
     .slice(0, maxLength);
-};
 ```
+
+⚠️ `asText()` は ⚠️ **リファクタリングで切り出した共通部分**（後述）。
 
 ⚠️ 上限 **1,000文字**。⚠️ ⚠️ **超えても弾かず切り詰める**（既存の方針どおり。反響を捨てない）。
 ⚠️⚠️ **textarea の `maxlength` は curl では無視できる**ため、⚠️ **サーバー側でも必ず掛ける。**
@@ -200,6 +201,104 @@ const cleanMultiline = (value: unknown, maxLength: number): string => {
 
 ---
 
+## ⚠️ リファクタリング（⚠️ **実装後に実施**）
+
+### ⚠️⚠️ ① INSERT の列と値を位置で合わせていた（⚠️ **最も危険**）
+
+⚠️ もとの形は ⚠️ **「列の並び」「値の並び」「`?` の数」の3つを手で合わせる**ものだった。
+
+```ts
+  const values: SqlParam[] = [ ambassadorNo, orNull(ambassadorId), ... ];
+  const INSERT_SQL = `
+    INSERT INTO inquiry_ambassador (
+      ambassador_no, ambassador_id, ..., sync
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `;
+```
+
+⚠️⚠️ **1つずれても SQL は通り、別の列に保存される**（⚠️ 例: ご要望が電話番号の列に入る）。
+⚠️ ⚠️ **型でも実行時エラーでも検出できない。**
+⚠️ 今回 `message` を足したときに ⚠️⚠️ **実際に `?` を手で数える羽目になった。**
+
+⚠️ 1つのオブジェクトから両方を導く形に変えた。
+
+```ts
+  const row: Record<string, SqlParam> = {
+    ambassador_no: ambassadorNo,
+    ambassador_id: orNull(ambassadorId),
+    name: orNull(name),
+    kana: orNull(kana),
+    zip: orNull(zip),
+    address: orNull(address),
+    build_area: orNull(buildArea),
+    message: orNull(message),
+    mobile: orNull(phone),
+    mail: orNull(mail),
+    account: orNull(account),
+    inquiry_date: today(),
+    // ⚠️ 同意は真偽値で届く。文字列 'false' が来ても偽として扱う
+    agreed: body.agree === true || body.agree === 'true' || body.agree === 1 ? 1 : 0,
+    sync: 0,
+  };
+
+  // ⚠️ 列名はすべてこのファイル内のリテラル。⚠️ リクエストの値は入らない
+  const columns = Object.keys(row);
+
+  const INSERT_SQL = `
+    INSERT INTO inquiry_ambassador (${columns.join(', ')})
+    VALUES (${columns.map(() => '?').join(', ')})
+  `;
+```
+
+⚠️ 副次的な効果として ⚠️⚠️ **`mobile` 列に入るのが `phone` であること**が読んで分かるようになった
+（⚠️ 以前は並び順に埋もれていた）。
+
+### ⚠️ ② `clean()` と `cleanMultiline()` の重複
+
+⚠️ 両方が ⚠️ **「型の判定 → `String()` → 制御文字の除去 → `trim` → `slice`」**を書いていた。
+⚠️ 判定部分を `asText()` に切り出した。
+
+```ts
+/**
+ * 文字列として扱えるものだけを取り出す。それ以外は空文字。
+ *
+ * ⚠️⚠️ **オブジェクトや配列を `String()` に通さないこと。**
+ *   ⚠️ `"[object Object]"` がそのまま保存される。
+ */
+const asText = (value: unknown): string =>
+  typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+```
+
+⚠️ ⚠️ **`message` にオブジェクトを送る試験を追加した**（⚠️ 下の確認13）。
+
+### ⚠️ ③ コメントが関数に付いていなかった
+
+⚠️⚠️ **`clean()` の説明が `CONTROL_CHARS` に、`cleanMultiline()` の説明が
+`CONTROL_CHARS_KEEP_NEWLINE` に付いていた**（⚠️ 間に別の宣言が挟まっていた）。
+⚠️ ⚠️ **エディタで関数にカーソルを当てても出てこない。** ⚠️ 正しい位置に直した。
+
+⚠️ 前者は ⚠️ **今回の実装より前からあった**もので、⚠️ **それを写してしまっていた。**
+
+### ⚠️ ④ LP の項目定義が増えすぎていた
+
+⚠️ `optional` / `multiline` / `emptyText` の3つを持たせていたが、
+⚠️ ⚠️ **`emptyText` は「任意なら必ず同じ文言」**であり、⚠️ 項目ごとに持つ意味がない。
+
+⚠️ 定数に出して ⚠️ **2つに減らした。**
+
+```js
+  /* 任意の項目が未入力のとき、確認モーダルに出す文言。
+     ⚠️ ダッシュボードが送るメール（features/ambassador/mail.ts）も
+        同じ文言を使っている。変えるなら両方そろえること。 */
+  var EMPTY_TEXT = "（未入力）";
+```
+
+### ⚠️ ⑤ 重複していた説明の整理
+
+⚠️ `message` の宣言に付けていた12行の注記が ⚠️ **`cleanMultiline()` の説明と重複していた**ので削った。
+
+---
+
 ## ⚠️ 確認
 
 | # | 見たこと | 結果 |
@@ -215,6 +314,11 @@ const cleanMultiline = (value: unknown, maxLength: number): string => {
 | 9 | ⚠️⚠️ **同期（記入あり）** | ⚠️ ✅ `remarks` の最後に `【ご質問やご要望】` ＋ 本文 |
 | 10 | ⚠️⚠️ **同期（未入力）** | ⚠️ ✅ **備考は従来どおり**（余計な行も見出しも増えない） |
 | 11 | ⚠️ メール本文の組み立て | ⚠️ ✅ 見出し行＋本文。⚠️ 未入力は `（未入力）` |
+| 12 | ⚠️⚠️ **リファクタ後に 4〜10 を全部やり直し** | ⚠️ ✅ **結果は同一** |
+| 13 | ⚠️⚠️ **`message` にオブジェクトを送る**（`{"a":1}`） | ⚠️ ✅ **NULL**（⚠️ `"[object Object]"` にならない） |
+| 14 | ⚠️⚠️ **全13列が正しい列に入っているか**（⚠️ INSERT の作り替え後） | ⚠️ ✅ 氏名・ふりがな・郵便番号・住所・建築希望地・電話・メール・アカウント・反響日・同意・同期・ご要望すべて一致 |
+| 15 | ⚠️ `master_data.remarks` の型 | ⚠️ ✅ **3テーブルとも TEXT**（⚠️ 1,000文字でも溢れない） |
+| 16 | ⚠️ `form.js` の構文（`node --check`） | ⚠️ ✅ エラーなし |
 
 ⚠️ ⚠️ **検証データは削除済み**（`master_data` 25,671 に復帰）。
 
