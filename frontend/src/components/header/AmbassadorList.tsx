@@ -1,8 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Table, Badge, Button, Form, Modal } from 'react-bootstrap';
 import apiClient from '../../utils/apiClient';
+import AuthContext from '../../context/AuthContext';
+import InformationEdit from '../information/InformationEdit';
 import { ambassadorLpUrl, copyToClipboard, instagramUrl } from './ambassadorLinks';
 import { useAmbassadorMaster } from './useAmbassadorMaster';
+import { buildStages, rate } from './ambassadorKpi';
+import type { KpiCustomer, KpiInquiry, KpiStage } from './ambassadorKpi';
 
 /**
  * Instagram 公式アンバサダーの台帳。編集と新規登録を行う。
@@ -94,6 +98,29 @@ const AmbassadorList = () => {
     const [remarkTarget, setRemarkTarget] = useState<Ambassador | null>(null);
     const [remarkNote, setRemarkNote] = useState('');
 
+    // -----------------------------------------------------------------
+    // KPI（紹介した顧客の歩留まり）
+    //
+    // ⚠️⚠️ **台帳の取得とは別のリクエストにしてある。**
+    //   ⚠️ 台帳は1セル保存のたびに引き直すため、同じ口にすると
+    //     ⚠️ **保存のたびに顧客テーブル3つを舐めることになる。**
+    //
+    // ⚠️ ⚠️ **KPIの取得に失敗しても台帳は使えるようにする。**
+    //   ⚠️ 編集が主目的の画面であり、集計が出ないだけで止めてはいけない。
+    // -----------------------------------------------------------------
+    const { token, authority } = useContext(AuthContext);
+
+    const [kpiInquiry, setKpiInquiry] = useState<KpiInquiry[]>([]);
+    const [kpiCustomer, setKpiCustomer] = useState<KpiCustomer[]>([]);
+    const [kpiError, setKpiError] = useState('');
+
+    /** 数字をクリックして開いた一覧。⚠️ 誰のどの段かを持つ */
+    const [kpiTarget, setKpiTarget] = useState<{ ambassador: Ambassador; stage: KpiStage } | null>(null);
+    /** モーダルのページ送り。⚠️ rank と同じく20件ずつ */
+    const [kpiPage, setKpiPage] = useState(20);
+    /** 顧客詳細（InformationEdit）で開いている顧客 */
+    const [editId, setEditId] = useState('');
+
     const load = useCallback(async () => {
         setError('');
         try {
@@ -113,7 +140,69 @@ const AmbassadorList = () => {
         }
     }, []);
 
+    const loadKpi = useCallback(async () => {
+        setKpiError('');
+        try {
+            const res = await apiClient.post('', { request: 'ambassador_kpi' });
+            if (res.data?.status !== 'ok') {
+                setKpiError(res.data?.message ?? 'KPIの取得に失敗しました。');
+                return;
+            }
+            setKpiInquiry(res.data.inquiry ?? []);
+            setKpiCustomer(res.data.customer ?? []);
+        } catch (e: unknown) {
+            const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setKpiError(message ?? 'KPIを取得できませんでした。');
+        }
+    }, []);
+
     useEffect(() => { void load(); }, [load]);
+    useEffect(() => { void loadKpi(); }, [loadKpi]);
+
+    /**
+     * アンバサダーごとのKPI。
+     *
+     * ⚠️⚠️ **`no` で引ける形にしておく。**
+     *   ⚠️ 行の描画のたびに全件を filter すると、台帳が増えたときに
+     *     ⚠️ **行数 × 顧客数**の総当たりになる。
+     */
+    const stagesByNo = useMemo(() => {
+        const map = new Map<number, KpiStage[]>();
+        list.forEach(a => {
+            const total = kpiInquiry.filter(i => i.ambassador_no === a.no);
+            const customers = kpiCustomer.filter(c => c.ambassador_no === a.no);
+            map.set(a.no, buildStages(total, customers));
+        });
+        return map;
+    }, [list, kpiInquiry, kpiCustomer]);
+
+    /** 総反響の内訳（⚠️ **顧客ではなく反響そのもの**。未同期を含む） */
+    const inquiriesOf = useCallback(
+        (no: number) => kpiInquiry.filter(i => i.ambassador_no === no),
+        [kpiInquiry]
+    );
+
+    const openKpi = (ambassador: Ambassador, stage: KpiStage) => {
+        // ⚠️ 0件のときは開かない。空のモーダルが出ると壊れたように見える
+        const count = stage.key === 'register' ? inquiriesOf(ambassador.no).length : stage.list.length;
+        if (count === 0) return;
+        setKpiPage(20);
+        setKpiTarget({ ambassador, stage });
+    };
+
+    /**
+     * 顧客詳細を閉じる。
+     *
+     * ⚠️⚠️ **閉じたらKPIを取り直す。** 詳細画面で来場日や契約日を直せるため、
+     *   ⚠️ 取り直さないと**画面の数字だけが古いまま**になる。
+     */
+    const closeInformationEdit = async () => {
+        setEditId('');
+        await loadKpi();
+    };
+
+    /** 日付の表示。⚠️ rank と同じく `/` 区切りに揃える */
+    const dateLabel = (value: string | null): string => (value ?? '').replace(/-/g, '/');
 
     /** 専用LPのURLをコピーする */
     const copyLp = async (no: number) => {
@@ -250,6 +339,15 @@ const AmbassadorList = () => {
                 </div>
             )}
 
+            {/* ⚠️⚠️ **KPIが出なくても台帳は使える。** 別枠で出して、
+                「台帳が壊れた」と誤解されないようにする */}
+            {kpiError !== '' && (
+                <div className="alert alert-warning d-flex align-items-start gap-2" style={{ fontSize: '13px' }}>
+                    <i className="fa-solid fa-triangle-exclamation mt-1" aria-hidden="true" />
+                    <span className="flex-grow-1">{kpiError}（歩留まりの数字が出ません。台帳の編集はできます）</span>
+                </div>
+            )}
+
             {loading ? (
                 <div className="text-center py-5">
                     <div className="spinner-border text-danger" role="status">
@@ -258,7 +356,7 @@ const AmbassadorList = () => {
                 </div>
             ) : (
                 <div className="table-responsive border rounded" style={{ maxHeight: '70vh' }}>
-                    <Table hover bordered className="mb-0 align-middle text-nowrap" style={{ fontSize: '12px', minWidth: '1800px' }}>
+                    <Table hover bordered className="mb-0 align-middle text-nowrap" style={{ fontSize: '12px', minWidth: '2190px' }}>
                         <thead className="bg-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                             <tr>
                                 <th className="bg-light text-center" style={{ width: '60px' }}>No</th>
@@ -268,6 +366,12 @@ const AmbassadorList = () => {
                                 <th className="bg-light" style={{ width: '150px' }}>担当店舗</th>
                                 <th className="bg-light" style={{ width: '130px' }}>担当営業</th>
                                 <th className="bg-light text-center" style={{ width: '90px' }}>反響数</th>
+                                {/* ⚠️ 歩留まり。⚠️⚠️ **判定は shopTrend と同じ**（ambassadorKpi.ts）。
+                                    ⚠️ 期間では絞らない（全期間の通算） */}
+                                <th className="bg-light text-center" style={{ width: '90px' }}>総反響</th>
+                                <th className="bg-light text-center" style={{ width: '100px' }}>初回面談</th>
+                                <th className="bg-light text-center" style={{ width: '100px' }}>次アポ</th>
+                                <th className="bg-light text-center" style={{ width: '100px' }}>契約</th>
                                 <th className="bg-light text-center" style={{ width: '70px' }}>Insta</th>
                                 {/* ⚠️ アンバサダーごとに異なるURL。取り違えると成果が別人に付く */}
                                 <th className="bg-light text-center" style={{ width: '130px' }}>専用LP</th>
@@ -337,6 +441,43 @@ const AmbassadorList = () => {
                                             </Badge>
                                         )}
                                     </td>
+
+                                    {/*
+                                      KPI（歩留まり）。
+                                      ⚠️⚠️ **1以上のときだけ押せる。** 0件で開くと空のモーダルが出て
+                                        壊れたように見える。
+                                      ⚠️ 押せる数字だけ下線を付ける（⚠️ 見た目で区別できるようにする）。
+                                      ⚠️ ⚠️ **総反響は顧客ではなく反響そのものを数える**（未同期を含む）。
+                                    */}
+                                    {(stagesByNo.get(item.no) ?? []).map(stage => {
+                                        const count = stage.key === 'register'
+                                            ? inquiriesOf(item.no).length
+                                            : stage.list.length;
+                                        const percent = rate(count, stage.denominator);
+                                        const clickable = count > 0;
+
+                                        return (
+                                            <td key={stage.key} className="text-center">
+                                                <span
+                                                    className={clickable ? 'fw-bold text-primary' : 'text-muted'}
+                                                    style={clickable
+                                                        ? { textDecoration: 'underline dotted', cursor: 'pointer' }
+                                                        : undefined}
+                                                    title={clickable ? `${stage.label}の一覧を開く` : '該当者はいません'}
+                                                    onClick={() => openKpi(item, stage)}
+                                                >
+                                                    {count}
+                                                </span>
+                                                {/* ⚠️ 分母が0のときは % を出さない。
+                                                    ⚠️⚠️ **「まだ誰も来ていない」を 0% と書くと成績不振に見える** */}
+                                                {percent !== null && (
+                                                    <span className="text-muted ms-1" style={{ fontSize: '11px' }}>
+                                                        {percent}%
+                                                    </span>
+                                                )}
+                                            </td>
+                                        );
+                                    })}
 
                                     {/* Instagram のプロフィールへ */}
                                     <td className="text-center">
@@ -413,7 +554,7 @@ const AmbassadorList = () => {
 
                             {list.length === 0 && (
                                 <tr>
-                                    <td colSpan={COLUMNS.length + 7} className="text-center text-muted py-5">
+                                    <td colSpan={COLUMNS.length + 11} className="text-center text-muted py-5">
                                         登録されているアンバサダーがいません
                                     </td>
                                 </tr>
@@ -527,6 +668,133 @@ const AmbassadorList = () => {
                     )}
                 </Modal.Body>
             </Modal>
+
+            {/*
+              KPIの内訳。
+              ⚠️⚠️ **rank（components/rank/RankOrder.tsx）と同じ作りに揃えてある。**
+                ⚠️ 顧客名クリックで InformationEdit、20件ずつのページ送り。
+              ⚠️ ⚠️ **ランクや見込み月の編集は置かない。** 台帳は成果を見る画面であり、
+                ⚠️ ここで案件を触らせると、どこで直したのか分からなくなる。
+            */}
+            <Modal show={kpiTarget !== null} onHide={() => setKpiTarget(null)} size="xl">
+                <Modal.Header closeButton className="bg-light py-2">
+                    <Modal.Title className="fw-bold" style={{ fontSize: '14px' }}>
+                        {kpiTarget?.ambassador.name ?? ''}
+                        <span className="text-muted ms-2" style={{ fontSize: '12px' }}>
+                            {kpiTarget?.stage.label}
+                        </span>
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {kpiTarget === null ? null : kpiTarget.stage.key === 'register' ? (
+                        // ⚠️⚠️ **総反響は顧客ではなく反響そのもの。**
+                        //   ⚠️ 未同期の反響には顧客が存在せず、⚠️ **来場日も契約日も無い。**
+                        //   ⚠️ ⚠️ **同じ表で出すと「全部空欄の行」に見える**ので表を分けている。
+                        <>
+                            <div className="text-muted mb-2" style={{ fontSize: '11px' }}>
+                                ※未同期の反響を含みます。顧客として取り込むまで、来場日などは記録されません。
+                            </div>
+                            <Table bordered striped style={{ fontSize: '11px' }} className="align-middle">
+                                <tbody>
+                                    <tr>
+                                        <td>No</td>
+                                        <td>反響日</td>
+                                        <td>お名前</td>
+                                        <td>事業区分</td>
+                                        <td>同期</td>
+                                    </tr>
+                                    {inquiriesOf(kpiTarget.ambassador.no)
+                                        .slice(kpiPage - 20, kpiPage)
+                                        .map((item, index) => (
+                                            <tr key={item.inquiry_no}>
+                                                <td>{kpiPage - 20 + index + 1}</td>
+                                                <td>{dateLabel(item.inquiry_date)}</td>
+                                                <td>
+                                                    {Number(item.sync) === 1 && (item.master_data_id ?? '') !== '' ? (
+                                                        <div
+                                                            style={{ textDecoration: 'underline dotted', cursor: 'pointer', width: 'fit-content' }}
+                                                            onClick={() => setEditId(item.master_data_id ?? '')}
+                                                        >
+                                                            {item.name ?? ''}
+                                                        </div>
+                                                    ) : (
+                                                        <span>{item.name ?? ''}</span>
+                                                    )}
+                                                </td>
+                                                <td>{item.division ?? ''}</td>
+                                                <td>
+                                                    {Number(item.sync) === 1
+                                                        ? <Badge bg="primary" className="fw-normal">同期済み</Badge>
+                                                        : <Badge bg="warning" text="dark" className="fw-normal">未同期</Badge>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </Table>
+                        </>
+                    ) : (
+                        <Table bordered striped style={{ fontSize: '11px' }} className="align-middle">
+                            <tbody>
+                                <tr>
+                                    <td>No</td>
+                                    <td>事業区分</td>
+                                    <td>店舗</td>
+                                    <td>担当営業</td>
+                                    <td>お客様名</td>
+                                    <td>反響日</td>
+                                    <td>初回来場日</td>
+                                    <td>契約日</td>
+                                    <td>状況</td>
+                                </tr>
+                                {kpiTarget.stage.list.slice(kpiPage - 20, kpiPage).map((item, index) => (
+                                    <tr key={item.id}>
+                                        <td>{kpiPage - 20 + index + 1}</td>
+                                        <td>{item.division ?? ''}</td>
+                                        <td>{item.shop}</td>
+                                        <td>{item.staff}</td>
+                                        <td>
+                                            {/* ⚠️ rank と同じ見た目・同じ動き（顧客詳細を開く） */}
+                                            <div
+                                                style={{ textDecoration: 'underline dotted', cursor: 'pointer', width: 'fit-content' }}
+                                                onClick={() => setEditId(item.id)}
+                                            >
+                                                {item.status === '契約済み' && <i className="fa-solid fa-crown pe-1" aria-hidden="true" />}
+                                                {item.customer}
+                                            </div>
+                                        </td>
+                                        <td>{dateLabel(item.register)}</td>
+                                        <td>{dateLabel(item.interview)}</td>
+                                        <td>{dateLabel(item.contract)}</td>
+                                        <td>{item.status}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    )}
+
+                    {/* ページ送り。⚠️ rank と同じく20件ずつ */}
+                    {kpiTarget !== null && (() => {
+                        const length = kpiTarget.stage.key === 'register'
+                            ? inquiriesOf(kpiTarget.ambassador.no).length
+                            : kpiTarget.stage.list.length;
+                        return (
+                            <div className="d-flex justify-content-around" style={{ fontSize: '12px' }}>
+                                <div className="text-primary" style={{ cursor: 'pointer' }}
+                                    onClick={() => setKpiPage(kpiPage - 20)}>
+                                    {(length > 20 && kpiPage > 20) && '前の20件'}
+                                </div>
+                                <div className="text-primary" style={{ cursor: 'pointer' }}
+                                    onClick={() => setKpiPage(kpiPage + 20)}>
+                                    {(length > 20 && length > kpiPage) && '次の20件'}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </Modal.Body>
+            </Modal>
+
+            {/* ⚠️ rank と同じ。⚠️⚠️ **閉じたときにKPIを取り直す**（日付が変わりうるため） */}
+            <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </div>
     );
 };

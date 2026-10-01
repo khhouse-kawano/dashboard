@@ -38,17 +38,11 @@ import type { InquiryMailData } from './mail';
 // 入力の正規化
 // ---------------------------------------------------------------------------
 
-/**
- * 文字列として取り出し、長さで切る。
- *
- * ⚠️ 上限を超えたらエラーにせず**切り詰める。**
- *   長すぎるという理由で反響を捨てるのは損失が大きい。
- *   目的は「TEXT列を無限に太らせないこと」であって入力の拒否ではない。
- *
- * ⚠️ 制御文字を除去する。フォームからは来ないが、curl では送れる。
- *   混入すると一覧の表示やCSV出力が壊れる。
- */
+/** 制御文字。⚠️⚠️ **改行（\u000A）も含む。** 1行項目では落とす */
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
+
+/** 同じく制御文字だが、⚠️⚠️ **改行だけ残す**（\u000A を範囲から外してある） */
+const CONTROL_CHARS_KEEP_NEWLINE = /[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g;
 
 interface AmbassadorNoRow extends RowDataPacket {
   no: number;
@@ -56,34 +50,50 @@ interface AmbassadorNoRow extends RowDataPacket {
   account: string | null;
 }
 
-const clean = (value: unknown, maxLength: number): string => {
-  if (typeof value !== 'string' && typeof value !== 'number') return '';
-  return String(value).replace(CONTROL_CHARS, '').trim().slice(0, maxLength);
-};
+/**
+ * 文字列として扱えるものだけを取り出す。それ以外は空文字。
+ *
+ * ⚠️⚠️ **オブジェクトや配列を `String()` に通さないこと。**
+ *   ⚠️ `"[object Object]"` がそのまま保存される。
+ */
+const asText = (value: unknown): string =>
+  typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 
 /**
- * 複数行の自由入力。改行だけは残して取り出す。
+ * 1行項目の整形。文字列として取り出し、長さで切る。
  *
- * ⚠️⚠️ **`clean()` と使い分けること。** `clean()` は改行も制御文字として落とす。
- *   ⚠️ 1行項目（氏名・住所など）に改行が入ると一覧やCSVが壊れるため、
- *     ⚠️ **既定は落とす側が正しい。** ここはその例外である。
+ * ⚠️ 上限を超えたらエラーにせず**切り詰める。**
+ *   長すぎるという理由で反響を捨てるのは損失が大きい。
+ *   目的は「TEXT列を無限に太らせないこと」であって入力の拒否ではない。
  *
- * ⚠️ 改行は `\n` に揃える。⚠️ ブラウザは `\r\n` で送ってくる。
- *   ⚠️ **揃えないと、画面で空行が二重に見える。**
+ * ⚠️ 制御文字を除去する。フォームからは来ないが、curl では送れる。
+ *   混入すると一覧の表示やCSV出力が壊れる。
+ *
+ * ⚠️⚠️ **改行も落とす。** 氏名や住所に改行が入ると一覧やCSVが壊れるため。
+ *   ⚠️ 改行を残したいときは `cleanMultiline()`。
+ */
+const clean = (value: unknown, maxLength: number): string =>
+  asText(value).replace(CONTROL_CHARS, '').trim().slice(0, maxLength);
+
+/**
+ * 複数行の自由入力の整形。⚠️ **改行だけは残す。**
+ *
+ * ⚠️⚠️ **`clean()` との違いは改行の扱いだけ。**
+ *   ⚠️ ⚠️ **既定は `clean()` が正しく、こちらは例外である**
+ *     （⚠️ 現状は「ご質問やご要望」でしか使っていない）。
+ *
+ * ⚠️ 改行は `\n` に揃える。⚠️⚠️ **ブラウザは `\r\n` で送ってくる。**
+ *   ⚠️ 揃えないと、画面で空行が二重に見える。
  *
  * ⚠️ 連続した空行は2行までに抑える。⚠️ 一覧の行が無駄に高くなるのを防ぐ。
  */
-const CONTROL_CHARS_KEEP_NEWLINE = /[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g;
-
-const cleanMultiline = (value: unknown, maxLength: number): string => {
-  if (typeof value !== 'string' && typeof value !== 'number') return '';
-  return String(value)
+const cleanMultiline = (value: unknown, maxLength: number): string =>
+  asText(value)
     .replace(/\r\n?/g, '\n')
     .replace(CONTROL_CHARS_KEEP_NEWLINE, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
     .slice(0, maxLength);
-};
 
 /** 空文字は NULL で保存する。'' と NULL が混在すると絞り込みが面倒になる */
 const orNull = (value: string): string | null => (value === '' ? null : value);
@@ -196,59 +206,60 @@ export const runAmbassadorInquiry = async (
   const account = normalizeAccount(clean(body.insta, 100));
 
   /**
-   * ご質問やご要望（任意入力）。
+   * ご質問やご要望（任意入力）。⚠️ **未入力でも反響は受け付ける。**
    *
-   * ⚠️⚠️ **未入力でも反響は受け付ける。** フォーム側も必須にしていない。
-   * ⚠️ 上限は 1,000 文字。⚠️ **超えても弾かず切り詰める**（他の項目と同じ方針）。
-   *   ⚠️ フォームの textarea にも maxlength="1000" を入れてあるが、
-   *     ⚠️ **curl では無視できる**ため、ここでも必ず掛ける。
-   *
-   * ⚠️⚠️ **`clean()` は改行も落とす**（CONTROL_CHARS に \n が含まれる）。
-   *   ⚠️ ⚠️ **この項目だけは改行を残す。** 連絡時間の希望などが
-   *     複数行で届き、1行に潰すと読めなくなるため。
+   * ⚠️⚠️ **`clean()` ではなく `cleanMultiline()`。** 改行を残すため。
+   * ⚠️ フォームの textarea にも `maxlength="1000"` があるが、
+   *   ⚠️⚠️ **curl では無視できる**ので、ここでも必ず掛ける。
    */
   const message = cleanMultiline(body.message, 1000);
 
-  const values: SqlParam[] = [
-    ambassadorNo,
-    orNull(ambassadorId),
-    orNull(name),
-    orNull(kana),
-    orNull(zip),
-    orNull(address),
-    orNull(buildArea),
-    orNull(message),
-    orNull(phone),
-    orNull(mail),
-    orNull(account),
-    today(),
+  /**
+   * 保存する内容。⚠️⚠️ **列名と値をここ1か所で対にする。**
+   *
+   * ⚠️ 以前は「列の並び」と「値の並び」と「`?` の数」を手で合わせていた。
+   *   ⚠️⚠️ **1つずれても SQL は通り、別の列に保存される**
+   *     （⚠️ 例: ご要望が電話番号の列に入る）。
+   *   ⚠️ ⚠️ **型でも実行時エラーでも検出できない。** 列を足すたびに3箇所を
+   *     正しく直す必要があり、2026-10-01 の `message` 追加で実際に
+   *     ⚠️ **`?` を手で数える羽目になった。**
+   *
+   * ⚠️⚠️ **`mobile` に入るのは `phone` である。** 名前が違うので対応を明示する。
+   *
+   * ⚠️⚠️ **`sync` は 0 固定。リクエストからは絶対に受け取らない**
+   *   （⚠️ 受け付けると「同期済み」に偽装され、追客から消える）。
+   */
+  const row: Record<string, SqlParam> = {
+    ambassador_no: ambassadorNo,
+    ambassador_id: orNull(ambassadorId),
+    name: orNull(name),
+    kana: orNull(kana),
+    zip: orNull(zip),
+    address: orNull(address),
+    build_area: orNull(buildArea),
+    message: orNull(message),
+    mobile: orNull(phone),
+    mail: orNull(mail),
+    account: orNull(account),
+    inquiry_date: today(),
     // ⚠️ 同意は真偽値で届く。文字列 'false' が来ても偽として扱う
-    body.agree === true || body.agree === 'true' || body.agree === 1 ? 1 : 0,
-  ];
+    agreed: body.agree === true || body.agree === 'true' || body.agree === 1 ? 1 : 0,
+    sync: 0,
+  };
+
+  // ⚠️ 列名はすべてこのファイル内のリテラル。⚠️ リクエストの値は入らない
+  const columns = Object.keys(row);
 
   const INSERT_SQL = `
-    INSERT INTO inquiry_ambassador (
-      ambassador_no,
-      ambassador_id,
-      name,
-      kana,
-      zip,
-      address,
-      build_area,
-      message,
-      mobile,
-      mail,
-      account,
-      inquiry_date,
-      agreed,
-      sync
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    INSERT INTO inquiry_ambassador (${columns.join(', ')})
+    VALUES (${columns.map(() => '?').join(', ')})
   `;
 
   let inquiryNo = 0;
 
   try {
-    const result = await execute(INSERT_SQL, values);
+    // ⚠️ 値の並びは columns と同じ（どちらも同じオブジェクト由来）
+    const result = await execute(INSERT_SQL, Object.values(row));
     inquiryNo = result.insertId;
   } catch (error) {
     // ⚠️ 例外メッセージをそのまま返さない。SQLや列名が外部に漏れる。

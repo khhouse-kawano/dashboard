@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } 
 import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
 import ClaudeIcon, { CLAUDE_ORANGE } from './ClaudeIcon';
+import { toLocalDate } from '../../utils/toLocalDate';
 
 /**
  * Claudeによる競合分析（ヘッダー → 他社動向 → Claudeによる競合分析）。
@@ -67,6 +68,42 @@ const STEPS: string[] = [
 
 /** 1段あたりの待ち時間（ミリ秒） */
 const STEP_MS = 420;
+
+/**
+ * 「最新」の印を付ける日数。
+ *
+ * ⚠️⚠️ **レポートはこれから増え続ける。**
+ *   ⚠️ 一覧は登録の新しい順に並ぶが、⚠️ ⚠️ **並び順だけでは
+ *     「今週出たものがあるのか」が分からない。**
+ *   ⚠️ 日付のタグは出ているが、⚠️⚠️ **10px の灰色で、拾い読みでは目に入らない。**
+ */
+const RECENT_DAYS = 7;
+
+/**
+ * 直近に登録されたレポートか。
+ *
+ * ⚠️⚠️ **`created`（登録日時）で見る。`data_as_of`（データの時点）ではない。**
+ *   ⚠️ ⚠️ **古い期間を今日まとめ直すことがある。**
+ *     ⚠️ その場合「データは去年ぶんだが、レポート自体は新しい」。
+ *   ⚠️ 利用者が知りたいのは ⚠️ **「まだ見ていないものがあるか」**なので登録日が正しい。
+ *
+ * ⚠️⚠️ **`toLocalDate()` を通すこと。**
+ *   ⚠️ ⚠️ **`new Date('2026-10-01')` は UTC の0時**であり、日本では9時間ずれる。
+ *     ⚠️ 境目の1日が「最新ではない」と判定されうる。
+ *
+ * ⚠️ 読めない値は `Invalid Date` になり、⚠️ **比較が false になって自然に外れる。**
+ */
+const isRecent = (created: string | null | undefined): boolean => {
+    const at = toLocalDate(String(created ?? '').slice(0, 10));
+    if (Number.isNaN(at.getTime())) return false;
+
+    // ⚠️ 今日の0時を基準にする。⚠️⚠️ **時刻で引くと「7日前の朝」が外れる**
+    const today = new Date();
+    const from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    from.setDate(from.getDate() - (RECENT_DAYS - 1));
+
+    return at.getTime() >= from.getTime();
+};
 
 const CompetitorAnalysisReports = () => {
     const { authority, userName } = useContext(AuthContext);
@@ -275,6 +312,14 @@ const CompetitorAnalysisReports = () => {
                 .car_item:hover { border-color: ${CLAUDE_ORANGE}; }
                 .car_item.is_on { border-color: ${CLAUDE_ORANGE}; background: #fdf8f6; }
                 .car_item_title { font-weight: 700; font-size: 12px; line-height: 1.4; }
+                /* ⚠️ 「最新」の印。⚠️⚠️ **一覧の中でここだけが色を持つ**ので目に留まる。
+                   ⚠️ ⚠️ **題名と同じ行に置くため inline-flex**（block にすると改行される）。
+                   ⚠️ 選択中のカードは背景が #fdf8f6 になるが、⚠️ **印は塗りなので沈まない。** */
+                .car_new { display: inline-flex; align-items: center; gap: 3px;
+                           background: ${CLAUDE_ORANGE}; color: #fff;
+                           font-size: 9px; font-weight: 700; line-height: 1;
+                           border-radius: 999px; padding: 3px 7px;
+                           margin-right: 5px; vertical-align: 1px; white-space: nowrap; }
                 .car_item_meta { font-size: 10px; color: #6b7280; margin-top: 4px;
                                  display: flex; gap: 6px; flex-wrap: wrap; }
                 .car_tag { background: #f3f4f6; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
@@ -443,7 +488,21 @@ const CompetitorAnalysisReports = () => {
                                     className="border-0 bg-transparent p-0 text-start w-100"
                                     onClick={() => { void openReport(row); }}
                                 >
-                                    <span className="car_item_title d-block">{row.title}</span>
+                                    <span className="car_item_title d-block">
+                                        {/*
+                                          ⚠️⚠️ **直近に登録されたものだけに付く印。**
+                                            ⚠️ 題名の**前**に置く。⚠️ ⚠️ **後ろだと、題名が長いときに
+                                              折り返しの先へ回って見えなくなる。**
+                                          ⚠️ 色だけに頼らない（⚠️ **文字でも「最新」と書く**）。
+                                        */}
+                                        {isRecent(row.created) && (
+                                            <span className="car_new" title={`直近${RECENT_DAYS}日以内に登録されました`}>
+                                                <i className="fa-solid fa-certificate" aria-hidden="true" />
+                                                最新
+                                            </span>
+                                        )}
+                                        {row.title}
+                                    </span>
                                     <span className="car_item_meta">
                                         <span className="car_tag">{DIVISION_LABEL[row.division] ?? row.division}</span>
                                         {row.period !== '' && <span className="car_tag">{row.period}</span>}
