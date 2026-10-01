@@ -229,6 +229,28 @@ function expressProxyRequests(): array
         'header_blacklist_update',
 
         // -----------------------------------------------------------------
+        // 2026-09-30 移植。反響の付帯情報の更新（同期サービス sync が呼ぶ）。
+        //
+        // ⚠️⚠️ **書き込みだが expressProxyExclusive() には入れない。**
+        //   ⚠️ ① に PHP ハンドラが実在する（inquiry_update.php）。
+        //   ⚠️ ② が落ちても ① へフォールバックして動く。
+        //   ⚠️ 転送が成功した時点で ① 側は実行しないので二重書き込みにはならない。
+        //
+        // ⚠️⚠️ **roll まで書くこと。** `'inquiry_update'` とだけ書くと、
+        //   ⚠️ 今後 ① にだけ足した roll も ② へ送られ、毎回502で往復する。
+        //
+        // ⚠️ 呼び出し元がサーバーのため **Token ヘッダは付かない。**
+        //   ⚠️ ② 側も `auth: 'none'` で登録してある。
+        // -----------------------------------------------------------------
+        'inquiry_update:robo',
+        'inquiry_update:before_survey',
+        'inquiry_update:sync',
+        'inquiry_update:sync_error',
+        'inquiry_update:note',
+        'inquiry_update:duplicate',
+        'inquiry_update:new_customer',
+
+        // -----------------------------------------------------------------
         // 2026-09-21 移植。他社資料一覧（参照のみ）。
         //
         // ⚠️ ① に PHP ハンドラが実在する（competitor_pdf.php）。この行を消せば即座に戻る。
