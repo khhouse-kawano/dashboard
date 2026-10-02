@@ -41,6 +41,22 @@ interface StaffRow extends RowDataPacket {
   section: string;
 }
 
+/** 課・店舗のマスタ。⚠️ 画面の選択肢と**並び順**に使う */
+interface MasterRow extends RowDataPacket {
+  no: number;
+  name: string;
+}
+
+/**
+ * 店舗のマスタ。
+ *
+ * ⚠️⚠️ **`section` も返す。** ⚠️ 課を選んだときに店舗の選択肢を絞るため。
+ *   ⚠️ ⚠️ **空の店舗が15件ある**（実測）。⚠️ 課を選ぶとそれらは選択肢から消える。
+ */
+interface ShopMasterRow extends MasterRow {
+  section: string | null;
+}
+
 interface ContractRow extends RowDataPacket {
   id: string;
   in_charge_user: string | null;
@@ -66,6 +82,45 @@ const COL_CONTRACT = 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG';    // 契
 
 /** 日付が入っているか。⚠️ 空白だけも「無し」とみなす */
 const hasValue = (value: unknown): boolean => String(value ?? '').trim() !== '';
+
+/**
+ * 日付から `YYYY-MM` を取り出す。読めなければ空文字。
+ *
+ * ⚠️⚠️ **形式がそろっていない。** ⚠️ 実測（2026-10-01）:
+ *   ⚠️ `2026-02-28`（24,534件）/ `2026/06/01`（113件）が大半だが、
+ *   ⚠️ ⚠️ **`202604-04-05` `262026-04-26` `【買】契約完了日` のような壊れた値もある。**
+ *
+ * ⚠️ ⚠️ **読めない値は空文字を返し、期間指定時は対象から外す。**
+ *   ⚠️ 弾かずに無理やり解釈すると、⚠️ **別の月に混ざる。**
+ */
+const toMonth = (value: unknown): string => {
+  const matched = /^(\d{4})[-/](\d{1,2})(?:[-/]|$)/.exec(String(value ?? '').trim());
+  if (matched === null) return '';
+  return `${matched[1]}-${matched[2].padStart(2, '0')}`;
+};
+
+/**
+ * 期間の指定。⚠️ どちらも `YYYY-MM`。⚠️ **空なら絞らない。**
+ */
+export interface MonthRange {
+  start: string;
+  end: string;
+}
+
+/**
+ * その月が期間に入っているか。
+ *
+ * ⚠️⚠️ **期間が空なら、日付が読めなくても通す。**
+ *   ⚠️ ⚠️ **指定なしのときに日付の無い顧客を落とすと、
+ *     何も選んでいないのに件数が減る。**
+ */
+const inRange = (month: string, range: MonthRange): boolean => {
+  if (range.start === '' && range.end === '') return true;
+  if (month === '') return false;
+  if (range.start !== '' && month < range.start) return false;
+  if (range.end !== '' && month > range.end) return false;
+  return true;
+};
 
 /**
  * 空白（半角・全角）を落として突合する。
@@ -144,10 +199,13 @@ export interface StaffContractResult {
  *   ⚠️ 分母が0のときに 0% と出すか伏せるかは**見せ方の判断**であり、
  *   ⚠️ サーバーが決めることではない。
  */
-export const runStaffContract = async (period: string): Promise<StaffContractResult> => {
+export const runStaffContract = async (
+  period: string,
+  range: MonthRange = { start: '', end: '' }
+): Promise<StaffContractResult> => {
   const target = period.trim() === '' ? '2027' : period.trim();
 
-  const [staff, sheets, contracted] = await Promise.all([
+  const [staff, sheets, contracted, sections, shops] = await Promise.all([
     query<StaffRow>(
       `SELECT s.name, s.shop, s.section
          FROM staff_list s
@@ -170,6 +228,23 @@ export const runStaffContract = async (period: string): Promise<StaffContractRes
               ${COL_APPOINTMENT} AS col_appointment,
               ${COL_CONTRACT} AS col_contract
          FROM master_data`
+    ),
+    /**
+     * 課のマスタ。⚠️ 画面の選択肢と並び順に使う。
+     * ⚠️⚠️ **`no` の順をそのまま使う**（⚠️ 注文事業は no=1〜7）。
+     */
+    query<MasterRow>(
+      'SELECT `no`, name FROM section_list WHERE division = ? ORDER BY `no`',
+      [TARGET_DIVISION]
+    ),
+    /**
+     * 店舗のマスタ。
+     * ⚠️ ⚠️ **`show_flag` では絞らない。** ⚠️ 集計対象の営業が所属する店舗を
+     *   すべて選べるようにする（⚠️ 絞ると選択肢から消えた店舗の行が出せなくなる）。
+     */
+    query<ShopMasterRow>(
+      'SELECT id AS `no`, shop AS name, section FROM shop_list WHERE division = ? ORDER BY id',
+      [TARGET_DIVISION]
     ),
   ]);
 
@@ -214,6 +289,11 @@ export const runStaffContract = async (period: string): Promise<StaffContractRes
       const who = logged !== '' ? logged : fallback;
       if (who === '') continue;
 
+      // ⚠️⚠️ **商談が発生した日で期間を見る**（⚠️ その記録1件の日付）。
+      //   ⚠️ ⚠️ **顧客単位ではなく記録単位で判定する。**
+      //     ⚠️ 顧客単位にすると、期間外の初回面談しか無い人まで入る。
+      if (!inRange(toMonth(entry.day), range)) continue;
+
       if (TALK_ACTIONS.has(action)) bucketOf(who).talk.add(sheet.id);
       if (NEXT_ACTIONS.has(action)) bucketOf(who).next.add(sheet.id);
     }
@@ -231,14 +311,17 @@ export const runStaffContract = async (period: string): Promise<StaffContractRes
     const who = norm(row.in_charge_user);
     if (who === '') continue;
 
-    const talk = hasValue(row.col_interview) || hasValue(row.col_screening)
-      || hasValue(row.col_appointment) || hasValue(row.col_contract);
+    // ⚠️ 期間が指定されていれば、⚠️⚠️ **その列の日付が範囲に入るものだけ**
+    const hit = (value: string | null) => hasValue(value) && inRange(toMonth(value), range);
+
+    const talk = hit(row.col_interview) || hit(row.col_screening)
+      || hit(row.col_appointment) || hit(row.col_contract);
     if (!talk) continue;
 
     bucketOf(who).talk.add(row.id);
 
     // ⚠️ 次アポは初回面談を除く3つ。⚠️ **初回面談だけの顧客を混ぜない**
-    if (hasValue(row.col_screening) || hasValue(row.col_appointment) || hasValue(row.col_contract)) {
+    if (hit(row.col_screening) || hit(row.col_appointment) || hit(row.col_contract)) {
       bucketOf(who).next.add(row.id);
     }
   }
@@ -257,6 +340,13 @@ export const runStaffContract = async (period: string): Promise<StaffContractRes
   const contractByStaff = new Map<string, number>();
   for (const row of contracted) {
     if (row.status !== '契約済み') continue;
+
+    // ⚠️⚠️ **期間を指定したときだけ契約日の列で絞る。**
+    //   ⚠️ `status` には日付が無いため、⚠️ **期間を見るには列を使うしかない。**
+    //   ⚠️ ⚠️ **契約済みなのに契約日が空の顧客は、期間指定時に落ちる。**
+    //     ⚠️ 指定なしのときは `status` だけで数えるので、⚠️ **全期間の合計は実数と一致する。**
+    if (!inRange(toMonth(row.col_contract), range)) continue;
+
     const key = norm(row.in_charge_user);
     if (key === '') continue;
     contractByStaff.set(key, (contractByStaff.get(key) ?? 0) + 1);
@@ -298,7 +388,16 @@ export const runStaffContract = async (period: string): Promise<StaffContractRes
     body: {
       status: 'ok',
       period: target,
+      // ⚠️ 選んだ期間をそのまま返す。⚠️ 画面が「全期間」かどうかの判定に使う
+      range,
       rows,
+      /**
+       * ⚠️ 選択肢のマスタ。⚠️⚠️ **並び順もこの順をそのまま使う。**
+       *   ⚠️ ⚠️ **画面側で並べ直さないこと。** ⚠️ マスタの意図した順が崩れる。
+       */
+      sections: sections.map((r) => r.name),
+      // ⚠️ 店舗は課も添える。⚠️⚠️ **課を選んだときの絞り込みに使う**
+      shops: shops.map((r) => ({ name: r.name, section: r.section ?? '' })),
       // ⚠️⚠️ **記録の網羅率。画面の注記に使う。** ⚠️ 数字だけ出すと実力差に見える
       coverage: { sheets: sheets.length, withStaff: sheetsWithStaff },
     },

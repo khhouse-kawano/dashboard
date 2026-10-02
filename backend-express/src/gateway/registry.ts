@@ -2387,8 +2387,13 @@ register({
       return { status: 'error', message: 'この操作を行う権限がありません。' };
     }
 
-    const period = typeof ctx.body.period === 'string' ? ctx.body.period : '';
-    const result = await runStaffContract(period);
+    const text = (key: string) => (typeof ctx.body[key] === 'string' ? (ctx.body[key] as string) : '');
+
+    // ⚠️ 期間は `YYYY-MM`。⚠️⚠️ **既定は全期間**（空文字）
+    const result = await runStaffContract(text('period'), {
+      start: text('startMonth').trim(),
+      end: text('endMonth').trim(),
+    });
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
