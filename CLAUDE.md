@@ -6,8 +6,24 @@
 - 既存の動作するコードを、明示的な指示なく勝手にリファクタリングしないこと。
 - テストコードやドキュメントを、確認なしに削除・変更・コメントアウトしないこと。
 - 各指示ごとに編集内容をまとめて*ディレクトリ名* **ファイル名** **追加した関数名** **追加した府ファイル名**など。それをdocsディレクトリ内に書き出す。書き出してからセッション終了とする。**セッションごとではなく一度の指示ごと**なので、内容が細かくなってもよい。
-- 長くなっていいので追加、修正した関数もそのまま書くこと。レビューが必要なため。
+- 長くなっていいので**追加、修正した関数もそのまま書く**こと。レビューが必要なため。
+- 新たに追加したコンポネントなども長くなっていいので**そのまま書く**こと。レビューが必要なため。
 - 作成して2日たったファイルはoldDocumentというディレクトリを用意して移動する
+
+## 版を上げるとき（ブランチを切るとき）
+版を上げる指示を受けたら、以下の3つを**着手時点で**そろえること。デプロイ直前ではない。
+1. `frontend/src/utils/version.ts` の `newVersion` を新しい版に（**ブランチ名と一致させる**）
+2. `backend/scripts/sql/` に `update_log` へ1行入れるSQLファイルを作る（本番①用。`no` は AUTO_INCREMENT なので書かない）
+3. **そのSQLをローカルDBにも流す**（忘れやすい。流さないとローカルの画面だけ更新履歴が欠ける）
+
+```bash
+MSYS_NO_PATHCONV=1 docker cp backend/scripts/sql/<作ったSQL> dashboard-mariadb-db-1:/tmp/ul.sql
+MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-character-set=utf8mb4 -uroot -p"$MARIADB_ROOT_PASSWORD" local_db < /tmp/ul.sql'
+```
+
+- `--default-character-set=utf8mb4` を必ず付ける。付けないと日本語が `Invalid utf8mb3 character string` で落ちる。
+- パスワードは**コンテナ内の環境変数のまま**使い、値を画面に出さない。
+- 入れ終えたら `SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 3;` で確認する。
 
 # セキュリティと禁止事項
 - `.env` やクレデンシャル（パスワードやAPIキー等）が含まれるファイルは、いかなる理由があっても読み書きしないこと。

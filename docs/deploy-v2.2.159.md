@@ -48,8 +48,6 @@ dcp up -d express-api
 ⚠️ 起動確認:
 
 ```bash
-dcp logs express-api | grep staff_contract | tail -1
-```
 
 ⚠️⚠️ **`👑 staff_contract::` の行が出ること。**
 ⚠️ ⚠️ **`👑` は「Master のみ」の印。** ⚠️ `🔒` だと権限が緩いので要確認。
