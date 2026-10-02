@@ -65,6 +65,22 @@ interface ContractRow extends RowDataPacket {
   col_screening: string | null;
   col_appointment: string | null;
   col_contract: string | null;
+  /**
+   * ⚠️⚠️ **担当変更前の営業**（＝前任）。
+   *   ⚠️ ⚠️ **「初回面談をした人」ではない。** ⚠️ 名前に惑わされないこと。
+   *     ⚠️ 以前使っていたCRMのデータ構造をそのまま引き継いでいるための命名であり、
+   *     ⚠️ `in_charge_user` が変更されたときに**変更前の担当がここへ入る**。
+   *
+   * ⚠️ 担当変更理由の8列は**この人の実績として数える**（2026-10-02 の指示）。
+   */
+  first_interviewed_user: string | null;
+  /** 最後に記録されたアクション名。⚠️ 担当変更理由の判定に使う */
+  last_action: string | null;
+  /**
+   * 反響取得日。
+   * ⚠️⚠️ **担当変更理由の期間判定はこの日付で行う**（2026-10-02 の指示）。
+   */
+  col_inquiry: string | null;
 }
 
 /**
@@ -79,6 +95,50 @@ const COL_INTERVIEW = 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7';   // 初
 const COL_SCREENING = 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR';   // 事前審査
 const COL_APPOINTMENT = 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA'; // 第二面談
 const COL_CONTRACT = 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG';    // 契約
+
+/**
+ * 反響取得日。⚠️ 担当変更理由（下の `CHANGE_REASONS`）の**期間判定だけ**に使う。
+ *
+ * ⚠️⚠️ **`last_action_step_migration_item_date` は使わない。**
+ *   ⚠️ 実測（2026-10-02）: ⚠️ **対象3,462件中1,252件（36.2%）が空**で、
+ *     ⚠️ 期間を指定した途端に3分の1が消える。
+ *   ⚠️ 反響取得日は ⚠️ **3,457件（99.9%）入っている。**
+ */
+const COL_INQUIRY = 'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99';     // 反響取得日
+
+/**
+ * 担当変更理由。⚠️⚠️ **画面に並べる順もこの順。**
+ *
+ * ⚠️ `master_data.last_action_step_migration_item_name` の値と**完全一致**で見る。
+ *   ⚠️ 同じ列には `反響(名簿取得)` `初回面談` `契約` など商談フェーズの値も入っており、
+ *   ⚠️ ⚠️ **そちらは担当変更の理由ではないので含めない。**
+ *
+ * ⚠️ 実測（2026-10-02 / 画面の98名と突合できた件数）:
+ *   ⚠️ ⚠️ **その他 2,017 件が突出している**（全体の62%）。
+ *   ⚠️ 失注365 / 計画延期266 / 連絡不能219 / 計画中止218 / 物貰い130 /
+ *   ⚠️ ブラックリスト21 / 建築エリア外5。
+ */
+export const CHANGE_REASONS = [
+  '失注',
+  '計画中止',
+  '計画延期',
+  'ブラックリスト',
+  '建築エリア外',
+  '物貰い',
+  '連絡不能',
+  'その他',
+] as const;
+
+export type ChangeReason = (typeof CHANGE_REASONS)[number];
+
+const REASON_SET = new Set<string>(CHANGE_REASONS);
+
+/** 全部0の理由カウンタ。⚠️ **画面が列を引けるよう、0でもキーを欠かさない** */
+const emptyReasons = (): Record<string, number> => {
+  const counter: Record<string, number> = {};
+  for (const reason of CHANGE_REASONS) counter[reason] = 0;
+  return counter;
+};
 
 /** 日付が入っているか。⚠️ 空白だけも「無し」とみなす */
 const hasValue = (value: unknown): boolean => String(value ?? '').trim() !== '';
@@ -183,6 +243,14 @@ export interface StaffContractRow {
    *     契約数が商談顧客数を超える営業は0名**（⚠️ 率は100%を超えない）。
    */
   contract: number;
+  /**
+   * 担当変更理由ごとの件数。⚠️ キーは `CHANGE_REASONS` の8つ。
+   *
+   * ⚠️⚠️ **0件でもキーは必ず入っている**（⚠️ 画面が列を引くため）。
+   * ⚠️ ⚠️ **突合は前任（`first_interviewed_user`）、期間は反響取得日。**
+   *   ⚠️ 左の契約率の列とは**母集団も日付の基準も違う**。足し引きできる数字ではない。
+   */
+  reasons: Record<string, number>;
 }
 
 export interface StaffContractResult {
@@ -226,7 +294,10 @@ export const runStaffContract = async (
               ${COL_INTERVIEW} AS col_interview,
               ${COL_SCREENING} AS col_screening,
               ${COL_APPOINTMENT} AS col_appointment,
-              ${COL_CONTRACT} AS col_contract
+              ${COL_CONTRACT} AS col_contract,
+              first_interviewed_user,
+              last_action_step_migration_item_name AS last_action,
+              ${COL_INQUIRY} AS col_inquiry
          FROM master_data`
     ),
     /**
@@ -352,6 +423,34 @@ export const runStaffContract = async (
     contractByStaff.set(key, (contractByStaff.get(key) ?? 0) + 1);
   }
 
+  // -------------------------------------------------------------------------
+  // 担当変更理由（2026-10-02 追加）
+  //
+  // ⚠️⚠️ **突合キーは `first_interviewed_user`（＝担当変更前の営業）。**
+  //   ⚠️ ⚠️ **`in_charge_user`（現担当）ではない。**
+  //     ⚠️ 「自分が担当していた顧客が、どういう理由で手を離れたか」を見るため。
+  //
+  // ⚠️⚠️ **期間は反響取得日で判定する**（⚠️ `COL_INQUIRY` のコメントを参照）。
+  //
+  // ⚠️ 実測（2026-10-02）: ⚠️ 8理由は全3,462件。
+  //   ⚠️ ⚠️ **うち3,241件（93.6%）が画面の98名と突合する。**
+  //   ⚠️ 前任が空の86件は**どの営業にも計上されない**（正しい挙動）。
+  // -------------------------------------------------------------------------
+  const reasonByStaff = new Map<string, Record<string, number>>();
+  for (const row of contracted) {
+    const reason = String(row.last_action ?? '').trim();
+    if (!REASON_SET.has(reason)) continue;
+
+    const key = norm(row.first_interviewed_user);
+    if (key === '') continue;
+
+    if (!inRange(toMonth(row.col_inquiry), range)) continue;
+
+    const counter = reasonByStaff.get(key) ?? emptyReasons();
+    counter[reason] += 1;
+    reasonByStaff.set(key, counter);
+  }
+
   /**
    * 営業の名寄せ。
    *
@@ -380,6 +479,8 @@ export const runStaffContract = async (
       next: hit === undefined ? 0 : [...hit.next].filter((id) => talk.has(id)).length,
       // ⚠️⚠️ **顧客DBの契約済み数**（⚠️ 契約率の分子もこれ）
       contract: contractByStaff.get(key) ?? 0,
+      // ⚠️⚠️ **0件の人にも全キーを入れて返す。** ⚠️ 画面が列を引けなくなる
+      reasons: reasonByStaff.get(key) ?? emptyReasons(),
     };
   });
 
@@ -400,6 +501,11 @@ export const runStaffContract = async (
       shops: shops.map((r) => ({ name: r.name, section: r.section ?? '' })),
       // ⚠️⚠️ **記録の網羅率。画面の注記に使う。** ⚠️ 数字だけ出すと実力差に見える
       coverage: { sheets: sheets.length, withStaff: sheetsWithStaff },
+      /**
+       * 担当変更理由の並び。⚠️⚠️ **画面の列順はこれをそのまま使う。**
+       *   ⚠️ ⚠️ **画面側に8つを書き写さないこと。** ⚠️ 増減したときに食い違う。
+       */
+      reasonLabels: [...CHANGE_REASONS],
     },
   };
 };

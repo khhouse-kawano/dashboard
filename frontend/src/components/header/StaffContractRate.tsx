@@ -18,8 +18,15 @@ import apiClient from '../../utils/apiClient';
  *
  *   ⚠️⚠️ **顧客DB側で率を出さないこと。** ⚠️ 商談顧客数と母集団が違う。
  *
+ * ⚠️⚠️ **担当変更理由の8列（2026-10-02 追加）は、左の契約率とは別の集計。**
+ *   ⚠️ 突合キーは ⚠️⚠️ **担当変更前の営業**（`master_data.first_interviewed_user`）。
+ *     ⚠️ ⚠️ **「初回面談をした人」ではない。** ⚠️ 旧CRMから引き継いだ命名である。
+ *   ⚠️ 期間は ⚠️⚠️ **反響取得日**で見る（⚠️ 左の列は商談日・契約日）。
+ *   ⚠️ ⚠️ **同じ行に並んでいても足し引きできる数字ではない。** ⚠️ 画面に注記を出すこと。
+ *
  * ⚠️ 見た目は GoogleReview.tsx に合わせてある（⚠️ 並べ替えは見出しクリック）。
- * ⚠️ モーダルは `xl`（Header.tsx の既定）。⚠️ 狭い画面では表が横スクロールする。
+ * ⚠️ モーダルは ⚠️⚠️ **全画面**（Header.tsx の一覧に入れてある）。
+ *   ⚠️ ⚠️ **閉じるボタンは Modal.Header が出すので、ここには作らないこと。** 二重になる。
  * ─────────────────────────────────────────────
  */
 
@@ -35,6 +42,13 @@ type Row = {
      *   ⚠️ 商談ログでは数えない（⚠️ 記録が11.4%しか無いため）。
      */
     contract: number;
+    /**
+     * 担当変更理由ごとの件数。⚠️ キーは ② が返す `reasonLabels` の8つ。
+     *
+     * ⚠️⚠️ **左の契約率の列とは別物。** ⚠️ 足し引きできる数字ではない。
+     *   ⚠️ ⚠️ **突合は担当変更前の営業、期間は反響取得日。**
+     */
+    reasons: Record<string, number>;
 };
 
 type Coverage = { sheets: number; withStaff: number };
@@ -42,7 +56,17 @@ type Coverage = { sheets: number; withStaff: number };
 /** 店舗の選択肢。⚠️ `section` は**課を選んだときの絞り込み**に使う */
 type ShopOption = { name: string; section: string };
 
-type SortKey = 'name' | 'shop' | 'section' | 'talk' | 'next' | 'nextRate' | 'contract' | 'contractRate';
+/**
+ * 担当変更理由の列の並べ替えキー。
+ *
+ * ⚠️⚠️ **理由名を直接キーにしない。** ⚠️ `name` など既存のキーと衝突する恐れがある。
+ *   ⚠️ `reason:失注` のように接頭辞を付けて区別する。
+ */
+const REASON_PREFIX = 'reason:';
+
+type SortKey =
+    | 'name' | 'shop' | 'section' | 'talk' | 'next' | 'nextRate' | 'contract' | 'contractRate'
+    | `${typeof REASON_PREFIX}${string}`;
 type SortOrder = 'asc' | 'desc';
 
 /**
@@ -74,6 +98,10 @@ const MONTHS = monthOptions();
 
 /** 並べ替え用の値。⚠️ 率の null は **一番下**へ回す（-1） */
 const valueOf = (row: Row, key: SortKey): number | string => {
+    // ⚠️ 担当変更理由の列。⚠️⚠️ **0件の人も 0 として並べる**（除外しない）
+    if (key.startsWith(REASON_PREFIX)) {
+        return row.reasons?.[key.slice(REASON_PREFIX.length)] ?? 0;
+    }
     switch (key) {
         case 'name': return row.name;
         case 'shop': return row.shop;
@@ -83,6 +111,8 @@ const valueOf = (row: Row, key: SortKey): number | string => {
         case 'nextRate': return rate(row.next, row.talk) ?? -1;
         case 'contract': return row.contract;
         case 'contractRate': return rate(row.contract, row.talk) ?? -1;
+        // ⚠️ 上の if で理由の列は処理済み。ここへは来ない
+        default: return 0;
     }
 };
 
@@ -100,6 +130,14 @@ const StaffContractRate = () => {
      */
     const [sectionOptions, setSectionOptions] = useState<string[]>([]);
     const [shopMaster, setShopMaster] = useState<ShopOption[]>([]);
+
+    /**
+     * 担当変更理由の列。
+     *
+     * ⚠️⚠️ **② が返す順をそのまま列順にする。**
+     *   ⚠️ ⚠️ **画面に8つを書き写さないこと。** ⚠️ 増減したときに食い違う。
+     */
+    const [reasonLabels, setReasonLabels] = useState<string[]>([]);
 
     /** ⚠️ 絞り込み。⚠️⚠️ **既定はすべて空＝全期間・全課・全店舗** */
     const [targetSection, setTargetSection] = useState('');
@@ -134,6 +172,7 @@ const StaffContractRate = () => {
             setPeriod(res.data.period ?? '');
             setSectionOptions(res.data.sections ?? []);
             setShopMaster(res.data.shops ?? []);
+            setReasonLabels(res.data.reasonLabels ?? []);
         } catch (e: unknown) {
             const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
             setError(message ?? '集計を取得できませんでした。分析サーバーが停止している可能性があります。');
@@ -208,13 +247,15 @@ const StaffContractRate = () => {
     const percent = (value: number | null) => (value === null ? '—' : `${value.toFixed(1)}%`);
 
     /** 並べ替えの見出し。⚠️ GoogleReview.tsx と同じ作法（クリックで発火） */
-    const SortHead = ({ label, keyName, align = 'left', width, note }: {
+    const SortHead = ({ label, keyName, align = 'left', width, note, divider = false }: {
         label: string; keyName: SortKey; align?: 'left' | 'center' | 'right'; width?: string; note?: string;
+        /** ⚠️ 区分の境目に線を入れる。⚠️ 担当変更理由の**先頭の列だけ** true */
+        divider?: boolean;
     }) => {
         const active = sortKey === keyName;
         return (
             <th
-                className={`sc_th sc_th_sort text-${align}`}
+                className={`sc_th sc_th_sort text-${align}${divider ? ' sc_divider' : ''}`}
                 style={{ width }}
                 title={note ?? 'クリックで並べ替え'}
                 onClick={() => {
@@ -269,10 +310,30 @@ const StaffContractRate = () => {
                 .sc_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto;
                                  background: #fff; max-height: 60vh; }
                 .sc_table { width: 100%; border-collapse: separate; border-spacing: 0;
-                            font-size: 12px; min-width: 760px; }
-                .sc_th { position: sticky; top: 0; z-index: 2; background: #f8fafc;
+                            font-size: 12px; min-width: 1480px; }
+
+                /* ⚠️ 見出しは下段（列）。⚠️⚠️ **上段が 28px あるぶん下げて貼り付ける。** */
+                .sc_th { position: sticky; top: 28px; z-index: 2; background: #f8fafc;
                          border-bottom: 1px solid #e5e7eb; padding: 8px 10px;
                          font-weight: 700; font-size: 11px; color: #4b5563; white-space: nowrap; }
+
+                /* ⚠️⚠️ **上段（区分）の高さを 28px に固定している。**
+                      ⚠️ 下段の top: 28px がこの値に依存している。
+                      ⚠️⚠️ **ここでバッククォートを使わないこと**（テンプレートリテラルが切れる）。
+                      ⚠️ ⚠️ **片方だけ変えると見出しが重なって読めなくなる。**
+                      ⚠️ padding ではなく height + line-height で決めているのは、
+                        ⚠️ 高さを確実に 28px に保つため（padding だと字詰めで揺れる）。
+                      ⚠️⚠️ **必ず .sc_th より後ろに置くこと。**
+                        ⚠️ 同じ詳細度なので、前に置くと .sc_th の top: 28px に負けて
+                        ⚠️ **上段まで 28px 下がり、見出しが重なる。** */
+                .sc_th_group { top: 0; z-index: 4; height: 28px; line-height: 28px;
+                               padding: 0 10px; text-align: center; background: #eef2f7;
+                               color: #374151; letter-spacing: .04em; }
+                /* ⚠️ 担当変更理由の区分。⚠️ 左の契約率と**別物だと一目で分かる色**にする */
+                .sc_group_reason { background: #eef6ee; color: #2f5d3a; }
+
+                /* ⚠️ 区分の境目。⚠️ 担当変更理由の**先頭の列だけ**に入る */
+                .sc_divider { border-left: 2px solid #d7e3d9; }
                 .sc_th_sort { cursor: pointer; user-select: none; }
                 .sc_th_sort:hover { background: #eef2f7; }
                 .sc_sort_icon { margin-left: 5px; font-size: 10px; color: #cbd5e1; }
@@ -290,6 +351,9 @@ const StaffContractRate = () => {
                 /* ⚠️ 顧客DB側は**率を持たない**ので、色を変えて別物だと分かるようにする */
                 .sc_db { text-align: right; font-variant-numeric: tabular-nums; color: #374151;
                          background: #f8fafc; }
+                /* ⚠️ 担当変更理由の数値。⚠️ 左の契約率の列と地色で分ける */
+                .sc_reason { background: #fafdfa; color: #2f5d3a; }
+                .sc_row:hover > .sc_reason { background: #f1f7f2; }
                 .sc_zero { color: #cbd5e1; }
                 .sc_empty { color: #9ca3af; font-size: 12px; padding: 24px; text-align: center; }
             `}</style>
@@ -409,11 +473,30 @@ const StaffContractRate = () => {
                         <b>担当変更があった顧客は、現在の担当の実績になります。</b>
                         <br />
                         ※ 数えているのは商談の回数ではなく<b>顧客の人数</b>です。
+                        <br />
+                        {/* ⚠️⚠️ **この1行は 2026-10-02 の指示で入れたもの。消さないこと。**
+                              ⚠️ 左の契約率が商談日・契約日で期間を見るのに対し、
+                              ⚠️ ⚠️ **担当変更理由だけ反響取得日で見ている。**
+                                ⚠️ 書いておかないと、同じ行の中で基準が違うことに気づけない。 */}
+                        ※ <b>担当変更理由は反響取得日を基準に抽出</b>しています。
+                        担当が変わる前の営業（変更前の担当）の件数として数えています。
                     </div>
 
                     <div className="sc_table_wrap">
                         <table className="sc_table">
                             <thead>
+                                {/*
+                                    ⚠️⚠️ **見出しは2段。** ⚠️ 上段が区分、下段が列。
+                                      ⚠️ ⚠️ **下段の `top` は上段の高さぶんずらしてある**
+                                        （CSS の `.sc_th_group` / `.sc_th` を参照）。
+                                        ⚠️ **高さを変えるなら両方直すこと。** 重なって読めなくなる。
+                                */}
+                                <tr>
+                                    <th className="sc_th sc_th_group" colSpan={8}>担当営業別契約率</th>
+                                    <th className="sc_th sc_th_group sc_group_reason" colSpan={reasonLabels.length}>
+                                        担当変更理由
+                                    </th>
+                                </tr>
                                 <tr>
                                     <SortHead label="営業名" keyName="name" width="150px" />
                                     <SortHead label="店舗" keyName="shop" width="150px" />
@@ -425,6 +508,20 @@ const StaffContractRate = () => {
                                         note="顧客情報の状況が「契約済み」の人数" />
                                     <SortHead label="契約率" keyName="contractRate" align="right" width="78px"
                                         note="契約数 ÷ 商談顧客数" />
+
+                                    {/* ⚠️ 担当変更理由。⚠️⚠️ **並びは ② が返す順をそのまま使う** */}
+                                    {reasonLabels.map((label, index) => (
+                                        <SortHead
+                                            key={label}
+                                            label={label}
+                                            keyName={`${REASON_PREFIX}${label}`}
+                                            align="right"
+                                            width="84px"
+                                            // ⚠️ 最初の1列だけ左に区切り線を入れて、区分の境目を示す
+                                            divider={index === 0}
+                                            note={`この営業が担当していたときに「${label}」で止まった顧客の人数（反響取得日で期間を判定）`}
+                                        />
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody>
@@ -441,13 +538,29 @@ const StaffContractRate = () => {
                                             <td className="sc_td sc_rate">{percent(nextRate)}</td>
                                             <td className={`sc_td sc_num${row.contract === 0 ? ' sc_zero' : ''}`}>{row.contract}</td>
                                             <td className="sc_td sc_rate sc_main">{percent(contractRate)}</td>
+
+                                            {/* ⚠️ 担当変更理由。⚠️⚠️ **0は薄く出す**（空欄にしない。無記録と区別がつかなくなる） */}
+                                            {reasonLabels.map((label, index) => {
+                                                const count = row.reasons?.[label] ?? 0;
+                                                return (
+                                                    <td
+                                                        key={label}
+                                                        className={`sc_td sc_num sc_reason${count === 0 ? ' sc_zero' : ''}${index === 0 ? ' sc_divider' : ''}`}
+                                                    >
+                                                        {count}
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     );
                                 })}
 
                                 {sorted.length === 0 && (
                                     <tr>
-                                        <td className="sc_empty" colSpan={8}>対象の営業がいません。</td>
+                                        {/* ⚠️ 列数は 8 ＋ 担当変更理由。⚠️ **固定値を書かない**（列が増えると崩れる） */}
+                                        <td className="sc_empty" colSpan={8 + reasonLabels.length}>
+                                            対象の営業がいません。
+                                        </td>
                                     </tr>
                                 )}
                             </tbody>
