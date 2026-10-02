@@ -12,15 +12,7 @@ $mhl_url = isset($data['mhl_url']) ? $data['mhl_url'] : "";
 $black_list = isset($data['black_list']) ? $data['black_list'] : "";
 $note = isset($data['note']) ? $data['note'] : "";
 
-// // ローカルデータベース接続 (PDO)
-// $dsn = 'mysql:host=127.0.0.1;port=3306;dbname=owners_house;charset=utf8';
-// $db_user = 'root';
-// $db_password = '';
 
-// 本番サーバーデータベース接続 (PDO)
-$dsn = 'mysql:host=localhost:3306;dbname=xs200571_kawano;charset=utf8';
-$db_user = 'xs200571_kawano';
-$db_password = '4081kawano';
 
 
 try {
