@@ -276,7 +276,15 @@ const StaffContractRate = () => {
         <div className="sc_wrap">
             {/* ⚠️ このコンポーネント専用のスタイル。共通CSSを汚さない */}
             <style>{`
-                .sc_wrap { font-size: 13px; color: #1f2937; }
+                /**
+                   ⚠️ 2026-10-02（v2.2.162）: ⚠️⚠️ **全画面にしたら端まで詰まって読みづらくなった。**
+                     ⚠️ 左右と下に余白を取る。
+                   ⚠️⚠️ **固定値にしないこと。** ⚠️ 狭い画面で左右48pxも空けると、
+                     ⚠️ 16列ある表の見える幅がそのぶん削られる。
+                     ⚠️ ⚠️ **clamp で画面幅に追従させている**（16px 〜 48px）。
+                   ⚠️ 上は少なめ。⚠️ モーダルの見出しのすぐ下なので、空けすぎると間延びする。 */
+                .sc_wrap { font-size: 13px; color: #1f2937;
+                           padding: 4px clamp(16px, 3vw, 48px) 28px; }
                 .sc_head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
                 .sc_title { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
                 .sc_note { font-size: 11px; color: #6b7280; }
