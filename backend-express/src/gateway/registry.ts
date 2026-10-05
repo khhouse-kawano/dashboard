@@ -9,6 +9,15 @@ import {
 import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
 import { runAmbassadorKpi } from '../features/ambassador/kpi';
 import { runStaffContract } from '../features/staffContract';
+import {
+  runAuthAccessTimes,
+  runAuthInsert,
+  runAuthList,
+  runAuthUpdate,
+  runStaffEdit,
+  runStaffInsert,
+  runStaffUpdate,
+} from '../features/staffAdmin';
 import { runAmbassadorMaster } from '../features/ambassador/master';
 import {
   runInquiryIntroductoryList,
@@ -2398,3 +2407,119 @@ register({
     return result.body;
   },
 });
+
+// ---------------------------------------------------------------------------
+// スタッフ管理（2026-10-05 移植 / v2.2.163）
+//
+// ⚠️⚠️ **移植元の header_edit_auth.php は、認証なしで全スタッフの
+//   `api_token` と `password` を返していた。** ⚠️ 詳細は features/staffAdmin.ts。
+//
+// ⚠️ 権限:
+//   ログイン権限の閲覧 … Master / BrandAdmin（⚠️ BrandAdmin は画面上も読み取り専用）
+//   ログイン権限の作成・変更 … ⚠️⚠️ **Master のみ**（`auth: 'master'`）
+//   人事マスタ … ログインしていれば可（⚠️ 移植元の画面と同じ。一般は一部の欄が無効）
+//
+// ⚠️⚠️ **`BrandAdimn`（綴り違い）は通さない。** ⚠️ 完全一致で判定している。
+// ---------------------------------------------------------------------------
+const AUTH_VIEW_AUTHORITY = ['Master', 'BrandAdmin'];
+
+const forbidden = (ctx: { res: { status: (code: number) => unknown } }) => {
+  ctx.res.status(403);
+  return { status: 'error', message: 'この操作を行う権限がありません。' };
+};
+
+register({
+  request: 'header_edit_auth',
+  summary: 'ログイン権限の一覧（⚠️ password / api_token / log は返さない）',
+  phpSource: 'header_edit_auth.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    if (!AUTH_VIEW_AUTHORITY.includes(ctx.staff?.brand ?? '')) return forbidden(ctx);
+    return runAuthList();
+  },
+});
+
+register({
+  request: 'header_auth_access_time',
+  summary: 'ログイン権限の総アクセス時間（秒）。⚠️ 一覧とは別に後から取る',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    if (!AUTH_VIEW_AUTHORITY.includes(ctx.staff?.brand ?? '')) return forbidden(ctx);
+    return runAuthAccessTimes();
+  },
+});
+
+register({
+  request: 'header_auth_insert',
+  summary: 'ログイン用アカウントの作成（Master のみ）',
+  phpSource: 'header_auth_insert.php',
+  auth: 'master',
+  handler: async (ctx) => {
+    const result = await runAuthInsert(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'header_auth_update',
+  summary: 'ログイン権限の1項目更新（Master のみ）',
+  phpSource: 'header_auth_update.php',
+  auth: 'master',
+  handler: async (ctx) => {
+    const result = await runAuthUpdate(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'header_staff_edit',
+  summary: '人事マスタの一覧と、課・店舗のマスタ',
+  phpSource: 'header_staff_edit.php',
+  auth: 'staff',
+  handler: async () => runStaffEdit(),
+});
+
+/**
+ * ⚠️⚠️ **人事マスタの登録・更新は `category` の値ごとに登録する。**
+ *
+ *   ⚠️ `staff_list` には **`category` という列**（全社報告フォーマットのスイッチ・0/1）がある。
+ *   ⚠️ ⚠️ **画面はそれを `category: '1'` のように送ってくるため、
+ *     ゲートウェイの振り分けキー `request:roll:category` に入ってしまう。**
+ *   ⚠️ 1件だけの登録だと ⚠️ `header_staff_insert::1` が見つからず、
+ *     ⚠️⚠️ **「ループ検知」で 502 になる**（2026-10-05 の動作確認で踏んだ）。
+ *
+ *   ⚠️ 来るのは `''`（送らない／他の列を更新）・`'0'`・`'1'` の3通り。
+ *   ⚠️ ⚠️ **ハンドラは同じ。** ⚠️ `category` は列の値として本文から読む。
+ */
+const STAFF_LIST_CATEGORY_VALUES = ['', '0', '1'];
+
+for (const category of STAFF_LIST_CATEGORY_VALUES) {
+  register({
+    request: 'header_staff_insert',
+    category,
+    summary: '人事マスタへの登録（⚠️ 課と店舗は必須）',
+    phpSource: 'header_staff_insert.php',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runStaffInsert(ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+
+  register({
+    request: 'header_staff_update',
+    category,
+    summary: '人事マスタの1項目更新',
+    phpSource: 'header_staff_update.php',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runStaffUpdate(ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
