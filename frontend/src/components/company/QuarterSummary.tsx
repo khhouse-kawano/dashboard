@@ -490,6 +490,14 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
                 <Modal.Title className="qs_modal_title">
                     <i className="fa-solid fa-chart-column me-2" aria-hidden="true" />
                     4半期サマリー
+                    {/*
+                        ⚠️ 2026-10-05 の指示で、見出しのすぐ右にも「閉じる」を置いた。
+                          ⚠️ 全画面だと右上の × が遠く、気づかれにくいため。
+                          ⚠️ 右上の × も残してある（⚠️ どちらで閉じても同じ）。
+                    */}
+                    <button type="button" className="qs_close" onClick={() => setShow(false)}>
+                        <i className="fa-solid fa-xmark me-1" aria-hidden="true" />閉じる
+                    </button>
                     <span className="qs_modal_sub">{DIVISION} / {targetYear}年5月期（{targetYear - 1}/06〜{targetYear}/05）</span>
                 </Modal.Title>
             </Modal.Header>
@@ -501,6 +509,12 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
                     .qs_modal_head { background: #fff; border-bottom: 1px solid #e5e7eb; }
                     .qs_modal_title { font-size: 16px; font-weight: 700; display: flex; align-items: baseline; gap: 4px; }
                     .qs_modal_sub { font-size: 11px; font-weight: 500; color: #6b7280; margin-left: 10px; }
+                    /* ⚠️ 見出しの右の「閉じる」。⚠️ タブと同じ角丸・同じ文字の大きさ */
+                    .qs_close { margin-left: 12px; align-self: center; border: 1px solid #d1d5db; background: #fff;
+                                color: #374151; font-size: 12px; font-weight: 700; border-radius: 8px;
+                                padding: 3px 12px; cursor: pointer; }
+                    .qs_close:hover { background: #f3f4f6; }
+                    .qs_close:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 
                     .qs_bar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
                               background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
