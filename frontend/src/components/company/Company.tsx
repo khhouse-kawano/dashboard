@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import AuthContext from "../../context/AuthContext";
 import Table from "react-bootstrap/Table";
 import { getPeriod } from '../../utils/getPeriod';
@@ -72,6 +72,45 @@ const Company = () => {
     const [showQuarterSummary, setShowQuarterSummary] = useState(false);
 
     const isSp = useIsSp();
+
+    /**
+     * 上部の絞り込みバー（期・事業部・課・店舗・ボタン類）の実寸。
+     *
+     * ─────────────────────────────────────────────
+     * ⚠️⚠️ 2026-10-05: **幅が狭いときは折り返し、文字は改行させない**（指示）。
+     *
+     *   ⚠️ バーは `position: fixed` で、下の表は ⚠️ **バーの高さぶん translateY でずらして**ある。
+     *     ⚠️ 以前は高さ 60px 固定・ずらし幅 60.5px 固定だった。
+     *     ⚠️ ⚠️ **折り返すと高さが増え、固定のままだと表の上部がバーの下に隠れる。**
+     *     ⚠️ そこで実際の高さを測り、ずらし幅に使う（⚠️ +0.5px は以前と同じ）。
+     *
+     *   ⚠️ 幅も測る。⚠️ fixed の `width: 100%` は ⚠️ **画面全体の幅**になり、
+     *     ⚠️ 左のメニューの分だけ右端が画面の外にはみ出していた。
+     *     ⚠️ ⚠️ **はみ出したままだと、狭くしても折り返さない**（⚠️ 見えない所に並ぶだけ）。
+     *     ⚠️ 親（.content）の幅に合わせる。
+     * ─────────────────────────────────────────────
+     */
+    const toolbarRef = useRef<HTMLDivElement | null>(null);
+    const [toolbarBox, setToolbarBox] = useState<{ width: number; height: number }>({ width: 0, height: 60 });
+
+    useEffect(() => {
+        const el = toolbarRef.current;
+        const parent = el?.parentElement;
+        if (!el || !parent) return;
+
+        const apply = () => {
+            const width = parent.clientWidth;
+            const height = el.offsetHeight;
+            // ⚠️ 値が同じなら state を変えない（⚠️ ResizeObserver と描き直しの往復を止める）
+            setToolbarBox(prev => (prev.width === width && prev.height === height ? prev : { width, height }));
+        };
+        apply();
+
+        const observer = new ResizeObserver(apply);
+        observer.observe(el);
+        observer.observe(parent);
+        return () => observer.disconnect();
+    }, [isSp]);
 
     const rankArray = ['契約済み', 'Sランク', 'Aランク', 'Bランク', 'Cランク'];
     const divisionMapping = {
@@ -941,8 +980,25 @@ const Company = () => {
     return (
         <>
             <div className='content company bg-white p-0'>
+                {/* ⚠️ バーの中身は改行させず、バーごと折り返す（toolbarRef の注記参照） */}
+                <style>{`
+                    .company_toolbar { flex-wrap: wrap; row-gap: 2px; }
+                    .company_toolbar > * { white-space: nowrap; flex-shrink: 0; }
+                    .company_toolbar label { white-space: nowrap; }
+                `}</style>
                 {!isSp &&
-                    <div className="d-flex align-items-center" style={sortStyle}>
+                    <div
+                        ref={toolbarRef}
+                        className="d-flex align-items-center company_toolbar"
+                        style={{
+                            ...sortStyle,
+                            // ⚠️ 高さは中身に任せる（⚠️ 折り返したら伸びる）。⚠️ 1行のときは従来どおり 60px
+                            height: 'auto',
+                            minHeight: '60px',
+                            // ⚠️ 測れるまでは従来どおり 100%
+                            width: toolbarBox.width > 0 ? `${toolbarBox.width}px` : sortStyle.width,
+                        }}
+                    >
                         <div className="bg-white m-1">
                             <select className='target' onChange={(e) => setTargetYear(Number(e.target.value))}
                                 value={String(targetYear)}>
@@ -1000,7 +1056,8 @@ const Company = () => {
                                     onChange={() => setShowMulti(!showMulti)} />併売店をまとめる</label>
                             </div>}
                     </div>}
-                <div style={{ transform: isSp ? '' : 'translateY(60.5px)' }}>
+                {/* ⚠️ バーの実際の高さぶんずらす（⚠️ 以前は 60.5px 固定。toolbarRef の注記参照） */}
+                <div style={{ transform: isSp ? '' : `translateY(${toolbarBox.height + 0.5}px)` }}>
                     <Table bordered style={tableStyle(isSp)} >
                         <tbody className='align-middle'>
                             {/* 以下グループ */}
