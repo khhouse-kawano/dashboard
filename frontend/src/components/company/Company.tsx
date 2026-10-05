@@ -1238,6 +1238,7 @@ const Company = () => {
                     shopList={shopList}
                     sectionList={sectionList}
                     achievement={achievement}
+                    staffList={staffList}
                 />}
         </>
     )

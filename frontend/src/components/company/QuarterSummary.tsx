@@ -34,6 +34,8 @@ type Customer = Record<string, string>;
 type Shop = { brand: string; shop: string; section: string; division: string };
 type Section = { name: string; division: string };
 type Achievement = { category: string; name: string; period: string; value: string };
+/** 営業（staff_list）。⚠️ 使う列だけ。⚠️ Company で期（period）を絞ってから渡される */
+type Staff = { name: string; shop: string; report: number; status: string };
 
 /** 反響（customerTrend の customer）。⚠️ 使う列だけ */
 type Lead = {
@@ -56,6 +58,11 @@ type Props = {
     shopList: Shop[];
     sectionList: Section[];
     achievement: Achievement[];
+    /**
+     * ⚠️ Company の staffList（⚠️ 選んでいる「〇〇年5月期」の period で絞り済み）。
+     * ⚠️ 反響PH・来場PH の分母（営業人数）に使う（v2.2.164）。
+     */
+    staffList: Staff[];
 };
 
 const DIVISION = '注文事業';
@@ -170,7 +177,13 @@ const countKpi = (leads: Lead[], months: Set<string>) => {
 /** 歩留まり（%）。⚠️ CustomerTrendOrder と同じく**切り捨て**。⚠️ 分母0は null */
 const yieldRate = (count: number, base: number): number | null => (base === 0 ? null : Math.floor((count / base) * 100));
 
-const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sectionList, achievement }: Props) => {
+/**
+ * 1人あたり（PH = per head）。⚠️ 小数第1位まで（⚠️ 四捨五入）。⚠️ 営業0名は「-」
+ * ⚠️ 合計列も「その期間の件数 ÷ 人数」（⚠️ 月ごとの PH を足したものではない）。
+ */
+const perHead = (count: number, staff: number): string => (staff === 0 ? '-' : (count / staff).toFixed(1));
+
+const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sectionList, achievement, staffList }: Props) => {
     const [tab, setTab] = useState<'contract' | 'lead'>('contract');
     const [leads, setLeads] = useState<Lead[] | null>(null);
     const [leadError, setLeadError] = useState('');
@@ -234,6 +247,23 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
         });
         return list;
     }, [shopList, sectionList]);
+
+    /**
+     * 範囲ごとの営業人数（v2.2.164）。
+     *
+     * ⚠️ 数えるのは `report = 1`（全社報告に出す人）かつ ⚠️ **在籍**（2026-10-05 の確認で退職は除く）。
+     * ⚠️⚠️ **課・全店舗は氏名で重複を除く。**
+     *   ⚠️ 併売スタッフ（例: DJH鹿屋店 と KH鹿屋店）は staff_list に店舗ごとに1行ずつある。
+     *   ⚠️ 店舗の行ではその店舗の1人として数え、⚠️ 課・全店舗では1人にまとめる。
+     */
+    const staffCount = useMemo(() => {
+        const active = staffList.filter(st => st.report === 1 && st.status !== '退職');
+        const divisionShops = new Set(shopList.filter(s => s.division === DIVISION).map(s => s.shop));
+        return new Map(scopes.map(scope => {
+            const shops = scope.shops ?? divisionShops;
+            return [scope.id, new Set(active.filter(st => shops.has(st.shop)).map(st => st.name)).size];
+        }));
+    }, [staffList, shopList, scopes]);
 
     /** ⚠️ 注文の顧客だけ */
     const orderCustomers = useMemo(
@@ -377,12 +407,24 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
             { key: 'budget', label: '今期予算', tone: 'budget', value: col => num(sum(s.budget, col.months)) },
             { key: 'actual', label: '実績', group: true, tone: 'actual', value: col => num(sum(s.actual, col.months)) },
             {
-                key: 'diff', label: '差異', group: true, tone: 'plain',
+                key: 'diff', label: '差異(達成率)', group: true, tone: 'plain',
                 value: col => {
                     // ⚠️ 期間がすべて未来の月なら「-」（⚠️ 2026-10-05 の指示）
                     if (elapsedOf(col.months).length === 0) return '-';
-                    const diff = sum(s.actual, col.months) - sum(s.budget, col.months);
-                    return <span className={diff > 0 ? 'qs_pos' : diff < 0 ? 'qs_neg' : ''}>{diff > 0 ? `+${diff}` : diff}</span>;
+                    const actual = sum(s.actual, col.months);
+                    const budget = sum(s.budget, col.months);
+                    const diff = actual - budget;
+                    /**
+                     * ⚠️ 達成率 = 実績 ÷ 予算（v2.2.164）。⚠️ 歩留まりと同じく**切り捨て**。⚠️ 予算0は「—」
+                     * ⚠️ 分母・分子は差異と**同じ月**で取る（⚠️ 差異と達成率の向きが食い違わないように）。
+                     */
+                    const rate = yieldRate(actual, budget);
+                    return <>
+                        <span className={diff > 0 ? 'qs_pos' : diff < 0 ? 'qs_neg' : ''}>{diff > 0 ? `+${diff}` : diff}</span>
+                        <div className={`qs_rate${rate === null ? '' : rate >= 100 ? ' qs_pos' : ' qs_neg'}`}>
+                            {rate === null ? '—' : `${rate}%`}
+                        </div>
+                    </>;
                 },
             },
             { key: 'last', label: '前期実績', group: true, tone: 'plain', value: col => num(sum(s.lastYear, col.months.map(lastYearOf))) },
@@ -424,11 +466,12 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
     const leadRows = (scope: Scope) => {
         const byCol = leadStats?.get(scope.id);
         if (!byCol) return null;
+        const staff = staffCount.get(scope.id) ?? 0;
 
         const rate = (value: number | null) =>
             <div className="qs_rate">{value === null ? '—' : `${value}%`}</div>;
 
-        const rows: { key: string; label: string; note?: string; value: (col: Column) => React.ReactNode }[] = [
+        const rows: { key: string; label: string; note?: string; group?: string; value: (col: Column) => React.ReactNode }[] = [
             { key: 'register', label: '総反響', value: col => num(byCol.get(col.key)?.register ?? 0) },
             {
                 key: 'interview', label: '来場', note: '実来場 ÷ 総反響',
@@ -451,12 +494,27 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
                     return <>{num(k?.contract ?? 0)}{rate(yieldRate(k?.contract ?? 0, k?.interview ?? 0))}</>;
                 },
             },
+            /**
+             * ⚠️ 1人あたり（v2.2.164）。⚠️ 指示書の「営業 {staffLength}名 row={2}」は、
+             *   ⚠️ 契約実績の「今期実績」と同じく ⚠️ **項目の列の小さな見出し**にした
+             *   （⚠️ 列を足すと、左に固定している2列の位置がずれるため）。
+             */
+            {
+                key: 'register_ph', label: '反響PH', note: '総反響 ÷ 営業人数', group: `営業 ${staff}名`,
+                value: col => perHead(byCol.get(col.key)?.register ?? 0, staff),
+            },
+            {
+                key: 'interview_ph', label: '来場PH', note: '来場 ÷ 営業人数', group: '',
+                value: col => perHead(byCol.get(col.key)?.interview ?? 0, staff),
+            },
         ];
 
         return rows.map((row, index) => (
-            <tr key={`${scope.id}-${row.key}`} className={`qs_row${index === 0 ? ' qs_block_top' : ''}`}>
+            <tr key={`${scope.id}-${row.key}`}
+                className={`qs_row${index === 0 ? ' qs_block_top' : ''}${row.group !== undefined ? ' qs_tone_ph' : ''}${row.group ? ' qs_ph_top' : ''}`}>
                 {index === 0 && scopeCell(scope, rows.length, 'lead')}
-                <td className="qs_td qs_item" title={row.note}>
+                <td className={`qs_td qs_item${row.group !== undefined ? ' qs_item_group' : ''}`} title={row.note}>
+                    {row.group && <span className="qs_group_tag">{row.group}</span>}
                     {row.label}
                     {row.note && <div className="qs_item_note">{row.note}</div>}
                 </td>
@@ -549,7 +607,8 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
                     .qs_th_year { background: #1e3a8a; color: #fff; }
                     .qs_th_month.is_now { color: #1d4ed8; box-shadow: inset 0 -2px 0 #2563eb; }
 
-                    .qs_td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9;
+                    /* ⚠️ v2.2.164: 縦に伸びすぎるため ⚠️ 上下の余白は最小限（6px → 2px、行間 1.25） */
+                    .qs_td { padding: 2px 8px; line-height: 1.25; border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9;
                              white-space: nowrap; vertical-align: middle; background: #fff; }
                     .qs_num { text-align: right; font-variant-numeric: tabular-nums; min-width: 58px; }
                     .qs_col_quarter { background: #f5f7ff; font-weight: 700; }
@@ -562,8 +621,8 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
                                border-right: 1px solid #e5e7eb; }
                     .qs_item_group { padding-left: 18px; color: #4b5563; font-weight: 500; }
                     .qs_group_tag { display: block; font-size: 9px; font-weight: 700; color: #1d4ed8; letter-spacing: .04em;
-                                    margin-left: -10px; margin-bottom: 1px; }
-                    .qs_item_note { font-size: 9px; font-weight: 500; color: #9ca3af; }
+                                    margin-left: -10px; line-height: 1.1; }
+                    .qs_item_note { font-size: 9px; font-weight: 500; color: #9ca3af; line-height: 1.1; }
                     .qs_scope_name { font-weight: 700; font-size: 12px; white-space: normal; line-height: 1.3; }
                     .qs_scope_sub { font-size: 10px; color: #6b7280; margin-top: 2px; white-space: normal; }
                     .qs_scope_division { background: #1f2937; color: #f9fafb; }
@@ -585,7 +644,12 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
                     .qs_tone_plan .qs_num { color: #047857; }
                     .qs_pos { color: #047857; font-weight: 700; }
                     .qs_neg { color: #b91c1c; font-weight: 700; }
-                    .qs_rate { font-size: 10px; color: #6b7280; }
+                    .qs_rate { font-size: 10px; color: #6b7280; line-height: 1.1; }
+                    .qs_rate.qs_pos, .qs_rate.qs_neg { font-weight: 600; }
+                    /* ⚠️ 反響PH・来場PH（v2.2.164）。⚠️ 件数の行と見分けるため地色を変え、上に区切り線 */
+                    .qs_tone_ph > .qs_td:not(.qs_scope) { background: #fbfaf5; }
+                    .qs_tone_ph .qs_num { color: #92400e; }
+                    .qs_ph_top > .qs_td:not(.qs_scope) { border-top: 1px dashed #e5e7eb; }
                     .qs_row:hover > .qs_td:not(.qs_scope) { background: #f8fafc; }
 
                     .qs_note { font-size: 11px; color: #6b7280; line-height: 1.8; margin-top: 10px; }
@@ -659,13 +723,14 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
 
                 <div className="qs_note">
                     {tab === 'contract' ? <>
-                        ※ 差異は「実績 − 予算」。まだ来ていない月は「-」です。合計列は期間の実績合計 − 予算合計です。<br />
+                        ※ 差異は「実績 − 予算」、下段の％は達成率（実績 ÷ 予算、切り捨て）です。まだ来ていない月は「-」です。合計列は期間の実績合計と予算合計から計算しています。<br />
                         ※ 昨対比は、合計列では<b>すでに過ぎた月だけ</b>で今期と前期を比べています（途中の四半期が低く見えないように）。<br />
                         ※ 契約予定は、来月以降は「Sランク × ランク予定月」の人数、今月以前は契約数です。<br />
                         ※ 店舗の行に FH は出していませんが、課・全店舗の数には含まれます（会社実績と同じ）。
                     </> : <>
                         ※ 来場は実来場（初回面談、初回面談が空なら2回目以降の面談・事前審査・契約）で数えています。<br />
-                        ※ 合計列は期間でまとめて数えています（同じお客様を二重に数えません）。歩留まりは合計した件数から計算しています。
+                        ※ 合計列は期間でまとめて数えています（同じお客様を二重に数えません）。歩留まりは合計した件数から計算しています。<br />
+                        ※ 反響PH・来場PH は、総反響・来場を営業人数で割った1人あたりの数です。営業人数は {targetYear}年5月期のスタッフ一覧で全社報告に出している在籍者です（課・全店舗は併売スタッフを1人として数えます）。
                     </>}
                 </div>
             </Modal.Body>
