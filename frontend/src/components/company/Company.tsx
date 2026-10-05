@@ -13,6 +13,7 @@ import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import CustomerDetail from './CustomerDetail';
 import Ranking from './Ranking';
+import QuarterSummary from './QuarterSummary';
 import { sortStyle, tableStyle, tdStyle, dateFormate, monthFormate, lastYearMonthFormate, formattedThisMonth, cancelStyle, lastYearStyle } from './companyUtils';
 
 type Staff = { name: string, shop: string, section: string, report: number, sort: number, multi: number, status: string, period: string, position: string, khg_id: string };
@@ -64,6 +65,11 @@ const Company = () => {
      */
     const [showMulti, setShowMulti] = useState<boolean>(false);
     const [showRanking, setShowRanking] = useState(false);
+    /**
+     * 4半期サマリー（2026-10-05 / v2.2.163）。⚠️ 注文（category === 'order'）だけ。
+     * ⚠️ 中身は QuarterSummary.tsx。⚠️ 契約・予算は**この画面のデータをそのまま渡す**。
+     */
+    const [showQuarterSummary, setShowQuarterSummary] = useState(false);
 
     const isSp = useIsSp();
 
@@ -971,6 +977,10 @@ const Company = () => {
                         {(category === 'order' || category === 'spec') &&
                             <div className={`text-white bg-${category === 'order' ? 'primary' : 'success'} rounded-pill px-2 py-1 mx-1 shadow-sm`} style={{ fontSize: '10px', cursor: 'pointer' }}
                                 onClick={() => setShowRanking(true)}>契約棟数ランキング</div>}
+                        {/* ⚠️ 注文だけ。⚠️ 見た目は左の「契約棟数ランキング」と同じにしてある */}
+                        {category === 'order' &&
+                            <div className="text-white bg-primary rounded-pill px-2 py-1 mx-1 shadow-sm" style={{ fontSize: '10px', cursor: 'pointer' }}
+                                onClick={() => setShowQuarterSummary(true)}>4半期サマリー</div>}
                         <div className="bg-white m-1">
                             <label style={{ fontSize: '12px', cursor: 'pointer' }} className='d-flex align-items-center'><input type='checkbox' className='me-1'
                                 onChange={() => setShowLastYear(!showLastYear)} />昨年実績を表示</label>
@@ -1162,6 +1172,16 @@ const Company = () => {
             <InformationEditKaeru id={editId.kaeru} token={token} onClose={informationEditClose} authority={authority} />
             <InformationEditResale id={editId.resale} token={token} onClose={informationEditClose} authority={authority} />
             <Ranking showRanking={showRanking} setShowRanking={setShowRanking} customerList={customerList} monthArray={monthArray} staffList={staffList} achievement={achievement}/>
+            {category === 'order' &&
+                <QuarterSummary
+                    show={showQuarterSummary}
+                    setShow={setShowQuarterSummary}
+                    targetYear={targetYear}
+                    customerList={customerList}
+                    shopList={shopList}
+                    sectionList={sectionList}
+                    achievement={achievement}
+                />}
         </>
     )
 }

@@ -141,6 +141,26 @@ function expressProxyRequests(): array
         //   ⚠️⚠️ **① に PHP ハンドラは無い。** ⚠️ expressProxyExclusive() にも入れてある。
         'staff_contract',
 
+        // -----------------------------------------------------------------
+        // 2026-10-05 移植（v2.2.163）。スタッフ管理（EditAuth / EditStaff）。
+        //
+        // ⚠️⚠️ **header_edit_auth.php は全スタッフの api_token と password を
+        //   認証なしで返していた。** ⚠️ ② では列を明示し、権限も確認する。
+        //   ⚠️ ① の PHP も同じ版で列を絞った（⚠️ フォールバック時に漏れないように）。
+        //
+        // ⚠️ 書き込み系（insert / auth_update）と②専用（access_time）は
+        //   ⚠️⚠️ **expressProxyExclusive() にも入れてある。**
+        //   ⚠️ 特に header_auth_update は ⚠️⚠️ **① へ流すと brand が空で上書きされ、
+        //     その人の権限が消える**（① は `brand` しか扱えないため）。
+        // -----------------------------------------------------------------
+        'header_edit_auth',
+        'header_auth_access_time',
+        'header_auth_insert',
+        'header_auth_update',
+        'header_staff_edit',
+        'header_staff_insert',
+        'header_staff_update',
+
         // ⚠️ 2026-10-01 追加（v2.2.157）。台帳のKPI（歩留まり）。
         //
         // ⚠️⚠️ **入れ忘れていて、画面の歩留まりが出ていなかった。**
@@ -676,6 +696,23 @@ function expressProxyExclusive(): array
         //   ⚠️ ⚠️ **画面に「集計できません」とだけ出て原因が分からなくなる。**
         // -----------------------------------------------------------------
         'staff_contract',
+
+        // -----------------------------------------------------------------
+        // 2026-10-05 移植（v2.2.163）。スタッフ管理。
+        //
+        // header_auth_access_time … ⚠️ **① に PHP ハンドラは無い**（②で新設）。
+        // header_auth_insert / header_staff_insert … ⚠️ 二重登録を防ぐ。
+        // header_auth_update … ⚠️⚠️ **① の PHP は `brand` しか扱えない。**
+        //   ⚠️ 新しい画面は `{ id, field, value }` で送るため、① へ流れると
+        //   ⚠️⚠️ **`brand = ''` で上書きされ、その人の権限が消える。**
+        //
+        // ⚠️ 一覧（header_edit_auth / header_staff_edit）と header_staff_update は入れない。
+        //   ⚠️ ① でも同じ結果になるので、② が落ちても画面を動かす。
+        // -----------------------------------------------------------------
+        'header_auth_access_time',
+        'header_auth_insert',
+        'header_auth_update',
+        'header_staff_insert',
 
         // -----------------------------------------------------------------
         // 2026-09-24 移植。SUUMO掲載順位の収集結果の保存。

@@ -39,6 +39,9 @@ const EditStaff = () => {
         // 制御コンポーネントにすると1文字打つたびに state が更新され、
         // 数千行のテーブル全体が再レンダリングされて入力がもたつく。
         const nameInputRef = useRef<HTMLInputElement>(null);
+        // ⚠️ ID（khg_id）も同じ理由で非制御にした（2026-10-05）。
+        //   ⚠️ 以前は制御コンポーネントで、⚠️ **1文字ごとに表全体が描き直されていた。**
+        const khgIdInputRef = useRef<HTMLInputElement>(null);
         // サジェストの絞り込みだけは state が必要なので、遅延させて更新する。
         const [nameKeyword, setNameKeyword] = useState('');
         const nameKeywordTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,10 +86,16 @@ const EditStaff = () => {
                                 setSectionList(response.data.section);
                                 setAuthNames(response.data.auth_names ?? []);
 
+                                /**
+                                 * ⚠️⚠️ **課と店舗は空から始める**（2026-10-05）。
+                                 *   ⚠️ 以前はマスタの先頭（鹿児島営業1課・KH霧島店）を入れていた。
+                                 *   ⚠️ ⚠️ **選んだように見えるので、触らずに登録されて気づけなかった。**
+                                 *     ⚠️ 実際に「入力していないのに KH霧島店 で保存される」と報告があった。
+                                 */
                                 setNewStaffData(prev => ({
                                         ...prev,
-                                        section: response.data.section[0]?.name ?? '',
-                                        shop: response.data.shop[0]?.shop ?? '',
+                                        section: '',
+                                        shop: '',
                                         period: String(thisYear)
                                 }));
                         } catch (err) {
@@ -128,17 +137,28 @@ const EditStaff = () => {
         };
 
         const handleSaveNewStaff = async () => {
-                // 氏名は非制御 input のため state ではなく ref から読む
+                // 氏名と ID は非制御 input のため state ではなく ref から読む
                 const name = (nameInputRef.current?.value ?? '').trim();
+                const khgId = (khgIdInputRef.current?.value ?? '').trim();
 
                 if (!name) {
                         alert('氏名を入力してください。');
+                        return;
+                }
+                // ⚠️⚠️ **課と店舗は必須**（2026-10-05）。⚠️ ② も空なら弾く
+                if (!newStaffData.section) {
+                        alert('所属（課）を選択してください。');
+                        return;
+                }
+                if (!newStaffData.shop) {
+                        alert('店舗を選択してください。');
                         return;
                 }
 
                 try {
                         const postData = {
                                 ...newStaffData,
+                                khg_id: khgId,
                                 name,
                                 request: "header_staff_insert"
                         };
@@ -153,7 +173,7 @@ const EditStaff = () => {
                                         alert('登録は完了しましたが、IDが取得できませんでした。画面を再読み込みしてください。');
                                         return;
                                 }
-                                const createdRecord = { ...newStaffData, name, id: String(response.data.id) };
+                                const createdRecord = { ...newStaffData, khg_id: khgId, name, id: String(response.data.id) };
 
                                 setOriginalStaffList(prev => [createdRecord, ...prev]);
                                 // 行がアンマウントされるので非制御 input の値は自動的にクリアされる
@@ -166,8 +186,9 @@ const EditStaff = () => {
                                         name: '',
                                         position: '一般',
                                         status: '在籍',
-                                        section: sectionList[0]?.name ?? '',
-                                        shop: shopList[0]?.shop ?? '',
+                                        // ⚠️⚠️ 登録後も空に戻す（⚠️ 先頭の課・店舗を入れない。上の取得時と同じ理由）
+                                        section: '',
+                                        shop: '',
                                         category: '0',
                                         rank: '0',
                                         report: '0',
@@ -297,12 +318,14 @@ const EditStaff = () => {
                                                         {/* 新規登録行 */}
                                                         {newStaff && <tr className="table-primary border-bottom" style={{ backgroundColor: '#f0f7ff' }}>
                                                                 <td className="p-2">
+                                                                        {/* ⚠️ 非制御（ref から読む）。⚠️ 1文字ごとに表全体を描き直さないため */}
                                                                         <BsForm.Control
                                                                                 size="sm"
                                                                                 type="text"
                                                                                 placeholder="ID"
-                                                                                value={newStaffData.khg_id}
-                                                                                onChange={(e) => setNewStaffData(prev => ({ ...prev, khg_id: e.target.value }))}
+                                                                                ref={khgIdInputRef}
+                                                                                defaultValue=""
+                                                                                autoComplete="off"
                                                                                 className="text-center"
                                                                                 style={{ fontSize: '12px' }}
                                                                         />
@@ -399,14 +422,20 @@ const EditStaff = () => {
                                                                         </BsForm.Select>
                                                                 </td>
                                                                 <td>
+                                                                        {/*
+                                                                            ⚠️⚠️ **新規行の課・店舗は一般（ordinary）でも選べる**（2026-10-05）。
+                                                                              ⚠️ 以前は無効になっており、⚠️ **一般が登録すると必ず先頭の課・店舗で保存されていた。**
+                                                                              ⚠️ 必須にした以上、選べないと登録自体ができなくなる。
+                                                                              ⚠️ 既存行の変更は従来どおり一般には無効のまま。
+                                                                        */}
                                                                         <BsForm.Select
                                                                                 size="sm"
                                                                                 value={newStaffData.section}
                                                                                 onChange={(e) => setNewStaffData(prev => ({ ...prev, section: e.target.value }))}
-                                                                                className="border-light-subtle text-muted"
+                                                                                className={`border-light-subtle ${newStaffData.section ? 'text-muted' : 'text-danger'}`}
                                                                                 style={{ fontSize: '12px', backgroundColor: '#fafafa', cursor: 'pointer' }}
-                                                                                disabled={isOrdinary}
                                                                         >
+                                                                                <option value="" disabled>選択してください</option>
                                                                                 {sectionList.map((section, sIndex) => <option key={sIndex} value={section.name}>{section.name}</option>)}
                                                                         </BsForm.Select>
                                                                 </td>
@@ -415,10 +444,10 @@ const EditStaff = () => {
                                                                                 size="sm"
                                                                                 value={newStaffData.shop}
                                                                                 onChange={(e) => setNewStaffData(prev => ({ ...prev, shop: e.target.value }))}
-                                                                                className="border-light-subtle text-muted"
+                                                                                className={`border-light-subtle ${newStaffData.shop ? 'text-muted' : 'text-danger'}`}
                                                                                 style={{ fontSize: '12px', backgroundColor: '#fafafa', cursor: 'pointer' }}
-                                                                                disabled={isOrdinary}
                                                                         >
+                                                                                <option value="" disabled>選択してください</option>
                                                                                 {shopList.map((shop, sIndex) => <option value={shop.shop} key={sIndex}>{shop.shop}</option>)}
                                                                         </BsForm.Select>
                                                                 </td>
