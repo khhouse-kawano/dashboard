@@ -295,7 +295,7 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
                 /**
                  * 契約予定。⚠️ Sランク × ランクの予定月（rank_period）。
                  * ⚠️ rank は `customized_input_01J82Z5F366ZQ897PXWF6H5ZAM`（company の SQL で別名）。
-                 * ⚠️ ⚠️ **使うのは来月以降の月だけ**（今月以前は契約数を出す。下の planOf）。
+                 * ⚠️ ⚠️ **使うのは当月以降の月だけ**（当月より前は契約数を出す。下の planOf）。
                  */
                 if (c.rank === 'Sランク') {
                     const m = ym(c.rank_period);
@@ -399,9 +399,12 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
         const s = contractStats.get(scope.id);
         if (!s) return null;
 
-        /** ⚠️ 契約予定: 来月以降は Sランクの数、今月以前は契約数 */
+        /**
+         * ⚠️ 契約予定: ⚠️ **当月より前は契約数をそのまま**、当月以降は Sランクの数（v2.2.164）。
+         * ⚠️ v2.2.163 までは当月も契約数だった（`m > THIS_MONTH`）。⚠️ 当月は月の途中なので予定（Sランク）で見る。
+         */
         const planOf = (months: string[]) =>
-            months.reduce((acc, m) => acc + (m > THIS_MONTH ? (s.plan[m] ?? 0) : (s.actual[m] ?? 0)), 0);
+            months.reduce((acc, m) => acc + (m < THIS_MONTH ? (s.actual[m] ?? 0) : (s.plan[m] ?? 0)), 0);
 
         const rows: { key: string; label: string; group?: boolean; tone: string; value: (col: Column) => React.ReactNode }[] = [
             { key: 'budget', label: '今期予算', tone: 'budget', value: col => num(sum(s.budget, col.months)) },
@@ -725,7 +728,7 @@ const QuarterSummary = ({ show, setShow, targetYear, customerList, shopList, sec
                     {tab === 'contract' ? <>
                         ※ 差異は「実績 − 予算」、下段の％は達成率（実績 ÷ 予算、切り捨て）です。まだ来ていない月は「-」です。合計列は期間の実績合計と予算合計から計算しています。<br />
                         ※ 昨対比は、合計列では<b>すでに過ぎた月だけ</b>で今期と前期を比べています（途中の四半期が低く見えないように）。<br />
-                        ※ 契約予定は、来月以降は「Sランク × ランク予定月」の人数、今月以前は契約数です。<br />
+                        ※ 契約予定は、当月より前の月は契約数をそのまま、当月以降は「Sランク × ランク予定月」の人数です。<br />
                         ※ 店舗の行に FH は出していませんが、課・全店舗の数には含まれます（会社実績と同じ）。
                     </> : <>
                         ※ 来場は実来場（初回面談、初回面談が空なら2回目以降の面談・事前審査・契約）で数えています。<br />
