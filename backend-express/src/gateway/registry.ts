@@ -1613,17 +1613,36 @@ register({
   },
 });
 
-register({
-  request: 'change_company_achievement',
-  summary: '【書き込み・フォールバック禁止】契約目標の登録（company_achievement の upsert）',
-  phpSource: 'backend/src/handlers/change_company_achievement.php',
-  auth: 'staff',
-  handler: async (ctx) => {
-    const result = await runChangeCompanyAchievement(ctx.body);
-    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
-    return result.body;
-  },
-});
+/**
+ * ⚠️⚠️ **契約目標の登録は `category` の値ごとに登録する**（v2.2.164）。
+ *
+ *   ⚠️ company_achievement には **`category` という列**（'shop' = 店舗の予算 / 'staff' = 営業の目標）がある。
+ *   ⚠️ ⚠️ **画面（Company.tsx の changeAchievement）はそれを `category: 'shop'` のように送るため、
+ *     ゲートウェイの振り分けキー `request:roll:category` に入ってしまう。**
+ *   ⚠️ 1件（category 空）だけの登録だと ⚠️ `change_company_achievement::shop` が見つからず、
+ *     ⚠️⚠️ **「ループ検知」で 502 になる。** ⚠️ フォールバック禁止なので ① でも保存されない
+ *     （⚠️ 2026-10-05「予算の修正ができない」で発覚。⚠️ 入力欄は画面上だけ変わり、再読込で消える）。
+ *
+ *   ⚠️ 来るのは `'shop'`・`'staff'`。⚠️ `''` は従来の登録を残すため。
+ *   ⚠️ ⚠️ **ハンドラは同じ。** ⚠️ `category` は列の値として本文から読む。
+ *   ⚠️ 画面に新しい種類（例: 'section'）を足したら、⚠️ **ここにも足すこと。**
+ */
+const COMPANY_ACHIEVEMENT_CATEGORY_VALUES = ['', 'shop', 'staff'];
+
+for (const category of COMPANY_ACHIEVEMENT_CATEGORY_VALUES) {
+  register({
+    request: 'change_company_achievement',
+    category,
+    summary: '【書き込み・フォールバック禁止】契約目標の登録（company_achievement の upsert）',
+    phpSource: 'backend/src/handlers/change_company_achievement.php',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runChangeCompanyAchievement(ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // 集客イベントの来場予約一覧（header/EventList.tsx）
