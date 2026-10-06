@@ -77,7 +77,7 @@ const STEP_MS = 420;
  *     「今週出たものがあるのか」が分からない。**
  *   ⚠️ 日付のタグは出ているが、⚠️⚠️ **10px の灰色で、拾い読みでは目に入らない。**
  */
-const RECENT_DAYS = 7;
+export const RECENT_DAYS = 7;
 
 /**
  * 直近に登録されたレポートか。
@@ -92,8 +92,11 @@ const RECENT_DAYS = 7;
  *     ⚠️ 境目の1日が「最新ではない」と判定されうる。
  *
  * ⚠️ 読めない値は `Invalid Date` になり、⚠️ **比較が false になって自然に外れる。**
+ *
+ * ⚠️ v2.2.165: 月次日報（DailyReports.tsx）の「最新の他社分析 〇件」でも使う。
+ *   ⚠️⚠️ **判定はここ1か所。** ⚠️ 日報側に同じ式を書き写さないこと（⚠️ 件数と「最新」の印がずれる）。
  */
-const isRecent = (created: string | null | undefined): boolean => {
+export const isRecent =(created: string | null | undefined): boolean => {
     const at = toLocalDate(String(created ?? '').slice(0, 10));
     if (Number.isNaN(at.getTime())) return false;
 

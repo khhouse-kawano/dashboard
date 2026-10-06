@@ -1,3 +1,84 @@
+# 2026-10-06-01　反響一覧（注文）の見直し・重複判定・見た目／月次日報に最新の他社分析（v2.2.165）
+
+## 依頼（ReadMeClaude.md）
+
+- 要件1 `ListOrder.tsx`
+  - filteredInquiryList を useMemo で取ったあとに setInquiryList する必要があるのか。ほかにも無駄な処理を見直す
+  - `inquiry_customer.duplicate` を使わずに重複顧客を抽出（氏名・携帯・メールのうち **2つ以上**一致）→ `{shop}_{response_medium}重複` で表示
+  - SaaS 風の見た目（黒文字の色味・テーブルの角・影）
+- 要件2 `DailyReports.tsx` の上部に、CompetitorAnalysisReports の isRecent が真のものを「**最新の他社分析 〇件**」で表示。押すと他社分析が開く
+
+## 確認したこと（ユーザーの回答）
+
+| 質問 | 回答 |
+|---|---|
+| 店舗・タグを変えて絞り込み条件に合わなくなった行 | ⚠️ **その場では残す** |
+| ホットリードの行の duplicate リンク（#〇〇） | ⚠️ **重複表示だけにする**（リンクは出さない） |
+| 最新の他社分析が0件のとき | ⚠️ **「0件」で常に出す** |
+
+## 版の準備
+
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| `frontend/src/utils/` | **version.ts** | `'2.2.165'` |
+| `backend/scripts/sql/` | **2026-10-06_update_log_2.2.165.sql**（新規） | update_log に1行 |
+| — | ブランチ | `v2.2.164` から `v2.2.165` を作成 |
+
+⚠️⚠️ **ローカルDBへの投入は未実施**（⚠️ 作業時に Docker が停止していたため）。⚠️ Docker 起動後に流すこと。
+
+## 調べてわかったこと（無駄・不具合）
+
+| # | 内容 | どうした |
+|---|---|---|
+| 1 | ⚠️⚠️ `filteredInquiryList` を useEffect で `inquiryList` に**写していた**。⚠️ 店舗・タグの変更は**写しにだけ**書かれ、⚠️ `originalList` に入らない。⚠️ 絞り込みを変えると写しが作り直され、⚠️ **変更が画面から消えて見えた**（DB は保存済み） | ⚠️ 写しをやめ、変更は `originalList` に書く（`patchRow`） |
+| 2 | ⚠️ 上の写しのせいで、⚠️ 一覧が変わるたびに表示件数が20件に戻っていた | ⚠️ 戻すのは ⚠️ **絞り込み条件が変わったときだけ**（`filterKey`） |
+| 3 | `totalLength` を state で持っていた | ⚠️ `filteredInquiryList.length` から出す |
+| 4 | 事前アンケートも useEffect で `surveyBeforeList` に写していた | ⚠️ useMemo の結果をそのまま使う |
+| 5 | ⚠️ 1件ごとに課の店舗一覧を作り直していた（filter の中） | ⚠️ `sectionShops`（Set）を1回だけ作る |
+| 6 | ⚠️ 1行ごとに事前アンケートを**2回**頭から探していた（＋取込時にも2回） | ⚠️ 索引 `surveyByMail` から引く（`surveyOf`） |
+| 7 | ⚠️ 1行ごとに店舗の選択肢（全店舗 × shopFormate）を作り直していた | ⚠️ `formattedShops` を1回だけ |
+| 8 | ⚠️ 上部サマリーで ⚠️ **店舗の数 × 全件**を数え直していた | ⚠️ `summaryCounts` で1回だけ数える |
+| 9 | チェックの判定が `checkedIds.includes`（行数 × 件数） | ⚠️ `checkedSet` |
+| 10 | `await setState`（Promise を返さない）、事前アンケートの列を1つずつ手で写していた | ⚠️ 整理（`showBeforeSurvey`） |
+| 11 | 行の key が index | ⚠️ `inquiry_id` |
+| 12 | `<option selected>`（React の警告対象） | ⚠️ 取込状態は `value`、店舗・担当は `defaultValue` |
+| 13 | ⚠️ 一括取込は開始時点の写しを最後に丸ごと戻していた | ⚠️ 取り込めた行だけを最新の一覧に反映（⚠️ 取込中に付けたタグが消えないように） |
+
+## 変更したファイル
+
+| ディレクトリ | ファイル | 追加・変更 |
+|---|---|---|
+| `frontend/src/components/list/` | **ListOrder.tsx** | 関数 `normalizeText` `nameKey` `mobileKey` `mailKey` `buildDuplicateMap`（新規・モジュール直下）、`isSync`（コンポーネントの外へ）、`filterKey` `kept`/`keepRow` `sectionShops` `duplicateMap` `surveyByMail`/`surveyOf` `summaryCounts` `checkedSet` `patchRow` `showBeforeSurvey` `activeStaff` `formattedShops` `rowSurvey`（新規）、`filteredInquiryList` `handleSync` `listChange` `toggleTag` 本体の JSX（変更）、state `inquiryList` `totalLength` `surveyBeforeList`（削除） |
+| `frontend/src/components/header/` | **CompetitorAnalysisReports.tsx** | `RECENT_DAYS` と `isRecent` を export（⚠️ 中身は同じ） |
+| `frontend/src/components/header/` | **DailyReports.tsx** | props `onOpenCompetitorReports`、state `recentReports`（新規）、「最新の他社分析」カード |
+| `frontend/src/components/header/` | **Header.tsx** | `<DailyReports onOpenCompetitorReports={…} />` |
+| `docs/` | **deploy-v2.2.165.md**（新規） | ⚠️ ① フロント＋SQL だけ |
+
+## 動作確認
+
+| 確認 | 結果 |
+|---|---|
+| `npm run build` | 成功（`main.54389b4d.js`）。⚠️ 変更したファイルから新しい警告なし |
+| `buildDuplicateMap` を作った例で実行 | 氏名＋携帯（全角・空白あり）一致 → ⚠️ 互いに重複。氏名だけ・メールだけ → 出ない。空欄どうし → 出ない |
+| ⚠️ 実データでの件数 | ⚠️ **未確認**（⚠️ Docker 停止中） |
+| ⚠️ 画面での表示 | ⚠️ **未確認**（⚠️ ブラウザでの目視はしていない） |
+
+## ⚠️ 申し送り
+
+| # | 内容 |
+|---|---|
+| 1 | ⚠️ 重複は ⚠️ **反響すべて**（期間などの絞り込みに関係なく、氏名のある inquiry_customer 全行）から探す |
+| 2 | ⚠️ メールは大文字・小文字を区別する（⚠️ 指示書どおり trim とスペース除去だけ）。⚠️ 区別しない方がよければ `mailKey` に `.toLowerCase()` を足す |
+| 3 | ⚠️ 携帯は `mobile` だけを見る（⚠️ `landline` は見ない。指示書どおり） |
+| 4 | ⚠️ 店舗・担当の select は `defaultValue`。⚠️ 行の key を inquiry_id にしたので、⚠️ 絞り込みで行が入れ替わっても選択状態は混ざらない |
+
+---
+
+## 追加・変更したコード（全文）
+
+### ListOrder.tsx（全文）
+
+```tsx
 import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
 import Table from "react-bootstrap/Table";
 import apiClient from '../../utils/apiClient';
@@ -917,3 +998,130 @@ const ListOrder = ({ onReload }: Props) => {
     )
 }
 export default ListOrder;
+```
+
+### CompetitorAnalysisReports.tsx（変更箇所）
+
+```tsx
+export const RECENT_DAYS = 7;
+
+/**
+ * 直近に登録されたレポートか。
+ *
+ * ⚠️⚠️ **`created`（登録日時）で見る。`data_as_of`（データの時点）ではない。**
+ *   ⚠️ ⚠️ **古い期間を今日まとめ直すことがある。**
+ *     ⚠️ その場合「データは去年ぶんだが、レポート自体は新しい」。
+ *   ⚠️ 利用者が知りたいのは ⚠️ **「まだ見ていないものがあるか」**なので登録日が正しい。
+ *
+ * ⚠️⚠️ **`toLocalDate()` を通すこと。**
+ *   ⚠️ ⚠️ **`new Date('2026-10-01')` は UTC の0時**であり、日本では9時間ずれる。
+ *     ⚠️ 境目の1日が「最新ではない」と判定されうる。
+ *
+ * ⚠️ 読めない値は `Invalid Date` になり、⚠️ **比較が false になって自然に外れる。**
+ *
+ * ⚠️ v2.2.165: 月次日報（DailyReports.tsx）の「最新の他社分析 〇件」でも使う。
+ *   ⚠️⚠️ **判定はここ1か所。** ⚠️ 日報側に同じ式を書き写さないこと（⚠️ 件数と「最新」の印がずれる）。
+ */
+export const isRecent =(created: string | null | undefined): boolean => {
+    const at = toLocalDate(String(created ?? '').slice(0, 10));
+    if (Number.isNaN(at.getTime())) return false;
+
+    // ⚠️ 今日の0時を基準にする。⚠️⚠️ **時刻で引くと「7日前の朝」が外れる**
+    const today = new Date();
+    const from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    from.setDate(from.getDate() - (RECENT_DAYS - 1));
+
+    return at.getTime() >= from.getTime();
+};
+```
+
+### DailyReports.tsx（追加箇所）
+
+```tsx
+import { isRecent, RECENT_DAYS } from './CompetitorAnalysisReports';
+import { CLAUDE_ORANGE } from './ClaudeIcon';
+
+type Props = {
+    /**
+     * 「最新の他社分析」カードを押したとき（v2.2.165）。
+     * ⚠️ Header.tsx が渡す。⚠️ 同じ全画面モーダルのまま「Claudeによる競合分析」に切り替える。
+     * ⚠️ 渡されなければカードは押せない（⚠️ 件数だけ出す）。
+     */
+    onOpenCompetitorReports?: () => void;
+};
+
+const DailyReports = ({ onOpenCompetitorReports }: Props) => {
+    const { category, shopName } = useContext(AuthContext);
+
+    /**
+     * 最新の他社分析の件数（v2.2.165）。⚠️ null は取得中・取得失敗。
+     *
+     * ⚠️ 他社分析の画面（CompetitorAnalysisReports.tsx）と ⚠️ **同じ API・同じ isRecent** で数える。
+     * ⚠️⚠️ **`category` という名前で送らないこと**（⚠️ ② の振り分けキーと衝突して 502 になる）。
+     * ⚠️ 0件でも ⚠️ **カードは常に出す**（2026-10-06 の確認。⚠️ 他社分析への入口を兼ねる）。
+     * ⚠️ 日報の集計とは別に取る（⚠️ 失敗しても日報は出す）。
+     */
+    const [recentReports, setRecentReports] = useState<number | null>(null);
+    useEffect(() => {
+        let alive = true;
+        const fetchReports = async () => {
+            try {
+                const res = await apiClient.post('', { request: 'analysis_report_list', reportCategory: 'competitor' });
+                const rows = (res.data?.reports ?? []) as { created: string }[];
+                if (alive) setRecentReports(rows.filter(r => isRecent(r.created)).length);
+            } catch (err) {
+                console.error('他社分析の取得に失敗しました:', err);
+            }
+        };
+        void fetchReports();
+        return () => { alive = false; };
+    }, []);
+    // …（中略）…
+            {/*
+              ⚠️ 最新の他社分析（v2.2.165）。⚠️ 日報の見出しの上に置く。
+              ⚠️ 押すと Header.tsx が「Claudeによる競合分析」に切り替える（onOpenCompetitorReports）。
+              ⚠️ 件数が1件以上のときだけ色を付ける（⚠️ 0件のときは控えめに出す）。
+            */}
+            <style>{`
+                .dr_recent { display: inline-flex; align-items: center; gap: 12px; align-self: flex-start;
+                             background: #fff; border: 1px solid #e8e6dc; border-radius: 12px;
+                             box-shadow: 0 1px 2px rgba(15, 23, 42, .05); padding: 10px 16px;
+                             color: #1f2937; text-align: left; }
+                .dr_recent.is_link { cursor: pointer; }
+                .dr_recent.is_link:hover { border-color: ${CLAUDE_ORANGE}; box-shadow: 0 2px 8px rgba(217, 119, 87, .15); }
+                .dr_recent:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
+                .dr_recent_icon { width: 32px; height: 32px; border-radius: 8px; display: inline-flex;
+                                  align-items: center; justify-content: center; background: #f3f4f6; color: #6b7280; }
+                .dr_recent.has_new .dr_recent_icon { background: ${CLAUDE_ORANGE}; color: #fff; }
+                .dr_recent_label { font-size: 12px; color: #6b7280; line-height: 1.2; }
+                .dr_recent_count { font-size: 18px; font-weight: 800; line-height: 1.2; }
+                .dr_recent.has_new .dr_recent_count { color: ${CLAUDE_ORANGE}; }
+                .dr_recent_count small { font-size: 12px; font-weight: 700; margin-left: 2px; color: #4b5563; }
+                .dr_recent_go { font-size: 11px; color: #9ca3af; margin-left: 4px; }
+            `}</style>
+            <button
+                type="button"
+                className={`dr_recent mb-3 flex-shrink-0${onOpenCompetitorReports ? ' is_link' : ''}${(recentReports ?? 0) > 0 ? ' has_new' : ''}`}
+                onClick={onOpenCompetitorReports}
+                disabled={!onOpenCompetitorReports}
+                title={`直近${RECENT_DAYS}日以内に登録された他社分析レポート`}
+            >
+                <span className="dr_recent_icon"><i className="fa-solid fa-chart-pie" aria-hidden="true" /></span>
+                {/* ⚠️ 指示書の表記どおり「最新の他社分析 〇件」を1行で */}
+                <span className="d-inline-flex align-items-baseline gap-2">
+                    <span className="dr_recent_label">最新の他社分析</span>
+                    <span className="dr_recent_count">
+                        {recentReports === null ? '－' : recentReports}<small>件</small>
+                    </span>
+                </span>
+                {onOpenCompetitorReports && <span className="dr_recent_go">開く <i className="fa-solid fa-chevron-right" aria-hidden="true" /></span>}
+            </button>
+```
+
+### Header.tsx（変更箇所）
+
+```tsx
+        // ⚠️ v2.2.165: 上部の「最新の他社分析」カードから、同じモーダルのまま他社分析へ切り替える。
+        //   ⚠️ どちらも isFullscreenMenu に入っているので、⚠️ 全画面のまま中身だけ替わる。
+        '日報/月次日報': <DailyReports onOpenCompetitorReports={() => setEditMenu(`他社動向/${CLAUDE_COMPETITOR_ITEM}`)} />,
+```
