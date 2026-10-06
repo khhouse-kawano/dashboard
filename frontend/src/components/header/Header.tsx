@@ -186,7 +186,9 @@ const Header = ({ }) => {
         '土地・物件管理/仲介物件登録': <RegisterBrokerageListings setModal={setModal} />,
         // ⚠️ 物件台帳（satbase_property）の一覧。⚠️ **列が40あるので全画面**（下を参照）
         '土地・物件管理/SatBaseサマリー': <SatBaseDatabase />,
-        '日報/月次日報': <DailyReports />,
+        // ⚠️ v2.2.165: 上部の「最新の他社分析」カードから、同じモーダルのまま他社分析へ切り替える。
+        //   ⚠️ どちらも isFullscreenMenu に入っているので、⚠️ 全画面のまま中身だけ替わる。
+        '日報/月次日報': <DailyReports onOpenCompetitorReports={() => setEditMenu(`他社動向/${CLAUDE_COMPETITOR_ITEM}`)} />,
         '日報/営業別契約率': <StaffContractRate />,
         '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
         '公式アンバサダー/反響一覧': <InquiryAmbassador />,

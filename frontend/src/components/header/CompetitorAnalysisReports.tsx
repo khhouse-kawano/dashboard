@@ -77,7 +77,7 @@ const STEP_MS = 420;
  *     「今週出たものがあるのか」が分からない。**
  *   ⚠️ 日付のタグは出ているが、⚠️⚠️ **10px の灰色で、拾い読みでは目に入らない。**
  */
-const RECENT_DAYS = 7;
+export const RECENT_DAYS = 7;
 
 /**
  * 直近に登録されたレポートか。
@@ -92,8 +92,11 @@ const RECENT_DAYS = 7;
  *     ⚠️ 境目の1日が「最新ではない」と判定されうる。
  *
  * ⚠️ 読めない値は `Invalid Date` になり、⚠️ **比較が false になって自然に外れる。**
+ *
+ * ⚠️ v2.2.165: 月次日報（DailyReports.tsx）の「最新の他社分析 〇件」でも使う。
+ *   ⚠️⚠️ **判定はここ1か所。** ⚠️ 日報側に同じ式を書き写さないこと（⚠️ 件数と「最新」の印がずれる）。
  */
-const isRecent = (created: string | null | undefined): boolean => {
+export const isRecent =(created: string | null | undefined): boolean => {
     const at = toLocalDate(String(created ?? '').slice(0, 10));
     if (Number.isNaN(at.getTime())) return false;
 
@@ -103,6 +106,20 @@ const isRecent = (created: string | null | undefined): boolean => {
     from.setDate(from.getDate() - (RECENT_DAYS - 1));
 
     return at.getTime() >= from.getTime();
+};
+
+/**
+ * 直近に登録された他社分析レポートの件数（v2.2.165）。
+ *
+ * ⚠️ 月次日報（header/DailyReports.tsx）と要確認（DailyAction.tsx）の「最新の他社分析 〇件」が使う。
+ * ⚠️⚠️ **数え方はこの画面の「最新」の印と同じ**（isRecent）。⚠️ 呼び出し側で数え直さないこと。
+ * ⚠️⚠️ **`category` という名前で送らないこと**（⚠️ ② の振り分けキーと衝突して 502 になる。fetchList の注記参照）。
+ * ⚠️ 失敗したら例外をそのまま投げる（⚠️ 呼び出し側で「－」と出す）。
+ */
+export const countRecentReports = async (): Promise<number> => {
+    const res = await apiClient.post('', { request: 'analysis_report_list', reportCategory: 'competitor' });
+    const rows = (res.data?.reports ?? []) as Pick<ReportRow, 'created'>[];
+    return rows.filter((row) => isRecent(row.created)).length;
 };
 
 const CompetitorAnalysisReports = () => {
