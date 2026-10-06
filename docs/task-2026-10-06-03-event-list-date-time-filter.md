@@ -1,3 +1,64 @@
+# 2026-10-06-03　集客イベント予約一覧に来場予定日・時間の絞り込み、操作の固定、担当店舗の表示（v2.2.166）
+
+## 依頼（ReadMeClaude.md）
+
+- `header/EventList.tsx` の改修
+  - state `targetDate` / `targetTime` を追加
+  - イベント・店舗の select を左寄せにして「閉じる」の右に（ps-3 等で間隔）
+  - `event_db.date` のユニーク値 →「来場予定日を選択」、`event_db.time` のユニーク値 →「来場予定時間を選択」
+  - 「特設URLはこちら」から「来場予定時間を選択」までを固定
+  - `event_db.shop` を同期列の2行目（rotate アイコンの下）に、値があるときだけ表示
+
+## 確認したこと（ユーザーの回答）
+
+| 質問 | 回答 |
+|---|---|
+| 時間が「10:00」と「10:00~」で別の値 | ⚠️ **「~」を外してまとめる** |
+| 右寄せにあった「来場状況」 | ⚠️ **来場予定時間の右に並べる** |
+| 着手 | 着手してよい |
+
+## 調べてわかったこと（ローカル event_db）
+
+| 列 | 値 |
+|---|---|
+| date | `2026/10/10(土)` 61件・`2026/10/11(日)` 55件・⚠️ 空 89件 |
+| time | `10:00` 17件・`10:00~` 47件 … ⚠️ **「~」付きと無しが混在**。`9:00` もある（⚠️ 文字順だと最後に来る） |
+| shop | KH出水阿久根店 89件・⚠️ NULL 116件 |
+
+## 版の準備
+
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| `frontend/src/utils/` | **version.ts** | `'2.2.166'` |
+| `backend/scripts/sql/` | **2026-10-06_update_log_2.2.166.sql**（新規） | update_log に1行。⚠️ ローカルDBにも投入済み（no=262） |
+| — | ブランチ | `v2.2.165` から `v2.2.166` を作成 |
+
+## 変更したファイル
+
+| ディレクトリ | ファイル | 追加・変更 |
+|---|---|---|
+| `frontend/src/components/header/` | **EventList.tsx** | 関数 `normalizeTime` `timeOrder`（新規・モジュール直下）、state `targetDate` `targetTime`、`eventRows` `dateArray` `timeArray` `changeEvent`（新規）、`filteredData` と表示件数リセットの依存（変更）、上部の操作（固定・左寄せ）、同期列（2行） |
+| `docs/` | **deploy-v2.2.166.md**（新規） | ⚠️ ① フロント＋SQL だけ |
+
+## 判断したこと
+
+- ⚠️ 日付・時間の選択肢は ⚠️ **選んでいるイベントの予約から作る**（他のイベントにしか無い値を出さない）。
+- ⚠️ イベントを選び直したら日付・時間を戻す（⚠️ 選択肢に無い値で絞り込まれて、表示と一覧が食い違うのを防ぐ）。
+- ⚠️ 表の「来場予定」の表示は ⚠️ **元の値のまま**（「10:00~」は「10:00~」と出る）。まとめるのは選択肢と絞り込みだけ。
+- ⚠️ 固定は `position: sticky`。⚠️ スクロールしているのは Modal.Body なので、⚠️ Body の余白（8px）ぶん top を上げて同じ色で塗った。
+
+## 動作確認
+
+| 確認 | 結果 |
+|---|---|
+| `npm run build` | 成功（`main.0db9f532.js`）。⚠️ EventList.tsx の `fetchData` の警告は以前からのもの |
+| ⚠️ 画面での表示 | ⚠️ **未確認** |
+
+## 追加・変更したコード（全文）
+
+### EventList.tsx（全文）
+
+```tsx
 import React, { useEffect, useState, useRef, useMemo, useContext } from 'react';
 import { Table, Spinner, Alert, Modal } from 'react-bootstrap';
 // ⚠️ 2026-09-06 に list/ から header/ へ移動した。listUtils は list/ に残している
@@ -834,3 +895,4 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
 };
 
 export default EventList;
+```
