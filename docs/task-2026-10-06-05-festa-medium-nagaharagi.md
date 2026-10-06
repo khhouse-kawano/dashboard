@@ -429,3 +429,383 @@ export const sendInternalNotice = async (
 - ⚠️ `NOTICE_SUBJECT_SUFFIX` に `junko` → `junko2,000円チケット`、`CONFIRM_NOTE_BY_MEDIUM` に `junko` → `junko2,000円チケットでのお申し込みを確認いたしました。`（mail.ts）。
 - ⚠️ LP の `MEDIUM_BY_PARAM` を `new Map([["c", "長原木"], ["j", "junko"]])` に。
 - ローカルで `medium: junko` を POST → event_db.medium = junko を確認、テスト行は削除。
+
+## 追補2（同日）: 対応表を ② に一本化（リファクタリング）
+
+### 動作確認（変更前）
+| URL | LPが送る値 | event_db.medium |
+|---|---|---|
+| `?m=c` | medium: 長原木 | 長原木 |
+| `?m=j` | medium: junko | junko |
+| なし / `?m=x` / `?m=C` / `?m=constructor` | （送らない） | NULL |
+
+→ 正しく動いていたが、対応表が4か所（LP `MEDIUM_BY_PARAM` ／ ② `ALLOWED_MEDIUMS` ／ `NOTICE_SUBJECT_SUFFIX` ／ `CONFIRM_NOTE_BY_MEDIUM`）に分散していた。
+
+### 変更
+- ② `reservation.ts`: ⚠️ 削除 `ALLOWED_MEDIUMS`。⚠️ 追加 `Campaign` 型・`CAMPAIGN_BY_PARAM`（`m` → `{ medium, ticket }`）。`runEventReservation` は `body.m` で引く（⚠️ `body.medium` は読まない）。
+- ② `mail.ts`: ⚠️ 削除 `NOTICE_SUBJECT_SUFFIX`・`CONFIRM_NOTE_BY_MEDIUM`。`ReservationMailData.medium` → ⚠️ `ticket`。件名・本文は `ticket` から組み立てる。
+- LP: ⚠️ 削除 `MEDIUM_BY_PARAM`・`medium`。⚠️ 追加 `campaignParam`（`?m=` の値そのまま）。`buildPayload` は `m: campaignParam` を送る。
+- 件名・本文・保存値は変更前と同じ。
+- ⚠️ v2.2.167 は未リリースのため、`medium` 送信との互換は持たせていない。
+
+### 確認（ローカル）
+| 送った m | 応答 | event_db.medium |
+|---|---|---|
+| `c` | ok | 長原木 |
+| `j` | ok | junko |
+| `""` | ok | NULL |
+| `x` | ok | NULL |
+
+メール（送信部分を差し替えて組み立て）:
+- 長原木: 件名 `…山田様(長原木2,000円チケット)`、確認メール「長原木2,000円チケットでのお申し込みを確認いたしました。」
+- junko: 件名 `…山田様(junko2,000円チケット)`、確認メール「junko2,000円チケットでのお申し込みを確認いたしました。」
+- なし: 従来どおり
+- `tsc --noEmit` 通過。テスト行は削除済み。
+
+### reservation.ts — `Campaign` / `CAMPAIGN_BY_PARAM`（追加）
+```ts
+/** LPの `?m=` に対応する媒体 */
+interface Campaign {
+  /** event_db.medium に保存する値 */
+  medium: string;
+  /** メールに書くチケット名（社内通知の件名・予約者への確認メール） */
+  ticket: string;
+}
+
+/**
+ * LPの `?m=` の値 → 媒体。
+ *
+ * ⚠️⚠️ **対応表はここだけ。** LPは `m` の値をそのまま送ってくる（変換しない）。
+ *   `m` を増やすときはここに1行足すだけでよい（LPの差し替えは不要）。
+ *   例: https://kh-house.jp/festa/?m=c → 長原木
+ *
+ * ⚠️⚠️ **表に無い値は無視する（medium は NULL）。** 認証なしの口なので、
+ *   自由な文字列を medium に入れると一覧や媒体別の集計を汚せる。予約そのものは弾かない。
+ *
+ * ⚠️ 大文字小文字は区別する（`?m=C` は該当なし）。
+ */
+const CAMPAIGN_BY_PARAM = new Map<string, Campaign>([
+  ['c', { medium: '長原木', ticket: '長原木2,000円チケット' }],
+  ['j', { medium: 'junko', ticket: 'junko2,000円チケット' }],
+]);
+```
+
+### reservation.ts — `runEventReservation`（修正後・全体）
+```ts
+export const runEventReservation = async (
+  body: Record<string, unknown>
+): Promise<EventResult> => {
+  const id = clean(body.id, 64);
+
+  if (!ID_PATTERN.test(id)) {
+    // ⚠️ 形式の詳細は返さない。総当たりの手がかりになる
+    return {
+      httpStatus: 400,
+      body: { status: 'error', message: '予約情報が正しくありません。お手数ですが最初からやり直してください。' },
+    };
+  }
+
+  const name = clean(body.name, 64);
+  if (name === '') {
+    return { httpStatus: 400, body: { status: 'error', message: 'お名前を入力してください。' } };
+  }
+
+  const mail = clean(body.mail, 255);
+  const phone = normalizePhone(clean(body.phone, 32));
+  if (mail === '' && phone === '') {
+    return {
+      httpStatus: 400,
+      body: { status: 'error', message: 'メールアドレスか電話番号のいずれかを入力してください。' },
+    };
+  }
+
+  const date = clean(body.date, 32);
+  if (!ALLOWED_DATES.has(date)) {
+    return { httpStatus: 400, body: { status: 'error', message: '来場日を選択してください。' } };
+  }
+
+  const time = clean(body.time, 16);
+  if (time === '') {
+    return { httpStatus: 400, body: { status: 'error', message: '来場時間を選択してください。' } };
+  }
+
+  // ⚠️ 無い・表に無い値は undefined（→ medium は NULL、メールは従来どおり）。弾かない
+  const campaign = CAMPAIGN_BY_PARAM.get(clean(body.m, 8));
+
+  const record = {
+    id,
+    title: EVENT_TITLE,
+    date,
+    time,
+    name,
+    kana: clean(body.kana, 64),
+    mail,
+    phone,
+    address: clean(body.address, 128),
+    area: clean(body.area, 128),
+    interview: joinChoices(body.interview, 20, 64),
+    // ⚠️⚠️ フォームの `request[]`（マイホームのご検討）は **`request_type`** という
+    //   キーで送られてくる。`request` はゲートウェイのリクエスト種別
+    //   （'event_reservation'）で予約済みのため、そのままでは使えない。
+    //   ここを body.request にすると、保存される値が 'event_reservation' になる。
+    request: joinChoices(body.request_type, 10, 64),
+    medium: campaign?.medium ?? '',
+    // ⚠️ フォームは同意必須。'1' 以外が来たら未同意として保存する（弾かない）
+    agree: clean(body.agree, 4) === '1' ? 1 : 0,
+    reserved_at: nowForDb(),
+  };
+
+  try {
+    // ⚠️ UNIQUE キーだけに頼らず、先に確認して分かりやすい応答を返す。
+    //   利用者が「送信」を2回押したときに赤いエラーを出さないため。
+    const existing = await query<CountRow>(
+      'SELECT COUNT(*) AS c FROM event_db WHERE id = ?',
+      [id]
+    );
+    if ((existing[0]?.c ?? 0) > 0) {
+      return {
+        httpStatus: 200,
+        body: { status: 'ok', duplicate: true },
+      };
+    }
+
+    const columns = Object.keys(record);
+    const values: SqlParam[] = columns.map((col) => {
+      const v = (record as Record<string, string | number>)[col];
+      return typeof v === 'number' ? v : orNull(v);
+    });
+
+    await execute(
+      `INSERT INTO event_db (${columns.map((c) => `\`${c}\``).join(', ')})
+       VALUES (${columns.map(() => '?').join(', ')})`,
+      values
+    );
+  } catch (error) {
+    // ⚠️ 例外の内容を応答に含めない（SQLや列名が漏れる）
+    logger.error(`event_reservation の保存に失敗しました id=${id}: ${(error as Error).message}`);
+    return {
+      httpStatus: 500,
+      body: { status: 'error', message: 'ご予約の登録に失敗しました。時間をおいて再度お試しください。' },
+    };
+  }
+
+  // ⚠️ ここから先の失敗では 400 / 500 を返さない。予約は保存済みである
+  const payload: ReservationMailData = {
+    id: record.id,
+    name: record.name,
+    kana: record.kana,
+    date: record.date,
+    time: record.time,
+    mail: record.mail,
+    phone: record.phone,
+    address: record.address,
+    area: record.area,
+    interview: record.interview,
+    request: record.request,
+    title: record.title,
+    agree: record.agree,
+    ticket: campaign?.ticket ?? '',
+  };
+
+  // ⚠️ QRは1回だけ作って両方のメールに渡す。
+  //   顧客宛（当日の提示用）と社内宛（紛失時の再送用）の両方に添付する。
+  const qr = await buildQrPng(record.id);
+
+  const [confirmSent, noticeSent] = await Promise.all([
+    sendReservationConfirm(payload, qr),
+    sendInternalNotice(payload, qr),
+  ]);
+
+  if (!noticeSent) {
+    // ⚠️ 社内通知が飛ばないと誰も予約に気づかない。ログには必ず残す
+    logger.warn(`event_reservation の社内通知を送信できませんでした id=${id}`);
+  }
+
+  return {
+    httpStatus: 200,
+    body: { status: 'ok', mailSent: confirmSent },
+  };
+};
+```
+
+### mail.ts — `ReservationMailData`（修正後）
+```ts
+export interface ReservationMailData {
+  id: string;
+  name: string;
+  kana: string;
+  date: string;
+  time: string;
+  mail: string;
+  phone: string;
+  address: string;
+  area: string;
+  interview: string;
+  request: string;
+  title: string;
+  /**
+   * 個人情報の取り扱いへの同意。1 = 同意済み。
+   *
+   * ⚠️ フォームは同意を必須にしているため実際には常に 1 になる。
+   *   それでも 0 の表記を用意しておくこと。フォームを介さず
+   *   直接APIを叩かれた場合に「チェック済み」と誤記録しないため。
+   *
+   * ⚠️ LPの同意文には**写真撮影と広報利用**の了承も含まれる。
+   *   この値はその同意も兼ねている。文面を変えるときは
+   *   LPの .form__privacy と揃えること。
+   */
+  agree: number;
+  /**
+   * チケット名（例: 長原木2,000円チケット）。⚠️ 該当しない予約は空文字。
+   *
+   * ⚠️ 対応表は reservation.ts の CAMPAIGN_BY_PARAM。空でなければ
+   *   社内通知の件名に `(チケット名)`、確認メールに一文を添える。
+   */
+  ticket: string;
+}
+```
+
+### mail.ts — `sendReservationConfirm`（修正後・全体）
+```ts
+export const sendReservationConfirm = async (
+  data: ReservationMailData,
+  qr: Buffer | null
+): Promise<boolean> => {
+  if (data.mail === '') return false;
+
+  const lines = [
+    `${data.name} 様`,
+    '',
+    `この度は「${data.title}」にご予約いただき、誠にありがとうございます。`,
+    '以下の内容で承りました。',
+    // ⚠️ 空文字は下の filter で消える（該当しない予約は従来どおり）
+    data.ticket === '' ? '' : `${data.ticket}でのお申し込みを確認いたしました。`,
+    '',
+    `【来場日】${data.date}`,
+    `【来場時間】${data.time}`,
+    `【お名前】${data.name}${data.kana === '' ? '' : `（${data.kana}）`}`,
+    `【電話番号】${data.phone}`,
+    `【お住まいの地域】${data.address}`,
+    data.area === '' ? '' : `【建築/購入希望エリア】${data.area}`,
+    '【当日したいこと】',
+    bulletize(data.interview),
+    data.request === '' ? '' : '【マイホームのご検討】',
+    data.request === '' ? '' : bulletize(data.request),
+    agreeLabel(data.agree),
+    '',
+    '──────────────────────',
+    '当日の受付について',
+    '──────────────────────',
+    '添付のQRコードを受付でご提示ください。スムーズにご案内できます。',
+    '画像を保存いただくか、このメールをそのままご提示いただいても構いません。',
+    '',
+    // ⚠️ 添付を紛失したときの逃げ道。ここからQRを再表示できる
+    'QRコードは下記のページでも表示できます。',
+    `${RESERVATION_URL_BASE}?id=${data.id}`,
+    '',
+    // ⚠️ 添付が作れなかった場合に「添付があるはず」と探させない
+    qr === null
+      ? '※QRコードの添付に失敗しました。上記のページからご確認いただくか、受付でお名前をお伝えください。'
+      : '',
+    '',
+    'ご不明な点がございましたら、このメールにご返信ください。',
+    '',
+    '国分ハウジング',
+  ].filter((line) => line !== '');
+
+  return sendMail({
+    to: data.mail,
+    subject: `【${data.title}】ご予約ありがとうございます`,
+    text: lines.join('\n'),
+    attachments:
+      qr === null
+        ? undefined
+        : [{ filename: `${data.id}.png`, content: qr, contentType: 'image/png' }],
+  });
+};
+```
+
+### mail.ts — `sendInternalNotice`（修正後・全体）
+```ts
+export const sendInternalNotice = async (
+  data: ReservationMailData,
+  qr: Buffer | null
+): Promise<boolean> => {
+  const to = env.eventNotifyTo;
+  if (to.length === 0) return false;
+
+  const customer = data.name === '' ? '氏名未入力' : `${data.name}様`;
+  // ⚠️ 例: 【おうちづくりフェスタ2026／予約】〇〇様(長原木2,000円チケット)
+  const suffix = data.ticket === '' ? '' : `(${data.ticket})`;
+
+  const lines = [
+    `${data.title} のLPから予約が入りました。`,
+    '',
+    `【受付日時】${nowJst()}`,
+    `【予約ID】${data.id}`,
+    `【来場日】${data.date}`,
+    `【来場時間】${data.time}`,
+    `【お名前】${data.name}${data.kana === '' ? '' : `（${data.kana}）`}`,
+    `【メールアドレス】${data.mail === '' ? '（未入力）' : data.mail}`,
+    `【電話番号】${data.phone === '' ? '（未入力）' : data.phone}`,
+    `【お住まいの地域】${data.address}`,
+    `【建築/購入希望エリア】${data.area === '' ? '（未入力）' : data.area}`,
+    '【当日したいこと】',
+    bulletize(data.interview),
+    '【マイホームのご検討】',
+    bulletize(data.request),
+    agreeLabel(data.agree),
+    '',
+    'ダッシュボードの「集客イベント → 反響一覧」から確認・編集できます。',
+    '',
+    '当日の受付用QRコードを添付しています。',
+    `${RESERVATION_URL_BASE}?id=${data.id}`,
+  ];
+
+  return sendMail({
+    to,
+    subject: sanitizeHeader(`【${data.title}／予約】${customer}${suffix}`),
+    text: lines.join('\n'),
+    attachments:
+      qr === null
+        ? undefined
+        : [{ filename: `${data.id}.png`, content: qr, contentType: 'image/png' }],
+  });
+};
+```
+
+### LP index.html — `campaignParam` / `buildPayload`（修正後）
+```js
+        // URLの `?m=` の値（例: https://kh-house.jp/festa/?m=c → "c"）。
+        //
+        // ⚠️⚠️ **ここでは変換せず、そのまま送る。** 媒体名（長原木など）への対応表は
+        //   サーバー側（features/event/reservation.ts の CAMPAIGN_BY_PARAM）だけにある。
+        //   `m` を増やすときもLPは直さなくてよい。
+        // ⚠️ 無ければ空文字（サーバーは媒体なしとして保存する）
+        const campaignParam =
+          new URLSearchParams(window.location.search).get("m") || "";
+
+        // 予約データを組み立てる。
+        //
+        // ⚠️ チェックボックスは配列のまま送る。サーバー側でカンマ区切りに
+        //   まとめている（既存データの形式に合わせるため）。
+        const buildPayload = (reservationId) => {
+          const formData = new FormData(form);
+          return {
+            m: campaignParam,
+            request: API_REQUEST,
+            id: reservationId,
+            date: formData.get("date") || "",
+            time: formData.get("time") || "",
+            name: formData.get("name") || "",
+            kana: formData.get("kana") || "",
+            mail: formData.get("mail") || "",
+            phone: formData.get("phone") || "",
+            address: formData.get("address") || "",
+            area: formData.get("area") || "",
+            interview: formData.getAll("interview[]"),
+            request_type: formData.getAll("request[]"),
+            agree: formData.get("agree") ? "1" : "0",
+          };
+        };
+```

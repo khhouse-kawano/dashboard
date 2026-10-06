@@ -43,30 +43,14 @@ export interface ReservationMailData {
    *   LPの .form__privacy と揃えること。
    */
   agree: number;
-  /** 媒体（event_db.medium）。⚠️ 許可リスト外・指定なしは空文字 */
-  medium: string;
+  /**
+   * チケット名（例: 長原木2,000円チケット）。⚠️ 該当しない予約は空文字。
+   *
+   * ⚠️ 対応表は reservation.ts の CAMPAIGN_BY_PARAM。空でなければ
+   *   社内通知の件名に `(チケット名)`、確認メールに一文を添える。
+   */
+  ticket: string;
 }
-
-/**
- * 媒体 → 社内通知の件名に添える文言。
- *
- * ⚠️ 例: 【おうちづくりフェスタ2026／予約】〇〇様(長原木2,000円チケット)
- * ⚠️ ここに無い媒体は件名に何も付けない（従来どおり）。
- */
-const NOTICE_SUBJECT_SUFFIX = new Map<string, string>([
-  ['長原木', '長原木2,000円チケット'],
-  ['junko', 'junko2,000円チケット'],
-]);
-
-/**
- * 媒体 → 予約者宛の確認メール（サンクスメール）に添える一文。
- *
- * ⚠️ 「以下の内容で承りました。」の直後に入る。ここに無い媒体は何も足さない（従来どおり）。
- */
-const CONFIRM_NOTE_BY_MEDIUM = new Map<string, string>([
-  ['長原木', '長原木2,000円チケットでのお申し込みを確認いたしました。'],
-  ['junko', 'junko2,000円チケットでのお申し込みを確認いたしました。'],
-]);
 
 /**
  * QRコードをPNGのバッファで作る。
@@ -135,7 +119,7 @@ export const sendReservationConfirm = async (
     `この度は「${data.title}」にご予約いただき、誠にありがとうございます。`,
     '以下の内容で承りました。',
     // ⚠️ 空文字は下の filter で消える（該当しない予約は従来どおり）
-    CONFIRM_NOTE_BY_MEDIUM.get(data.medium) ?? '',
+    data.ticket === '' ? '' : `${data.ticket}でのお申し込みを確認いたしました。`,
     '',
     `【来場日】${data.date}`,
     `【来場時間】${data.time}`,
@@ -198,7 +182,8 @@ export const sendInternalNotice = async (
   if (to.length === 0) return false;
 
   const customer = data.name === '' ? '氏名未入力' : `${data.name}様`;
-  const suffix = NOTICE_SUBJECT_SUFFIX.get(data.medium);
+  // ⚠️ 例: 【おうちづくりフェスタ2026／予約】〇〇様(長原木2,000円チケット)
+  const suffix = data.ticket === '' ? '' : `(${data.ticket})`;
 
   const lines = [
     `${data.title} のLPから予約が入りました。`,
@@ -226,9 +211,7 @@ export const sendInternalNotice = async (
 
   return sendMail({
     to,
-    subject: sanitizeHeader(
-      `【${data.title}／予約】${customer}${suffix === undefined ? '' : `(${suffix})`}`
-    ),
+    subject: sanitizeHeader(`【${data.title}／予約】${customer}${suffix}`),
     text: lines.join('\n'),
     attachments:
       qr === null
