@@ -29,40 +29,25 @@ type ResponseInfo = {
     contract: string | null;
 };
 
-type CallLog = {
+/**
+ * 追客・商談ログの1件（call_log / interview_log の JSON の要素）。
+ * ⚠️ サーバー（daily_report.php）が day / action / staff だけに削り、⚠️ day は `YYYY-MM-DD` に揃えて返す。
+ */
+type ActionLog = {
     day: string | null;
-    time: string | null;
     action: string | null;
-    note: string | null;
     staff: string | null;
-    status: string | null;
 };
 
+/** ⚠️ shop は shop_list の店舗名に読み替え済み（⚠️ 読み替えは daily_report.php だけ） */
 type CallInfo = {
-    no: number;
-    id: string;
     shop: string | null;
-    staff: string | null;
-    name: string | null;
-    status: string | null;
-    reserved_status: string | null;
     call_log: string | null;
 };
 
-type InterviewLog = {
-    day: string | null;
-    action: string | null;
-    note: string | null;
-    staff?: string | null;
-};
-
 type InterviewInfo = {
-    no: number;
-    name: string | null;
-    id: string;
     shop: string | null;
     interview_log: string | null;
-    staff?: string | null;
 };
 
 type ShopInfo = {
@@ -119,10 +104,48 @@ type DailyMetrics = {
 // 💡 PHPからのデータ揺れ（スペースの有無）を吸収する関数
 const removeSpaces = (str: string | null | undefined) => (str || '').replace(/[\s\u3000]+/g, '');
 
-const shopMapping: Record<string, string> = {
-    '買い:中古リノベ': '中古住宅専門店',
-    '買い:ポータル': '不動産企画係',
-    '売り:ポータル': '不動産企画係'
+/**
+ * 追客ログ（call_log）の行動 → 数える項目。⚠️ 通電・未通電は電話数（totalCalls）にも入る。
+ */
+const CALL_METRICS: Record<string, (keyof DailyMetrics)[]> = {
+    '通電': ['totalCalls', 'connected'],
+    '未通電': ['totalCalls', 'unconnected'],
+    'SMS送信': ['sms'],
+    'メール送信': ['email'],
+    '資料郵送': ['postalMail'],
+};
+
+/** 商談ログ（interview_log）の行動 → 数える項目 */
+const INTERVIEW_METRICS: Record<string, (keyof DailyMetrics)[]> = {
+    '初回来場': ['firstInterview'],
+    '初回面談': ['firstInterview'],
+    '2回目以降面談': ['subsequentInterview'],
+    '物件案内': ['propertyTour'],
+    '査定アポ': ['assessmentApo'],
+    '査定書提出': ['assessmentSubmit'],
+    '訪問査定': ['visitAssessment'],
+    '資料送付': ['materialSend'],
+    '0次接客': ['zeroCustomer'],
+    'LINEグループ作成': ['lineGroup'],
+    '事前審査': ['preExam'],
+    '契約': ['interviewContract'],
+    '接触（通話・返信）': ['contact'],
+    '申し込み': ['application'],
+    '自社契約': ['ownContract'],
+    '仲介契約': ['brokerageContract'],
+    'リフォーム契約': ['reformContract'],
+    '売買契約': ['buySellContract'],
+    '媒介取得': ['brokerageAcquisition'],
+};
+
+/** ログ（JSON 文字列）を配列にする。⚠️ 壊れていれば空（⚠️ 1件の不正で日報全体を止めない） */
+const parseLogs = (json: string | null): ActionLog[] => {
+    try {
+        const logs = JSON.parse(json || '[]');
+        return Array.isArray(logs) ? logs : [];
+    } catch {
+        return [];
+    }
 };
 
 const authorityMapping: Record<string, string> = {
@@ -225,15 +248,9 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
                 });
                 if (!alive) return;
                 if (response.data) {
-                    const filteredResponse = (response.data.response || [])
-                        .filter((r: ResponseInfo) => (!shopName || shopName === 'all') ? true : r.authority === shopName)
-                        .map((r: ResponseInfo) => {
-                            if (r.shop && shopMapping[r.shop]) {
-                                return { ...r, shop: shopMapping[r.shop] };
-                            }
-                            return r;
-                        });
-                    setResponseList(filteredResponse);
+                    // ⚠️ shop はサーバーで読み替え済み
+                    setResponseList((response.data.response || [])
+                        .filter((r: ResponseInfo) => (!shopName || shopName === 'all') ? true : r.authority === shopName));
                     setCallList(response.data.call || []);
                     setInterviewList(response.data.interview || []);
                     
@@ -263,10 +280,9 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
         return Array.from(new Set(shopList.filter(s => s.division !== '不動産企画室').map(s => s.division).filter(Boolean)));
     }, [shopList]);
 
+    // ⚠️ targetDivision は常に入っている（v2.2.167。⚠️ 「全事業部」は無い）
     const filteredShops = useMemo(() => {
-        let shops = shopList;
-        if (targetDivision) shops = shops.filter(s => s.division === targetDivision);
-        return Array.from(new Set(shops.map(s => s.shop).filter(Boolean)));
+        return Array.from(new Set(shopList.filter(s => s.division === targetDivision).map(s => s.shop).filter(Boolean)));
     }, [shopList, targetDivision]);
 
     // ==========================================
@@ -285,17 +301,11 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
     }, [targetMonth]);
 
     // ==========================================
-    // 💡 階層別データの一括集計
+    // 💡 店舗別・スタッフ別の一括集計
     // ==========================================
     const aggregatedData = useMemo(() => {
-        const divData: Record<string, Record<string, DailyMetrics>> = {};
         const shopData: Record<string, Record<string, DailyMetrics>> = {};
         const staffData: Record<string, Record<string, DailyMetrics>> = {};
-
-        divisions.forEach(div => {
-            divData[div] = {};
-            datesInMonth.forEach(d => divData[div][d] = createEmptyMetric());
-        });
 
         filteredShops.forEach(shop => {
             shopData[shop] = {};
@@ -309,152 +319,76 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
             datesInMonth.forEach(d => staffData[sKey][d] = createEmptyMetric());
         });
 
+        /**
+         * ログ・反響の担当者名 → staffData のキー。⚠️ 名字だけ・空白違いも拾う。
+         * ⚠️ 同じ名前が何度も出てくるので結果を覚えておく。
+         */
+        const staffKeyCache = new Map<string, string>();
         const getStaffKey = (logStaffName: string | null | undefined) => {
             if (!logStaffName) return '';
             const cleanLogName = removeSpaces(logStaffName);
-            
-            if (staffData[cleanLogName]) return cleanLogName;
-            
-            const matched = activeStaffs.find(s => {
-                const fullClean = removeSpaces(s.name);
-                const lastName = s.name.split(/[\s\u3000]+/)[0];
-                return fullClean.includes(cleanLogName) || 
-                       cleanLogName.includes(fullClean) || 
-                       lastName === cleanLogName || 
-                       cleanLogName.includes(lastName);
-            });
-            
-            return matched ? removeSpaces(matched.name) : '';
+            const cached = staffKeyCache.get(cleanLogName);
+            if (cached !== undefined) return cached;
+
+            let key = '';
+            if (staffData[cleanLogName]) {
+                key = cleanLogName;
+            } else {
+                const matched = activeStaffs.find(s => {
+                    const fullClean = removeSpaces(s.name);
+                    const lastName = s.name.split(/[\s　]+/)[0];
+                    return fullClean.includes(cleanLogName) ||
+                           cleanLogName.includes(fullClean) ||
+                           lastName === cleanLogName ||
+                           cleanLogName.includes(lastName);
+                });
+                key = matched ? removeSpaces(matched.name) : '';
+            }
+            staffKeyCache.set(cleanLogName, key);
+            return key;
         };
 
-        // 1. ResponseInfo (反響・契約)
+        /** 店舗とスタッフの両方に1件足す。⚠️ 月外の日付・対象外の店舗は数えない */
+        const add = (shop: string, staffKey: string, date: string, keys: (keyof DailyMetrics)[]) => {
+            const shopDay = shopData[shop]?.[date];
+            if (!shopDay) return;
+            const staffDay = staffKey ? staffData[staffKey]?.[date] : undefined;
+            keys.forEach(key => {
+                shopDay[key]++;
+                if (staffDay) staffDay[key]++;
+            });
+        };
+
+        const toDate = (value: string | null) => String(value || '').replace(/\//g, '-');
+
+        // 1. 反響・契約（⚠️ shop はサーバーで読み替え済み）
         responseList.forEach(r => {
-            const sName = r.shop || '';
-            if (!shopData[sName]) return;
-            const divName = shopList.find(s => s.shop === sName)?.division;
-            const staffNameKey = getStaffKey(r.staff);
+            const shop = r.shop || '';
+            if (!shopData[shop]) return;
+            const staffKey = getStaffKey(r.staff);
+            const intDate = toDate(r.interview);
+            const appDate = toDate(r.appointment);
 
-            const regDate = String(r.register || '').replace(/\//g, '-');
-            const intDate = String(r.interview || '').replace(/\//g, '-');
-            const appDate = String(r.appointment || '').replace(/\//g, '-');
-            const conDate = String(r.contract || '').replace(/\//g, '-');
-
-            const addMetric = (date: string, key: keyof DailyMetrics) => {
-                if (datesInMonth.includes(date)) {
-                    shopData[sName][date][key]++;
-                    if (divName && divData[divName]) divData[divName][date][key]++;
-                    if (staffNameKey && staffData[staffNameKey] && staffData[staffNameKey][date]) {
-                        staffData[staffNameKey][date][key]++;
-                    }
-                }
-            };
-
-            addMetric(regDate, 'registers');
-            addMetric(intDate, 'interviews');
-            if (appDate !== intDate) addMetric(appDate, 'interviews'); 
-            addMetric(conDate, 'contracts');
+            add(shop, staffKey, toDate(r.register), ['registers']);
+            add(shop, staffKey, intDate, ['interviews']);
+            if (appDate !== intDate) add(shop, staffKey, appDate, ['interviews']);
+            add(shop, staffKey, toDate(r.contract), ['contracts']);
         });
 
-        // 2. CallInfo (追客ログ)
-        callList.forEach(c => {
-            const shopValue = shopMapping[c.shop || ''] ?? c.shop;
-            if (!shopData[shopValue]) return;
-            const divName = shopList.find(s => s.shop === shopValue)?.division;
+        // 2. 追客ログ・3. 商談ログ（⚠️ 行動ごとの項目は CALL_METRICS / INTERVIEW_METRICS）
+        const countLogs = (shop: string | null, json: string | null, metricsOf: Record<string, (keyof DailyMetrics)[]>) => {
+            if (!shop || !shopData[shop]) return;
+            parseLogs(json).forEach(log => {
+                const keys = metricsOf[log.action || ''];
+                if (!keys) return;
+                add(shop, getStaffKey(log.staff), toDate(log.day), keys);
+            });
+        };
+        callList.forEach(c => countLogs(c.shop, c.call_log, CALL_METRICS));
+        interviewList.forEach(i => countLogs(i.shop, i.interview_log, INTERVIEW_METRICS));
 
-            try {
-                const logs: CallLog[] = JSON.parse(c.call_log || '[]');
-                logs.forEach(log => {
-                    const logDay = String(log.day || '').replace(/\//g, '-');
-                    if (datesInMonth.includes(logDay)) {
-                        const act = log.action;
-                        const isCall = act === '通電' || act === '未通電';
-                        const staffNameKey = getStaffKey(log.staff);
-
-                        const updateObj = (obj: DailyMetrics) => {
-                            if (isCall) {
-                                obj.totalCalls++;
-                                if (act === '通電') obj.connected++;
-                                else obj.unconnected++;
-                            }
-                            if (act === 'SMS送信') obj.sms++;
-                            if (act === 'メール送信') obj.email++;
-                            if (act === '資料郵送') obj.postalMail++;
-                        };
-
-                        if (isCall || act === 'SMS送信' || act === 'メール送信' || act === '資料郵送') {
-                            updateObj(shopData[shopValue][logDay]);
-                            if (divName && divData[divName]) updateObj(divData[divName][logDay]);
-                            if (staffNameKey && staffData[staffNameKey]) updateObj(staffData[staffNameKey][logDay]);
-                        }
-                    }
-                });
-            } catch (e) { }
-        });
-
-        // 3. InterviewInfo (商談詳細アクションログ)
-        interviewList.forEach(i => {
-            const shopValue = shopMapping[i.shop || ''] ?? i.shop;
-            if (!shopData[shopValue]) return;
-            const divName = shopList.find(s => s.shop === shopValue)?.division;
-
-            try {
-                const logs: InterviewLog[] = JSON.parse(i.interview_log || '[]');
-                logs.forEach(log => {
-                    const logDay = String(log.day || '').replace(/\//g, '-');
-                    if (datesInMonth.includes(logDay)) {
-                        const act = log.action;
-                        const staffNameKey = getStaffKey(log.staff || i.staff);
-
-                        const isFirst = act === '初回来場' || act === '初回面談';
-                        const isSub = act === '2回目以降面談';
-                        const isTour = act === '物件案内';
-                        const isApo = act === '査定アポ';
-                        const isSubm = act === '査定書提出';
-                        const isVis = act === '訪問査定';
-                        const isMat = act === '資料送付';
-                        const isZero = act === '0次接客';
-                        const isLine = act === 'LINEグループ作成';
-                        const isPreEx = act === '事前審査';
-                        const isIntCon = act === '契約';
-                        const isContact = act === '接触（通話・返信）';
-                        const isApp = act === '申し込み';
-                        const isOwn = act === '自社契約';
-                        const isBrok = act === '仲介契約';
-                        const isRef = act === 'リフォーム契約';
-                        const isBuySell = act === '売買契約';
-                        const isAcq = act === '媒介取得';
-
-                        const updateObj = (obj: DailyMetrics) => {
-                            if (isFirst) obj.firstInterview++;
-                            if (isSub) obj.subsequentInterview++;
-                            if (isTour) obj.propertyTour++;
-                            if (isApo) obj.assessmentApo++;
-                            if (isSubm) obj.assessmentSubmit++;
-                            if (isVis) obj.visitAssessment++;
-                            if (isMat) obj.materialSend++;
-                            if (isZero) obj.zeroCustomer++;
-                            if (isLine) obj.lineGroup++;
-                            if (isPreEx) obj.preExam++;
-                            if (isIntCon) obj.interviewContract++;
-                            if (isContact) obj.contact++;
-                            if (isApp) obj.application++;
-                            if (isOwn) obj.ownContract++;
-                            if (isBrok) obj.brokerageContract++;
-                            if (isRef) obj.reformContract++;
-                            if (isBuySell) obj.buySellContract++;
-                            if (isAcq) obj.brokerageAcquisition++;
-                        };
-
-                        updateObj(shopData[shopValue][logDay]);
-                        if (divName && divData[divName]) updateObj(divData[divName][logDay]);
-                        if (staffNameKey && staffData[staffNameKey]) updateObj(staffData[staffNameKey][logDay]);
-                    }
-                });
-            } catch (e) { }
-        });
-
-        return { divData, shopData, staffData };
-    }, [datesInMonth, responseList, callList, interviewList, shopList, staffList, divisions, filteredShops]);
+        return { shopData, staffData };
+    }, [datesInMonth, responseList, callList, interviewList, staffList, filteredShops]);
 
     // ==========================================
     // 💡 UI / レンダリング関数
@@ -561,14 +495,13 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
         );
     };
 
-    const renderRow = (name: string, data: Record<string, DailyMetrics>, type: 'division' | 'shop' | 'staff') => {
+    // ⚠️ 事業別の行（'division'）は v2.2.167 で廃止（⚠️ 「全事業部」が無くなったため）
+    const renderRow = (name: string, data: Record<string, DailyMetrics>, type: 'shop' | 'staff') => {
         if (!data) return null;
 
         let rowDivision = '';
         let rowShop = '';
-        if (type === 'division') {
-            rowDivision = name;
-        } else if (type === 'shop') {
+        if (type === 'shop') {
             rowDivision = shopList.find(s => s.shop === name)?.division || '';
             rowShop = name;
         } else if (type === 'staff') {
@@ -588,7 +521,6 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
         return (
             <tr key={name}>
                 <th style={{ position: 'sticky', left: 0, backgroundColor: '#fff', zIndex: 2, boxShadow: 'inset -1px 0 0 #dee2e6', verticalAlign: 'middle' }} className="text-start text-dark fw-bold">
-                    {type === 'division' && <i className="fa-solid fa-building text-primary me-2"></i>}
                     {type === 'shop' && <i className="fa-solid fa-shop text-warning me-2" style={{ marginLeft: '10px' }}></i>}
                     {type === 'staff' && <i className="fa-solid fa-user-tie text-muted me-2" style={{ marginLeft: '20px' }}></i>}
                     {name}
@@ -725,9 +657,7 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {!targetDivision && !targetShop && divisions.map(div => renderRow(div, aggregatedData.divData[div], 'division'))}
-
-                                    {targetDivision && !targetShop && (
+                                    {!targetShop && (
                                         <>
                                             <tr>
                                                 {/* 💡 colSpan を調整 (datesInMonth.length + 2) */}

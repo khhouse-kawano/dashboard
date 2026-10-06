@@ -406,3 +406,429 @@ SELECT 'call_sheet 空', COUNT(*) FROM call_sheet WHERE TRIM(shop) = ''
 UNION ALL
 SELECT 'interview_sheet 空', COUNT(*) FROM interview_sheet WHERE TRIM(shop) = '';
 ```
+
+## 追補（同日）: リファクタリング
+
+### 変更
+1. ⚠️ **店舗名の読み替えを PHP だけに。** `$RAW_SHOP_NAMES`（shop_list名 → 元の名前）を ⚠️ `$SHOP_NAME_OF_RAW`（元の名前 → shop_list名）＋ `$toShopName` に変更。反響・追客ログ・商談ログの `shop` を読み替えて返す。⚠️ 画面の `shopMapping` は削除。
+2. ⚠️ **使わなくなった処理の削除**（DailyReports.tsx）: 事業別の行の分岐、`divData`、ループ内の `shopList.find`、`renderRow` の `'division'`。型 `CallLog` / `InterviewLog` を ⚠️ `ActionLog` 1つにし、`CallInfo` / `InterviewInfo` を返す列（shop とログ）だけに。
+3. ⚠️ **行動 → 集計項目を対応表に**: `CALL_METRICS` / `INTERVIEW_METRICS`（⚠️ 18個のフラグと if を置き換え）。ログの解析は `parseLogs`、加算は `add`、ログ集計は `countLogs` に1本化。
+4. ⚠️ **集計の軽量化**: 日付判定を `datesInMonth.includes` から ⚠️ `shopData[shop]?.[date]` の存在確認に。担当者名の照合（`getStaffKey`）は ⚠️ `staffKeyCache` で結果を覚える。
+
+### 確認（ローカル）
+- ⚠️ 旧版（58MB）の応答 × 旧ロジック と、⚠️ 整理後の PHP の応答 × 整理後のロジック（⚠️ 対応表は DailyReports.tsx から読み込んで使用）を、⚠️ **3事業 × 3か月**で比較 → ⚠️ **店舗別・スタッフ別とも全項目一致**。
+
+| 事業 | 月 | 店舗計 | スタッフ計 |
+|---|---|---|---|
+| 注文事業 | 2026-09 | 10,346 | 5,907 |
+| 建売分譲事業 | 2026-09 | 8,420 | 8,134 |
+| 中古リノベ | 2026-09 | 1,576 | 1,553 |
+
+- 応答に `買い:` `売り:` の店舗名が残っていない（⚠️ 読み替え漏れ 0）。
+- `php -l` 通過、`tsc --noEmit` で DailyReports.tsx のエラーなし、build `main.97028e62.js`。
+
+### backend/src/handlers/daily_report.php（整理後・全文）
+```php
+<?php
+/**
+ * 月次日報（frontend/src/components/header/DailyReports.tsx）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **1つの事業 × 1か月分だけを返す**（v2.2.167）。
+ *
+ *   以前は master_data 3表・call_sheet・interview_sheet を**全件**返しており、
+ *   本番でメモリ上限を超えて応答が返らなくなった（ローカルでもログだけで約45MB）。
+ *   ⚠️ **全件を返す形に戻してはならない。**
+ *
+ *   受け取るもの: { request: 'daily_report', division: '注文事業', month: '2026-10' }
+ *   画面は事業か月を変えるたびに取り直す。
+ *
+ * ⚠️ call_sheet / interview_sheet は **shop で事業を判定する。** shop が空の行は
+ *   どの事業にも入らない（2026-10-06_fill_sheet_shop.sql でマスタから埋めた）。
+ * ⚠️ ログは**その月の分だけ**に削って返す。画面は日付で集計するだけなので結果は変わらない。
+ * ⚠️ 返す形（キー名・call_log が JSON 文字列であること）は以前と同じにしてある。
+ * ─────────────────────────────────────────────
+ */
+ini_set('memory_limit', '256M');
+
+/**
+ * 事業 → 反響を取るマスタと列。
+ *
+ * ⚠️ 列は以前の UNION ALL と同じ（⚠️ 第二面談・契約の列は事業ごとに違う）。
+ * ⚠️ authority は画面がログイン中の事業（shopName）で絞るのに使う。
+ */
+$DIVISION_SOURCES = [
+    '注文事業' => [
+        'authority'   => 'order',
+        'table'       => 'master_data',
+        'appointment' => 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+        'contract'    => 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+    ],
+    '建売分譲事業' => [
+        'authority'   => 'spec',
+        'table'       => 'master_data_kaeru',
+        'appointment' => 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+        'contract'    => 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
+    ],
+    '中古リノベ' => [
+        'authority'   => 'used',
+        'table'       => 'master_data_resale',
+        'appointment' => 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
+        'contract'    => 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+    ],
+];
+
+/**
+ * マスタ・call_sheet・interview_sheet に入っている元の店舗名 → shop_list の店舗名。
+ *
+ * ⚠️⚠️ **読み替えはここだけ**（v2.2.167）。返す shop は読み替え済みなので、
+ *   画面（DailyReports.tsx）は読み替えない。⚠️ 以前は画面側に shopMapping があった。
+ */
+$SHOP_NAME_OF_RAW = [
+    '買い:中古リノベ' => '中古住宅専門店',
+    '買い:ポータル'   => '不動産企画係',
+    '売り:ポータル'   => '不動産企画係',
+];
+
+/** 元の店舗名を shop_list の店舗名にする（⚠️ 対応表に無ければそのまま） */
+$toShopName = function ($raw) use ($SHOP_NAME_OF_RAW) {
+    return $SHOP_NAME_OF_RAW[$raw ?? ''] ?? $raw;
+};
+
+$division = is_string($data['division'] ?? null) ? $data['division'] : '';
+$month    = is_string($data['month'] ?? null) ? $data['month'] : '';
+
+// ⚠️ 事業はテーブル名・列名に使うため、一覧にある値以外は受けない
+if (!isset($DIVISION_SOURCES[$division]) || !preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => '事業または月の指定が正しくありません'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$source = $DIVISION_SOURCES[$division];
+[$year, $mon] = explode('-', $month);
+
+// マスタの日付は 2026/10/01 と 2026-10-01 が混在する
+$dateLikeDash  = "{$year}-{$mon}-%";
+$dateLikeSlash = "{$year}/{$mon}/%";
+
+// ログ（JSON）の day をその月で拾う正規表現（行の絞り込み用。⚠️ 最終判定は PHP 側で行う）。
+// ⚠️⚠️ 書き方が揃っていない。⚠️ 1つの行の中でも混ざっている:
+//   "day":"2026-10-01" ／ "day": "2026/10/01"（⚠️ コロンの後に空白）／ "day":"2026\/10\/01"
+//   ⚠️ LIKE で "day":" 決め打ちにすると空白ありの行を取りこぼす（2026-10-06 に中古リノベで3件ずれた）。
+// ⚠️ プレースホルダで渡すので SQL のエスケープは掛からない。`\\\\` は正規表現の `\\`（= バックスラッシュ1文字）
+$logRegexp = '"day"[[:space:]]*:[[:space:]]*"' . $year . '(-|\\\\?/)' . $mon . '(-|\\\\?/)';
+
+// ---------------------------------------------------------------------
+// 反響（その事業のマスタ1表。⚠️ その月の日付を1つでも持つ行だけ）
+// ---------------------------------------------------------------------
+$dateColumns = [
+    'register'    => 'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
+    'interview'   => 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+    'appointment' => $source['appointment'],
+    'contract'    => $source['contract'],
+];
+$monthConditions = [];
+$monthParams = [];
+foreach ($dateColumns as $column) {
+    $monthConditions[] = "{$column} LIKE ? OR {$column} LIKE ?";
+    $monthParams[] = $dateLikeDash;
+    $monthParams[] = $dateLikeSlash;
+}
+$selectDates = [];
+foreach ($dateColumns as $alias => $column) {
+    $selectDates[] = "{$column} AS {$alias}";
+}
+
+$sql_response = "SELECT
+    ? AS authority,
+    in_charge_store AS shop,
+    in_charge_user AS staff,
+    sales_promotion_name AS medium,
+    " . implode(",\n    ", $selectDates) . "
+FROM {$source['table']}
+WHERE " . implode(' OR ', $monthConditions);
+$stmt_response = $pdo->prepare($sql_response);
+$stmt_response->execute(array_merge([$source['authority']], $monthParams));
+$response_response = $stmt_response->fetchAll(PDO::FETCH_ASSOC);
+foreach ($response_response as &$responseRow) {
+    $responseRow['shop'] = $toShopName($responseRow['shop']);
+}
+unset($responseRow);
+
+// ---------------------------------------------------------------------
+// 店舗・スタッフ（⚠️ 画面の事業の選択肢は shop_list から作るので全店舗を返す）
+// ---------------------------------------------------------------------
+$stmt_shop = $pdo->prepare("SELECT id, brand, shop, division, section, area, report_flag FROM shop_list");
+$stmt_shop->execute();
+$response_shop = $stmt_shop->fetchAll(PDO::FETCH_ASSOC);
+
+// ⚠️ 画面が使う列だけ（⚠️ メールアドレスなどは返さない）
+$stmt_staff = $pdo->prepare(
+    "SELECT id, name, shop, section, period, status, report, position FROM staff_list WHERE report = 1"
+);
+$stmt_staff->execute();
+$response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
+
+// その事業の店舗を、call_sheet / interview_sheet の元の名前で（⚠️ 読み替え前の名前も含める）
+$divisionShopSet = [];
+foreach ($response_shop as $shop) {
+    if ($shop['division'] === $division && (int)$shop['report_flag'] === 1) $divisionShopSet[$shop['shop']] = true;
+}
+$divisionShops = array_keys($divisionShopSet);
+foreach ($SHOP_NAME_OF_RAW as $raw => $shopName) {
+    if (isset($divisionShopSet[$shopName])) $divisionShops[] = $raw;
+}
+
+/**
+ * call_sheet / interview_sheet から、その事業の店舗・その月のログだけを取る。
+ *
+ * ⚠️ fetchAll せず1行ずつ読み、その月のログだけを残す（⚠️ メモリ対策の本体）。
+ * ⚠️ 画面が使う day / action / staff だけを残す（⚠️ note は長いので返さない）。
+ * ⚠️ 返す形は以前と同じ { shop, <ログ列>: JSON文字列 }。⚠️ shop は読み替え済み。
+ */
+$fetchMonthLogs = function (string $table, string $logColumn) use ($pdo, $divisionShops, $logRegexp, $month, $toShopName): array {
+    if (count($divisionShops) === 0) return [];
+
+    $shopHolders = implode(',', array_fill(0, count($divisionShops), '?'));
+    $stmt = $pdo->prepare(
+        "SELECT shop, {$logColumn} FROM {$table} WHERE shop IN ({$shopHolders}) AND {$logColumn} REGEXP ?"
+    );
+    $stmt->execute(array_merge($divisionShops, [$logRegexp]));
+
+    $prefix = $month . '-';
+    $rows = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $logs = json_decode($row[$logColumn] ?? '', true);
+        if (!is_array($logs)) continue;
+
+        $kept = [];
+        foreach ($logs as $log) {
+            if (!is_array($log)) continue;
+            $day = str_replace('/', '-', (string)($log['day'] ?? ''));
+            if (strpos($day, $prefix) !== 0) continue;
+            $kept[] = [
+                'day'    => $day,
+                'action' => $log['action'] ?? null,
+                'staff'  => $log['staff'] ?? null,
+            ];
+        }
+        if (count($kept) === 0) continue;
+
+        $rows[] = [
+            'shop'     => $toShopName($row['shop']),
+            $logColumn => json_encode($kept, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ];
+    }
+    return $rows;
+};
+
+$result = [
+    "response"  => $response_response,
+    "call"      => $fetchMonthLogs('call_sheet', 'call_log'),
+    "interview" => $fetchMonthLogs('interview_sheet', 'interview_log'),
+    "shop"      => $response_shop,
+    "staff"     => $response_staff,
+];
+
+echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+```
+
+### DailyReports.tsx — 型 `ActionLog` / `CallInfo` / `InterviewInfo`（整理後）
+```tsx
+type ActionLog = {
+    day: string | null;
+    action: string | null;
+    staff: string | null;
+};
+
+/** ⚠️ shop は shop_list の店舗名に読み替え済み（⚠️ 読み替えは daily_report.php だけ） */
+type CallInfo = {
+    shop: string | null;
+    call_log: string | null;
+};
+
+type InterviewInfo = {
+    shop: string | null;
+    interview_log: string | null;
+};
+
+```
+
+### DailyReports.tsx — `CALL_METRICS` / `INTERVIEW_METRICS` / `parseLogs`（追加）
+```tsx
+const CALL_METRICS: Record<string, (keyof DailyMetrics)[]> = {
+    '通電': ['totalCalls', 'connected'],
+    '未通電': ['totalCalls', 'unconnected'],
+    'SMS送信': ['sms'],
+    'メール送信': ['email'],
+    '資料郵送': ['postalMail'],
+};
+
+/** 商談ログ（interview_log）の行動 → 数える項目 */
+const INTERVIEW_METRICS: Record<string, (keyof DailyMetrics)[]> = {
+    '初回来場': ['firstInterview'],
+    '初回面談': ['firstInterview'],
+    '2回目以降面談': ['subsequentInterview'],
+    '物件案内': ['propertyTour'],
+    '査定アポ': ['assessmentApo'],
+    '査定書提出': ['assessmentSubmit'],
+    '訪問査定': ['visitAssessment'],
+    '資料送付': ['materialSend'],
+    '0次接客': ['zeroCustomer'],
+    'LINEグループ作成': ['lineGroup'],
+    '事前審査': ['preExam'],
+    '契約': ['interviewContract'],
+    '接触（通話・返信）': ['contact'],
+    '申し込み': ['application'],
+    '自社契約': ['ownContract'],
+    '仲介契約': ['brokerageContract'],
+    'リフォーム契約': ['reformContract'],
+    '売買契約': ['buySellContract'],
+    '媒介取得': ['brokerageAcquisition'],
+};
+
+/** ログ（JSON 文字列）を配列にする。⚠️ 壊れていれば空（⚠️ 1件の不正で日報全体を止めない） */
+const parseLogs = (json: string | null): ActionLog[] => {
+    try {
+        const logs = JSON.parse(json || '[]');
+        return Array.isArray(logs) ? logs : [];
+    } catch {
+        return [];
+    }
+};
+```
+
+### DailyReports.tsx — `filteredShops` / `datesInMonth` / `aggregatedData`（整理後・全体）
+```tsx
+    // ⚠️ targetDivision は常に入っている（v2.2.167。⚠️ 「全事業部」は無い）
+    const filteredShops = useMemo(() => {
+        return Array.from(new Set(shopList.filter(s => s.division === targetDivision).map(s => s.shop).filter(Boolean)));
+    }, [shopList, targetDivision]);
+
+    // ==========================================
+    // 💡 日付配列の生成 (当月の1日〜末日)
+    // ==========================================
+    const datesInMonth = useMemo(() => {
+        if (!targetMonth) return [];
+        const [y, m] = targetMonth.split('-').map(Number);
+        const lastDay = new Date(y, m, 0).getDate();
+        const dates: string[] = [];
+        for (let i = 1; i <= lastDay; i++) {
+            const d = String(i).padStart(2, '0');
+            dates.push(`${y}-${String(m).padStart(2, '0')}-${d}`);
+        }
+        return dates;
+    }, [targetMonth]);
+
+    // ==========================================
+    // 💡 店舗別・スタッフ別の一括集計
+    // ==========================================
+    const aggregatedData = useMemo(() => {
+        const shopData: Record<string, Record<string, DailyMetrics>> = {};
+        const staffData: Record<string, Record<string, DailyMetrics>> = {};
+
+        filteredShops.forEach(shop => {
+            shopData[shop] = {};
+            datesInMonth.forEach(d => shopData[shop][d] = createEmptyMetric());
+        });
+
+        const activeStaffs = staffList.filter(s => String(s.period) === '2027');
+        activeStaffs.forEach(staff => {
+            const sKey = removeSpaces(staff.name);
+            staffData[sKey] = {};
+            datesInMonth.forEach(d => staffData[sKey][d] = createEmptyMetric());
+        });
+
+        /**
+         * ログ・反響の担当者名 → staffData のキー。⚠️ 名字だけ・空白違いも拾う。
+         * ⚠️ 同じ名前が何度も出てくるので結果を覚えておく。
+         */
+        const staffKeyCache = new Map<string, string>();
+        const getStaffKey = (logStaffName: string | null | undefined) => {
+            if (!logStaffName) return '';
+            const cleanLogName = removeSpaces(logStaffName);
+            const cached = staffKeyCache.get(cleanLogName);
+            if (cached !== undefined) return cached;
+
+            let key = '';
+            if (staffData[cleanLogName]) {
+                key = cleanLogName;
+            } else {
+                const matched = activeStaffs.find(s => {
+                    const fullClean = removeSpaces(s.name);
+                    const lastName = s.name.split(/[\s　]+/)[0];
+                    return fullClean.includes(cleanLogName) ||
+                           cleanLogName.includes(fullClean) ||
+                           lastName === cleanLogName ||
+                           cleanLogName.includes(lastName);
+                });
+                key = matched ? removeSpaces(matched.name) : '';
+            }
+            staffKeyCache.set(cleanLogName, key);
+            return key;
+        };
+
+        /** 店舗とスタッフの両方に1件足す。⚠️ 月外の日付・対象外の店舗は数えない */
+        const add = (shop: string, staffKey: string, date: string, keys: (keyof DailyMetrics)[]) => {
+            const shopDay = shopData[shop]?.[date];
+            if (!shopDay) return;
+            const staffDay = staffKey ? staffData[staffKey]?.[date] : undefined;
+            keys.forEach(key => {
+                shopDay[key]++;
+                if (staffDay) staffDay[key]++;
+            });
+        };
+
+        const toDate = (value: string | null) => String(value || '').replace(/\//g, '-');
+
+        // 1. 反響・契約（⚠️ shop はサーバーで読み替え済み）
+        responseList.forEach(r => {
+            const shop = r.shop || '';
+            if (!shopData[shop]) return;
+            const staffKey = getStaffKey(r.staff);
+            const intDate = toDate(r.interview);
+            const appDate = toDate(r.appointment);
+
+            add(shop, staffKey, toDate(r.register), ['registers']);
+            add(shop, staffKey, intDate, ['interviews']);
+            if (appDate !== intDate) add(shop, staffKey, appDate, ['interviews']);
+            add(shop, staffKey, toDate(r.contract), ['contracts']);
+        });
+
+        // 2. 追客ログ・3. 商談ログ（⚠️ 行動ごとの項目は CALL_METRICS / INTERVIEW_METRICS）
+        const countLogs = (shop: string | null, json: string | null, metricsOf: Record<string, (keyof DailyMetrics)[]>) => {
+            if (!shop || !shopData[shop]) return;
+            parseLogs(json).forEach(log => {
+                const keys = metricsOf[log.action || ''];
+                if (!keys) return;
+                add(shop, getStaffKey(log.staff), toDate(log.day), keys);
+            });
+        };
+        callList.forEach(c => countLogs(c.shop, c.call_log, CALL_METRICS));
+        interviewList.forEach(i => countLogs(i.shop, i.interview_log, INTERVIEW_METRICS));
+
+        return { shopData, staffData };
+    }, [datesInMonth, responseList, callList, interviewList, staffList, filteredShops]);
+```
+
+### DailyReports.tsx — `renderRow` の冒頭（整理後）
+```tsx
+    // ⚠️ 事業別の行（'division'）は v2.2.167 で廃止（⚠️ 「全事業部」が無くなったため）
+    const renderRow = (name: string, data: Record<string, DailyMetrics>, type: 'shop' | 'staff') => {
+        if (!data) return null;
+
+        let rowDivision = '';
+        let rowShop = '';
+        if (type === 'shop') {
+            rowDivision = shopList.find(s => s.shop === name)?.division || '';
+            rowShop = name;
+        } else if (type === 'staff') {
+            const staffShop = staffList.find(s => s.name === name)?.shop;
+            rowDivision = shopList.find(s => s.shop === staffShop)?.division || '';
+            rowShop = staffShop || '';
+        }
+
+        // 💡 該当行の全日付分を合算し「総数」を算出する
+        const monthlyTotal = createEmptyMetric();
+```

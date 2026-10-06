@@ -48,14 +48,21 @@ $DIVISION_SOURCES = [
 ];
 
 /**
- * shop_list の店舗名 → call_sheet / interview_sheet に入っている元の名前。
+ * マスタ・call_sheet・interview_sheet に入っている元の店舗名 → shop_list の店舗名。
  *
- * ⚠️ DailyReports.tsx の shopMapping の逆。⚠️ 片方だけ直すと中古リノベの行動量が消える。
+ * ⚠️⚠️ **読み替えはここだけ**（v2.2.167）。返す shop は読み替え済みなので、
+ *   画面（DailyReports.tsx）は読み替えない。⚠️ 以前は画面側に shopMapping があった。
  */
-$RAW_SHOP_NAMES = [
-    '中古住宅専門店' => ['買い:中古リノベ'],
-    '不動産企画係'   => ['買い:ポータル', '売り:ポータル'],
+$SHOP_NAME_OF_RAW = [
+    '買い:中古リノベ' => '中古住宅専門店',
+    '買い:ポータル'   => '不動産企画係',
+    '売り:ポータル'   => '不動産企画係',
 ];
+
+/** 元の店舗名を shop_list の店舗名にする（⚠️ 対応表に無ければそのまま） */
+$toShopName = function ($raw) use ($SHOP_NAME_OF_RAW) {
+    return $SHOP_NAME_OF_RAW[$raw ?? ''] ?? $raw;
+};
 
 $division = is_string($data['division'] ?? null) ? $data['division'] : '';
 $month    = is_string($data['month'] ?? null) ? $data['month'] : '';
@@ -113,6 +120,10 @@ WHERE " . implode(' OR ', $monthConditions);
 $stmt_response = $pdo->prepare($sql_response);
 $stmt_response->execute(array_merge([$source['authority']], $monthParams));
 $response_response = $stmt_response->fetchAll(PDO::FETCH_ASSOC);
+foreach ($response_response as &$responseRow) {
+    $responseRow['shop'] = $toShopName($responseRow['shop']);
+}
+unset($responseRow);
 
 // ---------------------------------------------------------------------
 // 店舗・スタッフ（⚠️ 画面の事業の選択肢は shop_list から作るので全店舗を返す）
@@ -128,23 +139,24 @@ $stmt_staff = $pdo->prepare(
 $stmt_staff->execute();
 $response_staff = $stmt_staff->fetchAll(PDO::FETCH_ASSOC);
 
-// その事業の店舗（⚠️ 元の名前も含める）
-$divisionShops = [];
+// その事業の店舗を、call_sheet / interview_sheet の元の名前で（⚠️ 読み替え前の名前も含める）
+$divisionShopSet = [];
 foreach ($response_shop as $shop) {
-    if ($shop['division'] !== $division || (int)$shop['report_flag'] !== 1) continue;
-    $divisionShops[] = $shop['shop'];
-    foreach ($RAW_SHOP_NAMES[$shop['shop']] ?? [] as $raw) $divisionShops[] = $raw;
+    if ($shop['division'] === $division && (int)$shop['report_flag'] === 1) $divisionShopSet[$shop['shop']] = true;
 }
-$divisionShops = array_values(array_unique($divisionShops));
+$divisionShops = array_keys($divisionShopSet);
+foreach ($SHOP_NAME_OF_RAW as $raw => $shopName) {
+    if (isset($divisionShopSet[$shopName])) $divisionShops[] = $raw;
+}
 
 /**
  * call_sheet / interview_sheet から、その事業の店舗・その月のログだけを取る。
  *
  * ⚠️ fetchAll せず1行ずつ読み、その月のログだけを残す（⚠️ メモリ対策の本体）。
  * ⚠️ 画面が使う day / action / staff だけを残す（⚠️ note は長いので返さない）。
- * ⚠️ 返す形は以前と同じ { shop, <ログ列>: JSON文字列 }。
+ * ⚠️ 返す形は以前と同じ { shop, <ログ列>: JSON文字列 }。⚠️ shop は読み替え済み。
  */
-$fetchMonthLogs = function (string $table, string $logColumn) use ($pdo, $divisionShops, $logRegexp, $month): array {
+$fetchMonthLogs = function (string $table, string $logColumn) use ($pdo, $divisionShops, $logRegexp, $month, $toShopName): array {
     if (count($divisionShops) === 0) return [];
 
     $shopHolders = implode(',', array_fill(0, count($divisionShops), '?'));
@@ -173,7 +185,7 @@ $fetchMonthLogs = function (string $table, string $logColumn) use ($pdo, $divisi
         if (count($kept) === 0) continue;
 
         $rows[] = [
-            'shop'     => $row['shop'],
+            'shop'     => $toShopName($row['shop']),
             $logColumn => json_encode($kept, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ];
     }
