@@ -3,6 +3,17 @@ import Table from 'react-bootstrap/Table';
 import Card from 'react-bootstrap/Card';
 import AuthContext from '../../context/AuthContext';
 import apiClient from '../../utils/apiClient';
+import { countRecentReports, RECENT_DAYS } from './CompetitorAnalysisReports';
+import { CLAUDE_ORANGE } from './ClaudeIcon';
+
+type Props = {
+    /**
+     * 「最新の他社分析」カードを押したとき（v2.2.165）。
+     * ⚠️ Header.tsx が渡す。⚠️ 同じ全画面モーダルのまま「Claudeによる競合分析」に切り替える。
+     * ⚠️ 渡されなければカードは押せない（⚠️ 件数だけ出す）。
+     */
+    onOpenCompetitorReports?: () => void;
+};
 
 // ==========================================
 // 💡 型定義
@@ -131,8 +142,26 @@ const createEmptyMetric = (): DailyMetrics => ({
     contact: 0, application: 0, ownContract: 0, brokerageContract: 0, reformContract: 0, buySellContract: 0, brokerageAcquisition: 0
 });
 
-const DailyReports = () => {
+const DailyReports = ({ onOpenCompetitorReports }: Props) => {
     const { category, shopName } = useContext(AuthContext);
+
+    /**
+     * 最新の他社分析の件数（v2.2.165）。⚠️ null は取得中・取得失敗。
+     *
+     * ⚠️ 他社分析の画面（CompetitorAnalysisReports.tsx）と ⚠️ **同じ API・同じ isRecent** で数える。
+     * ⚠️⚠️ **`category` という名前で送らないこと**（⚠️ ② の振り分けキーと衝突して 502 になる）。
+     * ⚠️ 0件でも ⚠️ **カードは常に出す**（2026-10-06 の確認。⚠️ 他社分析への入口を兼ねる）。
+     * ⚠️ 日報の集計とは別に取る（⚠️ 失敗しても日報は出す）。
+     */
+    const [recentReports, setRecentReports] = useState<number | null>(null);
+    useEffect(() => {
+        let alive = true;
+        // ⚠️ 数え方は CompetitorAnalysisReports.tsx の countRecentReports に1つだけ（要確認と共用）
+        countRecentReports()
+            .then((count) => { if (alive) setRecentReports(count); })
+            .catch((err) => console.error('他社分析の取得に失敗しました:', err));
+        return () => { alive = false; };
+    }, []);
 
     // ==========================================
     // 💡 月選択リストの生成 (2025年6月〜当月)
@@ -566,6 +595,46 @@ const DailyReports = () => {
             className="d-flex flex-column p-3 p-md-4"
             style={{ backgroundColor: '#fafbfe', height: '100%', minHeight: 0 }}
         >
+            {/*
+              ⚠️ 最新の他社分析（v2.2.165）。⚠️ 日報の見出しの上に置く。
+              ⚠️ 押すと Header.tsx が「Claudeによる競合分析」に切り替える（onOpenCompetitorReports）。
+              ⚠️ 件数が1件以上のときだけ色を付ける（⚠️ 0件のときは控えめに出す）。
+            */}
+            <style>{`
+                .dr_recent { display: inline-flex; align-items: center; gap: 12px; align-self: flex-start;
+                             background: #fff; border: 1px solid #e8e6dc; border-radius: 12px;
+                             box-shadow: 0 1px 2px rgba(15, 23, 42, .05); padding: 10px 16px;
+                             color: #1f2937; text-align: left; }
+                .dr_recent.is_link { cursor: pointer; }
+                .dr_recent.is_link:hover { border-color: ${CLAUDE_ORANGE}; box-shadow: 0 2px 8px rgba(217, 119, 87, .15); }
+                .dr_recent:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
+                .dr_recent_icon { width: 32px; height: 32px; border-radius: 8px; display: inline-flex;
+                                  align-items: center; justify-content: center; background: #f3f4f6; color: #6b7280; }
+                .dr_recent.has_new .dr_recent_icon { background: ${CLAUDE_ORANGE}; color: #fff; }
+                .dr_recent_label { font-size: 12px; color: #6b7280; line-height: 1.2; }
+                .dr_recent_count { font-size: 18px; font-weight: 800; line-height: 1.2; }
+                .dr_recent.has_new .dr_recent_count { color: ${CLAUDE_ORANGE}; }
+                .dr_recent_count small { font-size: 12px; font-weight: 700; margin-left: 2px; color: #4b5563; }
+                .dr_recent_go { font-size: 11px; color: #9ca3af; margin-left: 4px; }
+            `}</style>
+            <button
+                type="button"
+                className={`dr_recent mb-3 flex-shrink-0${onOpenCompetitorReports ? ' is_link' : ''}${(recentReports ?? 0) > 0 ? ' has_new' : ''}`}
+                onClick={onOpenCompetitorReports}
+                disabled={!onOpenCompetitorReports}
+                title={`直近${RECENT_DAYS}日以内に登録された他社分析レポート`}
+            >
+                <span className="dr_recent_icon"><i className="fa-solid fa-chart-pie" aria-hidden="true" /></span>
+                {/* ⚠️ 指示書の表記どおり「最新の他社分析 〇件」を1行で */}
+                <span className="d-inline-flex align-items-baseline gap-2">
+                    <span className="dr_recent_label">最新の他社分析</span>
+                    <span className="dr_recent_count">
+                        {recentReports === null ? '－' : recentReports}<small>件</small>
+                    </span>
+                </span>
+                {onOpenCompetitorReports && <span className="dr_recent_go">開く <i className="fa-solid fa-chevron-right" aria-hidden="true" /></span>}
+            </button>
+
             <div className="d-flex flex-wrap justify-content-between align-items-end mb-3 border-bottom pb-3 gap-3 flex-shrink-0">
                 <h4 className="fw-bold text-secondary mb-0" style={{ letterSpacing: '1px' }}>
                     <i className="fa-solid fa-calendar-days me-2 text-primary"></i>{displayTitle}
