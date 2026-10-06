@@ -54,16 +54,30 @@ const ID_PATTERN = /^festa2026_[A-Za-z0-9]{16}$/;
 /** 来場日として受け付ける値。⚠️ LPの select の option と一致させること */
 const ALLOWED_DATES = new Set(['2026/10/10(土)', '2026/10/11(日)']);
 
+/** LPの `?m=` に対応する媒体 */
+interface Campaign {
+  /** event_db.medium に保存する値 */
+  medium: string;
+  /** メールに書くチケット名（社内通知の件名・予約者への確認メール） */
+  ticket: string;
+}
+
 /**
- * 媒体（event_db.medium）として受け付ける値。
+ * LPの `?m=` の値 → 媒体。
  *
- * ⚠️⚠️ **一覧にない値は保存しない（NULL）。** 認証なしの口なので、自由な文字列を
- *   受けると一覧や媒体別の集計に任意の名前を入れられる。予約そのものは弾かない。
+ * ⚠️⚠️ **対応表はここだけ。** LPは `m` の値をそのまま送ってくる（変換しない）。
+ *   `m` を増やすときはここに1行足すだけでよい（LPの差し替えは不要）。
+ *   例: https://kh-house.jp/festa/?m=c → 長原木
  *
- * ⚠️ LPの MEDIUM_BY_PARAM（`?m=` の値 → 媒体名）と一致させること。
- *   例: https://kh-house.jp/festa/?m=c → '長原木'
+ * ⚠️⚠️ **表に無い値は無視する（medium は NULL）。** 認証なしの口なので、
+ *   自由な文字列を medium に入れると一覧や媒体別の集計を汚せる。予約そのものは弾かない。
+ *
+ * ⚠️ 大文字小文字は区別する（`?m=C` は該当なし）。
  */
-const ALLOWED_MEDIUMS = new Set(['長原木']);
+const CAMPAIGN_BY_PARAM = new Map<string, Campaign>([
+  ['c', { medium: '長原木', ticket: '長原木2,000円チケット' }],
+  ['j', { medium: 'junko', ticket: 'junko2,000円チケット' }],
+]);
 
 /**
  * 制御文字。
@@ -179,9 +193,8 @@ export const runEventReservation = async (
     return { httpStatus: 400, body: { status: 'error', message: '来場時間を選択してください。' } };
   }
 
-  // ⚠️ 無い・一覧外の値は空にする（→ NULL で保存）。弾かない
-  const rawMedium = clean(body.medium, 32);
-  const medium = ALLOWED_MEDIUMS.has(rawMedium) ? rawMedium : '';
+  // ⚠️ 無い・表に無い値は undefined（→ medium は NULL、メールは従来どおり）。弾かない
+  const campaign = CAMPAIGN_BY_PARAM.get(clean(body.m, 8));
 
   const record = {
     id,
@@ -200,7 +213,7 @@ export const runEventReservation = async (
     //   （'event_reservation'）で予約済みのため、そのままでは使えない。
     //   ここを body.request にすると、保存される値が 'event_reservation' になる。
     request: joinChoices(body.request_type, 10, 64),
-    medium,
+    medium: campaign?.medium ?? '',
     // ⚠️ フォームは同意必須。'1' 以外が来たら未同意として保存する（弾かない）
     agree: clean(body.agree, 4) === '1' ? 1 : 0,
     reserved_at: nowForDb(),
@@ -255,7 +268,7 @@ export const runEventReservation = async (
     request: record.request,
     title: record.title,
     agree: record.agree,
-    medium: record.medium,
+    ticket: campaign?.ticket ?? '',
   };
 
   // ⚠️ QRは1回だけ作って両方のメールに渡す。
