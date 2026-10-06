@@ -8,7 +8,7 @@ import { useIsSp } from '../utils/isSp';
 import { setStyleClass } from '../utils/setStyleClass';
 // ⚠️ v2.2.165: 「最新の他社分析 〇件」。⚠️ 数え方は月次日報と共用（countRecentReports）
 import CompetitorAnalysisReports, { countRecentReports, RECENT_DAYS } from './header/CompetitorAnalysisReports';
-import { CLAUDE_ORANGE } from './header/ClaudeIcon';
+import ClaudeIcon, { CLAUDE_ORANGE } from './header/ClaudeIcon';
 
 /**
  * 注文営業のダッシュボードを開いた直後に出す「要確認」。
@@ -462,6 +462,8 @@ const DailyAction = () => {
                 .da_report_card .da_kpi_label i { font-size: 8px; margin-left: 2px; }
                 .da_report_card.has_new { background: #fdf8f6; border-color: #f0d9cc; }
                 .da_report_card.has_new .da_kpi_value { color: ${CLAUDE_ORANGE}; }
+                /* ⚠️ ロゴ（画像内に「Claude」の文字あり）と件数を横に並べる */
+                .da_report_value { display: flex; align-items: center; gap: 6px; }
 
                 .da_btn { font-size: 12px; font-weight: 700; color: #fff; background: #2563eb;
                           border: none; border-radius: 999px; padding: 8px 20px;
@@ -564,8 +566,10 @@ const DailyAction = () => {
                             title={`直近${RECENT_DAYS}日以内に登録された他社分析レポート。押すと開きます`}
                         >
                             <div className='da_kpi_label'>最新の他社分析 <i className='fa-solid fa-chevron-right' aria-hidden='true' /></div>
-                            <div className='da_kpi_value'>
-                                {recentReports === null ? '－' : recentReports.toLocaleString()}<small>件</small>
+                            {/* ⚠️ Claude のロゴを件数の左隣に（2026-10-06 の指示）。⚠️ flex で縦の中心を揃える */}
+                            <div className='da_kpi_value da_report_value'>
+                                <ClaudeIcon height={15} />
+                                <span>{recentReports === null ? '－' : recentReports.toLocaleString()}<small>件</small></span>
                             </div>
                         </button>
                     </div>

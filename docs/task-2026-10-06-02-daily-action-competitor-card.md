@@ -746,3 +746,25 @@ const DailyAction = () => {
 export default DailyAction;
 
 ```
+
+## 追記（2026-10-06）Claude のロゴを件数の左隣に
+
+> さらに Claude のアイコンもカード内に追加。'〇件' の左隣りに配置して flex にするときれいに収まる
+
+- DailyAction.tsx の「最新の他社分析」カードの件数を `da_report_value`（`display: flex; align-items: center; gap: 6px`）にし、⚠️ 左に `<ClaudeIcon height={15} />` を置いた。
+- ⚠️ ロゴの画像には「Claude」の文字が入っているため、⚠️ 隣に文字で「Claude」とは書いていない（ClaudeIcon.tsx の注記どおり）。
+- ⚠️ 月次日報（DailyReports.tsx）のカードは変えていない。
+- ビルド: 成功（`main.a928e112.js`。手順書も更新）。⚠️ 画面での表示は未確認。
+
+```tsx
+                            {/* ⚠️ Claude のロゴを件数の左隣に（2026-10-06 の指示）。⚠️ flex で縦の中心を揃える */}
+                            <div className='da_kpi_value da_report_value'>
+                                <ClaudeIcon height={15} />
+                                <span>{recentReports === null ? '－' : recentReports.toLocaleString()}<small>件</small></span>
+                            </div>
+```
+
+```css
+                /* ⚠️ ロゴ（画像内に「Claude」の文字あり）と件数を横に並べる */
+                .da_report_value { display: flex; align-items: center; gap: 6px; }
+```
