@@ -61,9 +61,9 @@ const ALLOWED_DATES = new Set(['2026/10/10(土)', '2026/10/11(日)']);
  *   受けると一覧や媒体別の集計に任意の名前を入れられる。予約そのものは弾かない。
  *
  * ⚠️ LPの MEDIUM_BY_PARAM（`?m=` の値 → 媒体名）と一致させること。
- *   例: https://kh-house.jp/festa/?m=c → '長原木'
+ *   例: https://kh-house.jp/festa/?m=c → '長原木'、?m=j → 'junko'
  */
-const ALLOWED_MEDIUMS = new Set(['長原木']);
+const ALLOWED_MEDIUMS = new Set(['長原木', 'junko']);
 
 /**
  * 制御文字。

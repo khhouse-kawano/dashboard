@@ -423,3 +423,9 @@ export const sendInternalNotice = async (
         const submitButton = document.getElementById("submitButton");
 
 ```
+
+## 追補（同日）: `?m=j` → `junko` を追加
+- ⚠️ `ALLOWED_MEDIUMS` に `junko` を追加（reservation.ts）。
+- ⚠️ `NOTICE_SUBJECT_SUFFIX` に `junko` → `junko2,000円チケット`、`CONFIRM_NOTE_BY_MEDIUM` に `junko` → `junko2,000円チケットでのお申し込みを確認いたしました。`（mail.ts）。
+- ⚠️ LP の `MEDIUM_BY_PARAM` を `new Map([["c", "長原木"], ["j", "junko"]])` に。
+- ローカルで `medium: junko` を POST → event_db.medium = junko を確認、テスト行は削除。

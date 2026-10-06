@@ -53,7 +53,10 @@ export interface ReservationMailData {
  * ⚠️ 例: 【おうちづくりフェスタ2026／予約】〇〇様(長原木2,000円チケット)
  * ⚠️ ここに無い媒体は件名に何も付けない（従来どおり）。
  */
-const NOTICE_SUBJECT_SUFFIX = new Map<string, string>([['長原木', '長原木2,000円チケット']]);
+const NOTICE_SUBJECT_SUFFIX = new Map<string, string>([
+  ['長原木', '長原木2,000円チケット'],
+  ['junko', 'junko2,000円チケット'],
+]);
 
 /**
  * 媒体 → 予約者宛の確認メール（サンクスメール）に添える一文。
@@ -62,6 +65,7 @@ const NOTICE_SUBJECT_SUFFIX = new Map<string, string>([['長原木', '長原木2
  */
 const CONFIRM_NOTE_BY_MEDIUM = new Map<string, string>([
   ['長原木', '長原木2,000円チケットでのお申し込みを確認いたしました。'],
+  ['junko', 'junko2,000円チケットでのお申し込みを確認いたしました。'],
 ]);
 
 /**
