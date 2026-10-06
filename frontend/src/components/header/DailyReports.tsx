@@ -3,7 +3,7 @@ import Table from 'react-bootstrap/Table';
 import Card from 'react-bootstrap/Card';
 import AuthContext from '../../context/AuthContext';
 import apiClient from '../../utils/apiClient';
-import { isRecent, RECENT_DAYS } from './CompetitorAnalysisReports';
+import { countRecentReports, RECENT_DAYS } from './CompetitorAnalysisReports';
 import { CLAUDE_ORANGE } from './ClaudeIcon';
 
 type Props = {
@@ -156,16 +156,10 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
     const [recentReports, setRecentReports] = useState<number | null>(null);
     useEffect(() => {
         let alive = true;
-        const fetchReports = async () => {
-            try {
-                const res = await apiClient.post('', { request: 'analysis_report_list', reportCategory: 'competitor' });
-                const rows = (res.data?.reports ?? []) as { created: string }[];
-                if (alive) setRecentReports(rows.filter(r => isRecent(r.created)).length);
-            } catch (err) {
-                console.error('他社分析の取得に失敗しました:', err);
-            }
-        };
-        void fetchReports();
+        // ⚠️ 数え方は CompetitorAnalysisReports.tsx の countRecentReports に1つだけ（要確認と共用）
+        countRecentReports()
+            .then((count) => { if (alive) setRecentReports(count); })
+            .catch((err) => console.error('他社分析の取得に失敗しました:', err));
         return () => { alive = false; };
     }, []);
 

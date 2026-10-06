@@ -1,3 +1,74 @@
+# 2026-10-06-02　要確認（DailyAction）にも「最新の他社分析 〇件」を出す（v2.2.165）
+
+## 依頼
+
+> DailyAction.tsx に CompetitorAnalysisReports.tsx の report のカードが表示されない
+
+- ⚠️ v2.2.165 の指示書は `DailyReports.tsx`（月次日報）だったため、カードはそちらにだけ付けていた。
+- 確認の回答: ⚠️ **両方に出す**（要確認ポップアップ＋月次日報）。
+
+## 判断したこと
+
+- ⚠️ DailyAction は `App.tsx` に1つだけ置かれた要確認ポップアップで、⚠️ **Header の共通モーダルの外**にある。
+  ⚠️ 月次日報のように「同じモーダルのまま切り替える」ことができないため、
+  ⚠️ **カードを押すと要確認を閉じて、他社分析を自前の全画面モーダルで開く**ようにした（⚠️ モーダルは重ねない）。
+- ⚠️ 閉じるだけなので ⚠️ **`check` は送らない**（⚠️ 確認済みにならない。背景クリックと同じ扱い）。
+- ⚠️ 要確認を出す条件（未同期などが1件以上）は ⚠️ **変えていない**。⚠️ 他社分析のカードだけでは出さない。
+- ⚠️ 件数の取得を `countRecentReports()` として CompetitorAnalysisReports.tsx にまとめ、⚠️ 月次日報と要確認で共用した。
+
+## 変更したファイル
+
+| ディレクトリ | ファイル | 追加・変更 |
+|---|---|---|
+| `frontend/src/components/header/` | **CompetitorAnalysisReports.tsx** | 関数 `countRecentReports`（新規・export） |
+| `frontend/src/components/header/` | **DailyReports.tsx** | 件数の取得を `countRecentReports` に置き換え（⚠️ 中身は同じ） |
+| `frontend/src/components/` | **DailyAction.tsx** | state `recentReports` `showReports`、関数 `openReports`、`reportsModal`（新規）、件数カード、CSS |
+| `docs/` | **deploy-v2.2.165.md** | 本体を `main.35aa4891.js` に。確認項目 18〜21 を追加 |
+
+## 動作確認
+
+| 確認 | 結果 |
+|---|---|
+| `npm run build` | 成功（`main.35aa4891.js`）。⚠️ DailyAction.tsx の `total` の警告は以前からのもの |
+| ⚠️ 画面での表示 | ⚠️ **未確認** |
+
+## 追加・変更したコード（全文）
+
+### CompetitorAnalysisReports.tsx
+
+```tsx
+/**
+ * 直近に登録された他社分析レポートの件数（v2.2.165）。
+ *
+ * ⚠️ 月次日報（header/DailyReports.tsx）と要確認（DailyAction.tsx）の「最新の他社分析 〇件」が使う。
+ * ⚠️⚠️ **数え方はこの画面の「最新」の印と同じ**（isRecent）。⚠️ 呼び出し側で数え直さないこと。
+ * ⚠️⚠️ **`category` という名前で送らないこと**（⚠️ ② の振り分けキーと衝突して 502 になる。fetchList の注記参照）。
+ * ⚠️ 失敗したら例外をそのまま投げる（⚠️ 呼び出し側で「－」と出す）。
+ */
+export const countRecentReports = async (): Promise<number> => {
+    const res = await apiClient.post('', { request: 'analysis_report_list', reportCategory: 'competitor' });
+    const rows = (res.data?.reports ?? []) as Pick<ReportRow, 'created'>[];
+    return rows.filter((row) => isRecent(row.created)).length;
+};
+```
+
+### DailyReports.tsx（件数の取得）
+
+```tsx
+    const [recentReports, setRecentReports] = useState<number | null>(null);
+    useEffect(() => {
+        let alive = true;
+        // ⚠️ 数え方は CompetitorAnalysisReports.tsx の countRecentReports に1つだけ（要確認と共用）
+        countRecentReports()
+            .then((count) => { if (alive) setRecentReports(count); })
+            .catch((err) => console.error('他社分析の取得に失敗しました:', err));
+        return () => { alive = false; };
+    }, []);
+```
+
+### DailyAction.tsx（全文）
+
+```tsx
 import React, { useEffect, useState, useContext } from 'react';
 import { useLocation } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
@@ -673,3 +744,5 @@ const DailyAction = () => {
 };
 
 export default DailyAction;
+
+```

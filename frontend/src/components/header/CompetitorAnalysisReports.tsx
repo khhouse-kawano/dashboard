@@ -108,6 +108,20 @@ export const isRecent =(created: string | null | undefined): boolean => {
     return at.getTime() >= from.getTime();
 };
 
+/**
+ * 直近に登録された他社分析レポートの件数（v2.2.165）。
+ *
+ * ⚠️ 月次日報（header/DailyReports.tsx）と要確認（DailyAction.tsx）の「最新の他社分析 〇件」が使う。
+ * ⚠️⚠️ **数え方はこの画面の「最新」の印と同じ**（isRecent）。⚠️ 呼び出し側で数え直さないこと。
+ * ⚠️⚠️ **`category` という名前で送らないこと**（⚠️ ② の振り分けキーと衝突して 502 になる。fetchList の注記参照）。
+ * ⚠️ 失敗したら例外をそのまま投げる（⚠️ 呼び出し側で「－」と出す）。
+ */
+export const countRecentReports = async (): Promise<number> => {
+    const res = await apiClient.post('', { request: 'analysis_report_list', reportCategory: 'competitor' });
+    const rows = (res.data?.reports ?? []) as Pick<ReportRow, 'created'>[];
+    return rows.filter((row) => isRecent(row.created)).length;
+};
+
 const CompetitorAnalysisReports = () => {
     const { authority, userName } = useContext(AuthContext);
     const isMaster = authority === 'Master';
