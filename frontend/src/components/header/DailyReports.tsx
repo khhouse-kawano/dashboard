@@ -187,7 +187,12 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
         return `${y}-${m}`;
     });
 
-    const [targetDivision, setTargetDivision] = useState('');
+    /**
+     * 表示する事業（v2.2.167）。⚠️ **空（全事業部）にはしない。**
+     * ⚠️ サーバーは1つの事業 × 1か月分だけを返す（⚠️ 全件だとメモリ上限を超えて応答が返らない）。
+     * ⚠️ ログイン中の事業が決まっていればそこから開く。決まっていなければ注文事業。
+     */
+    const [targetDivision, setTargetDivision] = useState(() => authorityMapping[shopName || ''] ?? '注文事業');
     const [targetShop, setTargetShop] = useState('');
 
     const [isLoading, setIsLoading] = useState(false);
@@ -197,11 +202,28 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
     const [shopList, setShopList] = useState<ShopInfo[]>([]);
     const [staffList, setStaffList] = useState<StaffInfo[]>([]);
 
+    // ⚠️ ログイン中の事業が後から分かったとき（AuthContext の読み込み待ち）はそちらに合わせる
     useEffect(() => {
+        const filteredDivision = authorityMapping[shopName || ''] ?? '';
+        if (filteredDivision) setTargetDivision(filteredDivision);
+    }, [shopName]);
+
+    /**
+     * 日報データ（v2.2.167）。⚠️ **事業か月が変わるたびに取り直す。**
+     * ⚠️ サーバー（daily_report.php）はその事業の店舗・その月のログだけを返す。
+     * ⚠️ 切り替えが続いたときに古い応答で上書きしないよう alive で捨てる。
+     */
+    useEffect(() => {
+        let alive = true;
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const response = await apiClient.post('', { request: 'daily_report' });
+                const response = await apiClient.post('', {
+                    request: 'daily_report',
+                    division: targetDivision,
+                    month: targetMonth,
+                });
+                if (!alive) return;
                 if (response.data) {
                     const filteredResponse = (response.data.response || [])
                         .filter((r: ResponseInfo) => (!shopName || shopName === 'all') ? true : r.authority === shopName)
@@ -227,15 +249,12 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
             } catch (error) {
                 console.error("日報データの取得に失敗しました:", error);
             } finally {
-                setIsLoading(false);
+                if (alive) setIsLoading(false);
             }
         };
         fetchData();
-
-        const filteredDivision = authorityMapping[shopName || ''] ?? '';
-        if (filteredDivision) setTargetDivision(filteredDivision);
-
-    }, [category, shopName]);
+        return () => { alive = false; };
+    }, [category, shopName, targetDivision, targetMonth]);
 
     // ==========================================
     // 💡 フィルタリング用データ生成
@@ -659,7 +678,7 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
                             setTargetShop('');
                         }}
                     >
-                        <option value="">全事業部</option>
+                        {/* ⚠️ 「全事業部」は無い（v2.2.167。⚠️ 全事業を一度に取ると応答が返らない） */}
                         {divisions.map(div => <option key={div} value={div}>{div}</option>)}
                     </select>
 
