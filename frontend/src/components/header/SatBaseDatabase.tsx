@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import apiClient from '../../utils/apiClient';
+import AuthContext from '../../context/AuthContext';
+import SatBaseImport from './SatBaseImport';
 
 /**
  * SatBaseサマリー（ヘッダー → 土地・物件管理 → SatBaseサマリー）。
@@ -18,6 +20,9 @@ import apiClient from '../../utils/apiClient';
  *   ⚠️ ⚠️ **1,910行 × 42列をそのまま描画すると重い**ので、
  *     ⚠️ **スクロールに合わせて30行ずつ描画する**（下の `visibleCount`）。
  *     ⚠️ ページ送りにしなかったのは、⚠️ **絞り込みながら上から眺める使い方**のため。
+ *
+ * ⚠️ v2.2.170: 「表示項目」の右に ⚠️ **「物件更新」（CSV で台帳を更新）** を追加。⚠️ **Master だけ**に出す。
+ *   ⚠️ 中身は SatBaseImport.tsx。⚠️ 反映したら一覧を取り直す（`loadProperties`）。
  *
  * ⚠️ 表が横に広いので Header.tsx の `isFullscreenMenu` に入れてある。
  *   ⚠️ ⚠️ **閉じるボタンは Header.tsx 側が出す。ここに実装しないこと。**
@@ -131,6 +136,10 @@ const formatValue = (column: Column, value: string | number | null): string => {
 };
 
 const SatBaseDatabase = () => {
+    const { authority } = useContext(AuthContext);
+    const isMaster = authority === 'Master';
+    const [importOpen, setImportOpen] = useState(false);
+
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -158,28 +167,30 @@ const SatBaseDatabase = () => {
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const sentinel = useRef<HTMLDivElement | null>(null);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const res = await apiClient.post('', { request: 'satbase_list' });
-                const rows = (res.data?.properties ?? []) as Property[];
-                /**
-                 * ⚠️ サーバーも `ORDER BY property_id DESC` で返しているが、
-                 *   ⚠️ **画面側でも数値として並べ直す**（指示）。
-                 *   ⚠️ ⚠️ **文字列のまま並べると 999 が 1000 より後ろに来る。**
-                 */
-                rows.sort((a, b) => Number(b.property_id) - Number(a.property_id));
-                setProperties(rows);
-                setError('');
-            } catch (e) {
-                console.error(e);
-                setError('物件データを取得できませんでした。時間をおいて再度お試しください。');
-            } finally {
-                setLoading(false);
-            }
-        };
-        void fetchData();
+    /** ⚠️ v2.2.170: 物件更新のあとにも呼ぶので useEffect の外に出した（⚠️ 中身は従来どおり） */
+    const loadProperties = useCallback(async () => {
+        try {
+            const res = await apiClient.post('', { request: 'satbase_list' });
+            const rows = (res.data?.properties ?? []) as Property[];
+            /**
+             * ⚠️ サーバーも `ORDER BY property_id DESC` で返しているが、
+             *   ⚠️ **画面側でも数値として並べ直す**（指示）。
+             *   ⚠️ ⚠️ **文字列のまま並べると 999 が 1000 より後ろに来る。**
+             */
+            rows.sort((a, b) => Number(b.property_id) - Number(a.property_id));
+            setProperties(rows);
+            setError('');
+        } catch (e) {
+            console.error(e);
+            setError('物件データを取得できませんでした。時間をおいて再度お試しください。');
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        void loadProperties();
+    }, [loadProperties]);
 
     /** 絞り込みの選択肢は実データから作る（⚠️ 直書きにすると実態とずれる） */
     const optionsOf = useCallback((key: string): string[] =>
@@ -414,6 +425,11 @@ const SatBaseDatabase = () => {
                 <button className="sb_btn" onClick={() => setColumnPanel(v => !v)}>
                     表示項目（{shownColumns.length}/{COLUMNS.length}）
                 </button>
+                {isMaster && (
+                    <button className="sb_btn" onClick={() => setImportOpen(true)}>
+                        <i className="fa-solid fa-file-csv me-1" aria-hidden="true" />物件更新
+                    </button>
+                )}
                 <span className="sb_count">{filtered.length.toLocaleString()} 件中 {rows.length.toLocaleString()} 件を表示</span>
             </div>
 
@@ -477,6 +493,10 @@ const SatBaseDatabase = () => {
                 {/* ⚠️ ここが見えたら30行足す。⚠️ 表の外に置くと監視が効かない */}
                 <div ref={sentinel} style={{ height: 1 }} />
             </div>
+
+            {isMaster && (
+                <SatBaseImport show={importOpen} setShow={setImportOpen} onImported={() => void loadProperties()} />
+            )}
         </div>
     );
 };
