@@ -43,6 +43,12 @@ interface ReservationRow extends RowDataPacket {
   title: string | null;
   check_in_time: string | null;
   check_out_time: string | null;
+  /** ⚠️ v2.2.171 追加（受付画面のチケット・ストラップ・担当の判定に使う） */
+  reserved_at: string | null;
+  medium: string | null;
+  interview: string | null;
+  request: string | null;
+  staff: string | null;
 }
 
 /**
@@ -75,7 +81,22 @@ const stamp = (): string => {
 const asString = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';
 
-/** 画面へ返す予約内容。⚠️ 電話番号・メールアドレスは返さない（受付に不要） */
+/**
+ * 予約日（`YYYY/MM/DD`）。⚠️ reserved_at は DATETIME（dateStrings で `YYYY-MM-DD HH:MM:SS`）。
+ * ⚠️ 受付画面のチケット判定は ⚠️ **来場日ではなく予約日**で行う（2026-10-07 の決定）。
+ * ⚠️ 本番の ② は TZ=Asia/Tokyo なので、reserved_at は日本時間で入っている。
+ */
+const reservedDate = (value: string | null): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? '');
+  return m ? `${m[1]}/${m[2]}/${m[3]}` : '';
+};
+
+/**
+ * 画面へ返す予約内容。⚠️ 電話番号・メールアドレス・住所は返さない（受付に不要）。
+ *
+ * ⚠️ v2.2.171: 受付スタッフ用の全画面表示のため、予約日・媒体・相談内容・ご検討・担当スタッフを追加。
+ *   ⚠️ いずれも合い言葉を通った後にしか返らない（この関数は照合の後でしか呼ばれない）。
+ */
 const toPublicView = (row: ReservationRow) => ({
   id: row.id,
   name: row.name ?? '',
@@ -85,6 +106,11 @@ const toPublicView = (row: ReservationRow) => ({
   title: row.title ?? '',
   checkInTime: row.check_in_time ?? '',
   checkOutTime: row.check_out_time ?? '',
+  reservedDate: reservedDate(row.reserved_at),
+  medium: row.medium ?? '',
+  interview: row.interview ?? '',
+  request: row.request ?? '',
+  staff: row.staff ?? '',
 });
 
 /**
@@ -128,7 +154,8 @@ export const runEventCheckin = async (
   }
 
   const SELECT_SQL = `
-    SELECT id, name, kana, date, time, title, check_in_time, check_out_time
+    SELECT id, name, kana, date, time, title, check_in_time, check_out_time,
+           reserved_at, medium, interview, request, staff
       FROM event_db
      WHERE id = ?
      LIMIT 1
