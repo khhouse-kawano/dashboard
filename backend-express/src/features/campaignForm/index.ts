@@ -73,11 +73,25 @@ const str = (value: unknown): string => {
  * JSON 列へ入れる値。
  * ⚠️ 移植元の `json_encode($data['x'], JSON_UNESCAPED_UNICODE)` に相当する。
  *   ⚠️ 画面はオブジェクトを送ってくるので、ここで文字列化する。
- *   ⚠️ 既に文字列なら二重にエンコードしない（画面が古い形で送ってきた場合）。
+ *   ⚠️ 既に JSON の文字列なら二重にエンコードしない（画面が古い形で送ってきた場合）。
+ *
+ * ⚠️⚠️ **JSON として読めない文字列は JSON にする**（v2.2.168 で修正）。
+ *   ⚠️ form_table の JSON 列は `CHECK (json_valid(...))` 付き。
+ *   ⚠️ DB に `""`（空文字の JSON）が入っている行（notice など）は、画面が読むと
+ *     空文字 `""` になってそのまま送ってくる。⚠️ 以前はそれを素通しで書こうとして
+ *     **制約で 500 → ① が自分で処理して 404「該当する処理がありません」**になっていた。
+ *   ⚠️ PHP の json_encode("") は `""` を返すので、それに合わせる。
  */
 const jsonText = (value: unknown): string => {
     if (value === null || value === undefined) return '';
-    if (typeof value === 'string') return value;
+    if (typeof value === 'string') {
+        try {
+            JSON.parse(value);
+            return value;
+        } catch {
+            return JSON.stringify(value);
+        }
+    }
     return JSON.stringify(value);
 };
 
