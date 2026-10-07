@@ -1,3 +1,126 @@
+# 2026-10-07 活動サマリー（アクションボード・契約率ランキング）とランキングの改修（v2.2.169）
+
+## 依頼（ReadMeClaude.md）
+- Header.tsx: '日報' → **活動サマリー**。既存の月次日報・営業別契約率に加え、**アクションボード**（DailyAction.tsx、category === 'order' のみ）と **契約率ランキング**（Ranking.tsx）を追加
+- Ranking.tsx: `targetDivision`（order / spec）と上部の「事業部を選択」select。表示を targetDivision に合わせる
+- mode === 'staff' のとき **予算** 列を「総計」の左に（company_achievement の category = staff、period が今年（年度ではない）の value。期間で変えない固定値）
+- **達成率** を「総計」の右に
+
+## 確認した回答
+- 事業部の初期値: ⚠️ **ログイン中の事業に合わせる**（spec なら spec、それ以外は order）
+- 個人別の達成率: ⚠️ **常に 総計 ÷ 年間予算**
+- 契約率ランキング: ⚠️ **全員**
+- Ranking.tsx の `size='lg'` は ⚠️ **オーナーによる変更**。そのまま受け入れ
+
+## 変更したファイル
+
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| `frontend/src/utils/` | `version.ts` | `2.2.169` |
+| `backend/scripts/sql/` | ⚠️ 新規 `2026-10-07_update_log_2.2.169.sql` | update_log（ローカル no=265 で投入・文言は UPDATE で揃え済み） |
+| `frontend/src/components/header/` | `Header.tsx` | 「日報」→「活動サマリー」、アクションボード（`openDailyAction()`）、契約率ランキング（`showRanking` state） |
+| `frontend/src/components/company/` | ⚠️ 新規 `RankingLoader.tsx` | ヘッダーから開くとき `request: 'company'` を取って Ranking に渡す |
+| `frontend/src/components/company/` | `Ranking.tsx` | `targetDivision` / 事業部 select / 個人別の予算・達成率 / `size='lg'`（オーナー） |
+| `docs/` | ⚠️ 新規 `deploy-v2.2.169.md` | 手順書（① フロント＋SQL のみ） |
+
+## 設計メモ
+- アクションボード: DailyAction は App.tsx に常駐し、外から開く `openDailyAction()` を既に持つ（ActiveUser.tsx が使用）。⚠️ メニューはそれを呼ぶだけ。DailyAction.tsx は変更なし。
+- 契約率ランキング: Ranking はデータを受け取る作り。⚠️ RankingLoader が Company.tsx と ⚠️ **同じ API・同じ絞り方**（contract 3種、monthArray = getPeriod(thisYear-1, 6)、staff は period = thisYear）で渡す。開いたときだけ取り、一度取ったら持っておく。
+- 個人予算: company_achievement の staff 行は `period = YYYY-06`（年に1行・年間予算）。⚠️ `period.startsWith(今年)` で選ぶ（2026年10月なら 2026-06）。
+- 達成率の丸めは店舗別と同じ `Math.ceil`（例: 4 ÷ 3 = 133.3 → 134%）。
+- 個人別の並べ替えで「達成率」を選ぶと達成率で並ぶ（⚠️ 以前は個人別では総計に読み替えていた）。
+- ⚠️ Company.tsx から開くランキングにも同じ変更が入る（事業部 select・個人予算）。
+
+## 確認（ローカル）
+- `tsc --noEmit` で Header / Ranking / RankingLoader のエラーなし、build `main.6df64034.js`（変更ファイルに警告なし）。
+- 旧キー「日報/…」の参照が他に残っていないことを grep で確認。
+- ローカルの company データで個人別の予算・達成率を計算（集計を写したスクリプト）:
+  - 注文: 担当 95人中 ⚠️ **94人に予算あり**。例: 予算3・総計4 → 134%
+  - 建売: 担当 23人、⚠️ **予算あり 0人**（⚠️ DB に建売の個人予算が無い → 予算・達成率は 0）
+- ⚠️ ブラウザでの画面確認は ⚠️ **未実施**。
+
+## コード
+
+### frontend/src/components/company/RankingLoader.tsx（新規・全文）
+```tsx
+import React, { useEffect, useMemo, useState } from 'react';
+import apiClient from '../../utils/apiClient';
+import { getPeriod } from '../../utils/getPeriod';
+import { thisYear } from '../../utils/thisYear';
+import Ranking from './Ranking';
+
+/**
+ * ヘッダーの「活動サマリー → 契約率ランキング」から開く（v2.2.169 新規）。
+ *
+ * ─────────────────────────────────────────────
+ *   Ranking.tsx は自分でデータを取らない（Company.tsx から受け取る作り）。
+ *   ⚠️ ヘッダーには Company の画面が無いので、⚠️ **ここで同じデータを取って渡す。**
+ *
+ *   ⚠️⚠️ **Company.tsx と同じ材料・同じ絞り方にすること**（⚠️ 2つの入口で数字が食い違わないように）。
+ *     ・API … `request: 'company'`（⚠️ Company.tsx と同じ）
+ *     ・customerList … contract + contract_kaeru + contract_resale
+ *     ・monthArray … getPeriod(thisYear - 1, 6)（⚠️ 今期の12か月）
+ *     ・staffList … staff のうち period が今年度（thisYear）の行
+ *     ・achievement … そのまま
+ * ─────────────────────────────────────────────
+ *
+ * ⚠️ 開いたときだけ取る（⚠️ ヘッダーは全画面に出ているので、開かない人の分まで取らない）。
+ *   ⚠️ 一度取ったら閉じても持っておく（⚠️ 開き直すたびに取らない）。
+ */
+
+type RankingProps = React.ComponentProps<typeof Ranking>;
+
+type Props = {
+    show: boolean;
+    setShow: React.Dispatch<React.SetStateAction<boolean>>;
+};
+
+const RankingLoader = ({ show, setShow }: Props) => {
+    const [customerList, setCustomerList] = useState<RankingProps['customerList']>([]);
+    const [staffList, setStaffList] = useState<RankingProps['staffList']>([]);
+    const [achievement, setAchievement] = useState<RankingProps['achievement']>([]);
+    const [loaded, setLoaded] = useState(false);
+
+    // ⚠️ Company.tsx の monthArray と同じ（targetYear = thisYear のとき）
+    const monthArray = useMemo(() => getPeriod(Number(thisYear) - 1, 6), []);
+
+    useEffect(() => {
+        if (!show || loaded) return;
+        let alive = true;
+        (async () => {
+            try {
+                const response = await apiClient.post('', { request: 'company' });
+                if (!alive) return;
+                const data = response.data ?? {};
+                setCustomerList([...(data.contract ?? []), ...(data.contract_kaeru ?? []), ...(data.contract_resale ?? [])]);
+                setStaffList((data.staff ?? []).filter((s: { period: string }) => s.period === String(thisYear)));
+                setAchievement(data.achievement ?? []);
+                setLoaded(true);
+            } catch (error) {
+                // ⚠️ 黙らない。⚠️ 取れないと表が「該当するデータがありません」のままになる
+                console.error('ランキングのデータ取得に失敗しました:', error);
+            }
+        })();
+        return () => { alive = false; };
+    }, [show, loaded]);
+
+    return (
+        <Ranking
+            showRanking={show}
+            setShowRanking={setShow}
+            customerList={customerList}
+            monthArray={monthArray}
+            staffList={staffList}
+            achievement={achievement}
+        />
+    );
+};
+
+export default RankingLoader;
+```
+
+### frontend/src/components/company/Ranking.tsx（修正後・全文）
+```tsx
 import React, { useContext, useEffect, useState } from 'react';
 import { Modal, Table, Badge, Nav } from 'react-bootstrap';
 import AuthContext from "../../context/AuthContext";
@@ -494,4 +617,128 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
     );
 };
 
-export default Ranking;
+export default Ranking;```
+
+### frontend/src/components/header/Header.tsx（差分）
+```diff
+diff --git a/frontend/src/components/header/Header.tsx b/frontend/src/components/header/Header.tsx
+index 2edf5494..4aa52fa2 100644
+--- a/frontend/src/components/header/Header.tsx
++++ b/frontend/src/components/header/Header.tsx
+@@ -29,10 +29,12 @@ import EventSummary from './EventSummary';
+ import EventBudget from './EventBudget';
+ import GoogleReview from './GoogleReview';
+ import UploadLoan from './UploadLoan';
++import RankingLoader from '../company/RankingLoader';
++import { openDailyAction } from '../DailyAction';
+ import { useNavigate } from "react-router-dom";
+ 
+ // 型安全のための定義
+-type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
++type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '活動サマリー' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
+ 
+ /**
+  * 他社動向メニューの最後に出す項目。
+@@ -48,7 +50,7 @@ type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' |
+ const CLAUDE_COMPETITOR_ITEM = 'Claudeによる競合分析';
+ 
+ const Header = ({ }) => {
+-    const { authority } = useContext(AuthContext);
++    const { authority, category } = useContext(AuthContext);
+     /** 表示中のメニュー項目。⚠️ `メニュー/項目` 形式（editMapping のキーと同じ） */
+     const [editMenu, setEditMenu] = useState<string>('');
+     /**
+@@ -75,9 +77,14 @@ const Header = ({ }) => {
+      * ⚠️ UploadLoan も自前のモーダル（md）を持つため、共通モーダル（xl）には載せず専用の state で開く。
+      */
+     const [uploadLoan, setUploadLoan] = useState<boolean>(false);
++    /**
++     * 契約率ランキング（v2.2.169）。
++     * ⚠️ Ranking も自前のモーダルを持つため、共通モーダル（xl）には載せず専用の state で開く。
++     */
++    const [showRanking, setShowRanking] = useState<boolean>(false);
+     const [modal, setModal] = useState<boolean>(false);
+     const [callStatusShow, setCallStatusShow] = useState(true);
+-    const menuArray: MenuKey[] = ['システム管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
++    const menuArray: MenuKey[] = ['システム管理', '反響管理', '土地・物件管理', '他社動向', '活動サマリー', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
+     const [newEstate, setNewEstate] = useState<number | null>(0);
+ 
+     const navigate = useNavigate();
+@@ -159,9 +166,16 @@ const Header = ({ }) => {
+         //   ⚠️ ⚠️ **ここを外すだけでは権限は閉じない**（⚠️ メニューから消えるだけ）。
+         //     ⚠️ ② 側も `staff_contract` で同じ2つを確かめている。
+         //   ⚠️ 他の管理者向け画面（Menu.tsx の予算詳細など）と同じ条件に揃えてある。
+-        '日報': (authority === 'Master' || authority === 'BrandAdmin')
+-            ? ['月次日報', '営業別契約率']
+-            : ['月次日報'],
++        //
++        // ⚠️ v2.2.169 に「日報」から「活動サマリー」へ改名し、2つ足した。
++        //   ⚠️ アクションボード … ⚠️ **category === 'order' だけ**（⚠️ DailyAction 自体も注文だけを対象にしている）。
++        //   ⚠️ 契約率ランキング … 全員（⚠️ Master 以外は上位10位前後だけ出る仕組みが Ranking 側にある）。
++        '活動サマリー': [
++            '月次日報',
++            ...((authority === 'Master' || authority === 'BrandAdmin') ? ['営業別契約率'] : []),
++            ...(category === 'order' ? ['アクションボード'] : []),
++            '契約率ランキング',
++        ],
+         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
+         '紹介キャンペーン': ['反響一覧'],
+         '集客イベント': ['反響一覧', '集客サマリー', '広告費入力'],
+@@ -199,8 +213,8 @@ const Header = ({ }) => {
+         '土地・物件管理/SatBaseサマリー': <SatBaseDatabase />,
+         // ⚠️ v2.2.165: 上部の「最新の他社分析」カードから、同じモーダルのまま他社分析へ切り替える。
+         //   ⚠️ どちらも isFullscreenMenu に入っているので、⚠️ 全画面のまま中身だけ替わる。
+-        '日報/月次日報': <DailyReports onOpenCompetitorReports={() => setEditMenu(`他社動向/${CLAUDE_COMPETITOR_ITEM}`)} />,
+-        '日報/営業別契約率': <StaffContractRate />,
++        '活動サマリー/月次日報': <DailyReports onOpenCompetitorReports={() => setEditMenu(`他社動向/${CLAUDE_COMPETITOR_ITEM}`)} />,
++        '活動サマリー/営業別契約率': <StaffContractRate />,
+         '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
+         '公式アンバサダー/反響一覧': <InquiryAmbassador />,
+         '紹介キャンペーン/反響一覧': <InquiryIntroductory />,
+@@ -233,7 +247,7 @@ const Header = ({ }) => {
+     // 反響一覧も横に列が多いため同じ扱いにする。
+     // ⚠️ キーは `メニュー/項目` 形式（editMapping と同じ）
+     const isFullscreenMenu = [
+-        '日報/月次日報',
++        '活動サマリー/月次日報',
+         '公式アンバサダー/アンバサダー管理',
+         '公式アンバサダー/反響一覧',
+         '紹介キャンペーン/反響一覧',
+@@ -271,7 +285,7 @@ const Header = ({ }) => {
+         //   ⚠️ xl のままだと右半分が隠れて横スクロール頼みになる（2026-10-02 の指示で全画面）。
+         //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
+         //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
+-        '日報/営業別契約率',
++        '活動サマリー/営業別契約率',
+     ].includes(editMenu);
+ 
+     // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）
+@@ -384,6 +398,17 @@ const Header = ({ }) => {
+                                             setUploadLoan(true);
+                                             return;
+                                         }
++                                        // ⚠️ アクションボード（v2.2.169）は ⚠️ **App.tsx に置いてある DailyAction を開くだけ**。
++                                        //   ⚠️ ActiveUser.tsx のボタンと同じ関数（⚠️ 押したときは取り直し、0件でも開く）。
++                                        if (menu === '活動サマリー' && item === 'アクションボード') {
++                                            openDailyAction();
++                                            return;
++                                        }
++                                        // ⚠️ 契約率ランキング（v2.2.169）も自前のモーダル
++                                        if (menu === '活動サマリー' && item === '契約率ランキング') {
++                                            setShowRanking(true);
++                                            return;
++                                        }
+                                         // ⚠️ キーは `メニュー/項目`。項目名だけだと
+                                         //   複数のメニューにある「反響一覧」が区別できない
+                                         setEditMenu(`${menu}/${item}`);
+@@ -497,6 +522,9 @@ const Header = ({ }) => {
+ 
+             {/* ローン情報更新（v2.2.168）。⚠️ 自前のモーダル（md）なので共通モーダルの外に置く */}
+             <UploadLoan show={uploadLoan} setShow={setUploadLoan} />
++
++            {/* 契約率ランキング（v2.2.169）。⚠️ データは RankingLoader が開いたときに取る */}
++            <RankingLoader show={showRanking} setShow={setShowRanking} />
+         </>
+     );
+ };
+```
