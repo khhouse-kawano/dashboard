@@ -46,7 +46,7 @@ import { runDatabase } from '../features/database';
 import { runCustomer } from '../features/customer';
 import { runMap } from '../features/map';
 import type { MapCategory } from '../features/map/queries';
-import { runSatbaseList, runSatbaseUpdate } from '../features/satbase';
+import { runSatbaseImport, runSatbaseList, runSatbaseUpdate } from '../features/satbase';
 import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
@@ -1809,6 +1809,21 @@ register({
       column: String(ctx.body.column ?? ''),
       value: Number(ctx.body.value ?? 0),
       staff: String(ctx.staff?.name ?? ''),
+    }),
+});
+
+// ⚠️ 物件更新（CSV 取り込み）。v2.2.170 新規。⚠️ **Master だけ**（台帳を丸ごと書き換えるため）。
+//   ⚠️ `dryRun: true` は件数を返すだけ（⚠️ 書かない）。
+register({
+  request: 'satbase_import',
+  summary: '【書き込み】SatBase の CSV で物件台帳（satbase_property）を更新・追加する',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) =>
+    runSatbaseImport({
+      rows: ctx.body.rows,
+      lines: ctx.body.lines,
+      dryRun: ctx.body.dryRun === true,
     }),
 });
 
