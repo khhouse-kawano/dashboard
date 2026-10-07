@@ -49,6 +49,7 @@ export interface ListEventResult {
  *     check_in_time       … QRの読み取り（受付）で記録する
  *     check_out_time      … 退場時刻
  *     remarks             … 社内メモ（原本ではない）
+ *     staff               … 担当スタッフ（v2.2.171。自由入力）
  *     sync                … 顧客への取り込み済みフラグ
  *
  * ⚠️ ここに列を戻すときは EventList.tsx の入力欄と ① の PHP も合わせること。
@@ -65,6 +66,8 @@ const ALLOWED_COLUMNS = [
   'check_in_time',
   'check_out_time',
   'remarks',
+  // ⚠️ v2.2.171 追加。担当スタッフ（event_db.staff。⚠️ 先に ALTER を流すこと）
+  'staff',
   'sync',
 ] as const;
 
