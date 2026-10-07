@@ -22,6 +22,7 @@ import { filterReportShops, sortShops, MasterShop } from './useAmbassadorMaster'
  *   「本当は何と入力されたのか」が分からなくなる。
  *   サーバー側（listAction/list_event.php）でも同じ制限を掛けている。
  *   受付運用のための check_in_time / check_out_time / remarks は例外。
+ *   ⚠️ v2.2.171: 担当スタッフ（staff）も例外に追加（自由入力）。
  */
 type CustomerData = {
     no: string;
@@ -54,6 +55,8 @@ type CustomerData = {
     check_in_time: string | null;
     check_out_time: string | null;
     remarks: string;
+    /** 担当スタッフ（v2.2.171）。⚠️ 自由入力。⚠️ 列追加前の行・未入力は NULL */
+    staff: string | null;
     title: string;
     shop: string;
     sync: number | null;
@@ -324,7 +327,7 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
             //   表示のみの項目を書くと ref が無く、毎回空振りする
             const fields: (keyof CustomerData)[] = [
                 'name', 'phone', 'mail',
-                'check_in_time', 'check_out_time', 'remarks'
+                'check_in_time', 'check_out_time', 'remarks', 'staff'
             ];
 
             fields.forEach(field => {
@@ -783,7 +786,7 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                     {error && <Alert variant="danger" className="py-1 px-2 mb-2" style={{ fontSize: '11px' }}>{error}</Alert>}
 
                     <div className="bg-white rounded shadow-sm border table-responsive">
-                        <Table hover className="m-0 align-top text-nowrap" style={{ minWidth: '1800px' }}>
+                        <Table hover className="m-0 align-top text-nowrap" style={{ minWidth: '1920px' }}>
                             <thead>
                                 <tr>
                                     {/* ⚠️ v2.2.166: 2行目に担当店舗を出すため 40px → 110px */}
@@ -803,6 +806,8 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                                     <th style={{ ...thStyle, width: '130px' }}>チェックイン</th>
                                     <th style={{ ...thStyle, width: '130px' }}>チェックアウト</th>
                                     <th style={{ ...thStyle, width: '180px' }}>事前質問</th>
+                                    {/* ⚠️ v2.2.171 追加。担当スタッフ（自由入力） */}
+                                    <th style={{ ...thStyle, width: '120px' }}>担当スタッフ</th>
                                     <th style={{ ...thStyle, width: '180px' }}>備考欄</th>
                                 </tr>
                             </thead>
@@ -890,6 +895,10 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                                                 {item.question || ''}
                                             </td>
                                             <td className="p-1 align-middle">
+                                                {/* ⚠️ v2.2.171: 担当スタッフ。⚠️ 保存は備考欄と同じ（フォーカスが外れたとき） */}
+                                                <input type="text" style={compactInputStyle} placeholder="担当スタッフ" ref={setRef(item.id, 'staff')} defaultValue={item.staff || ''} onBlur={() => handleBlur(item.id, 'staff')} />
+                                            </td>
+                                            <td className="p-1 align-middle">
                                                 <textarea
                                                     style={{ ...compactInputStyle, height: '40px', resize: 'none' }}
                                                     placeholder="受付スタッフ用メモ..."
@@ -903,7 +912,7 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                                 })}
                                 {sortedData.length === 0 && !loading && (
                                     <tr>
-                                        <td colSpan={16} className="text-center p-4 text-muted" style={{ fontSize: '11px' }}>データがありません</td>
+                                        <td colSpan={17} className="text-center p-4 text-muted" style={{ fontSize: '11px' }}>データがありません</td>
                                     </tr>
                                 )}
 
@@ -911,7 +920,7 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
                                     div を直接入れるとブラウザが table の外へ弾き出し、
                                     交差判定が働かずスクロールしても増えなくなる */}
                                 <tr ref={loaderRef}>
-                                    <td colSpan={16} className="text-center text-muted p-2" style={{ fontSize: '11px' }}>
+                                    <td colSpan={17} className="text-center text-muted p-2" style={{ fontSize: '11px' }}>
                                         {sortedData.length > displayLength
                                             ? `読み込み中…（${displayLength} / ${sortedData.length} 件）`
                                             : sortedData.length > 0 ? `全 ${sortedData.length} 件` : ''}

@@ -59,13 +59,14 @@ if ($function && $function === 'update') {
     //   check_in_time       … QRの読み取り（受付）で記録するため必須
     //   check_out_time      … 退場時刻。受付運用で使う
     //   remarks             … 社内メモ。原本ではないので自由に書ける
+    //   staff               … 担当スタッフ（v2.2.171。自由入力。⚠️ 先に ALTER を流すこと）
     //   sync                … 顧客への取り込み済みフラグ
     //
     // ⚠️ ここに列を戻すときは EventList.tsx 側の入力欄も合わせること。
     //   片方だけ変えると、画面では編集できるのに保存されない（無言で消える）。
     $allowed_columns = [
         'name', 'phone', 'mail',
-        'check_in_time', 'check_out_time', 'remarks', 'sync'
+        'check_in_time', 'check_out_time', 'remarks', 'staff', 'sync'
     ];
 
     $update_fields = [];
