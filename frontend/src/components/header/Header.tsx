@@ -28,10 +28,11 @@ import EventList from './EventList';
 import EventSummary from './EventSummary';
 import EventBudget from './EventBudget';
 import GoogleReview from './GoogleReview';
+import UploadLoan from './UploadLoan';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
-type MenuKey = '店舗管理' | 'スタッフ管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
+type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
 
 /**
  * 他社動向メニューの最後に出す項目。
@@ -69,9 +70,14 @@ const Header = ({ }) => {
      *   対応しているが、閉じる順を変えないこと。
      */
     const [eventBudget, setEventBudget] = useState<boolean>(false);
+    /**
+     * ローン情報更新（v2.2.168）。
+     * ⚠️ UploadLoan も自前のモーダル（md）を持つため、共通モーダル（xl）には載せず専用の state で開く。
+     */
+    const [uploadLoan, setUploadLoan] = useState<boolean>(false);
     const [modal, setModal] = useState<boolean>(false);
     const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['店舗管理', 'スタッフ管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
+    const menuArray: MenuKey[] = ['システム管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
@@ -125,8 +131,12 @@ const Header = ({ }) => {
     }, [isSp]);
 
     const menuMapping: Record<MenuKey, string[]> = {
-        '店舗管理': ['店舗編集'],
-        'スタッフ管理': ['スタッフ編集・追加', '権限編集'],
+        // ⚠️ v2.2.168 に「店舗管理」「スタッフ管理」を1つにまとめた。
+        // ⚠️ ローン情報更新は ⚠️⚠️ **Master だけ**（⚠️ お客様に出る金利を確定するため）。
+        //   ⚠️ ⚠️ **ここを外すだけでは権限は閉じない**（⚠️ ② の loan_rate_upload も auth: 'master'）。
+        'システム管理': authority === 'Master'
+            ? ['店舗編集', 'スタッフ編集・追加', '権限編集', 'ローン情報更新']
+            : ['店舗編集', 'スタッフ編集・追加', '権限編集'],
         '反響管理': authority === 'Master' ? ['販促媒体設定', 'ブラックリスト設定', '広告費シミュレーター', '事後アンケート'] : ['販促媒体設定', 'ブラックリスト設定', '事後アンケート'],
         // ⚠️⚠️ **2026-09-22 に土地情報同期・土地情報一覧をメニューから外した**（指示）。
         //   ⚠️ ⚠️ **コンポーネント（SyncEstate / Estate）は消していない。**
@@ -169,9 +179,10 @@ const Header = ({ }) => {
      *   気づきにくい（2026-09-06 にこの形へ変更した）。
      */
     const editMapping: Record<string, React.ReactNode> = {
-        'スタッフ管理/スタッフ編集・追加': <EditStaff />,
-        'スタッフ管理/権限編集': <EditAuth />,
-        '店舗管理/店舗編集': <EditShop />,
+        // ⚠️ 'システム管理/ローン情報更新' はここに入れない（⚠️ UploadLoan は自前のモーダル。下の JSX を参照）
+        'システム管理/スタッフ編集・追加': <EditStaff />,
+        'システム管理/権限編集': <EditAuth />,
+        'システム管理/店舗編集': <EditShop />,
         '反響管理/ブラックリスト設定': <EditBlackList />,
         '他社動向/他社広告ライブラリ': <MetaAdsDashboard />,
         '他社動向/他社資料': <CompetitorMaterials />,
@@ -368,6 +379,11 @@ const Header = ({ }) => {
                                             setEventBudget(true);
                                             return;
                                         }
+                                        // ⚠️ ローン情報更新も自前のモーダル（md）を持つ（v2.2.168）
+                                        if (menu === 'システム管理' && item === 'ローン情報更新') {
+                                            setUploadLoan(true);
+                                            return;
+                                        }
                                         // ⚠️ キーは `メニュー/項目`。項目名だけだと
                                         //   複数のメニューにある「反響一覧」が区別できない
                                         setEditMenu(`${menu}/${item}`);
@@ -478,6 +494,9 @@ const Header = ({ }) => {
             {/* 広告費入力。⚠️ 集客サマリーの上に重ねて開くこともあるため、
                 共通モーダルの外（ここ）に置く */}
             <EventBudget show={eventBudget} setShow={setEventBudget} />
+
+            {/* ローン情報更新（v2.2.168）。⚠️ 自前のモーダル（md）なので共通モーダルの外に置く */}
+            <UploadLoan show={uploadLoan} setShow={setUploadLoan} />
         </>
     );
 };
