@@ -69,7 +69,8 @@ const WALK_IN_STATUS = 'non-reserve';
  * 今（⚠️ 日本時間）の来場日と来場時間。当日来場のときだけ使う。
  *
  * ⚠️⚠️ **当日来場は日時をリクエストから受け取らない。** ⚠️ この口は認証なしで誰でも叩けるため、
- *   受け取ると ⚠️ **開催日以外の日付で「来場済み」の行を作れてしまう。**
+ *   受け取ると ⚠️ **任意の日付で「来場済み」の行を作れてしまう**（⚠️ 送信した日時でしか作れないようにする）。
+ *   ⚠️ 開催日以外でも受け付ける（v2.2.169 追加指示）。⚠️ その場合も日付は送信した日になる。
  *   ⚠️ LP も同じ計算で表示しているので、見た目と保存値は一致する。
  * ⚠️ コンテナの TZ に依らないよう、⚠️ **Asia/Tokyo を明示して**計算する。
  *
@@ -236,15 +237,11 @@ export const runEventReservation = async (
   // ⚠️ 当日来場は日時を ② の時計で決める（walkInDateTime の注記）
   const now = walkIn ? walkInDateTime() : null;
 
+  // ⚠️ 当日来場は ⚠️ **開催日以外でも受け付ける**（v2.2.169 追加指示）。⚠️ 日付は ② の時計の今日。
+  //   ⚠️ 事前予約だけ ALLOWED_DATES で検証する。
   const date = now ? now.date : clean(body.date, 32);
-  if (!ALLOWED_DATES.has(date)) {
-    return {
-      httpStatus: 400,
-      body: {
-        status: 'error',
-        message: walkIn ? 'このフォームは開催当日のみご利用いただけます。' : '来場日を選択してください。',
-      },
-    };
+  if (!walkIn && !ALLOWED_DATES.has(date)) {
+    return { httpStatus: 400, body: { status: 'error', message: '来場日を選択してください。' } };
   }
 
   const time = now ? now.time : clean(body.time, 16);
@@ -332,6 +329,7 @@ export const runEventReservation = async (
     title: record.title,
     agree: record.agree,
     ticket: campaign?.ticket ?? '',
+    walkIn,
   };
 
   // ⚠️ QRは1回だけ作って両方のメールに渡す。
