@@ -9,20 +9,57 @@
 | 3 | ⚠️ 活動サマリーに ⚠️ **契約率ランキング**（⚠️ 全員） | ① フロント |
 | 4 | ⚠️ ランキングに ⚠️ **事業部の選択**（注文事業／建売事業。⚠️ 初期値はログイン中の事業） | ① フロント |
 | 5 | ⚠️ ランキングの個人別に ⚠️ **予算（年間）**と ⚠️ **達成率（総計÷予算）**の列 | ① フロント |
-| 6 | 更新履歴に1行増える | ① DB |
+| 6 | ⚠️ フェスタLP に ⚠️ **当日来場フォーム**（`?status=non-reserve`）。⚠️ フォームだけを出し、来場日・来場時間は開いた時刻から自動 | ⚠️ **LP（kh-house.jp/festa）** |
+| 7 | ⚠️ 当日来場の受付を ⚠️ **来場済み**（`status = non-reserve`・受付時刻あり）で保存。⚠️ 日時は ② の時計（日本時間）で決め、⚠️ 開催日以外は弾く | ⚠️ **② VPS** |
+| 8 | 更新履歴に1行増える | ① DB |
 
-⚠️⚠️ **② VPS と ① PHP は触りません。** ⚠️ DBの構造も変えません（⚠️ ランキングは既存の `company` を使う）。
+⚠️ ① PHP は触りません。⚠️ DBの構造も変えません（⚠️ ランキングは既存の `company`、当日来場は既存の `event_db.status` / `check_in_time` を使う）。
 
 ---
 
 ## 順序
 
 ```
-1. ① フロント（build）
-2. ① SQL（update_log）
+1. ② Express（build）        ← 当日来場
+2. LP（index.html）           ← ⚠️ 1 のあと
+3. ① フロント（build）
+4. ① SQL（update_log）
 ```
 
-⚠️ どちらを先にしても壊れません。
+- ⚠️ 2 を 1 より先に出しても壊れません。⚠️ ただしその間の当日来場は ⚠️ **ふつうの予約（来場前）として入る**（⚠️ 古い ② は status を無視する）。⚠️ 受付で QR を読めば来場済みになります。
+- ⚠️ ② は `production` から取るので、⚠️ **先に GitHub で v2.2.169 を production へマージ**しておくこと。
+
+---
+
+## 手順0-1　【② VPS で実行】Express の再ビルド
+
+```bash
+cd ~/dashboard
+git fetch --depth 1 origin production
+git checkout FETCH_HEAD
+```
+```bash
+dcp build express-api
+```
+```bash
+dcp up -d express-api
+```
+
+| ファイル | |
+|---|---|
+| `src/features/event/reservation.ts` | ⚠️ `status: 'non-reserve'` を受けたら来場済みで保存（⚠️ `walkInDateTime` / `checkInStamp`） |
+
+---
+
+## 手順0-2　【LP】index.html を差し替え
+
+| ファイル | |
+|---|---|
+| ⚠️ `Downloads/20260425_kokubu_ouchi_festa_LP_NK/index.html` | ⚠️ **https://kh-house.jp/festa/ の index.html と差し替え** |
+
+⚠️ 変更前は同じフォルダの `index.html.before-walkin`（⚠️ 切り戻し用）。
+
+⚠️ 会場に貼る QR の URL: ⚠️ **`https://kh-house.jp/festa/?status=non-reserve`**（⚠️ 媒体も付けるなら `&m=c` 等を足す）
 
 ---
 
@@ -75,6 +112,11 @@ SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 3;
 | 12 | ⚠️ 建売事業の個人別 | ⚠️ 予算・達成率は ⚠️ **0**（⚠️ 2026-10-07 時点で建売の個人予算が DB に無い。⚠️ 入れれば出る） |
 | 13 | ⚠️ 店舗別 | ⚠️ 従来どおり（⚠️ 予算・期間計・総計・達成率） |
 | 14 | ⚠️ 全社業績（Company）の「契約棟数ランキング」 | ⚠️ 同じランキングが開く（⚠️ 事業部の select と個人予算が増えている） |
+| 15 | ⚠️ `https://kh-house.jp/festa/?status=non-reserve`（⚠️ 開催日以外） | ⚠️ 見出し「ご来場受付フォーム」と ⚠️ **「このフォームは開催当日のみご利用いただけます。」**だけ。⚠️ 画像・バナー・入力欄は出ない |
+| 16 | ⚠️ 同じ URL（⚠️ **開催当日**） | ⚠️ フォームだけ。⚠️ **来場日・来場時間の欄が無い**。⚠️ 確認画面に今日の日付と `10:00~`（10時台なら）が出る。⚠️ ボタンは「この内容で受付する」 |
+| 17 | ⚠️ 当日来場で送信 | ⚠️ 「受付が完了しました」。⚠️ ⚠️ **QR は出ない** |
+| 18 | ⚠️ 反響一覧（集客イベント） | ⚠️ その行が ⚠️ **来場済み**（⚠️ 受付時刻が入っている） |
+| 19 | ⚠️ `https://kh-house.jp/festa/`（⚠️ status なし） | ⚠️ ⚠️ **従来どおり**（⚠️ 画像・日時の選択・QR） |
 
 ---
 
@@ -83,3 +125,4 @@ SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 3;
 | 何が起きたか | どうする |
 |---|---|
 | ⚠️ 表示がおかしい | ⚠️ フロントを `main.1c29c380.js`（= v2.2.168）と `index.html` に戻す |
+| ⚠️ LP がおかしい | ⚠️ LP を `index.html.before-walkin` に戻す（⚠️ ② は戻さなくてよい。⚠️ status を送らなければ従来どおり） |

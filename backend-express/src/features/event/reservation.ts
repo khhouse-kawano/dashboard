@@ -20,6 +20,9 @@ import type { ReservationMailData } from './mail';
  *     ・**リクエストの値を一切信用しない**
  *     ・title / status / shop / sync / check_in_time は**受け付けない**
  *       （受け付けると別イベントへの混入や「来場済み」への偽装ができる）
+ *       ⚠️ 例外: status = 'non-reserve'（当日来場、v2.2.169）だけは受ける。
+ *         ⚠️ そのとき日時はリクエストを使わず ⚠️ **② の時計（日本時間）**で決め、
+ *         ⚠️ 開催日以外は弾く（⚠️ 開催日以外に「来場済み」を作らせない）。
  *     ・全項目に長さ上限を掛ける
  *     ・例外の内容を応答に含めない
  *     ・流量制限を掛ける（middlewares/publicFormRateLimit.ts）
@@ -53,6 +56,50 @@ const ID_PATTERN = /^festa2026_[A-Za-z0-9]{16}$/;
 
 /** 来場日として受け付ける値。⚠️ LPの select の option と一致させること */
 const ALLOWED_DATES = new Set(['2026/10/10(土)', '2026/10/11(日)']);
+
+/**
+ * 当日来場（予約なしで来場し、会場の QR から LP を開いた人）の印。v2.2.169。
+ *
+ * ⚠️ LP は `?status=non-reserve` のとき、送信本文に `status: 'non-reserve'` を付ける。
+ * ⚠️ event_db.status の値も同じ `non-reserve`（⚠️ 2026-08 の住まいるフェスティバルの当日来場と同じ記録の形）。
+ */
+const WALK_IN_STATUS = 'non-reserve';
+
+/**
+ * 今（⚠️ 日本時間）の来場日と来場時間。当日来場のときだけ使う。
+ *
+ * ⚠️⚠️ **当日来場は日時をリクエストから受け取らない。** ⚠️ この口は認証なしで誰でも叩けるため、
+ *   受け取ると ⚠️ **開催日以外の日付で「来場済み」の行を作れてしまう。**
+ *   ⚠️ LP も同じ計算で表示しているので、見た目と保存値は一致する。
+ * ⚠️ コンテナの TZ に依らないよう、⚠️ **Asia/Tokyo を明示して**計算する。
+ *
+ * 来場日 … `YYYY/MM/DD(曜)`（⚠️ ALLOWED_DATES と同じ形）
+ * 来場時間 … ⚠️ **時の部分だけ**（指示書。⚠️ 10:55 でも `10:00~`）
+ */
+const walkInDateTime = (): { date: string; time: string } => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', hour: 'numeric', hourCycle: 'h23',
+    }).formatToParts(new Date()).map((p) => [p.type, p.value])
+  );
+  return {
+    date: `${parts.year}/${parts.month}/${parts.day}(${parts.weekday})`,
+    time: `${Number(parts.hour)}:00~`,
+  };
+};
+
+/** 受付時刻（⚠️ 日本時間）。⚠️ checkin.ts の stamp() と同じ `YYYY/MM/DD HH:MM:SS` */
+const checkInStamp = (): string => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date()).map((p) => [p.type, p.value])
+  );
+  return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+};
 
 /** LPの `?m=` に対応する媒体 */
 interface Campaign {
@@ -183,12 +230,24 @@ export const runEventReservation = async (
     };
   }
 
-  const date = clean(body.date, 32);
+  // ⚠️ 当日来場（v2.2.169）。⚠️ 'non-reserve' 以外の値は無視する（⚠️ 任意の status は受け付けない）
+  const walkIn = clean(body.status, 16) === WALK_IN_STATUS;
+
+  // ⚠️ 当日来場は日時を ② の時計で決める（walkInDateTime の注記）
+  const now = walkIn ? walkInDateTime() : null;
+
+  const date = now ? now.date : clean(body.date, 32);
   if (!ALLOWED_DATES.has(date)) {
-    return { httpStatus: 400, body: { status: 'error', message: '来場日を選択してください。' } };
+    return {
+      httpStatus: 400,
+      body: {
+        status: 'error',
+        message: walkIn ? 'このフォームは開催当日のみご利用いただけます。' : '来場日を選択してください。',
+      },
+    };
   }
 
-  const time = clean(body.time, 16);
+  const time = now ? now.time : clean(body.time, 16);
   if (time === '') {
     return { httpStatus: 400, body: { status: 'error', message: '来場時間を選択してください。' } };
   }
@@ -217,6 +276,10 @@ export const runEventReservation = async (
     // ⚠️ フォームは同意必須。'1' 以外が来たら未同意として保存する（弾かない）
     agree: clean(body.agree, 4) === '1' ? 1 : 0,
     reserved_at: nowForDb(),
+    // ⚠️ 当日来場は ⚠️ **来場済みとして保存する**（⚠️ 反響一覧の「来場状況」は check_in_time で決まる）。
+    //   ⚠️ 事前予約では空（NULL）のまま。⚠️ 受付で QR を読んだときに入る（checkin.ts）。
+    status: walkIn ? WALK_IN_STATUS : '',
+    check_in_time: walkIn ? checkInStamp() : '',
   };
 
   try {
