@@ -128,6 +128,7 @@ import { runPropertySuumo } from '../features/property';
 import { runSuumoPropertyInsert } from '../features/suumoProperty';
 import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
+import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -2265,6 +2266,33 @@ register({
     await deleteReport(no);
     return { status: 'ok' };
   },
+});
+
+/**
+ * 住宅ローン金利（v2.2.168）。features/loanRate.ts 参照。
+ *
+ * ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある。**
+ *   ⚠️ ① の express_proxy.php の ⚠️ **転送リストと転送専用リストの両方**に入れてある。
+ *
+ * ⚠️ 読むのは全員（⚠️ 計画書が使う）、⚠️ 登録は Master だけ（⚠️ お客様に出る金利のため）。
+ */
+register({
+  request: 'loan_rate_latest',
+  summary: '住宅ローン金利（商品ごとの最新の確定済み金利）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async () => getLatestLoanRates(),
+});
+
+register({
+  request: 'loan_rate_upload',
+  summary: '【書き込み】住宅ローン金利を CSV の内容で登録・確定する',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) => uploadLoanRates(
+    { base_date: ctx.body.base_date, rows: ctx.body.rows },
+    String(ctx.staff?.name ?? '')
+  ),
 });
 
 // ---------------------------------------------------------------------------
