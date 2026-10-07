@@ -29,10 +29,12 @@ import EventSummary from './EventSummary';
 import EventBudget from './EventBudget';
 import GoogleReview from './GoogleReview';
 import UploadLoan from './UploadLoan';
+import RankingLoader from '../company/RankingLoader';
+import { openDailyAction } from '../DailyAction';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
-type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '日報' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
+type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '活動サマリー' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
 
 /**
  * 他社動向メニューの最後に出す項目。
@@ -48,7 +50,7 @@ type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' |
 const CLAUDE_COMPETITOR_ITEM = 'Claudeによる競合分析';
 
 const Header = ({ }) => {
-    const { authority } = useContext(AuthContext);
+    const { authority, category } = useContext(AuthContext);
     /** 表示中のメニュー項目。⚠️ `メニュー/項目` 形式（editMapping のキーと同じ） */
     const [editMenu, setEditMenu] = useState<string>('');
     /**
@@ -75,9 +77,14 @@ const Header = ({ }) => {
      * ⚠️ UploadLoan も自前のモーダル（md）を持つため、共通モーダル（xl）には載せず専用の state で開く。
      */
     const [uploadLoan, setUploadLoan] = useState<boolean>(false);
+    /**
+     * 契約率ランキング（v2.2.169）。
+     * ⚠️ Ranking も自前のモーダルを持つため、共通モーダル（xl）には載せず専用の state で開く。
+     */
+    const [showRanking, setShowRanking] = useState<boolean>(false);
     const [modal, setModal] = useState<boolean>(false);
     const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['システム管理', '反響管理', '土地・物件管理', '他社動向', '日報', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
+    const menuArray: MenuKey[] = ['システム管理', '反響管理', '土地・物件管理', '他社動向', '活動サマリー', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
@@ -159,9 +166,16 @@ const Header = ({ }) => {
         //   ⚠️ ⚠️ **ここを外すだけでは権限は閉じない**（⚠️ メニューから消えるだけ）。
         //     ⚠️ ② 側も `staff_contract` で同じ2つを確かめている。
         //   ⚠️ 他の管理者向け画面（Menu.tsx の予算詳細など）と同じ条件に揃えてある。
-        '日報': (authority === 'Master' || authority === 'BrandAdmin')
-            ? ['月次日報', '営業別契約率']
-            : ['月次日報'],
+        //
+        // ⚠️ v2.2.169 に「日報」から「活動サマリー」へ改名し、2つ足した。
+        //   ⚠️ アクションボード … ⚠️ **category === 'order' だけ**（⚠️ DailyAction 自体も注文だけを対象にしている）。
+        //   ⚠️ 契約率ランキング … 全員（⚠️ Master 以外は上位10位前後だけ出る仕組みが Ranking 側にある）。
+        '活動サマリー': [
+            '月次日報',
+            ...((authority === 'Master' || authority === 'BrandAdmin') ? ['営業別契約率'] : []),
+            ...(category === 'order' ? ['アクションボード'] : []),
+            '契約率ランキング',
+        ],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
         '紹介キャンペーン': ['反響一覧'],
         '集客イベント': ['反響一覧', '集客サマリー', '広告費入力'],
@@ -199,8 +213,8 @@ const Header = ({ }) => {
         '土地・物件管理/SatBaseサマリー': <SatBaseDatabase />,
         // ⚠️ v2.2.165: 上部の「最新の他社分析」カードから、同じモーダルのまま他社分析へ切り替える。
         //   ⚠️ どちらも isFullscreenMenu に入っているので、⚠️ 全画面のまま中身だけ替わる。
-        '日報/月次日報': <DailyReports onOpenCompetitorReports={() => setEditMenu(`他社動向/${CLAUDE_COMPETITOR_ITEM}`)} />,
-        '日報/営業別契約率': <StaffContractRate />,
+        '活動サマリー/月次日報': <DailyReports onOpenCompetitorReports={() => setEditMenu(`他社動向/${CLAUDE_COMPETITOR_ITEM}`)} />,
+        '活動サマリー/営業別契約率': <StaffContractRate />,
         '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
         '公式アンバサダー/反響一覧': <InquiryAmbassador />,
         '紹介キャンペーン/反響一覧': <InquiryIntroductory />,
@@ -233,7 +247,7 @@ const Header = ({ }) => {
     // 反響一覧も横に列が多いため同じ扱いにする。
     // ⚠️ キーは `メニュー/項目` 形式（editMapping と同じ）
     const isFullscreenMenu = [
-        '日報/月次日報',
+        '活動サマリー/月次日報',
         '公式アンバサダー/アンバサダー管理',
         '公式アンバサダー/反響一覧',
         '紹介キャンペーン/反響一覧',
@@ -271,7 +285,7 @@ const Header = ({ }) => {
         //   ⚠️ xl のままだと右半分が隠れて横スクロール頼みになる（2026-10-02 の指示で全画面）。
         //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
         //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
-        '日報/営業別契約率',
+        '活動サマリー/営業別契約率',
     ].includes(editMenu);
 
     // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）
@@ -382,6 +396,17 @@ const Header = ({ }) => {
                                         // ⚠️ ローン情報更新も自前のモーダル（md）を持つ（v2.2.168）
                                         if (menu === 'システム管理' && item === 'ローン情報更新') {
                                             setUploadLoan(true);
+                                            return;
+                                        }
+                                        // ⚠️ アクションボード（v2.2.169）は ⚠️ **App.tsx に置いてある DailyAction を開くだけ**。
+                                        //   ⚠️ ActiveUser.tsx のボタンと同じ関数（⚠️ 押したときは取り直し、0件でも開く）。
+                                        if (menu === '活動サマリー' && item === 'アクションボード') {
+                                            openDailyAction();
+                                            return;
+                                        }
+                                        // ⚠️ 契約率ランキング（v2.2.169）も自前のモーダル
+                                        if (menu === '活動サマリー' && item === '契約率ランキング') {
+                                            setShowRanking(true);
                                             return;
                                         }
                                         // ⚠️ キーは `メニュー/項目`。項目名だけだと
@@ -497,6 +522,9 @@ const Header = ({ }) => {
 
             {/* ローン情報更新（v2.2.168）。⚠️ 自前のモーダル（md）なので共通モーダルの外に置く */}
             <UploadLoan show={uploadLoan} setShow={setUploadLoan} />
+
+            {/* 契約率ランキング（v2.2.169）。⚠️ データは RankingLoader が開いたときに取る */}
+            <RankingLoader show={showRanking} setShow={setShowRanking} />
         </>
     );
 };
