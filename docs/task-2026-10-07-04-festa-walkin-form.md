@@ -333,3 +333,68 @@ index 42cdcf07..c23a6a8b 100644
              try {
                // ⚠️ QRの生成は送信が成功してから行う。先に出すと、
 ```
+
+---
+
+## 追加対応（同日）: 開催日以外も受付・社内通知の件名
+
+### 依頼
+- 当日ではなくても閲覧可・申込可とする
+- 社内通知の件名を `【おうちづくりフェスタ2026／当日来場】〇〇〇〇様` とする
+
+### 変更
+*backend-express/src/features/event* **reservation.ts** — `runEventReservation`
+
+```ts
+  // ⚠️ 当日来場は ⚠️ **開催日以外でも受け付ける**（v2.2.169 追加指示）。⚠️ 日付は ② の時計の今日。
+  //   ⚠️ 事前予約だけ ALLOWED_DATES で検証する。
+  const date = now ? now.date : clean(body.date, 32);
+  if (!walkIn && !ALLOWED_DATES.has(date)) {
+    return { httpStatus: 400, body: { status: 'error', message: '来場日を選択してください。' } };
+  }
+```
+- `payload` に `walkIn` を追加。`walkInDateTime` の注記を更新（日時はリクエストから受け取らない点は維持）
+
+*backend-express/src/features/event* **mail.ts**
+- `ReservationMailData.walkIn: boolean` を追加
+- `sendInternalNotice`:
+
+```ts
+  const suffix = data.ticket === '' ? '' : `(${data.ticket})`;
+  const kind = data.walkIn ? '当日来場' : '予約';
+
+  const lines = [
+    data.walkIn
+      ? `${data.title} の当日来場フォームから受付が入りました（来場済みとして登録済み）。`
+      : `${data.title} のLPから予約が入りました。`,
+  ...
+    subject: sanitizeHeader(`【${data.title}／${kind}】${customer}${suffix}`),
+```
+- ⚠️ `?m=c` / `?m=j` 付きの当日来場は、件名の末尾にチケット名が付く（例: `…／当日来場】〇〇様(長原木2,000円チケット)`）
+
+*リポジトリ外* **LP index.html**（バックアップ `index.html.before-walkin-anyday`）
+- 開催日以外でフォームを隠す処理を削除。今日の日付が選択肢に無ければ足して選ぶ
+- 不要になった `#walkinClosed`（開催日以外の案内）と `.walkin-closed` の CSS を削除
+
+```js
+          // ⚠️ 開催日以外は選択肢に無いので足す（⚠️ 確認画面に今日の日付を出すため）
+          if (![...dateSelect.options].some((o) => o.value === today)) {
+            dateSelect.add(new Option(today, today));
+          }
+          dateSelect.value = today;
+          if (![...timeSelect.options].some((o) => o.value === hourLabel)) {
+            timeSelect.add(new Option(hourLabel, hourLabel));
+          }
+          timeSelect.value = hourLabel;
+          document.getElementById("submitButton").textContent = "この内容で受付する";
+```
+
+### 確認（ローカル②・メールは送らず件名だけ横取り）
+| ケース | 結果 |
+|---|---|
+| 当日来場・10/07（開催日以外）、本文に date=10/10 を混ぜる | 200。`2026/10/07(水)`・来場済みで保存（本文の日付は無視） |
+| 当日来場 + m=c | 200。medium=長原木。件名 `【おうちづくりフェスタ2026／当日来場】テスト太郎様(長原木2,000円チケット)` |
+| 当日来場（m なし） | 件名 `【おうちづくりフェスタ2026／当日来場】テスト太郎様`。予約者宛メールなし |
+| 事前予約 10/11 | 200。件名 `／予約` と予約者宛メール（従来どおり） |
+| 事前予約で開催日以外 | 400（従来どおり） |
+- テスト行は削除済み。LP の script 4つは `node --check` で構文 OK
