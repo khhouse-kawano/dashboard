@@ -50,6 +50,12 @@ export interface ReservationMailData {
    *   社内通知の件名に `(チケット名)`、確認メールに一文を添える。
    */
   ticket: string;
+  /**
+   * 当日来場（LP の `?status=non-reserve`）。v2.2.169。
+   *
+   * ⚠️ true のとき社内通知の件名を `【…／当日来場】〇〇様` にする（⚠️ 事前予約は `／予約`）。
+   */
+  walkIn: boolean;
 }
 
 /**
@@ -183,10 +189,14 @@ export const sendInternalNotice = async (
 
   const customer = data.name === '' ? '氏名未入力' : `${data.name}様`;
   // ⚠️ 例: 【おうちづくりフェスタ2026／予約】〇〇様(長原木2,000円チケット)
+  //        【おうちづくりフェスタ2026／当日来場】〇〇様（⚠️ 当日来場。v2.2.169）
   const suffix = data.ticket === '' ? '' : `(${data.ticket})`;
+  const kind = data.walkIn ? '当日来場' : '予約';
 
   const lines = [
-    `${data.title} のLPから予約が入りました。`,
+    data.walkIn
+      ? `${data.title} の当日来場フォームから受付が入りました（来場済みとして登録済み）。`
+      : `${data.title} のLPから予約が入りました。`,
     '',
     `【受付日時】${nowJst()}`,
     `【予約ID】${data.id}`,
@@ -211,7 +221,7 @@ export const sendInternalNotice = async (
 
   return sendMail({
     to,
-    subject: sanitizeHeader(`【${data.title}／予約】${customer}${suffix}`),
+    subject: sanitizeHeader(`【${data.title}／${kind}】${customer}${suffix}`),
     text: lines.join('\n'),
     attachments:
       qr === null
