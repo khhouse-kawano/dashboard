@@ -26,7 +26,21 @@
 - `status` は ⚠️ `'non-reserve'` 以外は無視（⚠️ 任意の値で来場済みにはできない）。
 - LP の非表示は ⚠️ `<head>` の script で `html.is-walkin` を付け、CSS で `.lp > :not(#form)`・`#giftPopup`・`.walkin-hide`（日時の欄）を隠す（⚠️ 本文の後で判定すると上部の画像が一瞬見える）。
 - 来場時間が選択肢に無い時刻（9時台・16時台など）は option を足して選ぶ（⚠️ 保存値は ② が決める）。
-- ⚠️ メール（予約者宛・社内宛）は ⚠️ **変更していない**。予約者宛の本文には「当日 QR を受付でご提示ください」が含まれる（⚠️ 当日来場の人には不要な案内）。
+- ~~メールは変更していない~~ → **追加対応（同日）**: 当日来場には ⚠️ **予約者宛の予約完了メールを送らない**。社内通知は従来どおり送る。
+
+### 追加対応: 当日来場の予約完了メールを止める
+*backend-express/src/features/event* **reservation.ts** — `runEventReservation` のメール送信部分
+
+```ts
+  // ⚠️ 当日来場には ⚠️ **顧客宛の予約完了メールを送らない**（⚠️ 受付済みなので QR の提示案内は不要）。
+  //   ⚠️ 社内通知は送る（⚠️ 誰が来場したかを知るため）。
+  const [confirmSent, noticeSent] = await Promise.all([
+    walkIn ? Promise.resolve(false) : sendReservationConfirm(payload, qr),
+    sendInternalNotice(payload, qr),
+  ]);
+```
+
+- 応答の `mailSent` は当日来場では `false`（⚠️ LP は参照していない）。
 
 ## 確認（ローカル）
 - ② を時計を固定してコンテナ内で直接実行:

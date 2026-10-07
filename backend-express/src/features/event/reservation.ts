@@ -338,8 +338,10 @@ export const runEventReservation = async (
   //   顧客宛（当日の提示用）と社内宛（紛失時の再送用）の両方に添付する。
   const qr = await buildQrPng(record.id);
 
+  // ⚠️ 当日来場には ⚠️ **顧客宛の予約完了メールを送らない**（⚠️ 受付済みなので QR の提示案内は不要）。
+  //   ⚠️ 社内通知は送る（⚠️ 誰が来場したかを知るため）。
   const [confirmSent, noticeSent] = await Promise.all([
-    sendReservationConfirm(payload, qr),
+    walkIn ? Promise.resolve(false) : sendReservationConfirm(payload, qr),
     sendInternalNotice(payload, qr),
   ]);
 
