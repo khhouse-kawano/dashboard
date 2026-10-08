@@ -559,6 +559,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         .fe_toggle[data-on="1"] .fe_knob { transform: translateX(16px); }
                         .fe_toggle:focus-visible { outline: 2px solid #5e72e4; outline-offset: 2px; }
                         .fe_toggle[data-on="1"][data-brand] { background: var(--fe-brand); }
+                        .fe_tbl thead tr th.fe_brand { background-color: var(--fe-brand) !important; color: #fff !important; font-weight: 700; }
                         .fe_ticket { display: inline-block; min-width: 64px; padding: 2px 8px; border-radius: 999px; color: #fff; font-weight: 700; text-align: center; }
                         /*
                           ⚠️ 固定列（v2.2.172 追加指示）: 同期・顧客名・ふりがな の3列を左に固定する。
@@ -676,8 +677,14 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                 </tr>
                                 <tr>
                                     {FESTA_BRANDS.map(brand => (
-                                        <th key={brand} colSpan={FESTA_KINDS.length} className="fe_sep"
-                                            style={{ ...thStyle, backgroundColor: brandColorOf(brand), color: '#fff', fontWeight: 700 }}>{brand}</th>
+                                        /*
+                                          ⚠️⚠️ ブランド色は `.fe_brand` ＋ `--fe-brand` で塗る（2026-10-08 に色が出なかった原因）。
+                                            ⚠️ 全体の CSS（components/SearchBox.css の `thead tr:nth-of-type(even) th`）が
+                                              ⚠️ **見出しの偶数行を #eeeeee !important で塗っている。** ⚠️ ブランドの行はちょうど2行目。
+                                            ⚠️ 全体の CSS は他の画面が使うので変えず、⚠️ こちらの詳細度を上げて上書きする（<style> の .fe_brand）。
+                                        */
+                                        <th key={brand} colSpan={FESTA_KINDS.length} className="fe_sep fe_brand"
+                                            style={{ ...thStyle, ['--fe-brand' as string]: brandColorOf(brand) } as React.CSSProperties}>{brand}</th>
                                     ))}
                                 </tr>
                                 <tr>

@@ -1257,3 +1257,22 @@ index 657cdc46..97d3d081 100644
                                                              aria-label={`${item.name} の ${brand} ${kind.label}`}
                                                              disabled={savingKey === `${item.id}:${key}`}
 ```
+
+---
+
+## 不具合修正（同日）: ブランドの色が見出しに出ていなかった
+- **原因**: 全体の CSS `frontend/src/components/SearchBox.css:488`
+  ```css
+  thead tr:nth-of-type(even) th { background-color: #eeeeee !important; }
+  ```
+  が見出しの**偶数行を灰色で塗っていた**。ブランド名の行はちょうど2行目のため、`style` の backgroundColor が負けていた。
+- **対応**: 全体の CSS は他の画面が使うので変えない。FestaDashboard.tsx の `<style>` に、より詳細度の高い規則を足した。
+  ```css
+  .fe_tbl thead tr th.fe_brand { background-color: var(--fe-brand) !important; color: #fff !important; font-weight: 700; }
+  ```
+  ```tsx
+  <th key={brand} colSpan={FESTA_KINDS.length} className="fe_sep fe_brand"
+      style={{ ...thStyle, ['--fe-brand' as string]: brandColorOf(brand) } as React.CSSProperties}>{brand}</th>
+  ```
+- フロント build `main.92451da0.js`
+- ⚠️ 新しい画面で見出しを複数段にするときは、この全体の CSS に注意すること
