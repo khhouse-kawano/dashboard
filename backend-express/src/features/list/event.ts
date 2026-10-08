@@ -12,6 +12,7 @@ import type { SqlParam } from '../../db/pool';
  *     function = 'load'   … event_db と staff_list を全件返す（参照）
  *     function = 'update' … event_db の1行を更新（書き込み）
  *     function = 'festa'  … event_db.festa（営業入力の JSON）の1項目を書く（v2.2.172。書き込み）
+ *     function = 'sync_shop' … event_db.shop に同期した店舗を足す（v2.2.174。書き込み）
  *   `rank` と同じ構造である。request 名や roll だけでは書き込みか判断できない。
  *
  * ⚠️ ① に PHP ハンドラが**実在する**（消していない）。
@@ -253,6 +254,62 @@ const runFesta = async (body: Record<string, unknown>): Promise<ListEventResult>
   }
 };
 
+/**
+ * 同期した店舗を足す（function = 'sync_shop'）。v2.2.174。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️ フェスタ（FestaDashboard.tsx）は ⚠️ **店舗が違えば何度でも同期できる**（指示書）。
+ *   ⚠️ 同期した店舗を ⚠️ **event_db.shop に `,` 区切りで足していく**（⚠️ 列の形は変えない）。
+ *   ⚠️ shop は反響一覧（他のイベント）では「イベントの店舗」として使っているので、JSON にはしない。
+ *
+ * ⚠️⚠️ **足すのはサーバー**（⚠️ 1回の UPDATE）。⚠️ 画面が持っている shop に足して送ると、
+ *   ⚠️ 2人が同時に別の店舗へ同期したとき、⚠️ **後の人が先の人の店舗を消してしまう。**
+ * ⚠️ もう入っている店舗は足さない（FIND_IN_SET）。⚠️ 同じ要求が2回届いても結果は同じ（冪等）なので
+ *   ⚠️ ① へのフォールバックで再実行されても壊れない（⚠️ expressProxyExclusive には入れない）。
+ * ⚠️ sync も 1 にする（⚠️ 行の色・反響一覧の「同期済み」はこれを見ている）。
+ * ⚠️ 店舗は ⚠️ **shop_list にある名前だけ**受ける（⚠️ `,` を含む名前・空・でたらめな値を入れない）。
+ *
+ * 返す: { status: 'success', shop: 足したあとの shop, added: 足したか（⚠️ 既にあれば false） }
+ * ─────────────────────────────────────────────
+ */
+const runSyncShop = async (body: Record<string, unknown>): Promise<ListEventResult> => {
+  const id = typeof body.id === 'string' ? body.id.trim() : '';
+  const shop = typeof body.shop === 'string' ? body.shop.trim() : '';
+
+  if (id === '') {
+    return { httpStatus: 200, body: { status: 'error', message: 'IDが指定されていません' } };
+  }
+  if (shop === '' || shop.includes(',')) {
+    return { httpStatus: 200, body: { status: 'error', message: '店舗が正しくありません' } };
+  }
+
+  try {
+    const known = await query<DynamicRow>('SELECT 1 FROM shop_list WHERE shop = ? LIMIT 1', [shop]);
+    if (known.length === 0) {
+      return { httpStatus: 200, body: { status: 'error', message: '店舗が正しくありません' } };
+    }
+
+    const result = await execute(
+      `UPDATE event_db
+          SET shop = IF(shop IS NULL OR shop = '', ?, CONCAT(shop, ',', ?)), sync = 1
+        WHERE id = ? AND FIND_IN_SET(?, IFNULL(shop, '')) = 0`,
+      [shop, shop, id, shop]
+    );
+    const rows = await query<DynamicRow>('SELECT shop FROM event_db WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return { httpStatus: 200, body: { status: 'error', message: '予約が見つかりませんでした' } };
+    }
+    return {
+      httpStatus: 200,
+      body: { status: 'success', shop: rows[0].shop ?? '', added: result.affectedRows > 0 },
+    };
+  } catch (error) {
+    // ⚠️ DB のエラー本文は返さない（runUpdate と同じ）
+    console.error('list:event sync_shop failed', { id, shop, error });
+    return { httpStatus: 200, body: { status: 'error', message: '更新に失敗しました' } };
+  }
+};
+
 export const runListEvent = async (
   body: Record<string, unknown>
 ): Promise<ListEventResult> => {
@@ -261,6 +318,7 @@ export const runListEvent = async (
   if (fn === 'load') return runLoad();
   if (fn === 'update') return runUpdate(body);
   if (fn === 'festa') return runFesta(body);
+  if (fn === 'sync_shop') return runSyncShop(body);
 
   /**
    * ⚠️ PHP はここで**何も出力せず**終わる（空レスポンス・HTTP 200）。

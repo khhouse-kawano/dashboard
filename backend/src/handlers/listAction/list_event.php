@@ -157,3 +157,58 @@ if ($function && $function === 'festa') {
 
     exit;
 }
+
+// ---------------------------------------------------------------------------
+// 同期した店舗を event_db.shop に `,` 区切りで足す。v2.2.174。
+//
+// ⚠️ ② の features/list/event.ts の runSyncShop と同じ処理（⚠️ ② が落ちたときのフォールバック）。
+// ⚠️⚠️ 足すのはサーバー（1回の UPDATE）。画面の shop に足して送ると、同時に同期したとき片方が消える。
+// ⚠️ もう入っている店舗は足さない（FIND_IN_SET。⚠️ 2回届いても結果は同じ）。sync も 1 にする。
+// ⚠️ 店舗は shop_list にある名前だけ（⚠️ `,` を含む名前は受けない）。
+// ---------------------------------------------------------------------------
+if ($function && $function === 'sync_shop') {
+
+    $id   = isset($data['id']) && is_string($data['id']) ? trim($data['id']) : '';
+    $shop = isset($data['shop']) && is_string($data['shop']) ? trim($data['shop']) : '';
+
+    if ($id === '') {
+        echo json_encode(['status' => 'error', 'message' => 'IDが指定されていません'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($shop === '' || strpos($shop, ',') !== false) {
+        echo json_encode(['status' => 'error', 'message' => '店舗が正しくありません'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    try {
+        $stmt = $pdo->prepare("SELECT 1 FROM shop_list WHERE shop = :shop LIMIT 1");
+        $stmt->execute([':shop' => $shop]);
+        if (!$stmt->fetchColumn()) {
+            echo json_encode(['status' => 'error', 'message' => '店舗が正しくありません'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $stmt = $pdo->prepare(
+            "UPDATE event_db SET shop = IF(shop IS NULL OR shop = '', :shop1, CONCAT(shop, ',', :shop2)), sync = 1
+              WHERE id = :id AND FIND_IN_SET(:shop3, IFNULL(shop, '')) = 0"
+        );
+        $stmt->execute([':shop1' => $shop, ':shop2' => $shop, ':id' => $id, ':shop3' => $shop]);
+        $added = $stmt->rowCount() > 0;
+
+        $stmt = $pdo->prepare("SELECT shop FROM event_db WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            echo json_encode(['status' => 'error', 'message' => '予約が見つかりませんでした'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        echo json_encode(['status' => 'success', 'shop' => $row['shop'] ?? '', 'added' => $added], JSON_UNESCAPED_UNICODE);
+    } catch (PDOException $e) {
+        // ⚠️ DB のエラー本文は返さない（② と同じ）
+        error_log('list_event sync_shop failed: ' . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => '更新に失敗しました'], JSON_UNESCAPED_UNICODE);
+    }
+
+    exit;
+}

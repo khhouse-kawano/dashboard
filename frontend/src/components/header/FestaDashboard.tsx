@@ -20,6 +20,7 @@ import { setStyleClass } from '../../utils/setStyleClass';
  *     ・load   … 全予約（⚠️ ここで FESTA_TITLE に絞る）
  *     ・update … 1列ずつ保存（name / kana / check_in_time / check_out_time / staff / sync）
  *     ・festa  … ⚠️ 営業入力の **1項目だけ**を保存（② が JSON_SET で書く。⚠️ 同時に押しても消し合わない）
+ *     ・sync_shop … ⚠️ 同期した店舗を shop に `,` 区切りで足す（v2.2.174。⚠️ 足すのはサーバー）
  *
  *   ⚠️⚠️ チケット・ストラップの判定は ⚠️ **受付画面（LP の festa/reservation/index.html）と同じ規則**。
  *     ⚠️ 片方だけ直すと、受付と本部で言うことが食い違う。⚠️ 直すときは両方直すこと。
@@ -201,8 +202,8 @@ const brands: Record<string, string> = {
     'PG': 'PG HOUSE'
 };
 
-/** 顧客取込（insert）用のペイロード。⚠️ EventList.tsx の createSyncPayload と同じ */
-const createSyncPayload = (item: FestaRow): Record<string, string> => ({
+/** 顧客取込（insert）用のペイロード。⚠️ EventList.tsx の createSyncPayload と同じ（⚠️ brand だけ違う） */
+const createSyncPayload = (item: FestaRow, shop: string): Record<string, string> => ({
     id: generateULID(),
     customer_contacts_name: item.name || '',
     full_address: `${item.address || ''}${item.street || ''}`,
@@ -216,8 +217,41 @@ const createSyncPayload = (item: FestaRow): Record<string, string> => ({
     customized_input_01JRCT12N9X24PCQ5QZPAYKB93: item.title || '',
     status: '見込み',
     planned_construction_site: item.area || '',
-    brand: brands[(item.shop || '').slice(0, 2)] || ''
+    // ⚠️ v2.2.174: ブランドは ⚠️ **同期先に選んだ店舗**で決める（⚠️ フェスタの予約は shop が空・複数店舗になるため）
+    brand: brands[shop.slice(0, 2)] || ''
 });
+
+/**
+ * 同期した店舗（v2.2.174）。⚠️ event_db.shop に `,` 区切りで入っている（② の sync_shop が足す）。
+ * ⚠️ 店舗が違えば何度でも同期できる。⚠️ 同じ店舗には2回同期できない。
+ */
+const syncedShopsOf = (item: FestaRow): string[] => splitValues(item.shop);
+
+/**
+ * 店舗 → 営業入力のブランド（v2.2.174：有効名簿数を数えるため）。
+ * ⚠️ shop_list.brand で見分ける。⚠️ 無ければ店舗名の頭で見分ける（⚠️ なごみ・PG は shop_list に無いことがある）。
+ * ⚠️ どれにも当たらない店舗（JH・FH など）は '' （⚠️ どのブランドにも数えない）。
+ */
+const BRAND_OF_SHOP_LIST: Record<string, string> = {
+    KH: 'KH', DJH: 'DJH', '2L': '2L', PG: 'PGH', PGH: 'PGH', KHF: 'かえる', KHR: '中専',
+};
+const brandOfShop = (shop: string, shopList: MasterShop[]): string => {
+    const master = shopList.find(s => (s.shop ?? '').trim() === shop);
+    const byMaster = BRAND_OF_SHOP_LIST[(master?.brand ?? '').trim()];
+    if (byMaster) return byMaster;
+    if (shop.startsWith('なご')) return 'なごみ';
+    if (shop.startsWith('PG')) return 'PGH';
+    if (shop.startsWith('かえる')) return 'かえる';
+    if (shop.startsWith('DJ')) return 'DJH';
+    if (shop.startsWith('KH')) return 'KH';
+    if (shop.startsWith('2L')) return '2L';
+    if (shop === '中古住宅専門店') return '中専';
+    return '';
+};
+
+/** 並び替え（v2.2.174）。⚠️ 見出しのボタンで 昇順 → 降順 → 解除 */
+type SortKey = 'date' | 'time';
+type SortDir = 'asc' | 'desc';
 
 /** 「10:00」と「10:00~」をそろえる（⚠️ 集計表の見出し用） */
 const normalizeTime = (value: string | null | undefined): string =>
@@ -297,6 +331,13 @@ const FestaDashboard = ({ show, setShow }: Props) => {
      */
     const [targetDate, setTargetDate] = useState('');
     const [targetTime, setTargetTime] = useState('');
+    /** 並び替え（v2.2.174）。⚠️ null は既定（新しい予約が上） */
+    const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
+    /** 見出しのボタン: 昇順 → 降順 → 解除（⚠️ 別の列を押したらその列の昇順から） */
+    const toggleSort = (key: SortKey) => setSort(prev => {
+        if (!prev || prev.key !== key) return { key, dir: 'asc' };
+        return prev.dir === 'asc' ? { key, dir: 'desc' } : null;
+    });
     /** ⚠️ 保存中のトグル（`id:key`）。⚠️ 連打で二重に送らない */
     const [savingKey, setSavingKey] = useState('');
 
@@ -395,6 +436,32 @@ const FestaDashboard = ({ show, setShow }: Props) => {
         return { dates, times, interviews, requests, lines, sum };
     }, [data]);
 
+    /**
+     * ブランド別の歩留まり（v2.2.174）。⚠️ フェスタの全予約で数える（⚠️ 検索・絞り込みは効かない）。
+     *   面談数 ／ 次アポ数 … 営業入力のトグルがオンの件数
+     *   次アポ率          … 次アポ数 ÷ 面談数（⚠️ 面談 0 なら「－」）
+     *   有効名簿数        … ⚠️ **そのブランドの店舗へ同期した人数**（⚠️ 1人を2ブランドへ同期したら両方で1件ずつ）
+     * ⚠️ 合計: 面談・次アポは各ブランドの足し算。⚠️ 有効名簿は ⚠️ **同期した人数**（⚠️ 重複を数えない）。
+     * ⚠️ v2.2.173 までに同期した行は shop が空なので、⚠️ どのブランドにも入らない（⚠️ 合計には入る）。
+     */
+    const brandYield = useMemo(() => {
+        const empty = () => ({ interview: 0, next: 0, list: 0 });
+        const byBrand = new Map<string, { interview: number; next: number; list: number }>(FESTA_BRANDS.map(b => [b, empty()]));
+        const total = empty();
+        data.forEach(item => {
+            const festa = parseFesta(item.festa);
+            FESTA_BRANDS.forEach(brand => {
+                const line = byBrand.get(brand)!;
+                if (festa[`${brand}_interview`] === true) { line.interview += 1; total.interview += 1; }
+                if (festa[`${brand}_next`] === true) { line.next += 1; total.next += 1; }
+            });
+            const listed = new Set(syncedShopsOf(item).map(shop => brandOfShop(shop, shopList)).filter(b => b !== ''));
+            listed.forEach(brand => { const line = byBrand.get(brand); if (line) line.list += 1; });
+            if (Number(item.sync) === 1) total.list += 1;
+        });
+        return { byBrand, total };
+    }, [data, shopList]);
+
     /** 来場日・来場時間の選択肢（⚠️ 空の値は出さない。⚠️ 時間は早い順） */
     const dateOptions = useMemo(
         () => Array.from(new Set(data.map(item => (item.date || '').trim()).filter(v => v !== ''))).sort(),
@@ -414,8 +481,33 @@ const FestaDashboard = ({ show, setShow }: Props) => {
             // ⚠️ 選択肢と同じく normalizeTime を通して比べる
             (targetTime === '' || normalizeTime(item.time) === targetTime)
         );
-        return [...rows].sort((a, b) => Number(b.no) - Number(a.no));
-    }, [data, keyword, targetDate, targetTime]);
+        const byNo = (a: FestaRow, b: FestaRow) => Number(b.no) - Number(a.no);
+        if (!sort) return [...rows].sort(byNo);
+
+        /**
+         * 並び替え（v2.2.174）。
+         *   ⚠️ 来場日は文字のまま比べる（`2026/10/10(土)` の形なので順に並ぶ）。
+         *   ⚠️ 来場時間は timeOrder（⚠️「10:00」と「10:00~」は同じ時刻）。
+         *   ⚠️ 空欄は ⚠️ **昇順でも降順でも最後**。
+         *   ⚠️ 同じ値どうしは、来場日なら時間の早い順・来場時間なら日の早い順・最後は新しい予約が上。
+         */
+        const dateOf = (item: FestaRow) => (item.date || '').trim();
+        const timeOf = (item: FestaRow) => normalizeTime(item.time);
+        const compareDate = (a: FestaRow, b: FestaRow) => dateOf(a).localeCompare(dateOf(b));
+        const compareTime = (a: FestaRow, b: FestaRow) =>
+            timeOrder(timeOf(a)) - timeOrder(timeOf(b)) || timeOf(a).localeCompare(timeOf(b));
+        const primaryValue = sort.key === 'date' ? dateOf : timeOf;
+        const primary = sort.key === 'date' ? compareDate : compareTime;
+        const secondary = sort.key === 'date' ? compareTime : compareDate;
+        const sign = sort.dir === 'asc' ? 1 : -1;
+
+        return [...rows].sort((a, b) => {
+            const emptyA = primaryValue(a) === '';
+            const emptyB = primaryValue(b) === '';
+            if (emptyA !== emptyB) return emptyA ? 1 : -1;
+            return sign * primary(a, b) || secondary(a, b) || byNo(a, b);
+        });
+    }, [data, keyword, targetDate, targetTime, sort]);
 
     // --- スクロールに合わせて描く行を増やす（EventList.tsx と同じ） ---
     const [displayLength, setDisplayLength] = useState(PAGE_SIZE);
@@ -423,7 +515,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
 
     useEffect(() => {
         setDisplayLength(PAGE_SIZE);
-    }, [keyword, targetDate, targetTime]);
+    }, [keyword, targetDate, targetTime, sort]);
 
     useEffect(() => {
         const total = filtered.length;
@@ -518,49 +610,101 @@ const FestaDashboard = ({ show, setShow }: Props) => {
         return [...staffArray.filter(s => s.shop === syncShop).map(s => s.name), `${syncShop} 管理`];
     }, [staffArray, syncShop]);
 
+    /**
+     * 同期（v2.2.174 で変更）。⚠️ **店舗が違えば何度でも同期できる**（指示書）。
+     *   ⚠️ 店舗は毎回選び直す（⚠️ 最初は空。⚠️ 同期済みの店舗は選択肢で選べない）。
+     */
     const handleSync = (item: FestaRow) => {
         setSyncTarget(item);
         setTargetStaff('');
-        setSyncShop((item.shop ?? '').trim());
+        setSyncShop('');
         setSyncShow(true);
     };
 
+    /** 同期の画面で、⚠️ その人がもう同期した店舗（⚠️ 選択肢で選べなくする） */
+    const syncedOfTarget = useMemo(() => (syncTarget ? syncedShopsOf(syncTarget) : []), [syncTarget]);
+
+    /**
+     * 同期の実行。
+     *   1. 顧客へ取り込む（roll: 'insert'。⚠️ EventList.tsx と同じ）
+     *   2. ⚠️ **同期した店舗を event_db.shop に足す**（function: 'sync_shop'。⚠️ 足すのはサーバー。sync も 1 になる）
+     * ⚠️ 1 が成功して 2 が失敗すると、⚠️ 取り込みは済んだのに画面では未同期の店舗に見える
+     *   （⚠️ もう一度押すと二重に取り込まれる）。⚠️ そのときは赤字で知らせる。
+     * ⚠️ 2人がほぼ同時に同じ人を同じ店舗へ同期すると、取り込みは2件になりうる（⚠️ 店舗は1つしか足されない）。
+     */
     const syncStart = async () => {
         if (!syncTarget || syncShop === '') {
             alert('担当店舗を選択してください');
+            return;
+        }
+        if (syncedOfTarget.includes(syncShop)) {
+            alert('この店舗にはもう同期しています');
             return;
         }
         if (targetStaff === '') {
             alert('スタッフを選択してください');
             return;
         }
+        const target = syncTarget;
+        const shop = syncShop;
         try {
             const response = await apiClient.post('', {
-                ...createSyncPayload(syncTarget),
+                ...createSyncPayload(target, shop),
                 in_charge_user: targetStaff,
-                in_charge_store: syncShop,
+                in_charge_store: shop,
                 request: 'list',
                 roll: 'insert',
                 category,
             });
-            if (response.data.status === 'success') {
-                const id = syncTarget.id;
-                setData(prev => prev.map(item => item.id === id ? { ...item, sync: 1 } : item));
-                void updateField(id, 'sync', 1);
-                setSyncShow(false);
-                setSyncTarget(null);
-                setTargetStaff('');
-                setSyncShop('');
-            } else {
+            if (response.data.status !== 'success') {
                 alert('同期に失敗しました。');
+                return;
             }
         } catch (e) {
             console.error(e);
             alert('同期に失敗しました。');
+            return;
+        }
+
+        setSyncShow(false);
+        setSyncTarget(null);
+        setTargetStaff('');
+        setSyncShop('');
+
+        try {
+            const res = await apiClient.post('', {
+                request: 'list', roll: 'event', function: 'sync_shop', category, id: target.id, shop,
+            });
+            if (res.data?.status !== 'success') throw new Error(res.data?.message ?? '保存できませんでした');
+            const nextShop = String(res.data.shop ?? '');
+            setData(prev => prev.map(item => item.id === target.id ? { ...item, shop: nextShop, sync: 1 } : item));
+            setError(null);
+        } catch (e) {
+            console.error(e);
+            setError(`${target.name} 様の取り込み（${shop}）は済みましたが、同期した店舗を記録できませんでした。もう一度同期しないでください。`);
         }
     };
 
     const checkedIn = data.filter(item => (item.check_in_time ?? '') !== '').length;
+
+    /** 見出しの並び替えボタン（v2.2.174）。⚠️ 今の向きを矢印で示す（⚠️ 解除中は上下の矢印） */
+    const sortButton = (key: SortKey, label: string) => {
+        const dir = sort?.key === key ? sort.dir : null;
+        const icon = dir === 'asc' ? 'fa-sort-up' : dir === 'desc' ? 'fa-sort-down' : 'fa-sort';
+        const state = dir === 'asc' ? '昇順' : dir === 'desc' ? '降順' : '並び替えなし';
+        return (
+            <button type="button" className="fe_sortbtn" data-active={dir ? '1' : '0'} onClick={() => toggleSort(key)}
+                aria-label={`${label}で並び替え（いま: ${state}）`} title={`${label}：${state}（押すと 昇順 → 降順 → 解除）`}>
+                <i className={`fa-solid ${icon}`} aria-hidden="true"></i>
+            </button>
+        );
+    };
+
+    /** 歩留まり表の1マス（⚠️ 0 は薄く） */
+    const yieldCell = (n: number, key: string, first = false) =>
+        <td key={key} className={`${n === 0 ? 'fe_zero' : ''}${first ? ' fe_sep' : ''}`}>{n}</td>;
+    const rateText = (next: number, interview: number) =>
+        interview === 0 ? '－' : `${Math.round((next / interview) * 1000) / 10}%`;
 
     return (
         <>
@@ -594,6 +738,11 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         .fe_consult_cell { white-space: normal; min-width: 200px; max-width: 240px; }
                         .fe_consult { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; margin: 1px 3px 1px 0; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
                         .fe_consult i { font-size: 10px; }
+                        .fe_sortbtn { border: none; background: transparent; padding: 0 0 0 4px; color: #adb5bd; cursor: pointer; line-height: 1; }
+                        .fe_sortbtn[data-active="1"] { color: #5e72e4; }
+                        .fe_sortbtn:focus-visible { outline: 2px solid #5e72e4; outline-offset: 1px; border-radius: 2px; }
+                        .fe_sum th.fe_brandhead { background: var(--fe-brand); color: #fff; }
+                        .fe_sum .fe_label { text-align: left; font-weight: 700; color: #32325d; background: #fff; }
                         .fe_ticket { display: inline-block; min-width: 64px; padding: 2px 8px; border-radius: 999px; color: #fff; font-weight: 700; text-align: center; }
                         /*
                           ⚠️ 固定列（v2.2.172 追加指示）: 同期・顧客名・ふりがな の3列を左に固定する。
@@ -685,6 +834,56 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         </div>
                     )}
 
+                    {/* ブランド別の歩留まり（v2.2.174）。⚠️ 集計表の下 */}
+                    {data.length > 0 && (
+                        <div className="bg-white rounded shadow-sm border mb-2 p-2">
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#32325d', marginBottom: '4px' }}>
+                                ブランド別の歩留まり
+                                <small style={{ fontSize: '10px', fontWeight: 400, color: '#8898aa', marginLeft: '8px' }}>
+                                    有効名簿数＝そのブランドの店舗へ同期した人数（合計は同期した人数。2ブランドへ同期した人も1人）
+                                </small>
+                            </div>
+                            <div className="fe_sum_wrap">
+                                <table className="fe_sum">
+                                    <thead>
+                                        <tr>
+                                            <th></th>
+                                            {FESTA_BRANDS.map((brand, i) => (
+                                                <th key={brand} className={`fe_brandhead${i === 0 ? ' fe_sep' : ''}`} style={{ ['--fe-brand' as string]: brandColorOf(brand), minWidth: '52px' } as React.CSSProperties}>{brand}</th>
+                                            ))}
+                                            <th className="fe_group fe_sep" style={{ minWidth: '52px' }}>合計</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td className="fe_label">面談数</td>
+                                            {FESTA_BRANDS.map((brand, i) => yieldCell(brandYield.byBrand.get(brand)?.interview ?? 0, brand, i === 0))}
+                                            {yieldCell(brandYield.total.interview, 'total', true)}
+                                        </tr>
+                                        <tr>
+                                            <td className="fe_label">次アポ数</td>
+                                            {FESTA_BRANDS.map((brand, i) => yieldCell(brandYield.byBrand.get(brand)?.next ?? 0, brand, i === 0))}
+                                            {yieldCell(brandYield.total.next, 'total', true)}
+                                        </tr>
+                                        <tr>
+                                            <td className="fe_label">次アポ率</td>
+                                            {FESTA_BRANDS.map((brand, i) => {
+                                                const line = brandYield.byBrand.get(brand);
+                                                return <td key={brand} className={i === 0 ? 'fe_sep' : ''}>{rateText(line?.next ?? 0, line?.interview ?? 0)}</td>;
+                                            })}
+                                            <td className="fe_sep">{rateText(brandYield.total.next, brandYield.total.interview)}</td>
+                                        </tr>
+                                        <tr className="fe_sumrow">
+                                            <td className="fe_label">有効名簿数</td>
+                                            {FESTA_BRANDS.map((brand, i) => yieldCell(brandYield.byBrand.get(brand)?.list ?? 0, brand, i === 0))}
+                                            {yieldCell(brandYield.total.list, 'total', true)}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
                     {error && <Alert variant="danger" className="py-1 px-2 mb-2" style={{ fontSize: '11px' }}>{error}</Alert>}
 
                     <div className="bg-white rounded shadow-sm border table-responsive">
@@ -702,8 +901,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                     <th rowSpan={3} className="fe_stick fe_stick_last" style={{ ...thStyle, ...stickyStyle(2) }}>ふりがな</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '70px' }}>ストラップ</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '220px' }}>相談内容</th>
-                                    <th rowSpan={3} style={{ ...thStyle, width: '110px' }}>来場日</th>
-                                    <th rowSpan={3} style={{ ...thStyle, width: '70px' }}>来場時間</th>
+                                    <th rowSpan={3} style={{ ...thStyle, width: '120px' }}>来場日{sortButton('date', '来場日')}</th>
+                                    <th rowSpan={3} style={{ ...thStyle, width: '90px' }}>来場時間{sortButton('time', '来場時間')}</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '80px' }}>チケット</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '140px' }}>チェックイン</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '140px' }}>チェックアウト</th>
@@ -732,15 +931,21 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                 {visible.map((item, index) => {
                                     const festa = parseFesta(item.festa);
                                     return (
-                                        <tr key={item.id} className={item.sync === 1 ? 'table-primary' : ''}>
+                                        <tr key={item.id} className={Number(item.sync) === 1 ? 'table-primary' : ''}>
+                                            {/*
+                                              ⚠️ v2.2.174: 店舗が違えば何度でも同期できるので ⚠️ 回転アイコンは常に出す（⚠️「同期済み」の文字は外した）。
+                                                ⚠️ 同期済みかは行の色（table-primary）と、⚠️ アイコンの下の店舗名でわかる。
+                                            */}
                                             <td className="text-center fw-bold fe_stick" style={{ fontSize: '10px', ...stickyStyle(0) }}>
                                                 <div className="d-flex align-items-center gap-1">
                                                     <span>{index + 1}</span>
-                                                    {item.sync === 1
-                                                        ? <span style={{ fontSize: '9px', color: 'red' }}>同期済み</span>
-                                                        : <i className="fa-solid fa-arrows-rotate pointer" role="button" aria-label={`${item.name} を同期`} onClick={() => handleSync(item)}></i>}
+                                                    <i className="fa-solid fa-arrows-rotate pointer" role="button" tabIndex={0} aria-label={`${item.name} を同期`} title="同期"
+                                                        onClick={() => handleSync(item)}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSync(item); } }}></i>
                                                 </div>
-                                                {item.shop && <div className="text-start fw-normal mt-1" style={{ fontSize: '9px', color: '#525f7f', whiteSpace: 'normal', lineHeight: 1.2 }}>{item.shop}</div>}
+                                                {syncedShopsOf(item).map(shop => (
+                                                    <div key={shop} className="text-start fw-normal mt-1" style={{ fontSize: '9px', color: '#525f7f', whiteSpace: 'normal', lineHeight: 1.2 }}>{shop}</div>
+                                                ))}
                                             </td>
                                             <td className="fe_stick" style={stickyStyle(1)}><input type="text" style={inputStyle} ref={setRef(item.id, 'name')} defaultValue={item.name ?? ''} onBlur={() => handleBlur(item.id, 'name')} /></td>
                                             <td className="fe_stick fe_stick_last" style={stickyStyle(2)}><input type="text" style={inputStyle} ref={setRef(item.id, 'kana')} defaultValue={item.kana ?? ''} onBlur={() => handleBlur(item.id, 'kana')} /></td>
@@ -821,11 +1026,16 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                 <Modal.Body className="p-3">
                     <div className="mb-2" style={{ fontSize: '11px', color: '#8898aa' }}>
                         {syncTarget ? `${syncTarget.name} 様` : ''}
+                        {/* ⚠️ v2.2.174: もう同期した店舗（⚠️ 下の選択肢では選べない） */}
+                        {syncedOfTarget.length > 0 && <div className="mt-1">同期済み：{syncedOfTarget.join('、')}</div>}
                     </div>
                     <select className="mb-2" style={{ ...inputStyle, height: '28px', fontSize: '12px' }}
                         value={syncShop} onChange={(e) => { setSyncShop(e.target.value); setTargetStaff(''); }}>
                         <option value="">担当店舗を選択</option>
-                        {shopOptions.map(name => <option key={name} value={name}>{name}</option>)}
+                        {shopOptions.map(name => {
+                            const done = syncedOfTarget.includes(name);
+                            return <option key={name} value={name} disabled={done}>{done ? `${name}（同期済み）` : name}</option>;
+                        })}
                     </select>
                     <select style={{ ...inputStyle, height: '28px', fontSize: '12px' }} value={targetStaff} onChange={(e) => setTargetStaff(e.target.value)}>
                         <option value="">担当営業を選択</option>
