@@ -66,6 +66,8 @@ const ORDER_MAP: Record<string, string> = {
   資料送付: 'step_migration_item_catalog',
   '0次接客': 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
   初回面談: 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+  // ⚠️ v2.2.175 追加。⚠️ この列だけ「一番新しい日付」（LATEST_COLUMNS）
+  次回アクション日: 'next_action_date',
   '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
   事前審査: 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
   LINEグループ作成: 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
@@ -76,6 +78,8 @@ const ORDER_MAP: Record<string, string> = {
 const SPEC_MAP: Record<string, string> = {
   '接触（通話・返信）': 'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z',
   初回面談: 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+  // ⚠️ v2.2.175 追加
+  次回アクション日: 'next_action_date',
   '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
   申し込み: 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
   自社契約: 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
@@ -102,6 +106,8 @@ const RESALE_MAP: Record<string, Record<string, string>> = {
   '買い:中古リノベ': {
     初回来場: 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
     物件案内: 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+    // ⚠️ v2.2.175 追加
+    次回アクション日: 'next_action_date',
     '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
     '2回目以降物件案内': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
     事前審査: 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
@@ -111,12 +117,16 @@ const RESALE_MAP: Record<string, Record<string, string>> = {
   '買い:ポータル': {
     初回来場: 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
     物件案内: 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+    // ⚠️ v2.2.175 追加
+    次回アクション日: 'next_action_date',
     '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
     '2回目以降物件案内': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
     事前審査: 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
     売買契約: 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
   },
   '売り:ポータル': {
+    // ⚠️ v2.2.175 追加。⚠️ 2回目以降面談が無いので先頭（2026-10-08 合意）
+    次回アクション日: 'next_action_date',
     査定アポ: 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
     査定書提出: 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
     訪問査定: 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
@@ -177,6 +187,12 @@ export const normalizeDay = (value: unknown): string => {
 export const baseAction = (value: unknown): string => asString(value).split(',')[0] ?? '';
 
 /**
+ * ⚠️⚠️ **「最も新しい日付」を採る列**（v2.2.175）。⚠️ それ以外は最も古い日付。
+ * ⚠️ フロントの utils/interviewKpi.ts の LATEST_COLUMNS と同じにすること。
+ */
+export const LATEST_COLUMNS = new Set<string>(['next_action_date']);
+
+/**
  * interview_log から KPI 列の値を導出する。
  *
  * ⚠️⚠️ **同じアクションが複数あるときは「最も古い日付」を採る**
@@ -187,6 +203,9 @@ export const baseAction = (value: unknown): string => asString(value).split(',')
  *   列単位でも最古を採る。
  *
  * ⚠️ 日付が空の行は無視する。空を入れると既存の日付を消してしまう。
+ *
+ * ⚠️⚠️ **例外: LATEST_COLUMNS の列は「最も新しい日付」を採る**（v2.2.175）。
+ *   ⚠️ 次回アクション日は「到達日」ではなく ⚠️ **次の予定**なので、古い予定で止まると意味が無い。
  */
 export const deriveKpiColumns = (
   logs: InterviewLogEntry[],
@@ -204,7 +223,8 @@ export const deriveKpiColumns = (
     if (day === '') continue;
 
     const current = derived.get(column);
-    if (current === undefined || day < current) derived.set(column, day);
+    const latest = LATEST_COLUMNS.has(column);
+    if (current === undefined || (latest ? day > current : day < current)) derived.set(column, day);
   }
 
   return derived;

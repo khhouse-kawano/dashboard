@@ -86,6 +86,8 @@ const actionMap = {
     '買い:中古リノベ': {
         '初回来場': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
         '物件案内': 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+        // ⚠️ v2.2.175 追加。⚠️ この列だけ「一番新しい日付」が入る（utils/interviewKpi.ts の LATEST_COLUMNS）
+        '次回アクション日': 'next_action_date',
         '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
         '2回目以降物件案内': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
         '事前審査': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
@@ -95,12 +97,16 @@ const actionMap = {
     '買い:ポータル': {
         '初回来場': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
         '物件案内': 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+        // ⚠️ v2.2.175 追加。⚠️ この列だけ「一番新しい日付」が入る（utils/interviewKpi.ts の LATEST_COLUMNS）
+        '次回アクション日': 'next_action_date',
         '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
         '2回目以降物件案内': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
         '事前審査': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
         '売買契約': 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
     },
     '売り:ポータル': {
+        // ⚠️ v2.2.175 追加。⚠️ 2回目以降面談が無いので先頭（2026-10-08 合意）
+        '次回アクション日': 'next_action_date',
         '査定アポ': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
         '査定書提出': 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
         '訪問査定': 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',

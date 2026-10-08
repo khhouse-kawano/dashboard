@@ -55,6 +55,13 @@ export const normalizeDay = (value: unknown): string => {
 export const baseAction = (value: unknown): string => String(value ?? '').split(',')[0] ?? '';
 
 /**
+ * ⚠️⚠️ **「最も新しい日付」を採る列**（v2.2.175）。⚠️ それ以外は最も古い日付。
+ *   ⚠️ 次回アクション日は「到達日」ではなく ⚠️ **次の予定**なので、古い予定で止まると意味が無い。
+ * ⚠️ backend-express/src/features/interviewKpi.ts の LATEST_COLUMNS と同じにすること。
+ */
+export const LATEST_COLUMNS = new Set<string>(['next_action_date']);
+
+/**
  * interview_log から KPI 列の値を導出する。
  *
  * ⚠️⚠️ **同じアクションが複数あるときは「最も古い日付」を採る**
@@ -65,6 +72,7 @@ export const baseAction = (value: unknown): string => String(value ?? '').split(
  *   列単位でも最古を採る。
  *
  * ⚠️ 日付が空の行は無視する。空を入れると既存の日付を消してしまう。
+ * ⚠️⚠️ **例外: LATEST_COLUMNS の列（次回アクション日）は最も新しい日付**（v2.2.175）。
  */
 export const deriveKpiColumns = (
     logs: InterviewLogEntry[],
@@ -82,7 +90,8 @@ export const deriveKpiColumns = (
         if (day === '') continue;
 
         const current = derived.get(column);
-        if (current === undefined || day < current) derived.set(column, day);
+        const latest = LATEST_COLUMNS.has(column);
+        if (current === undefined || (latest ? day > current : day < current)) derived.set(column, day);
     }
 
     return derived;

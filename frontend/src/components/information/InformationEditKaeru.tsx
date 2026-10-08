@@ -98,6 +98,8 @@ const actionMap = {
     '接触（通話・返信）': 'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z',
     '初回面談': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
     // '物件案内': 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+    // ⚠️ v2.2.175 追加。⚠️ この列だけ「一番新しい日付」が入る（utils/interviewKpi.ts の LATEST_COLUMNS）
+    '次回アクション日': 'next_action_date',
     '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
     // '次回アクション': 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
     // '事前取得（現金確認含む）': 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',

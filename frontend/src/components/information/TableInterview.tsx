@@ -354,7 +354,8 @@ const TableInterview = ({ information, setInformation, interviewLog, setIntervie
                                                     interview_log: prev.interview_log.map((log, i) => i === index ?
                                                         { ...log, day: e.target.value } : log)
                                                 }));
-                                                // ⚠️ setInformation はしない。derivedKpi が最古を選んで反映する。
+                                                // ⚠️ setInformation はしない。derivedKpi が最古を選んで反映する
+                                                //   （⚠️ 次回アクション日だけは最新。v2.2.175 / utils/interviewKpi.ts の LATEST_COLUMNS）。
                                                 //   ここで直接書くと、同じアクションが2件あるとき
                                                 //   触った側の日付で上書きされてしまう
                                             }} />
