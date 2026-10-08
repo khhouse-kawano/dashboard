@@ -162,6 +162,8 @@ $fixed_steps = [
 $daily_master  = ['order' => 'master_data', 'spec' => 'master_data_kaeru', 'used' => 'master_data_resale'][$daily_category];
 $daily_inquiry = ['order' => 'inquiry_customer', 'spec' => 'inquiry_customer_kaeru', 'used' => 'inquiry_customer_resale'][$daily_category];
 $daily_has_cancel = $daily_category === 'order';
+// ⚠️ 未同期を反響の category（取引区分）で絞る値（v2.2.175 修正）。⚠️ 中古だけ 買い:中古リノベ（Express の inquiryCategory と同じ）
+$unsync_category = $daily_category === 'used' ? '買い:中古リノベ' : null;
 
 // 工程の列（重複なし）・表の並び
 $all_steps = $daily_category === 'used' ? array_merge(...array_values($resale_steps)) : $fixed_steps[$daily_category];
@@ -220,13 +222,16 @@ $sql_unsync = "SELECT 'unsync' AS kind,
      AND COALESCE(i.support_flag, 0) <> 1
      AND COALESCE(i.black_flag, 0) <> 1
      AND TRIM(COALESCE(i.first_name, '')) <> ''
+     " . ($unsync_category !== null ? "AND TRIM(COALESCE(i.category, '')) = :inquiry_category" : '') . "
      /* ⚠️ v2.2.175: '-' を '/' に揃えて比べる（⚠️ 建売に 'YYYY-MM-DD' が混ざる。⚠️ 注文は0件なので結果は同じ） */
      AND REPLACE(SUBSTRING(i.inquiry_date, 1, 7), '-', '/') BETWEEN :start_month AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), $inquiry_date) > 0
    ORDER BY days DESC
    LIMIT $row_limit";
 $stmt_unsync = $pdo->prepare($sql_unsync);
-$stmt_unsync->execute([':start_month' => $sync_start_month]);
+$unsync_params = [':start_month' => $sync_start_month];
+if ($unsync_category !== null) $unsync_params[':inquiry_category'] = $unsync_category;
+$stmt_unsync->execute($unsync_params);
 $response_unsync = $stmt_unsync->fetchAll(PDO::FETCH_ASSOC);
 
 // 来場予定日を過ぎたのに結果が入っていない顧客。

@@ -129,6 +129,11 @@ interface DailySource {
   stepOrder: string[];
   /** ⚠️ 来場日未入力を出すか（⚠️ 注文だけ。v2.2.175 合意） */
   hasCancel: boolean;
+  /**
+   * ⚠️ 未同期を反響の category（取引区分）で絞るとき、その値（v2.2.175 修正）。
+   *   ⚠️ 中古だけ `買い:中古リノベ`（指示）。⚠️ 売り:ポータル・買い:ポータルは数えない。
+   */
+  inquiryCategory?: string;
 }
 
 const fixedLabels = (steps: [string, string][]) => {
@@ -197,6 +202,8 @@ const DAILY_SOURCES: Record<DailyCategory, DailySource> = {
     master: 'master_data_resale',
     inquiry: 'inquiry_customer_resale',
     hasCancel: false,
+    // ⚠️ 未同期は 買い:中古リノベ の反響だけ（v2.2.175 修正の指示）
+    inquiryCategory: '買い:中古リノベ',
     columns: [...new Set(Object.values(RESALE_STEPS).flat().map(([, column]) => column))],
     // ⚠️ 区分が空・未知の行は「買い:中古リノベ」の名前で出す（⚠️ 一番多い区分）
     labelOf: (column, deal) => {
@@ -231,7 +238,7 @@ const DAILY_SOURCES: Record<DailyCategory, DailySource> = {
  *     ⚠️ ⚠️ **同日中に「該当日を含まないを優先してよい」と訂正があった。**
  *   ⚠️ ⚠️ **そのぶんバッジより少なく出る。これは不具合ではない。**
  */
-const unsyncSql = (inquiry: string): string => `
+const unsyncSql = (inquiry: string, withCategory: boolean): string => `
   SELECT 'unsync' AS kind,
          DATEDIFF(CURDATE(), ${INQUIRY_DATE}) AS days,
          ${shopLabel('i.shop', 'i.brand')} AS shop,
@@ -254,6 +261,7 @@ const unsyncSql = (inquiry: string): string => `
      AND COALESCE(i.support_flag, 0) <> 1
      AND COALESCE(i.black_flag, 0) <> 1
      AND TRIM(COALESCE(i.first_name, '')) <> ''
+     ${withCategory ? "AND TRIM(COALESCE(i.category, '')) = ?" : ''}
      /*
        ⚠️ v2.2.175: '-' を '/' に揃えてから比べる。⚠️ 建売（inquiry_customer_kaeru）に 'YYYY-MM-DD' が混ざっている
          （ローカル実測 405件）。⚠️ 揃えないと '-' は '/' より小さいので ⚠️ **期間の判定から黙って落ちる。**
@@ -586,7 +594,11 @@ export const runDailyAction = async (
   // ⚠️ クエリは互いに独立しているので並列で投げる
   const [contact, unsync, cancel, todayRaw, checked] = await Promise.all([
     fetchContacts(source.master),
-    query<AttentionRow>(unsyncSql(source.inquiry), [SYNC_START_MONTH[category], ROW_LIMIT]),
+    // ⚠️ 中古は反響の category で絞る（⚠️ プレースホルダの順は SQL の ? の順: category → 開始月 → 上限）
+    query<AttentionRow>(
+      unsyncSql(source.inquiry, source.inquiryCategory !== undefined),
+      [...(source.inquiryCategory !== undefined ? [source.inquiryCategory] : []), SYNC_START_MONTH[category], ROW_LIMIT]
+    ),
     // ⚠️ 来場日未入力は注文だけ（v2.2.175 合意）。⚠️ reserved_interview は注文の運用
     source.hasCancel ? query<AttentionRow>(CANCEL_SQL, [ROW_LIMIT]) : Promise.resolve([] as AttentionRow[]),
     query<TodayRow>(todaySql(source), [...source.columns, ROW_LIMIT]),
