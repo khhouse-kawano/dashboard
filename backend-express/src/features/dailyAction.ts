@@ -100,13 +100,121 @@ const shopLabel = (shopColumn: string, brandColumn: string): string => {
  */
 const VISIBLE_SHOPS = `(SELECT shop FROM shop_list WHERE show_flag = 1 AND TRIM(COALESCE(shop, '')) <> '' GROUP BY shop)`;
 
-/** 本日の予定に出す4つの工程。⚠️ 表示名は画面（TableInterview）の言い方に揃える */
-const TODAY_STEPS: { column: string; label: string }[] = [
-  { column: 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7', label: '初回面談' },
-  { column: 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR', label: '事前審査' },
-  { column: 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA', label: '2回目以降面談' },
-  { column: 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG', label: '契約' },
-];
+/**
+ * 事業（v2.2.175 で建売・中古にも広げた）。⚠️ フロントの AuthContext の category と同じ語。
+ * ⚠️ それ以外（planner など）は注文として扱う（⚠️ 画面は order / spec / used でしか開かない）。
+ */
+export type DailyCategory = 'order' | 'spec' | 'used';
+export const toDailyCategory = (value: unknown): DailyCategory =>
+  value === 'spec' || value === 'used' ? value : 'order';
+
+/**
+ * 事業ごとのテーブルと「本日の予定」に出す工程。
+ *
+ * ⚠️⚠️ **工程は各事業の actionMap（顧客詳細の商談ステップ）から取る**（v2.2.175 合意: 全工程）。
+ *   ⚠️ 注文は従来どおり4つ（初回面談・事前審査・2回目以降面談・契約）。
+ *   ⚠️ ⚠️ **次回アクション日は入れない**（⚠️ 本日要連絡で出すため）。
+ * ⚠️ 中古は ⚠️ **同じ列に区分ごとに別の名前**がある（例: 01J95TGV は 買い=2回目以降物件案内 / 売り=査定アポ）。
+ *   ⚠️ ⚠️ **名前は行の in_charge_store（取引区分）で決める**（labelOf）。⚠️ features/interviewKpi.ts の RESALE_MAP と同じ。
+ *   ⚠️ 表の並びは STEP_ORDER のとおり。
+ */
+interface DailySource {
+  master: string;
+  inquiry: string;
+  /** ⚠️ 本日の予定で見る列（⚠️ 重複なし） */
+  columns: string[];
+  /** ⚠️ 列と取引区分 → 表示名 */
+  labelOf: (column: string, deal: string) => string;
+  /** ⚠️ 表の並び（⚠️ ここに無い名前は最後） */
+  stepOrder: string[];
+  /** ⚠️ 来場日未入力を出すか（⚠️ 注文だけ。v2.2.175 合意） */
+  hasCancel: boolean;
+  /**
+   * ⚠️ 未同期を反響の category（取引区分）で絞るとき、その値（v2.2.175 修正）。
+   *   ⚠️ 中古だけ `買い:中古リノベ`（指示）。⚠️ 売り:ポータル・買い:ポータルは数えない。
+   */
+  inquiryCategory?: string;
+}
+
+const fixedLabels = (steps: [string, string][]) => {
+  const byColumn = new Map(steps.map(([column, label]) => [column, label]));
+  return {
+    columns: steps.map(([column]) => column),
+    labelOf: (column: string) => byColumn.get(column) ?? column,
+    stepOrder: steps.map(([, label]) => label),
+  };
+};
+
+/** 中古の区分ごとの工程（⚠️ features/interviewKpi.ts の RESALE_MAP から次回アクション日を除いたもの） */
+const RESALE_STEPS: Record<string, [string, string][]> = {
+  '買い:中古リノベ': [
+    ['初回来場', 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7'],
+    ['物件案内', 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG'],
+    ['2回目以降面談', 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA'],
+    ['2回目以降物件案内', 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV'],
+    ['事前審査', 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR'],
+    ['リフォーム契約', 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'],
+    ['売買契約', 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW'],
+  ],
+  '買い:ポータル': [
+    ['初回来場', 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7'],
+    ['物件案内', 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG'],
+    ['2回目以降面談', 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA'],
+    ['2回目以降物件案内', 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV'],
+    ['事前審査', 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR'],
+    ['売買契約', 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW'],
+  ],
+  '売り:ポータル': [
+    ['査定アポ', 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV'],
+    ['査定書提出', 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22'],
+    ['訪問査定', 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN'],
+    ['媒介取得', 'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0'],
+  ],
+};
+
+const DAILY_SOURCES: Record<DailyCategory, DailySource> = {
+  order: {
+    master: 'master_data',
+    inquiry: 'inquiry_customer',
+    hasCancel: true,
+    ...fixedLabels([
+      ['step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7', '初回面談'],
+      ['step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR', '事前審査'],
+      ['step_migration_item_01JSENACS2FC422ZHEZWNSXNYA', '2回目以降面談'],
+      ['step_migration_item_01J82Z5F1RR18Z792C7KZS88QG', '契約'],
+    ]),
+  },
+  spec: {
+    master: 'master_data_kaeru',
+    inquiry: 'inquiry_customer_kaeru',
+    hasCancel: false,
+    // ⚠️ InformationEditKaeru.tsx の actionMap（⚠️ コメントアウトされている工程は出さない）
+    ...fixedLabels([
+      ['step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z', '接触（通話・返信）'],
+      ['step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7', '初回面談'],
+      ['step_migration_item_01JSENACS2FC422ZHEZWNSXNYA', '2回目以降面談'],
+      ['step_migration_item_01J82Z5F1RR18Z792C7KZS88QG', '申し込み'],
+      ['step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW', '自社契約'],
+      ['step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0', '仲介契約'],
+    ]),
+  },
+  used: {
+    master: 'master_data_resale',
+    inquiry: 'inquiry_customer_resale',
+    hasCancel: false,
+    // ⚠️ 未同期は 買い:中古リノベ の反響だけ（v2.2.175 修正の指示）
+    inquiryCategory: '買い:中古リノベ',
+    columns: [...new Set(Object.values(RESALE_STEPS).flat().map(([, column]) => column))],
+    // ⚠️ 区分が空・未知の行は「買い:中古リノベ」の名前で出す（⚠️ 一番多い区分）
+    labelOf: (column, deal) => {
+      const steps = RESALE_STEPS[deal] ?? RESALE_STEPS['買い:中古リノベ'];
+      const hit = steps.find(([, c]) => c === column)
+        ?? Object.values(RESALE_STEPS).flat().find(([, c]) => c === column);
+      return hit ? hit[0] : column;
+    },
+    stepOrder: [...new Set(Object.values(RESALE_STEPS).flat().map(([label]) => label))],
+  },
+};
 
 /**
  * 未同期の反響（まだ顧客になっていない）。
@@ -130,7 +238,7 @@ const TODAY_STEPS: { column: string; label: string }[] = [
  *     ⚠️ ⚠️ **同日中に「該当日を含まないを優先してよい」と訂正があった。**
  *   ⚠️ ⚠️ **そのぶんバッジより少なく出る。これは不具合ではない。**
  */
-const UNSYNC_SQL = `
+const unsyncSql = (inquiry: string, withCategory: boolean): string => `
   SELECT 'unsync' AS kind,
          DATEDIFF(CURDATE(), ${INQUIRY_DATE}) AS days,
          ${shopLabel('i.shop', 'i.brand')} AS shop,
@@ -146,14 +254,20 @@ const UNSYNC_SQL = `
            ⚠️⚠️ **ここはテンプレートリテラルの中なのでバッククォートを書かないこと**（文字列が終わる）。
          */
          COALESCE(NULLIF(TRIM(i.hp_campaign), ''), '') AS campaign
-    FROM inquiry_customer i
+    FROM ${inquiry} i
     LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(i.shop)
    WHERE COALESCE(i.sync, 0) = 0
      AND COALESCE(i.duplicate_flag, 0) <> 1
      AND COALESCE(i.support_flag, 0) <> 1
      AND COALESCE(i.black_flag, 0) <> 1
      AND TRIM(COALESCE(i.first_name, '')) <> ''
-     AND SUBSTRING(i.inquiry_date, 1, 7) BETWEEN ? AND DATE_FORMAT(NOW(), '%Y/%m')
+     ${withCategory ? "AND TRIM(COALESCE(i.category, '')) = ?" : ''}
+     /*
+       ⚠️ v2.2.175: '-' を '/' に揃えてから比べる。⚠️ 建売（inquiry_customer_kaeru）に 'YYYY-MM-DD' が混ざっている
+         （ローカル実測 405件）。⚠️ 揃えないと '-' は '/' より小さいので ⚠️ **期間の判定から黙って落ちる。**
+       ⚠️ 注文（inquiry_customer）は '-' が0件なので結果は変わらない（⚠️ menu.ts の件数とも一致したまま）。
+     */
+     AND REPLACE(SUBSTRING(i.inquiry_date, 1, 7), '-', '/') BETWEEN ? AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), ${INQUIRY_DATE}) > 0
    ORDER BY days DESC
    LIMIT ?
@@ -204,14 +318,16 @@ const CANCEL_SQL = `
 /**
  * 本日の予定。
  *
- * ⚠️ 4つの工程のどれかが**本日**の顧客。
+ * ⚠️ 事業の工程（DailySource.columns）のどれかが**本日**の顧客。
  * ⚠️ 1人が同じ日に複数の工程を持つことがあるので `UNION ALL` で**工程ごとに1行**出す
  *   （⚠️ **まとめると「何の予定か」が分からなくなる**）。
+ * ⚠️ v2.2.175: 列名（col）と取引区分（deal）を返し、⚠️ **表示名はサーバーの JS で付ける**（labelOf）。
  */
-const TODAY_SQL = `
-  ${TODAY_STEPS.map(
-    (step) => `
-  SELECT ? AS step,
+const todaySql = (source: DailySource): string => `
+  ${source.columns.map(
+    (column) => `
+  SELECT ? AS col,
+         COALESCE(m.in_charge_store, '') AS deal,
          ${shopLabel('m.in_charge_store', 'm.brand')} AS shop,
          COALESCE(DATE_FORMAT(${REGISTER_DATE}, '%Y-%m-%d'), '') AS register,
          COALESCE(m.customer_contacts_name, '') AS customer,
@@ -226,21 +342,137 @@ const TODAY_SQL = `
          */
          COALESCE(NULLIF(TRIM(m.in_charge_user), ''), '') AS staff,
          COALESCE(m.sales_promotion_name, '') AS medium
-    FROM master_data m
+    FROM ${source.master} m
     LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(m.in_charge_store)
    WHERE m.show_dashboard = 1
      AND COALESCE(m.status, '') <> '重複'
-     AND ${asDate(`m.${step.column}`)} = CURDATE()`
+     AND ${asDate(`m.${column}`)} = CURDATE()`
   ).join('\n   UNION ALL\n')}
    ORDER BY shop, customer
    LIMIT ?
 `;
 
 /**
- * 未同期を数え始める月。
- * ⚠️ menu.ts の `SYNC_START_MONTH` と同じ。⚠️ **片方だけ変えると件数がずれる。**
+ * 本日要連絡（v2.2.175）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️ 次のどちらかが ⚠️ **今日**のお客様:
+ *   ・商談ステップ（interview_sheet.interview_log）の「次回アクション日」
+ *   ・架電（call_sheet.call_log）の「次回架電日」
+ * ⚠️⚠️ **記録（ログ）から数える**（⚠️ master の next_action_date 列ではない）。
+ *   ⚠️ 予定が複数あっても今日のものを取りこぼさないため（2026-10-08 合意）。
+ *
+ * ⚠️ 流れ:
+ *   1. ログに今日の day を含む行だけを SQL で拾う（⚠️ REGEXP。daily_report と同じ書き方の揺れに対応）
+ *   2. JS でログを読み、⚠️ 今日の「次回アクション日」「次回架電日」がある id を集める
+ *   3. ⚠️ その事業の master から id で引く（⚠️ id は3テーブルで重複しない）
+ * ⚠️ 1人1行。⚠️ 両方あれば contact に「次回アクション・次回架電」。
+ * ⚠️ 他の表と同じく show_dashboard = 1・重複でない顧客だけ。
+ * ⚠️ ① の daily_action.php にも同じものがある（⚠️ 片方だけ直さないこと）。
+ * ─────────────────────────────────────────────
  */
-const SYNC_START_MONTH = '2025/06';
+const NEXT_ACTION = '次回アクション日';
+const NEXT_CALL = '次回架電日';
+
+interface LogSheetRow extends RowDataPacket {
+  id: string;
+  log: string | null;
+}
+
+/** ログ（JSON）の day に今日の日付を含むかの正規表現（⚠️ "2026-10-08" / "2026/10/08" / "2026\/10\/08"） */
+const todayLogRegexp = (today: string): string => {
+  const [y, m, d] = today.split('-');
+  return `"day"[[:space:]]*:[[:space:]]*"${y}(-|\\\\?/)${m}(-|\\\\?/)${d}`;
+};
+
+/** ログを読み、今日の指定アクションがある id を返す（⚠️ 日付は / と - を揃えて比べる） */
+const idsWithToday = (rows: LogSheetRow[], action: string, today: string): Set<string> => {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    let logs: unknown;
+    try {
+      logs = JSON.parse(String(row.log ?? ''));
+    } catch {
+      continue;
+    }
+    if (logs === null || typeof logs !== 'object') continue;
+    const list: unknown[] = Array.isArray(logs) ? logs : Object.values(logs);
+    const hit = list.some((log) => {
+      if (log === null || typeof log !== 'object') return false;
+      const entry = log as Record<string, unknown>;
+      const name = String(entry.action ?? '').split(',')[0];
+      const day = String(entry.day ?? '').trim().replace(/\//g, '-').slice(0, 10);
+      return name === action && day === today;
+    });
+    if (hit) ids.add(String(row.id));
+  }
+  return ids;
+};
+
+const contactSql = (master: string, count: number): string => `
+  SELECT m.id AS id,
+         ${shopLabel('m.in_charge_store', 'm.brand')} AS shop,
+         COALESCE(DATE_FORMAT(${REGISTER_DATE}, '%Y-%m-%d'), '') AS register,
+         COALESCE(m.customer_contacts_name, '') AS customer,
+         COALESCE(NULLIF(TRIM(m.in_charge_user), ''), '') AS staff,
+         COALESCE(m.sales_promotion_name, '') AS medium
+    FROM ${master} m
+    LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(m.in_charge_store)
+   WHERE m.show_dashboard = 1
+     AND COALESCE(m.status, '') <> '重複'
+     AND m.id IN (${Array.from({ length: count }, () => '?').join(',')})
+   ORDER BY shop, customer
+   LIMIT ?
+`;
+
+interface TodayDateRow extends RowDataPacket {
+  today: string;
+}
+
+export interface ContactRow extends RowDataPacket {
+  id?: string;
+  shop: string;
+  register: string;
+  customer: string;
+  staff: string;
+  medium: string;
+  /** ⚠️ 何の連絡か（次回アクション ／ 次回架電 ／ 次回アクション・次回架電） */
+  contact: string;
+}
+
+const fetchContacts = async (master: string): Promise<ContactRow[]> => {
+  // ⚠️ 今日は DB の CURDATE()（⚠️ 他の表と同じ基準。⚠️ Node の時計を使わない）
+  const [{ today }] = await query<TodayDateRow>("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today");
+  const pattern = todayLogRegexp(today);
+  const [interviewRows, callRows] = await Promise.all([
+    query<LogSheetRow>('SELECT id, interview_log AS log FROM interview_sheet WHERE interview_log REGEXP ?', [pattern]),
+    query<LogSheetRow>('SELECT id, call_log AS log FROM call_sheet WHERE call_log REGEXP ?', [pattern]),
+  ]);
+  const actionIds = idsWithToday(interviewRows, NEXT_ACTION, today);
+  const callIds = idsWithToday(callRows, NEXT_CALL, today);
+  const ids = [...new Set([...actionIds, ...callIds])];
+  if (ids.length === 0) return [];
+
+  const rows = await query<ContactRow>(contactSql(master, ids.length), [...ids, ROW_LIMIT]);
+  return rows.map(({ id, ...row }) => {
+    const kinds = [actionIds.has(String(id)) ? '次回アクション' : '', callIds.has(String(id)) ? '次回架電' : ''].filter((v) => v !== '');
+    return { ...row, contact: kinds.join('・') } as ContactRow;
+  });
+};
+
+/**
+ * 未同期を数え始める月。
+ * ⚠️ 注文は menu.ts の `SYNC_START_MONTH` と同じ。⚠️ **片方だけ変えると件数がずれる。**
+ * ⚠️⚠️ v2.2.175 修正: **建売・中古は 2026/08 から**（指示）。
+ *   ⚠️ 2026年7月までの inquiry_customer_kaeru / inquiry_customer_resale は未同期として数えない
+ *     （⚠️ 建売・中古は反響を全部は同期しない運用で、⚠️ 過去分を数えると数百件になっていた）。
+ * ⚠️ ① の daily_action.php の $sync_start_months と同じにすること。
+ */
+const SYNC_START_MONTH: Record<DailyCategory, string> = {
+  order: '2025/06',
+  spec: '2026/08',
+  used: '2026/08',
+};
 
 /**
  * 1つの表に出す上限。
@@ -264,7 +496,10 @@ export interface AttentionRow extends RowDataPacket {
 }
 
 export interface TodayRow extends RowDataPacket {
-  step: string;
+  /** ⚠️ 工程の列名（⚠️ 表示名は labelOf で付ける） */
+  col: string;
+  /** ⚠️ 取引区分（in_charge_store）。⚠️ 中古の表示名を決めるのに使う */
+  deal: string;
   shop: string;
   register: string;
   customer: string;
@@ -297,7 +532,16 @@ export interface DailySection {
    *   ⚠️ 未同期は `inquiry_customer` 由来で、⚠️ **まだ担当が決まっていない。**
    */
   hasStaff: boolean;
-  rows: (AttentionRow | TodayRow)[];
+  /**
+   * ⚠️ 連絡の種類の列（次回アクション ／ 次回架電）を出すかどうか。
+   *   ⚠️⚠️ **本日要連絡だけ true**（v2.2.175）。
+   */
+  hasContact: boolean;
+  /**
+   * ⚠️ 目立たせる表か（v2.2.175）。⚠️ **本日要連絡だけ true**。⚠️ カードの色を変える
+   */
+  highlight: boolean;
+  rows: (AttentionRow | TodayRow | ContactRow)[];
 }
 
 export interface DailyActionResponse {
@@ -340,31 +584,59 @@ interface CountRow extends RowDataPacket {
   c: number;
 }
 
-export const runDailyAction = async (staffId: number | null): Promise<DailyActionResponse> => {
+export const runDailyAction = async (
+  staffId: number | null,
+  categoryValue: unknown = 'order'
+): Promise<DailyActionResponse> => {
+  const category = toDailyCategory(categoryValue);
+  const source = DAILY_SOURCES[category];
+
   // ⚠️ クエリは互いに独立しているので並列で投げる
-  const [unsync, cancel, today, checked] = await Promise.all([
-    query<AttentionRow>(UNSYNC_SQL, [SYNC_START_MONTH, ROW_LIMIT]),
-    query<AttentionRow>(CANCEL_SQL, [ROW_LIMIT]),
-    query<TodayRow>(TODAY_SQL, [...TODAY_STEPS.map((s) => s.label), ROW_LIMIT]),
+  const [contact, unsync, cancel, todayRaw, checked] = await Promise.all([
+    fetchContacts(source.master),
+    // ⚠️ 中古は反響の category で絞る（⚠️ プレースホルダの順は SQL の ? の順: category → 開始月 → 上限）
+    query<AttentionRow>(
+      unsyncSql(source.inquiry, source.inquiryCategory !== undefined),
+      [...(source.inquiryCategory !== undefined ? [source.inquiryCategory] : []), SYNC_START_MONTH[category], ROW_LIMIT]
+    ),
+    // ⚠️ 来場日未入力は注文だけ（v2.2.175 合意）。⚠️ reserved_interview は注文の運用
+    source.hasCancel ? query<AttentionRow>(CANCEL_SQL, [ROW_LIMIT]) : Promise.resolve([] as AttentionRow[]),
+    query<TodayRow>(todaySql(source), [...source.columns, ROW_LIMIT]),
     staffId === null
       ? Promise.resolve([] as CountRow[])
       : query<CountRow>(CHECKED_SQL, [staffId]),
   ]);
 
+  // ⚠️ 本日の予定の表示名（⚠️ 中古は取引区分で変わる）
+  const today = todayRaw.map((row) => ({ ...row, step: source.labelOf(row.col, row.deal) }));
+  const order = (label: string) => {
+    const index = source.stepOrder.indexOf(label);
+    return index === -1 ? source.stepOrder.length : index;
+  };
+  const steps = [...new Set(today.map((row) => row.step))].sort((a, b) => order(a) - order(b));
+
   /**
-   * ⚠️ 本日の予定は工程ごとの表に割る。
-   *   ⚠️ `TODAY_SQL` は工程名を `step` に入れて返しているので、それで振り分ける。
-   *   ⚠️ ⚠️ **並びは `TODAY_STEPS` のとおり**（商談が進む順）。入れ替えないこと。
+   * ⚠️⚠️ **並びは 本日要連絡 → 未同期 → 来場日未入力（注文だけ） → 本日の予定（工程順）**（v2.2.175 合意）。
+   * ⚠️ 本日の予定は ⚠️ **行がある工程だけ**表を作る（⚠️ 中古は工程が多いため）。
+   *   ⚠️ 0件の表は画面側でも落としている。
+   * ⚠️ col / deal / step は画面に要らないので外して返す。
    */
   const sections: DailySection[] = [
-    { label: '未同期', hasDays: true, hasCampaign: true, hasStaff: false, rows: unsync },
-    { label: '来場日未入力', hasDays: true, hasCampaign: false, hasStaff: true, rows: cancel },
-    ...TODAY_STEPS.map((step) => ({
-      label: `本日の${step.label}`,
+    { label: '本日要連絡', hasDays: false, hasCampaign: false, hasStaff: true, hasContact: true, highlight: true, rows: contact },
+    { label: '未同期', hasDays: true, hasCampaign: true, hasStaff: false, hasContact: false, highlight: false, rows: unsync },
+    ...(source.hasCancel
+      ? [{ label: '来場日未入力', hasDays: true, hasCampaign: false, hasStaff: true, hasContact: false, highlight: false, rows: cancel }]
+      : []),
+    ...steps.map((step) => ({
+      label: `本日の${step}`,
       hasDays: false,
       hasCampaign: false,
       hasStaff: true,
-      rows: today.filter((row) => row.step === step.label),
+      hasContact: false,
+      highlight: false,
+      rows: today
+        .filter((row) => row.step === step)
+        .map(({ col: _col, deal: _deal, step: _step, ...row }) => row as TodayRow),
     })),
   ];
 
@@ -373,7 +645,7 @@ export const runDailyAction = async (staffId: number | null): Promise<DailyActio
   return {
     sections,
     total,
-    truncated: unsync.length >= ROW_LIMIT || cancel.length >= ROW_LIMIT,
+    truncated: unsync.length >= ROW_LIMIT || cancel.length >= ROW_LIMIT || contact.length >= ROW_LIMIT,
     show: Number(checked[0]?.c ?? 0) === 0,
   };
 };
@@ -398,7 +670,7 @@ export const dailyAction = defineFeature({
       summary: '要確認の顧客（未同期・来場日未入力）と本日の予定',
       auth: true,
       query: z.object({}).optional(),
-      handler: async ({ ctx }) => runDailyAction(ctx.staff?.id ?? null),
+      handler: async ({ ctx }) => runDailyAction(ctx.staff?.id ?? null, 'order'),
     }),
   },
 });

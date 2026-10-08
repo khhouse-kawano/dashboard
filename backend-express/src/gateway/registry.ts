@@ -252,15 +252,19 @@ register({
  *   ⚠️ 出るのは注文（order）だけだが、⚠️ **`category` 無しも残す**
  *     （⚠️ 比較ツールなど `category` を送らない呼び出しのため）。
  */
-['', 'order'].forEach((category) => {
+/*
+ * ⚠️ v2.2.175: 建売（spec）・中古（used）でも出すようになったので登録を足した。
+ *   ⚠️ 事業は body.category で決まる（⚠️ category 無しは注文）。
+ */
+['', 'order', 'spec', 'used'].forEach((category) => {
   register({
     request: 'daily_action',
     roll: 'list',
     category,
-    summary: '要確認の顧客（未同期・来場日未入力）と本日の予定',
+    summary: '要確認の顧客（本日要連絡・未同期・来場日未入力）と本日の予定',
     phpSource: 'backend/src/handlers/daily_action.php',
     auth: 'staff',
-    handler: async (ctx) => runDailyAction(ctx.staff?.id ?? null),
+    handler: async (ctx) => runDailyAction(ctx.staff?.id ?? null, category || 'order'),
   });
 });
 

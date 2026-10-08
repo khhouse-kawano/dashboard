@@ -5,6 +5,7 @@ import Logo from "../assets/images/logo.png";
 import apiClient from '../utils/apiClient';
 import Table from "react-bootstrap/Table";
 import { useIsSp } from '../utils/isSp';
+import { markCategoryChosen } from './DailyAction';
 
 type Log = { no: number, version: string, date: string, note: string };
 
@@ -38,6 +39,11 @@ const Category = () => {
             planner: '/summary'
         };
         await setCategory(categoryValue);
+        /**
+         * ⚠️ v2.2.175 修正: 要確認は ⚠️ **ここで事業を選んでから**出す（DailyAction.tsx の markCategoryChosen）。
+         *   ⚠️ navigate の前に呼ぶこと（⚠️ 遷移で DailyAction が判定するため）。
+         */
+        markCategoryChosen(categoryValue);
         /**
          * ⚠️ ここから遷移すると「要確認」モーダルも出る（2026-09-28）。
          *   ⚠️ ⚠️ **目印は渡していない。** `App.tsx` の `DailyAction` が

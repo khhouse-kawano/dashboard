@@ -105,6 +105,8 @@ const actionMap = {
     '資料送付': 'step_migration_item_catalog',
     '0次接客': 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
     '初回面談': 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+    // ⚠️ v2.2.175 追加。⚠️ この列だけ「一番新しい日付」が入る（utils/interviewKpi.ts の LATEST_COLUMNS）
+    '次回アクション日': 'next_action_date',
     '2回目以降面談': 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
     '事前審査': 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
     'LINEグループ作成': 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',

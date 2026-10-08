@@ -106,19 +106,91 @@ function dailyActionShop(string $shopColumn, string $brandColumn): string
  */
 $visible_shops = "(SELECT shop FROM shop_list WHERE show_flag = 1 AND TRIM(COALESCE(shop, '')) <> '' GROUP BY shop)";
 
-/** 本日の予定に出す4つの工程。⚠️ 表示名は Express 側と揃えること */
-$today_steps = [
-    ['column' => 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7', 'label' => '初回面談'],
-    ['column' => 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR', 'label' => '事前審査'],
-    ['column' => 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA', 'label' => '2回目以降面談'],
-    ['column' => 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG', 'label' => '契約'],
+/**
+ * 事業ごとのテーブルと「本日の予定」に出す工程（v2.2.175 で建売・中古にも広げた）。
+ *
+ * ⚠️⚠️ **Express の dailyAction.ts の DAILY_SOURCES と同じにすること。**
+ * ⚠️ 工程は各事業の actionMap（⚠️ 次回アクション日は除く。本日要連絡で出すため）。
+ * ⚠️ 中古は同じ列に区分ごとに別の名前がある → 行の in_charge_store（取引区分）で名前を決める。
+ * ⚠️ 来場日未入力は注文だけ。
+ */
+$daily_category = in_array($data['category'] ?? '', ['spec', 'used'], true) ? $data['category'] : 'order';
+
+$resale_steps = [
+    '買い:中古リノベ' => [
+        ['初回来場', 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7'],
+        ['物件案内', 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG'],
+        ['2回目以降面談', 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA'],
+        ['2回目以降物件案内', 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV'],
+        ['事前審査', 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR'],
+        ['リフォーム契約', 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'],
+        ['売買契約', 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW'],
+    ],
+    '買い:ポータル' => [
+        ['初回来場', 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7'],
+        ['物件案内', 'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG'],
+        ['2回目以降面談', 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA'],
+        ['2回目以降物件案内', 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV'],
+        ['事前審査', 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR'],
+        ['売買契約', 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW'],
+    ],
+    '売り:ポータル' => [
+        ['査定アポ', 'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV'],
+        ['査定書提出', 'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22'],
+        ['訪問査定', 'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN'],
+        ['媒介取得', 'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0'],
+    ],
 ];
+
+$fixed_steps = [
+    'order' => [
+        ['初回面談', 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7'],
+        ['事前審査', 'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR'],
+        ['2回目以降面談', 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA'],
+        ['契約', 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'],
+    ],
+    'spec' => [
+        ['接触（通話・返信）', 'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z'],
+        ['初回面談', 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7'],
+        ['2回目以降面談', 'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA'],
+        ['申し込み', 'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG'],
+        ['自社契約', 'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW'],
+        ['仲介契約', 'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0'],
+    ],
+];
+
+$daily_master  = ['order' => 'master_data', 'spec' => 'master_data_kaeru', 'used' => 'master_data_resale'][$daily_category];
+$daily_inquiry = ['order' => 'inquiry_customer', 'spec' => 'inquiry_customer_kaeru', 'used' => 'inquiry_customer_resale'][$daily_category];
+$daily_has_cancel = $daily_category === 'order';
+// ⚠️ 未同期を反響の category（取引区分）で絞る値（v2.2.175 修正）。⚠️ 中古だけ 買い:中古リノベ（Express の inquiryCategory と同じ）
+$unsync_category = $daily_category === 'used' ? '買い:中古リノベ' : null;
+
+// 工程の列（重複なし）・表の並び
+$all_steps = $daily_category === 'used' ? array_merge(...array_values($resale_steps)) : $fixed_steps[$daily_category];
+$today_columns = array_values(array_unique(array_map(fn ($step) => $step[1], $all_steps)));
+$step_order    = array_values(array_unique(array_map(fn ($step) => $step[0], $all_steps)));
+
+/** 列と取引区分 → 表示名（⚠️ Express の labelOf と同じ） */
+$step_label_of = function (string $column, string $deal) use ($daily_category, $resale_steps, $fixed_steps, $all_steps): string {
+    $steps = $daily_category === 'used'
+        ? ($resale_steps[$deal] ?? $resale_steps['買い:中古リノベ'])
+        : $fixed_steps[$daily_category];
+    foreach ([$steps, $all_steps] as $list) {
+        foreach ($list as $step) {
+            if ($step[1] === $column) return $step[0];
+        }
+    }
+    return $column;
+};
 
 /**
  * 未同期を数え始める月。
- * ⚠️ menu.php の $sync_start_month と同じ。⚠️ **片方だけ変えると件数がずれる。**
+ * ⚠️ 注文は menu.php の $sync_start_month と同じ。⚠️ **片方だけ変えると件数がずれる。**
+ * ⚠️⚠️ v2.2.175 修正: **建売・中古は 2026/08 から**（指示）。2026年7月までは未同期として数えない。
+ * ⚠️ Express の dailyAction.ts の SYNC_START_MONTH と同じにすること。
  */
-$sync_start_month = '2025/06';
+$sync_start_months = ['order' => '2025/06', 'spec' => '2026/08', 'used' => '2026/08'];
+$sync_start_month = $sync_start_months[$daily_category];
 
 /**
  * 1つの表に出す上限。
@@ -143,19 +215,23 @@ $sql_unsync = "SELECT 'unsync' AS kind,
          /* ⚠️ キャンペーン名（2026-09-28）。⚠️ **未同期の表にだけ出す。**
             ⚠️ 実測では9割以上が空。⚠️ **空文字で返し、画面が `-` と出す。** */
          COALESCE(NULLIF(TRIM(i.hp_campaign), ''), '') AS campaign
-    FROM inquiry_customer i
+    FROM $daily_inquiry i
     LEFT JOIN $visible_shops s ON s.shop = TRIM(i.shop)
    WHERE COALESCE(i.sync, 0) = 0
      AND COALESCE(i.duplicate_flag, 0) <> 1
      AND COALESCE(i.support_flag, 0) <> 1
      AND COALESCE(i.black_flag, 0) <> 1
      AND TRIM(COALESCE(i.first_name, '')) <> ''
-     AND SUBSTRING(i.inquiry_date, 1, 7) BETWEEN :start_month AND DATE_FORMAT(NOW(), '%Y/%m')
+     " . ($unsync_category !== null ? "AND TRIM(COALESCE(i.category, '')) = :inquiry_category" : '') . "
+     /* ⚠️ v2.2.175: '-' を '/' に揃えて比べる（⚠️ 建売に 'YYYY-MM-DD' が混ざる。⚠️ 注文は0件なので結果は同じ） */
+     AND REPLACE(SUBSTRING(i.inquiry_date, 1, 7), '-', '/') BETWEEN :start_month AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), $inquiry_date) > 0
    ORDER BY days DESC
    LIMIT $row_limit";
 $stmt_unsync = $pdo->prepare($sql_unsync);
-$stmt_unsync->execute([':start_month' => $sync_start_month]);
+$unsync_params = [':start_month' => $sync_start_month];
+if ($unsync_category !== null) $unsync_params[':inquiry_category'] = $unsync_category;
+$stmt_unsync->execute($unsync_params);
 $response_unsync = $stmt_unsync->fetchAll(PDO::FETCH_ASSOC);
 
 // 来場予定日を過ぎたのに結果が入っていない顧客。
@@ -184,18 +260,23 @@ $sql_cancel = "SELECT 'cancel' AS kind,
      AND DATEDIFF(CURDATE(), $reserved_date) > 0
    ORDER BY days DESC
    LIMIT $row_limit";
-$stmt_cancel = $pdo->prepare($sql_cancel);
-$stmt_cancel->execute();
-$response_cancel = $stmt_cancel->fetchAll(PDO::FETCH_ASSOC);
+// ⚠️ 来場日未入力は注文だけ（v2.2.175 合意）
+$response_cancel = [];
+if ($daily_has_cancel) {
+    $stmt_cancel = $pdo->prepare($sql_cancel);
+    $stmt_cancel->execute();
+    $response_cancel = $stmt_cancel->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // 本日の予定。
 // ⚠️ 1人が同じ日に複数の工程を持つことがあるので、工程ごとに1行出す。
 //   ⚠️ まとめると「何の予定か」が分からなくなる。
 $today_parts = [];
 $today_params = [];
-foreach ($today_steps as $index => $step) {
-    $step_date = dailyActionDate('m.' . $step['column']);
-    $today_parts[] = "SELECT :label$index AS step,
+foreach ($today_columns as $index => $column) {
+    $step_date = dailyActionDate('m.' . $column);
+    $today_parts[] = "SELECT :col$index AS col,
+         COALESCE(m.in_charge_store, '') AS deal,
          " . dailyActionShop('m.in_charge_store', 'm.brand') . " AS shop,
          COALESCE(DATE_FORMAT($register_date, '%Y-%m-%d'), '') AS register,
          COALESCE(m.customer_contacts_name, '') AS customer,
@@ -206,17 +287,85 @@ foreach ($today_steps as $index => $step) {
               ⚠️ 旧担当（first_interviewed_user）には**寄せていない**。 */
          COALESCE(NULLIF(TRIM(m.in_charge_user), ''), '') AS staff,
          COALESCE(m.sales_promotion_name, '') AS medium
-    FROM master_data m
+    FROM $daily_master m
     LEFT JOIN $visible_shops s ON s.shop = TRIM(m.in_charge_store)
    WHERE m.show_dashboard = 1
      AND COALESCE(m.status, '') <> '重複'
      AND $step_date = CURDATE()";
-    $today_params[":label$index"] = $step['label'];
+    $today_params[":col$index"] = $column;
 }
 $sql_today = implode("\n   UNION ALL\n", $today_parts) . "\n   ORDER BY shop, customer\n   LIMIT $row_limit";
 $stmt_today = $pdo->prepare($sql_today);
 $stmt_today->execute($today_params);
 $response_today = $stmt_today->fetchAll(PDO::FETCH_ASSOC);
+foreach ($response_today as &$today_row) {
+    $today_row['step'] = $step_label_of((string)$today_row['col'], (string)$today_row['deal']);
+}
+unset($today_row);
+
+/**
+ * 本日要連絡（v2.2.175）。⚠️ Express の fetchContacts と同じ。
+ *   商談ステップの「次回アクション日」か、架電の「次回架電日」が ⚠️ 今日のお客様。
+ *   ⚠️ 記録（ログ）から数える。⚠️ 1人1行。⚠️ 両方あれば「次回アクション・次回架電」。
+ * ⚠️ 正規表現は daily_report.php と同じ書き方（⚠️ day の書き方の揺れに対応）。
+ *   ⚠️ `\\\\` は正規表現の `\\`（= バックスラッシュ1文字）。
+ */
+$stmt_today_date = $pdo->query("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today");
+$today_date = (string)$stmt_today_date->fetchColumn();
+[$today_y, $today_m, $today_d] = explode('-', $today_date);
+$today_regexp = '"day"[[:space:]]*:[[:space:]]*"' . $today_y . '(-|\\\\?/)' . $today_m . '(-|\\\\?/)' . $today_d;
+
+$ids_with_today = function (string $table, string $column, string $action) use ($pdo, $today_regexp, $today_date): array {
+    $stmt = $pdo->prepare("SELECT id, {$column} AS log FROM {$table} WHERE {$column} REGEXP ?");
+    $stmt->execute([$today_regexp]);
+    $ids = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $logs = json_decode($row['log'] ?? '', true);
+        if (!is_array($logs)) continue;
+        foreach ($logs as $log) {
+            if (!is_array($log)) continue;
+            $name = explode(',', (string)($log['action'] ?? ''))[0];
+            $day = substr(str_replace('/', '-', trim((string)($log['day'] ?? ''))), 0, 10);
+            if ($name === $action && $day === $today_date) {
+                $ids[(string)$row['id']] = true;
+                break;
+            }
+        }
+    }
+    return $ids;
+};
+$action_ids  = $ids_with_today('interview_sheet', 'interview_log', '次回アクション日');
+$call_ids    = $ids_with_today('call_sheet', 'call_log', '次回架電日');
+$contact_ids = array_map('strval', array_keys($action_ids + $call_ids));
+
+$response_contact = [];
+if (count($contact_ids) > 0) {
+    $contact_holders = implode(',', array_fill(0, count($contact_ids), '?'));
+    $sql_contact = "SELECT m.id AS id,
+         " . dailyActionShop('m.in_charge_store', 'm.brand') . " AS shop,
+         COALESCE(DATE_FORMAT($register_date, '%Y-%m-%d'), '') AS register,
+         COALESCE(m.customer_contacts_name, '') AS customer,
+         COALESCE(NULLIF(TRIM(m.in_charge_user), ''), '') AS staff,
+         COALESCE(m.sales_promotion_name, '') AS medium
+    FROM $daily_master m
+    LEFT JOIN $visible_shops s ON s.shop = TRIM(m.in_charge_store)
+   WHERE m.show_dashboard = 1
+     AND COALESCE(m.status, '') <> '重複'
+     AND m.id IN ($contact_holders)
+   ORDER BY shop, customer
+   LIMIT $row_limit";
+    $stmt_contact = $pdo->prepare($sql_contact);
+    $stmt_contact->execute($contact_ids);
+    foreach ($stmt_contact->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $contact_id = (string)$row['id'];
+        unset($row['id']);
+        $kinds = [];
+        if (isset($action_ids[$contact_id])) $kinds[] = '次回アクション';
+        if (isset($call_ids[$contact_id])) $kinds[] = '次回架電';
+        $row['contact'] = implode('・', $kinds);
+        $response_contact[] = $row;
+    }
+}
 
 // ⚠️ days は PDO が文字列で返すため、Express と同じ数値に揃える
 $to_int_days = function (array $rows): array {
@@ -235,23 +384,40 @@ $response_cancel = $to_int_days($response_cancel);
  *   ⚠️ ⚠️ **混ぜると何をすればよいかが読み取れない**というのが変更の理由。
  * ⚠️ 並びは Express の runDailyAction() と**同じ順**にすること。
  */
+// ⚠️ 並びは 本日要連絡 → 未同期 → 来場日未入力（注文だけ） → 本日の予定（工程順。行がある工程だけ）
 $sections = [
     // ⚠️ hasCampaign は**未同期だけ true**（2026-09-28 の指示）。
     //   ⚠️ 来場日未入力・本日の予定は master_data 由来で、この列を返していない。
     // ⚠️ hasStaff は**未同期以外 true**（2026-09-28）。⚠️ 未同期はまだ担当が決まっていない
-    ["label" => "未同期", "hasDays" => true, "hasCampaign" => true, "hasStaff" => false, "rows" => $response_unsync],
-    ["label" => "来場日未入力", "hasDays" => true, "hasCampaign" => false, "hasStaff" => true, "rows" => $response_cancel],
+    // ⚠️ hasContact / highlight は**本日要連絡だけ true**（v2.2.175）
+    ["label" => "本日要連絡", "hasDays" => false, "hasCampaign" => false, "hasStaff" => true, "hasContact" => true, "highlight" => true, "rows" => $response_contact],
+    ["label" => "未同期", "hasDays" => true, "hasCampaign" => true, "hasStaff" => false, "hasContact" => false, "highlight" => false, "rows" => $response_unsync],
 ];
-foreach ($today_steps as $step) {
+if ($daily_has_cancel) {
+    $sections[] = ["label" => "来場日未入力", "hasDays" => true, "hasCampaign" => false, "hasStaff" => true, "hasContact" => false, "highlight" => false, "rows" => $response_cancel];
+}
+$present_steps = array_values(array_unique(array_map(fn ($row) => $row['step'], $response_today)));
+usort($present_steps, function ($a, $b) use ($step_order) {
+    $ia = array_search($a, $step_order, true);
+    $ib = array_search($b, $step_order, true);
+    return ($ia === false ? count($step_order) : $ia) <=> ($ib === false ? count($step_order) : $ib);
+});
+foreach ($present_steps as $step_name) {
+    $step_rows = [];
+    foreach ($response_today as $row) {
+        if ($row['step'] !== $step_name) continue;
+        // ⚠️ col / deal / step は画面に要らないので外す（⚠️ Express と同じ形）
+        unset($row['col'], $row['deal'], $row['step']);
+        $step_rows[] = $row;
+    }
     $sections[] = [
-        "label" => "本日の" . $step['label'],
+        "label" => "本日の" . $step_name,
         "hasDays" => false,
         "hasCampaign" => false,
         "hasStaff" => true,
-        // ⚠️ array_values で添字を詰める。詰めないと json_encode がオブジェクトにする
-        "rows" => array_values(array_filter($response_today, function ($row) use ($step) {
-            return $row['step'] === $step['label'];
-        })),
+        "hasContact" => false,
+        "highlight" => false,
+        "rows" => $step_rows,
     ];
 }
 
@@ -274,7 +440,7 @@ if ($daily_action_user && !empty($daily_action_user['check_daily_action'])) {
 $result = [
     "sections" => $sections,
     "total" => $total,
-    "truncated" => count($response_unsync) >= $row_limit || count($response_cancel) >= $row_limit,
+    "truncated" => count($response_unsync) >= $row_limit || count($response_cancel) >= $row_limit || count($response_contact) >= $row_limit,
     "show" => $show,
 ];
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import AuthContext from '../context/AuthContext';
 import { useLocation } from "react-router-dom";
 import apiClient from '../utils/apiClient';
-import { openDailyAction } from './DailyAction';
+import { openDailyAction, DAILY_CATEGORIES, NO_DAILY_ACTION } from './DailyAction';
 
 type User = { id?: string | number, name: string, heartbeat: string };
 
@@ -275,13 +275,15 @@ const ActiveUser: React.FC = () => {
                 <div style={containerStyle} aria-label="Active users">
                     {/*
                       ⚠️⚠️ **「要確認」ボタン（2026-09-28 の指示）。**
-                        ⚠️ ⚠️ **注文営業のときだけ・常に出す**（⚠️ 今日もう確認していても出す）。
+                        ⚠️ ⚠️ **注文・建売・中古のとき・常に出す**（⚠️ 今日もう確認していても出す）。
+                          ⚠️ v2.2.175 修正: 注文だけ → ⚠️ DailyAction.tsx の DAILY_CATEGORIES（order / spec / used）。
+                          ⚠️ 事業を選ぶ画面（`/`・`/home`）では出さない（⚠️ DailyAction の対象外）。
                         ⚠️ 押すと `App.tsx` に1つだけ置いた `DailyAction` が開く。
                         ⚠️ ⚠️ **確認済みなら中のボタンは「閉じる」**になり、記録はしない。
                         ⚠️ この枠自体が `width >= 768` のときしか出ないので、
                           ⚠️ **スマホでは出ない**（DailyAction 側の条件とも一致する）。
                     */}
-                    {category === 'order' && (
+                    {DAILY_CATEGORIES.includes(category) && !NO_DAILY_ACTION.includes(location.pathname) && (
                         <button
                             type="button"
                             style={alertButtonStyle}

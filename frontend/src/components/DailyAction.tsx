@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useRef, useState, useContext } from 'react';
 import { useLocation } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../context/AuthContext';
@@ -20,7 +20,8 @@ import ClaudeIcon, { CLAUDE_ORANGE } from './header/ClaudeIcon';
  *
  * ⚠️ 出す条件
  *   ⚠️ `!isSp` … スマートフォンでは出さない（表が5列あり読めない）
- *   ⚠️ `category === 'order'` … 注文営業のみ
+ *   ⚠️ `category` が order / spec / used … ⚠️ v2.2.175 で建売・中古にも広げた（以前は注文営業のみ）
+ *     ⚠️ 表は 本日要連絡 → 未同期 → 来場日未入力（注文だけ） → 本日の予定（事業の工程）
  *   ⚠️⚠️ **`staff.check_daily_action` が本日でないこと**（サーバーが `show` で返す）
  *   ⚠️⚠️ **件数が0件のときは出さない**（見せるものが無い）
  *
@@ -51,6 +52,8 @@ type Row = {
     campaign?: string;
     /** ⚠️ 担当営業。⚠️ **未同期以外が持つ**（未同期はまだ担当が決まっていない） */
     staff?: string;
+    /** ⚠️ 連絡の種類（次回アクション ／ 次回架電）。⚠️ **本日要連絡だけが持つ**（v2.2.175） */
+    contact?: string;
 };
 
 type Section = {
@@ -60,6 +63,10 @@ type Section = {
     hasCampaign: boolean;
     /** ⚠️⚠️ **未同期以外 true**（2026-09-28）。⚠️ 未同期はまだ担当が決まっていない */
     hasStaff: boolean;
+    /** ⚠️ 連絡の種類の列（v2.2.175）。⚠️ **本日要連絡だけ true** */
+    hasContact?: boolean;
+    /** ⚠️ 目立たせる表（v2.2.175）。⚠️ **本日要連絡だけ true**（⚠️ カードの色を変える） */
+    highlight?: boolean;
     rows: Row[];
 };
 
@@ -77,7 +84,8 @@ type ListResponse = {
  *     ⚠️ 同期や入力を済ませた直後は、⚠️ **最大5分は古い件数が出る。**
  */
 const CACHE_MS = 5 * 60 * 1000;
-let cached: { at: number; promise: Promise<ListResponse> } | null = null;
+/** ⚠️ v2.2.175: 事業（category）ごとに中身が違うので ⚠️ **category も持つ**（⚠️ 違えば取り直す） */
+let cached: { at: number; category: string; promise: Promise<ListResponse> } | null = null;
 
 /**
  * ⚠️⚠️ **「確認しました」を押したらこのタブでは二度と出さない。**
@@ -86,11 +94,41 @@ let cached: { at: number; promise: Promise<ListResponse> } | null = null;
 let sessionChecked = false;
 
 /**
- * ⚠️⚠️ **自動では出さない画面。**
- *   ⚠️ `App.tsx` の「メニューを出す条件」と同じにしてある。
- *   ⚠️ ⚠️ **手動（ActiveUser の「要確認」ボタン）では出せる。**
+ * ⚠️⚠️ **要確認の対象外の画面。**
+ *   ⚠️ v2.2.175 修正: 以前は「自動では出さない（ボタンからは開ける）」だったが、
+ *     ⚠️ ⚠️ **ボタンからも開かない**（指示: home は DailyAction の対象外）。
+ *   ⚠️ `/` と `/home` はどちらも事業を選ぶ画面（Category.tsx）。
  */
-const NO_AUTO_OPEN: string[] = ['/home', '/login'];
+export const NO_DAILY_ACTION: string[] = ['/', '/home', '/login'];
+
+/**
+ * ⚠️⚠️ **事業を選んだか**（v2.2.175 修正）。
+ *   ⚠️ 指示: ⚠️ **Category.tsx で category が決まってから**要確認を出す。
+ *   ⚠️ AuthContext の category は前回の値が残っていることがあり、
+ *     ⚠️ それだけで出すと、事業を選ぶ前（ログイン直後など）に開いてしまう。
+ *   ⚠️ Category.tsx の goToDashboard が `markCategoryChosen()` を呼ぶ。
+ *   ⚠️ ⚠️ **sessionStorage に持つ**（⚠️ 同じタブで再読み込みしても選び直さなくてよい）。
+ *     ⚠️ 選んだ事業と今の category が違えば ⚠️ 未選択として扱う。
+ *     ⚠️ 読み書きできない環境では ⚠️ メモリの値だけで判定する。
+ */
+const CHOSEN_KEY = 'dailyActionCategory';
+let chosenCategory = '';
+export const markCategoryChosen = (category: string): void => {
+    chosenCategory = category;
+    try {
+        sessionStorage.setItem(CHOSEN_KEY, category);
+    } catch {
+        // ⚠️ 保存できなくてもメモリの値で動く
+    }
+};
+const isCategoryChosen = (category: string): boolean => {
+    if (chosenCategory === category) return true;
+    try {
+        return sessionStorage.getItem(CHOSEN_KEY) === category;
+    } catch {
+        return false;
+    }
+};
 
 /**
  * ⚠️⚠️ **外から開くための入口**（2026-09-28）。
@@ -139,6 +177,26 @@ const orDash = (value?: string): string => (value ?? '').trim() === '' ? '-' : (
  *   ⚠️ ⚠️ **店舗別カードはこの表の上にだけ出す。**
  */
 const UNSYNC_LABEL = '未同期';
+
+/** ⚠️ 要確認を出す事業（v2.2.175）。⚠️ サーバー（features/dailyAction.ts の DailyCategory）と同じ */
+export const DAILY_CATEGORIES: string[] = ['order', 'spec', 'used'];
+
+/**
+ * 表の見出しの id（v2.2.175）。⚠️ 上のカードを押すとここへ移る。
+ * ⚠️ 見出しの名前は日本語なので ⚠️ **並び順の番号**で作る（⚠️ 同じ表を2つ出すことは無い）。
+ */
+const sectionId = (index: number): string => `da-section-${index}`;
+
+/**
+ * カードを押したとき（v2.2.175）。⚠️ **モーダルの中の表まで移る**（⚠️ 画面は移らない）。
+ * ⚠️ Modal.Body だけがスクロールするので、⚠️ scrollIntoView でその中を動かす。
+ * ⚠️ href の `#…` は ⚠️ **URL を変えない**よう preventDefault する
+ *   （⚠️ URL が変わると「画面が変わった」と見なされ、要確認を開き直してしまう）。
+ */
+const jumpTo = (event: React.MouseEvent<HTMLAnchorElement>, index: number): void => {
+    event.preventDefault();
+    document.getElementById(sectionId(index))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 /**
  * 店舗名からブランドの色を引く（2026-09-30 追加）。
@@ -221,8 +279,22 @@ const DailyAction = () => {
         setShowReports(true);
     };
 
-    /** ⚠️ そもそも出す対象か。⚠️ **通信の前に判定する**（無駄な通信を避ける） */
-    const isTarget = !isSp && category === 'order';
+    /**
+     * ⚠️ そもそも出す対象か。⚠️ **通信の前に判定する**（無駄な通信を避ける）
+     * ⚠️ v2.2.175: 注文だけ → ⚠️ **注文・建売・中古**（指示書「全category表示」）。
+     *   ⚠️ planner などは対象外（⚠️ サーバーの DAILY_SOURCES に無い）。
+     */
+    const isTarget = !isSp && DAILY_CATEGORIES.includes(category);
+    /** ⚠️ v2.2.175 修正: 事業を選ぶ画面（`/`・`/home`）とログインでは ⚠️ **自動でもボタンでも出さない** */
+    const isExcludedPage = NO_DAILY_ACTION.includes(location.pathname);
+    /** ⚠️ ボタンの購読（下の useEffect）から今の画面を見るため */
+    const excludedRef = useRef(isExcludedPage);
+    excludedRef.current = isExcludedPage;
+
+    // ⚠️ 開いたまま事業を選ぶ画面へ戻ったら閉じる（⚠️ 確認済みにはしない）
+    useEffect(() => {
+        if (isExcludedPage) setOpen(false);
+    }, [isExcludedPage]);
 
     /**
      * 件数を取ってくる。
@@ -232,9 +304,10 @@ const DailyAction = () => {
      */
     const load = (force: boolean): Promise<ListResponse> => {
         const now = Date.now();
-        if (force || cached === null || now - cached.at > CACHE_MS) {
+        if (force || cached === null || cached.category !== category || now - cached.at > CACHE_MS) {
             cached = {
                 at: now,
+                category,
                 promise: apiClient
                     .post('', { request: 'daily_action', roll: 'list', category })
                     .then((response) => (response.data ?? {}) as ListResponse),
@@ -267,8 +340,10 @@ const DailyAction = () => {
     // --- 自動で出す（URL が変わるたび）---
     useEffect(() => {
         if (!isTarget || sessionChecked) return;
-        // ⚠️ トップとログインでは自動で出さない（⚠️ ボタンからは開ける）
-        if (NO_AUTO_OPEN.includes(location.pathname)) return;
+        // ⚠️ 事業を選ぶ画面とログインでは出さない（v2.2.175 修正: ボタンからも出さない）
+        if (isExcludedPage) return;
+        // ⚠️⚠️ **Category.tsx で事業を選んでから**（v2.2.175 修正）。⚠️ 前回の category が残っているだけでは出さない
+        if (!isCategoryChosen(category)) return;
 
         let alive = true;
         load(false)
@@ -289,6 +364,9 @@ const DailyAction = () => {
         if (!isTarget) return;
 
         const onOpen = () => {
+            // ⚠️ v2.2.175 修正: 事業を選ぶ画面では開かない（⚠️ ボタンも出していないが念のため）
+            //   ⚠️ window.location ではなく router の pathname（⚠️ 公開先のサブパスに左右されない）
+            if (excludedRef.current) return;
             // ⚠️⚠️ **押したときは取り直す。** ⚠️ 対応した直後に古い件数を見せない
             load(true)
                 .then((data) => {
@@ -456,6 +534,28 @@ const DailyAction = () => {
                 .da_kpi_card.is_alert .da_kpi_value { color: #b91c1c; }
                 .da_kpi_card.is_alert { background: #fef2f2; border-color: #fecaca; }
                 /* ⚠️ 最新の他社分析（v2.2.165）。⚠️ 押せるカード。⚠️ 新しいものがあるときだけ Claude の色にする */
+                /*
+                 * ⚠️ v2.2.175: カードは押せる（アンカー）。⚠️ 下線・青文字を消し、押せることは枠の色と矢印で示す。
+                 */
+                .da_kpi_link { display: block; text-decoration: none; color: inherit; cursor: pointer; }
+                .da_kpi_link:hover { border-color: #93c5fd; text-decoration: none; color: inherit; }
+                .da_kpi_link:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+                .da_kpi_link .da_kpi_label i { font-size: 8px; margin-left: 2px; }
+                /*
+                 * ⚠️ 本日要連絡（v2.2.175）。⚠️ **他のカードより目立たせる**（指示書）。
+                 *   ⚠️ 塗りつぶし＋白文字。⚠️ 色は放置の赤・ボタンの青と別の深緑（⚠️ 意味が混ざらないように）。
+                 */
+                .da_kpi_card.is_highlight { background: #0f766e; border-color: #0f766e;
+                                            box-shadow: 0 0 0 3px #ccfbf1; }
+                .da_kpi_card.is_highlight .da_kpi_label,
+                .da_kpi_card.is_highlight .da_kpi_value,
+                .da_kpi_card.is_highlight .da_kpi_value small { color: #fff; }
+                .da_kpi_card.is_highlight .da_kpi_label { font-weight: 700; }
+                .da_kpi_card.is_highlight:hover { border-color: #115e59; background: #115e59; }
+                .da_section_title.is_highlight { color: #0f766e; }
+                .da_contact { display: inline-block; border-radius: 999px; padding: 2px 8px;
+                              font-size: 11px; font-weight: 700; background: #ccfbf1; color: #115e59;
+                              white-space: nowrap; }
                 .da_report_card { text-align: left; cursor: pointer; background: #fff; }
                 .da_report_card:hover { border-color: ${CLAUDE_ORANGE}; }
                 .da_report_card:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
@@ -531,7 +631,7 @@ const DailyAction = () => {
                 {/* ⚠️ 但し書きが増えたので折り返す。⚠️ **狭い画面ではみ出さないように** */}
                 <div className='d-flex align-items-baseline flex-wrap' style={{ gap: '10px' }}>
                     <span className='da_title'>要確認</span>
-                    <span className='da_note'>対応が必要な顧客と、本日の予定です</span>
+                    <span className='da_note'>対応が必要な顧客と、本日の予定です（カードを押すと表へ移ります）</span>
                     {/* ⚠️⚠️ **本日ぶんを数えていないことを明示する**（2026-09-30 の指示） */}
                     <span className='da_note_strong'>本日の反響については未同期数に含みません</span>
                 </div>
@@ -544,16 +644,23 @@ const DailyAction = () => {
                 <div className='da_summary'>
                     <div className='da_kpi'>
                         {/* ⚠️ 0件のときはカードが1枚も出ない。⚠️ **ボタンだけが残る** */}
-                        {visible.map((section) => (
-                            <div
+                        {/*
+                          ⚠️ v2.2.175: カードは ⚠️ **押せる（アンカー）**。⚠️ 押すとモーダルの中の表へ移る（jumpTo）。
+                          ⚠️ 本日要連絡は ⚠️ **一番左・塗りつぶしで目立たせる**（highlight）。⚠️ 並びはサーバーが決めている。
+                        */}
+                        {visible.map((section, index) => (
+                            <a
                                 key={section.label}
-                                className={`da_kpi_card${section.hasDays ? ' is_alert' : ''}`}
+                                href={`#${sectionId(index)}`}
+                                onClick={(event) => jumpTo(event, index)}
+                                className={`da_kpi_card da_kpi_link${section.hasDays ? ' is_alert' : ''}${section.highlight ? ' is_highlight' : ''}`}
+                                title={`${section.label}の表へ移動`}
                             >
-                                <div className='da_kpi_label'>{section.label}</div>
+                                <div className='da_kpi_label'>{section.label} <i className='fa-solid fa-chevron-down' aria-hidden='true' /></div>
                                 <div className='da_kpi_value'>
                                     {section.rows.length.toLocaleString()}<small>件</small>
                                 </div>
-                            </div>
+                            </a>
                         ))}
                         {/*
                           ⚠️ 最新の他社分析（v2.2.165）。⚠️ **0件でも出す**（2026-10-06 の確認。⚠️ 他社分析への入口を兼ねる）。
@@ -593,10 +700,11 @@ const DailyAction = () => {
                     <div className='da_none'>対応が必要な顧客はありません。本日の予定もありません。</div>
                 )}
 
-                {visible.map((section) => (
-                    <div key={section.label} className='da_section'>
+                {visible.map((section, index) => (
+                    /* ⚠️ id は上のカードの移動先（v2.2.175）。⚠️ scroll-margin で少し余白を残して止める */
+                    <div key={section.label} id={sectionId(index)} className='da_section' style={{ scrollMarginTop: '8px' }}>
                         <div className='da_section_head'>
-                            <span className='da_section_title'>{section.label}</span>
+                            <span className={`da_section_title${section.highlight ? ' is_highlight' : ''}`}>{section.label}</span>
                             <span className='da_section_count'>{section.rows.length.toLocaleString()}件</span>
                         </div>
 
@@ -632,6 +740,8 @@ const DailyAction = () => {
                                         <th className='da_th'>顧客名</th>
                                         {/* ⚠️ 担当営業は**顧客名のすぐ右**（指示）。⚠️ 未同期には出さない */}
                                         {section.hasStaff && <th className='da_th' style={{ width: '120px' }}>担当営業</th>}
+                                        {/* ⚠️ 連絡の種類は**本日要連絡だけ**（v2.2.175） */}
+                                        {section.hasContact && <th className='da_th' style={{ width: '170px' }}>連絡</th>}
                                         <th className='da_th' style={{ width: '130px' }}>反響媒体</th>
                                         {/* ⚠️ キャンペーンは**未同期の表だけ**。⚠️ 右端に置く（指示） */}
                                         {section.hasCampaign && <th className='da_th' style={{ width: '170px' }}>キャンペーン</th>}
@@ -655,6 +765,9 @@ const DailyAction = () => {
                                                 <td className='da_td da_ellipsis' title={orUnset(row.staff ?? '')}>
                                                     {orUnset(row.staff ?? '')}
                                                 </td>
+                                            )}
+                                            {section.hasContact && (
+                                                <td className='da_td'><span className='da_contact'>{orUnset(row.contact ?? '')}</span></td>
                                             )}
                                             <td className='da_td da_muted'>{orUnset(row.medium)}</td>
                                             {section.hasCampaign && (

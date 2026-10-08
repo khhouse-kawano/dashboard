@@ -155,6 +155,8 @@ return [
 'memo_other_related_person',
 'memo_site_survey',
 'monthly_repayment_amount',
+// v2.2.175 追加（次回アクション日。3テーブルとも 2026-10-08_master_next_action_date.sql で追加）
+'next_action_date',
 'no',
 'planned_construction_site',
 'planned_construction_site_2',
