@@ -16,7 +16,8 @@ $sql = "INSERT IGNORE INTO inquiry_customer_resale
             reserved_time,
             brand,
             hp_campaign,
-            note
+            note,
+            category
             )
         SELECT 
             CONCAT('hp_resale_', no),                  -- 重複防止のため固有の接頭辞＋AUTO_INCREMENTのno
@@ -33,8 +34,12 @@ $sql = "INSERT IGNORE INTO inquiry_customer_resale
             `time`,                                    -- ご来店・参加希望時間
             '中古住宅専門店',
             event,                            -- 他のフォームと区別するためのキャンペーン名
-            remarks                                    -- 全項目を網羅した詳細テキスト
-        FROM 
+            remarks,                                   -- 全項目を網羅した詳細テキスト
+            -- ⚠️ v2.2.175: 取引区分。⚠️ 中古住宅専門店（ask@chuko-senmon.jp）の来場予約は 買い:中古リノベ。
+            --   ⚠️ 要確認（daily_action）の中古の未同期は category = 買い:中古リノベ だけを数えるため、
+            --   ⚠️ 空のままだと ⚠️ **未同期に出てこない**。
+            '買い:中古リノベ'
+        FROM
             reserve_resale
         WHERE
             `name` IS NOT NULL AND `name` != ''";
