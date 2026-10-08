@@ -156,6 +156,37 @@ const strapOf = (item: FestaRow): ('yellow' | 'red' | 'blue')[] =>
 const STRAP_COLOR = { yellow: '#ffd60a', red: '#e5383b', blue: '#1e6fd9' };
 const STRAP_LABEL = { yellow: '黄', red: '赤', blue: '青' };
 
+/**
+ * 相談内容（v2.2.173 追加）。⚠️ 相談内容（interview）・ご検討（request）・建築予定地（area）を
+ * ⚠️ **淡い色のチップ＋アイコン**で出す。⚠️ 下に無い値（キッチンカー・マルシェなど）は出さない。
+ *   ⚠️ 背景は淡く、⚠️ 文字とアイコンは同じ系統の濃い色（⚠️ 色が強いと見づらいため：指示書）。
+ *   ⚠️ title に元の文言（⚠️ マウスを乗せると見える）。
+ */
+type ConsultChip = { label: string; title: string; icon: string; bg: string; fg: string };
+const CONSULT_INTERVIEW: Record<string, Omit<ConsultChip, 'title'>> = {
+    '住宅相談': { label: '住宅', icon: 'fa-house', bg: '#e3eefc', fg: '#2b5a9e' },
+    '資金・ローン相談': { label: '資金', icon: 'fa-yen-sign', bg: '#fdf3d3', fg: '#8a6a0a' },
+    '土地探し相談': { label: '土地', icon: 'fa-map-location-dot', bg: '#e1f4e6', fg: '#2f7a45' },
+    '不動産売却相談': { label: '売却', icon: 'fa-handshake', bg: '#fce4ec', fg: '#a8385f' },
+};
+const CONSULT_REQUEST: Record<string, Omit<ConsultChip, 'title'>> = {
+    '注文住宅を検討している': { label: '注文', icon: 'fa-pen-ruler', bg: '#ede7f8', fg: '#5e3f9c' },
+    '建売住宅を検討している': { label: '建売', icon: 'fa-house-chimney', bg: '#dff4f7', fg: '#1d6f7d' },
+    '中古住宅を検討している': { label: '中古', icon: 'fa-key', bg: '#fdebdc', fg: '#a35418' },
+};
+const consultOf = (item: FestaRow): ConsultChip[] => {
+    // ⚠️ 並びは表の順（相談 → 検討 → エリア）で固定。⚠️ 入力の順に左右されない
+    const interviews = splitValues(item.interview);
+    const requests = splitValues(item.request);
+    const chips: ConsultChip[] = [
+        ...Object.entries(CONSULT_INTERVIEW).filter(([v]) => interviews.includes(v)).map(([v, c]) => ({ ...c, title: v })),
+        ...Object.entries(CONSULT_REQUEST).filter(([v]) => requests.includes(v)).map(([v, c]) => ({ ...c, title: v })),
+    ];
+    const area = String(item.area ?? '').trim();
+    if (area !== '') chips.push({ label: area, title: `建築予定地：${area}`, icon: 'fa-location-dot', bg: '#eceef1', fg: '#4a5361' });
+    return chips;
+};
+
 // ---------------------------------------------------------------------------
 // ⚠️ ここから下の4つは EventList.tsx と同じ（集計表・同期で使う）
 // ---------------------------------------------------------------------------
@@ -244,8 +275,8 @@ const stickyStyle = (i: number): React.CSSProperties => ({
     left: STICKY_LEFT[i], width: STICKY_WIDTH[i], minWidth: STICKY_WIDTH[i], maxWidth: STICKY_WIDTH[i],
 });
 
-/** 表の列数（同期〜担当営業の10列 ＋ 営業入力 7ブランド×2） */
-const COLUMN_COUNT = 10 + FESTA_BRANDS.length * FESTA_KINDS.length;
+/** 表の列数（同期〜担当営業の11列（⚠️ v2.2.173 で相談内容を追加） ＋ 営業入力 7ブランド×2） */
+const COLUMN_COUNT = 11 + FESTA_BRANDS.length * FESTA_KINDS.length;
 
 type Props = {
     show: boolean;
@@ -560,6 +591,9 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         .fe_toggle:focus-visible { outline: 2px solid #5e72e4; outline-offset: 2px; }
                         .fe_toggle[data-on="1"][data-brand] { background: var(--fe-brand); }
                         .fe_tbl thead tr th.fe_brand { background-color: var(--fe-brand) !important; color: #fff !important; font-weight: 700; }
+                        .fe_consult_cell { white-space: normal; min-width: 200px; max-width: 240px; }
+                        .fe_consult { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; margin: 1px 3px 1px 0; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
+                        .fe_consult i { font-size: 10px; }
                         .fe_ticket { display: inline-block; min-width: 64px; padding: 2px 8px; border-radius: 999px; color: #fff; font-weight: 700; text-align: center; }
                         /*
                           ⚠️ 固定列（v2.2.172 追加指示）: 同期・顧客名・ふりがな の3列を左に固定する。
@@ -654,7 +688,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                     {error && <Alert variant="danger" className="py-1 px-2 mb-2" style={{ fontSize: '11px' }}>{error}</Alert>}
 
                     <div className="bg-white rounded shadow-sm border table-responsive">
-                        <Table hover className="m-0 text-nowrap fe_tbl" style={{ minWidth: '2000px' }}>
+                        <Table hover className="m-0 text-nowrap fe_tbl" style={{ minWidth: '2200px' }}>
                             {/*
                               ⚠️ 見出しは3段。⚠️ 指示書の rowSpan / colSpan は入れ替わっていると判断した（2026-10-08 の計画で合意）。
                                 1段目: 同期〜担当営業（縦に3段ぶん）＋ 営業入力（横に14列ぶん）
@@ -667,6 +701,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                     <th rowSpan={3} className="fe_stick" style={{ ...thStyle, ...stickyStyle(1) }}>顧客名</th>
                                     <th rowSpan={3} className="fe_stick fe_stick_last" style={{ ...thStyle, ...stickyStyle(2) }}>ふりがな</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '70px' }}>ストラップ</th>
+                                    <th rowSpan={3} style={{ ...thStyle, width: '220px' }}>相談内容</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '110px' }}>来場日</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '70px' }}>来場時間</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '80px' }}>チケット</th>
@@ -712,6 +747,13 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                             <td className="text-center">
                                                 {strapOf(item).map(color => (
                                                     <span key={color} className="fe_strap" style={{ backgroundColor: STRAP_COLOR[color] }} title={STRAP_LABEL[color]} aria-label={STRAP_LABEL[color]} role="img" />
+                                                ))}
+                                            </td>
+                                            <td className="fe_consult_cell">
+                                                {consultOf(item).map(chip => (
+                                                    <span key={chip.title} className="fe_consult" style={{ backgroundColor: chip.bg, color: chip.fg }} title={chip.title}>
+                                                        <i className={`fa-solid ${chip.icon}`} aria-hidden="true"></i>{chip.label}
+                                                    </span>
                                                 ))}
                                             </td>
                                             <td>{item.date || ''}</td>
