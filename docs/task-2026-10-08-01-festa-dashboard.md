@@ -1015,3 +1015,245 @@ index 4aa52fa2..92a6b5fb 100644
                  共通モーダルの外（ここ）に置く */}
              <EventBudget show={eventBudget} setShow={setEventBudget} />
 ```
+
+
+---
+
+## 追加対応（同日）
+| 指示 | 対応 |
+|---|---|
+| チケットの色を3色に分ける | 3,000円分＝紫 `#6f42c1`／2,000円＝青緑 `#0f9d8a`／1,000円＝灰青 `#5a6b7b` の角丸ラベル（白文字）。なし・－ は色なし。⚠️ ブランド色・ストラップ色とかぶらない色を選んだ（指定なし） |
+| ブランドの色を分ける | 2段目のブランド見出しをブランド色で塗り、オンのトグルもブランド色にした。色は **`utils/setStyleClass.ts` から借りる**（KH ネイビー `#0f3675`／DJH シアン `#28aeba`／なごみ 茶 `#956134`／2L 緑 `#0d9f6d`／PGH 黒／かえる 緑 `#0d6d4b`）。⚠️ 中専は対応表に無いのでオレンジ `#ff7f0e`（setStyleClassUsed.ts と同じ）を直接指定 |
+| 同期・顧客名・ふりがなを固定列に | `position: sticky`（幅 90／130／130px、left は `STICKY_LEFT`）。背景は `--bs-table-bg`（同期済みの行の色も保つ）。ふりがなの右に境界線 |
+| 来場日・来場時間を検索の右に | 反響一覧と同じ select で絞り込み（時間は「10:00」と「10:00~」を同一視）。⚠️ 指示は「ソート」だが、反響一覧に合わせて絞り込みにした |
+
+- フロント build `main.f6ec89af.js`（FestaDashboard に警告なし）
+
+### 差分（FestaDashboard.tsx・前回コミットから）
+```diff
+diff --git a/frontend/src/components/header/FestaDashboard.tsx b/frontend/src/components/header/FestaDashboard.tsx
+index 657cdc46..97d3d081 100644
+--- a/frontend/src/components/header/FestaDashboard.tsx
++++ b/frontend/src/components/header/FestaDashboard.tsx
+@@ -6,6 +6,7 @@ import { generateULID } from '../../utils/createULID';
+ import { thisYear } from '../../utils/thisYear';
+ import AuthContext from '../../context/AuthContext';
+ import { filterReportShops, sortShops, MasterShop } from './useAmbassadorMaster';
++import { setStyleClass } from '../../utils/setStyleClass';
+ 
+ /**
+  * おうちづくりフェスタ2026（v2.2.172 新規）。ヘッダー → 集客イベント → おうちづくりフェスタ2026。
+@@ -77,6 +78,37 @@ const FESTA_KINDS: { key: 'interview' | 'next'; label: string }[] = [
+     { key: 'next', label: '次アポ' },
+ ];
+ 
++/**
++ * ブランドの色（v2.2.172 追加指示）。
++ *
++ * ⚠️⚠️ **色は `utils/setStyleClass.ts`（反響一覧 ListOrder.tsx などのブランド色）から借りる。**
++ *   ⚠️ ここに色を書き写さない（⚠️ ブランド色を変えたときに片方だけ古くなる）。
++ *   ⚠️ setStyleClass は店舗名の先頭2文字で引くので、⚠️ 表記をその2文字に読み替える。
++ *     KH → 'KH'（ネイビー）／ DJH → 'DJ'（シアン）／ なごみ → 'なご'（茶）／ 2L → '2L'（緑）／
++ *     PGH → 'PG'（黒）／ かえる → 'かえ'（緑）
++ * ⚠️ 中専（中古住宅専門店）は setStyleClass に無いので ⚠️ **オレンジを直接指定**
++ *   （⚠️ utils/setStyleClassUsed.ts の「買い:ポータル」と同じ #ff7f0e）。
++ */
++const BRAND_SHOP_PREFIX: Record<string, string> = {
++    KH: 'KH', DJH: 'DJ', なごみ: 'なご', '2L': '2L', PGH: 'PG', かえる: 'かえ',
++};
++const brandColorOf = (brand: string): string => {
++    if (brand === '中専') return '#ff7f0e';
++    const color = setStyleClass(BRAND_SHOP_PREFIX[brand] ?? '').backgroundColor;
++    return typeof color === 'string' && color !== '' ? color : '#8898aa';
++};
++
++/**
++ * チケットの色（v2.2.172 追加指示: 3色に分ける）。⚠️ 文字は白、角丸のラベルで出す。
++ * ⚠️ ブランド色・ストラップの色（黄・赤・青）と ⚠️ **かぶらない色**にしている。
++ * ⚠️「なし」「－」は色を付けない。
++ */
++const TICKET_COLOR: Record<string, string> = {
++    '3,000円分': '#6f42c1',
++    '2,000円': '#0f9d8a',
++    '1,000円': '#5a6b7b',
++};
++
+ /** 営業入力の JSON を読む。⚠️ 無い・壊れているときは {}（⚠️ 画面の既定は FALSE） */
+ const parseFesta = (value: string | null): Record<string, boolean> => {
+     if (!value) return {};
+@@ -202,6 +234,16 @@ type EditField = (typeof EDIT_FIELDS)[number];
+ /** ⚠️ 1回に描く行数。⚠️ スクロールが届くたびに増やす（EventList.tsx と同じ） */
+ const PAGE_SIZE = 20;
+ 
++/**
++ * 固定列の幅と左端（v2.2.172）。⚠️ 同期・顧客名・ふりがな の3列。
++ * ⚠️ 幅を固定しないと left がずれて重なる。⚠️ 見出しと各行の両方でこの値を使う。
++ */
++const STICKY_WIDTH = [90, 130, 130];
++const STICKY_LEFT = [0, STICKY_WIDTH[0], STICKY_WIDTH[0] + STICKY_WIDTH[1]];
++const stickyStyle = (i: number): React.CSSProperties => ({
++    left: STICKY_LEFT[i], width: STICKY_WIDTH[i], minWidth: STICKY_WIDTH[i], maxWidth: STICKY_WIDTH[i],
++});
++
+ /** 表の列数（同期〜担当営業の10列 ＋ 営業入力 7ブランド×2） */
+ const COLUMN_COUNT = 10 + FESTA_BRANDS.length * FESTA_KINDS.length;
+ 
+@@ -217,6 +259,13 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+     const [error, setError] = useState<string | null>(null);
+     /** ⚠️ 名前・ふりがなで探す（⚠️ 当日、来場者をすぐ見つけるため） */
+     const [keyword, setKeyword] = useState('');
++    /**
++     * 来場日・来場時間の絞り込み（v2.2.172 追加指示）。⚠️ 反響一覧（EventList.tsx）と同じ選び方。
++     *   来場日 … `event_db.date` の値そのまま（例: 2026/10/10(土)）
++     *   来場時間 … normalizeTime を通した値（⚠️「10:00」と「10:00~」を同じ時刻として扱う）
++     */
++    const [targetDate, setTargetDate] = useState('');
++    const [targetTime, setTargetTime] = useState('');
+     /** ⚠️ 保存中のトグル（`id:key`）。⚠️ 連打で二重に送らない */
+     const [savingKey, setSavingKey] = useState('');
+ 
+@@ -315,13 +364,27 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+         return { dates, times, interviews, requests, lines, sum };
+     }, [data]);
+ 
++    /** 来場日・来場時間の選択肢（⚠️ 空の値は出さない。⚠️ 時間は早い順） */
++    const dateOptions = useMemo(
++        () => Array.from(new Set(data.map(item => (item.date || '').trim()).filter(v => v !== ''))).sort(),
++        [data]
++    );
++    const timeOptions = useMemo(
++        () => Array.from(new Set(data.map(item => normalizeTime(item.time)).filter(v => v !== '')))
++            .sort((a, b) => timeOrder(a) - timeOrder(b) || a.localeCompare(b)),
++        [data]
++    );
++
+     const filtered = useMemo(() => {
+         const word = keyword.trim();
+-        const rows = word === ''
+-            ? data
+-            : data.filter(item => (item.name || '').includes(word) || (item.kana || '').includes(word));
++        const rows = data.filter(item =>
++            (word === '' || (item.name || '').includes(word) || (item.kana || '').includes(word)) &&
++            (targetDate === '' || (item.date || '').trim() === targetDate) &&
++            // ⚠️ 選択肢と同じく normalizeTime を通して比べる
++            (targetTime === '' || normalizeTime(item.time) === targetTime)
++        );
+         return [...rows].sort((a, b) => Number(b.no) - Number(a.no));
+-    }, [data, keyword]);
++    }, [data, keyword, targetDate, targetTime]);
+ 
+     // --- スクロールに合わせて描く行を増やす（EventList.tsx と同じ） ---
+     const [displayLength, setDisplayLength] = useState(PAGE_SIZE);
+@@ -329,7 +392,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+ 
+     useEffect(() => {
+         setDisplayLength(PAGE_SIZE);
+-    }, [keyword]);
++    }, [keyword, targetDate, targetTime]);
+ 
+     useEffect(() => {
+         const total = filtered.length;
+@@ -495,6 +558,17 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+                         .fe_toggle .fe_knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .15s; }
+                         .fe_toggle[data-on="1"] .fe_knob { transform: translateX(16px); }
+                         .fe_toggle:focus-visible { outline: 2px solid #5e72e4; outline-offset: 2px; }
++                        .fe_toggle[data-on="1"][data-brand] { background: var(--fe-brand); }
++                        .fe_ticket { display: inline-block; min-width: 64px; padding: 2px 8px; border-radius: 999px; color: #fff; font-weight: 700; text-align: center; }
++                        /*
++                          ⚠️ 固定列（v2.2.172 追加指示）: 同期・顧客名・ふりがな の3列を左に固定する。
++                            ⚠️ left は列幅の合計（STICKY_LEFT）。⚠️ 列幅を変えたらそちらも直すこと。
++                            ⚠️ 背景色が無いと、横スクロールした列が透けて見える。
++                              td は Bootstrap の --bs-table-bg（同期済みの行は table-primary の色）で塗る。
++                        */
++                        .fe_tbl .fe_stick { position: sticky; z-index: 2; background-color: var(--bs-table-bg, #fff); }
++                        .fe_tbl thead .fe_stick { z-index: 3; background-color: #f6f9fc; }
++                        .fe_tbl .fe_stick_last { box-shadow: inset -2px 0 0 #ced4da; }
+                     `}</style>
+ 
+                     {/* 上部の操作。⚠️ EventList.tsx と同じく上に固定する */}
+@@ -513,6 +587,15 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+                             value={keyword}
+                             onChange={(e) => setKeyword(e.target.value)}
+                         />
++                        {/* ⚠️ 来場日・来場時間（v2.2.172 追加指示）。⚠️ 検索の右 */}
++                        <select style={{ ...inputStyle, width: 'auto' }} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} aria-label="来場日">
++                            <option value="">来場日を選択</option>
++                            {dateOptions.map(v => <option key={v} value={v}>{v}</option>)}
++                        </select>
++                        <select style={{ ...inputStyle, width: 'auto' }} value={targetTime} onChange={(e) => setTargetTime(e.target.value)} aria-label="来場時間">
++                            <option value="">来場時間を選択</option>
++                            {timeOptions.map(v => <option key={v} value={v}>{v}</option>)}
++                        </select>
+                         <span style={{ fontSize: '11px', color: '#8898aa' }}>
+                             予約 {data.length.toLocaleString()}件 ／ チェックイン {checkedIn.toLocaleString()}件
+                         </span>
+@@ -579,9 +662,9 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+                             */}
+                             <thead>
+                                 <tr>
+-                                    <th rowSpan={3} style={{ ...thStyle, width: '90px' }}>同期</th>
+-                                    <th rowSpan={3} style={{ ...thStyle, width: '120px' }}>顧客名</th>
+-                                    <th rowSpan={3} style={{ ...thStyle, width: '120px' }}>ふりがな</th>
++                                    <th rowSpan={3} className="fe_stick" style={{ ...thStyle, ...stickyStyle(0) }}>同期</th>
++                                    <th rowSpan={3} className="fe_stick" style={{ ...thStyle, ...stickyStyle(1) }}>顧客名</th>
++                                    <th rowSpan={3} className="fe_stick fe_stick_last" style={{ ...thStyle, ...stickyStyle(2) }}>ふりがな</th>
+                                     <th rowSpan={3} style={{ ...thStyle, width: '70px' }}>ストラップ</th>
+                                     <th rowSpan={3} style={{ ...thStyle, width: '110px' }}>来場日</th>
+                                     <th rowSpan={3} style={{ ...thStyle, width: '70px' }}>来場時間</th>
+@@ -593,7 +676,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+                                 </tr>
+                                 <tr>
+                                     {FESTA_BRANDS.map(brand => (
+-                                        <th key={brand} colSpan={FESTA_KINDS.length} className="fe_sep" style={thStyle}>{brand}</th>
++                                        <th key={brand} colSpan={FESTA_KINDS.length} className="fe_sep"
++                                            style={{ ...thStyle, backgroundColor: brandColorOf(brand), color: '#fff', fontWeight: 700 }}>{brand}</th>
+                                     ))}
+                                 </tr>
+                                 <tr>
+@@ -607,7 +691,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+                                     const festa = parseFesta(item.festa);
+                                     return (
+                                         <tr key={item.id} className={item.sync === 1 ? 'table-primary' : ''}>
+-                                            <td className="text-center fw-bold" style={{ fontSize: '10px' }}>
++                                            <td className="text-center fw-bold fe_stick" style={{ fontSize: '10px', ...stickyStyle(0) }}>
+                                                 <div className="d-flex align-items-center gap-1">
+                                                     <span>{index + 1}</span>
+                                                     {item.sync === 1
+@@ -616,8 +700,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+                                                 </div>
+                                                 {item.shop && <div className="text-start fw-normal mt-1" style={{ fontSize: '9px', color: '#525f7f', whiteSpace: 'normal', lineHeight: 1.2 }}>{item.shop}</div>}
+                                             </td>
+-                                            <td><input type="text" style={inputStyle} ref={setRef(item.id, 'name')} defaultValue={item.name ?? ''} onBlur={() => handleBlur(item.id, 'name')} /></td>
+-                                            <td><input type="text" style={inputStyle} ref={setRef(item.id, 'kana')} defaultValue={item.kana ?? ''} onBlur={() => handleBlur(item.id, 'kana')} /></td>
++                                            <td className="fe_stick" style={stickyStyle(1)}><input type="text" style={inputStyle} ref={setRef(item.id, 'name')} defaultValue={item.name ?? ''} onBlur={() => handleBlur(item.id, 'name')} /></td>
++                                            <td className="fe_stick fe_stick_last" style={stickyStyle(2)}><input type="text" style={inputStyle} ref={setRef(item.id, 'kana')} defaultValue={item.kana ?? ''} onBlur={() => handleBlur(item.id, 'kana')} /></td>
+                                             <td className="text-center">
+                                                 {strapOf(item).map(color => (
+                                                     <span key={color} className="fe_strap" style={{ backgroundColor: STRAP_COLOR[color] }} title={STRAP_LABEL[color]} aria-label={STRAP_LABEL[color]} role="img" />
+@@ -625,7 +709,15 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+                                             </td>
+                                             <td>{item.date || ''}</td>
+                                             <td>{item.time || ''}</td>
+-                                            <td className="fw-bold text-end">{ticketOf(item)}</td>
++                                            <td className="text-center">
++                                                {(() => {
++                                                    const ticket = ticketOf(item);
++                                                    const color = TICKET_COLOR[ticket];
++                                                    return color
++                                                        ? <span className="fe_ticket" style={{ backgroundColor: color }}>{ticket}</span>
++                                                        : <span className="text-muted">{ticket}</span>;
++                                                })()}
++                                            </td>
+                                             <td><input type="text" style={inputStyle} placeholder="2026/10/10 10:05" ref={setRef(item.id, 'check_in_time')} defaultValue={item.check_in_time ?? ''} onBlur={() => handleBlur(item.id, 'check_in_time')} /></td>
+                                             <td><input type="text" style={inputStyle} placeholder="2026/10/10 11:30" ref={setRef(item.id, 'check_out_time')} defaultValue={item.check_out_time ?? ''} onBlur={() => handleBlur(item.id, 'check_out_time')} /></td>
+                                             <td><input type="text" style={inputStyle} placeholder="担当営業" ref={setRef(item.id, 'staff')} defaultValue={item.staff ?? ''} onBlur={() => handleBlur(item.id, 'staff')} /></td>
+@@ -638,6 +730,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
+                                                             type="button"
+                                                             className="fe_toggle"
+                                                             data-on={on ? '1' : '0'}
++                                                            data-brand={brand}
++                                                            style={{ ['--fe-brand' as string]: brandColorOf(brand) } as React.CSSProperties}
+                                                             aria-pressed={on}
+                                                             aria-label={`${item.name} の ${brand} ${kind.label}`}
+                                                             disabled={savingKey === `${item.id}:${key}`}
+```

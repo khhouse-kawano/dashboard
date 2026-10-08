@@ -81,12 +81,12 @@ dcp up -d express-api
 
 | ファイル | |
 |---|---|
-| ⚠️⚠️ **`static/js/main.98adbab9.js`** | ⚠️ **この版の本体** |
+| ⚠️⚠️ **`static/js/main.f6ec89af.js`** | ⚠️ **この版の本体** |
 | `static/css/main.7c10f266.css` | ⚠️ 変更なし |
 | ⚠️ `index.html` | ⚠️⚠️ **必ず差し替えること** |
 
 ```
-main.98adbab9.js   ← ⚠️⚠️ これが v2.2.172（正）
+main.f6ec89af.js   ← ⚠️⚠️ これが v2.2.172（正）
 main.9bc29f7e.js   … v2.2.171
 ```
 
