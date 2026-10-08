@@ -60,13 +60,16 @@ if ($function && $function === 'update') {
     //   check_out_time      … 退場時刻。受付運用で使う
     //   remarks             … 社内メモ。原本ではないので自由に書ける
     //   staff               … 担当スタッフ（v2.2.171。自由入力。⚠️ 先に ALTER を流すこと）
+    //   kana                … ふりがな（v2.2.172。フェスタ当日画面 FestaDashboard.tsx で直せるように）
     //   sync                … 顧客への取り込み済みフラグ
     //
     // ⚠️ ここに列を戻すときは EventList.tsx 側の入力欄も合わせること。
     //   片方だけ変えると、画面では編集できるのに保存されない（無言で消える）。
     $allowed_columns = [
         'name', 'phone', 'mail',
-        'check_in_time', 'check_out_time', 'remarks', 'staff', 'sync'
+        'check_in_time', 'check_out_time', 'remarks', 'staff', 'sync',
+        // ⚠️ v2.2.172 追加（② の ALLOWED_COLUMNS と揃える）
+        'kana'
     ];
 
     $update_fields = [];
@@ -101,5 +104,56 @@ if ($function && $function === 'update') {
         echo json_encode(['status' => 'error', 'message' => 'DBエラー: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
     }
     
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// 営業入力（event_db.festa の JSON）の1項目を書く。v2.2.172。
+//
+// ⚠️ ② の features/list/event.ts の runFesta と同じ処理（⚠️ ② が落ちたときのフォールバック）。
+// ⚠️⚠️ JSON を丸ごと上書きしない。JSON_SET で1つのキーだけ書く（同時に押しても他の人の値を消さない）。
+// ⚠️ キーは下の一覧にあるものだけ（⚠️ JSON のパスを外から自由に書かせない）。
+// ⚠️ true / false は SQL のリテラルで埋める（⚠️ 値は bool から作るので外部の文字は入らない）。
+// ---------------------------------------------------------------------------
+if ($function && $function === 'festa') {
+
+    $id    = isset($data['id']) && is_string($data['id']) ? trim($data['id']) : '';
+    $key   = isset($data['key']) && is_string($data['key']) ? $data['key'] : '';
+    $value = $data['value'] ?? null;
+
+    $brands = ['KH', 'DJH', 'なごみ', '2L', 'PGH', 'かえる', '中専'];
+    $keys   = [];
+    foreach ($brands as $brand) {
+        $keys[] = $brand . '_interview';
+        $keys[] = $brand . '_next';
+    }
+
+    if ($id === '') {
+        echo json_encode(['status' => 'error', 'message' => 'IDが指定されていません'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!in_array($key, $keys, true)) {
+        echo json_encode(['status' => 'error', 'message' => '項目が正しくありません'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!is_bool($value)) {
+        echo json_encode(['status' => 'error', 'message' => '値が正しくありません'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $literal = $value ? 'TRUE' : 'FALSE';
+
+    try {
+        $stmt = $pdo->prepare(
+            "UPDATE event_db SET festa = JSON_SET(IF(JSON_VALID(festa), festa, '{}'), :path, {$literal}) WHERE id = :id"
+        );
+        $stmt->execute([':path' => '$."' . $key . '"', ':id' => $id]);
+
+        echo json_encode(['status' => 'success', 'message' => '更新が完了しました'], JSON_UNESCAPED_UNICODE);
+    } catch (PDOException $e) {
+        // ⚠️ DB のエラー本文は返さない（② と同じ）
+        error_log('list_event festa failed: ' . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => '更新に失敗しました'], JSON_UNESCAPED_UNICODE);
+    }
+
     exit;
 }
