@@ -5,7 +5,7 @@ import AuthContext from '../../context/AuthContext';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import SurveyList from '../Survey';
 import CancelList from '../CancelList';
-import CallStatusList from '../CallStatusList';
+import CallStatusList from '../header/CallStatusList';
 import LostStatusList from '../LostStatusList';
 import InformationEdit from '../information/InformationEdit';
 import { useIsSp } from '../../utils/isSp';

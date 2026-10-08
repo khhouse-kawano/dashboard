@@ -5,7 +5,7 @@ import Table from "react-bootstrap/Table";
 import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
-import CallStatusList from '../CallStatusList';
+import CallStatusList from '../header/CallStatusList';
 import InformationEditKaeru from '../information/InformationEditKaeru';
 import IntegrateModal from './IntegrateModal';
 import { useIsSp } from '../../utils/isSp';
