@@ -254,7 +254,12 @@ const unsyncSql = (inquiry: string): string => `
      AND COALESCE(i.support_flag, 0) <> 1
      AND COALESCE(i.black_flag, 0) <> 1
      AND TRIM(COALESCE(i.first_name, '')) <> ''
-     AND SUBSTRING(i.inquiry_date, 1, 7) BETWEEN ? AND DATE_FORMAT(NOW(), '%Y/%m')
+     /*
+       ⚠️ v2.2.175: '-' を '/' に揃えてから比べる。⚠️ 建売（inquiry_customer_kaeru）に 'YYYY-MM-DD' が混ざっている
+         （ローカル実測 405件）。⚠️ 揃えないと '-' は '/' より小さいので ⚠️ **期間の判定から黙って落ちる。**
+       ⚠️ 注文（inquiry_customer）は '-' が0件なので結果は変わらない（⚠️ menu.ts の件数とも一致したまま）。
+     */
+     AND REPLACE(SUBSTRING(i.inquiry_date, 1, 7), '-', '/') BETWEEN ? AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), ${INQUIRY_DATE}) > 0
    ORDER BY days DESC
    LIMIT ?
@@ -449,9 +454,17 @@ const fetchContacts = async (master: string): Promise<ContactRow[]> => {
 
 /**
  * 未同期を数え始める月。
- * ⚠️ menu.ts の `SYNC_START_MONTH` と同じ。⚠️ **片方だけ変えると件数がずれる。**
+ * ⚠️ 注文は menu.ts の `SYNC_START_MONTH` と同じ。⚠️ **片方だけ変えると件数がずれる。**
+ * ⚠️⚠️ v2.2.175 修正: **建売・中古は 2026/08 から**（指示）。
+ *   ⚠️ 2026年7月までの inquiry_customer_kaeru / inquiry_customer_resale は未同期として数えない
+ *     （⚠️ 建売・中古は反響を全部は同期しない運用で、⚠️ 過去分を数えると数百件になっていた）。
+ * ⚠️ ① の daily_action.php の $sync_start_months と同じにすること。
  */
-const SYNC_START_MONTH = '2025/06';
+const SYNC_START_MONTH: Record<DailyCategory, string> = {
+  order: '2025/06',
+  spec: '2026/08',
+  used: '2026/08',
+};
 
 /**
  * 1つの表に出す上限。
@@ -573,7 +586,7 @@ export const runDailyAction = async (
   // ⚠️ クエリは互いに独立しているので並列で投げる
   const [contact, unsync, cancel, todayRaw, checked] = await Promise.all([
     fetchContacts(source.master),
-    query<AttentionRow>(unsyncSql(source.inquiry), [SYNC_START_MONTH, ROW_LIMIT]),
+    query<AttentionRow>(unsyncSql(source.inquiry), [SYNC_START_MONTH[category], ROW_LIMIT]),
     // ⚠️ 来場日未入力は注文だけ（v2.2.175 合意）。⚠️ reserved_interview は注文の運用
     source.hasCancel ? query<AttentionRow>(CANCEL_SQL, [ROW_LIMIT]) : Promise.resolve([] as AttentionRow[]),
     query<TodayRow>(todaySql(source), [...source.columns, ROW_LIMIT]),

@@ -183,9 +183,12 @@ $step_label_of = function (string $column, string $deal) use ($daily_category, $
 
 /**
  * 未同期を数え始める月。
- * ⚠️ menu.php の $sync_start_month と同じ。⚠️ **片方だけ変えると件数がずれる。**
+ * ⚠️ 注文は menu.php の $sync_start_month と同じ。⚠️ **片方だけ変えると件数がずれる。**
+ * ⚠️⚠️ v2.2.175 修正: **建売・中古は 2026/08 から**（指示）。2026年7月までは未同期として数えない。
+ * ⚠️ Express の dailyAction.ts の SYNC_START_MONTH と同じにすること。
  */
-$sync_start_month = '2025/06';
+$sync_start_months = ['order' => '2025/06', 'spec' => '2026/08', 'used' => '2026/08'];
+$sync_start_month = $sync_start_months[$daily_category];
 
 /**
  * 1つの表に出す上限。
@@ -217,7 +220,8 @@ $sql_unsync = "SELECT 'unsync' AS kind,
      AND COALESCE(i.support_flag, 0) <> 1
      AND COALESCE(i.black_flag, 0) <> 1
      AND TRIM(COALESCE(i.first_name, '')) <> ''
-     AND SUBSTRING(i.inquiry_date, 1, 7) BETWEEN :start_month AND DATE_FORMAT(NOW(), '%Y/%m')
+     /* ⚠️ v2.2.175: '-' を '/' に揃えて比べる（⚠️ 建売に 'YYYY-MM-DD' が混ざる。⚠️ 注文は0件なので結果は同じ） */
+     AND REPLACE(SUBSTRING(i.inquiry_date, 1, 7), '-', '/') BETWEEN :start_month AND DATE_FORMAT(NOW(), '%Y/%m')
      AND DATEDIFF(CURDATE(), $inquiry_date) > 0
    ORDER BY days DESC
    LIMIT $row_limit";
