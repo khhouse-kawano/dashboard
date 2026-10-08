@@ -25,6 +25,7 @@ import AmbassadorList from './AmbassadorList';
 import { InquiryAmbassador } from './InquiryAmbassador';
 import InquiryIntroductory from './InquiryIntroductory';
 import EventList from './EventList';
+import FestaDashboard from './FestaDashboard';
 import EventSummary from './EventSummary';
 import EventBudget from './EventBudget';
 import GoogleReview from './GoogleReview';
@@ -61,6 +62,11 @@ const Header = ({ }) => {
      *   共通モーダルの中に入れるとモーダルが二重になる。
      */
     const [eventSummary, setEventSummary] = useState<boolean>(false);
+    /**
+     * おうちづくりフェスタ2026（v2.2.172）。⚠️ イベント当日に使う画面。
+     * ⚠️ FestaDashboard も自前の fullscreen モーダルを持つので、EventList と同じく専用の state で開く。
+     */
+    const [showFesta, setShowFesta] = useState<boolean>(false);
     /**
      * 広告費入力の表示。
      *
@@ -178,7 +184,8 @@ const Header = ({ }) => {
         ],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
         '紹介キャンペーン': ['反響一覧'],
-        '集客イベント': ['反響一覧', '集客サマリー', '広告費入力'],
+        // ⚠️ v2.2.172: 「おうちづくりフェスタ2026」を追加（⚠️ イベント当日用。FestaDashboard.tsx）
+        '集客イベント': ['反響一覧', '集客サマリー', '広告費入力', 'おうちづくりフェスタ2026'],
         'Google口コミ': ['口コミ集計']
     };
 
@@ -393,6 +400,11 @@ const Header = ({ }) => {
                                             setEventBudget(true);
                                             return;
                                         }
+                                        // ⚠️ おうちづくりフェスタ2026（v2.2.172）も自前の fullscreen モーダル
+                                        if (menu === '集客イベント' && item === 'おうちづくりフェスタ2026') {
+                                            setShowFesta(true);
+                                            return;
+                                        }
                                         // ⚠️ ローン情報更新も自前のモーダル（md）を持つ（v2.2.168）
                                         if (menu === 'システム管理' && item === 'ローン情報更新') {
                                             setUploadLoan(true);
@@ -515,6 +527,9 @@ const Header = ({ }) => {
                 ⚠️ 以前は ListOrder（反響一覧の画面内ボタン）から開いていた。
                 2026-09-06 にヘッダーへ移した */}
             <EventList eventSummary={eventSummary} setEventSummary={setEventSummary} />
+
+            {/* おうちづくりフェスタ2026（v2.2.172）。⚠️ 自前の fullscreen モーダル。⚠️ データは開いたときに取る */}
+            <FestaDashboard show={showFesta} setShow={setShowFesta} />
 
             {/* 広告費入力。⚠️ 集客サマリーの上に重ねて開くこともあるため、
                 共通モーダルの外（ここ）に置く */}
