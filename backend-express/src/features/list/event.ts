@@ -11,6 +11,7 @@ import type { SqlParam } from '../../db/pool';
  * ⚠️⚠️ **1つの roll で参照と書き込みを兼ねている。** `function` で分かれる。
  *     function = 'load'   … event_db と staff_list を全件返す（参照）
  *     function = 'update' … event_db の1行を更新（書き込み）
+ *     function = 'festa'  … event_db.festa（営業入力の JSON）の1項目を書く（v2.2.172。書き込み）
  *   `rank` と同じ構造である。request 名や roll だけでは書き込みか判断できない。
  *
  * ⚠️ ① に PHP ハンドラが**実在する**（消していない）。
@@ -50,6 +51,7 @@ export interface ListEventResult {
  *     check_out_time      … 退場時刻
  *     remarks             … 社内メモ（原本ではない）
  *     staff               … 担当スタッフ（v2.2.171。自由入力）
+ *     kana                … ふりがな（v2.2.172。フェスタ当日画面で直せるように。指示書）
  *     sync                … 顧客への取り込み済みフラグ
  *
  * ⚠️ ここに列を戻すときは EventList.tsx の入力欄と ① の PHP も合わせること。
@@ -66,6 +68,8 @@ const ALLOWED_COLUMNS = [
   'check_in_time',
   'check_out_time',
   'remarks',
+  // ⚠️ v2.2.172 追加。ふりがな（FestaDashboard.tsx の入力欄。⚠️ EventList.tsx では表示のみ）
+  'kana',
   // ⚠️ v2.2.171 追加。担当スタッフ（event_db.staff。⚠️ 先に ALTER を流すこと）
   'staff',
   'sync',
@@ -185,6 +189,70 @@ const runUpdate = async (body: Record<string, unknown>): Promise<ListEventResult
   }
 };
 
+/**
+ * 営業入力（event_db.festa）のキー。v2.2.172。
+ *
+ * ⚠️ `ブランド_interview`（面談）と `ブランド_next`（次アポ）。⚠️ 7ブランド × 2 = 14個。
+ * ⚠️⚠️ **この一覧に無いキーは受け付けない**（⚠️ JSON のパスを外から自由に書かせない）。
+ * ⚠️ FestaDashboard.tsx の FESTA_BRANDS と同じ並び・同じ表記にすること。
+ */
+export const FESTA_BRANDS = ['KH', 'DJH', 'なごみ', '2L', 'PGH', 'かえる', '中専'] as const;
+const FESTA_KINDS = ['interview', 'next'] as const;
+const FESTA_KEYS = new Set<string>(
+  FESTA_BRANDS.flatMap((brand) => FESTA_KINDS.map((kind) => `${brand}_${kind}`))
+);
+
+/**
+ * 営業入力の1項目を書く（function = 'festa'）。v2.2.172。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **JSON を丸ごと上書きしない。** ⚠️ `JSON_SET` で ⚠️ **1つのキーだけ**書き換える。
+ *   ⚠️ 当日は複数の営業が同じ行のトグルを同時に押す。⚠️ 画面が持っている JSON を丸ごと送ると、
+ *     ⚠️ **後から保存した人が、先に押した人の値を消してしまう。**
+ *
+ * ⚠️ 値は ⚠️ **トグル（反転）ではなく「true / false を指定」**。
+ *   ⚠️ 同じ要求が2回届いても結果は同じ（冪等）なので、
+ *     ⚠️ ① へのフォールバックで再実行されても壊れない（⚠️ expressProxyExclusive には入れない）。
+ *
+ * ⚠️ 列が空・壊れた JSON のときは `{}` から始める（⚠️ JSON_SET が NULL を返して値が消えるのを防ぐ）。
+ * ⚠️ true / false は ⚠️ **SQL のリテラルで埋める**（⚠️ 値は boolean から作るので外部の文字は入らない）。
+ *   ⚠️ プレースホルダで渡すと 1 / 0 の数値で保存される。
+ * ─────────────────────────────────────────────
+ */
+const runFesta = async (body: Record<string, unknown>): Promise<ListEventResult> => {
+  const id = typeof body.id === 'string' ? body.id.trim() : '';
+  const key = typeof body.key === 'string' ? body.key : '';
+
+  if (id === '') {
+    return { httpStatus: 200, body: { status: 'error', message: 'IDが指定されていません' } };
+  }
+  if (!FESTA_KEYS.has(key)) {
+    return { httpStatus: 200, body: { status: 'error', message: '項目が正しくありません' } };
+  }
+  if (typeof body.value !== 'boolean') {
+    return { httpStatus: 200, body: { status: 'error', message: '値が正しくありません' } };
+  }
+  const literal = body.value ? 'TRUE' : 'FALSE';
+
+  try {
+    // ⚠️ パスは FESTA_KEYS を通った値だけ。⚠️ キーに日本語があるので必ず "" で囲む
+    const result = await execute(
+      `UPDATE event_db
+          SET festa = JSON_SET(IF(JSON_VALID(festa), festa, '{}'), ?, ${literal})
+        WHERE id = ?`,
+      [`$."${key}"`, id]
+    );
+    if (result.affectedRows === 0) {
+      return { httpStatus: 200, body: { status: 'error', message: '予約が見つかりませんでした' } };
+    }
+    return { httpStatus: 200, body: { status: 'success', message: '更新が完了しました' } };
+  } catch (error) {
+    // ⚠️ DB のエラー本文は返さない（runUpdate と同じ）
+    console.error('list:event festa failed', { id, key, error });
+    return { httpStatus: 200, body: { status: 'error', message: '更新に失敗しました' } };
+  }
+};
+
 export const runListEvent = async (
   body: Record<string, unknown>
 ): Promise<ListEventResult> => {
@@ -192,6 +260,7 @@ export const runListEvent = async (
 
   if (fn === 'load') return runLoad();
   if (fn === 'update') return runUpdate(body);
+  if (fn === 'festa') return runFesta(body);
 
   /**
    * ⚠️ PHP はここで**何も出力せず**終わる（空レスポンス・HTTP 200）。
