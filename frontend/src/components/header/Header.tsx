@@ -7,7 +7,7 @@ import Modal from 'react-bootstrap/Modal';
 import Dropdown from 'react-bootstrap/Dropdown';
 import MetaAdsDashboard from './MetaAdsDashboard';
 import CompetitorMaterials from './CompetitorMaterials';
-import CallStatus from '../CallStatusList';
+import CallStatus from './CallStatusList';
 import { useIsSp } from '../../utils/isSp';
 import AuthContext from '../../context/AuthContext';
 import BudgetSimulator from './BudgetSimulator';
