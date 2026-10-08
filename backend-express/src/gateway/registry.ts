@@ -103,6 +103,7 @@ import {
 } from '../features/campaignForm';
 import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaignForm/entry';
 import { runCampaignSummary } from '../features/campaignSummary';
+import { runDailyReport } from '../features/dailyReport';
 import { runLostList } from '../features/lostList';
 import { runCompetitor } from '../features/competitor';
 import {
@@ -2089,6 +2090,27 @@ register({
   phpSource: 'backend/src/handlers/campaignSummary.php',
   auth: 'staff',
   handler: async () => runCampaignSummary(),
+});
+
+// ---------------------------------------------------------------------------
+// 月次日報（header/DailyReports.tsx）。v2.2.174 で移植。
+//
+// ⚠️ 参照のみ。⚠️ ① に PHP ハンドラが実在する（daily_report.php）ので、
+//   転送に失敗しても ① へ自動フォールバックして動く（⚠️ expressProxyExclusive には入れない）。
+// ⚠️⚠️ 1つの事業 × 1か月分だけを返す（⚠️ 全件を返す形に戻さない）。
+// ⚠️ 事業・月が正しくなければ 400（PHP と同じ）。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'daily_report',
+  summary: '月次日報（1事業 × 1か月の反響・架電・面談ログ）',
+  phpSource: 'backend/src/handlers/daily_report.php',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runDailyReport(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
 });
 
 // ---------------------------------------------------------------------------
