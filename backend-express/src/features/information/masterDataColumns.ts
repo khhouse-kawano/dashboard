@@ -12,7 +12,7 @@
  * ⚠️ 元の PHP には contract_building_application_date が2回書かれている
  *   （PDO では最後が勝つだけで無害）。ここでは一意にしてある。
  *
- * 生成元: backend/src/core/allowed_columns.php（188件 → 一意 187件）
+ * 生成元: backend/src/core/allowed_columns.php（188件 → 一意 187件。⚠️ v2.2.175 で next_action_date を両方に手で足した）
  *
  * ⚠️⚠️ **2026-09-17 に勝因・敗因の5列を追加した。**
  *   `competitor_campaign` / `competitor_countermeasure` / `competitor_price_gap`
@@ -79,6 +79,8 @@ export const MASTER_DATA_COLUMNS: readonly string[] = [
   'last_action_step_migration_item_date', 'last_action_step_migration_item_name', 'lat_lng',
   'memo_developer_application_company', 'memo_fire_insurance', 'memo_ground_survey',
   'memo_lawyer', 'memo_marketing', 'memo_other_related_person', 'memo_site_survey', 'monthly_repayment_amount',
+  // ⚠️ v2.2.175 追加（次回アクション日。⚠️ 3テーブルとも 2026-10-08_master_next_action_date.sql で追加）
+  'next_action_date',
   'no', 'planned_construction_site', 'planned_construction_site_2',
   'planned_construction_site_3', 'postal_code', 'property_contract_name', 'property_name',
   'property_tour_name', 'rank_period', 'rank_steps', 'reaction_date', 'remarks',
