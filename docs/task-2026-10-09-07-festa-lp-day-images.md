@@ -21,7 +21,7 @@
 | img9sp.jpg 768×718 | img9sp_2.jpg 768×658 |
 
 ## 0:00 の作業
-- index.html と img/img1sp_2.jpg・img4sp_2.jpg・img9sp_2.jpg をアップロード（画像は先に上げておいても表示に影響しない）
+- index.html と img/img1sp_2.jpg・img4sp_2.jpg・img9sp_2.jpg・newAnchor.jpg をアップロード（⚠️ 08 で予約バナーを newAnchor.jpg に差し替え。task-2026-10-09-08 参照）
 - 戻すとき: index_bk.html を index.html として上げ直す
 - ⚠️ 予約フォーム（#form）は LP に残っている（バナーを外しただけ）
 
