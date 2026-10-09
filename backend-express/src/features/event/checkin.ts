@@ -49,6 +49,8 @@ interface ReservationRow extends RowDataPacket {
   interview: string | null;
   request: string | null;
   staff: string | null;
+  /** ⚠️ v2.2.178 追加。当日来場は 'non-reserve'（⚠️ 受付画面のチケットを「なし」にする） */
+  status: string | null;
 }
 
 /**
@@ -111,6 +113,8 @@ const toPublicView = (row: ReservationRow) => ({
   interview: row.interview ?? '',
   request: row.request ?? '',
   staff: row.staff ?? '',
+  // ⚠️ v2.2.178: 当日来場（'non-reserve'）のチケット判定に使う
+  status: row.status ?? '',
 });
 
 /**
@@ -155,7 +159,7 @@ export const runEventCheckin = async (
 
   const SELECT_SQL = `
     SELECT id, name, kana, date, time, title, check_in_time, check_out_time,
-           reserved_at, medium, interview, request, staff
+           reserved_at, medium, interview, request, staff, status
       FROM event_db
      WHERE id = ?
      LIMIT 1

@@ -7,6 +7,7 @@ import { thisYear } from '../../utils/thisYear';
 import AuthContext from '../../context/AuthContext';
 import { filterReportShops, sortShops, MasterShop } from './useAmbassadorMaster';
 import { setStyleClass } from '../../utils/setStyleClass';
+import { syncCategoryOfShop } from './divisions';
 
 /**
  * おうちづくりフェスタ2026（v2.2.172 新規）。ヘッダー → 集客イベント → おうちづくりフェスタ2026。
@@ -58,6 +59,10 @@ type FestaRow = {
     title: string;
     shop: string;
     sync: number | null;
+    /** 予約の種別。⚠️ 当日来場は 'non-reserve'（v2.2.178：チケットの判定に使う） */
+    status: string | null;
+    /** 備考（v2.2.178：相談内容の右に出す） */
+    remarks: string | null;
 };
 
 type Staff = {
@@ -131,9 +136,12 @@ const reservedDate = (value: string | null): string => {
  * チケット。⚠️ 受付画面（reservation/index.html の ticketOf）と同じ規則。⚠️ **予約日**で決める。
  *   〜 9/13 … 3,000円分 ／ 9/14〜9/27 … 2,000円 ／
  *   9/28〜10/9 … 媒体が junko / 長原木 なら 2,000円、それ以外 1,000円 ／ 10/10〜（当日来場）… なし
+ * ⚠️ v2.2.178: status が 'non-reserve'（当日来場の受付）は ⚠️ **予約日に関係なく「なし」**（10/10〜 と同じ扱い）。
  */
 const TICKET_MEDIA = ['junko', '長原木'];
+const WALK_IN_STATUS = 'non-reserve';
 const ticketOf = (item: FestaRow): string => {
+    if ((item.status ?? '').trim() === WALK_IN_STATUS) return 'なし';
     const d = reservedDate(item.reserved_at);
     if (d === '') return '－';
     if (d <= '2026/09/13') return '3,000円分';
@@ -309,8 +317,8 @@ const stickyStyle = (i: number): React.CSSProperties => ({
     left: STICKY_LEFT[i], width: STICKY_WIDTH[i], minWidth: STICKY_WIDTH[i], maxWidth: STICKY_WIDTH[i],
 });
 
-/** 表の列数（同期〜担当営業の11列（⚠️ v2.2.173 で相談内容を追加） ＋ 営業入力 7ブランド×2） */
-const COLUMN_COUNT = 11 + FESTA_BRANDS.length * FESTA_KINDS.length;
+/** 表の列数（同期〜担当営業の11列（⚠️ v2.2.173 で相談内容、v2.2.178 で備考を追加・ストラップとチケットを1列に） ＋ 営業入力 7ブランド×2） */
+const COLUMN_COUNT = 11 +FESTA_BRANDS.length * FESTA_KINDS.length;
 
 type Props = {
     show: boolean;
@@ -647,6 +655,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
         }
         const target = syncTarget;
         const shop = syncShop;
+        // ⚠️ v2.2.178: 取り込み先は ⚠️ **選んだ店舗の事業区分**（⚠️ 画面の category ではない）
+        const insertCategory = syncCategoryOfShop(shop, shopList);
         try {
             const response = await apiClient.post('', {
                 ...createSyncPayload(target, shop),
@@ -654,7 +664,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                 in_charge_store: shop,
                 request: 'list',
                 roll: 'insert',
-                category,
+                category: insertCategory,
             });
             if (response.data.status !== 'success') {
                 alert('同期に失敗しました。');
@@ -726,6 +736,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         .fe_sum .fe_sep, .fe_tbl .fe_sep { border-left: 2px solid #ced4da; }
                         .fe_tbl { font-size: 11px; }
                         .fe_tbl td { border: 1px solid #eef0f3; padding: 3px 4px; vertical-align: middle; }
+                        .fe_strap_ticket { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+                        .fe_slash { color: #adb5bd; }
                         .fe_strap { display: inline-block; width: 18px; height: 18px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); margin-right: 3px; vertical-align: middle; }
                         .fe_toggle { width: 34px; height: 18px; border-radius: 999px; border: none; background: #ced4da; position: relative; cursor: pointer; padding: 0; transition: background .15s; }
                         .fe_toggle[data-on="1"] { background: #2dce89; }
@@ -738,6 +750,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         .fe_consult_cell { white-space: normal; min-width: 200px; max-width: 240px; }
                         .fe_consult { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; margin: 1px 3px 1px 0; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
                         .fe_consult i { font-size: 10px; }
+                        .fe_remarks_cell { white-space: pre-wrap; word-break: break-all; min-width: 200px; max-width: 260px; font-size: 11px; color: #525f7f; }
                         .fe_sortbtn { border: none; background: transparent; padding: 0 0 0 4px; color: #adb5bd; cursor: pointer; line-height: 1; }
                         .fe_sortbtn[data-active="1"] { color: #5e72e4; }
                         .fe_sortbtn:focus-visible { outline: 2px solid #5e72e4; outline-offset: 1px; border-radius: 2px; }
@@ -887,7 +900,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                     {error && <Alert variant="danger" className="py-1 px-2 mb-2" style={{ fontSize: '11px' }}>{error}</Alert>}
 
                     <div className="bg-white rounded shadow-sm border table-responsive">
-                        <Table hover className="m-0 text-nowrap fe_tbl" style={{ minWidth: '2200px' }}>
+                        <Table hover className="m-0 text-nowrap fe_tbl" style={{ minWidth: '2460px' }}>
                             {/*
                               ⚠️ 見出しは3段。⚠️ 指示書の rowSpan / colSpan は入れ替わっていると判断した（2026-10-08 の計画で合意）。
                                 1段目: 同期〜担当営業（縦に3段ぶん）＋ 営業入力（横に14列ぶん）
@@ -899,11 +912,11 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                     <th rowSpan={3} className="fe_stick" style={{ ...thStyle, ...stickyStyle(0) }}>同期</th>
                                     <th rowSpan={3} className="fe_stick" style={{ ...thStyle, ...stickyStyle(1) }}>顧客名</th>
                                     <th rowSpan={3} className="fe_stick fe_stick_last" style={{ ...thStyle, ...stickyStyle(2) }}>ふりがな</th>
-                                    <th rowSpan={3} style={{ ...thStyle, width: '70px' }}>ストラップ</th>
+                                    <th rowSpan={3} style={{ ...thStyle, width: '170px' }}>ストラップ/チケット</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '220px' }}>相談内容</th>
+                                    <th rowSpan={3} style={{ ...thStyle, width: '240px' }}>備考</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '120px' }}>来場日{sortButton('date', '来場日')}</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '90px' }}>来場時間{sortButton('time', '来場時間')}</th>
-                                    <th rowSpan={3} style={{ ...thStyle, width: '80px' }}>チケット</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '140px' }}>チェックイン</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '140px' }}>チェックアウト</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '120px' }}>担当営業</th>
@@ -949,10 +962,23 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                             </td>
                                             <td className="fe_stick" style={stickyStyle(1)}><input type="text" style={inputStyle} ref={setRef(item.id, 'name')} defaultValue={item.name ?? ''} onBlur={() => handleBlur(item.id, 'name')} /></td>
                                             <td className="fe_stick fe_stick_last" style={stickyStyle(2)}><input type="text" style={inputStyle} ref={setRef(item.id, 'kana')} defaultValue={item.kana ?? ''} onBlur={() => handleBlur(item.id, 'kana')} /></td>
+                                            {/* ⚠️ v2.2.178: ストラップとチケットを1列にまとめる（ストラップの色 / チケット代） */}
                                             <td className="text-center">
-                                                {strapOf(item).map(color => (
-                                                    <span key={color} className="fe_strap" style={{ backgroundColor: STRAP_COLOR[color] }} title={STRAP_LABEL[color]} aria-label={STRAP_LABEL[color]} role="img" />
-                                                ))}
+                                                <div className="fe_strap_ticket">
+                                                    <span>
+                                                        {strapOf(item).map(color => (
+                                                            <span key={color} className="fe_strap" style={{ backgroundColor: STRAP_COLOR[color] }} title={STRAP_LABEL[color]} aria-label={STRAP_LABEL[color]} role="img" />
+                                                        ))}
+                                                    </span>
+                                                    <span className="fe_slash" aria-hidden="true">/</span>
+                                                    {(() => {
+                                                        const ticket = ticketOf(item);
+                                                        const color = TICKET_COLOR[ticket];
+                                                        return color
+                                                            ? <span className="fe_ticket" style={{ backgroundColor: color }} title={`チケット：${ticket}`}><i className="fa-solid fa-ticket me-1" aria-hidden="true"></i>{ticket}</span>
+                                                            : <span className="text-muted" title={`チケット：${ticket}`}>{ticket}</span>;
+                                                    })()}
+                                                </div>
                                             </td>
                                             <td className="fe_consult_cell">
                                                 {consultOf(item).map(chip => (
@@ -961,17 +987,10 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                                     </span>
                                                 ))}
                                             </td>
+                                            {/* ⚠️ v2.2.178: 備考（event_db.remarks）。⚠️ 表示だけ。⚠️ 改行はそのまま出す */}
+                                            <td className="fe_remarks_cell" title={item.remarks ?? ''}>{item.remarks ?? ''}</td>
                                             <td>{item.date || ''}</td>
                                             <td>{item.time || ''}</td>
-                                            <td className="text-center">
-                                                {(() => {
-                                                    const ticket = ticketOf(item);
-                                                    const color = TICKET_COLOR[ticket];
-                                                    return color
-                                                        ? <span className="fe_ticket" style={{ backgroundColor: color }}>{ticket}</span>
-                                                        : <span className="text-muted">{ticket}</span>;
-                                                })()}
-                                            </td>
                                             <td><input type="text" style={inputStyle} placeholder="2026/10/10 10:05" ref={setRef(item.id, 'check_in_time')} defaultValue={item.check_in_time ?? ''} onBlur={() => handleBlur(item.id, 'check_in_time')} /></td>
                                             <td><input type="text" style={inputStyle} placeholder="2026/10/10 11:30" ref={setRef(item.id, 'check_out_time')} defaultValue={item.check_out_time ?? ''} onBlur={() => handleBlur(item.id, 'check_out_time')} /></td>
                                             <td><input type="text" style={inputStyle} placeholder="担当営業" ref={setRef(item.id, 'staff')} defaultValue={item.staff ?? ''} onBlur={() => handleBlur(item.id, 'staff')} /></td>
