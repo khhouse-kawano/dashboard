@@ -8,6 +8,7 @@ import { generateULID } from '../../utils/createULID';
 import { thisYear } from '../../utils/thisYear';
 import AuthContext from '../../context/AuthContext';
 import { filterReportShops, sortShops, MasterShop } from './useAmbassadorMaster';
+import { syncCategoryOfShop } from './divisions';
 
 /**
  * イベント予約1件。
@@ -639,7 +640,8 @@ const EventList = ({ eventSummary, setEventSummary }: Props) => {
             in_charge_store: syncShop,
             request: 'list',
             roll: 'insert',
-            category
+            // ⚠️ v2.2.178: 取り込み先は ⚠️ **選んだ店舗の事業区分**（⚠️ 画面の category ではない。divisions.ts の syncCategoryOfShop）
+            category: syncCategoryOfShop(syncShop, shopList)
         };
 
         try {
