@@ -88,8 +88,17 @@ try {
     }
 
     // 4. master_data テーブルの hotlead_id 紐付け更新処理
+    //
+    // ⚠️ v2.2.180: 店舗名の頭（ブランド）は ⚠️ **送り元のアカウントで決める**。
+    //   sync の runHotlead が `hotlead_brand` を付けて送る（hotlead → 'KH' ／ hotlead_2 → 'DJH'）。
+    //   ⚠️ HOTLEAD の store_name は「霧島店」のようにブランドが付かないため、
+    //     それまでは 'KH' 固定で、⚠️ hotlead_2（DJH）の顧客が紐付かなかった。
+    // ⚠️ 無い・知らない値は 'KH'（⚠️ 古い sync から届いても従来どおり動く）。
+    // ⚠️ hotlead_brand は hotlead_db の列ではない（⚠️ $allowedColumns に入れない。保存はしない）。
+    $hotleadBrands = ['KH', 'DJH'];
+    $hotleadBrand  = in_array($data['hotlead_brand'] ?? '', $hotleadBrands, true) ? $data['hotlead_brand'] : 'KH';
     $storeName    = $filteredData['store_name'] ?? '';
-    $inChargeStore= 'KH' . $storeName;
+    $inChargeStore= $hotleadBrand . $storeName;
     $cleanName    = preg_replace('/\s+/u', '', $filteredData['name'] ?? '');
     $cleanPhone   = preg_replace('/\D/', '', $filteredData['phone'] ?? '');
     $email        = trim($filteredData['email'] ?? '');
@@ -123,6 +132,7 @@ try {
         'status' => 'success',
         'action' => $action,
         'id'     => $targetId,
+        'brand'  => $hotleadBrand,
         'master_data_linked' => $masterUpdatedCount > 0,
         'master_data_updated_count' => $masterUpdatedCount
     ]);
