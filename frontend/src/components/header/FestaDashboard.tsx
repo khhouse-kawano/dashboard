@@ -7,6 +7,7 @@ import { thisYear } from '../../utils/thisYear';
 import AuthContext from '../../context/AuthContext';
 import { filterReportShops, sortShops, MasterShop } from './useAmbassadorMaster';
 import { setStyleClass } from '../../utils/setStyleClass';
+import { SHOP_DIVISION } from './divisions';
 
 /**
  * おうちづくりフェスタ2026（v2.2.172 新規）。ヘッダー → 集客イベント → おうちづくりフェスタ2026。
@@ -58,6 +59,10 @@ type FestaRow = {
     title: string;
     shop: string;
     sync: number | null;
+    /** 予約の種別。⚠️ 当日来場は 'non-reserve'（v2.2.178：チケットの判定に使う） */
+    status: string | null;
+    /** 備考（v2.2.178：相談内容の右に出す） */
+    remarks: string | null;
 };
 
 type Staff = {
@@ -131,9 +136,12 @@ const reservedDate = (value: string | null): string => {
  * チケット。⚠️ 受付画面（reservation/index.html の ticketOf）と同じ規則。⚠️ **予約日**で決める。
  *   〜 9/13 … 3,000円分 ／ 9/14〜9/27 … 2,000円 ／
  *   9/28〜10/9 … 媒体が junko / 長原木 なら 2,000円、それ以外 1,000円 ／ 10/10〜（当日来場）… なし
+ * ⚠️ v2.2.178: status が 'non-reserve'（当日来場の受付）は ⚠️ **予約日に関係なく「なし」**（10/10〜 と同じ扱い）。
  */
 const TICKET_MEDIA = ['junko', '長原木'];
+const WALK_IN_STATUS = 'non-reserve';
 const ticketOf = (item: FestaRow): string => {
+    if ((item.status ?? '').trim() === WALK_IN_STATUS) return 'なし';
     const d = reservedDate(item.reserved_at);
     if (d === '') return '－';
     if (d <= '2026/09/13') return '3,000円分';
@@ -220,6 +228,23 @@ const createSyncPayload = (item: FestaRow, shop: string): Record<string, string>
     // ⚠️ v2.2.174: ブランドは ⚠️ **同期先に選んだ店舗**で決める（⚠️ フェスタの予約は shop が空・複数店舗になるため）
     brand: brands[shop.slice(0, 2)] || ''
 });
+
+/**
+ * 取り込み先の顧客台帳（v2.2.178）。⚠️ **選んだ店舗の shop_list.division で決める。**
+ *   注文事業 → order（master_data）／ 建売分譲事業 → spec（master_data_kaeru）／ 中古リノベ → used（master_data_resale）
+ * ⚠️ それまでは ⚠️ **開いている画面の category** で決めていたため、建売・中古の画面から開いて
+ *   注文の店舗へ同期すると ⚠️ master_data に入らなかった（⚠️「成功」と出るので気づけない）。
+ * ⚠️ division が無い・知らない値の店舗は order（⚠️ divisions.ts の asDivision と同じく注文に寄せる）。
+ */
+const SYNC_CATEGORY_OF_DIVISION: Record<string, 'order' | 'spec' | 'used'> = {
+    [SHOP_DIVISION['注文']]: 'order',
+    [SHOP_DIVISION['建売']]: 'spec',
+    [SHOP_DIVISION['中古']]: 'used',
+};
+const syncCategoryOfShop = (shop: string, shopList: MasterShop[]): 'order' | 'spec' | 'used' => {
+    const master = shopList.find(s => (s.shop ?? '').trim() === shop);
+    return SYNC_CATEGORY_OF_DIVISION[(master?.division ?? '').trim()] ?? 'order';
+};
 
 /**
  * 同期した店舗（v2.2.174）。⚠️ event_db.shop に `,` 区切りで入っている（② の sync_shop が足す）。
@@ -309,8 +334,8 @@ const stickyStyle = (i: number): React.CSSProperties => ({
     left: STICKY_LEFT[i], width: STICKY_WIDTH[i], minWidth: STICKY_WIDTH[i], maxWidth: STICKY_WIDTH[i],
 });
 
-/** 表の列数（同期〜担当営業の11列（⚠️ v2.2.173 で相談内容を追加） ＋ 営業入力 7ブランド×2） */
-const COLUMN_COUNT = 11 + FESTA_BRANDS.length * FESTA_KINDS.length;
+/** 表の列数（同期〜担当営業の12列（⚠️ v2.2.173 で相談内容、v2.2.178 で備考を追加） ＋ 営業入力 7ブランド×2） */
+const COLUMN_COUNT = 12 + FESTA_BRANDS.length * FESTA_KINDS.length;
 
 type Props = {
     show: boolean;
@@ -647,6 +672,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
         }
         const target = syncTarget;
         const shop = syncShop;
+        // ⚠️ v2.2.178: 取り込み先は ⚠️ **選んだ店舗の事業区分**（⚠️ 画面の category ではない）
+        const insertCategory = syncCategoryOfShop(shop, shopList);
         try {
             const response = await apiClient.post('', {
                 ...createSyncPayload(target, shop),
@@ -654,7 +681,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                 in_charge_store: shop,
                 request: 'list',
                 roll: 'insert',
-                category,
+                category: insertCategory,
             });
             if (response.data.status !== 'success') {
                 alert('同期に失敗しました。');
@@ -738,6 +765,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         .fe_consult_cell { white-space: normal; min-width: 200px; max-width: 240px; }
                         .fe_consult { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; margin: 1px 3px 1px 0; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
                         .fe_consult i { font-size: 10px; }
+                        .fe_remarks_cell { white-space: pre-wrap; word-break: break-all; min-width: 200px; max-width: 260px; font-size: 11px; color: #525f7f; }
                         .fe_sortbtn { border: none; background: transparent; padding: 0 0 0 4px; color: #adb5bd; cursor: pointer; line-height: 1; }
                         .fe_sortbtn[data-active="1"] { color: #5e72e4; }
                         .fe_sortbtn:focus-visible { outline: 2px solid #5e72e4; outline-offset: 1px; border-radius: 2px; }
@@ -887,7 +915,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                     {error && <Alert variant="danger" className="py-1 px-2 mb-2" style={{ fontSize: '11px' }}>{error}</Alert>}
 
                     <div className="bg-white rounded shadow-sm border table-responsive">
-                        <Table hover className="m-0 text-nowrap fe_tbl" style={{ minWidth: '2200px' }}>
+                        <Table hover className="m-0 text-nowrap fe_tbl" style={{ minWidth: '2440px' }}>
                             {/*
                               ⚠️ 見出しは3段。⚠️ 指示書の rowSpan / colSpan は入れ替わっていると判断した（2026-10-08 の計画で合意）。
                                 1段目: 同期〜担当営業（縦に3段ぶん）＋ 営業入力（横に14列ぶん）
@@ -901,6 +929,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                     <th rowSpan={3} className="fe_stick fe_stick_last" style={{ ...thStyle, ...stickyStyle(2) }}>ふりがな</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '70px' }}>ストラップ</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '220px' }}>相談内容</th>
+                                    <th rowSpan={3} style={{ ...thStyle, width: '240px' }}>備考</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '120px' }}>来場日{sortButton('date', '来場日')}</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '90px' }}>来場時間{sortButton('time', '来場時間')}</th>
                                     <th rowSpan={3} style={{ ...thStyle, width: '80px' }}>チケット</th>
@@ -961,6 +990,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                                     </span>
                                                 ))}
                                             </td>
+                                            {/* ⚠️ v2.2.178: 備考（event_db.remarks）。⚠️ 表示だけ。⚠️ 改行はそのまま出す */}
+                                            <td className="fe_remarks_cell" title={item.remarks ?? ''}>{item.remarks ?? ''}</td>
                                             <td>{item.date || ''}</td>
                                             <td>{item.time || ''}</td>
                                             <td className="text-center">
