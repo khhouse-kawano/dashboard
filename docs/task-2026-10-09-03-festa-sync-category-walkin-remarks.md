@@ -46,7 +46,7 @@
 ⚠️ `sync_shop`（event_db.shop に店舗を足す）・load・update・festa は従来どおり画面の category（event_db は共通テーブルで、category はゲートウェイの振り分けだけに使う）。
 
 ## 確認
-- frontend `npm run build` 成功（`main.861e9ec4.js`）、eslint（FestaDashboard.tsx）警告なし
+- frontend `npm run build` 成功（`main.8894fd07.js（※ EventList 対応後の再ビルド。task-2026-10-09-04 参照）`）、eslint（FestaDashboard.tsx）警告なし
 - backend-express `tsc --noEmit` 成功
 - ローカル: shop_list の division 値（注文事業／建売分譲事業／中古リノベ／不動産企画室）を確認
 - ローカル: master_data への取り込み（category: order）成功を確認、テスト行削除済み

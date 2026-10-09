@@ -7,7 +7,7 @@ import { thisYear } from '../../utils/thisYear';
 import AuthContext from '../../context/AuthContext';
 import { filterReportShops, sortShops, MasterShop } from './useAmbassadorMaster';
 import { setStyleClass } from '../../utils/setStyleClass';
-import { SHOP_DIVISION } from './divisions';
+import { syncCategoryOfShop } from './divisions';
 
 /**
  * おうちづくりフェスタ2026（v2.2.172 新規）。ヘッダー → 集客イベント → おうちづくりフェスタ2026。
@@ -228,23 +228,6 @@ const createSyncPayload = (item: FestaRow, shop: string): Record<string, string>
     // ⚠️ v2.2.174: ブランドは ⚠️ **同期先に選んだ店舗**で決める（⚠️ フェスタの予約は shop が空・複数店舗になるため）
     brand: brands[shop.slice(0, 2)] || ''
 });
-
-/**
- * 取り込み先の顧客台帳（v2.2.178）。⚠️ **選んだ店舗の shop_list.division で決める。**
- *   注文事業 → order（master_data）／ 建売分譲事業 → spec（master_data_kaeru）／ 中古リノベ → used（master_data_resale）
- * ⚠️ それまでは ⚠️ **開いている画面の category** で決めていたため、建売・中古の画面から開いて
- *   注文の店舗へ同期すると ⚠️ master_data に入らなかった（⚠️「成功」と出るので気づけない）。
- * ⚠️ division が無い・知らない値の店舗は order（⚠️ divisions.ts の asDivision と同じく注文に寄せる）。
- */
-const SYNC_CATEGORY_OF_DIVISION: Record<string, 'order' | 'spec' | 'used'> = {
-    [SHOP_DIVISION['注文']]: 'order',
-    [SHOP_DIVISION['建売']]: 'spec',
-    [SHOP_DIVISION['中古']]: 'used',
-};
-const syncCategoryOfShop = (shop: string, shopList: MasterShop[]): 'order' | 'spec' | 'used' => {
-    const master = shopList.find(s => (s.shop ?? '').trim() === shop);
-    return SYNC_CATEGORY_OF_DIVISION[(master?.division ?? '').trim()] ?? 'order';
-};
 
 /**
  * 同期した店舗（v2.2.174）。⚠️ event_db.shop に `,` 区切りで入っている（② の sync_shop が足す）。
