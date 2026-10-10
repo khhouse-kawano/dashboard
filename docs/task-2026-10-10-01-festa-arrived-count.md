@@ -24,7 +24,7 @@
 - 9528876a: v2.2.179 の作業ツリーに残っていた注意書きの文言修正（利用者の編集）をそのままコミット
 
 ## その他
-- version.ts 2.2.181、`backend/scripts/sql/2026-10-10_update_log_2.2.181.sql`（ローカル投入済み）
+- version.ts 2.2.181、`backend/scripts/sql/2026-10-10_update_log_2.2.181.sql`（⚠️ ローカル未投入: 2026-10-10 時点で Docker が応答せず。復旧後に投入すること）
 
 ## 確認
 - eslint 警告なし、`npm run build` 成功 → **`main.79f8525f.js`**
