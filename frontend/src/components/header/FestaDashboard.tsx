@@ -916,16 +916,16 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                             <li>
                                 <span className="fe_strap" style={{ backgroundColor: STRAP_COLOR.yellow }} aria-hidden="true" />
                                 <span className="fe_strap" style={{ backgroundColor: STRAP_COLOR.red }} aria-hidden="true" />
-                                ：住宅・不動産を検討しているお客様
+                                住宅・不動産を検討しているお客様
                             </li>
                             <li>
                                 <span className="fe_strap" style={{ backgroundColor: STRAP_COLOR.blue }} aria-hidden="true" />
-                                ：マルシェやキッチンカーのみ希望のお客様
+                                マルシェやキッチンカーのみ希望のお客様
                             </li>
                         </ul>
                         <div className="fe_notice_title mt-2">営業の皆様へ</div>
                         <ul className="fe_notice_list fe_notice_steps">
-                            <li>お客様を面談した場合、ご自身の所属するブランドの<strong>「面談」</strong>にチェックを入れる</li>
+                            <li>お客様と面談した場合、ご自身の所属するブランドの<strong>「面談」</strong>にチェックを入れる</li>
                             <li>面談したお客様とアポイントが取れた場合、ご自身の所属するブランドの<strong>「次アポ」</strong>にチェックを入れる</li>
                             <li>次アポが取れたお客様、今後追客するお客様は<strong>必ず「同期」処理</strong>をおこなう</li>
                             <li>店舗をまたいで同期処理は可能なので、<strong>他店舗が同期済みでも追客する場合</strong>は忘れないように処理をする</li>
