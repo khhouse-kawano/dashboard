@@ -58,6 +58,15 @@ const filteredStaffName = (value: string) => {
 const dateFormate = (value: string) => (value ?? '').replace(/-/g, '/');
 
 /**
+ * 総架電数に数える action（v2.2.186）。
+ * ⚠️ 2026-10-10 の指示で ⚠️ **SMS送信も総架電数に入れる**（それまでは 通電・未通電 だけ）。
+ * ⚠️ 通電数は 通電 だけ（変更なし）。⚠️ インサイドセールス表示の「SMS送信数」の行は別に残る（SMS は両方に出る）。
+ * ⚠️ 店舗スタッフ表示とインサイドセールス表示の両方でこの一覧を使う（⚠️ 片方だけ直さない）。
+ */
+const CALL_COUNT_ACTIONS = ['通電', '未通電', 'SMS送信'];
+const isCallCountAction = (action: string): boolean => CALL_COUNT_ACTIONS.includes(action);
+
+/**
  * インサイドセールスの対象店舗。
  *
  * ⚠️ 基本は `section === '熊本営業課'` だが、2026-09-18 の指示で
@@ -290,7 +299,8 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                                 targetInsideSales ? safeFormate(a.staff).includes(safeFormate(targetInsideSales)) : true
                             );
 
-                            const callFilter = base.filter(p => p.action === '通電' || p.action === '未通電');
+                            // ⚠️ v2.2.186: SMS送信も総架電数に入れる（CALL_COUNT_ACTIONS）
+                            const callFilter = base.filter(p => isCallCountAction(p.action));
                             const postFilter = base.filter(p => p.action === '資料郵送');
                             const mailFilter = base.filter(p => p.action === 'メール送信');
                             const smsFilter = base.filter(p => p.action === 'SMS送信');
@@ -433,7 +443,8 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
 
                                                     if (!isTargetStaff) return false;
 
-                                                    if (category === '総架電数') return log.action === '通電' || log.action === '未通電';
+                                                    // ⚠️ v2.2.186: SMS送信も総架電数に入れる（CALL_COUNT_ACTIONS）
+                                                    if (category === '総架電数') return isCallCountAction(log.action);
                                                     if (category === '通電数') return log.action === '通電';
                                                     return false;
                                                 })
