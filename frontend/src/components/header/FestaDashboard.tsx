@@ -166,6 +166,16 @@ const STRAP_COLOR = { yellow: '#ffd60a', red: '#e5383b', blue: '#1e6fd9' };
 const STRAP_LABEL = { yellow: '黄', red: '赤', blue: '青' };
 
 /**
+ * 集計表のストラップの列（v2.2.185）。⚠️ 判定は strapOf と同じ（⚠️ 黄＋赤 か 青 のどちらか一方に必ず入る）。
+ *   ⚠️ 見出しの色の四角も STRAP_COLOR を使う。
+ */
+const STRAP_GROUPS: { key: 'warm' | 'blue'; label: string; colors: ('yellow' | 'red' | 'blue')[] }[] = [
+    { key: 'warm', label: '黄or赤', colors: ['yellow', 'red'] },
+    { key: 'blue', label: '青', colors: ['blue'] },
+];
+const strapGroupOf = (item: FestaRow): 'warm' | 'blue' => (strapOf(item).includes('blue') ? 'blue' : 'warm');
+
+/**
  * 相談内容（v2.2.173 追加）。⚠️ 相談内容（interview）・ご検討（request）・建築予定地（area）を
  * ⚠️ **淡い色のチップ＋アイコン**で出す。⚠️ 下に無い値（キッチンカー・マルシェなど）は出さない。
  *   ⚠️ 背景は淡く、⚠️ 文字とアイコンは同じ系統の濃い色（⚠️ 色が強いと見づらいため：指示書）。
@@ -272,6 +282,22 @@ const timeOrder = (value: string): number => {
 
 const UNSET_LABEL = '未設定';
 
+/** 来場済みか（v2.2.181）。⚠️ check_in_time に値が入っていれば来場済み（⚠️ 画面上部の「チェックイン ◯件」と同じ判定） */
+const isArrived = (item: { check_in_time: string | null }): boolean => (item.check_in_time ?? '').trim() !== '';
+
+/**
+ * 予約の区分（v2.2.182）。⚠️ 集計表の日付ごとの2行に使う。
+ *   reserve … 事前予約（status !== 'non-reserve'。⚠️ status が空・NULL も事前予約）
+ *   walkin  … 当日来場（status === 'non-reserve'。⚠️ ticketOf の WALK_IN_STATUS と同じ値）
+ */
+type BookingKind = 'reserve' | 'walkin';
+const BOOKING_KINDS: { key: BookingKind; label: string }[] = [
+    { key: 'reserve', label: '事前予約' },
+    { key: 'walkin', label: '当日来場' },
+];
+const bookingKindOf = (item: { status: string | null }): BookingKind =>
+    (item.status ?? '').trim() === WALK_IN_STATUS ? 'walkin' : 'reserve';
+
 const rankByCount = (counts: Map<string, number>): string[] =>
     [...counts.entries()].sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'ja')).map(([key]) => key);
 
@@ -348,6 +374,8 @@ const FestaDashboard = ({ show, setShow }: Props) => {
     });
     /** ⚠️ 保存中のトグル（`id:key`）。⚠️ 連打で二重に送らない */
     const [savingKey, setSavingKey] = useState('');
+    /** 上部のサマリー（集計表・ブランド別の歩留まり・注意書き）の開閉（v2.2.183）。⚠️ 既定は開く */
+    const [summaryOpen, setSummaryOpen] = useState(true);
 
     // 同期（担当者選択）モーダル。⚠️ EventList.tsx と同じ
     const [staffArray, setStaffArray] = useState<Staff[]>([]);
@@ -423,19 +451,33 @@ const FestaDashboard = ({ show, setShow }: Props) => {
         const interviews = rankByCount(interviewTotal);
         const requests = rankByCount(requestTotal);
 
-        type Line = { total: number; time: Map<string, number>; interview: Map<string, number>; request: Map<string, number> };
-        const emptyLine = (): Line => ({ total: 0, time: new Map(), interview: new Map(), request: new Map() });
-        const lines = new Map<string, Line>(dates.map(d => [d, emptyLine()]));
+        // ⚠️ v2.2.181: arrived / arrivedTime … 来場済み（check_in_time が入っている）の人数
+        // ⚠️ v2.2.185: strap / arrivedStrap … ストラップの色（黄or赤 ／ 青）ごとの予約数・来場済みの人数（キーは STRAP_GROUPS の key）
+        type Line = { total: number; arrived: number; time: Map<string, number>; arrivedTime: Map<string, number>; strap: Map<string, number>; arrivedStrap: Map<string, number>; interview: Map<string, number>; request: Map<string, number> };
+        const emptyLine = (): Line => ({ total: 0, arrived: 0, time: new Map(), arrivedTime: new Map(), strap: new Map(), arrivedStrap: new Map(), interview: new Map(), request: new Map() });
+        /**
+         * ⚠️ v2.2.182: 日付ごとに ⚠️ **事前予約（status !== 'non-reserve'）と当日来場（status === 'non-reserve'）の2行**に分ける。
+         *   ⚠️ 合計行は分けない（⚠️ 全体の合計）。
+         */
+        const lines = new Map<string, Record<BookingKind, Line>>(dates.map(d => [d, { reserve: emptyLine(), walkin: emptyLine() }]));
         const sum = emptyLine();
         const add = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) ?? 0) + 1);
 
         data.forEach(item => {
-            const line = lines.get((item.date || '').trim() || UNSET_LABEL);
+            const line = lines.get((item.date || '').trim() || UNSET_LABEL)?.[bookingKindOf(item)];
             if (!line) return;
             const time = normalizeTime(item.time) || UNSET_LABEL;
+            const arrived = isArrived(item);
+            const strap = strapGroupOf(item);
             [line, sum].forEach(target => {
                 target.total += 1;
                 add(target.time, time);
+                add(target.strap, strap);
+                if (arrived) {
+                    target.arrived += 1;
+                    add(target.arrivedTime, time);
+                    add(target.arrivedStrap, strap);
+                }
                 splitValues(item.interview).forEach(v => add(target.interview, v));
                 splitValues(item.request).forEach(v => add(target.request, v));
             });
@@ -536,6 +578,47 @@ const FestaDashboard = ({ show, setShow }: Props) => {
     }, [filtered.length, show]);
 
     const visible = useMemo(() => filtered.slice(0, displayLength), [filtered, displayLength]);
+
+    /**
+     * 顧客の表の見出し（同期・顧客名〜）を上に固定する（v2.2.184）。
+     *
+     * ⚠️ 表の外枠（.table-responsive）は横スクロールのため overflow を持つ。⚠️ そのままだと見出しの sticky は
+     *   ⚠️ **外枠に対して**効くので、外の画面をスクロールしても見出しは止まらない。
+     *   ⚠️ そこで ⚠️ **表の外枠に縦スクロールも持たせ**、高さを「画面の残り（上部の固定ブロックの下）」にする。
+     *   ⚠️ 上部の固定ブロックはサマリーの開閉・予約日の数で高さが変わるので、⚠️ ResizeObserver で測り直す。
+     * ⚠️ 見出しは3段。⚠️ 2段目・3段目の top は ⚠️ **1段目・2段目の実際の高さ**（測る。⚠️ 決め打ちすると隙間・重なりが出る）。
+     */
+    const bodyRef = useRef<HTMLDivElement>(null);
+    const topRef = useRef<HTMLDivElement>(null);
+    const theadRef = useRef<HTMLTableSectionElement>(null);
+    const [tableMaxHeight, setTableMaxHeight] = useState<number | null>(null);
+    const [headTops, setHeadTops] = useState<number[]>([0, 0, 0]);
+    const hasData = data.length > 0;
+
+    useEffect(() => {
+        if (!show) return;
+        const measure = () => {
+            const body = bodyRef.current;
+            const top = topRef.current;
+            if (body && top) {
+                // ⚠️ 16px … Modal.Body の上下の余白（p-2）。⚠️ 下限 240px（⚠️ 狭い画面でも数行は見える）
+                setTableMaxHeight(Math.max(240, body.clientHeight - top.offsetHeight - 16));
+            }
+            const rows = theadRef.current ? Array.from(theadRef.current.rows) : [];
+            if (rows.length > 0) {
+                const base = rows[0].offsetTop;
+                setHeadTops(rows.map(r => r.offsetTop - base));
+            }
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        [bodyRef.current, topRef.current, theadRef.current].forEach(el => { if (el) observer.observe(el); });
+        window.addEventListener('resize', measure);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener('resize', measure);
+        };
+    }, [show, hasData, loading]);
 
     // --- 保存 ---
 
@@ -722,7 +805,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                 <Modal.Header closeButton className="py-2">
                     <Modal.Title style={{ fontSize: '14px', fontWeight: 'bold', color: '#32325d' }}>{FESTA_TITLE}</Modal.Title>
                 </Modal.Header>
-                <Modal.Body className="p-2" style={{ backgroundColor: '#f8f9fe' }}>
+                <Modal.Body ref={bodyRef} className="p-2" style={{ backgroundColor: '#f8f9fe' }}>
                     <style>{`
                         .fe_sum_wrap { overflow-x: auto; }
                         .fe_sum { border-collapse: collapse; font-size: 11px; white-space: nowrap; }
@@ -731,8 +814,14 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         .fe_sum .fe_group { background: #eef2f7; color: #32325d; }
                         .fe_sum .fe_date { text-align: left; font-weight: 700; color: #32325d; background: #fff; }
                         .fe_sum .fe_total { font-weight: 700; color: #32325d; }
+                        .fe_sum .fe_kind { text-align: left; white-space: nowrap; font-size: 11px; color: #525f7f; }
+                        .fe_sum tr.fe_kind_walkin td { background: #fff8ec; }
+                        .fe_sum tr.fe_kind_walkin td.fe_kind { color: #b0590c; font-weight: 700; }
                         .fe_sum tr.fe_sumrow td { background: #f6f9fc; font-weight: 700; }
                         .fe_sum .fe_zero { color: #ced4da; }
+                        .fe_arrived { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; padding: 0 5px; border-radius: 999px; background: #2dce89; color: #fff; font-size: 10px; font-weight: 700; line-height: 1.5; }
+                        .fe_arrived i { font-size: 8px; }
+                        .fe_arrived[data-zero="1"] { background: #e9ecef; color: #8898aa; }
                         .fe_sum .fe_sep, .fe_tbl .fe_sep { border-left: 2px solid #ced4da; }
                         .fe_tbl { font-size: 11px; }
                         .fe_tbl td { border: 1px solid #eef0f3; padding: 3px 4px; vertical-align: middle; }
@@ -742,6 +831,7 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         .fe_notice_title { font-weight: 700; font-size: 12px; margin-bottom: 2px; }
                         .fe_notice_list { margin: 0; padding-left: 18px; line-height: 1.7; }
                         .fe_notice_list li .fe_strap { width: 12px; height: 12px; }
+                        .fe_sum .fe_strap_sm { width: 10px; height: 10px; margin-right: 2px; }
                         .fe_notice_steps li::marker { color: #fb6340; }
                         .fe_strap_ticket { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
                         .fe_slash { color: #adb5bd; }
@@ -772,12 +862,31 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         */
                         .fe_tbl .fe_stick { position: sticky; z-index: 2; background-color: var(--bs-table-bg, #fff); }
                         .fe_tbl thead .fe_stick { z-index: 3; background-color: #f6f9fc; }
+                        /*
+                          ⚠️ v2.2.184: 見出し（3段）を上に固定。⚠️ top は段ごと（--fe-head1 / --fe-head2 は実測した2段目・3段目の位置）。
+                            ⚠️ 見出しは本文の固定列（z-index 2）より上、⚠️ 見出しの固定列（同期・顧客名・ふりがな）はさらに上（左上の角）。
+                        */
+                        .fe_tbl thead th { position: sticky; z-index: 3; }
+                        .fe_tbl thead tr:nth-child(1) th { top: 0; }
+                        .fe_tbl thead tr:nth-child(2) th { top: var(--fe-head1, 0px); }
+                        .fe_tbl thead tr:nth-child(3) th { top: var(--fe-head2, 0px); }
+                        .fe_tbl thead th.fe_stick { z-index: 4; }
+                        .fe_tbl thead tr:last-child th, .fe_tbl thead th[rowspan="3"] { box-shadow: inset 0 -1px 0 #ced4da; }
+                        .fe_tbl thead th.fe_stick_last { box-shadow: inset -2px 0 0 #ced4da, inset 0 -1px 0 #ced4da; }
                         .fe_tbl .fe_stick_last { box-shadow: inset -2px 0 0 #ced4da; }
+                        .fe_top { box-shadow: 0 6px 6px -6px rgba(50, 50, 93, .25); }
+                        .fe_summary_panel { max-height: 45vh; overflow-y: auto; padding-bottom: 2px; }
                     `}</style>
 
-                    {/* 上部の操作。⚠️ EventList.tsx と同じく上に固定する */}
-                    <div className="d-flex flex-wrap align-items-center gap-2 mb-2"
-                        style={{ position: 'sticky', top: '-8px', zIndex: 5, backgroundColor: '#f8f9fe', padding: '8px 0', margin: '-8px 0 8px' }}>
+                    {/*
+                      ⚠️ v2.2.183: 上部の操作 ＋ サマリー（集計表・ブランド別の歩留まり・注意書き）を ⚠️ **まとめて上に固定**する。
+                        ⚠️ それまでは操作の行だけ固定していた。
+                        ⚠️ サマリーは「サマリーを閉じる／開く」で畳める（⚠️ 既定は開く）。
+                        ⚠️ サマリーが高いと下の表が見えなくなるので、⚠️ サマリー部分は高さの上限（画面の45%）を超えたら中でスクロールする。
+                    */}
+                    <div ref={topRef} className="fe_top" style={{ position: 'sticky', top: '-8px', zIndex: 5, backgroundColor: '#f8f9fe', padding: '8px 0 0', margin: '-8px 0 8px' }}>
+                    {/* 上部の操作 */}
+                    <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
                         <button style={{ ...styles.buttonPrimary, padding: '4px 10px', fontSize: '11px' }} onClick={() => void fetchData()} disabled={loading}>
                             {loading ? <Spinner size="sm" animation="border" className="me-1" /> : <i className="fa-solid fa-rotate-right me-1"></i>}
                             リロード
@@ -803,15 +912,23 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                         <span style={{ fontSize: '11px', color: '#8898aa' }}>
                             予約 {data.length.toLocaleString()}件 ／ チェックイン {checkedIn.toLocaleString()}件
                         </span>
+                        {/* ⚠️ v2.2.183: サマリーの開閉 */}
+                        <button type="button" className="ms-auto" style={{ ...styles.buttonPrimary, padding: '4px 10px', fontSize: '11px' }}
+                            onClick={() => setSummaryOpen(v => !v)} aria-expanded={summaryOpen} aria-controls="fe_summary_panel">
+                            <i className={`fa-solid ${summaryOpen ? 'fa-chevron-up' : 'fa-chevron-down'} me-1`} aria-hidden="true"></i>
+                            {summaryOpen ? 'サマリーを閉じる' : 'サマリーを開く'}
+                        </button>
                     </div>
 
+                    {summaryOpen && (
+                    <div id="fe_summary_panel" className="fe_summary_panel">
                     {/* 集計表（⚠️ EventList.tsx と同じ配置） */}
                     {data.length > 0 && (
                         <div className="bg-white rounded shadow-sm border mb-2 p-2">
                             <div style={{ fontSize: '12px', fontWeight: 700, color: '#32325d', marginBottom: '4px' }}>
                                 {FESTA_TITLE}
                                 <small style={{ fontSize: '10px', fontWeight: 400, color: '#8898aa', marginLeft: '8px' }}>
-                                    予約 {summaryTable.sum.total.toLocaleString()}件 ／ 相談内容・検討内容は複数選択のため予約数と一致しません
+                                    予約 {summaryTable.sum.total.toLocaleString()}件 ／ <span className="fe_arrived" style={{ marginLeft: 0 }}><i className="fa-solid fa-check" aria-hidden="true"></i>来場済み</span> の数字は check_in_time が入っている人数 ／ 相談内容・検討内容は複数選択のため予約数と一致しません
                                 </small>
                             </div>
                             <div className="fe_sum_wrap">
@@ -819,30 +936,71 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                                     <thead>
                                         <tr>
                                             <th rowSpan={2}>日付</th>
+                                            <th rowSpan={2}>区分</th>
                                             <th rowSpan={2}>予約数</th>
                                             {summaryTable.times.length > 0 && <th className="fe_group fe_sep" colSpan={summaryTable.times.length}>来場予定時間</th>}
+                                            {/* ⚠️ v2.2.185: ストラップの色ごと（来場予定時間の次） */}
+                                            <th className="fe_group fe_sep" colSpan={STRAP_GROUPS.length}>ストラップ</th>
                                             {summaryTable.interviews.length > 0 && <th className="fe_group fe_sep" colSpan={summaryTable.interviews.length}>相談内容</th>}
                                             {summaryTable.requests.length > 0 && <th className="fe_group fe_sep" colSpan={summaryTable.requests.length}>検討内容</th>}
                                         </tr>
                                         <tr>
                                             {summaryTable.times.map((t, i) => <th key={`t-${t}`} className={i === 0 ? 'fe_sep' : ''}>{t}</th>)}
+                                            {STRAP_GROUPS.map((g, i) => (
+                                                <th key={`s-${g.key}`} className={i === 0 ? 'fe_sep' : ''} style={{ whiteSpace: 'nowrap' }}>
+                                                    {g.colors.map(c => <span key={c} className="fe_strap fe_strap_sm" style={{ backgroundColor: STRAP_COLOR[c] }} aria-hidden="true" />)}
+                                                    {g.label}
+                                                </th>
+                                            ))}
                                             {summaryTable.interviews.map((v, i) => <th key={`i-${v}`} className={i === 0 ? 'fe_sep' : ''}>{v}</th>)}
                                             {summaryTable.requests.map((v, i) => <th key={`r-${v}`} className={i === 0 ? 'fe_sep' : ''}>{v}</th>)}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {[...summaryTable.dates.map(d => ({ label: d, line: summaryTable.lines.get(d), isSum: false })),
-                                          { label: '合計', line: summaryTable.sum, isSum: true }].map(({ label, line, isSum }) => {
+                                        {/*
+                                          ⚠️ v2.2.182: 日付ごとに2行（上: 事前予約 ／ 下: 当日来場）。⚠️ 日付のマスは2行ぶん縦につなぐ。
+                                            ⚠️ 合計行は1行（⚠️ 日付と区分のマスを横につなぐ）。
+                                        */}
+                                        {[...summaryTable.dates.flatMap(d => BOOKING_KINDS.map((kind, k) => ({
+                                            key: `${d}_${kind.key}`, label: d, kind: kind.key as BookingKind | 'sum', kindLabel: kind.label,
+                                            firstOfDate: k === 0, line: summaryTable.lines.get(d)?.[kind.key], isSum: false,
+                                          }))),
+                                          { key: 'sum', label: '合計', kind: 'sum' as BookingKind | 'sum', kindLabel: '', firstOfDate: true, line: summaryTable.sum, isSum: true }]
+                                          .map(({ key: rowKey, label, kind, kindLabel, firstOfDate, line, isSum }) => {
                                             if (!line) return null;
                                             const cell = (map: Map<string, number>, key: string, first: boolean) => {
                                                 const n = map.get(key) ?? 0;
                                                 return <td key={key} className={`${n === 0 ? 'fe_zero' : ''}${first ? ' fe_sep' : ''}`}>{n}</td>;
                                             };
+                                            /**
+                                             * 来場予定時間（v2.2.181）。⚠️ 予約数の隣に ⚠️ **来場済み（check_in_time あり）の人数**を色付きで出す。
+                                             *   ⚠️ 予約が 0 の枠は従来どおり薄い 0 だけ。⚠️ 来場 0 の枠は「✓0」を薄く出す（⚠️ まだ誰も来ていないとわかるように）。
+                                             */
+                                            // ⚠️ v2.2.185: ストラップの列でも使う（⚠️ 予約数と来場済みの表を引数で渡す）
+                                            const countCell = (counts: Map<string, number>, arrivedCounts: Map<string, number>, key: string, first: boolean) => {
+                                                const n = counts.get(key) ?? 0;
+                                                const arrived = arrivedCounts.get(key) ?? 0;
+                                                return (
+                                                    <td key={key} className={`${n === 0 ? 'fe_zero' : ''}${first ? ' fe_sep' : ''}`}>
+                                                        {n}
+                                                        {n > 0 && <span className="fe_arrived" data-zero={arrived === 0 ? '1' : '0'} title={`来場済み ${arrived}人 ／ 予約 ${n}人`}><i className="fa-solid fa-check" aria-hidden="true"></i>{arrived}</span>}
+                                                    </td>
+                                                );
+                                            };
                                             return (
-                                                <tr key={label} className={isSum ? 'fe_sumrow' : ''}>
-                                                    <td className="fe_date">{label}</td>
-                                                    <td className="fe_total">{line.total}</td>
-                                                    {summaryTable.times.map((t, i) => cell(line.time, t, i === 0))}
+                                                <tr key={rowKey} className={isSum ? 'fe_sumrow' : `fe_kind_${kind}`}>
+                                                    {isSum
+                                                        ? <td className="fe_date" colSpan={2}>{label}</td>
+                                                        : <>
+                                                            {firstOfDate && <td className="fe_date" rowSpan={BOOKING_KINDS.length}>{label}</td>}
+                                                            <td className="fe_kind">{kindLabel}</td>
+                                                        </>}
+                                                    <td className="fe_total">
+                                                        {line.total}
+                                                        {line.total > 0 && <span className="fe_arrived" data-zero={line.arrived === 0 ? '1' : '0'} title={`来場済み ${line.arrived}人 ／ 予約 ${line.total}人`}><i className="fa-solid fa-check" aria-hidden="true"></i>{line.arrived}</span>}
+                                                    </td>
+                                                    {summaryTable.times.map((t, i) => countCell(line.time, line.arrivedTime, t, i === 0))}
+                                                    {STRAP_GROUPS.map((g, i) => countCell(line.strap, line.arrivedStrap, g.key, i === 0))}
                                                     {summaryTable.interviews.map((v, i) => cell(line.interview, v, i === 0))}
                                                     {summaryTable.requests.map((v, i) => cell(line.request, v, i === 0))}
                                                 </tr>
@@ -916,34 +1074,39 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                             <li>
                                 <span className="fe_strap" style={{ backgroundColor: STRAP_COLOR.yellow }} aria-hidden="true" />
                                 <span className="fe_strap" style={{ backgroundColor: STRAP_COLOR.red }} aria-hidden="true" />
-                                ：住宅・不動産を検討しているお客様
+                                住宅・不動産を検討しているお客様
                             </li>
                             <li>
                                 <span className="fe_strap" style={{ backgroundColor: STRAP_COLOR.blue }} aria-hidden="true" />
-                                ：マルシェやキッチンカーのみ希望のお客様
+                                マルシェやキッチンカーのみ希望のお客様
                             </li>
                         </ul>
                         <div className="fe_notice_title mt-2">営業の皆様へ</div>
                         <ul className="fe_notice_list fe_notice_steps">
-                            <li>お客様を面談した場合、ご自身の所属するブランドの<strong>「面談」</strong>にチェックを入れる</li>
+                            <li>お客様と面談した場合、ご自身の所属するブランドの<strong>「面談」</strong>にチェックを入れる</li>
                             <li>面談したお客様とアポイントが取れた場合、ご自身の所属するブランドの<strong>「次アポ」</strong>にチェックを入れる</li>
                             <li>次アポが取れたお客様、今後追客するお客様は<strong>必ず「同期」処理</strong>をおこなう</li>
                             <li>店舗をまたいで同期処理は可能なので、<strong>他店舗が同期済みでも追客する場合</strong>は忘れないように処理をする</li>
                         </ul>
                     </div>
                     </div>
+                    </div>
+                    )}
+                    </div>
 
                     {error && <Alert variant="danger" className="py-1 px-2 mb-2" style={{ fontSize: '11px' }}>{error}</Alert>}
 
-                    <div className="bg-white rounded shadow-sm border table-responsive">
-                        <Table hover className="m-0 text-nowrap fe_tbl" style={{ minWidth: '2460px' }}>
+                    {/* ⚠️ v2.2.184: 縦スクロールも持たせて見出しを固定（⚠️ 高さは画面の残り。上の useEffect 参照） */}
+                    <div className="bg-white rounded shadow-sm border table-responsive fe_tbl_wrap"
+                        style={{ maxHeight: tableMaxHeight ? `${tableMaxHeight}px` : undefined, overflowY: 'auto' }}>
+                        <Table hover className="m-0 text-nowrap fe_tbl" style={{ minWidth: '2460px', ['--fe-head1' as string]: `${headTops[1] ?? 0}px`, ['--fe-head2' as string]: `${headTops[2] ?? 0}px` } as React.CSSProperties}>
                             {/*
                               ⚠️ 見出しは3段。⚠️ 指示書の rowSpan / colSpan は入れ替わっていると判断した（2026-10-08 の計画で合意）。
                                 1段目: 同期〜担当営業（縦に3段ぶん）＋ 営業入力（横に14列ぶん）
                                 2段目: ブランド（横に2列ずつ）
                                 3段目: 面談 ／ 次アポ
                             */}
-                            <thead>
+                            <thead ref={theadRef}>
                                 <tr>
                                     <th rowSpan={3} className="fe_stick" style={{ ...thStyle, ...stickyStyle(0) }}>同期</th>
                                     <th rowSpan={3} className="fe_stick" style={{ ...thStyle, ...stickyStyle(1) }}>顧客名</th>
@@ -979,8 +1142,15 @@ const FestaDashboard = ({ show, setShow }: Props) => {
                             <tbody>
                                 {visible.map((item, index) => {
                                     const festa = parseFesta(item.festa);
+                                    /**
+                                     * ⚠️ v2.2.185: 来場済み（check_in_time あり）なのに ⚠️ **どのブランドも「面談」にチェックしていない**顧客は薄い赤。
+                                     *   ⚠️ 面談漏れを見つけるため、⚠️ 同期済みの青（table-primary）より優先する。
+                                     *   ⚠️ table-danger は --bs-table-bg を変えるので、⚠️ 左の固定列（fe_stick）も同じ色になる。
+                                     */
+                                    const notInterviewed = isArrived(item) && !FESTA_BRANDS.some(brand => festa[`${brand}_interview`] === true);
+                                    const rowClass = notInterviewed ? 'table-danger' : Number(item.sync) === 1 ? 'table-primary' : '';
                                     return (
-                                        <tr key={item.id} className={Number(item.sync) === 1 ? 'table-primary' : ''}>
+                                        <tr key={item.id} className={rowClass} title={notInterviewed ? '来場済み・面談の記録なし' : undefined}>
                                             {/*
                                               ⚠️ v2.2.174: 店舗が違えば何度でも同期できるので ⚠️ 回転アイコンは常に出す（⚠️「同期済み」の文字は外した）。
                                                 ⚠️ 同期済みかは行の色（table-primary）と、⚠️ アイコンの下の店舗名でわかる。
