@@ -26,6 +26,13 @@
 
 ## 手順1　【① phpMyAdmin】列の追加
 ⚠️ ファイル: `backend/scripts/sql/2026-10-12_line_id_columns.sql`（何度流しても壊れない。⚠️ 既存の全フォームは列を足したときに既定値「表示・任意・LINE IDをご入力ください」で埋まる。⚠️ 2回目以降に流しても、スタッフが変えた設定は上書きしない）
+⚠️ この1本で **8テーブル**に `line_id` 列を足す:
+| テーブル | 位置 | 型 |
+|---|---|---|
+| `form_table` / `form_database` | `mail` の次 | JSON（項目の設定。既定値「表示・任意・LINE IDをご入力ください」） |
+| `inquiry_customer` / `inquiry_customer_kaeru` / `inquiry_customer_resale` | `mail` の次 | TEXT（空は NULL） |
+| `master_data` / `master_data_kaeru` / `master_data_resale` | `customer_contacts_email` の次 | TEXT（空は NULL） |
+
 ⚠️ 最後の確認の結果:
 - form_database / form_table の `rows_all` と `line_on` が同じ数
 - 反響3・顧客3テーブルの `filled` が 0（まだ値が無い）
@@ -59,7 +66,7 @@ dcp up -d express-api
 ## 手順4　【WSL】フロントを ① へアップロード
 | ファイル | |
 |---|---|
-| ⚠️⚠️ **`static/js/main.12d99c58.js`** | ⚠️ **この版の本体** |
+| ⚠️⚠️ **`static/js/main.67fc2dd5.js`** | ⚠️ **この版の本体**（⚠️ LINE アイコンの開き先を変えたので `main.12d99c58.js` ではない） |
 | ⚠️⚠️ **`static/css/main.b8a7c60b.css`** | ⚠️ **今回は CSS も変わる**（キャンペーン設定の画面）。⚠️ 何度か作り直したので、これ以前の main.*.css ではない |
 | ⚠️ `index.html` | ⚠️⚠️ **必ず差し替えること** |
 ```bash
@@ -91,7 +98,7 @@ SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 3;
 | 3 | 公開フォーム（PC・スマホ） | カードでまとまった見た目、ボタンがブランド色。ご連絡先のメールアドレスの下に LINE ID の欄。必須を空のまま進むと赤枠とメッセージ（お名前・ご住所も） |
 | 4 | テスト送信（LINE ID あり） | 反響一覧の行に line_id、社内通知メールとサンクスメールの内容に `LINE ID：…` |
 | 5 | その反響を同期 | 顧客の編集画面の連絡先に LINE ID |
-| 6 | LINE のアイコン | LINE ID がコピーされ、LINE WORKS のトークが新しいタブで開く。LINE ID が空なら薄く押せない |
+| 6 | LINE のアイコン | LINE ID がコピーされ、LINE WORKS の連絡先（`contact.worksmobile.com/p/web/shared/contact`）が新しいタブで開く。LINE ID が空なら薄く押せない |
 | 7 | フォームの HTML を作る画面（FormBuilder） | LINE ID を表示にしたキャンペーンで、LINE ID の欄が選べる |
 
 ## 切り戻し

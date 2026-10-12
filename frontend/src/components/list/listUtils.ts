@@ -195,8 +195,10 @@ export const summaryTableWidth = (columns: number, labelWidth: number): number =
 /** 1列の幅。⚠️ ここを変えるときは各テーブルの td の width も合わせること */
 export const SUMMARY_COLUMN_WIDTH = 100;
 
-/** 同期で顧客へ送る LINE ID。⚠️ 値があるときだけ返す（空なら列ごと送らない＝顧客側は NULL のまま） */
-export const lineIdField = (value: unknown): { line_id?: string } => {
-    const lineId = String(value ?? '').trim();
-    return lineId === '' ? {} : { line_id: lineId };
+/** 同期で顧客へ送る任意の列。⚠️ 値があるときだけ返す（空なら列ごと送らない＝顧客側は NULL のまま） */
+export const filledField = <K extends string>(key: K, value: unknown): Partial<Record<K, string>> => {
+    const text = String(value ?? '').trim();
+    return (text === '' ? {} : { [key]: text }) as Partial<Record<K, string>>;
 };
+
+export const lineIdField = (value: unknown) => filledField('line_id', value);
