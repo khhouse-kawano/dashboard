@@ -26,6 +26,8 @@ export interface TemplateValues {
     meiKana: string;
     zip: string; pref: string; city: string; town: string; street: string;
     phone: string; mail: string; age: string;
+    /** ⚠️ 未入力は '' */
+    lineId: string;
     shop: string; date: string; time: string;
     medium: string; question: string;
     campaign: string;
@@ -57,6 +59,8 @@ export const detailBlock = (v: TemplateValues): string => {
         + line('来場希望時間', v.time)
         + line('携帯番号', v.phone)
         + line('メールアドレス', v.mail)
+        // ⚠️ LINE ID は未入力なら行ごと出ない
+        + line('LINE ID', v.lineId)
         + line('年齢', v.age)
         + address
         + line('お問い合わせのきっかけ', v.medium)
@@ -90,7 +94,7 @@ export const PLACEHOLDERS = [
     'お名前', '姓', '名', 'お名前カナ',
     'お問い合わせ内容', 'キャンペーン名', 'ブランド名', '受付日時',
     '来場希望場所', '来場希望日', '来場希望時間',
-    '携帯番号', 'メールアドレス', '年齢',
+    '携帯番号', 'メールアドレス', 'LINE ID', '年齢',
     '事前アンケート', '事前アンケートURL',
 ] as const;
 
@@ -117,6 +121,7 @@ export const render = (template: string, v: TemplateValues): string => {
         '来場希望時間': v.time,
         '携帯番号': v.phone,
         'メールアドレス': v.mail,
+        'LINE ID': v.lineId,
         '年齢': v.age,
         '事前アンケート': questionnaireBlock(v),
         '事前アンケートURL': v.questionnaire,

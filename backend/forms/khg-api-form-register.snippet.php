@@ -123,6 +123,7 @@ function khgDetailBlock($d, $html)
         . $line('来場希望時間', $d['time'] ?? '')
         . $line('携帯番号', $d['phone'] ?? '')
         . $line('メールアドレス', $d['mail'] ?? '')
+        . $line('LINE ID', $d['line_id'] ?? '')
         . $line('年齢', $d['age'] ?? '')
         . $address
         . $line('お問い合わせのきっかけ', $d['medium'] ?? '')
@@ -171,6 +172,7 @@ function khgRender($template, $d, $brandName, $receivedAt, $questionnaire, $html
         '来場希望時間'     => $e($d['time'] ?? ''),
         '携帯番号'         => $e($d['phone'] ?? ''),
         'メールアドレス'   => $e($d['mail'] ?? ''),
+        'LINE ID'          => $e($d['line_id'] ?? ''),
         '年齢'             => $e($d['age'] ?? ''),
         '事前アンケート'   => khgQuestionnaireBlock($d, $questionnaire, $html),
         '事前アンケートURL' => $e($questionnaire),

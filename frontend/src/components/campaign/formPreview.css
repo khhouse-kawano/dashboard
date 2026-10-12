@@ -1,0 +1,430 @@
+/*
+ * ⚠️⚠️ 公開フォーム（react/form_get/src/components/publicForm.css）の **写し**。プレビュー（formPreview.tsx）を実物と同じ見た目にするため。
+ *   ⚠️ 公開フォーム側を変えたら、この注記より下を丸ごと置き換えること（手で直さない）。
+ */
+/*
+ * 公開フォーム（入力 Form.tsx ／ 確認 Confirm.tsx）の見た目。
+ * ⚠️ 色は .pf の変数で決める。差し色（--pf-accent）だけブランドごとに画面側が style で渡す（src/api/brands.ts の brandAccent）。
+ * ⚠️ 埋め込み先は白地なので明るい配色だけ（ダークモードは作らない）。埋め込み先の CSS に引きずられないよう色はすべてここで明示する。
+ * ⚠️ 入力欄の文字は 16px。16px 未満だと iPhone で入力時に画面が拡大される。
+ * ⚠️⚠️ Dashboard の Campaign/formPreview.css がこのファイルの写し。**ここを変えたら写しも置き換えること。**
+ */
+
+.pf {
+    --pf-accent: #0f3675;
+    --pf-ink: #1d2433;
+    --pf-sub: #5b6476;
+    --pf-line: #d5dbe5;
+    --pf-surface: #f5f7fa;
+    --pf-field: #ffffff;
+    --pf-danger: #c62828;
+    --pf-danger-bg: #fdecec;
+    --pf-radius: 10px;
+
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+    color: var(--pf-ink);
+    background: #ffffff;
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    letter-spacing: .02em;
+    -webkit-font-smoothing: antialiased;
+}
+
+.pf *,
+.pf *::before,
+.pf *::after {
+    box-sizing: border-box;
+}
+
+/* ---- ロゴ・段階 ---- */
+.pf-logo {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0 20px;
+}
+.pf-logo img {
+    max-width: 260px;
+    max-height: 72px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+.pf-steps {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 0 0 24px;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--pf-sub);
+}
+.pf-steps li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.pf-steps li + li::before {
+    content: "";
+    width: 18px;
+    height: 1px;
+    background: var(--pf-line);
+}
+.pf-steps .pf-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--pf-line);
+    background: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.pf-steps li[aria-current="step"] {
+    color: var(--pf-ink);
+    font-weight: 700;
+}
+.pf-steps li[aria-current="step"] .pf-step-num {
+    border-color: var(--pf-accent);
+    background: var(--pf-accent);
+    color: #ffffff;
+}
+
+.pf-title {
+    margin: 0 0 6px;
+    font-size: 20px;
+    font-weight: 700;
+    text-align: center;
+    text-wrap: balance;
+}
+.pf-lead {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--pf-sub);
+    text-align: justify;
+    white-space: pre-line;
+}
+
+/* ---- まとまり（カード） ---- */
+.pf-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px;
+    margin: 0 0 16px;
+    border: 1px solid var(--pf-line);
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(29, 36, 51, .04);
+}
+.pf-card-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--pf-sub);
+    letter-spacing: .08em;
+}
+
+/* ---- 項目 ---- */
+.pf-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+}
+@media (min-width: 480px) {
+    .pf-row.pf-row-2 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.pf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+.pf-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--pf-ink);
+}
+.pf-badge {
+    flex: none;
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.6;
+    letter-spacing: .04em;
+}
+.pf-badge-req {
+    background: var(--pf-danger-bg);
+    color: var(--pf-danger);
+}
+.pf-badge-opt {
+    background: var(--pf-surface);
+    color: var(--pf-sub);
+}
+
+.pf-input,
+.pf-select,
+.pf-textarea {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 14px;
+    border: 1px solid var(--pf-line);
+    border-radius: var(--pf-radius);
+    background: var(--pf-field);
+    color: var(--pf-ink);
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.5;
+    transition: border-color .15s, box-shadow .15s;
+    appearance: none;
+    -webkit-appearance: none;
+}
+.pf-select {
+    padding-right: 40px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--pf-sub) 50%), linear-gradient(135deg, var(--pf-sub) 50%, transparent 50%);
+    background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+.pf-textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+.pf-input::placeholder,
+.pf-textarea::placeholder {
+    color: #9aa3b2;
+}
+.pf-input:focus,
+.pf-select:focus,
+.pf-textarea:focus {
+    outline: none;
+    border-color: var(--pf-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-accent) 22%, transparent);
+}
+.pf-field[data-invalid="1"] .pf-input,
+.pf-field[data-invalid="1"] .pf-select,
+.pf-field[data-invalid="1"] .pf-textarea {
+    border-color: var(--pf-danger);
+}
+/*
+ * 来場希望日（Form.tsx の .pf-date）。右にカレンダーの絵。欄のどこを押しても開く（Form.tsx の showPicker と App.css の透明な indicator）。
+ * ⚠️ 空のときの「yyyy/mm/dd」はブラウザが描く文字なので、空（data-empty="1"）の間だけ透明にする。
+ */
+.pf input[type=date] {
+    position: relative;
+}
+.pf-date {
+    padding-right: 44px;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
+    background-position: calc(100% - 14px) 50%;
+    background-size: 20px 20px;
+    background-repeat: no-repeat;
+}
+.pf-date[data-empty="1"]::-webkit-datetime-edit {
+    color: transparent;
+}
+@-moz-document url-prefix() {
+    .pf-date[data-empty="1"] {
+        color: transparent;
+    }
+}
+
+.pf-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--pf-danger);
+}
+.pf-error::before {
+    content: "!";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--pf-danger);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* 郵便番号 ＋ 住所検索 */
+.pf-inline {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+.pf-inline .pf-input {
+    flex: 1;
+}
+
+/* ---- ボタン ---- */
+.pf-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin: 28px 0 0;
+}
+.pf-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 10px 18px;
+    border-radius: var(--pf-radius);
+    border: 1px solid var(--pf-line);
+    background: #ffffff;
+    color: var(--pf-ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: filter .15s, background-color .15s;
+}
+.pf-btn:hover {
+    background: var(--pf-surface);
+}
+.pf-btn:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--pf-accent) 35%, transparent);
+    outline-offset: 2px;
+}
+.pf-btn-primary {
+    width: 100%;
+    max-width: 360px;
+    min-height: 54px;
+    border-color: var(--pf-accent);
+    background: var(--pf-accent);
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .06em;
+}
+.pf-btn-primary:hover {
+    background: var(--pf-accent);
+    filter: brightness(.92);
+}
+.pf-btn-primary[aria-busy="true"],
+.pf-btn-primary:disabled {
+    filter: grayscale(.4) brightness(1.05);
+    cursor: progress;
+}
+/* ---- 注意事項・特典条件 ---- */
+.pf-note {
+    margin: 0;
+    padding: 14px 16px;
+    border-radius: var(--pf-radius);
+    background: var(--pf-surface);
+    color: var(--pf-sub);
+    font-size: 13px;
+    text-align: justify;
+    white-space: pre-line;
+}
+.pf-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(29, 36, 51, .35);
+}
+.pf-sheet {
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    overflow: auto;
+    padding: 20px;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 12px 32px rgba(29, 36, 51, .25);
+}
+.pf-sheet-title {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 700;
+}
+.pf-sheet-body {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--pf-danger);
+    white-space: pre-line;
+}
+
+/* ---- 確認画面 ---- */
+.pf-summary {
+    margin: 0;
+}
+.pf-summary-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--pf-line);
+}
+.pf-summary-row:last-child {
+    border-bottom: none;
+}
+@media (min-width: 480px) {
+    .pf-summary-row {
+        grid-template-columns: 180px 1fr;
+        gap: 16px;
+    }
+}
+.pf-summary dt {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--pf-sub);
+}
+.pf-summary dd {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--pf-ink);
+    word-break: break-word;
+    white-space: pre-line;
+}
+
+/* ---- 読み込み中・読めない ---- */
+.pf-state {
+    padding: 48px 16px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--pf-sub);
+    line-height: 1.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pf *,
+    .pf *::before,
+    .pf *::after {
+        transition: none !important;
+        animation: none !important;
+    }
+}
