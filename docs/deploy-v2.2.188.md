@@ -57,8 +57,8 @@ dcp up -d express-api
 ## 手順4　【WSL】フロントを ① へアップロード
 | ファイル | |
 |---|---|
-| ⚠️⚠️ **`static/js/main.d3804e4d.js`** | ⚠️ **この版の本体** |
-| ⚠️⚠️ **`static/css/main.ec223763.css`** | ⚠️ **今回は CSS も変わる**（キャンペーン設定の画面）。⚠️ 右の余白を直したので `main.8804e4b8.css` ではない |
+| ⚠️⚠️ **`static/js/main.6e2b267e.js`** | ⚠️ **この版の本体** |
+| ⚠️⚠️ **`static/css/main.e19d8b71.css`** | ⚠️ **今回は CSS も変わる**（キャンペーン設定の画面）。⚠️ 何度か作り直したので `main.8804e4b8.css`・`main.ec223763.css` ではない |
 | ⚠️ `index.html` | ⚠️⚠️ **必ず差し替えること** |
 ```bash
 deploy-dashboard

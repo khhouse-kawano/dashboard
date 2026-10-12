@@ -130,7 +130,7 @@ type Response = { status: string; message: string }
 const LINE_ID_DEFAULT: FormState['line_id'] = {
     bool: true,
     required: false,
-    text: 'LINE_IDをご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。',
+    text: 'ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。',
 };
 
 /** line_id 列の値を読む。⚠️ 無い・壊れている・形が違うときは既定 */

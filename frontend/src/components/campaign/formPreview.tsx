@@ -53,8 +53,8 @@ const PreviewField = ({ label, required, children }: { label: string; required: 
     </div>
 );
 
-const Input = ({ placeholder }: { placeholder?: string }) =>
-    <input className="pf-input" readOnly tabIndex={-1} placeholder={placeholder} />;
+const Input = ({ placeholder, className = '' }: { placeholder?: string; className?: string }) =>
+    <input className={`pf-input ${className}`.trim()} readOnly tabIndex={-1} placeholder={placeholder} />;
 
 const Select = ({ options }: { options: string[] }) => (
     <select className="pf-select" tabIndex={-1} defaultValue="">
@@ -90,7 +90,7 @@ const FormPreview = ({ form, brand }: Props) => {
                         <PreviewField label={form.shop.text} required={form.shop.required}><Select options={form.shop.shopName} /></PreviewField>}
                     {!form.date.bool ||
                         <div className="pf-row pf-row-2">
-                            <PreviewField label={form.date.text_day} required={form.date.required}><Input placeholder="年 / 月 / 日" /></PreviewField>
+                            <PreviewField label={form.date.text_day} required={form.date.required}><Input className="pf-date" /></PreviewField>
                             <PreviewField label={form.date.text_time} required={form.date.required}><Select options={form.date.time} /></PreviewField>
                         </div>}
                 </section>}
@@ -119,7 +119,7 @@ const FormPreview = ({ form, brand }: Props) => {
                     <h2 className="pf-card-title">ご連絡先</h2>
                     {!form.phone.bool || <PreviewField label={form.phone.text} required={form.phone.required}><Input /></PreviewField>}
                     {!form.mail.bool || <PreviewField label={form.mail.text} required={form.mail.required}><Input /></PreviewField>}
-                    {!form.line_id.bool || <PreviewField label={form.line_id.text} required={form.line_id.required}><Input placeholder="LINE ID" /></PreviewField>}
+                    {!form.line_id.bool || <PreviewField label={form.line_id.text} required={form.line_id.required}><Input /></PreviewField>}
                 </section>}
 
             {!form.address.bool ||

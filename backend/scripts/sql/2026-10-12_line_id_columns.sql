@@ -16,21 +16,28 @@
 -- ---------------------------------------------------------------------
 ALTER TABLE form_database
     ADD COLUMN IF NOT EXISTS line_id LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
-        DEFAULT '{"bool":true,"required":false,"text":"LINE_IDをご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}'
+        DEFAULT '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}'
         CHECK (json_valid(line_id))
         AFTER mail;
 
+-- ⚠️ 列が既にある環境（ローカルなど）でも既定値を新しい文言にそろえる（ADD COLUMN IF NOT EXISTS は既定値を変えないため）
+ALTER TABLE form_database
+    ALTER COLUMN line_id SET DEFAULT '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
+
 UPDATE form_database
-   SET line_id = '{"bool":true,"required":false,"text":"LINE_IDをご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
+   SET line_id = '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
 
 ALTER TABLE form_table
     ADD COLUMN IF NOT EXISTS line_id LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
-        DEFAULT '{"bool":true,"required":false,"text":"LINE_IDをご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}'
+        DEFAULT '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}'
         CHECK (json_valid(line_id))
         AFTER mail;
 
+ALTER TABLE form_table
+    ALTER COLUMN line_id SET DEFAULT '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
+
 UPDATE form_table
-   SET line_id = '{"bool":true,"required":false,"text":"LINE_IDをご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
+   SET line_id = '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
 
 -- ---------------------------------------------------------------------
 -- 2. 反響（inquiry_customer*）・顧客（master_data*）
