@@ -102,6 +102,7 @@ import {
   runCampaignFormUpdate,
 } from '../features/campaignForm';
 import { runCampaignFormEntry, runCampaignFormPublic } from '../features/campaignForm/entry';
+import { runKengakuCloudEntry } from '../features/kengakuCloud/entry';
 import { runCampaignSummary } from '../features/campaignSummary';
 import { runDailyReport } from '../features/dailyReport';
 import { runLostList } from '../features/lostList';
@@ -2008,6 +2009,25 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runCampaignFormEntry(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️⚠️ **見学クラウド（www.ie-miru.jp）の予約受付。認証なしの書き込み口である。**
+ *   ⚠️ 見学クラウドの完了画面の GTM（gtm_reserve_send.html）が `sendBeacon` などでフォーム形式で送ってくる。
+ *   ⚠️ 防御は campaign_form:entry と同じ（publicFormRateLimit の流量制限・全項目の長さ制限・通知先はコード内の表）。
+ *   ⚠️ 本番の CORS_ORIGINS に `https://www.ie-miru.jp` が要る（無いと fetch / XHR に回ったとき応答を読めず、二重送信やエラー表示になりうる）。
+ */
+register({
+  request: 'kengaku_cloud',
+  roll: 'entry',
+  summary: '【書き込み・認証なし】見学クラウドの予約受付（inquiry_customer）',
+  phpSource: 'khg-marketing.info/api/kengakuCloud/all/index.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runKengakuCloudEntry(ctx.body as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
