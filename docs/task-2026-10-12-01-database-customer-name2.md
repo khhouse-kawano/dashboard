@@ -31,7 +31,7 @@
 - ローカル DB に update_log 181〜187 を投入（Docker 復旧後。no=277〜283）
 
 ## 確認（ローカル）
-- ② `tsc --noEmit` OK、① PHP 7ファイル `php -l` OK、eslint 新規警告なし、`npm run build` 成功 → **`main.625b3c40.js`**
+- ② `tsc --noEmit` OK、① PHP 7ファイル `php -l` OK、eslint 新規警告なし、`npm run build` 成功 → **`main.625b3c40.js`**（※ その後 task-2026-10-12-02 で `main.590cf219.js` に）
 - DB の氏名②あり: 注文 86 ／ 建売 84 ／ 中古 9
 - ② `runDatabase('order')`: 25,856行すべてに customer_2、値あり 86 ／ `runDatabase('spec')`: 11,294行、値あり 84
 - ① database_used.php: 2,674行、値あり 9 ／ database_spec.php: 11,294行、値あり 84 ／ database_order.php: 25,856行、値あり 88（※ 実行時点の差）

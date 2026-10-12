@@ -14,7 +14,7 @@ import { toHalfWidth } from './databaseUtils';
 import PropertyRegister from './PropertyRegister';
 import { BrokerData } from './PropertyRegister';
 import { generateNewId } from './databaseUtils';
-import { CustomerName2 } from './customerName2';
+import { CustomerNameCell } from './customerName2';
 
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, position: string };
 type CustomerList = Record<string, string>;
@@ -615,10 +615,13 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                                 <div style={{ cursor: 'pointer' }}
                                                     onClick={() => handleCopy(item.id)}><i className="fa-solid fa-user-plus"></i></div></td>
                                             <td>{item.shop}</td>
-                                            <td>{isDuplicate && <span style={{ cursor: 'pointer' }}
-                                                onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}{item.customer ?? ''}
-                                                {/* ⚠️ v2.2.187: 氏名②があるときだけ2行目 */}
-                                                <CustomerName2 value={item.customer_2} />
+                                            {/* ⚠️ v2.2.187: 氏名②があるときだけ「アイコン（縦中央）／氏名①・氏名②の2行」。⚠️ 媒介のボタンは氏名①の右（今までどおり） */}
+                                            <td><CustomerNameCell
+                                                icons={isDuplicate && <span style={{ cursor: 'pointer' }}
+                                                    onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}
+                                                name={item.customer ?? ''}
+                                                name2={item.customer_2}
+                                                after={<>
                                                 {isBroker && <span className='bg-warning rounded ms-1 p-1 fw-bold'
                                                     style={{ fontSize: '9px', textDecoration: 'underline dotted', cursor: 'pointer' }}
                                                     onClick={() => {
@@ -632,7 +635,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                                         setBrokerCustomer(item.id);
                                                         handleAddNew();
                                                     }}>
-                                                    媒介追加</span>}</td>
+                                                    媒介追加</span>}
+                                                </>} /></td>
                                             <td>{item.staff ?? ''}</td>
                                             <td>{item.status ?? ''}</td>
                                             <td>{item.call_status}</td>

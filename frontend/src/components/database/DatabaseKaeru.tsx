@@ -16,7 +16,7 @@ import { thisYear } from '../../utils/thisYear';
 // ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
 import { sortStaff } from '../header/useAmbassadorMaster';
 import { GiftDot, GiftLegend } from './GiftMark';
-import { CustomerName2, cleanCustomerName } from './customerName2';
+import { CustomerNameCell, cleanCustomerName } from './customerName2';
 
 type shopList = { brand: string, shop: string, section: string };
 // ⚠️ position / khg_id は担当営業セレクトの並べ替えに使う（2026-09-14 追加）。
@@ -655,10 +655,15 @@ const DatabaseKaeru = ({ }: Props) => {
                                                     setEditId(item.id);
                                                 }}>編集</div></td>
                                             <td>{item.shop}</td>
-                                            <td><GiftDot gift={item.gift} />{(isDuplicate && item.integration) && <span style={{ cursor: 'pointer' }}
-                                                onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}{item.customer ?? ''}
-                                                {/* ⚠️ v2.2.187: 氏名②があるときだけ2行目 */}
-                                                <CustomerName2 value={item.customer_2} /></td>
+                                            {/* ⚠️ v2.2.187: 氏名②があるときだけ「アイコン（縦中央）／氏名①・氏名②の2行」 */}
+                                            <td><CustomerNameCell
+                                                icons={<>
+                                                    <GiftDot gift={item.gift} />
+                                                    {(isDuplicate && item.integration) && <span style={{ cursor: 'pointer' }}
+                                                        onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}
+                                                </>}
+                                                name={item.customer ?? ''}
+                                                name2={item.customer_2} /></td>
                                             <td>{item.staff ?? ''}</td>
                                             <td>{item.status ?? ''}</td>
                                             <td>{formate(item.register)}</td>

@@ -19,7 +19,7 @@ import { missingLostFields } from '../../utils/informationUtils';
 import { sortStaff } from '../header/useAmbassadorMaster';
 import NexusBadge from '../NexusBadge';
 import { isNexusRow } from '../../utils/nexusUtils';
-import { CustomerName2, cleanCustomerName } from './customerName2';
+import { CustomerNameCell, cleanCustomerName } from './customerName2';
 
 // --- 型定義 ---
 type ShopList = { brand: string; shop: string; section: string };
@@ -681,12 +681,16 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                               ⚠️⚠️ **Nexus アイコンはギフトのドットの隣に置く**（2026-09-25 の指示）。
                                                 ⚠️ **改行しないこと。** 行の高さが揃わなくなり、一覧が読みにくくなる。
                                             */}
-                                            <td><GiftDot gift={item.gift} />
-                                                {/* ⚠️ `item.rank` は `Sランク` の形。⚠️ **表示用に「ランク」を落とす前の値**を渡すこと */}
-                                                {isNexusRow(item.customer, item.customer_contacts_name_kana, item.rank) && <NexusBadge className='me-1' />}
-                                                {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}
-                                                {/* ⚠️ v2.2.187: 氏名②があるときだけ2行目（⚠️ その行だけ高くなる。2026-10-12 に了承済み） */}
-                                                <CustomerName2 value={item.customer_2} /></td>
+                                            {/* ⚠️ v2.2.187: 氏名②があるときだけ「アイコン（縦中央）／氏名①・氏名②の2行」（⚠️ その行だけ高くなる。2026-10-12 に了承済み） */}
+                                            <td><CustomerNameCell
+                                                icons={<>
+                                                    <GiftDot gift={item.gift} />
+                                                    {/* ⚠️ `item.rank` は `Sランク` の形。⚠️ **表示用に「ランク」を落とす前の値**を渡すこと */}
+                                                    {isNexusRow(item.customer, item.customer_contacts_name_kana, item.rank) && <NexusBadge className='me-1' />}
+                                                    {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}
+                                                </>}
+                                                name={safeFormate(item.customer)}
+                                                name2={item.customer_2} /></td>
                                             <td>{safeFormate(item.staff)}</td>
                                             <td>{safeFormate(item.status)}</td>
                                             <td>{safeFormate(item.register)}</td>
