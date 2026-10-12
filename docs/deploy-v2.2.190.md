@@ -74,7 +74,7 @@ curl -s https://api.khg-marketing.info/api/gateway -d "request=kengaku_cloud&rol
 ## 出したあとの確認
 | # | 見ること | 期待 |
 |---|---|---|
-| 1 | 見学クラウドでテスト予約（URL に `?utm_source=test` を付けて流入） | inquiry_customer に `kengakucloud_YYYYMMDD_HHMMSS_mmm` の行。氏名・かな・店舗・キャンペーン・予約日・予約時間・LINE ID・url_params・utm_source（⚠️ 住所は保存しない。社内通知にだけ載る） |
+| 1 | 見学クラウドでテスト予約（URL に `?utm_source=test` を付けて流入） | inquiry_customer に `kengakucloud_YYYYMMDD_HHMMSS_mmm` の行。氏名・かな・住所（building）・店舗・キャンペーン・予約日・予約時間・LINE ID・url_params・utm_source |
 | 2 | 社内通知 | marketing@kh-group.jp と店舗の Cc に `{店舗}/{キャンペーン}からの登録がありました。` |
 | 3 | 反響一覧 → 同期 | 顧客に LINE ID・url_params が入る |
 ```sql

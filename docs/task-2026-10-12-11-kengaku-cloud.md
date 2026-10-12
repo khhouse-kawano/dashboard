@@ -19,7 +19,7 @@
 |---|---|
 | 送信先 | `https://api.khg-marketing.info/api/gateway`（本文に `request=kengaku_cloud`・`roll=entry`） |
 | 受け方 | フォーム形式（`sendBeacon` ／ fetch ／ XHR）・JSON のどちらも（app.ts に `express.urlencoded` が元からある） |
-| 保存（移植元と同じ） | 上の 13 列と同じ割り当て（⚠️ ただし住所は保存しない。下の追記）。inquiry_id の頭 `kengakucloud_Ymd_His`（日本時間で作る） |
+| 保存（移植元と同じ） | 上の 13 列と同じ割り当て。inquiry_id の頭 `kengakucloud_Ymd_His`（日本時間で作る） |
 | 保存（追加） | `reserved_time`・`line_id`（空白除去、空は NULL）・`remarks`（`message`＝質問・ご連絡事項）・`url_params` と `landing_params`（同じ値）・URL パラメータに utm_source〜utm_content があれば `utm_*` 列 |
 | 保存（直した） | NOT NULL の列をすべて埋める（campaign_form と同じ `NOT_NULL_COLUMNS`。sync・delete_flag は 0）。inquiry_id の末尾にミリ秒 `_mmm`（同じ秒に2件来ると重なり、同期で別の反響まで同期済みになるため。inquiry_id を解析しているコードは無いことを確認） |
 | URL パラメータ | `url_params` が JSON（GTM の localStorage そのまま）なら `k=v&…` に直す。`k=v&…` でも受ける。⚠️ `url_params` が無いときは、予約内容以外の英数字の名前を URL パラメータとみなす（今の GTM の「展開して送る」形でも拾える。日本語の見出しは拾わない） |
@@ -34,18 +34,10 @@
   - localStorage の `url_params` は展開せず、JSON 文字列のまま `url_params` 1項目で送る
 - `gtm_reserve_save.html` は変更なし
 
-## 追記: 住所は保存しない（利用者の指示「住所無しの場合もあるので building 不要」）
-- `values.building = address;` を削除（building は空のまま）。住所は社内通知の「住所：」にだけ載る
-- 確認: 住所あり・なしの両方で保存され、building は空。試験の行は削除
-
-```diff
-- *   ⚠️ 移植元は ① …。保存する列・inquiry_id の形・社内通知は同じにした。
-+ *   ⚠️ 移植元は ① …。保存する列・inquiry_id の形・社内通知は同じにした。
-+ *   ⚠️ ただし住所（full_address）は保存しない（住所の無い予約もあるため。移植元は building に入れていた）。社内通知には載せる。
--    // ⚠️ 移植元と同じく氏名・かなは分けずに first_name / first_name_kana、住所はまとめて building
-+    // ⚠️ 移植元と同じく氏名・かなは分けずに first_name / first_name_kana
--    values.building = address;
-```
+## 追記: 住所は任意
+- 必須は氏名・かな・メール・電話の4つだけ（移植元と同じ）。住所（full_address）は任意で、あれば building に入れ、無ければ空のまま保存する
+  - ⚠️ いったん「building に入れない」と取り違えて変えたが、利用者の意図は「必須にしなくてよい」だったので戻した（git revert）
+- 必須の確認のコメントに「住所は任意」を明記
 
 ## 変更ファイル
 | 場所 | ファイル | 内容 |
