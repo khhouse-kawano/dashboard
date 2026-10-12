@@ -1,6 +1,7 @@
 # 2026-10-12 v2.2.190 見学クラウドの GTM タグ（保存 v2・送信 v3）
 
 ## 依頼
+- 追加: 実際のブランドのアカウントは `/yoyaku/khkagoshima/`・`/yoyaku/djhsendai/`・`/yoyaku/ngmkagoshima/`・`/yoyaku/2lkagoshima/` のような URL。これでも動くように
 - 「送信のあと指定のページへ移動しない」→ GTM タグの問題
 - kokubuhousinggroup でも動く gtm_reserve_save.html を作る。ブランド指定の URL と kokubuhousinggroup のどちらでも動くように
 
@@ -14,11 +15,11 @@
 ## 作ったもの（Downloads。リポジトリ外）
 | ファイル | 内容 |
 |---|---|
-| **gtm_reserve_save_v2.html** | 動く条件 `/yoyaku/(kh\|djh\|ngm\|2l\|kokubuhousinggroup)(/\|$)`。ブランドはブランド指定の URL なら URL から、kokubuhousinggroup なら `<title>` の【】から（分からなければ KH）。URL パラメータは `/reserve/` を含むページでは保存しない（予約画面の reserve_event[date]・commit・_gl で utm を上書きしないため）。それ以外は公開版と同じ |
+| **gtm_reserve_save_v2.html** | 動く条件 `/yoyaku/(kokubuhousinggroup\|(djh\|kh\|ngm\|2l)[a-z0-9_-]*)(/\|$)`（ブランドのアカウントは khkagoshima・djhsendai・ngmkagoshima・2lkagoshima のように**頭がブランド**）。ブランドはブランドのアカウントなら頭の kh・djh・ngm・2l から、kokubuhousinggroup なら `<title>` の【】から（分からなければ KH）。URL パラメータは `/reserve/` を含むページでは保存しない（予約画面の reserve_event[date]・commit・_gl で utm を上書きしないため）。それ以外は公開版と同じ |
 | **gtm_reserve_send_v3.html** | v2 の動く条件を上と同じに。サンクスページに なごみ（nagomi-koumuten.jp/event_ok/）・2L（2lhome.net/thanks/?referer=reserve）・JH（jusfy-home.com/reservation_ok/）を追加（form_get の brands.ts と同じ） |
 - GTM のトリガー（ファイル冒頭に記載）
-  - 保存: DOM Ready、Page Path が正規表現 `/yoyaku/(kh|djh|ngm|2l|kokubuhousinggroup)(/|$)` に一致（⚠️ 確認画面だけに絞らない）
-  - 送信: Window Loaded、Page Path が正規表現 `/yoyaku/(kh|djh|ngm|2l|kokubuhousinggroup)/.*/complete` に一致
+  - 保存: DOM Ready、Page Path が正規表現 `/yoyaku/(kokubuhousinggroup|(djh|kh|ngm|2l)[^/]*)(/|$)` に一致（⚠️ 確認画面だけに絞らない）
+  - 送信: Window Loaded、Page Path が正規表現 `/yoyaku/(kokubuhousinggroup|(djh|kh|ngm|2l)[^/]*)/.*/complete` に一致
 
 ## 確認（Playwright。⚠️ 偽の見学クラウドのページ、通信はすべて横取り）
 | # | ページ | 結果 |
@@ -26,9 +27,10 @@
 | 1 | `/cms/yoyaku/kokubuhousinggroup/events/1?utm_source=instagram&utm_campaign=autumn` | url_params `{"utm_source":"instagram","utm_campaign":"autumn"}` |
 | 2 | `…/reserve/new?reserve_event[date]=…&commit=…&_gl=…` | url_params は 1 のまま（上書きしない） |
 | 3 | `/kokubuhousinggroup/…/reserve/confirm`（title【デイジャストハウス】） | brand DJH、shop `DJH霧島店`、line_id、reserved_date `2026-10-15`・reserved_time `10:00`、full_address |
-| 4 | `/kh/…/reserve/confirm`（title【デイジャストハウス】） | brand KH（URL が優先） |
+| 4 | `/khkagoshima/`・`/djhsendai/`・`/ngmkagoshima/`・`/2lkagoshima/` の `…/reserve/confirm`（title はすべて【国分ハウジング】） | brand KH・DJH・なごみ・2L（アカウント名が優先）、shop の頭もそれぞれ補正 |
+| 4b | `/djhsendai/events/146108?utm_source=google` | url_params `{"utm_source":"google"}` |
 | 5 | `/other/…`（対象外） | 何も保存しない |
-| 6 | `/ngm/…/reserve/complete` | api.khg-marketing.info へ送信（request=kengaku_cloud…url_params=JSON）→ nagomi-koumuten.jp/event_ok/ へ移動 |
+| 6 | `/ngmkagoshima/…/reserve/complete` | api.khg-marketing.info へ送信（request=kengaku_cloud…url_params=JSON）→ nagomi-koumuten.jp/event_ok/ へ移動 |
 
 ## gtm_reserve_save_v2.html（全文）
 ```html
@@ -36,10 +38,11 @@
   GTM カスタムHTMLタグ: URLパラメータ保存 ＋ 予約内容の保存（確認画面）  v2
 
   【v2 の変更点】
-  - 動くページ: /yoyaku/kh/ ・ /yoyaku/djh/ ・ /yoyaku/ngm/ ・ /yoyaku/2l/（ブランド指定）と
+  - 動くページ: ブランドのアカウント（/yoyaku/khkagoshima/ ・ /yoyaku/djhsendai/ ・ /yoyaku/ngmkagoshima/ ・
+                /yoyaku/2lkagoshima/ のように kh・djh・ngm・2l で始まるもの）と
                 /yoyaku/kokubuhousinggroup/（グループ共通）のどちらでも動く
   - ブランドの決め方:
-      ブランド指定の URL          → URL から（kh→KH / djh→DJH / ngm→なごみ / 2l→2L）
+      ブランドのアカウント        → アカウント名の頭から（kh→KH / djh→DJH / ngm→なごみ / 2l→2L）
       kokubuhousinggroup の URL  → <title> の【】から（国分ハウジング→KH ／ デイジャストハウス→DJH ／
                                     なごみ工務店→なごみ ／ ジャスフィーホーム→JH ／ ニーエルホーム→2L。分からなければ KH）
   - URL パラメータ（? 以降）は「予約の手続き中のページ（/reserve/ を含む）」では保存しない
@@ -48,12 +51,12 @@
 
   【GTM設定】
   - トリガー: ページビュー - DOM Ready
-      条件: Page Path が 正規表現に一致 /yoyaku/(kh|djh|ngm|2l|kokubuhousinggroup)(/|$)
+      条件: Page Path が 正規表現に一致 /yoyaku/(kokubuhousinggroup|(djh|kh|ngm|2l)[^/]*)(/|$)
       ⚠️ 確認画面だけに絞らないこと（流入ページの URL パラメータを覚えるため）。予約内容の保存は確認画面でだけ動く
 -->
 <script>
 (function () {
-  var pathMatch = window.location.pathname.match(/\/yoyaku\/(kh|djh|ngm|2l|kokubuhousinggroup)(\/|$)/i);
+  var pathMatch = window.location.pathname.match(/\/yoyaku\/(kokubuhousinggroup|(?:djh|kh|ngm|2l)[a-z0-9_-]*)(\/|$)/i);
   if (!pathMatch) return;
   var account = pathMatch[1].toLowerCase();
 
@@ -96,7 +99,7 @@
   postData.campaign = titleParts.length > 0 ? titleParts[0].trim() : "";
 
   // ========================================================
-  // ブランド: ブランド指定の URL なら URL から、kokubuhousinggroup なら <title> の【】から
+  // ブランド: ブランドのアカウント（khkagoshima など）なら頭の kh・djh・ngm・2l から、kokubuhousinggroup なら <title> の【】から
   // ========================================================
   var accountBrand = { kh: "KH", djh: "DJH", ngm: "なごみ", "2l": "2L" };
   var titleBrand = {
@@ -107,8 +110,9 @@
     "ニーエルホーム": "2L",
   };
   var detectedBrand = "KH"; // 分からなければ KH
-  if (accountBrand[account]) {
-    detectedBrand = accountBrand[account];
+  var accountPrefix = account.match(/^(djh|kh|ngm|2l)/);
+  if (account !== "kokubuhousinggroup" && accountPrefix) {
+    detectedBrand = accountBrand[accountPrefix[1]];
   } else {
     var titleMatch = (document.title || "").match(/【([^】]+)】/);
     if (titleMatch && titleBrand[titleMatch[1].trim()]) {
@@ -222,17 +226,17 @@
 ## gtm_reserve_send_v3.html（v2 との差分）
 ```diff
 --- /c/Users/shinji-kawano/Downloads/gtm_reserve_send_v2.html	2026-10-12 18:14:27.734637000 +0900
-+++ /c/Users/shinji-kawano/Downloads/gtm_reserve_send_v3.html	2026-10-12 18:53:25.491229000 +0900
++++ /c/Users/shinji-kawano/Downloads/gtm_reserve_send_v3.html	2026-10-12 18:55:10.996660000 +0900
 @@ -1,6 +1,14 @@
  <!--
    GTM カスタムHTMLタグ: 予約内容のAPI送信 → サンクスページへリダイレクト
  
 +  【変更点（v3）】
-+  - 動くページ: /yoyaku/kh/ ・ /yoyaku/djh/ ・ /yoyaku/ngm/ ・ /yoyaku/2l/（ブランド指定）と
++  - 動くページ: ブランドのアカウント（/yoyaku/khkagoshima/ など kh・djh・ngm・2l で始まるもの）と
 +                /yoyaku/kokubuhousinggroup/ のどちらでも動く（gtm_reserve_save_v2.html と同じ条件）
 +  - 送信後のサンクスページに なごみ・2L・JH を追加（今まではどれも国分ハウジングのトップへ移っていた）
 +  - GTM のトリガー: ページビュー - ウィンドウの読み込み（Window Loaded）
-+      条件: Page Path が 正規表現に一致 /yoyaku/(kh|djh|ngm|2l|kokubuhousinggroup)/.*/complete
++      条件: Page Path が 正規表現に一致 /yoyaku/(kokubuhousinggroup|(djh|kh|ngm|2l)[^/]*)/.*/complete
 +      ⚠️ 完了画面の URL に /complete が入っていることを確認すること
 +
    【変更点（v2）】
@@ -243,7 +247,7 @@
  -->
  <script>
 -if (window.location.href.indexOf("kokubuhousinggroup") !== -1) {
-+if (/\/yoyaku\/(kh|djh|ngm|2l|kokubuhousinggroup)(\/|$)/i.test(window.location.pathname)) {
++if (/\/yoyaku\/(kokubuhousinggroup|(?:djh|kh|ngm|2l)[a-z0-9_-]*)(\/|$)/i.test(window.location.pathname)) {
    (function () {
      // 1. データの読み込み
      try {
