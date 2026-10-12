@@ -27,6 +27,7 @@ $response_call = $stmt_call->fetchAll(PDO::FETCH_ASSOC);
 $sql_customer = "SELECT
   id,
   COALESCE(customer_contacts_name, '') AS customer,
+  COALESCE(customer_contacts_name_2, '') AS customer_2,
   COALESCE(in_charge_store, '') AS shop,
   COALESCE(in_charge_user, '') AS staff,
   COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') AS rank,

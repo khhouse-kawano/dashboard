@@ -43,6 +43,7 @@ $sql_customer = "SELECT
   id,
   " . giftBaseSelectSql() . ",
   COALESCE(customer_contacts_name, '') AS customer,
+  COALESCE(customer_contacts_name_2, '') AS customer_2,
   -- 2026-09-25 に追加。DatabaseOrder.tsx の Nexus アイコンの判定で使う。
   -- 返さないと画面側が undefined になり、アイコンが一切出なくなる。
   -- ② の backend-express/src/features/database/queries.ts にも同じ1行がある。

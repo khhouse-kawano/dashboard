@@ -19,6 +19,7 @@ import { missingLostFields } from '../../utils/informationUtils';
 import { sortStaff } from '../header/useAmbassadorMaster';
 import NexusBadge from '../NexusBadge';
 import { isNexusRow } from '../../utils/nexusUtils';
+import { CustomerName2, cleanCustomerName } from './customerName2';
 
 // --- 型定義 ---
 type ShopList = { brand: string; shop: string; section: string };
@@ -42,6 +43,8 @@ interface CustomerItem extends Record<string, any> {
     medium?: string;
     status?: string;
     customer?: string;
+    /** 氏名②（customer_contacts_name_2）。⚠️ v2.2.187 追加。⚠️ 値があるときだけ顧客名の2行目に出す・名前検索の対象 */
+    customer_2?: string;
     /** フリガナ。⚠️ Nexus アイコンの判定にだけ使う（検索には使っていない） */
     customer_contacts_name_kana?: string;
     staff?: string;
@@ -267,7 +270,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
                 && (selectedMedium === 'SUUMO(ポータル反響)' ? (item.medium === 'SUUMO' && !item.reserved_interview) : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
                 && (selectedIntroductory ? arrIncludes(item.introduction_person_category, selectedIntroductory) : true)
                 && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
-                && (nameSearch.debouncedValue ? strIncludes(item._cleanCustomer, cleanFormattedName) : true)
+                // ⚠️ v2.2.187: 氏名②（customer_2）も名前検索の対象
+                && (nameSearch.debouncedValue ? (strIncludes(item._cleanCustomer, cleanFormattedName) || strIncludes(cleanCustomerName(item.customer_2), cleanFormattedName)) : true)
                 && (staffSearch.debouncedValue ? strIncludes(item.staff, staffSearch.debouncedValue.split(' ')[0]) : true)
                 && ((phoneSearch.debouncedValue || nameSearch.debouncedValue) ? strIncludes(item.phone_number, formattedNumber) : true)
                 && (formattedAddress ? strIncludes(item.full_address, formattedAddress) : true)
@@ -680,7 +684,9 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                             <td><GiftDot gift={item.gift} />
                                                 {/* ⚠️ `item.rank` は `Sランク` の形。⚠️ **表示用に「ランク」を落とす前の値**を渡すこと */}
                                                 {isNexusRow(item.customer, item.customer_contacts_name_kana, item.rank) && <NexusBadge className='me-1' />}
-                                                {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}</td>
+                                                {item.k_snap && <i className="fa-solid fa-camera me-1 text-warning"></i>}{safeFormate(item.customer)}
+                                                {/* ⚠️ v2.2.187: 氏名②があるときだけ2行目（⚠️ その行だけ高くなる。2026-10-12 に了承済み） */}
+                                                <CustomerName2 value={item.customer_2} /></td>
                                             <td>{safeFormate(item.staff)}</td>
                                             <td>{safeFormate(item.status)}</td>
                                             <td>{safeFormate(item.register)}</td>
