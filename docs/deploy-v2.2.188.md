@@ -26,6 +26,13 @@
 
 ## 手順1　【① phpMyAdmin】列の追加
 ⚠️ ファイル: `backend/scripts/sql/2026-10-12_line_id_columns.sql`（何度流しても壊れない。⚠️ 既存の全フォームは列を足したときに既定値「表示・任意・LINE IDをご入力ください」で埋まる。⚠️ 2回目以降に流しても、スタッフが変えた設定は上書きしない）
+⚠️ この1本で **8テーブル**に `line_id` 列を足す:
+| テーブル | 位置 | 型 |
+|---|---|---|
+| `form_table` / `form_database` | `mail` の次 | JSON（項目の設定。既定値「表示・任意・LINE IDをご入力ください」） |
+| `inquiry_customer` / `inquiry_customer_kaeru` / `inquiry_customer_resale` | `mail` の次 | TEXT（空は NULL） |
+| `master_data` / `master_data_kaeru` / `master_data_resale` | `customer_contacts_email` の次 | TEXT（空は NULL） |
+
 ⚠️ 最後の確認の結果:
 - form_database / form_table の `rows_all` と `line_on` が同じ数
 - 反響3・顧客3テーブルの `filled` が 0（まだ値が無い）
