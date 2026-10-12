@@ -12,6 +12,7 @@ import { clean, cleanMultiline } from '../campaignForm/text';
  *   （gtm_reserve_save.html で予約内容を localStorage に保存 → gtm_reserve_send.html が送信）。
  *   ⚠️ `sendBeacon` ／ fetch ／ XHR で **フォーム形式（x-www-form-urlencoded）** で届く。JSON でも受ける。
  * ⚠️ 移植元は ① `khg-marketing.info/api/kengakuCloud/all/`。保存する列・inquiry_id の形・社内通知は同じにした。
+ *   ⚠️ ただし住所（full_address）は保存しない（住所の無い予約もあるため。移植元は building に入れていた）。社内通知には載せる。
  *   違うところ:
  *   - NOT NULL の列をすべて埋める（移植元は 13 列だけで、sql_mode が緩いから通っていた）
  *   - reserved_time・line_id・URL パラメータ・質問（remarks）も保存する
@@ -147,12 +148,11 @@ export const runKengakuCloudEntry = async (
     values.inquiry_date = `${t.y}/${t.mo}/${t.d}`;
     values.medium = 'ホームページ反響';
     values.response_medium = medium;
-    // ⚠️ 移植元と同じく氏名・かなは分けずに first_name / first_name_kana、住所はまとめて building
+    // ⚠️ 移植元と同じく氏名・かなは分けずに first_name / first_name_kana
     values.first_name = name;
     values.first_name_kana = kana;
     values.mail = mail;
     values.mobile = mobile;
-    values.building = address;
     values.brand = brand;
     values.shop = shop;
     values.hp_campaign = campaign;
