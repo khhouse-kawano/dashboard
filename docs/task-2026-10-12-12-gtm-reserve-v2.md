@@ -70,6 +70,12 @@
 - gtm_reserve_save_v3.html: 中身の判定は元からタグ内（対象アカウント・予約内容の表の有無・/reserve/ では URL パラメータを覚えない）。→ トリガーは「DOM Ready・すべてのページ」でよい（説明だけ追加）
 - 確認（送信タグ）: khmiyakonojo と kokubuhousinggroup の …/reserve/complete → 送信して kh-house.jp/event_ok/ へ。…/events/1・…/reserve/confirm・対象外のアカウントの /complete → 何もしない
 
+## 追記: 予約入力画面（/reserve/new?…）で url_params が取れない
+- これまで /reserve/ を含むページでは URL パラメータを覚えない作りだったため、予約入力画面に直接来ると何も残らなかった
+- 変更（gtm_reserve_save_v3.html）: /reserve/ を含むページでも保存する。ただし前に覚えたもの（広告の utm_… など）は消さず、このページのパラメータを足す（同じ名前は新しい値）。それ以外のページは今までどおり置き換え
+- 確認: A 予約入力に直接 → reserve_event[date]・reserve_event[reserve_time]・commit・_gl ／ B 広告（utm_source=google&utm_campaign=autumn）→ イベント → 予約入力 → utm と予約入力のパラメータの両方 ／ C 予約入力 → 確認（? なし）→ 消えない
+- 利用者「それならOK」
+
 ## gtm_reserve_save_v3.html（全文）
 ```html
 <!--
@@ -80,6 +86,9 @@
     （動くアカウントの判定・予約内容の表があるかの判定はタグの中でしている。正規表現の条件は不要）
 
   【v3 の変更点】
+  - URL パラメータ: 予約の手続き中のページ（/reserve/ を含む。例 /reserve/new?reserve_event[date]=…&_gl=…）でも保存する。
+      ただし前に覚えたパラメータは消さず、このページのパラメータを足す（同じ名前は新しい値）。
+      それ以外のページでは今までどおり置き換える
   - 店舗（shop）: どのアカウントでも <title> の最後の「| ブランド名 ○○店」から取る（kokubuhousinggroup でも）
       例）「【全店舗開催】新商品「Fit」誕生 | 国分ハウジング 都城店」→ 都城店 → KH都城店
       ⚠️ 「… | なごみ工務店」「… | 株式会社国分ハウジング」のようにブランド名だけで終わるものは店舗にしない
@@ -115,11 +124,17 @@
 
   // ========================================================
   // 0. URLパラメータ（?以降）を url_params として保存
-  //    ⚠️ 予約の手続き中のページ（/reserve/）では保存しない
+  //    ⚠️ 予約の手続き中のページ（/reserve/）では、前に覚えたもの（広告の utm_… など）に足す（消さない）
   // ========================================================
   var query = window.location.search.replace(/^\?/, "");
-  if (query && window.location.pathname.indexOf("/reserve/") === -1) {
+  if (query) {
     var urlParams = {};
+    if (window.location.pathname.indexOf("/reserve/") !== -1) {
+      try {
+        var stored = JSON.parse(localStorage.getItem("url_params") || "{}");
+        if (stored && typeof stored === "object") urlParams = stored;
+      } catch (e) {}
+    }
     var pairs = query.split("&");
     for (var p = 0; p < pairs.length; p++) {
       if (!pairs[p]) continue;
