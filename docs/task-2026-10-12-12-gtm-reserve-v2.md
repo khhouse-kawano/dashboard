@@ -32,6 +32,22 @@
 | 5 | `/other/…`（対象外） | 何も保存しない |
 | 6 | `/ngmkagoshima/…/reserve/complete` | api.khg-marketing.info へ送信（request=kengaku_cloud…url_params=JSON）→ nagomi-koumuten.jp/event_ok/ へ移動 |
 
+## 追記: 店舗（shop）が送られない
+- 実際のページのタイトル（公開ページを読んで確認）
+  | アカウント | `<title>` |
+  |---|---|
+  | khmiyazaki | 【全店舗開催】国分ハウジングのモデルハウス見学会 \| 国分ハウジング 宮崎店 |
+  | djhsendai | 《薩摩川内市中郷町》お客様のお家完成見学会 \| DAY JUST HOUSE 薩摩川内店 |
+  | ngmkagoshima | 新生活が見える！出水市完成見学会へ \| なごみ工務店 鹿児島店 |
+  | 2lkagoshima | シングルマザーのためのおうちづくり相談会 \| 2Lhome 鹿児島店 |
+  | kokubuhousinggroup | 【国分ハウジング】無人モデルハウス 自由に見学DAY！ \| 株式会社国分ハウジング |
+- 変更（gtm_reserve_save_v2.html）
+  - 予約内容の表で、見出しに「店舗」を含む行は `shop` として読む（keyMap に無い場合）
+  - 表に店舗が無く、kokubuhousinggroup 以外なら、`<title>` の最後の `|` のあとの末尾「○○店」を `shop` に → 既存の補正でブランドの頭が付く（例 KH宮崎店）
+  - ⚠️ kokubuhousinggroup は表に店舗の行が無いと空のまま（タイトルに店舗名が無いため）
+- 確認（偽のページに実際のタイトル）: khmiyazaki → `KH宮崎店`、djhsendai → `DJH薩摩川内店`、ngmkagoshima → `なごみ鹿児島店`、2lkagoshima → `2L鹿児島店`、kokubuhousinggroup → 空、kokubuhousinggroup ＋ 表に「ご来場店舗：霧島店」（タイトル【デイジャストハウス】）→ `DJH霧島店`
+- ⚠️ 確認画面の `<title>` も同じ形であることは未確認（予約入力・イベントのページで確認）
+
 ## gtm_reserve_save_v2.html（全文）
 ```html
 <!--
@@ -45,6 +61,8 @@
       ブランドのアカウント        → アカウント名の頭から（kh→KH / djh→DJH / ngm→なごみ / 2l→2L）
       kokubuhousinggroup の URL  → <title> の【】から（国分ハウジング→KH ／ デイジャストハウス→DJH ／
                                     なごみ工務店→なごみ ／ ジャスフィーホーム→JH ／ ニーエルホーム→2L。分からなければ KH）
+  - 店舗（shop）: ブランドのアカウントは <title> の「… | 国分ハウジング 宮崎店」の最後の「○○店」から（→ KH宮崎店）。
+      予約内容の表に「店舗」を含む見出しの行があればそちらを優先（kokubuhousinggroup はこの行が無いと空のまま）
   - URL パラメータ（? 以降）は「予約の手続き中のページ（/reserve/ を含む）」では保存しない
     （予約画面の URL には reserve_event[date]・commit・_gl などが付き、広告から来たときの utm_… を上書きしてしまうため）
   - それ以外（見出しで key を決める・LINE ID・予約日時の読み取り・店舗名の補正）は今の公開版と同じ
@@ -169,7 +187,7 @@
     if (cells.length < 2) continue;
     var label = normalizeLabel(cells[0].textContent);
     if (!label) continue;
-    var key = keyMap.hasOwnProperty(label) ? keyMap[label] : label;
+    var key = keyMap.hasOwnProperty(label) ? keyMap[label] : /店舗/.test(label) ? "shop" : label;
     var text = cellValue(cells[1]);
 
     if (key === "pref" || key === "town" || key === "street" || key === "building") {
@@ -188,6 +206,16 @@
     null
   ).singleNodeValue;
   postData.reserved_date = dateNode && dateNode.textContent ? dateNode.textContent.trim() : "";
+
+  // 店舗: 表に無ければ、ブランドのアカウントは <title> の最後の「| ブランド名 ○○店」から
+  //   例）「【全店舗開催】… | 国分ハウジング 宮崎店」→「宮崎店」（下の補正で KH宮崎店 になる）
+  if (!postData.shop && account !== "kokubuhousinggroup") {
+    var titleParts2 = (document.title || "").split("|");
+    var shopMatch = titleParts2[titleParts2.length - 1].trim().match(/(\S+店)$/);
+    if (titleParts2.length > 1 && shopMatch) {
+      postData.shop = shopMatch[1];
+    }
+  }
 
   // 補正: shop のブランド名を正しいもの（postData.brand）に強制補正
   if (postData.shop) {
