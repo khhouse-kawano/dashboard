@@ -1,14 +1,17 @@
 import React, { useEffect, useState, useContext } from 'react';
-import Table from "react-bootstrap/Table";
 import { useNavigate, useLocation } from "react-router-dom";
 import { fetchDetail, fetchMaster, insertCampaign, updateCampaign } from './campaignApi';
 import AuthContext from '../../context/AuthContext';
 import { PLACEHOLDERS, unknownPlaceholders } from './mailTemplateFields';
+// ⚠️ v2.2.188: 画面の作り直し（Dashboard 風の SaaS デザイン）と、右側の公開フォームのプレビュー
+import FormPreview from './formPreview';
+import './newCampaign.css';
 
 type BooleanKeys =
     'thanks';
 
-type FormState = {
+/** ⚠️ v2.2.188: プレビュー（formPreview.tsx）が型だけ使うので export する */
+export type FormState = {
     brand: string;
     campaign: string;
     campaign_id: string;
@@ -237,9 +240,7 @@ const NewCampaign = () => {
         },
     });
     const [response, setResponse] = useState<Response>();
-    const [newShop, setNewShop] = useState<string>('');
-    const [newTime, setNewTime] = useState<string>('');
-    const [newMedium, setNewMedium] = useState<string>('');
+    // ⚠️ v2.2.188: 選択肢の追加欄（newShop / newTime / newMedium）は OptionList が持つようにした
     const [validation, setValidation] = useState<string[]>([]);
     /**
      * ⚠️ 設定を読めなかったことを画面に出すため。
@@ -453,52 +454,38 @@ const NewCampaign = () => {
         const unknown = [...unknownPlaceholders(subject), ...unknownPlaceholders(body)];
         const isDefault = subject.trim() === '' && body.trim() === '';
 
+        // ⚠️ v2.2.188: 見た目だけ newCampaign.css に合わせた（⚠️ 中身・「空欄＝既定」の決まりは同じ）
         return (
-            <div>
-                <div className="d-flex align-items-center mb-2" style={{ gap: '10px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '12px', color: '#666' }}>{note}</span>
-                    <span style={{
-                        fontSize: '11px', padding: '2px 10px', borderRadius: '999px',
-                        backgroundColor: isDefault ? '#eef2f7' : '#fff7ed',
-                        color: isDefault ? '#4b5563' : '#b45309',
-                    }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
+                    <span className="nc-hint" style={{ fontSize: '12px' }}>{note}</span>
+                    <span className={`nc-tag ${isDefault ? 'nc-tag-default' : 'nc-tag-custom'}`}>
                         {isDefault ? '既定の文面' : 'このキャンペーン専用'}
                     </span>
                     {isDefault ||
-                        <button type="button"
-                            onClick={() => { changeTemplate(subjectKey, ''); changeTemplate(bodyKey, ''); }}
-                            style={{
-                                fontSize: '11px', border: '1px solid #d1d5db', borderRadius: '999px',
-                                background: '#fff', padding: '2px 12px', cursor: 'pointer',
-                            }}>
+                        <button type="button" className="nc-btn nc-btn-ghost" style={{ minHeight: '26px', padding: '2px 10px', fontSize: '11px' }}
+                            onClick={() => { changeTemplate(subjectKey, ''); changeTemplate(bodyKey, ''); }}>
                             既定に戻す
                         </button>}
                 </div>
 
-                <input type="text" className="form-control mb-2" value={subject}
-                    placeholder="件名（空欄なら既定）"
-                    onChange={(e) => changeTemplate(subjectKey, e.target.value)}
-                    style={{ fontSize: '12px' }} />
+                <input type="text" className="nc-input" value={subject}
+                    placeholder="件名（空欄なら既定）" aria-label={`${note} 件名`}
+                    onChange={(e) => changeTemplate(subjectKey, e.target.value)} />
 
-                <textarea value={body} rows={10}
-                    placeholder="本文（空欄なら既定の文面が送られます）"
-                    onChange={(e) => changeTemplate(bodyKey, e.target.value)}
-                    style={{
-                        width: '100%', border: '1px solid #D3D3D3', borderRadius: '7px',
-                        fontSize: '12px', letterSpacing: '.7px', padding: '6px',
-                    }} />
+                <textarea className="nc-textarea" value={body} rows={8}
+                    placeholder="本文（空欄なら既定の文面が送られます）" aria-label={`${note} 本文`}
+                    onChange={(e) => changeTemplate(bodyKey, e.target.value)} />
 
                 {unknown.length === 0 ||
-                    <div style={{ color: '#b45309', fontSize: '12px', marginTop: '4px' }}>
+                    <p className="nc-warn">
                         {`差し込めない語があります：${unknown.map(k => `{{${k}}}`).join(' ')}`}
                         <span className="ms-1">そのまま本文に出ます。</span>
-                    </div>}
+                    </p>}
 
-                <details style={{ marginTop: '6px' }}>
-                    <summary style={{ fontSize: '12px', cursor: 'pointer', color: '#2563eb' }}>
-                        使える差し込み語
-                    </summary>
-                    <div style={{ fontSize: '11px', color: '#4b5563', lineHeight: 1.9, marginTop: '4px' }}>
+                <details className="nc-details">
+                    <summary>使える差し込み語</summary>
+                    <div style={{ fontSize: '11px', color: '#525f7f', lineHeight: 1.9, marginTop: '4px' }}>
                         {PLACEHOLDERS.map(item => (
                             <div key={item.key}>
                                 <code>{`{{${item.key}}}`}</code>
@@ -554,1216 +541,367 @@ const NewCampaign = () => {
         }
     }, [response])
 
+    /**
+     * ─────────────────────────────────────────────
+     * ⚠️ v2.2.188: 画面を作り直した（Dashboard 風の SaaS デザイン。newCampaign.css）。
+     *   左: 設定のカード ／ 右: 公開フォームのプレビュー（formPreview.tsx。⚠️ 入力するとその場で反映）／ 下: 保存バー
+     * ⚠️ 保存（postForm）・読み込み・入力チェックは ⚠️ **変えていない**。⚠️ 送る中身（form）の形も同じ。
+     * ⚠️ 項目の「表示する」「必須／任意」は ⚠️ **patch で bool / required だけを書き換える**。
+     *   ⚠️ 以前は changeForm(項目名) を使っており、shop / date / medium 以外は ⚠️ **項目の設定ごと '' で上書き**していた
+     *     （チェックを外すと文言・必須が消え、もう一度付けても戻らなかった）。
+     *   ⚠️ 販促媒体の選択肢の編集・追加は ⚠️ `...prev.shop` を広げていたため、来場希望場所の設定が販促媒体へ混ざっていた。
+     *     → OptionList に置き換え、⚠️ 販促媒体は販促媒体だけを書き換える。
+     * ─────────────────────────────────────────────
+     */
+    type ItemKey = 'shop' | 'date' | 'name' | 'kana' | 'age' | 'phone' | 'mail' | 'line_id' | 'address' | 'medium' | 'question';
+    const patch = <K extends ItemKey | 'notice' | 'attention'>(key: K, value: Partial<FormState[K]>) =>
+        setForm(prev => ({ ...prev, [key]: { ...prev[key], ...value } }));
+
+    /** 表示する／必須・任意 の切り替え。⚠️ bool・required だけを書き換える（他の設定は残す） */
+    const setFlag = (key: ItemKey, flag: 'bool' | 'required', value: boolean) =>
+        setForm(prev => ({ ...prev, [key]: { ...prev[key], [flag]: value } }));
+
+    /** 項目の行（表示する ／ 必須・任意）。⚠️ 中身は children */
+    const item = (key: ItemKey, title: string, children: React.ReactNode, hiddenChildren?: React.ReactNode) => (
+        <FieldItem
+            key={key}
+            title={title}
+            shown={Boolean(form[key].bool)}
+            onShown={(v) => setFlag(key, 'bool', v)}
+            required={Boolean(form[key].required)}
+            onRequired={(v) => setFlag(key, 'required', v)}
+            hiddenChildren={hiddenChildren}
+        >
+            {children}
+        </FieldItem>
+    );
+
+    const isEdit = Boolean(idValue);
+
     return (
-        <>
-            <div className='content database bg-white p-2'>
-                <div className="table-wrapper">
-                    <div className="list_table">
-                        <div className='bg-light w-75' style={{ position: 'fixed', bottom: '0', height: '130px', zIndex: '100' }}>
-                            <div className="p-3 rounded-pill" style={{ width: '400px', margin: '40px auto', textAlign: 'center', cursor: 'pointer', backgroundColor: 'blue', color: '#fff', textDecoration: 'none' }} onClick={() => postForm()}>{!idValue ? '入力内容でキャンペーン登録' : '入力内容でキャンペーン修正'}</div>
-                        </div>
-                        <div className="bg-white" style={{ width: '90%', maxWidth: '960px', margin: '0 auto', paddingBottom: '200px' }}>
-                            <div className="pt-3" style={{ width: '200px', margin: '0 auto' }}>
-                                <img src={`https://khg-marketing.info/dashboard/form/img/${brandValue}.png`} className="w-100" />
-                            </div>
-                            <div className="w-100 pt-3" style={{ fontSize: '15px', textAlign: 'center', marginBottom: '30px' }}>
-                                {idValue ? 'キャンペーン修正' : 'キャンペーン作成'}
-                            </div>
+        <div className="nc">
+            <header className="nc-header">
+                <img className="nc-header-logo" src={`https://khg-marketing.info/dashboard/form/img/${brandValue}.png`} alt="" />
+                <div>
+                    <p className="nc-crumb">キャンペーン一覧 ／ {isEdit ? '修正' : '新規作成'}</p>
+                    <h1 className="nc-title">{isEdit ? 'キャンペーン修正' : 'キャンペーン作成'}</h1>
+                </div>
+                <div className="nc-header-actions">
+                    <button type="button" className="nc-btn" onClick={() => navigate(`/campaign/?brand=${brandValue ?? ''}`)}>
+                        <i className="fa-solid fa-arrow-left" aria-hidden="true"></i>一覧へ戻る
+                    </button>
+                </div>
+            </header>
 
-                            {/**
-                              * ⚠️⚠️ **読み込めなかったことを必ず画面に出す。**
-                              *   ⚠️ 出さないと「修正を押したのに反映されない」としか見えず、
-                              *     利用者にも受けた側にも原因が分からない。
-                              */}
-                            {!loadError ||
-                                <div className="border rounded p-3 mb-4 text-center"
-                                    style={{ fontSize: '13px', color: '#dc3545', backgroundColor: '#fff5f5' }}>
-                                    {loadError}<br />
-                                    <span style={{ fontSize: '11px', color: '#666' }}>
-                                        このまま保存すると内容が上書きされます。一覧に戻ってやり直してください。
-                                    </span>
-                                </div>}
-                            <Table style={{ width: '90%', margin: '0 auto' }}>
-                                <tbody style={{ border: '1px solid #d3d3d3ff' }}>
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                            キャンペーン名
-                                        </td>
-                                        <td>
-                                            <div><input type="text" className="form-control" value={form.campaign} id='campaign' onChange={(e) => changeForm('campaign', e.target.value)} placeholder='例)20**【KH**】****キャンペーン ※反響メールのタイトルになります' /></div>
-                                            {!validation.includes('campaign') || <div style={{ color: 'red', marginTop: '-5px' }}>キャンペーン名が未入力です</div>}
-                                        </td>
-                                    </tr >
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                            キャンペーンID
-                                        </td>
-                                        <td>
-                                            <div><input type="text" className="form-control" value={form.campaign_id} onChange={(e) => changeForm('campaign_id', e.target.value)} disabled={!!idValue} placeholder='例)20**0101_kh**_***campaign ※重複不可 半角英数のみ使用' /></div>
-                                            {!validation.includes('campaign_id') || <div style={{ color: 'red', marginTop: '-5px' }}>キャンペーンIDが未入力です</div>}
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                            反響アドレス(To)
-                                        </td>
-                                        <td>
-                                            <div><input type="text" className="form-control" value={form.mail_to} onChange={(e) => changeForm('mail_to', e.target.value)} /></div>
-                                            {!validation.includes('mail_to') || <div style={{ color: 'red', marginTop: '-5px' }}>反響アドレス(To)が未入力です</div>}
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                            反響アドレス(Cc)
-                                        </td>
-                                        <td>
-                                            <div><input type="text" className="form-control" value={form.mail_cc} onChange={(e) => changeForm('mail_cc', e.target.value)} /></div>
-                                            {!validation.includes('mail_cc') || <div style={{ color: 'red', marginTop: '-5px' }}>反響アドレス(Cc)が未入力です</div>}
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                            サンクスメール
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-3">
-                                                <div>
-                                                    <input type="radio" name='thanks' style={{ transform: 'scale(1.5)', cursor: 'pointer' }} checked={form.thanks === true} onChange={() => changeForm('thanks')} />
-                                                </div>
-                                                <div className="ms-2">
-                                                    送る
-                                                </div>
-                                            </div>
-                                            <div className="d-flex align-items-center">
-                                                <div>
-                                                    <input type="radio" name='thanks' style={{ transform: 'scale(1.5)', cursor: 'pointer' }} checked={form.thanks === false} onChange={() => changeForm('thanks')} />
-                                                </div>
-                                                <div className="ms-2">
-                                                    不要
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                            サンクスメールの文面
-                                        </td>
-                                        <td>
-                                            {mailTemplateEditor('thanks_subject', 'thanks_body', 'お客様へ届くメールです。')}
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                            通知メールの文面
-                                        </td>
-                                        <td>
-                                            {mailTemplateEditor('internal_subject', 'internal_body', '社内（反響アドレス）へ届くメールです。')}
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ width: '200px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                            リダイレクトURL
-                                        </td>
-                                        <td>
-                                            <div><input type="text" className="form-control" value={form.redirect} onChange={(e) => changeForm('redirect', e.target.value)} /></div>
-                                            {!validation.includes('redirect') || <div style={{ color: 'red', marginTop: '-5px' }}>リダイレクトURLが未入力です</div>}
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px' }}>
-                                        <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                                            <div>注意書き</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.notice.bool} onChange={() => changeForm('notice')} /></div>
-                                        </td>
-                                        <td>
-                                            <div style={{ fontSize: '13px', letterSpacing: '1px' }}>
-                                                <textarea value={form.notice.text} style={{ width: '100%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} rows={5}
-                                                    onChange={(e) =>
-                                                        setForm(prev => ({
-                                                            ...prev,
-                                                            notice: {
-                                                                ...prev.notice,
-                                                                text: e.target.value
-                                                            }
-                                                        }))
-                                                    }></textarea>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>来場希望場所</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.shop.bool} onChange={() => changeForm('shop')} /></div>
-                                        </td>
-                                        <td>
-                                            {/**
-                                              * ⚠️⚠️ **聞かないときは、代わりに入れておく値を選ばせる**（2026-09-16 の指示）。
-                                              *   ⚠️ 例: 店舗が1つに決まっているLPで、来場希望場所を尋ねずに固定する。
-                                              *   ⚠️ 空のままなら今までどおり（何も入らない）。
-                                              *   ⚠️ 候補は下の「選択肢」をそのまま使う。**別に持たせない**
-                                              *     （持たせると選択肢を直したときに片方だけ古くなる）。
-                                              */}
-                                            {form.shop.bool ||
-                                                <div className="mb-3 p-2" style={{ backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
-                                                    <div style={{ fontSize: '12px', marginBottom: '4px' }}>
-                                                        聞かない代わりに、この値で登録する
-                                                    </div>
-                                                    <select
-                                                        value={form.shop.default ?? ''}
-                                                        style={{ fontSize: '13px', padding: '3px 6px', minWidth: '260px', maxWidth: '100%' }}
-                                                        onChange={(e) => setForm(prev => ({
-                                                            ...prev,
-                                                            shop: { ...prev.shop, default: e.target.value }
-                                                        }))}
-                                                    >
-                                                        <option value="">指定しない</option>
-                                                        {form.shop.shopName.map((item, index) =>
-                                                            <option key={index} value={item}>{item}</option>)}
-                                                    </select>
-                                                    {form.shop.shopName.length > 0 ||
-                                                        <div className="text-muted" style={{ fontSize: '11px', marginTop: '4px' }}>
-                                                            ⚠️ 選択肢がまだありません。下で追加すると選べます。
-                                                        </div>}
-                                                </div>}
+            {/**
+              * ⚠️⚠️ **読み込めなかったことを必ず画面に出す。**
+              *   ⚠️ 出さないと「修正を押したのに反映されない」としか見えず、
+              *     利用者にも受けた側にも原因が分からない。
+              */}
+            {!loadError ||
+                <div className="nc-alert" role="alert">
+                    {loadError}
+                    <small>このまま保存すると内容が上書きされます。一覧に戻ってやり直してください。</small>
+                </div>}
 
-                                            <div>
-                                                <div className="d-flex align-items-center mb-2">
-                                                    <div>
-                                                        <input type="radio" name='shop' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.shop.required === true}
-                                                            onChange={() =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    shop: {
-                                                                        ...prev.shop,
-                                                                        required: !prev.shop.required
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div className="ms-1">
-                                                        必須
-                                                    </div>
-                                                    <div>
-                                                        <input type="radio" name='shop' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.shop.required === false}
-                                                            onChange={() =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    shop: {
-                                                                        ...prev.shop,
-                                                                        required: !prev.shop.required
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div className="ms-1">
-                                                        任意
-                                                    </div>
-                                                </div>
-                                                <div className="d-flex align-items-center">
-                                                    {!form.shop.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}<input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.shop.text}
-                                                        onChange={(e) =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                shop: {
-                                                                    ...prev.shop,
-                                                                    text: e.target.value
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div>
-                                                    <div className="">
-                                                        <select style={{ width: '100%', height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', border: '1px solid #D3D3D3' }} name="shop" required>
-                                                            <option value="">選択してください</option>
-                                                            {form.shop.shopName.map((item, index) =>
-                                                                <option key={index}>{item}</option>
-                                                            )}
-                                                        </select>
-                                                    </div>
-                                                    <div className="mt-2">
-                                                        {form.shop.shopName.map((item, index) =>
-                                                            <div className="d-flex align-items-center" key={index} >
-                                                                <div style={{ width: '90%' }}>
-                                                                    <input type="text" value={item} style={{ width: '100%', height: '30px', borderRadius: '2px', fontSize: '12px', letterSpacing: '.7px', marginBottom: '2px', border: '1px solid #D3D3D3' }}
-                                                                        onChange={(e) => setForm(prev => {
-                                                                            const newShops: string[] = [...prev.shop.shopName];
-                                                                            newShops[index] = e.target.value;
-                                                                            return {
-                                                                                ...prev,
-                                                                                shop: {
-                                                                                    ...prev.shop,
-                                                                                    shopName: newShops
-                                                                                }
-                                                                            }
-                                                                        })
-                                                                        } />
-                                                                </div>
-                                                                <div style={{ width: '10%', marginLeft: '6px' }}>
-                                                                    <button style={{ backgroundColor: '#DDD', borderRadius: '4px', border: 'none' }}
-                                                                        onClick={() => setForm(prev => {
-                                                                            const newShops: string[] = prev.shop.shopName.filter((_, i) => i !== index);
-                                                                            return {
-                                                                                ...prev,
-                                                                                shop: {
-                                                                                    ...prev.shop,
-                                                                                    shopName: newShops
-                                                                                }
-                                                                            }
-                                                                        })
-                                                                        }>削除</button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        <div className="d-flex align-items-center">
-                                                            <div style={{ width: '90%' }}>
-                                                                <input type="text" style={{ width: '100%', height: '30px', borderRadius: '2px', fontSize: '12px', letterSpacing: '.7px', marginBottom: '2px', border: '1px solid #D3D3D3' }} value={newShop} onChange={(e) => setNewShop(e.target.value)} />
-                                                            </div>
-                                                            <div style={{ width: '10%', marginLeft: '6px' }}>
-                                                                <button style={{ backgroundColor: '#DDD', borderRadius: '4px', border: 'none' }}
-                                                                    onClick={() => {
-                                                                        if (!newShop) return;
-                                                                        setForm(prev => {
-                                                                            const newShops: string[] = [...prev.shop.shopName];
-                                                                            newShops.push(newShop);
-                                                                            return {
-                                                                                ...prev,
-                                                                                shop: {
-                                                                                    ...prev.shop,
-                                                                                    shopName: newShops
-                                                                                }
-                                                                            }
-                                                                        });
-                                                                        setNewShop('');
-                                                                    }}>追加</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>来場希望時間</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.date.bool} onChange={() => changeForm('date')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='date' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.date.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                date: {
-                                                                    ...prev.date,
-                                                                    required: !prev.date.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='date' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.date.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                date: {
-                                                                    ...prev.date,
-                                                                    required: !prev.date.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div className="row">
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center">
-                                                        {!form.date.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.date.text_day}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    date: {
-                                                                        ...prev.date,
-                                                                        text_day: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="date" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} />
-                                                    </div>
-                                                </div>
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center">
-                                                        {!form.date.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.date.text_time}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    date: {
-                                                                        ...prev.date,
-                                                                        text_time: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div>
-                                                        <select style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} name="time" required aria-label="select example" >
-                                                            <option value="">選択してください</option>
-                                                            {form.date.time.map((item, index) =>
-                                                                <option key={index}>{item}</option>
-                                                            )}
-                                                        </select>
-                                                    </div>
-                                                    <div className="mt-2">
-                                                        {form.date.time.map((item, index) =>
-                                                            <div className="d-flex align-items-center" key={index} >
-                                                                <div style={{ width: '70%' }}>
-                                                                    <input type="text" value={item} style={{ width: '100%', height: '30px', borderRadius: '2px', fontSize: '12px', letterSpacing: '.7px', marginBottom: '2px', border: '1px solid #D3D3D3' }}
-                                                                        onChange={(e) => setForm(prev => {
-                                                                            const newTimes: string[] = [...prev.date.time];
-                                                                            newTimes[index] = e.target.value;
-                                                                            return {
-                                                                                ...prev,
-                                                                                date: {
-                                                                                    ...prev.date,
-                                                                                    time: newTimes
-                                                                                }
-                                                                            }
-                                                                        })
-                                                                        } />
-                                                                </div>
-                                                                <div style={{ width: '30%', marginLeft: '6px' }}>
-                                                                    <button style={{ backgroundColor: '#DDD', borderRadius: '4px', border: 'none' }}
-                                                                        onClick={() => setForm(prev => {
-                                                                            const newTimes: string[] = prev.date.time.filter((_, i) => i !== index);
-                                                                            return {
-                                                                                ...prev,
-                                                                                date: {
-                                                                                    ...prev.date,
-                                                                                    time: newTimes
-                                                                                }
-                                                                            }
-                                                                        })
-                                                                        }>削除</button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        <div className="d-flex align-items-center">
-                                                            <div style={{ width: '70%' }}>
-                                                                <input type="text" value={newTime} style={{ width: '100%', height: '30px', borderRadius: '2px', fontSize: '12px', letterSpacing: '.7px', marginBottom: '2px', border: '1px solid #D3D3D3' }}
-                                                                    onChange={(e) => {
-                                                                        setNewTime(e.target.value);
-                                                                        setForm(prev => {
-                                                                            const newTime: string[] = [...prev.date.time];
-                                                                            return {
-                                                                                ...prev,
-                                                                                date: {
-                                                                                    ...prev.date,
-                                                                                    time: newTime
-                                                                                }
-                                                                            }
-                                                                        });
-                                                                    }
-                                                                    } />
-                                                            </div>
-                                                            <div style={{ width: '30%', marginLeft: '6px' }}>
-                                                                <button style={{ backgroundColor: '#DDD', borderRadius: '4px', border: 'none' }}
-                                                                    onClick={() => {
-                                                                        if (!newTime) return;
-                                                                        setForm(prev => {
-                                                                            const newTimes: string[] = [...prev.date.time];
-                                                                            newTimes.push(newTime);
-                                                                            return {
-                                                                                ...prev,
-                                                                                date: {
-                                                                                    ...prev.date,
-                                                                                    time: newTimes
-                                                                                }
-                                                                            }
-                                                                        });
-                                                                        setNewTime('');
-                                                                    }}>追加</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>氏名</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.name.bool} onChange={() => changeForm('name')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='name' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.name.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                name: {
-                                                                    ...prev.name,
-                                                                    required: !prev.name.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='name' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.name.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                name: {
-                                                                    ...prev.name,
-                                                                    required: !prev.name.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div className="row">
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center">
-                                                        {!form.name.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.name.text_sei}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    name: {
-                                                                        ...prev.name,
-                                                                        text_sei: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} />
-                                                    </div>
-                                                </div>
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center">
-                                                        {!form.name.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.name.text_mei}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    name: {
-                                                                        ...prev.name,
-                                                                        text_mei: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>氏名(かな)</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.kana.bool} onChange={() => changeForm('kana')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='kana' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.kana.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                kana: {
-                                                                    ...prev.kana,
-                                                                    required: !prev.kana.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='kana' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.kana.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                kana: {
-                                                                    ...prev.kana,
-                                                                    required: !prev.kana.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div className="row">
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center mb-2">
-                                                        {!form.kana.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.kana.text_sei}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    kana: {
-                                                                        ...prev.kana,
-                                                                        text_sei: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} />
-                                                    </div>
-                                                </div>
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center mb-2">
-                                                        {!form.kana.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.kana.text_mei}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    kana: {
-                                                                        ...prev.kana,
-                                                                        text_mei: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>年齢</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.age.bool} onChange={() => changeForm('age')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='age' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.age.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                age: {
-                                                                    ...prev.age,
-                                                                    required: !prev.age.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='age' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.age.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                age: {
-                                                                    ...prev.age,
-                                                                    required: !prev.age.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div className="row">
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center mb-2">
-                                                        {!form.age.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.age.text}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    age: {
-                                                                        ...prev.age,
-                                                                        text: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} />
-                                                    </div>
-                                                </div>
-                                                <div className="col">
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>携帯電話</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.phone.bool} onChange={() => changeForm('phone')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='phone' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.phone.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                phone: {
-                                                                    ...prev.phone,
-                                                                    required: !prev.phone.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='phone' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.phone.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                phone: {
-                                                                    ...prev.phone,
-                                                                    required: !prev.phone.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <div className="d-flex align-items-center mb-2">
-                                                    {!form.phone.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                    <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.phone.text}
-                                                        onChange={(e) =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                phone: {
-                                                                    ...prev.phone,
-                                                                    text: e.target.value
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div>
-                                                    <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} pattern="\d{9,}" required />
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>メールアドレス</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.mail.bool} onChange={() => changeForm('mail')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='mail' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.mail.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                mail: {
-                                                                    ...prev.mail,
-                                                                    required: !prev.mail.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='mail' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.mail.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                mail: {
-                                                                    ...prev.mail,
-                                                                    required: !prev.mail.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <div className="d-flex align-items-center mb-2">
-                                                    {!form.mail.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                    <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.mail.text}
-                                                        onChange={(e) =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                mail: {
-                                                                    ...prev.mail,
-                                                                    text: e.target.value
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div>
-                                                    <input type="mail" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} pattern="\d{9,}" required />
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {/*
-                                      ⚠️ v2.2.188: LINE ID（メールアドレスの下）。⚠️ 操作はメールアドレスの行と同じ（表示する／必須・任意／文言）。
-                                        ⚠️ 表示の切り替えは changeForm を使わず、ここで bool だけ反転する
-                                          （⚠️ changeForm は shop / date / medium 以外の項目を文字列で上書きするため）。
-                                    */}
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>LINE ID</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.line_id.bool}
-                                                onChange={() => setForm(prev => ({ ...prev, line_id: { ...prev.line_id, bool: !prev.line_id.bool } }))} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='line_id' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.line_id.required === true}
-                                                        onChange={() => setForm(prev => ({ ...prev, line_id: { ...prev.line_id, required: true } }))} />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='line_id' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.line_id.required === false}
-                                                        onChange={() => setForm(prev => ({ ...prev, line_id: { ...prev.line_id, required: false } }))} />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <div className="d-flex align-items-center mb-2">
-                                                    {!form.line_id.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                    <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.line_id.text}
-                                                        onChange={(e) => setForm(prev => ({ ...prev, line_id: { ...prev.line_id, text: e.target.value } }))} />
-                                                </div>
-                                                <div>
-                                                    <input type="text" placeholder="LINE ID" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} readOnly />
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>住所</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.address.bool} onChange={() => changeForm('address')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='address' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.address.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                address: {
-                                                                    ...prev.address,
-                                                                    required: !prev.address.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='address' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.address.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                address: {
-                                                                    ...prev.address,
-                                                                    required: !prev.address.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div className="row d-flex align-items-end">
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center mb-2">
-                                                        {!form.address.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.address.text_zip}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    address: {
-                                                                        ...prev.address,
-                                                                        text_zip: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} pattern="\d{7,}" />
-                                                    </div>
-                                                </div>
-                                                <div className="col">
-                                                    <button type="button" className="btn btn-primary zip_button" id="search_button">郵便番号検索</button>
-                                                </div>
-                                            </div>
-                                            <div className="row mt-2">
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center mb-2">
-                                                        {!form.address.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.address.text_pref}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    address: {
-                                                                        ...prev.address,
-                                                                        text_pref: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} pattern="\d{7,}" />
-                                                    </div>
-                                                </div>
-                                                <div className="col">
-                                                    <div className="d-flex align-items-center mb-2">
-                                                        {!form.address.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                        <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.address.text_city}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    address: {
-                                                                        ...prev.address,
-                                                                        text_city: e.target.value
-                                                                    }
-                                                                }))
-                                                            } />
-                                                    </div>
-                                                    <div >
-                                                        <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} pattern="\d{7,}" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="mt-2">
-                                                <div className="d-flex align-items-center mb-2">
-                                                    {!form.address.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                    <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.address.text_town}
-                                                        onChange={(e) =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                address: {
-                                                                    ...prev.address,
-                                                                    text_town: e.target.value
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div >
-                                                    <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} pattern="\d{7,}" />
-                                                </div>
-                                            </div>
-                                            <div className="mt-2">
-                                                <div className="d-flex align-items-center mb-2">
-                                                    {!form.address.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                    <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.address.text_street}
-                                                        onChange={(e) =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                address: {
-                                                                    ...prev.address,
-                                                                    text_street: e.target.value
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div >
-                                                    <input type="text" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} pattern="\d{7,}" />
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>販促媒体</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.medium.bool} onChange={() => changeForm('medium')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='medium' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.medium.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                medium: {
-                                                                    ...prev.medium,
-                                                                    required: !prev.medium.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='medium' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.medium.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                medium: {
-                                                                    ...prev.medium,
-                                                                    required: !prev.medium.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div className="col">
-                                                <div className="d-flex align-items-center mb-2">
-                                                    {!form.medium.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                    <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.medium.text}
-                                                        onChange={(e) =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                medium: {
-                                                                    ...prev.medium,
-                                                                    text: e.target.value
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div>
-                                                    <select style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} name="time" required aria-label="select example" >
-                                                        <option value="">選択してください</option>
-                                                        {form.medium.mediumName.map((item, index) =>
-                                                            <option key={index}>{item}</option>)}
-                                                    </select>
-                                                    <div className="mt-2">
-                                                        {form.medium.mediumName.map((item, index) =>
-                                                            <div className="d-flex align-items-center" key={index} >
-                                                                <div style={{ width: '90%' }}>
-                                                                    <input type="text" value={item} style={{ width: '100%', height: '30px', borderRadius: '2px', fontSize: '12px', letterSpacing: '.7px', marginBottom: '2px', border: '1px solid #D3D3D3' }}
-                                                                        onChange={(e) => setForm(prev => {
-                                                                            const newMediums: string[] = [...prev.medium.mediumName];
-                                                                            newMediums[index] = e.target.value;
-                                                                            return {
-                                                                                ...prev,
-                                                                                medium: {
-                                                                                    ...prev.shop,
-                                                                                    mediumName: newMediums
-                                                                                }
-                                                                            }
-                                                                        })
-                                                                        } />
-                                                                </div>
-                                                                <div style={{ width: '10%', marginLeft: '6px' }}>
-                                                                    <button style={{ backgroundColor: '#DDD', borderRadius: '4px', border: 'none' }}
-                                                                        onClick={() => setForm(prev => {
-                                                                            const newMediums: string[] = prev.medium.mediumName.filter((_, i) => i !== index);
-                                                                            return {
-                                                                                ...prev,
-                                                                                medium: {
-                                                                                    ...prev.medium,
-                                                                                    mediumName: newMediums
-                                                                                }
-                                                                            }
-                                                                        })
-                                                                        }>削除</button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        <div className="d-flex align-items-center">
-                                                            <div style={{ width: '90%' }}>
-                                                                <input type="text" placeholder="新たに販促媒体を追加する際は必ずご相談ください" style={{ width: '100%', height: '30px', borderRadius: '2px', fontSize: '12px', letterSpacing: '.7px', marginBottom: '2px', border: '1px solid #D3D3D3' }} value={newMedium} onChange={(e) => setNewMedium(e.target.value)} />
-                                                            </div>
-                                                            <div style={{ width: '10%', marginLeft: '6px' }}>
-                                                                <button style={{ backgroundColor: '#DDD', borderRadius: '4px', border: 'none' }}
-                                                                    onClick={() => {
-                                                                        if (!newMedium) return;
-                                                                        setForm(prev => {
-                                                                            const newMediums: string[] = [...prev.medium.mediumName];
-                                                                            newMediums.push(newMedium);
-                                                                            return {
-                                                                                ...prev,
-                                                                                medium: {
-                                                                                    ...prev.shop,
-                                                                                    mediumName: newMediums
-                                                                                }
-                                                                            }
-                                                                        });
-                                                                        setNewMedium('');
-                                                                    }}>追加</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>質問・要望</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.question.bool} onChange={() => changeForm('question')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='question' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.question.required === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                question: {
-                                                                    ...prev.question,
-                                                                    required: !prev.question.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    必須
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='question' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.question.required === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                question: {
-                                                                    ...prev.question,
-                                                                    required: !prev.question.required
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    任意
-                                                </div>
-                                            </div>
-                                            <div className="col">
-                                                <div className="d-flex align-items-center mb-2">
-                                                    {!form.question.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
-                                                    <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.question.text}
-                                                        onChange={(e) =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                question: {
-                                                                    ...prev.question,
-                                                                    text: e.target.value
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div>
-                                                    <textarea style={{ borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} cols={5}></textarea>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div>注意事項</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.attention.bool} onChange={() => changeForm('attention')} /></div>
-                                        </td>
-                                        <td>
-                                            <div className="d-flex align-items-center mb-2">
-                                                <div>
-                                                    <input type="radio" name='attention' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.attention.bool_red === true}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                attention: {
-                                                                    ...prev.attention,
-                                                                    bool_red: !prev.attention.bool_red
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    特典進呈条件を表示
-                                                </div>
-                                                <div>
-                                                    <input type="radio" name='attention' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.attention.bool_red === false}
-                                                        onChange={() =>
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                attention: {
-                                                                    ...prev.attention,
-                                                                    bool_red: !prev.attention.bool_red
-                                                                }
-                                                            }))
-                                                        } />
-                                                </div>
-                                                <div className="ms-1">
-                                                    特典進呈条件を非表示
-                                                </div>
-                                            </div>
-                                            <div className="col">
-                                                <div>
-                                                    <div style={{ fontSize: '12px', color: '#fff', backgroundColor: 'gray', letterSpacing: '.7px', textAlign: 'justify', padding: '10px', borderRadius: '10px' }}>
-                                                        <textarea value={form.attention.text} style={{ width: '100%', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px', backgroundColor: 'transparent', color: '#fff' }} rows={5}
-                                                            onChange={(e) =>
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    attention: {
-                                                                        ...prev.attention,
-                                                                        text: e.target.value
-                                                                    }
-                                                                }))
-                                                            }></textarea>
-                                                    </div>
-                                                    {!form.attention.bool_red || <>
-                                                        <div style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer', textDecoration: 'none' }}
-                                                            onClick={() => {
-                                                                const modal = document.querySelector('#modal') as HTMLElement;
-                                                                modal.style.display = 'block'
-                                                            }}>特典進呈条件を見る</div>
-                                                        <div style={{ display: 'none', position: 'fixed', zIndex: '1000', top: '0', left: '0', backgroundColor: '#42424277', width: '100vw', height: '100vh' }} id='modal'>
-                                                            <div style={{ backgroundColor: '#fff', width: '90%', maxWidth: '560px', margin: '20vh auto', padding: '20px', borderRadius: '10px' }}>
-                                                                <div style={{ color: 'red', lineHeight: '20px' }}>
-                                                                    <span style={{ fontWeight: 'bold' }}>【来場予約特典条件】</span>
-                                                                    <textarea value={form.attention.text_red} style={{ width: '100%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px', color: 'red' }} rows={20}
-                                                                        onChange={(e) =>
-                                                                            setForm(prev => ({
-                                                                                ...prev,
-                                                                                attention: {
-                                                                                    ...prev.attention,
-                                                                                    text_red: e.target.value
-                                                                                }
-                                                                            }))
-                                                                        }></textarea>
-                                                                </div>
-                                                                <div style={{ fontSize: '14px', color: '#fff', backgroundColor: 'black', letterSpacing: '.7px', textAlign: 'justify', padding: '10px 20px', borderRadius: '10px', width: 'fit-content', margin: '20px auto', cursor: 'pointer', textDecoration: 'none' }}
-                                                                    onClick={() => {
-                                                                        const modal = document.querySelector('#modal') as HTMLElement;
-                                                                        modal.style.display = 'none'
-                                                                    }}>閉じる</div>
-                                                            </div>
-                                                        </div></>}
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </Table>
+            <div className="nc-layout">
+                <div className="nc-main">
+                    {/* ---- 基本情報 ---- */}
+                    <section className="nc-card" aria-labelledby="nc-basic">
+                        <div className="nc-card-head">
+                            <h2 className="nc-card-title" id="nc-basic">基本情報</h2>
+                            <p className="nc-card-desc">キャンペーン名は反響メールの件名になります</p>
                         </div>
+                        <div className="nc-card-body">
+                            <TextField id="campaign" label="キャンペーン名" required value={form.campaign}
+                                placeholder="例）20**【KH**】****キャンペーン"
+                                error={validation.includes('campaign') ? 'キャンペーン名が未入力です' : ''}
+                                onChange={(v) => changeForm('campaign', v)} />
+                            <TextField id="campaign_id" label="キャンペーンID" required value={form.campaign_id} disabled={isEdit}
+                                placeholder="例）20**0101_kh**_***campaign"
+                                hint={isEdit ? '登録後は変更できません' : '重複不可・半角英数のみ'}
+                                error={validation.includes('campaign_id') ? 'キャンペーンIDが未入力です' : ''}
+                                onChange={(v) => changeForm('campaign_id', v)} />
+                            <TextField id="redirect" label="送信後に表示するページ（リダイレクトURL）" required value={form.redirect}
+                                placeholder="https://"
+                                error={validation.includes('redirect') ? 'リダイレクトURLが未入力です' : ''}
+                                onChange={(v) => changeForm('redirect', v)} />
+                        </div>
+                    </section>
+
+                    {/* ---- 通知・メール ---- */}
+                    <section className="nc-card" aria-labelledby="nc-mail">
+                        <div className="nc-card-head">
+                            <h2 className="nc-card-title" id="nc-mail">通知とメール</h2>
+                            <p className="nc-card-desc">反響が届いたときの社内通知と、お客様へのサンクスメール</p>
+                        </div>
+                        <div className="nc-card-body">
+                            <div className="nc-grid-2">
+                                <TextField id="mail_to" label="反響アドレス（To）" required value={form.mail_to}
+                                    error={validation.includes('mail_to') ? '反響アドレス(To)が未入力です' : ''}
+                                    onChange={(v) => changeForm('mail_to', v)} />
+                                <TextField id="mail_cc" label="反響アドレス（Cc）" required value={form.mail_cc}
+                                    error={validation.includes('mail_cc') ? '反響アドレス(Cc)が未入力です' : ''}
+                                    onChange={(v) => changeForm('mail_cc', v)} />
+                            </div>
+                            <div className="nc-field">
+                                <span className="nc-label">サンクスメール</span>
+                                <Segmented value={form.thanks} trueLabel="送る" falseLabel="送らない"
+                                    onChange={(v) => setForm(prev => ({ ...prev, thanks: v }))} />
+                            </div>
+                            <div className="nc-field">
+                                <span className="nc-label">サンクスメールの文面</span>
+                                {mailTemplateEditor('thanks_subject', 'thanks_body', 'お客様へ届くメールです。')}
+                            </div>
+                            <div className="nc-field">
+                                <span className="nc-label">通知メールの文面</span>
+                                {mailTemplateEditor('internal_subject', 'internal_body', '社内（反響アドレス）へ届くメールです。')}
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* ---- フォームの冒頭 ---- */}
+                    <section className="nc-card" aria-labelledby="nc-notice">
+                        <div className="nc-card-head">
+                            <h2 className="nc-card-title" id="nc-notice">フォーム冒頭の案内文</h2>
+                            <p className="nc-card-desc">入力欄の上に表示されます</p>
+                            <div style={{ marginLeft: 'auto' }}>
+                                <Switch checked={Boolean(form.notice.bool)} label="表示する" onChange={(v) => patch('notice', { bool: v })} />
+                            </div>
+                        </div>
+                        {!form.notice.bool ||
+                            <div className="nc-card-body">
+                                <textarea className="nc-textarea" rows={4} value={form.notice.text} aria-label="案内文"
+                                    onChange={(e) => patch('notice', { text: e.target.value })} />
+                            </div>}
+                    </section>
+
+                    {/* ---- フォーム項目 ---- */}
+                    <section className="nc-card" aria-labelledby="nc-items">
+                        <div className="nc-card-head">
+                            <h2 className="nc-card-title" id="nc-items">フォーム項目</h2>
+                            <p className="nc-card-desc">項目ごとに表示・必須・見出しの文言を設定します</p>
+                        </div>
+                        <div className="nc-items">
+                            {item('shop', '来場希望場所', <>
+                                <TextField label="見出し" value={form.shop.text} onChange={(v) => patch('shop', { text: v })} />
+                                <div className="nc-field">
+                                    <span className="nc-label">選択肢</span>
+                                    <OptionList items={form.shop.shopName} placeholder="店舗名を追加"
+                                        onChange={(items) => patch('shop', { shopName: items })} />
+                                </div>
+                            </>,
+                                /**
+                                 * ⚠️⚠️ **聞かないときは、代わりに入れておく値を選ばせる**（2026-09-16 の指示）。
+                                 *   ⚠️ 候補は「選択肢」をそのまま使う。**別に持たせない**。
+                                 */
+                                <div className="nc-field">
+                                    <span className="nc-label">聞かない代わりに、この値で登録する</span>
+                                    <select className="nc-select" style={{ maxWidth: '360px' }} value={form.shop.default ?? ''}
+                                        onChange={(e) => patch('shop', { default: e.target.value })}>
+                                        <option value="">指定しない</option>
+                                        {form.shop.shopName.map((s, i) => <option key={i} value={s}>{s}</option>)}
+                                    </select>
+                                    {form.shop.shopName.length > 0 || <p className="nc-hint">選択肢がまだありません。表示をオンにして追加すると選べます。</p>}
+                                </div>)}
+                            {item('date', '来場希望日時', <>
+                                <div className="nc-grid-2">
+                                    <TextField label="見出し（日付）" value={form.date.text_day} onChange={(v) => patch('date', { text_day: v })} />
+                                    <TextField label="見出し（時間）" value={form.date.text_time} onChange={(v) => patch('date', { text_time: v })} />
+                                </div>
+                                <div className="nc-field">
+                                    <span className="nc-label">時間の選択肢</span>
+                                    <OptionList items={form.date.time} placeholder="例）10:00〜"
+                                        onChange={(items) => patch('date', { time: items })} />
+                                </div>
+                            </>)}
+                            {item('name', '氏名', <div className="nc-grid-2">
+                                <TextField label="見出し（姓）" value={form.name.text_sei} onChange={(v) => patch('name', { text_sei: v })} />
+                                <TextField label="見出し（名）" value={form.name.text_mei} onChange={(v) => patch('name', { text_mei: v })} />
+                            </div>)}
+                            {item('kana', '氏名（かな）', <div className="nc-grid-2">
+                                <TextField label="見出し（セイ）" value={form.kana.text_sei} onChange={(v) => patch('kana', { text_sei: v })} />
+                                <TextField label="見出し（メイ）" value={form.kana.text_mei} onChange={(v) => patch('kana', { text_mei: v })} />
+                            </div>)}
+                            {item('age', '年齢', <TextField label="見出し" value={form.age.text} onChange={(v) => patch('age', { text: v })} />)}
+                            {item('phone', '携帯電話', <TextField label="見出し" value={form.phone.text} onChange={(v) => patch('phone', { text: v })} />)}
+                            {item('mail', 'メールアドレス', <TextField label="見出し" value={form.mail.text} onChange={(v) => patch('mail', { text: v })} />)}
+                            {/* ⚠️ v2.2.188: LINE ID（メールアドレスの下） */}
+                            {item('line_id', 'LINE ID', <>
+                                <TextField label="見出し" value={form.line_id.text} onChange={(v) => patch('line_id', { text: v })} />
+                                <p className="nc-hint">入力された LINE ID は反響・顧客に保存され、通知メールにも載ります。</p>
+                            </>)}
+                            {item('address', '住所', <>
+                                <div className="nc-grid-2">
+                                    <TextField label="見出し（郵便番号）" value={form.address.text_zip} onChange={(v) => patch('address', { text_zip: v })} />
+                                    <TextField label="見出し（都道府県）" value={form.address.text_pref} onChange={(v) => patch('address', { text_pref: v })} />
+                                    <TextField label="見出し（市区）" value={form.address.text_city} onChange={(v) => patch('address', { text_city: v })} />
+                                    <TextField label="見出し（町村）" value={form.address.text_town} onChange={(v) => patch('address', { text_town: v })} />
+                                </div>
+                                <TextField label="見出し（番地・建物）" value={form.address.text_street} onChange={(v) => patch('address', { text_street: v })} />
+                            </>)}
+                            {item('medium', '販促媒体（ご予約のきっかけ）', <>
+                                <TextField label="見出し" value={form.medium.text} onChange={(v) => patch('medium', { text: v })} />
+                                <div className="nc-field">
+                                    <span className="nc-label">選択肢</span>
+                                    <OptionList items={form.medium.mediumName} placeholder="新たに販促媒体を追加する際は必ずご相談ください"
+                                        onChange={(items) => patch('medium', { mediumName: items })} />
+                                </div>
+                            </>)}
+                            {item('question', '質問・要望', <TextField label="見出し" value={form.question.text} onChange={(v) => patch('question', { text: v })} />)}
+                        </div>
+                    </section>
+
+                    {/* ---- 注意事項・特典条件 ---- */}
+                    <section className="nc-card" aria-labelledby="nc-attention">
+                        <div className="nc-card-head">
+                            <h2 className="nc-card-title" id="nc-attention">注意事項と特典条件</h2>
+                            <p className="nc-card-desc">送信ボタンの上に表示されます</p>
+                            <div style={{ marginLeft: 'auto' }}>
+                                <Switch checked={Boolean(form.attention.bool)} label="表示する" onChange={(v) => patch('attention', { bool: v })} />
+                            </div>
+                        </div>
+                        {!form.attention.bool ||
+                            <div className="nc-card-body">
+                                <div className="nc-field">
+                                    <span className="nc-label">注意事項</span>
+                                    <textarea className="nc-textarea" rows={4} value={form.attention.text}
+                                        onChange={(e) => patch('attention', { text: e.target.value })} />
+                                </div>
+                                <div className="nc-field">
+                                    <span className="nc-label">特典進呈条件</span>
+                                    <Segmented value={Boolean(form.attention.bool_red)} trueLabel="表示する" falseLabel="表示しない"
+                                        onChange={(v) => patch('attention', { bool_red: v })} />
+                                </div>
+                                {!form.attention.bool_red ||
+                                    <div className="nc-field">
+                                        <span className="nc-label">特典進呈条件の本文（「特典進呈条件を見る」で表示）</span>
+                                        <textarea className="nc-textarea" rows={10} value={form.attention.text_red} style={{ color: '#c62828' }}
+                                            onChange={(e) => patch('attention', { text_red: e.target.value })} />
+                                    </div>}
+                            </div>}
+                    </section>
+                </div>
+
+                {/* ---- プレビュー ---- */}
+                <aside className="nc-preview" aria-label="公開フォームのプレビュー">
+                    <div className="nc-preview-head">
+                        <span><i className="fa-regular fa-eye me-1" aria-hidden="true"></i>プレビュー（公開フォーム）</span>
+                        <span className="nc-chip">入力すると反映</span>
                     </div>
+                    <div className="nc-preview-body">
+                        <FormPreview form={form} brand={String(brandValue ?? '')} />
+                    </div>
+                </aside>
+            </div>
+
+            <div className="nc-savebar">
+                <div className="nc-savebar-inner">
+                    <p className="nc-savebar-note">
+                        {validation.length > 0
+                            ? <span style={{ color: '#d93a4a', fontWeight: 600 }}>{validation.length}個の未入力項目があります</span>
+                            : '保存すると公開中のフォームにすぐ反映されます'}
+                    </p>
+                    <button type="button" className="nc-btn" onClick={() => navigate(`/campaign/?brand=${brandValue ?? ''}`)}>キャンセル</button>
+                    <button type="button" className="nc-btn nc-btn-primary" onClick={() => postForm()}>
+                        {isEdit ? '修正を保存する' : 'キャンペーンを登録する'}
+                    </button>
                 </div>
             </div>
-        </>
+        </div>
     )
 }
+
+// ---------------------------------------------------------------------------
+// ⚠️⚠️ ここから下の部品は ⚠️ **NewCampaign の外に置くこと**（中に書くと描画のたびに作り直され、入力中にカーソルが外れる）。
+// ---------------------------------------------------------------------------
+
+/** オン・オフ（表示する／しない） */
+const Switch = ({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) => (
+    <button type="button" role="switch" aria-checked={checked} className="nc-switch" onClick={() => onChange(!checked)}>
+        <span className="nc-switch-track" aria-hidden="true"></span>
+        {label}
+    </button>
+);
+
+/** 2択（必須／任意、送る／送らない など） */
+const Segmented = ({ value, onChange, trueLabel, falseLabel, disabled }: {
+    value: boolean; onChange: (v: boolean) => void; trueLabel: string; falseLabel: string; disabled?: boolean;
+}) => (
+    <div className="nc-seg" role="group">
+        <button type="button" aria-pressed={value} disabled={disabled} onClick={() => onChange(true)}>{trueLabel}</button>
+        <button type="button" aria-pressed={!value} disabled={disabled} onClick={() => onChange(false)}>{falseLabel}</button>
+    </div>
+);
+
+/** 1行の入力欄（見出し・必須の印・エラー・補足つき） */
+const TextField = ({ id, label, value, onChange, required, placeholder, error, hint, disabled }: {
+    id?: string; label: string; value: string; onChange: (v: string) => void;
+    required?: boolean; placeholder?: string; error?: string; hint?: string; disabled?: boolean;
+}) => (
+    <div className="nc-field" data-invalid={error ? '1' : '0'}>
+        <label className="nc-label" htmlFor={id}>{label}{!required || <span className="nc-req">必須</span>}</label>
+        <input id={id} type="text" className="nc-input" value={value ?? ''} placeholder={placeholder} disabled={disabled}
+            onChange={(e) => onChange(e.target.value)} />
+        {!hint || error || <p className="nc-hint">{hint}</p>}
+        {!error || <p className="nc-error" role="alert">{error}</p>}
+    </div>
+);
+
+/** フォーム項目の1行（表示する／必須・任意 ＋ 中身）。⚠️ 表示しないときは hiddenChildren だけ出す */
+const FieldItem = ({ title, shown, onShown, required, onRequired, children, hiddenChildren }: {
+    title: string; shown: boolean; onShown: (v: boolean) => void;
+    required: boolean; onRequired: (v: boolean) => void;
+    children: React.ReactNode; hiddenChildren?: React.ReactNode;
+}) => (
+    <div className="nc-item" data-shown={shown ? '1' : '0'}>
+        <div className="nc-item-head">
+            <h3 className="nc-item-name">{title}</h3>
+            <div className="nc-item-controls">
+                <Segmented value={required} trueLabel="必須" falseLabel="任意" onChange={onRequired} disabled={!shown} />
+                <Switch checked={shown} label="表示" onChange={onShown} />
+            </div>
+        </div>
+        {shown
+            ? <div className="nc-item-body">{children}</div>
+            : !hiddenChildren || <div className="nc-item-body">{hiddenChildren}</div>}
+    </div>
+);
+
+/**
+ * 選択肢の一覧（来場希望場所・時間・販促媒体）。編集・削除・追加。
+ * ⚠️ 追加欄の文字はこの部品が持つ（⚠️ 以前は newShop / newTime / newMedium を NewCampaign が持っていた）。
+ */
+const OptionList = ({ items, onChange, placeholder }: { items: string[]; onChange: (items: string[]) => void; placeholder?: string }) => {
+    const [draft, setDraft] = useState('');
+    const add = () => {
+        const value = draft.trim();
+        if (!value) return;
+        onChange([...items, value]);
+        setDraft('');
+    };
+    return (
+        <div className="nc-options">
+            {items.map((value, index) => (
+                <div className="nc-option" key={index}>
+                    <input type="text" className="nc-input" value={value} aria-label={`選択肢 ${index + 1}`}
+                        onChange={(e) => onChange(items.map((v, i) => (i === index ? e.target.value : v)))} />
+                    <button type="button" className="nc-btn nc-btn-danger-text" aria-label={`${value} を削除`}
+                        onClick={() => onChange(items.filter((_, i) => i !== index))}>
+                        <i className="fa-solid fa-trash-can" aria-hidden="true"></i>
+                    </button>
+                </div>
+            ))}
+            <div className="nc-option">
+                <input type="text" className="nc-input" value={draft} placeholder={placeholder}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} />
+                <button type="button" className="nc-btn" onClick={add} disabled={!draft.trim()}>
+                    <i className="fa-solid fa-plus" aria-hidden="true"></i>追加
+                </button>
+            </div>
+        </div>
+    );
+};
 
 export default NewCampaign

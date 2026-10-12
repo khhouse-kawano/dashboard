@@ -1,0 +1,487 @@
+/*
+ * キャンペーン作成・修正（NewCampaign.tsx）の見た目（v2.2.188 新規。Dashboard 風の SaaS デザイン）。
+ *
+ * ⚠️ 色は Dashboard の既存の配色（listUtils の styles・FestaDashboard など）に合わせた:
+ *   アクセント #5e72e4 ／ 文字 #32325d ／ 補足 #8898aa・#525f7f ／ 地 #f8f9fe ／ 罫線 #e9ecef
+ * ⚠️ プレビュー（右側）は formPreview.css（公開フォームの写し）。⚠️ ここに公開フォームの見た目を書かない。
+ */
+
+.nc {
+    --nc-accent: #5e72e4;
+    --nc-accent-soft: #eef0fd;
+    --nc-ink: #32325d;
+    --nc-sub: #525f7f;
+    --nc-muted: #8898aa;
+    --nc-line: #e9ecef;
+    --nc-bg: #f8f9fe;
+    --nc-card: #ffffff;
+    --nc-danger: #d93a4a;
+    --nc-danger-bg: #fdecee;
+    --nc-warn: #b45309;
+    --nc-warn-bg: #fff7ed;
+
+    min-height: 100%;
+    background: var(--nc-bg);
+    color: var(--nc-ink);
+    /* ⚠️ Dashboard 全体の書体（明朝寄り）を引き継ぐと入力欄が明朝になるので、ここだけゴシックにそろえる */
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 20px 20px 120px;
+}
+
+/* ---- 見出し ---- */
+.nc-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 1280px;
+    margin: 0 auto 18px;
+}
+.nc-header-logo {
+    height: 34px;
+    width: auto;
+    object-fit: contain;
+}
+.nc-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--nc-ink);
+}
+.nc-crumb {
+    margin: 0;
+    font-size: 12px;
+    color: var(--nc-muted);
+}
+.nc-header-actions {
+    margin-left: auto;
+}
+
+/* ---- 2列（設定 ／ プレビュー） ---- */
+.nc-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    max-width: 1280px;
+    margin: 0 auto;
+    align-items: start;
+}
+@media (min-width: 1200px) {
+    .nc-layout {
+        grid-template-columns: minmax(0, 1fr) 420px;
+    }
+}
+.nc-main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+.nc-preview {
+    position: sticky;
+    top: 16px;
+    border: 1px solid var(--nc-line);
+    border-radius: 12px;
+    background: var(--nc-card);
+    box-shadow: 0 1px 3px rgba(50, 50, 93, .08);
+    overflow: hidden;
+}
+.nc-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--nc-line);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--nc-sub);
+}
+.nc-preview-body {
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+    background: #ffffff;
+}
+
+/* ---- カード ---- */
+.nc-card {
+    border: 1px solid var(--nc-line);
+    border-radius: 12px;
+    background: var(--nc-card);
+    box-shadow: 0 1px 3px rgba(50, 50, 93, .06);
+}
+.nc-card-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--nc-line);
+}
+.nc-card-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nc-ink);
+}
+.nc-card-desc {
+    margin: 0;
+    font-size: 12px;
+    color: var(--nc-muted);
+}
+.nc-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 18px 18px;
+}
+
+/* ---- 入力欄 ---- */
+.nc-grid-2 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+}
+@media (min-width: 720px) {
+    .nc-grid-2 {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+}
+.nc-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+.nc-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nc-sub);
+}
+.nc-label .nc-req {
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--nc-danger);
+}
+.nc-input,
+.nc-textarea,
+.nc-select {
+    width: 100%;
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--nc-ink);
+    font: inherit;
+    font-size: 13px;
+    transition: border-color .15s, box-shadow .15s;
+}
+.nc-textarea {
+    min-height: 90px;
+    resize: vertical;
+    line-height: 1.6;
+}
+.nc-input:focus,
+.nc-textarea:focus,
+.nc-select:focus {
+    outline: none;
+    border-color: var(--nc-accent);
+    box-shadow: 0 0 0 3px rgba(94, 114, 228, .18);
+}
+.nc-input:disabled {
+    background: #f6f8fb;
+    color: var(--nc-muted);
+}
+.nc-field[data-invalid="1"] .nc-input {
+    border-color: var(--nc-danger);
+}
+.nc-error {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nc-danger);
+}
+.nc-hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--nc-muted);
+}
+
+/* ---- スイッチ ---- */
+.nc-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    background: transparent;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+    color: var(--nc-sub);
+    cursor: pointer;
+}
+.nc-switch-track {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    border-radius: 999px;
+    background: #ced4da;
+    transition: background-color .15s;
+    flex: none;
+}
+.nc-switch-track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+    transition: transform .15s;
+}
+.nc-switch[aria-checked="true"] .nc-switch-track {
+    background: var(--nc-accent);
+}
+.nc-switch[aria-checked="true"] .nc-switch-track::after {
+    transform: translateX(16px);
+}
+.nc-switch:focus-visible {
+    outline: 2px solid var(--nc-accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+}
+
+/* ---- 2択（必須／任意 など） ---- */
+.nc-seg {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 8px;
+    background: #eef1f6;
+}
+.nc-seg button {
+    min-width: 52px;
+    padding: 4px 12px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nc-sub);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.nc-seg button[aria-pressed="true"] {
+    background: #ffffff;
+    color: var(--nc-ink);
+    box-shadow: 0 1px 2px rgba(50, 50, 93, .15);
+}
+.nc-seg button:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+.nc-seg button:focus-visible {
+    outline: 2px solid var(--nc-accent);
+    outline-offset: 1px;
+}
+
+/* ---- フォーム項目の行 ---- */
+.nc-items {
+    display: flex;
+    flex-direction: column;
+}
+.nc-item {
+    border-top: 1px solid var(--nc-line);
+    padding: 14px 18px;
+}
+.nc-item:first-child {
+    border-top: none;
+}
+.nc-item[data-shown="0"] {
+    background: #fafbfd;
+}
+.nc-item-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.nc-item-name {
+    margin: 0;
+    min-width: 120px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--nc-ink);
+}
+.nc-item[data-shown="0"] .nc-item-name {
+    color: var(--nc-muted);
+}
+.nc-item-controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+}
+.nc-item-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+}
+.nc-chip {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--nc-accent-soft);
+    color: var(--nc-accent);
+}
+
+/* ---- 選択肢の一覧（店舗・時間・媒体） ---- */
+.nc-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.nc-option {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.nc-option .nc-input {
+    flex: 1;
+}
+
+/* ---- ボタン ---- */
+.nc-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 6px 14px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--nc-sub);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color .15s, border-color .15s;
+}
+.nc-btn:hover {
+    background: #f6f8fb;
+}
+.nc-btn:focus-visible {
+    outline: 2px solid var(--nc-accent);
+    outline-offset: 2px;
+}
+.nc-btn-primary {
+    border-color: var(--nc-accent);
+    background: var(--nc-accent);
+    color: #ffffff;
+}
+.nc-btn-primary:hover {
+    background: #4c5fd5;
+}
+.nc-btn-ghost {
+    border-color: transparent;
+    background: transparent;
+}
+.nc-btn-danger-text {
+    border-color: transparent;
+    background: transparent;
+    color: var(--nc-danger);
+}
+.nc-btn-danger-text:hover {
+    background: var(--nc-danger-bg);
+}
+
+/* ---- 下の保存バー ---- */
+.nc-savebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    border-top: 1px solid var(--nc-line);
+    background: rgba(255, 255, 255, .96);
+    backdrop-filter: blur(6px);
+}
+.nc-savebar-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 12px 20px;
+}
+.nc-savebar-note {
+    margin: 0 auto 0 0;
+    font-size: 12px;
+    color: var(--nc-muted);
+}
+.nc-savebar .nc-btn-primary {
+    min-width: 200px;
+    min-height: 40px;
+    font-size: 13px;
+}
+
+/* ---- お知らせ ---- */
+.nc-alert {
+    max-width: 1280px;
+    margin: 0 auto 16px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid #f5c2c7;
+    background: var(--nc-danger-bg);
+    color: var(--nc-danger);
+    font-size: 13px;
+}
+.nc-alert small {
+    display: block;
+    color: var(--nc-sub);
+    font-size: 12px;
+}
+
+/* ---- メール文面 ---- */
+.nc-tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.nc-tag-default {
+    background: #eef1f6;
+    color: var(--nc-sub);
+}
+.nc-tag-custom {
+    background: var(--nc-warn-bg);
+    color: var(--nc-warn);
+}
+.nc-warn {
+    margin: 0;
+    font-size: 12px;
+    color: var(--nc-warn);
+}
+.nc-details summary {
+    font-size: 12px;
+    color: var(--nc-accent);
+    cursor: pointer;
+}
+.nc-details code {
+    font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nc *,
+    .nc *::before,
+    .nc *::after {
+        transition: none !important;
+    }
+}
