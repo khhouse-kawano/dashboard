@@ -48,6 +48,13 @@
 - 確認（偽のページに実際のタイトル）: khmiyazaki → `KH宮崎店`、djhsendai → `DJH薩摩川内店`、ngmkagoshima → `なごみ鹿児島店`、2lkagoshima → `2L鹿児島店`、kokubuhousinggroup → 空、kokubuhousinggroup ＋ 表に「ご来場店舗：霧島店」（タイトル【デイジャストハウス】）→ `DJH霧島店`
 - ⚠️ 確認画面の `<title>` も同じ形であることは未確認（予約入力・イベントのページで確認）
 
+## 追記: なごみの brand は Nagomi
+- 利用者の指示「brand は Nagomi で」。既存の反響（brand = Nagomi が約 1,100 件、店舗名は「なごみ加世田店」の形）に合わせた
+- 保存タグ: ngm → `Nagomi`、【なごみ工務店】→ `Nagomi`。店舗名の頭は `なごみ` のまま（`brand === "Nagomi"` のときだけ頭を「なごみ」にする）。頭を外す正規表現に `Nagomi` も追加
+- 送信タグ: サンクスページの表のキーを `なごみ` → `Nagomi`
+- 確認: ngmkagoshima → brand `Nagomi`・shop `なごみ鹿児島店`、送信して nagomi-koumuten.jp/event_ok/ へ移動
+- 2L（2lkagoshima、タイトル「… | 2Lhome 鹿児島店」）→ brand `2L`・shop `2L鹿児島店`、サンクスは 2lhome.net/thanks/?referer=reserve、Cc なし
+
 ## gtm_reserve_save_v2.html（全文）
 ```html
 <!--
@@ -58,9 +65,10 @@
                 /yoyaku/2lkagoshima/ のように kh・djh・ngm・2l で始まるもの）と
                 /yoyaku/kokubuhousinggroup/（グループ共通）のどちらでも動く
   - ブランドの決め方:
-      ブランドのアカウント        → アカウント名の頭から（kh→KH / djh→DJH / ngm→なごみ / 2l→2L）
+      ブランドのアカウント        → アカウント名の頭から（kh→KH / djh→DJH / ngm→Nagomi / 2l→2L）
       kokubuhousinggroup の URL  → <title> の【】から（国分ハウジング→KH ／ デイジャストハウス→DJH ／
-                                    なごみ工務店→なごみ ／ ジャスフィーホーム→JH ／ ニーエルホーム→2L。分からなければ KH）
+                                    なごみ工務店→Nagomi ／ ジャスフィーホーム→JH ／ ニーエルホーム→2L。分からなければ KH）
+      ⚠️ なごみの brand は既存の反響に合わせて "Nagomi"。店舗名の頭は "なごみ"（例 なごみ鹿児島店）
   - 店舗（shop）: ブランドのアカウントは <title> の「… | 国分ハウジング 宮崎店」の最後の「○○店」から（→ KH宮崎店）。
       予約内容の表に「店舗」を含む見出しの行があればそちらを優先（kokubuhousinggroup はこの行が無いと空のまま）
   - URL パラメータ（? 以降）は「予約の手続き中のページ（/reserve/ を含む）」では保存しない
@@ -119,11 +127,11 @@
   // ========================================================
   // ブランド: ブランドのアカウント（khkagoshima など）なら頭の kh・djh・ngm・2l から、kokubuhousinggroup なら <title> の【】から
   // ========================================================
-  var accountBrand = { kh: "KH", djh: "DJH", ngm: "なごみ", "2l": "2L" };
+  var accountBrand = { kh: "KH", djh: "DJH", ngm: "Nagomi", "2l": "2L" };
   var titleBrand = {
     "国分ハウジング": "KH",
     "デイジャストハウス": "DJH",
-    "なごみ工務店": "なごみ",
+    "なごみ工務店": "Nagomi",
     "ジャスフィーホーム": "JH",
     "ニーエルホーム": "2L",
   };
@@ -219,8 +227,9 @@
 
   // 補正: shop のブランド名を正しいもの（postData.brand）に強制補正
   if (postData.shop) {
-    var pureShopName = postData.shop.replace(/^(KH|DJH|JH|2L|なごみ)/, "");
-    postData.shop = postData.brand + pureShopName;
+    var pureShopName = postData.shop.replace(/^(KH|DJH|JH|2L|なごみ|Nagomi)/, "");
+    // ⚠️ なごみは brand が "Nagomi"、店舗名の頭は "なごみ"（既存の反響と同じ）
+    postData.shop = (postData.brand === "Nagomi" ? "なごみ" : postData.brand) + pureShopName;
   }
 
   // 3. 予約日時のパース処理
@@ -254,7 +263,7 @@
 ## gtm_reserve_send_v3.html（v2 との差分）
 ```diff
 --- /c/Users/shinji-kawano/Downloads/gtm_reserve_send_v2.html	2026-10-12 18:14:27.734637000 +0900
-+++ /c/Users/shinji-kawano/Downloads/gtm_reserve_send_v3.html	2026-10-12 18:55:10.996660000 +0900
++++ /c/Users/shinji-kawano/Downloads/gtm_reserve_send_v3.html	2026-10-12 19:09:43.415041200 +0900
 @@ -1,6 +1,14 @@
  <!--
    GTM カスタムHTMLタグ: 予約内容のAPI送信 → サンクスページへリダイレクト
@@ -283,7 +292,7 @@
      var brandMap = {
        KH: "https://kh-house.jp/event_ok/",
        DJH: "https://day-just-house.com/thanks-event/",
-+      "なごみ": "https://www.nagomi-koumuten.jp/event_ok/",
++      Nagomi: "https://www.nagomi-koumuten.jp/event_ok/",
 +      "2L": "https://2lhome.net/thanks/?referer=reserve",
 +      JH: "https://jusfy-home.com/reservation_ok/",
      };
