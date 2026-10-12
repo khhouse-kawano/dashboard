@@ -14,6 +14,7 @@ import { toHalfWidth } from './databaseUtils';
 import PropertyRegister from './PropertyRegister';
 import { BrokerData } from './PropertyRegister';
 import { generateNewId } from './databaseUtils';
+import { CustomerNameCell } from './customerName2';
 
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, position: string };
 type CustomerList = Record<string, string>;
@@ -152,7 +153,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                 && (selectedRank ? arrIncludes(item.rank, selectedRank) : true)
                 && (selectedMedium === 'SUUMO(ポータル反響)' ? (item.medium === 'SUUMO' && !item.hp_campaign) : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
                 && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
-                && (searchedName ? strIncludes(item.customer, formattedName) : true)
+                // ⚠️ v2.2.187: 氏名②（customer_2）も名前検索の対象（⚠️ この画面は空白を消さずに比べる既存の規則に合わせる）
+                && (searchedName ? (strIncludes(item.customer, formattedName) || strIncludes(item.customer_2, formattedName)) : true)
                 && (searchedStaff ? strIncludes(item.staff, searchedStaff.split(' ')[0]) : true)
                 && ((searchedPhone || searchedName) ? strIncludes(item.phone_number, formattedNumber) : true)
                 && (searchedMail ? strIncludes(item.mail, searchedMail) : true)
@@ -613,8 +615,13 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                                 <div style={{ cursor: 'pointer' }}
                                                     onClick={() => handleCopy(item.id)}><i className="fa-solid fa-user-plus"></i></div></td>
                                             <td>{item.shop}</td>
-                                            <td>{isDuplicate && <span style={{ cursor: 'pointer' }}
-                                                onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}{item.customer ?? ''}
+                                            {/* ⚠️ v2.2.187: 氏名②があるときだけ「アイコン（縦中央）／氏名①・氏名②の2行」。⚠️ 媒介のボタンは氏名①の右（今までどおり） */}
+                                            <td><CustomerNameCell
+                                                icons={isDuplicate && <span style={{ cursor: 'pointer' }}
+                                                    onClick={() => integrationCustomer(item)}><i className="fa-solid fa-user-plus pe-1 text-success"></i></span>}
+                                                name={item.customer ?? ''}
+                                                name2={item.customer_2}
+                                                after={<>
                                                 {isBroker && <span className='bg-warning rounded ms-1 p-1 fw-bold'
                                                     style={{ fontSize: '9px', textDecoration: 'underline dotted', cursor: 'pointer' }}
                                                     onClick={() => {
@@ -628,7 +635,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                                         setBrokerCustomer(item.id);
                                                         handleAddNew();
                                                     }}>
-                                                    媒介追加</span>}</td>
+                                                    媒介追加</span>}
+                                                </>} /></td>
                                             <td>{item.staff ?? ''}</td>
                                             <td>{item.status ?? ''}</td>
                                             <td>{item.call_status}</td>
