@@ -64,10 +64,20 @@
   - ブランド（kokubuhousinggroup）: 【】で決まらないときは `<title>` の最後のブランド名から（国分ハウジング→KH、DAY JUST HOUSE・デイジャストハウス→DJH、なごみ→Nagomi、2Lhome・ニーエルホーム→2L、ジャスフィー・JUSFY→JH）
 - 確認: kokubuhousinggroup ＋「… | 国分ハウジング 都城店」→ KH・`KH都城店`、kokubuhousinggroup ＋「… | DAY JUST HOUSE 薩摩川内店」→ DJH・`DJH薩摩川内店`、「… | なごみ工務店」→ 店舗なし、ほかのケースは前と同じ
 
+## 追記: トリガーに頼らない形に（利用者「エージェント側で変更して」「html ファイルを編集して」）
+- GTM の管理画面にはこちらから入れないため、HTML ファイルの側で対応した（Downloads のファイルを上書き）
+- gtm_reserve_send_v4.html: 動く条件を「対象アカウント かつ パスに /complete」に（`/\/yoyaku\/(kokubuhousinggroup|(?:djh|kh|ngm|2l)[a-z0-9_-]*)\/.*\/complete/i`）。→ トリガーは組み込みの「Window Loaded・すべてのページ」でよい
+- gtm_reserve_save_v3.html: 中身の判定は元からタグ内（対象アカウント・予約内容の表の有無・/reserve/ では URL パラメータを覚えない）。→ トリガーは「DOM Ready・すべてのページ」でよい（説明だけ追加）
+- 確認（送信タグ）: khmiyakonojo と kokubuhousinggroup の …/reserve/complete → 送信して kh-house.jp/event_ok/ へ。…/events/1・…/reserve/confirm・対象外のアカウントの /complete → 何もしない
+
 ## gtm_reserve_save_v3.html（全文）
 ```html
 <!--
   GTM カスタムHTMLタグ: URLパラメータ保存 ＋ 予約内容の保存（確認画面）  v3
+
+  【GTM設定（v3）】
+  - トリガー: ページビュー - DOM Ready、すべてのページ
+    （動くアカウントの判定・予約内容の表があるかの判定はタグの中でしている。正規表現の条件は不要）
 
   【v3 の変更点】
   - 店舗（shop）: どのアカウントでも <title> の最後の「| ブランド名 ○○店」から取る（kokubuhousinggroup でも）
@@ -296,10 +306,18 @@
 </script>
 ```
 
-## gtm_reserve_send_v4.html（全文。send_v3 と同じ）
+## gtm_reserve_send_v4.html（全文）
 ```html
 <!--
   GTM カスタムHTMLタグ: 予約内容のAPI送信 → サンクスページへリダイレクト
+
+  【変更点（v4）】
+  - 動く条件（見学クラウドの対象アカウント かつ 完了画面 /complete）をタグの中で判定するようにした
+    → GTM のトリガーは組み込みの「Window Loaded（すべてのページ）」でよい（正規表現の条件は不要）
+
+  【GTM設定（v4）】
+  - トリガー: ページビュー - ウィンドウの読み込み（Window Loaded）、すべてのページ
+  - ⚠️ 完了画面の URL に /complete が入っていることを確認すること
 
   【変更点（v3）】
   - 動くページ: ブランドのアカウント（/yoyaku/khkagoshima/ など kh・djh・ngm・2l で始まるもの）と
@@ -317,7 +335,7 @@
   （トリガー等の GTM 設定・gtm_reserve_save.html は変更なし）
 -->
 <script>
-if (/\/yoyaku\/(kokubuhousinggroup|(?:djh|kh|ngm|2l)[a-z0-9_-]*)(\/|$)/i.test(window.location.pathname)) {
+if (/\/yoyaku\/(kokubuhousinggroup|(?:djh|kh|ngm|2l)[a-z0-9_-]*)\/.*\/complete/i.test(window.location.pathname)) {
   (function () {
     // 1. データの読み込み
     try {
