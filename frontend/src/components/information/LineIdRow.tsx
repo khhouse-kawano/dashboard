@@ -4,11 +4,11 @@ import TableInput from './TableInput';
 /**
  * 顧客の編集画面（InformationEdit / Kaeru / Resale）の連絡先の LINE ID 欄と LINE アイコン。
  *
- * ⚠️⚠️ アイコンは「LINE ID をコピー」して「LINE WORKS のトークを新しいタブで開く」。
- *   ⚠️ お客様の個人 LINE ID を渡してトークを開く方法は無い（調査: docs/task-2026-10-12-04-line-id.md）。
- *   ⚠️ 開き先を変えるときは LINE_WORKS_TALK_URL だけ直す。
+ * ⚠️⚠️ アイコンは「LINE ID をコピー」して「LINE WORKS の連絡先（登録画面）を新しいタブで開く」。
+ *   ⚠️ お客様の個人 LINE ID からトークルームを直接開く方法は無く、先に連絡先へ登録する必要があるため。
+ *   ⚠️ 開き先を変えるときは LINE_WORKS_CONTACT_URL だけ直す。
  */
-const LINE_WORKS_TALK_URL = 'https://talk.worksmobile.com/';
+const LINE_WORKS_CONTACT_URL = 'https://contact.worksmobile.com/p/web/shared/contact';
 const LINE_GREEN = '#06C755';
 
 type Props = {
@@ -41,13 +41,13 @@ const LineWorksButton = ({ lineId }: { lineId: string | null | undefined }) => {
             await navigator.clipboard.writeText(value);
             setCopied(true);
         } catch (error) {
-            // ⚠️ コピーできなくてもトークは開く（ID は画面に出ているので手で入力できる）
+            // ⚠️ コピーできなくても連絡先は開く（ID は画面に出ているので手で入力できる）
             console.error('LINE ID をコピーできませんでした', error);
         }
-        window.open(LINE_WORKS_TALK_URL, '_blank', 'noopener,noreferrer');
+        window.open(LINE_WORKS_CONTACT_URL, '_blank', 'noopener,noreferrer');
     };
 
-    const label = enabled ? `LINE ID（${value}）をコピーして LINE WORKS を開く` : 'LINE ID が未入力です';
+    const label = enabled ? `LINE ID（${value}）をコピーして LINE WORKS の連絡先を開く` : 'LINE ID が未入力です';
 
     return (
         <span className="d-inline-flex align-items-center" style={{ verticalAlign: 'middle' }}>

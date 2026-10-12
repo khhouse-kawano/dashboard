@@ -66,7 +66,7 @@ dcp up -d express-api
 ## 手順4　【WSL】フロントを ① へアップロード
 | ファイル | |
 |---|---|
-| ⚠️⚠️ **`static/js/main.12d99c58.js`** | ⚠️ **この版の本体** |
+| ⚠️⚠️ **`static/js/main.67fc2dd5.js`** | ⚠️ **この版の本体**（⚠️ LINE アイコンの開き先を変えたので `main.12d99c58.js` ではない） |
 | ⚠️⚠️ **`static/css/main.b8a7c60b.css`** | ⚠️ **今回は CSS も変わる**（キャンペーン設定の画面）。⚠️ 何度か作り直したので、これ以前の main.*.css ではない |
 | ⚠️ `index.html` | ⚠️⚠️ **必ず差し替えること** |
 ```bash
@@ -98,7 +98,7 @@ SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 3;
 | 3 | 公開フォーム（PC・スマホ） | カードでまとまった見た目、ボタンがブランド色。ご連絡先のメールアドレスの下に LINE ID の欄。必須を空のまま進むと赤枠とメッセージ（お名前・ご住所も） |
 | 4 | テスト送信（LINE ID あり） | 反響一覧の行に line_id、社内通知メールとサンクスメールの内容に `LINE ID：…` |
 | 5 | その反響を同期 | 顧客の編集画面の連絡先に LINE ID |
-| 6 | LINE のアイコン | LINE ID がコピーされ、LINE WORKS のトークが新しいタブで開く。LINE ID が空なら薄く押せない |
+| 6 | LINE のアイコン | LINE ID がコピーされ、LINE WORKS の連絡先（`contact.worksmobile.com/p/web/shared/contact`）が新しいタブで開く。LINE ID が空なら薄く押せない |
 | 7 | フォームの HTML を作る画面（FormBuilder） | LINE ID を表示にしたキャンペーンで、LINE ID の欄が選べる |
 
 ## 切り戻し
