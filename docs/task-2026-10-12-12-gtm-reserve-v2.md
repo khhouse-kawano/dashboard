@@ -55,10 +55,27 @@
 - 確認: ngmkagoshima → brand `Nagomi`・shop `なごみ鹿児島店`、送信して nagomi-koumuten.jp/event_ok/ へ移動
 - 2L（2lkagoshima、タイトル「… | 2Lhome 鹿児島店」）→ brand `2L`・shop `2L鹿児島店`、サンクスは 2lhome.net/thanks/?referer=reserve、Cc なし
 
-## gtm_reserve_save_v2.html（全文）
+## 追記: 店舗が取れない（タイトル「【全店舗開催】新商品「Fit」誕生 | 国分ハウジング 都城店」）
+- 利用者がファイル名を gtm_reserve_save_v3.html・gtm_reserve_send_v4.html に変えた（中身は save_v2・send_v3 と同じだった）
+- 公開中の GTM を読み直した: 保存タグは最新（タイトルから店舗を取る処理あり）。⚠️ 送信タグのトリガーは「URL に /kokubuhousinggroup を含む」のまま → ブランドのアカウントでは送信されない（トリガーの変更が必要）
+- そのタイトルを試験に入れるとブランドのアカウントでは `KH都城店` が取れる → 【全店舗開催】のイベントは kokubuhousinggroup のアカウントにあり、グループではタイトルから店舗を取っていなかったのが原因と判断
+- 変更（gtm_reserve_save_v3.html）
+  - 店舗: どのアカウントでも、表に無ければ `<title>` の最後の `|` のあとから「空白＋○○店」を取る（`/\s(\S+店)$/`。「… | なごみ工務店」のようにブランド名だけのものは店舗にしない）
+  - ブランド（kokubuhousinggroup）: 【】で決まらないときは `<title>` の最後のブランド名から（国分ハウジング→KH、DAY JUST HOUSE・デイジャストハウス→DJH、なごみ→Nagomi、2Lhome・ニーエルホーム→2L、ジャスフィー・JUSFY→JH）
+- 確認: kokubuhousinggroup ＋「… | 国分ハウジング 都城店」→ KH・`KH都城店`、kokubuhousinggroup ＋「… | DAY JUST HOUSE 薩摩川内店」→ DJH・`DJH薩摩川内店`、「… | なごみ工務店」→ 店舗なし、ほかのケースは前と同じ
+
+## gtm_reserve_save_v3.html（全文）
 ```html
 <!--
-  GTM カスタムHTMLタグ: URLパラメータ保存 ＋ 予約内容の保存（確認画面）  v2
+  GTM カスタムHTMLタグ: URLパラメータ保存 ＋ 予約内容の保存（確認画面）  v3
+
+  【v3 の変更点】
+  - 店舗（shop）: どのアカウントでも <title> の最後の「| ブランド名 ○○店」から取る（kokubuhousinggroup でも）
+      例）「【全店舗開催】新商品「Fit」誕生 | 国分ハウジング 都城店」→ 都城店 → KH都城店
+      ⚠️ 「… | なごみ工務店」「… | 株式会社国分ハウジング」のようにブランド名だけで終わるものは店舗にしない
+  - ブランド（kokubuhousinggroup）: 【】で決まらない（【全店舗開催】など）ときは <title> の最後のブランド名から
+      （国分ハウジング→KH ／ DAY JUST HOUSE・デイジャストハウス→DJH ／ なごみ工務店→Nagomi ／ 2Lhome・ニーエルホーム→2L ／
+        ジャスフィーホーム・JUSFY→JH）
 
   【v2 の変更点】
   - 動くページ: ブランドのアカウント（/yoyaku/khkagoshima/ ・ /yoyaku/djhsendai/ ・ /yoyaku/ngmkagoshima/ ・
@@ -70,7 +87,7 @@
                                     なごみ工務店→Nagomi ／ ジャスフィーホーム→JH ／ ニーエルホーム→2L。分からなければ KH）
       ⚠️ なごみの brand は既存の反響に合わせて "Nagomi"。店舗名の頭は "なごみ"（例 なごみ鹿児島店）
   - 店舗（shop）: ブランドのアカウントは <title> の「… | 国分ハウジング 宮崎店」の最後の「○○店」から（→ KH宮崎店）。
-      予約内容の表に「店舗」を含む見出しの行があればそちらを優先（kokubuhousinggroup はこの行が無いと空のまま）
+      予約内容の表に「店舗」を含む見出しの行があればそちらを優先（v3 で kokubuhousinggroup もタイトルから取るようにした）
   - URL パラメータ（? 以降）は「予約の手続き中のページ（/reserve/ を含む）」では保存しない
     （予約画面の URL には reserve_event[date]・commit・_gl などが付き、広告から来たときの utm_… を上書きしてしまうため）
   - それ以外（見出しで key を決める・LINE ID・予約日時の読み取り・店舗名の補正）は今の公開版と同じ
@@ -135,6 +152,18 @@
     "ジャスフィーホーム": "JH",
     "ニーエルホーム": "2L",
   };
+  // <title> の最後の「|」のあと（例「国分ハウジング 都城店」）
+  var titleSegments = (document.title || "").split("|");
+  var titleTail = titleSegments.length > 1 ? titleSegments[titleSegments.length - 1].trim() : "";
+  // 最後のブランド名 → brand（【】で決まらないとき用）
+  var tailBrand = [
+    [/国分ハウジング/, "KH"],
+    [/DAY ?JUST ?HOUSE|デイジャストハウス/i, "DJH"],
+    [/なごみ/, "Nagomi"],
+    [/2L ?home|ニーエルホーム/i, "2L"],
+    [/ジャスフィー|JUSFY/i, "JH"],
+  ];
+
   var detectedBrand = "KH"; // 分からなければ KH
   var accountPrefix = account.match(/^(djh|kh|ngm|2l)/);
   if (account !== "kokubuhousinggroup" && accountPrefix) {
@@ -143,6 +172,13 @@
     var titleMatch = (document.title || "").match(/【([^】]+)】/);
     if (titleMatch && titleBrand[titleMatch[1].trim()]) {
       detectedBrand = titleBrand[titleMatch[1].trim()];
+    } else {
+      for (var tb = 0; tb < tailBrand.length; tb++) {
+        if (tailBrand[tb][0].test(titleTail)) {
+          detectedBrand = tailBrand[tb][1];
+          break;
+        }
+      }
     }
   }
   postData.brand = detectedBrand;
@@ -215,12 +251,12 @@
   ).singleNodeValue;
   postData.reserved_date = dateNode && dateNode.textContent ? dateNode.textContent.trim() : "";
 
-  // 店舗: 表に無ければ、ブランドのアカウントは <title> の最後の「| ブランド名 ○○店」から
-  //   例）「【全店舗開催】… | 国分ハウジング 宮崎店」→「宮崎店」（下の補正で KH宮崎店 になる）
-  if (!postData.shop && account !== "kokubuhousinggroup") {
-    var titleParts2 = (document.title || "").split("|");
-    var shopMatch = titleParts2[titleParts2.length - 1].trim().match(/(\S+店)$/);
-    if (titleParts2.length > 1 && shopMatch) {
+  // 店舗: 表に無ければ <title> の最後の「| ブランド名 ○○店」から（どのアカウントでも）
+  //   例）「【全店舗開催】… | 国分ハウジング 都城店」→「都城店」（下の補正で KH都城店 になる）
+  //   ⚠️ 「ブランド名 ○○店」のように空白の後ろの「○○店」だけを取る（「なごみ工務店」だけで終わるものは店舗にしない）
+  if (!postData.shop) {
+    var shopMatch = titleTail.match(/\s(\S+店)$/);
+    if (shopMatch) {
       postData.shop = shopMatch[1];
     }
   }
@@ -260,42 +296,176 @@
 </script>
 ```
 
-## gtm_reserve_send_v3.html（v2 との差分）
-```diff
---- /c/Users/shinji-kawano/Downloads/gtm_reserve_send_v2.html	2026-10-12 18:14:27.734637000 +0900
-+++ /c/Users/shinji-kawano/Downloads/gtm_reserve_send_v3.html	2026-10-12 19:09:43.415041200 +0900
-@@ -1,6 +1,14 @@
- <!--
-   GTM カスタムHTMLタグ: 予約内容のAPI送信 → サンクスページへリダイレクト
- 
-+  【変更点（v3）】
-+  - 動くページ: ブランドのアカウント（/yoyaku/khkagoshima/ など kh・djh・ngm・2l で始まるもの）と
-+                /yoyaku/kokubuhousinggroup/ のどちらでも動く（gtm_reserve_save_v2.html と同じ条件）
-+  - 送信後のサンクスページに なごみ・2L・JH を追加（今まではどれも国分ハウジングのトップへ移っていた）
-+  - GTM のトリガー: ページビュー - ウィンドウの読み込み（Window Loaded）
-+      条件: Page Path が 正規表現に一致 /yoyaku/(kokubuhousinggroup|(djh|kh|ngm|2l)[^/]*)/.*/complete
-+      ⚠️ 完了画面の URL に /complete が入っていることを確認すること
-+
-   【変更点（v2）】
-   - 送信先を https://api.khg-marketing.info/api/gateway に変更（旧: https://khg-marketing.info/api/kengakuCloud/all/）
-   - 送信データに request=kengaku_cloud / roll=entry を追加（新しい送信先はこの2つで受け口を決める）
-@@ -9,7 +17,7 @@
-   （トリガー等の GTM 設定・gtm_reserve_save.html は変更なし）
- -->
- <script>
--if (window.location.href.indexOf("kokubuhousinggroup") !== -1) {
-+if (/\/yoyaku\/(kokubuhousinggroup|(?:djh|kh|ngm|2l)[a-z0-9_-]*)(\/|$)/i.test(window.location.pathname)) {
-   (function () {
-     // 1. データの読み込み
-     try {
-@@ -29,6 +37,9 @@
-     var brandMap = {
-       KH: "https://kh-house.jp/event_ok/",
-       DJH: "https://day-just-house.com/thanks-event/",
-+      Nagomi: "https://www.nagomi-koumuten.jp/event_ok/",
-+      "2L": "https://2lhome.net/thanks/?referer=reserve",
-+      JH: "https://jusfy-home.com/reservation_ok/",
-     };
- 
-     // 正しいサンクスURLを決定（brandValueがなければKHのトップへ）
+## gtm_reserve_send_v4.html（全文。send_v3 と同じ）
+```html
+<!--
+  GTM カスタムHTMLタグ: 予約内容のAPI送信 → サンクスページへリダイレクト
+
+  【変更点（v3）】
+  - 動くページ: ブランドのアカウント（/yoyaku/khkagoshima/ など kh・djh・ngm・2l で始まるもの）と
+                /yoyaku/kokubuhousinggroup/ のどちらでも動く（gtm_reserve_save_v2.html と同じ条件）
+  - 送信後のサンクスページに なごみ・2L・JH を追加（今まではどれも国分ハウジングのトップへ移っていた）
+  - GTM のトリガー: ページビュー - ウィンドウの読み込み（Window Loaded）
+      条件: Page Path が 正規表現に一致 /yoyaku/(kokubuhousinggroup|(djh|kh|ngm|2l)[^/]*)/.*/complete
+      ⚠️ 完了画面の URL に /complete が入っていることを確認すること
+
+  【変更点（v2）】
+  - 送信先を https://api.khg-marketing.info/api/gateway に変更（旧: https://khg-marketing.info/api/kengakuCloud/all/）
+  - 送信データに request=kengaku_cloud / roll=entry を追加（新しい送信先はこの2つで受け口を決める）
+  - localStorage の "url_params" は展開せず、JSON 文字列のまま url_params として1項目で送る
+  - line_id は gtm_reserve_save.html 側で reserveData に入るため、そのまま送信される
+  （トリガー等の GTM 設定・gtm_reserve_save.html は変更なし）
+-->
+<script>
+if (/\/yoyaku\/(kokubuhousinggroup|(?:djh|kh|ngm|2l)[a-z0-9_-]*)(\/|$)/i.test(window.location.pathname)) {
+  (function () {
+    // 1. データの読み込み
+    try {
+      var reserveDataRaw = localStorage.getItem("reserveData");
+      var reserveData = reserveDataRaw ? JSON.parse(reserveDataRaw) : {};
+    } catch (e) {
+      console.error("localStorage read error:", e);
+      var reserveData = {};
+    }
+
+    var keys = Object.keys(reserveData);
+
+    // 【修正】前回のコード仕様に合わせ、オブジェクト内から brand を取得
+    // もし別で保存している場合は localStorage.getItem("brand") に戻してください
+    var brandValue = reserveData.brand;
+
+    var brandMap = {
+      KH: "https://kh-house.jp/event_ok/",
+      DJH: "https://day-just-house.com/thanks-event/",
+      Nagomi: "https://www.nagomi-koumuten.jp/event_ok/",
+      "2L": "https://2lhome.net/thanks/?referer=reserve",
+      JH: "https://jusfy-home.com/reservation_ok/",
+    };
+
+    // 正しいサンクスURLを決定（brandValueがなければKHのトップへ）
+    var targetRedirectUrl = brandMap[brandValue]
+      ? brandMap[brandValue]
+      : "https://kh-house.jp/";
+
+    // データが空なら即リダイレクト
+    if (keys.length === 0) {
+      window.location.href = targetRedirectUrl;
+      return;
+    }
+
+    // 2. 拡張コンバージョン用セッション保存
+    try {
+      if (reserveData["mail"]) {
+        sessionStorage.setItem("gtm_user_email", reserveData["mail"]);
+      }
+      if (reserveData["mobile"]) {
+        sessionStorage.setItem("gtm_user_phone", reserveData["mobile"]);
+      }
+    } catch (e) {}
+
+    // 2-2. 送信データ（受け口の指定 ＋ 予約内容 ＋ url_params を JSON 文字列のまま1項目で）
+    var sendData = { request: "kengaku_cloud", roll: "entry" };
+    for (var j = 0; j < keys.length; j++) {
+      sendData[keys[j]] = reserveData[keys[j]];
+    }
+    try {
+      var urlParamsRaw = localStorage.getItem("url_params");
+      if (urlParamsRaw) {
+        sendData.url_params = urlParamsRaw;
+      }
+    } catch (e) {
+      console.error("url_params read error:", e);
+    }
+    var sendKeys = Object.keys(sendData);
+
+    // 3. 送信データの整形（URLエンコード）
+    var paramsArr = [];
+    for (var i = 0; i < sendKeys.length; i++) {
+      var key = sendKeys[i];
+      var value = sendData[key];
+      if (value === undefined || value === null) value = "";
+      paramsArr.push(
+        encodeURIComponent(key) + "=" + encodeURIComponent(String(value))
+      );
+    }
+    var bodyString = paramsArr.join("&");
+    var url = "https://api.khg-marketing.info/api/gateway";
+
+    // 4. データ送信処理
+
+    // 4-1) sendBeacon を優先
+    if (navigator.sendBeacon) {
+      try {
+        var blob = new Blob([bodyString], {
+          type: "application/x-www-form-urlencoded;charset=UTF-8",
+        });
+        var ok = navigator.sendBeacon(url, blob);
+        if (ok) {
+          localStorage.removeItem("reserveData");
+          window.location.href = targetRedirectUrl;
+          return;
+        }
+      } catch (e) {
+        console.warn("sendBeacon failed, fallback to fetch/XHR", e);
+      }
+    }
+
+    // 4-2) fetch keepalive を試す
+    if (window.fetch) {
+      try {
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+          },
+          body: bodyString,
+          keepalive: true,
+        })
+          .then(function (res) {
+            localStorage.removeItem("reserveData");
+            setTimeout(function () {
+              window.location.href = targetRedirectUrl;
+            }, 200);
+          })
+          .catch(function (err) {
+            console.error("fetch error:", err);
+            sendWithXHR();
+          });
+        return;
+      } catch (e) {
+        console.warn("fetch keepalive not available, fallback", e);
+      }
+    }
+
+    // 4-3) 最終フォールバック XHR
+    function sendWithXHR() {
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", url, true);
+      xhr.setRequestHeader(
+        "Content-Type",
+        "application/x-www-form-urlencoded;charset=UTF-8"
+      );
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            localStorage.removeItem("reserveData");
+            window.location.href = targetRedirectUrl;
+          } else {
+            console.error("POST error: status", xhr.status, xhr.responseText);
+            alert("送信に失敗しました。ネットワークを確認してください。");
+          }
+        }
+      };
+      try {
+        xhr.send(bodyString);
+      } catch (e) {
+        console.error("XHR send error:", e);
+        alert("送信に失敗しました。");
+      }
+    }
+
+    sendWithXHR();
+  })();
+}
+</script>
 ```
