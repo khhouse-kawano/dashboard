@@ -17,7 +17,7 @@ import { hiraToKata } from '../../utils/nexusUtils';
 
 type InquiryCustomer = {
     id: number, inquiry_id: string, pg_id: string, inquiry_date: string, medium: string, response_medium: string, first_name: string, last_name: string, category: string,
-    first_name_kana: string, last_name_kana: string, mobile: string, landline: string, mail: string, zip: string, pref: string, city: string, town: string, street: string,
+    first_name_kana: string, last_name_kana: string, mobile: string, landline: string, mail: string, line_id?: string | null, zip: string, pref: string, city: string, town: string, street: string,
     building: string, brand: string, shop: string, sync: number, staff: string, area: string, reserved_date: string, hp_campaign: string,
     duplicate: string, property: string, note: string,
     // 顧客タグ。判定は listTags.ts に集約している
@@ -250,6 +250,8 @@ const ListResale = ({ onReload }: Props) => {
                 customer_contacts_phone_number: phone_number_1,
                 customer_contacts_mobile_phone_number: phone_number_2,
                 customer_contacts_email: filteredCustomer.mail || '',
+                // ⚠️ v2.2.188: LINE ID は ⚠️ **値があるときだけ**送る（⚠️ ① list_resale_sync.php が受ける。空なら NULL）
+                ...(String(filteredCustomer.line_id ?? '').trim() !== '' ? { line_id: String(filteredCustomer.line_id).trim() } : {}),
                 postal_code: filteredCustomer.zip || '',
                 full_address: `${filteredCustomer.pref || ''} ${filteredCustomer.city || ''} ${filteredCustomer.town || ''} ${filteredCustomer.street || ''} ${filteredCustomer.building || ''}`,
                 sales_promotion_name: filteredCustomer.response_medium || '',

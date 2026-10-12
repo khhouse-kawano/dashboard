@@ -147,6 +147,8 @@ return [
 'last_action_step_migration_item_date',
 'last_action_step_migration_item_name',
 'lat_lng',
+// v2.2.188: LINE ID（3テーブルとも列あり: 2026-10-12_line_id_columns.sql）
+'line_id',
 'memo_developer_application_company',
 'memo_fire_insurance',
 'memo_ground_survey',

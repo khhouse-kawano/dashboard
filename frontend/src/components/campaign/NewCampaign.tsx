@@ -80,6 +80,16 @@ type FormState = {
         required: boolean,
         text: string
     }
+    /**
+     * LINE ID（v2.2.188 追加）。⚠️ form_table / form_database の `line_id` 列（JSON）。
+     * ⚠️ 列が無い古い応答・壊れた値は LINE_ID_DEFAULT で受ける。
+     * ⚠️ 公開フォーム（react/form_get）がこの設定で入力欄を出す。
+     */
+    line_id: {
+        bool: boolean,
+        required: boolean,
+        text: string
+    }
     address: {
         bool: boolean,
         required: boolean,
@@ -109,6 +119,31 @@ type FormState = {
 } & Record<BooleanKeys, boolean>;
 
 type Response = { status: string; message: string }
+
+/**
+ * LINE ID の既定（v2.2.188）。⚠️ DB の列の既定値（2026-10-12_line_id_columns.sql）と同じ。
+ * ⚠️ 列が無い（SQL を流す前・② が古い）応答のときに使う。
+ */
+const LINE_ID_DEFAULT: FormState['line_id'] = {
+    bool: true,
+    required: false,
+    text: 'LINE_IDをご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。',
+};
+
+/** line_id 列の値を読む。⚠️ 無い・壊れている・形が違うときは既定 */
+const parseLineId = (value: unknown): FormState['line_id'] => {
+    if (typeof value !== 'string' || value === '') return LINE_ID_DEFAULT;
+    try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === 'object' && 'bool' in parsed) {
+            return { ...LINE_ID_DEFAULT, ...parsed };
+        }
+    } catch {
+        console.error(`LINE ID の設定を読めませんでした: ${String(value).slice(0, 80)}`);
+    }
+    return LINE_ID_DEFAULT;
+};
+
 const NewCampaign = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -173,6 +208,7 @@ const NewCampaign = () => {
             required: true,
             text: ''
         },
+        line_id: LINE_ID_DEFAULT,
         address: {
             bool: true,
             required: true,
@@ -275,6 +311,8 @@ const NewCampaign = () => {
                         age: parse(row.age, prev.age),
                         phone: parse(row.phone, prev.phone),
                         mail: parse(row.mail, prev.mail),
+                        // ⚠️ v2.2.188: 列が無い・壊れていても既定で受ける（parseLineId）
+                        line_id: parseLineId(row.line_id),
                         address: parse(row.address, prev.address),
                         medium: parse(row.medium, prev.medium),
                         question: parse(row.question, prev.question),
@@ -310,6 +348,8 @@ const NewCampaign = () => {
                         age: JSON.parse(response.data.age),
                         phone: JSON.parse(response.data.phone),
                         mail: JSON.parse(response.data.mail),
+                        // ⚠️ v2.2.188: 列が無い（SQL を流す前）ときも既定で受ける
+                        line_id: parseLineId(response.data.line_id),
                         address: JSON.parse(response.data.address),
                         medium: JSON.parse(response.data.medium),
                         question: JSON.parse(response.data.question),
@@ -1278,6 +1318,45 @@ const NewCampaign = () => {
                                                 </div>
                                                 <div>
                                                     <input type="mail" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} pattern="\d{9,}" required />
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {/*
+                                      ⚠️ v2.2.188: LINE ID（メールアドレスの下）。⚠️ 操作はメールアドレスの行と同じ（表示する／必須・任意／文言）。
+                                        ⚠️ 表示の切り替えは changeForm を使わず、ここで bool だけ反転する
+                                          （⚠️ changeForm は shop / date / medium 以外の項目を文字列で上書きするため）。
+                                    */}
+                                    <tr style={{ fontSize: '13px', verticalAlign: 'middle' }}>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <div>LINE ID</div><div style={{ marginLeft: '75px' }}><input type="checkbox" className="ms-2 form-check" style={{ width: '20px', margin: '0 auto' }} checked={form.line_id.bool}
+                                                onChange={() => setForm(prev => ({ ...prev, line_id: { ...prev.line_id, bool: !prev.line_id.bool } }))} /></div>
+                                        </td>
+                                        <td>
+                                            <div className="d-flex align-items-center mb-2">
+                                                <div>
+                                                    <input type="radio" name='line_id' style={{ transform: 'scale(1.3)', cursor: 'pointer' }} checked={form.line_id.required === true}
+                                                        onChange={() => setForm(prev => ({ ...prev, line_id: { ...prev.line_id, required: true } }))} />
+                                                </div>
+                                                <div className="ms-1">
+                                                    必須
+                                                </div>
+                                                <div>
+                                                    <input type="radio" name='line_id' style={{ transform: 'scale(1.3)', cursor: 'pointer', marginLeft: '20px' }} checked={form.line_id.required === false}
+                                                        onChange={() => setForm(prev => ({ ...prev, line_id: { ...prev.line_id, required: false } }))} />
+                                                </div>
+                                                <div className="ms-1">
+                                                    任意
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="d-flex align-items-center mb-2">
+                                                    {!form.line_id.required || <div style={{ backgroundColor: 'red', width: 'fit-content', color: '#fff', fontSize: '10px', padding: '2px 4px', borderRadius: '7px', marginRight: '3px' }}>必須</div>}
+                                                    <input type="text" style={{ width: '80%', border: '1px solid #D3D3D3', borderRadius: '7px', fontSize: '12px', letterSpacing: '.7px' }} value={form.line_id.text}
+                                                        onChange={(e) => setForm(prev => ({ ...prev, line_id: { ...prev.line_id, text: e.target.value } }))} />
+                                                </div>
+                                                <div>
+                                                    <input type="text" placeholder="LINE ID" style={{ height: '40px', borderRadius: '7px', fontSize: '14px', letterSpacing: '.7px', width: '100%', border: '1px solid #D3D3D3' }} readOnly />
                                                 </div>
                                             </div>
                                         </td>

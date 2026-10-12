@@ -13,6 +13,8 @@ try {
         ':customer_contacts_mobile_phone_number'  => $data['customer_contacts_mobile_phone_number'] ?? null,
         ':customer_contacts_phone_number'         => $data['customer_contacts_phone_number'] ?? null,
         ':customer_contacts_email'                => $data['customer_contacts_email'] ?? null,
+        // v2.2.188: LINE ID（⚠️ 画面は値があるときだけ送る。無ければ NULL）
+        ':line_id'                                => $data['line_id'] ?? null,
         ':postal_code'                            => $data['postal_code'] ?? null,
         ':full_address'                           => $data['full_address'] ?? null,
         ':sales_promotion_name'                   => $data['sales_promotion_name'] ?? null,

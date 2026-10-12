@@ -8,6 +8,7 @@ import AuthContext from '../../context/AuthContext';
 import { labelStyle, buttonStyle, valueStyle, inputStyle, selectStyle, requiredStyle, safeFormate, competitorsStyle } from '../../utils/informationUtils';
 import { kpiColumnFor } from '../../utils/interviewKpi';
 import TableInput from './TableInput';
+import LineWorksButton from './LineWorksButton';
 import TableSelect from './TableSelect';
 import TableInterview from './TableInterview';
 import TableCall from './TableCall';
@@ -832,6 +833,11 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                             <div>
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_email' defaultValue='メールアドレス①' />
                                                 <TableInput information={information} setInformation={setInformation} itemKey='extra_address_info' defaultValue='メールアドレス②' />
+                                            </div>
+                                            {/* ⚠️ v2.2.188: LINE ID（メールアドレスの下）。⚠️ アイコンは LINE ID をコピーして LINE WORKS を開く（LineWorksButton.tsx） */}
+                                            <div className='d-flex align-items-center'>
+                                                <TableInput information={information} setInformation={setInformation} itemKey='line_id' defaultValue='LINE ID' />
+                                                <LineWorksButton lineId={information.line_id} />
                                             </div>
                                         </td>
                                     </tr>

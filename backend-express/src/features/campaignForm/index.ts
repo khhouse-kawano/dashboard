@@ -49,6 +49,16 @@ const JSON_COLUMNS = [
     'address', 'question', 'shop', 'date', 'medium', 'attention',
 ] as const;
 
+/**
+ * ⚠️ v2.2.188 追加の JSON 列（LINE ID）。⚠️ **送られてきたときだけ書く。**
+ *   ⚠️ 列は `CHECK (json_valid(...))` 付き。⚠️ 送られてこない（古い画面）ときに JSON_COLUMNS と同じく
+ *     `jsonText(undefined)` = '' を書くと ⚠️ **制約で保存ごと失敗する**。
+ *   ⚠️ 送られてこなければ、登録は DB の既定値（表示する・任意・既定の文言）、更新は今の値のまま。
+ */
+const OPTIONAL_JSON_COLUMNS = ['line_id'] as const;
+const presentOptionalJson = (body: FormBody): string[] =>
+    OPTIONAL_JSON_COLUMNS.filter(key => body[key] !== undefined && body[key] !== null && body[key] !== '');
+
 /** 画面から受け取る1件ぶん。⚠️ 値の検証は下の各関数で行う */
 type FormBody = Record<string, unknown>;
 
@@ -177,10 +187,11 @@ export const runCampaignFormInsert = async (body: FormBody): Promise<FormResult>
         return { status: 'duplicate', message: `${campaign}の登録に失敗しました。` };
     }
 
+    const optionalJson = presentOptionalJson(body);
     const columns = [
         'registered_date', 'campaign', 'campaign_id', 'url', 'tag', 'brand',
         'mail_to', 'mail_cc', 'redirect', 'thanks',
-        ...MAIL_TEMPLATE_COLUMNS, ...JSON_COLUMNS,
+        ...MAIL_TEMPLATE_COLUMNS, ...JSON_COLUMNS, ...optionalJson,
     ];
 
     const values = [
@@ -191,6 +202,7 @@ export const runCampaignFormInsert = async (body: FormBody): Promise<FormResult>
         // ⚠️ ひな型は素の文字列。⚠️ JSON 化しないこと
         ...MAIL_TEMPLATE_COLUMNS.map(key => str(body[key])),
         ...JSON_COLUMNS.map(key => jsonText(body[key])),
+        ...optionalJson.map(key => jsonText(body[key])),
     ];
 
     await execute(
@@ -223,11 +235,13 @@ export const runCampaignFormUpdate = async (body: FormBody): Promise<FormResult>
         return { status: 'error', message: 'ブランドとキャンペーンIDは必須です。' };
     }
 
+    const optionalJson = presentOptionalJson(body);
     const sets = [
         'registered_date = ?', 'campaign = ?', 'mail_to = ?', 'mail_cc = ?',
         'redirect = ?', 'thanks = ?',
         ...MAIL_TEMPLATE_COLUMNS.map(key => `${key} = ?`),
         ...JSON_COLUMNS.map(key => `${key} = ?`),
+        ...optionalJson.map(key => `${key} = ?`),
     ];
 
     const values = [
@@ -235,6 +249,7 @@ export const runCampaignFormUpdate = async (body: FormBody): Promise<FormResult>
         body.thanks === true || body.thanks === 1 || body.thanks === '1' ? 1 : 0,
         ...MAIL_TEMPLATE_COLUMNS.map(key => str(body[key])),
         ...JSON_COLUMNS.map(key => jsonText(body[key])),
+        ...optionalJson.map(key => jsonText(body[key])),
         brand, campaignId,
     ];
 

@@ -37,7 +37,7 @@ $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
 
 // 反響一覧
 $sql_inquiry = "SELECT id, inquiry_id, pg_id, mhl_id, mhl_url, mhl_mail, inquiry_date, medium, response_medium, first_name, last_name,
-        first_name_kana, last_name_kana, mobile, landline, mail, zip, pref, city, town, street, building, brand, shop, sync, staff, area, 
+        first_name_kana, last_name_kana, mobile, landline, mail, line_id, zip, pref, city, town, street, building, brand, shop, sync, staff, area, 
         reserved_date, hp_campaign, duplicate, hotlead_url,
         duplicate_flag, gift_flag, support_flag, black_flag
         FROM inquiry_customer WHERE first_name <> '' ORDER By inquiry_date DESC";

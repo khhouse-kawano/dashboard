@@ -107,11 +107,21 @@ interface Answers {
     sei: string; mei: string; seiKana: string; meiKana: string;
     zip: string; pref: string; city: string; town: string; street: string;
     phone: string; mail: string; age: string;
+    /** LINE ID（v2.2.188）。⚠️ 形は確かめない（空白だけ取り除く。2026-10-12 決定） */
+    lineId: string;
     shop: string; date: string; time: string;
     medium: string; question: string;
     campaign: string; campaignId: string;
     url: string; source: string;
 }
+
+/**
+ * LINE ID（v2.2.188）。⚠️ **空白（半角・全角）を取り除くだけ**。形（英数字・記号・文字数）は確かめない。
+ *   ⚠️ LINE ID の決まりが変わっても受け付けられるようにするため（2026-10-12 決定）。
+ *   ⚠️ 長さは 100 文字で切る（⚠️ 列は TEXT。⚠️ 異常に長い入力を入れない）。
+ */
+const cleanLineId = (value: unknown): string =>
+    clean(value, 200).replace(/[\s　]+/g, '').slice(0, 100);
 
 const readAnswers = (body: Record<string, unknown>): Answers => ({
     sei: clean(body.sei, 60),
@@ -125,6 +135,7 @@ const readAnswers = (body: Record<string, unknown>): Answers => ({
     street: clean(body.street, 120),
     phone: clean(body.phone, 30),
     mail: clean(body.mail, 190),
+    lineId: cleanLineId(body.line_id),
     age: clean(body.age, 20),
     shop: clean(body.shop, 80),
     date: clean(body.date, 20),
@@ -232,7 +243,7 @@ export const runCampaignFormEntry = async (
     const shopValue = `${spec?.shopPrefix ?? ''}${a.shop === '' ? UNSET_SHOP : a.shop}`;
 
     // ---- 3. inquiry_customer へ保存 ----
-    const values: Record<string, string | number> = {};
+    const values: Record<string, string | number | null> = {};
     for (const column of NOT_NULL_COLUMNS) values[column] = '';
 
     /**
@@ -275,8 +286,14 @@ export const runCampaignFormEntry = async (
     values.hp_campaign = a.campaign;
     // ⚠️ 自由記述は remarks へ。note は社内の申し送りに使われているので触らない
     values.remarks = a.question;
+    /**
+     * ⚠️ v2.2.188: LINE ID。⚠️ 列は NULL 可（NOT_NULL_COLUMNS には入れない）。⚠️ 未入力は NULL。
+     * ⚠️ 2026-10-12_line_id_columns.sql を流す前の DB だと Unknown column で ⚠️ **反響ごと保存できない**。
+     *   ⚠️ 必ず SQL を先に流すこと（deploy-v2.2.188.md）。
+     */
+    values.line_id = a.lineId === '' ? null : a.lineId;
 
-    const columns = NOT_NULL_COLUMNS as unknown as string[];
+    const columns = [...(NOT_NULL_COLUMNS as unknown as string[]), 'line_id'];
 
     try {
         await execute(
@@ -377,8 +394,9 @@ export const runCampaignFormPublic = async (
     const campaignId = clean(body.campaign_id, 120);
 
     const rows = await query<RowDataPacket>(
+        // ⚠️ v2.2.188: line_id（LINE ID の項目設定）を追加
         'SELECT campaign, campaign_id, brand, url, tag, redirect, thanks, notice,'
-        + ' name, kana, age, phone, mail, address, question, shop, date, medium, attention'
+        + ' name, kana, age, phone, mail, line_id, address, question, shop, date, medium, attention'
         + ' FROM form_table WHERE brand = ? AND campaign_id = ? LIMIT 1',
         [brand, campaignId]
     );
