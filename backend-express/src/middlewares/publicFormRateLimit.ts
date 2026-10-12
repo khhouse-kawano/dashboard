@@ -44,6 +44,8 @@ const GUARDED_REQUESTS = new Set([
      *     ⚠️ そのため下で roll を見て、表示は対象から外している。
      */
     'campaign_form',
+    // ⚠️ 見学クラウドの予約受付（kengaku_cloud:entry）。認証なしの書き込み口
+    'kengaku_cloud',
 ]);
 
 const WINDOW_MS = 10 * 60_000;

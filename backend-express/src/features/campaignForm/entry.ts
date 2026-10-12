@@ -89,7 +89,7 @@ const KHG_BRAND: Record<string, string> = {
  *   ⚠️ 移植元は20列しか指定しておらず、**sql_mode が緩いから通っていた**だけである。
  *     STRICT なら全件失敗する。ここでは全部埋める。
  */
-const NOT_NULL_COLUMNS = [
+export const NOT_NULL_COLUMNS = [
     'inquiry_id', 'pg_id', 'mhl_id', 'mhl_url', 'mhl_mail', 'inquiry_date',
     'medium', 'response_medium',
     'first_name', 'last_name', 'first_name_kana', 'last_name_kana',
