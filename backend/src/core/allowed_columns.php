@@ -149,6 +149,9 @@ return [
 'lat_lng',
 // LINE ID（3テーブルとも列あり）
 'line_id',
+// フォームを埋め込んだページの URL パラメータ。master_data にだけ列がある（送られた列だけ使うので、かえる・中古には影響しない）
+'url_params',
+'landing_params',
 'memo_developer_application_company',
 'memo_fire_insurance',
 'memo_ground_survey',

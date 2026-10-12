@@ -112,6 +112,8 @@ interface Answers {
     medium: string; question: string;
     campaign: string; campaignId: string;
     url: string; source: string;
+    /** フォームを埋め込んだページの ? 以降（url_params: 送信したページ ／ landing_params: 最後に見たパラメータ付きページ） */
+    urlParams: string; landingParams: string;
 }
 
 /**
@@ -144,6 +146,8 @@ const readAnswers = (body: Record<string, unknown>): Answers => ({
     campaignId: clean(body.campaign_id, 120),
     url: clean(body.url, 500),
     source: clean(body.source, 200),
+    urlParams: clean(body.url_params, 2000),
+    landingParams: clean(body.landing_params, 2000),
 });
 
 /**
@@ -289,8 +293,11 @@ export const runCampaignFormEntry = async (
      * ⚠️⚠️ 列が無い DB だと Unknown column で **反響ごと保存できない**（2026-10-12_line_id_columns.sql を先に流す）。
      */
     values.line_id = a.lineId === '' ? null : a.lineId;
+    // ⚠️ URL パラメータも NULL 可。列が無い DB だと同じく反響ごと保存できない（2026-10-12_url_params_columns.sql を先に流す）
+    values.url_params = a.urlParams === '' ? null : a.urlParams;
+    values.landing_params = a.landingParams === '' ? null : a.landingParams;
 
-    const columns = [...(NOT_NULL_COLUMNS as unknown as string[]), 'line_id'];
+    const columns = [...(NOT_NULL_COLUMNS as unknown as string[]), 'line_id', 'url_params', 'landing_params'];
 
     try {
         await execute(
