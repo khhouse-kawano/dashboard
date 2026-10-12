@@ -26,7 +26,7 @@ customer_contacts_name_2 は
 - 変更なし: `cleanCustomerName` / `hasCustomerName2`（検索は task-01 のまま）
 
 ## 確認
-- eslint 新規警告なし、`npm run build` 成功 → **`main.590cf219.js`**（deploy-v2.2.187.md を更新）
+- eslint 新規警告なし、`npm run build` 成功 → **`main.590cf219.js`**（※ その後 task-2026-10-12-03 で `main.03efcb3d.js` に）
 - 画面での見た目は未確認
 
 ## 差分（task-01 からの差、全文）
