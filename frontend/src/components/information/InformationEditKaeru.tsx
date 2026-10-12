@@ -17,7 +17,7 @@ import { requiredStyle } from '../../utils/informationUtils';
 import { safeFormate } from '../../utils/informationUtils';
 import { competitorsStyle } from '../../utils/informationUtils';
 import TableInput from './TableInput';
-import LineWorksButton from './LineWorksButton';
+import LineIdRow from './LineIdRow';
 import TableSelect from './TableSelect';
 import TableInterview from './TableInterview';
 import TableCall from './TableCall';
@@ -796,11 +796,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                                     <TableInput information={information} setInformation={setInformation} itemKey='extra_address_info' defaultValue='メールアドレス②' disabled={!information.customer_contacts_name_2} />
                                                 </div>
                                             </div>
-                                            {/* ⚠️ v2.2.188: LINE ID（メールアドレスの下）。⚠️ アイコンは LINE ID をコピーして LINE WORKS を開く（LineWorksButton.tsx） */}
-                                            <div className='d-flex align-items-center'>
-                                                <TableInput information={information} setInformation={setInformation} itemKey='line_id' defaultValue='LINE ID' />
-                                                <LineWorksButton lineId={information.line_id} />
-                                            </div>
+                                            <LineIdRow information={information} setInformation={setInformation} />
                                         </td>
                                     </tr>
                                     <tr>

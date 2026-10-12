@@ -1,20 +1,13 @@
 /*
- * ⚠️⚠️ これは公開フォーム（C:\Users\shinji-kawano\react\form_get\src\components\publicForm.css）の **写し**。
- *   ⚠️ 「キャンペーン作成」のプレビュー（formPreview.tsx）で、実際の公開フォームと同じ見た目を出すために使う。
- *   ⚠️ 公開フォーム側を変えたら、ここも同じ内容に置き換えること（この注記より下は元のファイルそのまま）。
+ * ⚠️⚠️ 公開フォーム（react/form_get/src/components/publicForm.css）の **写し**。プレビュー（formPreview.tsx）を実物と同じ見た目にするため。
+ *   ⚠️ 公開フォーム側を変えたら、この注記より下を丸ごと置き換えること（手で直さない）。
  */
 /*
- * 公開フォーム（入力 Form.tsx ／ 確認 Confirm.tsx）の見た目（2026-10-12 新規）。
- *
- * ─────────────────────────────────────────────
- * ⚠️ 色は1か所（下の .pf の変数）で決める。⚠️ 差し色（--pf-accent）だけブランドごとに
- *   画面側が style で渡す（src/api/brands.ts の brandAccent）。
- * ⚠️ 埋め込み先（各ブランドのサイト）は白地なので ⚠️ **明るい配色だけ**にしている（ダークモードは作らない）。
- *   ⚠️ 色はすべてここで明示する（⚠️ 埋め込み先の CSS に引きずられないため）。
- * ⚠️ 入力欄の文字は 16px。⚠️ 16px 未満だと iPhone で入力時に画面が拡大される。
- * ⚠️ Dashboard の「キャンペーン作成」のプレビュー（Campaign/formPreview.css）が ⚠️ **同じ見た目を写している**。
- *   ⚠️ ここを変えたらプレビューも揃えること。
- * ─────────────────────────────────────────────
+ * 公開フォーム（入力 Form.tsx ／ 確認 Confirm.tsx）の見た目。
+ * ⚠️ 色は .pf の変数で決める。差し色（--pf-accent）だけブランドごとに画面側が style で渡す（src/api/brands.ts の brandAccent）。
+ * ⚠️ 埋め込み先は白地なので明るい配色だけ（ダークモードは作らない）。埋め込み先の CSS に引きずられないよう色はすべてここで明示する。
+ * ⚠️ 入力欄の文字は 16px。16px 未満だと iPhone で入力時に画面が拡大される。
+ * ⚠️⚠️ Dashboard の Campaign/formPreview.css がこのファイルの写し。**ここを変えたら写しも置き換えること。**
  */
 
 .pf {
@@ -230,11 +223,13 @@
 .pf-field[data-invalid="1"] .pf-textarea {
     border-color: var(--pf-danger);
 }
-/* ⚠️ 日付の入力欄は全体を押して暦を出す（既存の挙動） */
+/*
+ * 来場希望日（Form.tsx の .pf-date）。右にカレンダーの絵。欄のどこを押しても開く（Form.tsx の showPicker と App.css の透明な indicator）。
+ * ⚠️ 空のときの「yyyy/mm/dd」はブラウザが描く文字なので、空（data-empty="1"）の間だけ透明にする。
+ */
 .pf input[type=date] {
     position: relative;
 }
-/* ⚠️ 2026-10-12: 来場希望日（公開フォームの .pf-date の写し）。右にカレンダーの絵 */
 .pf-date {
     padding-right: 44px;
     cursor: pointer;
@@ -242,6 +237,14 @@
     background-position: calc(100% - 14px) 50%;
     background-size: 20px 20px;
     background-repeat: no-repeat;
+}
+.pf-date[data-empty="1"]::-webkit-datetime-edit {
+    color: transparent;
+}
+@-moz-document url-prefix() {
+    .pf-date[data-empty="1"] {
+        color: transparent;
+    }
 }
 
 .pf-error {
@@ -331,11 +334,6 @@
     filter: grayscale(.4) brightness(1.05);
     cursor: progress;
 }
-.pf-btn-sub {
-    font-size: 12px;
-    color: var(--pf-sub);
-}
-
 /* ---- 注意事項・特典条件 ---- */
 .pf-note {
     margin: 0;

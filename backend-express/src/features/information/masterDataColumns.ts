@@ -77,7 +77,7 @@ export const MASTER_DATA_COLUMNS: readonly string[] = [
   'integration', 'introduction_date', 'introduction_person_category',
   'introduction_person_name', 'junior_high_school_id', 'k_snap', 'khg_id', 'land_budget',
   'last_action_step_migration_item_date', 'last_action_step_migration_item_name', 'lat_lng',
-  // ⚠️ v2.2.188: LINE ID（⚠️ 3テーブルとも列あり: 2026-10-12_line_id_columns.sql）
+  // LINE ID（3テーブルとも列あり）
   'line_id',
   'memo_developer_application_company', 'memo_fire_insurance', 'memo_ground_survey',
   'memo_lawyer', 'memo_marketing', 'memo_other_related_person', 'memo_site_survey', 'monthly_repayment_amount',

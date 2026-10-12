@@ -26,7 +26,7 @@ export interface TemplateValues {
     meiKana: string;
     zip: string; pref: string; city: string; town: string; street: string;
     phone: string; mail: string; age: string;
-    /** LINE ID（v2.2.188）。⚠️ 未入力は '' */
+    /** ⚠️ 未入力は '' */
     lineId: string;
     shop: string; date: string; time: string;
     medium: string; question: string;
@@ -59,7 +59,7 @@ export const detailBlock = (v: TemplateValues): string => {
         + line('来場希望時間', v.time)
         + line('携帯番号', v.phone)
         + line('メールアドレス', v.mail)
-        // ⚠️ v2.2.188: LINE ID（⚠️ 未入力なら行ごと出ない）。⚠️ 社内通知・お客様宛の両方の「お問い合わせ内容」に入る
+        // ⚠️ LINE ID は未入力なら行ごと出ない
         + line('LINE ID', v.lineId)
         + line('年齢', v.age)
         + address

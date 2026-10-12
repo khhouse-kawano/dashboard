@@ -1,16 +1,11 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from "react-router-dom";
 import { fetchDetail, fetchMaster, insertCampaign, updateCampaign } from './campaignApi';
-import AuthContext from '../../context/AuthContext';
 import { PLACEHOLDERS, unknownPlaceholders } from './mailTemplateFields';
-// ⚠️ v2.2.188: 画面の作り直し（Dashboard 風の SaaS デザイン）と、右側の公開フォームのプレビュー
 import FormPreview from './formPreview';
 import './newCampaign.css';
 
-type BooleanKeys =
-    'thanks';
-
-/** ⚠️ v2.2.188: プレビュー（formPreview.tsx）が型だけ使うので export する */
+/** プレビュー（formPreview.tsx）も使う */
 export type FormState = {
     brand: string;
     campaign: string;
@@ -18,6 +13,7 @@ export type FormState = {
     mail_to: string;
     mail_cc: string;
     redirect: string;
+    thanks: boolean;
     img_code: string,
     /**
      * ⚠️⚠️ **メール本文のひな型。空なら既定の文面が使われる。**
@@ -83,11 +79,7 @@ export type FormState = {
         required: boolean,
         text: string
     }
-    /**
-     * LINE ID（v2.2.188 追加）。⚠️ form_table / form_database の `line_id` 列（JSON）。
-     * ⚠️ 列が無い古い応答・壊れた値は LINE_ID_DEFAULT で受ける。
-     * ⚠️ 公開フォーム（react/form_get）がこの設定で入力欄を出す。
-     */
+    /** ⚠️ 列が無い古い応答・壊れた値は LINE_ID_DEFAULT で受ける（parseLineId） */
     line_id: {
         bool: boolean,
         required: boolean,
@@ -119,27 +111,29 @@ export type FormState = {
         text: string,
         mediumName: string[]
     }
-} & Record<BooleanKeys, boolean>;
+};
 
 type Response = { status: string; message: string }
 
-/**
- * LINE ID の既定（v2.2.188）。⚠️ DB の列の既定値（2026-10-12_line_id_columns.sql）と同じ。
- * ⚠️ 列が無い（SQL を流す前・② が古い）応答のときに使う。
- */
+/** ⚠️ DB の列の既定値（2026-10-12_line_id_columns.sql）と同じにすること */
 const LINE_ID_DEFAULT: FormState['line_id'] = {
     bool: true,
     required: false,
-    text: 'ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。',
+    text: 'LINE IDをご入力ください',
 };
 
-/** line_id 列の値を読む。⚠️ 無い・壊れている・形が違うときは既定 */
+/** line_id 列の値を読む。⚠️ 無い・壊れている・型が違う値は既定で埋める */
 const parseLineId = (value: unknown): FormState['line_id'] => {
     if (typeof value !== 'string' || value === '') return LINE_ID_DEFAULT;
     try {
-        const parsed = JSON.parse(value);
-        if (parsed && typeof parsed === 'object' && 'bool' in parsed) {
-            return { ...LINE_ID_DEFAULT, ...parsed };
+        const parsed: unknown = JSON.parse(value);
+        if (parsed && typeof parsed === 'object') {
+            const { bool, required, text } = parsed as Record<string, unknown>;
+            return {
+                bool: typeof bool === 'boolean' ? bool : LINE_ID_DEFAULT.bool,
+                required: typeof required === 'boolean' ? required : LINE_ID_DEFAULT.required,
+                text: typeof text === 'string' ? text : LINE_ID_DEFAULT.text,
+            };
         }
     } catch {
         console.error(`LINE ID の設定を読めませんでした: ${String(value).slice(0, 80)}`);
@@ -240,7 +234,6 @@ const NewCampaign = () => {
         },
     });
     const [response, setResponse] = useState<Response>();
-    // ⚠️ v2.2.188: 選択肢の追加欄（newShop / newTime / newMedium）は OptionList が持つようにした
     const [validation, setValidation] = useState<string[]>([]);
     /**
      * ⚠️ 設定を読めなかったことを画面に出すため。
@@ -248,8 +241,6 @@ const NewCampaign = () => {
      *     利用者には「修正を押したのに反映されない」としか見えなかった。
      */
     const [loadError, setLoadError] = useState<string>('');
-    const { token } = useContext(AuthContext);
-    const { category } = useContext(AuthContext);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -312,7 +303,6 @@ const NewCampaign = () => {
                         age: parse(row.age, prev.age),
                         phone: parse(row.phone, prev.phone),
                         mail: parse(row.mail, prev.mail),
-                        // ⚠️ v2.2.188: 列が無い・壊れていても既定で受ける（parseLineId）
                         line_id: parseLineId(row.line_id),
                         address: parse(row.address, prev.address),
                         medium: parse(row.medium, prev.medium),
@@ -349,7 +339,6 @@ const NewCampaign = () => {
                         age: JSON.parse(response.data.age),
                         phone: JSON.parse(response.data.phone),
                         mail: JSON.parse(response.data.mail),
-                        // ⚠️ v2.2.188: 列が無い（SQL を流す前）ときも既定で受ける
                         line_id: parseLineId(response.data.line_id),
                         address: JSON.parse(response.data.address),
                         medium: JSON.parse(response.data.medium),
@@ -368,13 +357,6 @@ const NewCampaign = () => {
     const changeForm = (category: keyof FormState, value?: string) => {
         setForm(prev => {
             if (!prev) return prev;
-
-            if ((category as BooleanKeys) in prev && typeof prev[category] === 'boolean') {
-                return {
-                    ...prev,
-                    [category]: !prev[category as BooleanKeys]
-                };
-            }
 
             if (category === 'campaign_id') {
                 let urlValue: string = '';
@@ -412,16 +394,6 @@ const NewCampaign = () => {
                 };
             }
 
-            if (category === 'shop' || category === 'date' || category === 'medium') {
-                return {
-                    ...prev,
-                    [category]: {
-                        ...prev[category],
-                        bool: !prev[category].bool
-                    }
-                };
-            }
-
             return {
                 ...prev,
                 [category]: value ?? ''
@@ -454,16 +426,15 @@ const NewCampaign = () => {
         const unknown = [...unknownPlaceholders(subject), ...unknownPlaceholders(body)];
         const isDefault = subject.trim() === '' && body.trim() === '';
 
-        // ⚠️ v2.2.188: 見た目だけ newCampaign.css に合わせた（⚠️ 中身・「空欄＝既定」の決まりは同じ）
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
-                    <span className="nc-hint" style={{ fontSize: '12px' }}>{note}</span>
+            <div className="nc-template">
+                <div className="nc-template-head">
+                    <span className="nc-hint">{note}</span>
                     <span className={`nc-tag ${isDefault ? 'nc-tag-default' : 'nc-tag-custom'}`}>
                         {isDefault ? '既定の文面' : 'このキャンペーン専用'}
                     </span>
                     {isDefault ||
-                        <button type="button" className="nc-btn nc-btn-ghost" style={{ minHeight: '26px', padding: '2px 10px', fontSize: '11px' }}
+                        <button type="button" className="nc-btn nc-btn-ghost nc-btn-xs"
                             onClick={() => { changeTemplate(subjectKey, ''); changeTemplate(bodyKey, ''); }}>
                             既定に戻す
                         </button>}
@@ -485,7 +456,7 @@ const NewCampaign = () => {
 
                 <details className="nc-details">
                     <summary>使える差し込み語</summary>
-                    <div style={{ fontSize: '11px', color: '#525f7f', lineHeight: 1.9, marginTop: '4px' }}>
+                    <div className="nc-placeholders">
                         {PLACEHOLDERS.map(item => (
                             <div key={item.key}>
                                 <code>{`{{${item.key}}}`}</code>
@@ -541,35 +512,20 @@ const NewCampaign = () => {
         }
     }, [response])
 
-    /**
-     * ─────────────────────────────────────────────
-     * ⚠️ v2.2.188: 画面を作り直した（Dashboard 風の SaaS デザイン。newCampaign.css）。
-     *   左: 設定のカード ／ 右: 公開フォームのプレビュー（formPreview.tsx。⚠️ 入力するとその場で反映）／ 下: 保存バー
-     * ⚠️ 保存（postForm）・読み込み・入力チェックは ⚠️ **変えていない**。⚠️ 送る中身（form）の形も同じ。
-     * ⚠️ 項目の「表示する」「必須／任意」は ⚠️ **patch で bool / required だけを書き換える**。
-     *   ⚠️ 以前は changeForm(項目名) を使っており、shop / date / medium 以外は ⚠️ **項目の設定ごと '' で上書き**していた
-     *     （チェックを外すと文言・必須が消え、もう一度付けても戻らなかった）。
-     *   ⚠️ 販促媒体の選択肢の編集・追加は ⚠️ `...prev.shop` を広げていたため、来場希望場所の設定が販促媒体へ混ざっていた。
-     *     → OptionList に置き換え、⚠️ 販促媒体は販促媒体だけを書き換える。
-     * ─────────────────────────────────────────────
-     */
+    /** 項目の設定の一部だけを書き換える。⚠️ 表示・必須を切り替えても見出しなど他の設定は残す */
     type ItemKey = 'shop' | 'date' | 'name' | 'kana' | 'age' | 'phone' | 'mail' | 'line_id' | 'address' | 'medium' | 'question';
     const patch = <K extends ItemKey | 'notice' | 'attention'>(key: K, value: Partial<FormState[K]>) =>
         setForm(prev => ({ ...prev, [key]: { ...prev[key], ...value } }));
-
-    /** 表示する／必須・任意 の切り替え。⚠️ bool・required だけを書き換える（他の設定は残す） */
-    const setFlag = (key: ItemKey, flag: 'bool' | 'required', value: boolean) =>
-        setForm(prev => ({ ...prev, [key]: { ...prev[key], [flag]: value } }));
 
     /** 項目の行（表示する ／ 必須・任意）。⚠️ 中身は children */
     const item = (key: ItemKey, title: string, children: React.ReactNode, hiddenChildren?: React.ReactNode) => (
         <FieldItem
             key={key}
             title={title}
-            shown={Boolean(form[key].bool)}
-            onShown={(v) => setFlag(key, 'bool', v)}
-            required={Boolean(form[key].required)}
-            onRequired={(v) => setFlag(key, 'required', v)}
+            shown={form[key].bool}
+            onShown={(v) => patch(key, { bool: v })}
+            required={form[key].required}
+            onRequired={(v) => patch(key, { required: v })}
             hiddenChildren={hiddenChildren}
         >
             {children}
@@ -577,6 +533,7 @@ const NewCampaign = () => {
     );
 
     const isEdit = Boolean(idValue);
+    const backToList = () => navigate(`/campaign/?brand=${brandValue ?? ''}`);
 
     return (
         <div className="nc">
@@ -587,7 +544,7 @@ const NewCampaign = () => {
                     <h1 className="nc-title">{isEdit ? 'キャンペーン修正' : 'キャンペーン作成'}</h1>
                 </div>
                 <div className="nc-header-actions">
-                    <button type="button" className="nc-btn" onClick={() => navigate(`/campaign/?brand=${brandValue ?? ''}`)}>
+                    <button type="button" className="nc-btn" onClick={backToList}>
                         <i className="fa-solid fa-arrow-left" aria-hidden="true"></i>一覧へ戻る
                     </button>
                 </div>
@@ -665,8 +622,8 @@ const NewCampaign = () => {
                         <div className="nc-card-head">
                             <h2 className="nc-card-title" id="nc-notice">フォーム冒頭の案内文</h2>
                             <p className="nc-card-desc">入力欄の上に表示されます</p>
-                            <div style={{ marginLeft: 'auto' }}>
-                                <Switch checked={Boolean(form.notice.bool)} label="表示する" onChange={(v) => patch('notice', { bool: v })} />
+                            <div className="nc-card-head-actions">
+                                <Switch checked={form.notice.bool} label="表示する" onChange={(v) => patch('notice', { bool: v })} />
                             </div>
                         </div>
                         {!form.notice.bool ||
@@ -726,10 +683,9 @@ const NewCampaign = () => {
                             {item('age', '年齢', <TextField label="見出し" value={form.age.text} onChange={(v) => patch('age', { text: v })} />)}
                             {item('phone', '携帯電話', <TextField label="見出し" value={form.phone.text} onChange={(v) => patch('phone', { text: v })} />)}
                             {item('mail', 'メールアドレス', <TextField label="見出し" value={form.mail.text} onChange={(v) => patch('mail', { text: v })} />)}
-                            {/* ⚠️ v2.2.188: LINE ID（メールアドレスの下） */}
                             {item('line_id', 'LINE ID', <>
                                 <TextField label="見出し" value={form.line_id.text} onChange={(v) => patch('line_id', { text: v })} />
-                                <p className="nc-hint">入力された LINE ID は反響・顧客に保存され、通知メールにも載ります。</p>
+                                <p className="nc-hint">入力された LINE ID は反響・顧客に保存され、通知メールとサンクスメールの「お問い合わせ内容」にも載ります。</p>
                             </>)}
                             {item('address', '住所', <>
                                 <div className="nc-grid-2">
@@ -757,8 +713,8 @@ const NewCampaign = () => {
                         <div className="nc-card-head">
                             <h2 className="nc-card-title" id="nc-attention">注意事項と特典条件</h2>
                             <p className="nc-card-desc">送信ボタンの上に表示されます</p>
-                            <div style={{ marginLeft: 'auto' }}>
-                                <Switch checked={Boolean(form.attention.bool)} label="表示する" onChange={(v) => patch('attention', { bool: v })} />
+                            <div className="nc-card-head-actions">
+                                <Switch checked={form.attention.bool} label="表示する" onChange={(v) => patch('attention', { bool: v })} />
                             </div>
                         </div>
                         {!form.attention.bool ||
@@ -770,7 +726,7 @@ const NewCampaign = () => {
                                 </div>
                                 <div className="nc-field">
                                     <span className="nc-label">特典進呈条件</span>
-                                    <Segmented value={Boolean(form.attention.bool_red)} trueLabel="表示する" falseLabel="表示しない"
+                                    <Segmented value={form.attention.bool_red} trueLabel="表示する" falseLabel="表示しない"
                                         onChange={(v) => patch('attention', { bool_red: v })} />
                                 </div>
                                 {!form.attention.bool_red ||
@@ -802,7 +758,7 @@ const NewCampaign = () => {
                             ? <span style={{ color: '#d93a4a', fontWeight: 600 }}>{validation.length}個の未入力項目があります</span>
                             : '保存すると公開中のフォームにすぐ反映されます'}
                     </p>
-                    <button type="button" className="nc-btn" onClick={() => navigate(`/campaign/?brand=${brandValue ?? ''}`)}>キャンセル</button>
+                    <button type="button" className="nc-btn" onClick={backToList}>キャンセル</button>
                     <button type="button" className="nc-btn nc-btn-primary" onClick={() => postForm()}>
                         {isEdit ? '修正を保存する' : 'キャンペーンを登録する'}
                     </button>
@@ -868,10 +824,7 @@ const FieldItem = ({ title, shown, onShown, required, onRequired, children, hidd
     </div>
 );
 
-/**
- * 選択肢の一覧（来場希望場所・時間・販促媒体）。編集・削除・追加。
- * ⚠️ 追加欄の文字はこの部品が持つ（⚠️ 以前は newShop / newTime / newMedium を NewCampaign が持っていた）。
- */
+/** 選択肢の一覧（来場希望場所・時間・販促媒体）。編集・削除・追加。追加欄の文字はこの部品が持つ */
 const OptionList = ({ items, onChange, placeholder }: { items: string[]; onChange: (items: string[]) => void; placeholder?: string }) => {
     const [draft, setDraft] = useState('');
     const add = () => {

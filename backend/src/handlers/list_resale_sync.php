@@ -13,7 +13,7 @@ try {
         ':customer_contacts_mobile_phone_number'  => $data['customer_contacts_mobile_phone_number'] ?? null,
         ':customer_contacts_phone_number'         => $data['customer_contacts_phone_number'] ?? null,
         ':customer_contacts_email'                => $data['customer_contacts_email'] ?? null,
-        // v2.2.188: LINE ID（⚠️ 画面は値があるときだけ送る。無ければ NULL）
+        // ⚠️ LINE ID は画面が値のあるときだけ送る。無ければ NULL
         ':line_id'                                => $data['line_id'] ?? null,
         ':postal_code'                            => $data['postal_code'] ?? null,
         ':full_address'                           => $data['full_address'] ?? null,
@@ -43,7 +43,7 @@ try {
 
     // 反響一覧の取得
     $sql_inquiry = "SELECT id, inquiry_id, pg_id, inquiry_date, medium, response_medium, first_name, last_name, category,
-        first_name_kana, last_name_kana, mobile, landline, mail, zip, pref, city, town, street, building, brand, shop, sync, staff, area, 
+        first_name_kana, last_name_kana, mobile, landline, mail, line_id, zip, pref, city, town, street, building, brand, shop, sync, staff, area, 
         reserved_date, black_list, hp_campaign, duplicate, property, note 
         FROM inquiry_customer_resale
         WHERE first_name <> '' 

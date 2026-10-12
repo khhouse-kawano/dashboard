@@ -3,15 +3,9 @@ import type { FormState } from './NewCampaign';
 import './formPreview.css';
 
 /**
- * 「キャンペーン作成」の右側のプレビュー（v2.2.188 新規）。
- *
- * ─────────────────────────────────────────────
- * ⚠️⚠️ **公開フォーム（react/form_get の Form.tsx）の見た目を写したもの。** 入力はできない（見るだけ）。
- *   ⚠️ 見た目は formPreview.css（公開フォームの publicForm.css の写し）。
- *   ⚠️ 項目のまとまり・並び・文言の出し方は Form.tsx と同じにしている。
- *     ⚠️ **公開フォームの並びを変えたら、ここも揃えること**（揃えないとプレビューと実物が食い違う）。
- * ⚠️ ロゴと差し色の表は form_get の src/api/brands.ts（LOGO / ACCENT）と同じ。
- * ─────────────────────────────────────────────
+ * 「キャンペーン作成」の右側のプレビュー。公開フォーム（react/form_get の Form.tsx）の写しで、入力はできない。
+ * ⚠️⚠️ **公開フォームの項目のまとまり・並びを変えたら、ここも揃えること**（揃えないとプレビューと実物が食い違う）。
+ * ⚠️ 見た目は formPreview.css（publicForm.css の写し）。ロゴと差し色は form_get の src/api/brands.ts と同じ。
  */
 
 const LOGO: Record<string, string> = {
@@ -29,7 +23,6 @@ const ACCENT: Record<string, string> = {
     kh: '#0f3675',
     djh: '#1d8a94',
     nagomi: '#956134',
-    'なごみ': '#956134',
     '2l': '#0b8659',
     jh: '#dc4235',
     fh: '#cd3c33',
@@ -38,8 +31,10 @@ const ACCENT: Record<string, string> = {
     khg: '#0f3675',
 };
 
-/** ブランドの差し色（⚠️ form_get の brandAccent と同じ） */
-export const previewAccent = (brand: string): string => ACCENT[brand.trim()] ?? '#0f3675';
+const previewAccent = (brand: string): string => ACCENT[brand.trim()] ?? '#0f3675';
+
+/** ⚠️ 差し色は CSS 変数で渡す（formPreview.css が var(--pf-accent) で使う） */
+type AccentStyle = React.CSSProperties & { '--pf-accent': string };
 
 const Badge = ({ required }: { required: boolean }) => required
     ? <span className="pf-badge pf-badge-req">必須</span>
@@ -70,10 +65,11 @@ const FormPreview = ({ form, brand }: Props) => {
     const personShown = form.name.bool || form.kana.bool || form.age.bool;
     const contactShown = form.phone.bool || form.mail.bool || form.line_id.bool;
     const otherShown = form.medium.bool || form.question.bool;
-    const logo = LOGO[brand] ?? '';
+    const logo = LOGO[brand.trim()] ?? '';
+    const style: AccentStyle = { '--pf-accent': previewAccent(brand), padding: '20px 14px 28px' };
 
     return (
-        <div className="pf" style={{ ['--pf-accent' as string]: previewAccent(brand), padding: '20px 14px 28px' } as React.CSSProperties}
+        <div className="pf" style={style}
             aria-label="公開フォームのプレビュー">
             {!logo || <div className="pf-logo"><img src={logo} alt="" /></div>}
             <ol className="pf-steps" aria-hidden="true">

@@ -35,7 +35,6 @@ export interface FormAnswers {
     sei: string; mei: string; seiKana: string; meiKana: string;
     zip: string; pref: string; city: string; town: string; street: string;
     phone: string; mail: string; age: string;
-    /** LINE ID（v2.2.188） */
     lineId: string;
     shop: string; date: string; time: string;
     medium: string; question: string;

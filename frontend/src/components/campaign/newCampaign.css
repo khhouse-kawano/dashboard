@@ -1,5 +1,5 @@
 /*
- * キャンペーン作成・修正（NewCampaign.tsx）の見た目（v2.2.188 新規。Dashboard 風の SaaS デザイン）。
+ * キャンペーン作成・修正（NewCampaign.tsx）の見た目。
  *
  * ⚠️ 色は Dashboard の既存の配色（listUtils の styles・FestaDashboard など）に合わせた:
  *   アクセント #5e72e4 ／ 文字 #32325d ／ 補足 #8898aa・#525f7f ／ 地 #f8f9fe ／ 罫線 #e9ecef
@@ -126,6 +126,9 @@
     font-size: 14px;
     font-weight: 700;
     color: var(--nc-ink);
+}
+.nc-card-head-actions {
+    margin-left: auto;
 }
 .nc-card-desc {
     margin: 0;
@@ -453,6 +456,31 @@
 }
 
 /* ---- メール文面 ---- */
+.nc-template {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.nc-template-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.nc-template-head .nc-hint {
+    font-size: 12px;
+}
+.nc-btn-xs {
+    min-height: 26px;
+    padding: 2px 10px;
+    font-size: 11px;
+}
+.nc-placeholders {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.9;
+    color: var(--nc-sub);
+}
 .nc-tag {
     display: inline-block;
     padding: 2px 10px;

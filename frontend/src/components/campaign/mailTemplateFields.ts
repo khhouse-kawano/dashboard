@@ -35,7 +35,6 @@ export const PLACEHOLDERS: Placeholder[] = [
     { key: '来場希望時間', note: '' },
     { key: '携帯番号', note: '' },
     { key: 'メールアドレス', note: '' },
-    // ⚠️ v2.2.188 追加（② mailTemplate.ts の PLACEHOLDERS と揃える）
     { key: 'LINE ID', note: '未入力なら空。「お問い合わせ内容」にも入る' },
     { key: '年齢', note: '' },
     { key: '事前アンケート', note: '案内文ごと。URLが無いブランドでは何も出ません' },

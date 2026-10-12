@@ -9,7 +9,7 @@ import { mediumFormate } from '../../utils/mediumFormate';
 import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
 import { positions } from './listUtils';
-import { monthFormate, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH } from './listUtils';
+import { monthFormate, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { useIsSp } from '../../utils/isSp';
@@ -436,8 +436,7 @@ const ListOrder = ({ onReload }: Props) => {
                 customer_contacts_mobile_phone_number: phone_number_1,
                 customer_contacts_phone_number: phone_number_2,
                 customer_contacts_email: mailValue,
-                // ⚠️ v2.2.188: LINE ID は ⚠️ **値があるときだけ**送る（⚠️ 空なら列ごと送らない＝顧客側は NULL のまま）
-                ...(String(filteredCustomer.line_id ?? '').trim() !== '' ? { line_id: String(filteredCustomer.line_id).trim() } : {}),
+                ...lineIdField(filteredCustomer.line_id),
                 postal_code: filteredCustomer.zip || '',
                 full_address: `${filteredCustomer.pref || ''} ${filteredCustomer.city || ''} ${filteredCustomer.town || ''} ${filteredCustomer.street || ''} ${filteredCustomer.building || ''}`,
                 sales_promotion_name: filteredCustomer.response_medium || '',

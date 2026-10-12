@@ -4,10 +4,10 @@
 -- ⚠️ 実行環境: ① レンタルサーバー（phpMyAdmin）。⚠️ ローカルも同じSQL。
 -- ⚠️ ② VPS・① PHP・フロントより **先に** 流すこと。
 --   （⚠️ ② が line_id を保存・取得しに行ったとき、列が無いと Unknown column で保存ごと失敗する）
--- ⚠️ 何度流しても壊れない（ADD COLUMN IF NOT EXISTS ／ UPDATE は同じ値で上書き）。
+-- ⚠️ 何度流しても壊れない（ADD COLUMN IF NOT EXISTS）。⚠️ 既存の行は列を足したときに既定値で埋まる。
 --
 -- 1. form_database / form_table … フォームの項目設定（JSON）。⚠️ mail と同じ形の列を mail の次に。
---    ⚠️ 既定値も同じ JSON にしてある（⚠️ line_id を送らない古い保存処理でも INSERT が落ちないように）。
+--    ⚠️ 既定値の JSON で既存の全フォームが「表示・任意」になる。line_id を送らない古い保存処理でも INSERT は落ちない。
 -- 2. 反響3テーブル・顧客3テーブル … 値（文字列）。⚠️ 空でよい（NULL）。
 -- =====================================================================
 
@@ -16,28 +16,15 @@
 -- ---------------------------------------------------------------------
 ALTER TABLE form_database
     ADD COLUMN IF NOT EXISTS line_id LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
-        DEFAULT '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}'
+        DEFAULT '{"bool":true,"required":false,"text":"LINE IDをご入力ください"}'
         CHECK (json_valid(line_id))
         AFTER mail;
-
--- ⚠️ 列が既にある環境（ローカルなど）でも既定値を新しい文言にそろえる（ADD COLUMN IF NOT EXISTS は既定値を変えないため）
-ALTER TABLE form_database
-    ALTER COLUMN line_id SET DEFAULT '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
-
-UPDATE form_database
-   SET line_id = '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
 
 ALTER TABLE form_table
     ADD COLUMN IF NOT EXISTS line_id LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
-        DEFAULT '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}'
+        DEFAULT '{"bool":true,"required":false,"text":"LINE IDをご入力ください"}'
         CHECK (json_valid(line_id))
         AFTER mail;
-
-ALTER TABLE form_table
-    ALTER COLUMN line_id SET DEFAULT '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
-
-UPDATE form_table
-   SET line_id = '{"bool":true,"required":false,"text":"ご入力いただいた場合、お客様のLINEへご連絡することもございますので予めご了承ください。"}';
 
 -- ---------------------------------------------------------------------
 -- 2. 反響（inquiry_customer*）・顧客（master_data*）
