@@ -9,7 +9,7 @@ import { mediumFormate } from '../../utils/mediumFormate';
 import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
 import { positions } from './listUtils';
-import { monthFormate, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
+import { monthFormate, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { useIsSp } from '../../utils/isSp';
@@ -25,6 +25,8 @@ type InquiryCustomer = {
     first_name_kana: string, last_name_kana: string, mobile: string, landline: string, mail: string, line_id?: string | null, zip: string, pref: string, city: string, town: string, street: string,
     building: string, brand: string, shop: string, sync: number, staff: string, area: string, reserved_date: string, hp_campaign: string,
     duplicate: string, hotlead_url: string,
+    // フォームを埋め込んだページの URL パラメータ（? 以降）
+    url_params?: string | null, landing_params?: string | null,
     // 顧客タグ。判定は listTags.ts に集約している
     duplicate_flag: number, gift_flag: number, support_flag: number, black_flag: number,
 };
@@ -437,6 +439,8 @@ const ListOrder = ({ onReload }: Props) => {
                 customer_contacts_phone_number: phone_number_2,
                 customer_contacts_email: mailValue,
                 ...lineIdField(filteredCustomer.line_id),
+                ...filledField('url_params', filteredCustomer.url_params),
+                ...filledField('landing_params', filteredCustomer.landing_params),
                 postal_code: filteredCustomer.zip || '',
                 full_address: `${filteredCustomer.pref || ''} ${filteredCustomer.city || ''} ${filteredCustomer.town || ''} ${filteredCustomer.street || ''} ${filteredCustomer.building || ''}`,
                 sales_promotion_name: filteredCustomer.response_medium || '',
