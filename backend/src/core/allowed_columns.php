@@ -147,6 +147,8 @@ return [
 'last_action_step_migration_item_date',
 'last_action_step_migration_item_name',
 'lat_lng',
+// LINE ID（3テーブルとも列あり）
+'line_id',
 'memo_developer_application_company',
 'memo_fire_insurance',
 'memo_ground_survey',

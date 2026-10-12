@@ -35,6 +35,7 @@ export interface FormAnswers {
     sei: string; mei: string; seiKana: string; meiKana: string;
     zip: string; pref: string; city: string; town: string; street: string;
     phone: string; mail: string; age: string;
+    lineId: string;
     shop: string; date: string; time: string;
     medium: string; question: string;
     campaign: string;
@@ -88,6 +89,7 @@ const toValues = (
     sei: a.sei, mei: a.mei, seiKana: a.seiKana, meiKana: a.meiKana,
     zip: a.zip, pref: a.pref, city: a.city, town: a.town, street: a.street,
     phone: a.phone, mail: a.mail, age: a.age,
+    lineId: a.lineId,
     shop: a.shop, date: a.date, time: a.time,
     medium: a.medium, question: a.question,
     campaign: a.campaign,

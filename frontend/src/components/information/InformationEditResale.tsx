@@ -8,6 +8,7 @@ import AuthContext from '../../context/AuthContext';
 import { labelStyle, buttonStyle, valueStyle, inputStyle, selectStyle, requiredStyle, safeFormate, competitorsStyle } from '../../utils/informationUtils';
 import { kpiColumnFor } from '../../utils/interviewKpi';
 import TableInput from './TableInput';
+import LineIdRow from './LineIdRow';
 import TableSelect from './TableSelect';
 import TableInterview from './TableInterview';
 import TableCall from './TableCall';
@@ -833,6 +834,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                                 <TableInput information={information} setInformation={setInformation} itemKey='customer_contacts_email' defaultValue='メールアドレス①' />
                                                 <TableInput information={information} setInformation={setInformation} itemKey='extra_address_info' defaultValue='メールアドレス②' />
                                             </div>
+                                            <LineIdRow information={information} setInformation={setInformation} />
                                         </td>
                                     </tr>
                                     <tr>

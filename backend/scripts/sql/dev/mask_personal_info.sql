@@ -215,6 +215,7 @@ BEGIN NOT ATOMIC
     `first_name_kana` = CASE WHEN `first_name_kana` IS NULL OR `first_name_kana` = '' THEN `first_name_kana` ELSE REPEAT('*', CHAR_LENGTH(`first_name_kana`)) END,
     `last_name_kana` = CASE WHEN `last_name_kana` IS NULL OR `last_name_kana` = '' THEN `last_name_kana` ELSE REPEAT('*', CHAR_LENGTH(`last_name_kana`)) END,
     `mail` = REGEXP_REPLACE(`mail`, '[^@.]', '*'),
+    `line_id` = CASE WHEN `line_id` IS NULL OR `line_id` = '' THEN `line_id` ELSE REPEAT('*', CHAR_LENGTH(`line_id`)) END,
     `mhl_mail` = REGEXP_REPLACE(`mhl_mail`, '[^@.]', '*'),
     `mobile` = REGEXP_REPLACE(`mobile`, '[0-9０-９]', '*'),
     `landline` = REGEXP_REPLACE(`landline`, '[0-9０-９]', '*');
@@ -225,6 +226,7 @@ BEGIN NOT ATOMIC
     `first_name_kana` = CASE WHEN `first_name_kana` IS NULL OR `first_name_kana` = '' THEN `first_name_kana` ELSE REPEAT('*', CHAR_LENGTH(`first_name_kana`)) END,
     `last_name_kana` = CASE WHEN `last_name_kana` IS NULL OR `last_name_kana` = '' THEN `last_name_kana` ELSE REPEAT('*', CHAR_LENGTH(`last_name_kana`)) END,
     `mail` = REGEXP_REPLACE(`mail`, '[^@.]', '*'),
+    `line_id` = CASE WHEN `line_id` IS NULL OR `line_id` = '' THEN `line_id` ELSE REPEAT('*', CHAR_LENGTH(`line_id`)) END,
     `mhl_mail` = REGEXP_REPLACE(`mhl_mail`, '[^@.]', '*'),
     `mobile` = REGEXP_REPLACE(`mobile`, '[0-9０-９]', '*'),
     `landline` = REGEXP_REPLACE(`landline`, '[0-9０-９]', '*');
@@ -235,6 +237,7 @@ BEGIN NOT ATOMIC
     `first_name_kana` = CASE WHEN `first_name_kana` IS NULL OR `first_name_kana` = '' THEN `first_name_kana` ELSE REPEAT('*', CHAR_LENGTH(`first_name_kana`)) END,
     `last_name_kana` = CASE WHEN `last_name_kana` IS NULL OR `last_name_kana` = '' THEN `last_name_kana` ELSE REPEAT('*', CHAR_LENGTH(`last_name_kana`)) END,
     `mail` = REGEXP_REPLACE(`mail`, '[^@.]', '*'),
+    `line_id` = CASE WHEN `line_id` IS NULL OR `line_id` = '' THEN `line_id` ELSE REPEAT('*', CHAR_LENGTH(`line_id`)) END,
     `mhl_mail` = REGEXP_REPLACE(`mhl_mail`, '[^@.]', '*'),
     `mobile` = REGEXP_REPLACE(`mobile`, '[0-9０-９]', '*'),
     `landline` = REGEXP_REPLACE(`landline`, '[0-9０-９]', '*');
@@ -274,6 +277,7 @@ BEGIN NOT ATOMIC
     `customer_contacts_name_kana_2` = CASE WHEN `customer_contacts_name_kana_2` IS NULL OR `customer_contacts_name_kana_2` = '' THEN `customer_contacts_name_kana_2` ELSE REPEAT('*', CHAR_LENGTH(`customer_contacts_name_kana_2`)) END,
     `introduction_person_name` = CASE WHEN `introduction_person_name` IS NULL OR `introduction_person_name` = '' THEN `introduction_person_name` ELSE REPEAT('*', CHAR_LENGTH(`introduction_person_name`)) END,
     `customer_contacts_email` = REGEXP_REPLACE(`customer_contacts_email`, '[^@.]', '*'),
+    `line_id` = CASE WHEN `line_id` IS NULL OR `line_id` = '' THEN `line_id` ELSE REPEAT('*', CHAR_LENGTH(`line_id`)) END,
     `customer_contacts_phone_number` = REGEXP_REPLACE(`customer_contacts_phone_number`, '[0-9０-９]', '*'),
     `customer_contacts_mobile_phone_number` = REGEXP_REPLACE(`customer_contacts_mobile_phone_number`, '[0-9０-９]', '*');
   
@@ -284,6 +288,7 @@ BEGIN NOT ATOMIC
     `customer_contacts_name_kana_2` = CASE WHEN `customer_contacts_name_kana_2` IS NULL OR `customer_contacts_name_kana_2` = '' THEN `customer_contacts_name_kana_2` ELSE REPEAT('*', CHAR_LENGTH(`customer_contacts_name_kana_2`)) END,
     `introduction_person_name` = CASE WHEN `introduction_person_name` IS NULL OR `introduction_person_name` = '' THEN `introduction_person_name` ELSE REPEAT('*', CHAR_LENGTH(`introduction_person_name`)) END,
     `customer_contacts_email` = REGEXP_REPLACE(`customer_contacts_email`, '[^@.]', '*'),
+    `line_id` = CASE WHEN `line_id` IS NULL OR `line_id` = '' THEN `line_id` ELSE REPEAT('*', CHAR_LENGTH(`line_id`)) END,
     `customer_contacts_phone_number` = REGEXP_REPLACE(`customer_contacts_phone_number`, '[0-9０-９]', '*'),
     `customer_contacts_mobile_phone_number` = REGEXP_REPLACE(`customer_contacts_mobile_phone_number`, '[0-9０-９]', '*');
   
@@ -308,6 +313,7 @@ BEGIN NOT ATOMIC
     `customer_contacts_name_kana_2` = CASE WHEN `customer_contacts_name_kana_2` IS NULL OR `customer_contacts_name_kana_2` = '' THEN `customer_contacts_name_kana_2` ELSE REPEAT('*', CHAR_LENGTH(`customer_contacts_name_kana_2`)) END,
     `introduction_person_name` = CASE WHEN `introduction_person_name` IS NULL OR `introduction_person_name` = '' THEN `introduction_person_name` ELSE REPEAT('*', CHAR_LENGTH(`introduction_person_name`)) END,
     `customer_contacts_email` = REGEXP_REPLACE(`customer_contacts_email`, '[^@.]', '*'),
+    `line_id` = CASE WHEN `line_id` IS NULL OR `line_id` = '' THEN `line_id` ELSE REPEAT('*', CHAR_LENGTH(`line_id`)) END,
     `customer_contacts_phone_number` = REGEXP_REPLACE(`customer_contacts_phone_number`, '[0-9０-９]', '*'),
     `customer_contacts_mobile_phone_number` = REGEXP_REPLACE(`customer_contacts_mobile_phone_number`, '[0-9０-９]', '*');
   

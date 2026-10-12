@@ -123,7 +123,7 @@ const MEDIUM_SQL: Record<ListCategory, string> = {
 const INQUIRY_SQL: Record<ListCategory, string> = {
   order: `
     SELECT id, inquiry_id, pg_id, mhl_id, mhl_url, mhl_mail, inquiry_date, medium, response_medium,
-           first_name, last_name, first_name_kana, last_name_kana, mobile, landline, mail,
+           first_name, last_name, first_name_kana, last_name_kana, mobile, landline, mail, line_id,
            zip, pref, city, town, street, building, brand, shop, sync, staff, area,
            reserved_date, hp_campaign, duplicate, hotlead_url,
            duplicate_flag, gift_flag, support_flag, black_flag
@@ -133,7 +133,7 @@ const INQUIRY_SQL: Record<ListCategory, string> = {
 
   spec: `
     SELECT id, inquiry_id, pg_id, inquiry_date, medium, response_medium,
-           first_name, last_name, first_name_kana, last_name_kana, mobile, landline, mail,
+           first_name, last_name, first_name_kana, last_name_kana, mobile, landline, mail, line_id,
            zip, pref, city, town, street, building, brand, shop, sync, staff, area,
            reserved_date, hp_campaign, duplicate, property, note,
            duplicate_flag, gift_flag, support_flag, black_flag
@@ -143,7 +143,7 @@ const INQUIRY_SQL: Record<ListCategory, string> = {
 
   used: `
     SELECT id, inquiry_id, pg_id, inquiry_date, medium, response_medium,
-           first_name, last_name, category, first_name_kana, last_name_kana, mobile, landline, mail,
+           first_name, last_name, category, first_name_kana, last_name_kana, mobile, landline, mail, line_id,
            zip, pref, city, town, street, building, brand, shop, sync, staff, area,
            reserved_date, hp_campaign, duplicate, property, note,
            duplicate_flag, gift_flag, support_flag, black_flag

@@ -157,6 +157,20 @@ if (isset($data['request']) && $data['request'] === 'integrate') {
             }
         }
 
+        // ==========================================
+        // C. LINE ID の処理（列は1つだけ。統合先が空なら統合元の最初の値を入れる）
+        // ==========================================
+        if ($normalize($baseRecord['line_id'] ?? '') === '') {
+            foreach ($integrateRecords as $rec) {
+                $intLineId = trim((string)($rec['line_id'] ?? ''));
+                if ($intLineId !== '') {
+                    $updateQueryParts[] = "line_id = :line_id";
+                    $updateValues[':line_id'] = $intLineId;
+                    break;
+                }
+            }
+        }
+
         // 統合先(ベース)のUPDATE実行
         $setClause = implode(', ', $updateQueryParts);
         $stmt = $pdo->prepare("UPDATE master_data_kaeru SET $setClause WHERE id = :id");
