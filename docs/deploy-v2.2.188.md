@@ -58,7 +58,7 @@ dcp up -d express-api
 | ファイル | |
 |---|---|
 | ⚠️⚠️ **`static/js/main.d3804e4d.js`** | ⚠️ **この版の本体** |
-| ⚠️⚠️ **`static/css/main.8804e4b8.css`** | ⚠️ **今回は CSS も変わる**（キャンペーン設定の画面） |
+| ⚠️⚠️ **`static/css/main.ec223763.css`** | ⚠️ **今回は CSS も変わる**（キャンペーン設定の画面）。⚠️ 右の余白を直したので `main.8804e4b8.css` ではない |
 | ⚠️ `index.html` | ⚠️⚠️ **必ず差し替えること** |
 ```bash
 deploy-dashboard
