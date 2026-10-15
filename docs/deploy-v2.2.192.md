@@ -5,19 +5,22 @@
 | # | 何が変わるか | どこ |
 |---|---|---|
 | 1 | 新しい窓口 `introductory_summary`（紹介の歩留まりの集計） | ⚠️ **② VPS**（features/introductory/summary.ts・gateway/registry.ts） |
-| 2 | 紹介キャンペーン → 紹介キャンペーンサマリー（全画面）・画面の版 | ① フロント（dashboard） |
-| 3 | 更新履歴 | ① DB |
+| 2 | ① から ② へ `introductory_summary` を転送する（⚠️ **入れないと ① が404を返す**） | ⚠️ **① PHP**（core/express_proxy.php） |
+| 3 | 紹介キャンペーン → 紹介キャンペーンサマリー（全画面）・画面の版 | ① フロント（dashboard） |
+| 4 | 更新履歴 | ① DB |
 
-⚠️ DB の列の追加は無い。① の PHP も変わらない。
+⚠️ DB の列の追加は無い。
 
 ## 順序
 ```
 0. GitHub で v2.2.192 を main → production へマージ
 1. ② Express（build）
-2. ① フロント（build）   ← ⚠️ 1 の後
-3. ① SQL（update_log）
+2. ① PHP（express_proxy.php）   ← ⚠️ 1 の後
+3. ① フロント（build）           ← ⚠️ 2 の後
+4. ① SQL（update_log）
 ```
-- ⚠️ 2 を先に出すと、② に窓口が無いので画面が「集計を取得できませんでした」になる（ゲートウェイは知らない request を ① へ回すが、① にも無い）。
+- ⚠️ 2 を 1 より先に出すと、① が ② へ転送しても ② に窓口が無く、ゲートウェイが ① へ戻して「ループ検知」の 502 になる。
+- ⚠️ 2 を出し忘れると、画面が「該当する処理がありません」（404）になる（⚠️ **2026-10-15 に開発環境で実際に起きた**）。
 
 ## 手順1　【② VPS で実行】Express の再ビルド
 ```bash
@@ -36,12 +39,23 @@ dcp build express-api
 dcp up -d express-api
 ```
 
-## 手順2　【WSL】フロントを ① へアップロード
+## 手順2　【① レンタルサーバー】PHP
+| ファイル | |
+|---|---|
+| `backend/src/core/express_proxy.php` | `expressProxyRequests()` と `expressProxyExclusive()` の両方に `introductory_summary` を追加 |
+
+確認（【あなたのPC】PowerShell）:
+```powershell
+curl.exe -s -X POST https://khg-marketing.info/dashboard/api/gateway/ -H "Content-Type: application/json" -d '{\"request\":\"introductory_summary\"}'
+```
+⚠️ `{"status":"error","message":"認証が必要です。"}` なら ② まで届いている。`該当する処理がありません。` なら PHP が古い（または ② に届いていない）。
+
+## 手順3　【WSL】フロントを ① へアップロード
 `npm run build` → `deploy-dashboard`（⚠️ index.html も差し替える）
-- ローカルのビルド結果: `main.e10fc675.js` / `main.b8a7c60b.css`（CSS は変化なし）
+- ローカルのビルド結果: `main.af9e5c53.js` / `main.b8a7c60b.css`（CSS は変化なし）
 - ⚠️ `/dashboard/funding-plan/金利データ.js`（手で置いたもの）がデプロイ後も残っているか確認すること（v2.2.191 と同じ）
 
-## 手順3　【① phpMyAdmin】更新履歴
+## 手順4　【① phpMyAdmin】更新履歴
 ⚠️ ファイル: `backend/scripts/sql/2026-10-15_update_log_2.2.192.sql`
 ```sql
 SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 3;

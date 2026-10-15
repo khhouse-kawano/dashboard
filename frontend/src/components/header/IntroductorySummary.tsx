@@ -46,8 +46,10 @@ type Summary = {
     areaSource: Cross;
 };
 
-/** ⚠️ ② が空のときに返す紹介元の表示。⚠️ summary.ts の UNSET_SOURCE と同じ */
+/** ⚠️ ② が空のときに返す表示。⚠️ summary.ts の UNSET_LABEL / UNKNOWN_AREA と同じ */
 const UNSET_SOURCE = '（未入力）';
+const UNKNOWN_AREA = '（不明）';
+const isUnset = (key: string) => key === UNSET_SOURCE || key === UNKNOWN_AREA;
 
 /** マトリクスの列に出す紹介元の最低件数。⚠️ 少ない紹介元まで並べると列が20近くになる */
 const MIN_SOURCE_COLUMN = 5;
@@ -96,9 +98,8 @@ const FunnelTable = ({ title, rows, label }: { title: string; rows: FunnelRow[];
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
     const sorted = useMemo(() => [...rows].sort((a, b) => {
-        // ⚠️ 未入力は並べ替えに関係なく最後（⚠️ 先頭に来ると目立ちすぎる）
-        if (a.key === UNSET_SOURCE && b.key !== UNSET_SOURCE) return 1;
-        if (b.key === UNSET_SOURCE && a.key !== UNSET_SOURCE) return -1;
+        // ⚠️ 未入力・不明は並べ替えに関係なく最後（⚠️ 先頭に来ると目立ちすぎる）
+        if (isUnset(a.key) !== isUnset(b.key)) return isUnset(a.key) ? 1 : -1;
         const x = valueOf(a, sortKey);
         const y = valueOf(b, sortKey);
         const diff = typeof x === 'string' || typeof y === 'string'

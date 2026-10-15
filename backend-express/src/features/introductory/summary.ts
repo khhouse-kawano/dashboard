@@ -38,8 +38,10 @@ const TABLES = [
   { table: 'master_data_resale', division: '中古' },
 ] as const;
 
-/** 紹介元が空のときの表示。⚠️ 実測で約4割が空（2026-10-15） */
-export const UNSET_SOURCE = '（未入力）';
+/** 紹介元・ブランド・店舗が空のときの表示。⚠️ 紹介元は実測で約4割が空（2026-10-15） */
+export const UNSET_LABEL = '（未入力）';
+/** エリアが分からないときの表示（⚠️ 店舗が shop_list に無い、または名前に県名が無い） */
+export const UNKNOWN_AREA = '（不明）';
 
 interface ReferralRow extends RowDataPacket {
   division: string;
@@ -68,7 +70,7 @@ export interface SummaryFilter {
   endMonth: string;
   /** 店舗（親店舗）。⚠️ 空なら絞らない */
   shop: string;
-  /** エリア（shop_list.area）。⚠️ 空なら絞らない */
+  /** エリア（shop_list.area。⚠️ 空の店舗は店舗名の県名で補ったもの）。⚠️ 空なら絞らない */
   area: string;
 }
 
@@ -140,6 +142,8 @@ interface Customer {
   lag: number | null;
 }
 
+const isUnset = (key: string): boolean => key === UNSET_LABEL || key === UNKNOWN_AREA;
+
 const funnelOf = (key: string, list: Customer[]): FunnelRow => {
   const lags = list.map((c) => c.lag).filter((v): v is number => v !== null && v >= 0).sort((a, b) => a - b);
   return {
@@ -152,7 +156,7 @@ const funnelOf = (key: string, list: Customer[]): FunnelRow => {
   };
 };
 
-/** キーごとの歩留まり。⚠️ 反響の多い順（⚠️ 未入力は最後） */
+/** キーごとの歩留まり。⚠️ 反響の多い順（⚠️ 未入力・不明は最後） */
 const groupFunnel = (list: Customer[], keyOf: (c: Customer) => string): FunnelRow[] => {
   const groups = new Map<string, Customer[]>();
   for (const c of list) {
@@ -163,7 +167,7 @@ const groupFunnel = (list: Customer[], keyOf: (c: Customer) => string): FunnelRo
   }
   return [...groups.entries()]
     .map(([key, rows]) => funnelOf(key, rows))
-    .sort((a, b) => Number(a.key === UNSET_SOURCE) - Number(b.key === UNSET_SOURCE) || b.inquiry - a.inquiry);
+    .sort((a, b) => Number(isUnset(a.key)) - Number(isUnset(b.key)) || b.inquiry - a.inquiry);
 };
 
 /** 行 × 紹介元。⚠️ 画面で表にする（セルは歩留まり） */
@@ -230,10 +234,10 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
     const contractDate = toDate(row.col_contract);
     customers.push({
       division: row.division,
-      source: hasValue(row.source) ? String(row.source).trim() : UNSET_SOURCE,
-      brand: hasValue(row.brand) ? String(row.brand).trim() : '（未入力）',
-      shop: shop === '' ? '（未入力）' : shop,
-      area: area === '' ? '（不明）' : area,
+      source: hasValue(row.source) ? String(row.source).trim() : UNSET_LABEL,
+      brand: hasValue(row.brand) ? String(row.brand).trim() : UNSET_LABEL,
+      shop: shop === '' ? UNSET_LABEL : shop,
+      area: area === '' ? UNKNOWN_AREA : area,
       contract,
       meeting: contract || hasValue(row.col_interview) || hasValue(row.col_screening)
         || hasValue(row.col_appointment) || hasValue(row.col_contract),
