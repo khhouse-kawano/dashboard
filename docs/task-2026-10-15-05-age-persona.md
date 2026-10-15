@@ -250,3 +250,13 @@ for (const d of DECADES) { const x = persona[d]; console.log('\n##', d, x.n, '| 
 for (const d of DECADES) { const x = sheet[d]; console.log('sheet', d, x.n, x.ct, 'meetMed', x.meetMed, x.kw.map((k) => k.k + ':' + p(k.n, x.n) + '(' + p(k.ct, k.n) + ')').join(' ')); }
 console.log('medium', JSON.stringify(out.byMedium)); console.log('brand', JSON.stringify(out.byBrand)); console.log('area', JSON.stringify(out.byArea));
 ```
+
+---
+
+## 追加（同日）: 広告の訴求案（レポートの 07 章）
+- 依頼: 「広告の訴求方法も提案してほしい」
+- 同じ HTML（persona_by_age_2026-10-15.html）に「07 広告の訴求案」を追加。年代別（30代・20代以下・40代・50代・60代以上）と紹介について、根拠（データ）／訴求（メッセージ）／媒体・導線／オファー・入口の表、キャンペーンの組み方の4項目
+- 追加で集計した根拠: 年齢が分かる顧客のうち、ホームページのキャンペーン経由（hp_campaign あり）は 20〜30代 68%（1,264人中 861人）・50代以上 14%（183人）、50代だけで 9%。HOME'S・タウンライフ経由は 50代以上 31%
+  - ⚠️ この構成比は生年月日由来の年齢を含む（契約者寄りの偏りあり）
+- キャンペーン区分の数字は task-2026-10-15-04-contract-analysis.md と同じ（常設予約 10.7%・フェア 6.0%・見学会 5.3%・相談会 2.9% など）
+- 訴求・媒体・オファーはデータからの提案であり、効果は未検証。広告文の「◯◯」は実際の価格・学区名を入れる想定
