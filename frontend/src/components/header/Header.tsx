@@ -97,11 +97,13 @@ const Header = ({ }) => {
     // Claudeによる分析（menuMapping とは独立した導線）
     const [claudeModal, setClaudeModal] = useState<boolean>(false);
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
+    /**
+     * ⚠️⚠️ **v2.2.191 から全員が開ける**（以前は Master 以外「権限がありません」）。
+     *   ⚠️ 全員に見せるのは上部の競合分析レポート（閲覧のみ・課金なし）だけ。
+     *   ⚠️ ⚠️ **分析の実行と保存済みの分析は ClaudeAnalysis.tsx 側で Master だけに出している**
+     *     （⚠️ ② の `kpi_*` も auth: 'master'）。
+     */
     const openClaude = (): void => {
-        if (authority !== 'Master') {
-            alert('権限がありません');
-            return;
-        }
         setClaudeModal(true);
     };
 
