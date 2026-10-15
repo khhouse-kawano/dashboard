@@ -20,6 +20,7 @@ import StaffContractRate from './StaffContractRate';
 import ClaudeAnalysis from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
 import CompetitorAnalysisReports from './CompetitorAnalysisReports';
+import IntroductorySummary from './IntroductorySummary';
 import SatBaseDatabase from './SatBaseDatabase';
 import AmbassadorList from './AmbassadorList';
 import { InquiryAmbassador } from './InquiryAmbassador';
@@ -185,7 +186,8 @@ const Header = ({ }) => {
             '契約数ランキング',
         ],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
-        '紹介キャンペーン': ['反響一覧'],
+        // ⚠️ v2.2.192: 「紹介キャンペーンサマリー」を追加（⚠️ 顧客台帳の「紹介」の歩留まり。IntroductorySummary.tsx）
+        '紹介キャンペーン': ['反響一覧', '紹介キャンペーンサマリー'],
         // ⚠️ v2.2.172: 「おうちづくりフェスタ2026」を追加（⚠️ イベント当日用。FestaDashboard.tsx）
         '集客イベント': ['反響一覧', '集客サマリー', '広告費入力', 'おうちづくりフェスタ2026'],
         'Google口コミ': ['口コミ集計']
@@ -227,6 +229,7 @@ const Header = ({ }) => {
         '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
         '公式アンバサダー/反響一覧': <InquiryAmbassador />,
         '紹介キャンペーン/反響一覧': <InquiryIntroductory />,
+        '紹介キャンペーン/紹介キャンペーンサマリー': <IntroductorySummary />,
         // ⚠️ '集客イベント/反響一覧' はここに入れない。
         //   EventList は**自前の fullscreen モーダル**を持っているため、
         //   下の共通モーダルの中に入れると二重のモーダルになる。
@@ -295,6 +298,10 @@ const Header = ({ }) => {
         //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
         //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
         '活動サマリー/営業別契約率',
+        // ⚠️ 紹介キャンペーンサマリー（v2.2.192）は表が縦に7つ並び、横にも広い（2026-10-15 の指示で全画面）。
+        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
+        //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
+        '紹介キャンペーン/紹介キャンペーンサマリー',
     ].includes(editMenu);
 
     // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）

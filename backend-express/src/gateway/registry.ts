@@ -9,6 +9,7 @@ import {
 import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
 import { runAmbassadorKpi } from '../features/ambassador/kpi';
 import { runStaffContract, toDepartment } from '../features/staffContract';
+import { runIntroductorySummary } from '../features/introductory/summary';
 import {
   runAuthAccessTimes,
   runAuthInsert,
@@ -713,6 +714,31 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await runInquiryIntroductoryTag(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 紹介キャンペーンサマリー（v2.2.192）。
+ *
+ * ⚠️⚠️ **お友達紹介の受付表（inquiry_introductory）ではなく、3つの顧客台帳の「紹介」を集計する。**
+ *   ⚠️ 中身は features/introductory/summary.ts。
+ * ⚠️ 期間は `YYYY-MM`（反響取得日）。店舗は親店舗（併売店は親店舗として数える）。⚠️ 空はすべて「絞らない」。
+ */
+register({
+  request: 'introductory_summary',
+  summary: '紹介（注文・建売・中古）の紹介元・事業部・ブランド・エリア別の歩留まり',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const text = (key: string) => (typeof ctx.body[key] === 'string' ? (ctx.body[key] as string).trim() : '');
+    const result = await runIntroductorySummary({
+      startMonth: text('startMonth'),
+      endMonth: text('endMonth'),
+      shop: text('shop'),
+      area: text('area'),
+    });
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
