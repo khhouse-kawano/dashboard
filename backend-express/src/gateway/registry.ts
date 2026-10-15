@@ -8,7 +8,7 @@ import {
 } from '../features/ambassador';
 import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
 import { runAmbassadorKpi } from '../features/ambassador/kpi';
-import { runStaffContract } from '../features/staffContract';
+import { runStaffContract, toDepartment } from '../features/staffContract';
 import {
   runAuthAccessTimes,
   runAuthInsert,
@@ -2494,7 +2494,7 @@ const STAFF_CONTRACT_AUTHORITY = ['Master', 'BrandAdmin'];
 
 register({
   request: 'staff_contract',
-  summary: '営業別の商談顧客数・次アポ数・契約数（Master / BrandAdmin のみ）',
+  summary: '営業別の商談顧客数・次アポ数・契約数。注文・建売（Master / BrandAdmin のみ）',
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
@@ -2507,10 +2507,11 @@ register({
     const text = (key: string) => (typeof ctx.body[key] === 'string' ? (ctx.body[key] as string) : '');
 
     // ⚠️ 期間は `YYYY-MM`。⚠️⚠️ **既定は全期間**（空文字）
+    // ⚠️ 部門（v2.2.191）。⚠️⚠️ **'spec' 以外はすべて注文**（⚠️ 古い画面は送ってこない）
     const result = await runStaffContract(text('period'), {
       start: text('startMonth').trim(),
       end: text('endMonth').trim(),
-    });
+    }, toDepartment(text('department')));
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
