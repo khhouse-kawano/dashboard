@@ -96,6 +96,16 @@ const monthOptions = (): string[] => {
 
 const MONTHS = monthOptions();
 
+/**
+ * 部門（v2.2.191）。⚠️ ② の `department` にそのまま送る値。
+ *   ⚠️ 注文営業 … `master_data` / 建売営業 … `master_data_kaeru`
+ */
+type Department = 'order' | 'spec';
+const DEPARTMENTS: { value: Department; label: string; division: string }[] = [
+    { value: 'order', label: '注文営業', division: '注文事業' },
+    { value: 'spec', label: '建売営業', division: '建売分譲事業' },
+];
+
 /** 並べ替え用の値。⚠️ 率の null は **一番下**へ回す（-1） */
 const valueOf = (row: Row, key: SortKey): number | string => {
     // ⚠️ 担当変更理由の列。⚠️⚠️ **0件の人も 0 として並べる**（除外しない）
@@ -139,6 +149,12 @@ const StaffContractRate = () => {
      */
     const [reasonLabels, setReasonLabels] = useState<string[]>([]);
 
+    /**
+     * 部門（v2.2.191）。⚠️ 既定は注文営業（⚠️ 今までの画面と同じ）。
+     *   ⚠️⚠️ **期間と同じくサーバーで切り替える**（⚠️ 顧客の表も営業も別になるため）。
+     */
+    const [department, setDepartment] = useState<Department>('order');
+
     /** ⚠️ 絞り込み。⚠️⚠️ **既定はすべて空＝全期間・全課・全店舗** */
     const [targetSection, setTargetSection] = useState('');
     const [targetShop, setTargetShop] = useState('');
@@ -160,6 +176,7 @@ const StaffContractRate = () => {
         try {
             const res = await apiClient.post('', {
                 request: 'staff_contract',
+                department,
                 startMonth,
                 endMonth,
             });
@@ -179,7 +196,7 @@ const StaffContractRate = () => {
         } finally {
             setLoading(false);
         }
-    }, [startMonth, endMonth]);
+    }, [department, startMonth, endMonth]);
 
     useEffect(() => { void fetchData(); }, [fetchData]);
 
@@ -372,7 +389,8 @@ const StaffContractRate = () => {
                     営業別 契約率
                 </span>
                 <span className="sc_note">
-                    注文事業{period === '' ? '' : ` / ${period}年度`}（報告対象）
+                    {DEPARTMENTS.find(d => d.value === department)?.division}
+                    {period === '' ? '' : ` / ${period}年度`}（報告対象）
                 </span>
             </div>
 
@@ -390,6 +408,19 @@ const StaffContractRate = () => {
                 <>
                     {/* ⚠️⚠️ **既定はすべて「すべて」＝全期間・全課・全店舗。** */}
                     <div className="sc_bar mb-2">
+                        {/* ⚠️ 部門（v2.2.191）。⚠️⚠️ **変えたら課・店舗の選択を外す**（⚠️ 課も店舗も部門ごとに別物） */}
+                        <div>
+                            <div className="sc_bar_label">部門</div>
+                            <Form.Select
+                                size="sm" value={department} style={{ width: '120px', fontSize: '12px' }}
+                                onChange={(e) => {
+                                    setDepartment(e.target.value === 'spec' ? 'spec' : 'order');
+                                    setTargetSection(''); setTargetShop('');
+                                }}
+                            >
+                                {DEPARTMENTS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                            </Form.Select>
+                        </div>
                         <div>
                             <div className="sc_bar_label">課</div>
                             <Form.Select

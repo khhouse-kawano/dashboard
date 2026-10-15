@@ -122,7 +122,18 @@ export const countRecentReports = async (): Promise<number> => {
     return rows.filter((row) => isRecent(row.created)).length;
 };
 
-const CompetitorAnalysisReports = () => {
+type Props = {
+    /**
+     * Claudeによる分析（ClaudeAnalysis.tsx）の上部に埋め込むとき true（v2.2.191）。
+     *
+     * ⚠️⚠️ **既定（false）は全画面モーダル用**（他社動向 →「Claudeによる競合分析」）。
+     *   ⚠️ 全画面では高さを画面いっぱいに使うが、⚠️ **xl のモーダルの中では親に高さが無い。**
+     *   ⚠️ ⚠️ **埋め込み時は一覧と本文の高さを 60vh に固定し、外側の余白を外す**（`car_embedded`）。
+     */
+    embedded?: boolean;
+};
+
+const CompetitorAnalysisReports = ({ embedded = false }: Props) => {
     const { authority, userName } = useContext(AuthContext);
     const isMaster = authority === 'Master';
 
@@ -295,7 +306,7 @@ const CompetitorAnalysisReports = () => {
     const showBody = opened !== null && step >= STEPS.length;
 
     return (
-        <div className="car_wrap">
+        <div className={`car_wrap${embedded ? ' car_embedded' : ''}`}>
             <style>{`
                 /**
                  * ⚠️⚠️ 全画面モーダルの Modal.Body は **p-0 かつ overflow: hidden** である
@@ -377,6 +388,13 @@ const CompetitorAnalysisReports = () => {
                 .car_del { border: 0; background: none; color: #9ca3af; cursor: pointer;
                            font-size: 11px; padding: 0; }
                 .car_del:hover { color: #dc2626; }
+
+                /* ⚠️ 埋め込み（v2.2.191）。⚠️⚠️ **必ず上の .car_wrap / .car_body より後ろに置くこと**
+                   （⚠️ 詳細度が上なので負けはしないが、読む順をそろえる）。
+                   ⚠️ 高さは本文の iframe を読める最低限。⚠️ **モーダルの 80vh に収まるよう 60vh** */
+                .car_embedded.car_wrap { height: auto; padding: 0; }
+                .car_embedded .car_inner { max-width: none; }
+                .car_embedded .car_body { flex: none; height: 60vh; }
             `}</style>
 
             <div className="car_inner">

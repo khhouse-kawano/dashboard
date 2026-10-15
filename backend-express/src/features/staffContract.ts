@@ -223,8 +223,60 @@ const TALK_ACTIONS = new Set(['初回面談', '2回目以降面談', '事前審�
 /** 次アポ（＝初回面談のあとに進んだ）とみなす action */
 const NEXT_ACTIONS = new Set(['2回目以降面談', '事前審査', '契約']);
 
-/** 対象の事業区分。⚠️ `shop_list.division` の実際の値（⚠️ 「注文営業」という値は無い） */
-const TARGET_DIVISION = '注文事業';
+/**
+ * 部門（v2.2.191）。⚠️ 画面の「部門」の選択肢。
+ *   ⚠️ order … 注文営業（`master_data`） / spec … 建売営業（`master_data_kaeru`）
+ */
+export type Department = 'order' | 'spec';
+
+interface DepartmentConfig {
+  /** 顧客の表。⚠️ SQL に直接埋め込むので、**この定数以外の値を入れないこと** */
+  table: 'master_data' | 'master_data_kaeru';
+  /** 対象の事業区分。⚠️ `shop_list.division` / `section_list.division` の実際の値 */
+  division: string;
+  /** 商談顧客とみなす action */
+  talk: Set<string>;
+  /** 次アポとみなす action */
+  next: Set<string>;
+  /**
+   * ⚠️ `自社契約,物件名(公開)` のように後ろに物件名が付いた action を、
+   *   **`,` の前だけで判定するか。** ⚠️ 注文は判定しない（従来どおり完全一致）。
+   */
+  stripProperty: boolean;
+  /**
+   * 商談シートを**この部門の顧客の id だけ**に絞るか。
+   *
+   * ⚠️⚠️ **商談シートは注文・建売・中古で同じ表**（⚠️ 実測 18,559件 = 注文 6,634 / 建売 10,603 / その他 1,322）。
+   *   ⚠️ 建売は絞る（⚠️ 絞らないと注文の記録の `staff` が建売の営業に数えられる）。
+   *   ⚠️ ⚠️ **注文は絞らない**（⚠️ v2.2.190 までの数字を変えないため）。
+   *     ⚠️ 絞ると注文でも2名の商談顧客数が1〜3人減り、注記の件数も 18,559 → 6,634 になる（実測 2026-10-15）。
+   */
+  onlyOwnSheets: boolean;
+}
+
+/**
+ * 建売の商談ログの action（実測 2026-10-15 / 建売顧客の記録 9,273件）。
+ *   ⚠️ 物件案内 418 / 申し込み 832 / 事前取得 422 / ローン事前承認済み 227 /
+ *   ⚠️ 自社契約 80（＋物件名付き）/ 仲介契約 10（＋物件名付き）。
+ *
+ * ⚠️⚠️ **「物件案内」は商談顧客には入れるが、次アポには入れない**（2026-10-15 の指示）。
+ *   ⚠️ 建売では初回面談の前に物件案内をすることがあるため。
+ */
+const SPEC_NEXT_ACTIONS = new Set([
+  '2回目以降面談', '申し込み', '事前取得（現金確認含む）', 'ローン事前承認済み',
+  '契約', '自社契約', '仲介契約',
+]);
+const SPEC_TALK_ACTIONS = new Set(['初回面談', '物件案内', ...SPEC_NEXT_ACTIONS]);
+
+const DEPARTMENTS: Record<Department, DepartmentConfig> = {
+  // ⚠️ `shop_list.division` の実際の値（⚠️ 「注文営業」という値は無い）
+  order: { table: 'master_data', division: '注文事業', talk: TALK_ACTIONS, next: NEXT_ACTIONS, stripProperty: false, onlyOwnSheets: false },
+  // ⚠️ 「建売営業」「建売事業」という値も無い。⚠️ **`建売分譲事業`**
+  spec: { table: 'master_data_kaeru', division: '建売分譲事業', talk: SPEC_TALK_ACTIONS, next: SPEC_NEXT_ACTIONS, stripProperty: true, onlyOwnSheets: true },
+};
+
+/** ⚠️ 決まった値以外は order として扱う（⚠️ 既定は今までどおり注文） */
+export const toDepartment = (value: string): Department => (value === 'spec' ? 'spec' : 'order');
 
 export interface StaffContractRow {
   name: string;
@@ -262,6 +314,7 @@ export interface StaffContractResult {
  * 営業別の契約率を返す。
  *
  * @param period 年度。⚠️ `staff_list.period` の値（例 '2027'）
+ * @param department 部門（v2.2.191）。⚠️ 省略時は注文（今までどおり）
  *
  * ⚠️⚠️ **歩留まりの割り算は画面側で行う。**
  *   ⚠️ 分母が0のときに 0% と出すか伏せるかは**見せ方の判断**であり、
@@ -269,9 +322,17 @@ export interface StaffContractResult {
  */
 export const runStaffContract = async (
   period: string,
-  range: MonthRange = { start: '', end: '' }
+  range: MonthRange = { start: '', end: '' },
+  department: Department = 'order'
 ): Promise<StaffContractResult> => {
   const target = period.trim() === '' ? '2027' : period.trim();
+  const dept = DEPARTMENTS[department];
+
+  /** ⚠️ 物件名付きの action は `,` の前だけで見る（⚠️ 建売のみ） */
+  const actionOf = (entry: LogEntry): string => {
+    const action = String(entry.action ?? '');
+    return dept.stripProperty ? action.split(',')[0].trim() : action;
+  };
 
   const [staff, sheets, contracted, sections, shops] = await Promise.all([
     query<StaffRow>(
@@ -280,10 +341,10 @@ export const runStaffContract = async (
          JOIN shop_list sl ON sl.shop = s.shop
         WHERE s.period = ? AND s.report = 1 AND sl.division = ?
         ORDER BY s.sort, s.id`,
-      [target, TARGET_DIVISION]
+      [target, dept.division]
     ),
     // ⚠️ 2列だけ引く。⚠️⚠️ **`SELECT *` にすると不要な列まで流れる**
-    query<SheetRow>('SELECT id, interview_log FROM interview_sheet'),
+    query<SheetRow>(`SELECT id, interview_log FROM interview_sheet${dept.onlyOwnSheets ? ` WHERE id IN (SELECT id FROM ${dept.table})` : ''}`),
     /**
      * 顧客。⚠️⚠️ **商談フェーズの列と担当営業を一緒に引く。**
      *
@@ -298,7 +359,7 @@ export const runStaffContract = async (
               first_interviewed_user,
               last_action_step_migration_item_name AS last_action,
               ${COL_INQUIRY} AS col_inquiry
-         FROM master_data`
+         FROM ${dept.table}`
     ),
     /**
      * 課のマスタ。⚠️ 画面の選択肢と並び順に使う。
@@ -306,7 +367,7 @@ export const runStaffContract = async (
      */
     query<MasterRow>(
       'SELECT `no`, name FROM section_list WHERE division = ? ORDER BY `no`',
-      [TARGET_DIVISION]
+      [dept.division]
     ),
     /**
      * 店舗のマスタ。
@@ -315,7 +376,7 @@ export const runStaffContract = async (
      */
     query<ShopMasterRow>(
       'SELECT id AS `no`, shop AS name, section FROM shop_list WHERE division = ? ORDER BY id',
-      [TARGET_DIVISION]
+      [dept.division]
     ),
   ]);
 
@@ -353,7 +414,7 @@ export const runStaffContract = async (
     let had = false;
 
     for (const entry of toLog(sheet.interview_log)) {
-      const action = String(entry.action ?? '');
+      const action = actionOf(entry);
       const logged = norm(entry.staff);
       if (logged !== '') had = true;
 
@@ -365,8 +426,8 @@ export const runStaffContract = async (
       //     ⚠️ 顧客単位にすると、期間外の初回面談しか無い人まで入る。
       if (!inRange(toMonth(entry.day), range)) continue;
 
-      if (TALK_ACTIONS.has(action)) bucketOf(who).talk.add(sheet.id);
-      if (NEXT_ACTIONS.has(action)) bucketOf(who).next.add(sheet.id);
+      if (dept.talk.has(action)) bucketOf(who).talk.add(sheet.id);
+      if (dept.next.has(action)) bucketOf(who).next.add(sheet.id);
     }
     if (had) sheetsWithStaff += 1;
   }
@@ -489,6 +550,8 @@ export const runStaffContract = async (
     body: {
       status: 'ok',
       period: target,
+      // ⚠️ 集計した部門（v2.2.191）。⚠️ 画面の見出しに使う
+      department,
       // ⚠️ 選んだ期間をそのまま返す。⚠️ 画面が「全期間」かどうかの判定に使う
       range,
       rows,

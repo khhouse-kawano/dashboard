@@ -84,7 +84,7 @@ const Header = ({ }) => {
      */
     const [uploadLoan, setUploadLoan] = useState<boolean>(false);
     /**
-     * 契約率ランキング（v2.2.169）。
+     * 契約数ランキング（v2.2.169）。
      * ⚠️ Ranking も自前のモーダルを持つため、共通モーダル（xl）には載せず専用の state で開く。
      */
     const [showRanking, setShowRanking] = useState<boolean>(false);
@@ -97,11 +97,13 @@ const Header = ({ }) => {
     // Claudeによる分析（menuMapping とは独立した導線）
     const [claudeModal, setClaudeModal] = useState<boolean>(false);
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
+    /**
+     * ⚠️⚠️ **v2.2.191 から全員が開ける**（以前は Master 以外「権限がありません」）。
+     *   ⚠️ 全員に見せるのは上部の競合分析レポート（閲覧のみ・課金なし）だけ。
+     *   ⚠️ ⚠️ **分析の実行と保存済みの分析は ClaudeAnalysis.tsx 側で Master だけに出している**
+     *     （⚠️ ② の `kpi_*` も auth: 'master'）。
+     */
     const openClaude = (): void => {
-        if (authority !== 'Master') {
-            alert('権限がありません');
-            return;
-        }
         setClaudeModal(true);
     };
 
@@ -175,12 +177,12 @@ const Header = ({ }) => {
         //
         // ⚠️ v2.2.169 に「日報」から「活動サマリー」へ改名し、2つ足した。
         //   ⚠️ アクションボード … ⚠️ **category === 'order' だけ**（⚠️ DailyAction 自体も注文だけを対象にしている）。
-        //   ⚠️ 契約率ランキング … 全員（⚠️ Master 以外は上位10位前後だけ出る仕組みが Ranking 側にある）。
+        //   ⚠️ 契約数ランキング … 全員（⚠️ Master 以外は上位10位前後だけ出る仕組みが Ranking 側にある）。
         '活動サマリー': [
             '月次日報',
             ...((authority === 'Master' || authority === 'BrandAdmin') ? ['営業別契約率'] : []),
             ...(category === 'order' ? ['アクションボード'] : []),
-            '契約率ランキング',
+            '契約数ランキング',
         ],
         '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
         '紹介キャンペーン': ['反響一覧'],
@@ -416,8 +418,8 @@ const Header = ({ }) => {
                                             openDailyAction();
                                             return;
                                         }
-                                        // ⚠️ 契約率ランキング（v2.2.169）も自前のモーダル
-                                        if (menu === '活動サマリー' && item === '契約率ランキング') {
+                                        // ⚠️ 契約数ランキング（v2.2.169）も自前のモーダル
+                                        if (menu === '活動サマリー' && item === '契約数ランキング') {
                                             setShowRanking(true);
                                             return;
                                         }
@@ -538,7 +540,7 @@ const Header = ({ }) => {
             {/* ローン情報更新（v2.2.168）。⚠️ 自前のモーダル（md）なので共通モーダルの外に置く */}
             <UploadLoan show={uploadLoan} setShow={setUploadLoan} />
 
-            {/* 契約率ランキング（v2.2.169）。⚠️ データは RankingLoader が開いたときに取る */}
+            {/* 契約数ランキング（v2.2.169）。⚠️ データは RankingLoader が開いたときに取る */}
             <RankingLoader show={showRanking} setShow={setShowRanking} />
         </>
     );
