@@ -630,6 +630,16 @@ function expressProxyRequests(): array
         // ⚠️ 2026-09-15 追加。口コミ集計画面（header/GoogleReview.tsx）用。
         //   ⚠️ `list` とは別物。あちらは sync 専用で本文を返さない。
         'google_review:summary',
+
+        // -----------------------------------------------------------------
+        // 2026-10-15 新規（v2.2.192）。紹介キャンペーンサマリー（header/IntroductorySummary.tsx）。
+        //
+        // ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある**（features/introductory/summary.ts）。
+        //   ⚠️ ⚠️ **入れないと ① が404を返す**（2026-10-15 に開発環境で発覚）。
+        //   ⚠️ expressProxyExclusive() にも入れてある。
+        // ⚠️ `inquiry_introductory`（反響一覧）・`introductory`（GAS の受付）とは別物。
+        // -----------------------------------------------------------------
+        'introductory_summary',
     ];
 }
 
@@ -855,6 +865,10 @@ function expressProxyExclusive(): array
         'list:black:order',
         'list:black:spec',
         'list:black:used',
+
+        // ⚠️ 2026-10-15 新規（v2.2.192）。紹介キャンペーンサマリー。
+        //   ⚠️ ① に PHP ハンドラが無いので、② が落ちたら 502 で止める（① の404より原因が分かる）。
+        'introductory_summary',
     ];
 }
 
