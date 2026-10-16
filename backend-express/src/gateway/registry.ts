@@ -125,6 +125,7 @@ import {
   deleteReport,
   getReport,
   listReports,
+  logReportView,
   MAX_HTML_BYTES,
   saveReport,
 } from '../features/analysis/report';
@@ -2358,6 +2359,8 @@ register({
       return { status: 'error', message: 'レポートが見つかりませんでした。' };
     }
 
+    // ⚠️ v2.2.194: 開いた人を記録する（⚠️ Master は記録しない・⚠️ 失敗してもレポートは返す。features/analysis/report.ts）
+    await logReportView(no, ctx.staff);
     return { report };
   },
 });
