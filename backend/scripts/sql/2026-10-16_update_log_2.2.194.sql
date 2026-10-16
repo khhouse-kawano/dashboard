@@ -11,7 +11,7 @@ INSERT INTO update_log (version, date, note) VALUES
 ('2.2.194', '2026-10-16', '「業務ガイド」を追加した（注文営業・建売営業・中古リノベ）。用語・画面の使い方・業務の流れを記事で読める。ヘッダー・アクティブユーザー・トップ画面のボタンから別ウインドウで開く。Claudeによる分析のレポートを開いた記録を残すようにした。');
 
 -- ---------------------------------------------------------------
--- 業務ガイドの記事（58本）。backend/scripts/guide/build-guide-sql.cjs で作成
+-- 業務ガイドの記事（59本）。backend/scripts/guide/build-guide-sql.cjs で作成
 -- ⚠️ 先に guide_article / guide_history の表があること（2026-10-16_guide_article.sql）
 -- ⚠️ 同じタイトルの記事は上書きする（⚠️ 手で直された記事でも開発側を優先）。⚠️ 直前の内容は guide_history に残す
 -- ---------------------------------------------------------------
@@ -119,10 +119,7 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 - 予算（目標）は、店舗の行と担当の行に直接入力します
 
 ## 解約になったら
-1. ステータスを **解約** にする
-2. **解約発生日**を入れる
-
-> 注意：解約になっても契約日が残っていれば、契約の数には入ったままです。「キャンセル数を表示」にチェックを付けると、そのうちの解約の数が赤い印で出ます。
+ステータスを **解約** にして保存します（契約日・ランクは変えません）。くわしくは [[解約したら]]。
 
 > 要確認：契約したときの社内への報告先・書類の流れは、ここに書き足してください。
 
@@ -557,10 +554,7 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 - S/A/B/C の見込みは、ステータスに関係なくランクで数えます。S は「今月に契約した人」だけです
 
 ## 解約になったら
-1. ステータスを **解約** にする
-2. **解約発生日**を入れる
-
-> 注意：全社報告用フォーマットでは、解約になっても契約日が残っていれば契約の数に入ったままです（「キャンセル数を表示」で解約の数が赤い印で出ます）。店舗別広告費では解約を契約に数えません。
+ステータスを **解約** にして保存します（契約日・ランクは変えません）。くわしくは [[解約したら]]。
 
 ## 関係する記事
 - [[全社報告用フォーマット（建売営業）]]
@@ -802,10 +796,7 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 - S/A/B/C の見込みの金額は、リフォーム粗利見込 ＋ 仲介粗利見込 の合計です（ステータスが「見込み」の人だけ）
 
 ## 解約になったら
-1. ステータスを **解約** にする
-2. **解約発生日**を入れる
-
-> 注意：中古リノベは「契約済み」だけを集計するので、解約は契約の数に入りません。
+ステータスを **解約** にして保存します（契約日・ランクは変えません）。くわしくは [[解約したら]]。
 
 ## 関係する記事
 - [[全社報告用フォーマット（中古リノベ）]]
@@ -931,6 +922,30 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 
 > 注意：物件案内は来場に数えません。
 ', 30, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+-- common/flow-045.md：解約したら
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '解約したら';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('解約したら', 'common', '業務の流れ', '契約したお客様が解約になったときの入れ方（全事業共通）。', '## やること
+1. 左のメニュー「顧客DB」で該当のお客様を開く
+2. ステータスを **解約** にする
+3. 保存する
+
+> 注意：**契約日やランクは変えなくてかまいません。** ステータスを「解約」にして保存するだけです。
+
+> ダッシュボードには「いつ・だれが契約したか」という事実を残す必要があります。そのため、解約になっても契約日や担当は消さずにそのまま残します。
+
+## 数字への出方
+- **注文営業・建売営業**：全社報告用フォーマットでは、契約日が残っているので契約の数には入ったままです。「キャンセル数を表示」にチェックを付けると、そのうちの解約の数が赤い印で出ます。建売営業の店舗別広告費では、解約は契約に数えません。
+- **中古リノベ**：「契約済み」だけを集計するので、解約は契約の数に入りません。
+
+## 関係する記事
+- [[契約したら（注文営業）]]
+- [[契約したら（建売営業）]]
+- [[契約したら（中古リノベ）]]
+', 45, 1, '開発（業務ガイド更新）')
   ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
     body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
 -- common/screen-110.md：重複反響サマリー

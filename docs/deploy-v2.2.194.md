@@ -8,7 +8,7 @@
 | 2 | ① から ② へ上の3つを転送する（⚠️ 入れないと ① が404を返す） | ⚠️ **① PHP**（core/express_proxy.php） |
 | 3 | 業務ガイドの画面（別ウインドウの `/guide`）・入口ボタン3か所・画面の版 | ① フロント（dashboard） |
 | 4 | 新しい表 `guide_article`・`guide_history`・`analysis_report_view_log`（レポートを開いた人の記録） | ① DB |
-| 5 | 更新履歴 ＋ 記事58本 | ① DB |
+| 5 | 更新履歴 ＋ 記事59本 | ① DB |
 
 ## 順序
 ```
@@ -73,7 +73,7 @@ SHOW TABLES LIKE 'analysis_report_view_log';
 - ⚠️ `/dashboard/funding-plan/金利データ.js`（手で置いたもの）がデプロイ後も残っているか確認すること
 
 ## 手順5　【① phpMyAdmin】更新履歴 ＋ 記事
-⚠️ ファイル: `backend/scripts/sql/2026-10-16_update_log_2.2.194.sql`（約90KB。前半が update_log の1行、後半が記事58本）
+⚠️ ファイル: `backend/scripts/sql/2026-10-16_update_log_2.2.194.sql`（約90KB。前半が update_log の1行、後半が記事59本）
 - ⚠️ phpMyAdmin の「インポート」でファイルごと流す（SQL 欄に貼ると長さで切れることがある）。文字コードは UTF-8。
 
 確認:
@@ -81,7 +81,7 @@ SHOW TABLES LIKE 'analysis_report_view_log';
 SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 3;
 SELECT division, COUNT(*) FROM guide_article GROUP BY division;
 ```
-⚠️ 記事は common 11・order 23・spec 13・used 11（計58）。
+⚠️ 記事は common 12・order 23・spec 13・used 11（計59）。
 
 ## 確認（ログインした状態で）
 1. 注文営業で、ヘッダーの「マーケット情報」の右に「業務ガイド」が出る。押すと別ウインドウで開く。
