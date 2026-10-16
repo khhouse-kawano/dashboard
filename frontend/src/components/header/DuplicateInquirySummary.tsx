@@ -29,6 +29,8 @@ type Card = { own: Funnel; duplicated: number; others: OtherBrandRow[] };
 type GroupRow = { brand: string; total: number; dup: Funnel; stack: Stack };
 type Summary = {
     brands: string[];
+    /** エリアの選択肢（都道府県。件数の多い順）。⚠️ 絞り込みに関係なく全部来る */
+    areas: string[];
     cards: Record<string, Card>;
     group: { own: Funnel; byBrand: GroupRow[] };
 };
@@ -157,24 +159,32 @@ const DuplicateInquirySummary = () => {
     /** ⚠️ 期間（反響取得日）。⚠️ 既定は空＝全期間 */
     const [startMonth, setStartMonth] = useState('');
     const [endMonth, setEndMonth] = useState('');
+    /**
+     * エリア（都道府県）。⚠️ ② が full_address から決める（2026-10-16 の指示）。
+     *   ⚠️ 期間と同じく **カードのブランド側の反響だけ** を絞る。⚠️ 都道府県が分からない顧客は、選ぶと出なくなる。
+     */
+    const [targetArea, setTargetArea] = useState('');
+    /** ⚠️ 選択肢は最初に取れたものを持ち続ける（⚠️ 取り直し中に select が空にならないように） */
+    const [areaOptions, setAreaOptions] = useState<string[]>([]);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
-            const res = await apiClient.post('', { request: 'duplicate_summary', startMonth, endMonth });
+            const res = await apiClient.post('', { request: 'duplicate_summary', startMonth, endMonth, area: targetArea });
             if (res.data?.status !== 'ok') {
                 setError(res.data?.message ?? '集計を取得できませんでした。');
                 return;
             }
             setSummary(res.data as Summary);
+            setAreaOptions(res.data.areas ?? []);
         } catch (e: unknown) {
             const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
             setError(message ?? '集計を取得できませんでした。分析サーバーが停止している可能性があります。');
         } finally {
             setLoading(false);
         }
-    }, [startMonth, endMonth]);
+    }, [startMonth, endMonth, targetArea]);
 
     useEffect(() => { void fetchData(); }, [fetchData]);
 
@@ -264,6 +274,14 @@ const DuplicateInquirySummary = () => {
 
                 <div className="ds_bar">
                     <div>
+                        <div className="ds_label">エリア（住所の都道府県）</div>
+                        <Form.Select size="sm" value={targetArea} style={{ width: '150px', fontSize: '12px' }}
+                            onChange={(e) => setTargetArea(e.target.value)}>
+                            <option value="">すべて</option>
+                            {areaOptions.map(a => <option key={a} value={a}>{a}</option>)}
+                        </Form.Select>
+                    </div>
+                    <div>
                         <div className="ds_label">開始月（反響取得日）</div>
                         <Form.Select size="sm" value={startMonth} style={{ width: '140px', fontSize: '12px' }}
                             onChange={(e) => setStartMonth(e.target.value)}>
@@ -279,9 +297,9 @@ const DuplicateInquirySummary = () => {
                             {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
                         </Form.Select>
                     </div>
-                    <button type="button" className="ds_reset" disabled={startMonth === '' && endMonth === ''}
-                        onClick={() => { setStartMonth(''); setEndMonth(''); }}>
-                        期間を外す
+                    <button type="button" className="ds_reset" disabled={startMonth === '' && endMonth === '' && targetArea === ''}
+                        onClick={() => { setStartMonth(''); setEndMonth(''); setTargetArea(''); }}>
+                        絞り込みを外す
                     </button>
                     {/* ⚠️ 開始が終了より後だと0件になる。⚠️ **黙って空にしない** */}
                     {startMonth !== '' && endMonth !== '' && startMonth > endMonth && (
@@ -298,7 +316,8 @@ const DuplicateInquirySummary = () => {
                     （空白とハイフンは除いて比べます。短すぎる値は比べません）。状況「重複」の顧客はカードの数字から除いています。
                     <br />
                     ※ 横棒とパネル②の来場・次アポ・契約は、<b>相手のブランドで</b>どこまで進んだかです。
-                    期間は<b>カードのブランドの反響取得日</b>で絞ります（相手のブランドは期間に関係なく比べます）。
+                    期間は<b>カードのブランドの反響取得日</b>、エリアは<b>カードのブランドの顧客の住所</b>で絞ります（相手のブランドは期間・住所に関係なく比べます）。
+                    住所から都道府県が分からない顧客は、エリアを選ぶと数字に入りません。
                     <br />
                     ※ 来場＝初回面談以降の日付あり、次アポ＝事前審査・第二面談・契約の日付あり、契約＝状況が「契約済み」です。
                     中専は担当店舗が「買い:中古リノベ」の顧客だけです。
@@ -340,7 +359,7 @@ const DuplicateInquirySummary = () => {
                                             <th className="ds_th text-end">総反響</th>
                                             <th className="ds_th text-end">重複</th>
                                             <th className="ds_th text-end">重複率</th>
-                                            <th className="ds_th text-end" title="重複した人が他ブランドで契約した数">他で契約</th>
+                                            <th className="ds_th text-end" title="重複した人が他ブランドで契約した数">他ブランドで契約</th>
                                         </tr>
                                     </thead>
                                     <tbody>

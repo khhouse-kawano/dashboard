@@ -1,4 +1,4 @@
-# デプロイ手順 v2.2.193（重複反響サマリー）
+# デプロイ手順 v2.2.193（重複反響サマリー・エリア／アクティブユーザーを右端に隠す）
 
 ⚠️ v2.2.192 を出し終えてから出すこと（ブランチが v2.2.192 の上に積んである）。
 
@@ -6,7 +6,7 @@
 |---|---|---|
 | 1 | 新しい窓口 `duplicate_summary`（重複反響の集計） | ⚠️ **② VPS**（features/duplicateSummary.ts・gateway/registry.ts） |
 | 2 | ① から ② へ `duplicate_summary` を転送する（⚠️ 入れないと ① が404を返す） | ⚠️ **① PHP**（core/express_proxy.php） |
-| 3 | 反響管理 → 重複反響サマリー（全画面）・画面の版 | ① フロント（dashboard） |
+| 3 | 反響管理 → 重複反響サマリー（全画面・エリア／期間）・アクティブユーザーの × ボタン・画面の版 | ① フロント（dashboard） |
 | 4 | 更新履歴 | ① DB |
 
 ⚠️ DB の列の追加は無い。
@@ -52,7 +52,7 @@ curl.exe -s -X POST https://khg-marketing.info/dashboard/api/gateway/ -H "Conten
 
 ## 手順3　【WSL】フロントを ① へアップロード
 `npm run build` → `deploy-dashboard`（⚠️ index.html も差し替える）
-- ローカルのビルド結果: `main.52118cc0.js` / `main.b8a7c60b.css`（CSS は変化なし）
+- ローカルのビルド結果: `main.05c8c0b7.js` / `main.b8a7c60b.css`（CSS は変化なし）
 - ⚠️ `/dashboard/funding-plan/金利データ.js`（手で置いたもの）がデプロイ後も残っているか確認すること
 
 ## 手順4　【① phpMyAdmin】更新履歴
@@ -67,5 +67,7 @@ SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 3;
 | 1 | ヘッダー → 反響管理 | 一番下に「重複反響サマリー」（Master・それ以外の両方） |
 | 2 | 重複反響サマリー | 全画面。KHG＋8ブランドのカード、ブランド色の縁、横棒（積み上げ） |
 | 3 | 開始月・終了月 | 数字が変わる（カードのブランドの反響取得日で絞る） |
+| 3' | エリア | 都道府県が件数の多い順に並ぶ（「不明」は無い）。選ぶと数字が変わる |
+| 3'' | 右上のアクティブユーザー | × で右端のつまみになり、ページを移っても隠れたまま。つまみで戻る |
 | 4 | 画面の版 | 2.2.193 |
 - ⚠️ 開くまで1〜2秒かかる（3つの台帳 約3.8万件を毎回突き合わせるため）

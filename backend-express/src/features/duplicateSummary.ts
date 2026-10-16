@@ -21,6 +21,10 @@ import { query } from '../db/pool';
  * ⚠️ カードの数字（総反響・来場・次アポ・契約）は ⚠️⚠️ **status＝重複 を除く**（ほかの画面と同じ）。
  *   ⚠️ ただし **重複の相手としては含める**（指示で承認済み）。
  *
+ * ⚠️ エリア（都道府県）は full_address から決める（下の `prefectureOf`。2026-10-16 の指示）。
+ *   ⚠️ 期間と同じく **カードのブランド側の反響だけ** を絞る（相手側は住所に関係なく全件と比べる）。
+ *   ⚠️ 都道府県が決まらない顧客は、エリアを選んだときには出ない（⚠️「不明」は選択肢に出さない。指示）。
+ *
  * ⚠️⚠️ **横棒の色分けとパネル②は「相手ブランド側での到達段階」**（案A。2026-10-16 の指示）。
  *   例: KH のカードの「DJH」の棒 … KH の反響のうち DJH にも同じ人がいるもの。
  *       色はその人が **DJH で** どこまで進んだか（資料請求のみ／来場／次アポ／契約）。
@@ -68,6 +72,7 @@ interface CustomerRow extends RowDataPacket {
   mobile: string | null;
   email: string | null;
   extra: string | null;
+  address: string | null;
   col_inquiry: string | null;
   col_interview: string | null;
   col_screening: string | null;
@@ -80,10 +85,12 @@ interface ShopRow extends RowDataPacket {
   brand: string | null;
 }
 
-export interface MonthRange {
+export interface SummaryFilter {
   /** `YYYY-MM`。⚠️ 空なら絞らない */
   start: string;
   end: string;
+  /** 都道府県（例 鹿児島県）。⚠️ 空なら絞らない */
+  area: string;
 }
 
 /** 総反響・来場・次アポ・契約。⚠️ 来場は「来場以降」、次アポは「次アポ以降」（累積） */
@@ -116,12 +123,62 @@ const toMonth = (value: unknown): string => {
 };
 
 /** ⚠️ 期間が空なら日付が読めない顧客も通す */
-const inRange = (month: string, range: MonthRange): boolean => {
+const inRange = (month: string, range: SummaryFilter): boolean => {
   if (range.start === '' && range.end === '') return true;
   if (month === '') return false;
   if (range.start !== '' && month < range.start) return false;
   if (range.end !== '' && month > range.end) return false;
   return true;
+};
+
+const PREFECTURES = [
+  '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県',
+  '埼玉県', '千葉県', '東京都', '神奈川県', '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県',
+  '岐阜県', '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県',
+  '鳥取県', '島根県', '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県',
+  '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県',
+];
+
+/**
+ * 県名の無い住所のための、九州の市・郡 → 県（⚠️ 事業エリアのものだけ）。
+ * ⚠️ 実測（2026-10-16）で県名が無い住所の先頭に多かったもの（出水市・霧島市・姶良市・薩摩川内市・都城市・八代市 など）を含む。
+ * ⚠️ 町名だけ（`日之出町` など）は全国に同名があるので入れない（⚠️ 県が決まらず「不明」のまま）。
+ */
+const CITY_PREFECTURE: Record<string, string[]> = {
+  鹿児島県: ['出水市', '霧島市', '姶良市', '薩摩川内市', '阿久根市', '伊佐市', '鹿屋市', '指宿市', '奄美市', '南さつま市',
+    '南九州市', '曽於市', '志布志市', '日置市', 'いちき串木野市', '枕崎市', '垂水市', '西之表市',
+    '大島郡', '熊毛郡', '肝属郡', '姶良郡', '出水郡', '薩摩郡', '曽於郡'],
+  宮崎県: ['都城市', '延岡市', '日向市', '日南市', '小林市', '串間市', '西都市', 'えびの市',
+    '児湯郡', '東諸県郡', '北諸県郡', '西諸県郡', '東臼杵郡', '西臼杵郡'],
+  熊本県: ['八代市', '宇土市', '合志市', '水俣市', '菊池市', '玉名市', '山鹿市', '荒尾市', '人吉市', '天草市', '宇城市',
+    '上天草市', '阿蘇市', '菊池郡', '阿蘇郡', '上益城郡', '下益城郡', '玉名郡', '葦北郡', '球磨郡', '八代郡'],
+  大分県: ['別府市', '中津市', '日田市', '佐伯市', '臼杵市', '津久見市', '竹田市', '豊後高田市', '杵築市', '宇佐市',
+    '豊後大野市', '由布市', '国東市', '速見郡', '玖珠郡'],
+  佐賀県: ['唐津市', '鳥栖市', '伊万里市', '武雄市', '鹿島市', '小城市', '嬉野市', '神埼市'],
+  福岡県: ['北九州市', '久留米市', '大牟田市', '筑後市', '柳川市', '八女市'],
+};
+
+/**
+ * full_address から都道府県を決める。決まらなければ空文字。
+ *
+ * ⚠️⚠️ **書き方がそろっていない**（実測 2026-10-16）:
+ *   `鹿児島県…`（大半）／`〒899-5105鹿児島県…`（郵便番号が先頭）／`熊本市北区…`（市から始まる）／`松橋町…`（県も市も無い）。
+ *   1. 〒・郵便番号・空白を落とす → 2. 先頭の都道府県名 → 3. 途中にある都道府県名
+ *   → 4. 県名と同じ名前の市（`熊本市` → 熊本県。⚠️ `京都市`→京都府、`東京`は対象外）→ 5. 決まらなければ空
+ */
+const prefectureOf = (address: unknown): string => {
+  // ⚠️ 郵便番号は **先頭だけ** 落とす（⚠️ 番地の途中の7桁を消さない）
+  const text = String(address ?? '').trim().replace(/^〒?\s*\d{3}[-－ー‐]?\d{4}/, '').replace(/\s/g, '');
+  if (text === '') return '';
+  const head = PREFECTURES.find((p) => text.startsWith(p));
+  if (head !== undefined) return head;
+  const inside = PREFECTURES.find((p) => text.includes(p));
+  if (inside !== undefined) return inside;
+  // ⚠️ 県名と同じ名前の市（`熊本市` → 熊本県）。⚠️ 先頭でなくても拾う（`本県熊本市`・`分県大分市` のような打ち間違いがある）
+  const city = PREFECTURES.find((p) => p !== '北海道' && p !== '東京都' && text.includes(`${p.slice(0, -1)}市`));
+  if (city !== undefined) return city;
+  const local = Object.entries(CITY_PREFECTURE).find(([, names]) => names.some((n) => text.startsWith(n)));
+  return local === undefined ? '' : local[0];
 };
 
 /** trim ＋ 空白（全角・改行を含む）を除く */
@@ -158,6 +215,8 @@ interface Customer {
   counted: boolean;
   /** 期間に入っているか */
   inPeriod: boolean;
+  /** 都道府県（full_address から）。⚠️ 決まらなければ空 */
+  pref: string;
   stage: Stage;
   keys: string[];
 }
@@ -195,12 +254,13 @@ const otherRows = () => {
  * ⚠️ 期間は **カードのブランド側の反響取得日** で絞る。⚠️ 相手側は期間に関係なく全件と比べる
  *   （⚠️ 先に他ブランドへ問い合わせていた人も「重複」として拾うため）。
  */
-export const runDuplicateSummary = async (range: MonthRange): Promise<DuplicateSummaryResult> => {
+export const runDuplicateSummary = async (range: SummaryFilter): Promise<DuplicateSummaryResult> => {
   const columns = `brand, in_charge_store AS store, status,
                    customer_contacts_phone_number AS phone,
                    customer_contacts_mobile_phone_number AS mobile,
                    customer_contacts_email AS email,
                    extra_address_info AS extra,
+                   full_address AS address,
                    ${COL_INQUIRY} AS col_inquiry,
                    ${COL_INTERVIEW} AS col_interview,
                    ${COL_SCREENING} AS col_screening,
@@ -229,6 +289,7 @@ export const runDuplicateSummary = async (range: MonthRange): Promise<DuplicateS
     brand,
     counted: row.status !== '重複',
     inPeriod: inRange(toMonth(row.col_inquiry), range),
+    pref: prefectureOf(row.address),
     stage: stageOf(row),
     keys: keysOf(row),
   });
@@ -278,6 +339,7 @@ export const runDuplicateSummary = async (range: MonthRange): Promise<DuplicateS
 
     for (const c of customers) {
       if (c.brand !== brand || !c.counted || !c.inPeriod) continue;
+      if (range.area !== '' && c.pref !== range.area) continue;
       addStage(own, c.stage);
       addStage(groupOwn, c.stage);
       groupRow.total += 1;
@@ -296,11 +358,21 @@ export const runDuplicateSummary = async (range: MonthRange): Promise<DuplicateS
     groupRows.set(brand, groupRow);
   }
 
+  /**
+   * エリアの選択肢。⚠️ カードに数える顧客（status＝重複 以外）の都道府県を件数の多い順に。
+   * ⚠️⚠️ **期間・エリアの絞り込みに関係なく全部返す**（⚠️ 選んだ瞬間に他の選択肢が消えないように）。
+   * ⚠️ 都道府県が決まらない顧客（空）は出さない（指示）。
+   */
+  const prefCount = new Map<string, number>();
+  for (const c of customers) if (c.counted && c.pref !== '') prefCount.set(c.pref, (prefCount.get(c.pref) ?? 0) + 1);
+  const areas = [...prefCount.entries()].sort((a, b) => b[1] - a[1]).map(([pref]) => pref);
+
   return {
     httpStatus: 200,
     body: {
       status: 'ok',
       range,
+      areas,
       brands: CARD_BRANDS,
       cards,
       group: {

@@ -26,12 +26,48 @@ const alertButtonStyle: React.CSSProperties = {
     whiteSpace: 'nowrap',
 };
 
+/**
+ * パネルを右端に隠しているか（v2.2.193）。⚠️⚠️ **ページを移っても・再読み込みしても保つ**（2026-10-16 の指示）。
+ *   ⚠️ localStorage はブラウザの設定で使えないことがあるので、⚠️ 読み書きは必ず try で包む（使えなければ表示のまま）。
+ */
+const HIDDEN_KEY = 'activeUserHidden';
+const readHidden = (): boolean => {
+    try { return localStorage.getItem(HIDDEN_KEY) === '1'; } catch { return false; }
+};
+
+/** 右端のつまみ。⚠️ ヘッダーの下に出す（⚠️ --header-h は Header.tsx が実測して入れている） */
+const hiddenTabStyle: React.CSSProperties = {
+    position: 'fixed',
+    right: 0,
+    top: 'calc(var(--header-h, 30px) + 12px)',
+    zIndex: 11000,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    background: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRight: 'none',
+    borderRadius: '10px 0 0 10px',
+    boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+    padding: '6px 8px 6px 10px',
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#333',
+    cursor: 'pointer',
+};
+
 const ActiveUser: React.FC = () => {
     const { token, userName, category } = useContext(AuthContext);
     const location = useLocation();
     const [activeUsers, setActiveUsers] = useState<User[]>([]);
     const [isInactive, setIsInactive] = useState(false);
     const [collapsed, setCollapsed] = useState(true);
+    /** ⚠️ × で右端に隠す。⚠️ 消すのではない（つまみから戻せる） */
+    const [hidden, setHidden] = useState<boolean>(readHidden);
+
+    useEffect(() => {
+        try { localStorage.setItem(HIDDEN_KEY, hidden ? '1' : '0'); } catch { /* ⚠️ 保存できなくても表示は切り替わる */ }
+    }, [hidden]);
 
     // --- ドラッグ用 refs / state ---
     const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -269,6 +305,9 @@ const ActiveUser: React.FC = () => {
                     ...fixedWrapperBase,
                     left: undefined as any,
                     top: undefined as any,
+                    // ⚠️⚠️ **隠すときも外さずに display で消す。**
+                    //   ⚠️ 外すとドラッグの設定（上の useEffect は最初の1回だけ）が新しい要素に付かず、動かせなくなる
+                    display: hidden ? 'none' : fixedWrapperBase.display,
                 }}
                 aria-label="Active users fixed"
             >
@@ -315,6 +354,24 @@ const ActiveUser: React.FC = () => {
                             >
                                 {collapsed ? '▾' : '▴'}
                             </button>
+                            {/* ⚠️ v2.2.193: 右端に隠す（⚠️ 右端のつまみから戻せる） */}
+                            <button
+                                type="button"
+                                onClick={() => setHidden(true)}
+                                aria-label="右端に隠す"
+                                title="右端に隠す"
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 4,
+                                    fontSize: 14,
+                                    lineHeight: 1,
+                                    color: '#6c757d'
+                                }}
+                            >
+                                ×
+                            </button>
                         </div>
                     </div>
 
@@ -349,7 +406,22 @@ const ActiveUser: React.FC = () => {
                         </div>
                     )}
                 </div>
-            </div>}</>
+            </div>}
+            {/* 隠しているときの右端のつまみ。⚠️ 出す条件はパネルと同じ（ログイン画面・狭い画面では出さない） */}
+            {location.pathname !== '/login' && width >= 768 && hidden && (
+                <button
+                    type="button"
+                    style={hiddenTabStyle}
+                    onClick={() => setHidden(false)}
+                    aria-label="アクティブユーザーを表示"
+                    title="アクティブユーザーを表示"
+                >
+                    <span style={{ color: '#6c757d' }}>‹</span>
+                    <span style={{ color: '#0d6efd' }}>●</span>
+                    {activeCount}
+                </button>
+            )}
+        </>
     );
 };
 

@@ -731,7 +731,7 @@ register({
  * 重複反響サマリー（v2.2.193）。
  *
  * ⚠️⚠️ **status＝重複 ではなく、連絡先が他ブランドの顧客と一致する反響を数える。**
- *   ⚠️ 中身は features/duplicateSummary.ts。⚠️ 期間は `YYYY-MM`（反響取得日）。空は「絞らない」。
+ *   ⚠️ 中身は features/duplicateSummary.ts。⚠️ 期間は `YYYY-MM`（反響取得日）、エリアは都道府県。空は「絞らない」。
  */
 register({
   request: 'duplicate_summary',
@@ -740,7 +740,7 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const text = (key: string) => (typeof ctx.body[key] === 'string' ? (ctx.body[key] as string).trim() : '');
-    const result = await runDuplicateSummary({ start: text('startMonth'), end: text('endMonth') });
+    const result = await runDuplicateSummary({ start: text('startMonth'), end: text('endMonth'), area: text('area') });
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
