@@ -21,6 +21,7 @@ import ClaudeAnalysis from './ClaudeAnalysis';
 import ClaudeIcon from './ClaudeIcon';
 import CompetitorAnalysisReports from './CompetitorAnalysisReports';
 import IntroductorySummary from './IntroductorySummary';
+import DuplicateInquirySummary from './DuplicateInquirySummary';
 import SatBaseDatabase from './SatBaseDatabase';
 import AmbassadorList from './AmbassadorList';
 import { InquiryAmbassador } from './InquiryAmbassador';
@@ -153,7 +154,10 @@ const Header = ({ }) => {
         'システム管理': authority === 'Master'
             ? ['店舗編集', 'スタッフ編集・追加', '権限編集', 'ローン情報更新']
             : ['店舗編集', 'スタッフ編集・追加', '権限編集'],
-        '反響管理': authority === 'Master' ? ['販促媒体設定', 'ブラックリスト設定', '広告費シミュレーター', '事後アンケート'] : ['販促媒体設定', 'ブラックリスト設定', '事後アンケート'],
+        // ⚠️ v2.2.193: 「重複反響サマリー」を追加（⚠️ 全員。DuplicateInquirySummary.tsx）
+        '反響管理': authority === 'Master'
+            ? ['販促媒体設定', 'ブラックリスト設定', '広告費シミュレーター', '事後アンケート', '重複反響サマリー']
+            : ['販促媒体設定', 'ブラックリスト設定', '事後アンケート', '重複反響サマリー'],
         // ⚠️⚠️ **2026-09-22 に土地情報同期・土地情報一覧をメニューから外した**（指示）。
         //   ⚠️ ⚠️ **コンポーネント（SyncEstate / Estate）は消していない。**
         //     ⚠️ Estate は顧客詳細からも開くため、消すとそちらが壊れる。
@@ -209,6 +213,7 @@ const Header = ({ }) => {
         'システム管理/権限編集': <EditAuth />,
         'システム管理/店舗編集': <EditShop />,
         '反響管理/ブラックリスト設定': <EditBlackList />,
+        '反響管理/重複反響サマリー': <DuplicateInquirySummary />,
         '他社動向/他社広告ライブラリ': <MetaAdsDashboard />,
         '他社動向/他社資料': <CompetitorMaterials />,
         // ⚠️ 保存済みレポートを見るだけの画面。⚠️ **Claude は呼ばない（課金なし）**
@@ -302,6 +307,9 @@ const Header = ({ }) => {
         //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
         //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
         '紹介キャンペーン/紹介キャンペーンサマリー',
+        // ⚠️ 重複反響サマリー（v2.2.193）はカード9枚をグリッドで並べる（2026-10-16 の指示で全画面）。
+        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。** コンポーネント側に作らないこと。
+        '反響管理/重複反響サマリー',
     ].includes(editMenu);
 
     // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）

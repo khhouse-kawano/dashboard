@@ -640,6 +640,14 @@ function expressProxyRequests(): array
         // ⚠️ `inquiry_introductory`（反響一覧）・`introductory`（GAS の受付）とは別物。
         // -----------------------------------------------------------------
         'introductory_summary',
+
+        // -----------------------------------------------------------------
+        // 2026-10-16 新規（v2.2.193）。重複反響サマリー（header/DuplicateInquirySummary.tsx）。
+        //
+        // ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある**（features/duplicateSummary.ts）。
+        //   ⚠️ ⚠️ **入れないと ① が404を返す。** ⚠️ expressProxyExclusive() にも入れてある。
+        // -----------------------------------------------------------------
+        'duplicate_summary',
     ];
 }
 
@@ -869,6 +877,8 @@ function expressProxyExclusive(): array
         // ⚠️ 2026-10-15 新規（v2.2.192）。紹介キャンペーンサマリー。
         //   ⚠️ ① に PHP ハンドラが無いので、② が落ちたら 502 で止める（① の404より原因が分かる）。
         'introductory_summary',
+        // ⚠️ 2026-10-16 新規（v2.2.193）。重複反響サマリー。⚠️ 理由は上と同じ
+        'duplicate_summary',
     ];
 }
 

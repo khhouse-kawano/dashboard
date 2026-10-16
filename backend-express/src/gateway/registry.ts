@@ -10,6 +10,7 @@ import { runAmbassadorInquiry } from '../features/ambassador/inquiry';
 import { runAmbassadorKpi } from '../features/ambassador/kpi';
 import { runStaffContract, toDepartment } from '../features/staffContract';
 import { runIntroductorySummary } from '../features/introductory/summary';
+import { runDuplicateSummary } from '../features/duplicateSummary';
 import {
   runAuthAccessTimes,
   runAuthInsert,
@@ -726,6 +727,25 @@ register({
  *   ⚠️ 中身は features/introductory/summary.ts。
  * ⚠️ 期間は `YYYY-MM`（反響取得日）。店舗は親店舗（併売店は親店舗として数える）。⚠️ 空はすべて「絞らない」。
  */
+/**
+ * 重複反響サマリー（v2.2.193）。
+ *
+ * ⚠️⚠️ **status＝重複 ではなく、連絡先が他ブランドの顧客と一致する反響を数える。**
+ *   ⚠️ 中身は features/duplicateSummary.ts。⚠️ 期間は `YYYY-MM`（反響取得日）。空は「絞らない」。
+ */
+register({
+  request: 'duplicate_summary',
+  summary: 'ブランドごとの他ブランドとの重複反響と、相手ブランドでの来場・次アポ・契約',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const text = (key: string) => (typeof ctx.body[key] === 'string' ? (ctx.body[key] as string).trim() : '');
+    const result = await runDuplicateSummary({ start: text('startMonth'), end: text('endMonth') });
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
 register({
   request: 'introductory_summary',
   summary: '紹介（注文・建売・中古）の紹介元・事業部・ブランド・エリア別の歩留まり',
