@@ -28,6 +28,10 @@ import { query } from '../db/pool';
  * ⚠️⚠️ **横棒の色分けとパネル②は「相手ブランド側での到達段階」**（案A。2026-10-16 の指示）。
  *   例: KH のカードの「DJH」の棒 … KH の反響のうち DJH にも同じ人がいるもの。
  *       色はその人が **DJH で** どこまで進んだか（資料請求のみ／来場／次アポ／契約）。
+ *
+ * ⚠️ v2.2.195: パネル②の行ごとに **反響媒体の内訳**（`media`）を付ける（2026-10-16 の指示・案B）。
+ *   ⚠️⚠️ 媒体は **カードのブランド側**（KH に来たときの sales_promotion_name）。⚠️ 相手側の媒体ではない。
+ *   ⚠️ 重複率の分母は「その媒体で来たカードのブランドの反響（期間・エリアで絞ったもの）」。
  * ─────────────────────────────────────────────
  */
 
@@ -73,6 +77,7 @@ interface CustomerRow extends RowDataPacket {
   email: string | null;
   extra: string | null;
   address: string | null;
+  medium: string | null;
   col_inquiry: string | null;
   col_interview: string | null;
   col_screening: string | null;
@@ -101,12 +106,26 @@ export interface Funnel {
   contract: number;
 }
 
+/** パネル②の行を開いたときの1行（カードのブランド側の反響媒体ごと） */
+export interface MediumRow {
+  medium: string;
+  /** その媒体で来たカードのブランドの反響（⚠️ 重複していないものも含む。重複率の分母） */
+  total: number;
+  /** そのうち相手ブランドと重複したもの（⚠️ 来場・次アポ・契約は相手ブランド側での到達段階） */
+  dup: Funnel;
+}
+
 /** 横棒1本＋パネル②の1行（相手ブランドごと） */
 export interface OtherBrandRow extends Funnel {
   brand: string;
   /** 積み上げの内訳（⚠️ 最も進んだ段階で1人1つ。合計＝inquiry） */
   stack: { request: number; visit: number; next: number; contract: number };
+  /** 反響媒体ごとの内訳（⚠️ 重複の多い順） */
+  media: MediumRow[];
 }
+
+/** 販促媒体が空の顧客の表記 */
+const NO_MEDIUM = '（媒体なし）';
 
 export interface DuplicateSummaryResult {
   httpStatus: number;
@@ -217,6 +236,8 @@ interface Customer {
   inPeriod: boolean;
   /** 都道府県（full_address から）。⚠️ 決まらなければ空 */
   pref: string;
+  /** 反響媒体（sales_promotion_name）。⚠️ 空なら NO_MEDIUM */
+  medium: string;
   stage: Stage;
   keys: string[];
 }
@@ -230,20 +251,34 @@ const addStage = (funnel: Funnel, stage: Stage): void => {
 };
 const STACK_KEY = ['request', 'visit', 'next', 'contract'] as const;
 
-/** 相手ブランドごとの行を作る器 */
-const otherRows = () => {
-  const map = new Map<string, OtherBrandRow>();
+/**
+ * 相手ブランドごとの行を作る器。
+ * @param mediumTotals 媒体 → カードのブランドの反響数（⚠️ 重複率の分母。全部 add し終えてから list を呼ぶ）
+ */
+const otherRows = (mediumTotals: Map<string, number>) => {
+  const map = new Map<string, Omit<OtherBrandRow, 'media'> & { byMedium: Map<string, Funnel> }>();
   return {
-    add(brand: string, stage: Stage) {
-      const row = map.get(brand) ?? { brand, ...emptyFunnel(), stack: { request: 0, visit: 0, next: 0, contract: 0 } };
+    add(brand: string, stage: Stage, medium: string) {
+      const row = map.get(brand)
+        ?? { brand, ...emptyFunnel(), stack: { request: 0, visit: 0, next: 0, contract: 0 }, byMedium: new Map<string, Funnel>() };
       addStage(row, stage);
       row.stack[STACK_KEY[stage]] += 1;
+      const dup = row.byMedium.get(medium) ?? emptyFunnel();
+      addStage(dup, stage);
+      row.byMedium.set(medium, dup);
       map.set(brand, row);
     },
-    /** ⚠️ 多い順（⚠️ 同数ならカードの並び順） */
+    /** ⚠️ 多い順（⚠️ 同数ならカードの並び順）。⚠️ 媒体も重複の多い順（同数なら媒体名順） */
     list(): OtherBrandRow[] {
       const order = (b: string) => { const i = (CARD_BRANDS as readonly string[]).indexOf(b); return i < 0 ? 99 : i; };
-      return [...map.values()].sort((a, b) => b.inquiry - a.inquiry || order(a.brand) - order(b.brand));
+      return [...map.values()]
+        .sort((a, b) => b.inquiry - a.inquiry || order(a.brand) - order(b.brand))
+        .map(({ byMedium, ...row }) => ({
+          ...row,
+          media: [...byMedium.entries()]
+            .map(([medium, dup]) => ({ medium, total: mediumTotals.get(medium) ?? 0, dup }))
+            .sort((a, b) => b.dup.inquiry - a.dup.inquiry || a.medium.localeCompare(b.medium, 'ja')),
+        }));
     },
   };
 };
@@ -261,6 +296,7 @@ export const runDuplicateSummary = async (range: SummaryFilter): Promise<Duplica
                    customer_contacts_email AS email,
                    extra_address_info AS extra,
                    full_address AS address,
+                   sales_promotion_name AS medium,
                    ${COL_INQUIRY} AS col_inquiry,
                    ${COL_INTERVIEW} AS col_interview,
                    ${COL_SCREENING} AS col_screening,
@@ -290,6 +326,7 @@ export const runDuplicateSummary = async (range: SummaryFilter): Promise<Duplica
     counted: row.status !== '重複',
     inPeriod: inRange(toMonth(row.col_inquiry), range),
     pref: prefectureOf(row.address),
+    medium: String(row.medium ?? '').trim() || NO_MEDIUM,
     stage: stageOf(row),
     keys: keysOf(row),
   });
@@ -333,7 +370,8 @@ export const runDuplicateSummary = async (range: SummaryFilter): Promise<Duplica
 
   for (const brand of brands) {
     const own = emptyFunnel();
-    const others = otherRows();
+    const mediumTotals = new Map<string, number>();
+    const others = otherRows(mediumTotals);
     let duplicated = 0;
     const groupRow = { brand, total: 0, dup: emptyFunnel(), stack: { request: 0, visit: 0, next: 0, contract: 0 } };
 
@@ -343,11 +381,12 @@ export const runDuplicateSummary = async (range: SummaryFilter): Promise<Duplica
       addStage(own, c.stage);
       addStage(groupOwn, c.stage);
       groupRow.total += 1;
+      mediumTotals.set(c.medium, (mediumTotals.get(c.medium) ?? 0) + 1);
 
       const counterparts = counterpartsOf(c);
       if (counterparts.size === 0) continue;
       duplicated += 1;
-      for (const [otherBrand, stage] of counterparts) others.add(otherBrand, stage);
+      for (const [otherBrand, stage] of counterparts) others.add(otherBrand, stage, c.medium);
 
       // ⚠️ KHG は相手が複数あれば最も進んだ段階で数える
       const best = Math.max(...counterparts.values()) as Stage;
