@@ -58,6 +58,9 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
   - テーブル名・カラム名・システムの用語は出さない。
   - 表（`|` 区切り）は使えない。
   - 記事どうしのリンクは `[[タイトル]]`。
+  - 画面を開くボタンは `[[画面:名前]]`（v2.2.196〜）。名前は `frontend/src/components/guide/guideScreens.ts` の `GUIDE_SCREENS` のキー。画面を説明する記事には最初の段落の下に置く。
+    - 本文に画面の名前（`「顧客DB」`・`[[顧客DB]]`・かぎかっこ無しの初出）が出ると、表示のときに小さい「開く」ボタンが自動で付く（GuideMarkdown.tsx の expandMentions）。
+- ⚠️ **画面（ページ・ヘッダーのメニューの項目）を追加・改名したら、`GUIDE_SCREENS` にも登録・修正する**（ページは Menu.tsx の `MENU_CONFIG`、メニューは Header.tsx の `menuMapping` と同じ条件にそろえる）。⚠️ キーの行は `    '名前': {` の形を崩さない（記事のスクリプトがこの形で名前を読む）。
   - `> 注意：` は黄色、`> 要確認：` は赤（社内ルールなど現場で確かめること）、それ以外の `>` は緑の枠になる。
 
 # セキュリティと禁止事項

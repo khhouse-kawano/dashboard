@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import apiClient from '../../utils/apiClient';
 import GuideMarkdown from './GuideMarkdown';
+import { GUIDE_COMMON } from './openGuide';
+import { GUIDE_SCREENS } from './guideScreens';
 
 /**
  * 業務ガイドの記事を作る・直す画面（v2.2.194）。⚠️ Master / BrandAdmin だけに出す（Guide.tsx）。
@@ -35,6 +37,8 @@ const SYNTAX_HELP: [string, string][] = [
     ['## 見出し', '大きな見出し（右の目次に出る）'],
     ['### 小見出し', '小さな見出し（目次に出る）'],
     ['[[記事のタイトル]]', '別の記事へのリンク。まだ無い記事は赤になる'],
+    // ⚠️ v2.2.196: 画面を開くボタン（GuideScreenButton.tsx）。⚠️ 名前は guideScreens.ts に登録したものだけ
+    ['[[画面:顧客DB]]', 'ダッシュボードの窓でその画面を開くボタン。登録の無い名前は赤になる'],
     ['> 注意：〜', '黄色の注意枠'],
     ['> 要確認：〜', '赤い枠（現場で確かめてほしいこと）'],
     ['> 〜', '緑のポイント枠'],
@@ -139,13 +143,16 @@ const GuideEditor: React.FC<Props> = ({ draft: initial, sections, divisions, tit
                             ))}
                         </dl>
                         <p>表（｜で区切る書き方）は使えません。箇条書きか見出しで書いてください。</p>
+                        {/* ⚠️ v2.2.196: `[[画面:名前]]` に使える名前（guideScreens.ts の GUIDE_SCREENS） */}
+                        <p className="gd_syntax_screens"><b>画面の名前：</b>{Object.keys(GUIDE_SCREENS).join('、')}</p>
                     </details>
                 </div>
                 <div className="gd_split_col">
                     <div className="gd_label">プレビュー</div>
                     <div className="gd_preview">
                         <h1 className="gd_h1">{draft.title || '（タイトル）'}</h1>
-                        <GuideMarkdown body={draft.body} titleToId={titleToId} onOpen={() => undefined} />
+                        <GuideMarkdown body={draft.body} titleToId={titleToId} onOpen={() => undefined}
+                            articleDivision={draft.division === GUIDE_COMMON ? null : draft.division} />
                     </div>
                 </div>
             </div>
