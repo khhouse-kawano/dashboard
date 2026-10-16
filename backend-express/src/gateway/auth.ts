@@ -26,7 +26,7 @@ import type { GatewayAuth } from './types';
  */
 
 /** 移植元: backend/src/core/authz.php の AUTHZ_MASTER */
-const AUTHZ_MASTER = 'Master';
+export const AUTHZ_MASTER = 'Master';
 
 interface StaffRow extends RowDataPacket, AuthenticatedStaff {}
 

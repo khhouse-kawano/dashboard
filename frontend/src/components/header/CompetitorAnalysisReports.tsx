@@ -198,6 +198,7 @@ const CompetitorAnalysisReports = ({ embedded = false }: Props) => {
         setStep(seen.current.has(row.no) ? STEPS.length : 0);
 
         try {
+            // ⚠️ v2.2.194: 開いた人は ② が記録する（analysis_report_view_log。⚠️ Master は記録しない・⚠️ 画面には出さない）
             const res = await apiClient.post('', { request: 'analysis_report_get', no: row.no });
             const report = res.data?.report as ReportBody | undefined;
             if (report === undefined) {
