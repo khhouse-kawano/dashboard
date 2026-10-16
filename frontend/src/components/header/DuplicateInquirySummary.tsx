@@ -16,6 +16,7 @@ import { setStyleClass } from '../../utils/setStyleClass';
  *
  * ⚠️ カード: KHG（グループ全体）＋ KH / DJH / なごみ / 2L / JH / PGH / かえる / 中専。
  *   ⚠️ 横棒とパネル②は ⚠️⚠️ **相手ブランド側での到達段階**（2026-10-16 の指示・案A）。
+ *   ⚠️ v2.2.195: パネル②のブランド名を押すと反響媒体ごとの内訳（媒体は **カードのブランド側**。案B）。
  *
  * ⚠️ 見た目は GoogleReview.tsx の作法（CLAUDE.md のデザインポリシー）。
  * ⚠️ モーダルは ⚠️⚠️ **全画面**（Header.tsx の isFullscreenMenu）。⚠️ 閉じるボタンはここに作らない。
@@ -24,7 +25,9 @@ import { setStyleClass } from '../../utils/setStyleClass';
 
 type Funnel = { inquiry: number; visit: number; next: number; contract: number };
 type Stack = { request: number; visit: number; next: number; contract: number };
-type OtherBrandRow = Funnel & { brand: string; stack: Stack };
+/** ⚠️ 媒体は **カードのブランド側**。total＝その媒体の反響（重複率の分母）、dup＝そのうち相手と重複したもの */
+type MediumRow = { medium: string; total: number; dup: Funnel };
+type OtherBrandRow = Funnel & { brand: string; stack: Stack; media: MediumRow[] };
 type Card = { own: Funnel; duplicated: number; others: OtherBrandRow[] };
 type GroupRow = { brand: string; total: number; dup: Funnel; stack: Stack };
 type Summary = {
@@ -117,34 +120,141 @@ const StackedBars = ({ rows }: { rows: { brand: string; stack: Stack }[] }) => {
     );
 };
 
-/** パネル②：相手ブランドごとの総反響・来場・次アポ・契約（⚠️ 相手ブランド側での到達段階） */
-const OthersTable = ({ rows }: { rows: OtherBrandRow[] }) => (
-    <table className="ds_table">
-        <thead>
-            <tr>
-                <th className="ds_th">他ブランド</th>
-                <th className="ds_th text-end">総反響</th>
-                <th className="ds_th text-end">来場</th>
-                <th className="ds_th text-end">次アポ</th>
-                <th className="ds_th text-end">契約</th>
-            </tr>
-        </thead>
-        <tbody>
-            {rows.map(r => (
-                <tr key={r.brand} className="ds_row">
-                    <td className="ds_td"><BrandMark brand={r.brand} /></td>
-                    <td className="ds_td ds_num">{r.inquiry.toLocaleString()}</td>
-                    {(['visit', 'next', 'contract'] as const).map(key => (
-                        <td key={key} className="ds_td ds_num">
-                            {r[key].toLocaleString()}
-                            <small>{percent(rate(r[key], r.inquiry))}</small>
-                        </td>
-                    ))}
+/** 媒体の内訳の並べ替え。⚠️ 既定は重複の多い順（② の並び） */
+type MediumSortKey = 'medium' | 'total' | 'dup' | 'dupRate' | 'visit' | 'next' | 'contract';
+const MEDIUM_COLUMNS: { key: MediumSortKey; label: string; title?: string }[] = [
+    { key: 'medium', label: '反響媒体' },
+    { key: 'total', label: '反響', title: 'カードのブランドにこの媒体で来た反響（重複していないものも含む）' },
+    { key: 'dup', label: '重複', title: 'そのうち相手のブランドにも同じ人がいる反響' },
+    { key: 'dupRate', label: '重複率', title: '重複 ÷ 反響' },
+    { key: 'visit', label: '来場', title: '相手のブランドで来場した人（下の％は重複に対する率）' },
+    { key: 'next', label: '次アポ', title: '相手のブランドで次アポまで進んだ人（下の％は重複に対する率）' },
+    { key: 'contract', label: '契約', title: '相手のブランドで契約した人（下の％は重複に対する率）' },
+];
+const mediumSortValue = (row: MediumRow, key: MediumSortKey): number | string => {
+    switch (key) {
+        case 'medium': return row.medium;
+        case 'total': return row.total;
+        case 'dup': return row.dup.inquiry;
+        case 'dupRate': return rate(row.dup.inquiry, row.total) ?? -1;
+        default: return row.dup[key];
+    }
+};
+
+/**
+ * パネル②の行を開いたときの、反響媒体ごとの内訳（v2.2.195・案B）。
+ * ⚠️ 媒体は **カードのブランド側**。⚠️ 来場・次アポ・契約は相手ブランド側での到達段階（パネル②と同じ）。
+ */
+const MediumBreakdown = ({ media, brand }: { media: MediumRow[]; brand: string }) => {
+    const [sort, setSort] = useState<{ key: MediumSortKey; desc: boolean }>({ key: 'dup', desc: true });
+    const sorted = useMemo(() => {
+        const list = [...media];
+        list.sort((a, b) => {
+            const x = mediumSortValue(a, sort.key);
+            const y = mediumSortValue(b, sort.key);
+            const diff = typeof x === 'string' ? x.localeCompare(String(y), 'ja') : x - Number(y);
+            return sort.desc ? -diff : diff;
+        });
+        return list;
+    }, [media, sort]);
+    const onSort = (key: MediumSortKey) =>
+        setSort(prev => (prev.key === key ? { key, desc: !prev.desc } : { key, desc: key !== 'medium' }));
+
+    return (
+        <div className="ds_media">
+            <div className="ds_media_head">
+                <BrandMark brand={brand} /> と重複した反響の、<b>反響媒体</b>ごとの内訳（媒体はこのカードのブランドに来たときのもの）
+            </div>
+            <div className="ds_media_scroll">
+                <table className="ds_table">
+                    <thead>
+                        <tr>
+                            {MEDIUM_COLUMNS.map(col => (
+                                <th key={col.key} title={col.title}
+                                    className={`ds_th ds_sortable ${col.key === 'medium' ? '' : 'text-end'}`}
+                                    aria-sort={sort.key === col.key ? (sort.desc ? 'descending' : 'ascending') : 'none'}
+                                    onClick={() => onSort(col.key)}>
+                                    {col.label}
+                                    <span className="ds_sort_icon">{sort.key === col.key ? (sort.desc ? '▼' : '▲') : ''}</span>
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.map(m => (
+                            <tr key={m.medium} className="ds_row">
+                                <td className="ds_td ds_medium_name" title={m.medium}>{m.medium}</td>
+                                <td className="ds_td ds_num">{m.total.toLocaleString()}</td>
+                                <td className="ds_td ds_num">{m.dup.inquiry.toLocaleString()}</td>
+                                <td className="ds_td ds_num" style={{ fontWeight: 700 }}>{percent(rate(m.dup.inquiry, m.total))}</td>
+                                {(['visit', 'next', 'contract'] as const).map(key => (
+                                    <td key={key} className="ds_td ds_num">
+                                        {m.dup[key].toLocaleString()}
+                                        <small>{percent(rate(m.dup[key], m.dup.inquiry))}</small>
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * パネル②：相手ブランドごとの総反響・来場・次アポ・契約（⚠️ 相手ブランド側での到達段階）。
+ * ⚠️ v2.2.195: ブランド名を押すと、その行の下に反響媒体ごとの内訳を開く（⚠️ 開けるのは1行だけ。もう一度押すと閉じる）。
+ */
+const OthersTable = ({ rows }: { rows: OtherBrandRow[] }) => {
+    const [openBrand, setOpenBrand] = useState<string | null>(null);
+    return (
+        <table className="ds_table">
+            <thead>
+                <tr>
+                    <th className="ds_th">他ブランド<span className="ds_th_hint">（押すと媒体別）</span></th>
+                    <th className="ds_th text-end">総反響</th>
+                    <th className="ds_th text-end">来場</th>
+                    <th className="ds_th text-end">次アポ</th>
+                    <th className="ds_th text-end">契約</th>
                 </tr>
-            ))}
-        </tbody>
-    </table>
-);
+            </thead>
+            <tbody>
+                {rows.map(r => {
+                    const isOpen = openBrand === r.brand;
+                    return (
+                        <React.Fragment key={r.brand}>
+                            <tr className={`ds_row${isOpen ? ' is_open' : ''}`}>
+                                <td className="ds_td">
+                                    <button type="button" className="ds_brand_btn" aria-expanded={isOpen}
+                                        title={`${r.brand} と重複した反響を、反響媒体ごとに見る`}
+                                        onClick={() => setOpenBrand(isOpen ? null : r.brand)}>
+                                        <span className="ds_caret" aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
+                                        <BrandMark brand={r.brand} />
+                                    </button>
+                                </td>
+                                <td className="ds_td ds_num">{r.inquiry.toLocaleString()}</td>
+                                {(['visit', 'next', 'contract'] as const).map(key => (
+                                    <td key={key} className="ds_td ds_num">
+                                        {r[key].toLocaleString()}
+                                        <small>{percent(rate(r[key], r.inquiry))}</small>
+                                    </td>
+                                ))}
+                            </tr>
+                            {isOpen && (
+                                <tr>
+                                    <td colSpan={5} className="ds_media_cell">
+                                        <MediumBreakdown media={r.media} brand={r.brand} />
+                                    </td>
+                                </tr>
+                            )}
+                        </React.Fragment>
+                    );
+                })}
+            </tbody>
+        </table>
+    );
+};
 
 /** ブランド名の左に色の印 */
 const BrandMark = ({ brand }: { brand: string }) => (
@@ -261,6 +371,27 @@ const DuplicateInquirySummary = () => {
                 .ds_mark i { display: inline-block; width: 4px; height: 14px; border-radius: 2px; }
                 .ds_table_wrap { border: 1px solid #e5e7eb; border-radius: 8px; overflow: auto; }
                 .ds_empty { color: #9ca3af; font-size: 12px; text-align: center; padding: 14px; }
+
+                /* ⚠️ v2.2.195: パネル②のブランド名 → 反響媒体ごとの内訳 */
+                .ds_th_hint { font-weight: 400; color: #9ca3af; margin-left: 4px; }
+                .ds_brand_btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: none;
+                                padding: 2px 4px 2px 0; border-radius: 6px; cursor: pointer; color: inherit; font: inherit; }
+                .ds_brand_btn:hover .ds_mark { text-decoration: underline; }
+                .ds_brand_btn:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; }
+                .ds_caret { font-size: 10px; color: #0f766e; width: 10px; }
+                .ds_row.is_open > .ds_td { background: #f0fdfa; }
+                .ds_media_cell { padding: 0 4px 8px; background: #f0fdfa; border-bottom: 1px solid #e5e7eb; }
+                /* ⚠️⚠️ width: 0 ＋ min-width: 100% … 内訳の表が **親の表（パネル②）を押し広げない** ように。はみ出す分は内訳の中で横にスクロール */
+                .ds_media { background: #fff; border: 1px solid #ccebe6; border-radius: 8px; padding: 6px;
+                            display: flex; flex-direction: column; gap: 6px; width: 0; min-width: 100%; box-sizing: border-box; }
+                .ds_media_head { font-size: 11px; color: #4b5563; white-space: normal; line-height: 1.6; }
+                .ds_media_scroll { max-height: 320px; overflow: auto; }
+                .ds_media_scroll .ds_th { position: sticky; top: 0; z-index: 1; padding: 4px 5px; }
+                .ds_media_scroll .ds_td { padding: 4px 5px; font-size: 11px; }
+                .ds_sortable { cursor: pointer; user-select: none; }
+                .ds_sortable:hover { color: #0f766e; }
+                .ds_sort_icon { display: inline-block; width: 10px; font-size: 9px; margin-left: 2px; }
+                .ds_medium_name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
             `}</style>
 
             <div className="ds_inner">
@@ -318,6 +449,9 @@ const DuplicateInquirySummary = () => {
                     ※ 横棒とパネル②の来場・次アポ・契約は、<b>相手のブランドで</b>どこまで進んだかです。
                     期間は<b>カードのブランドの反響取得日</b>、エリアは<b>カードのブランドの顧客の住所</b>で絞ります（相手のブランドは期間・住所に関係なく比べます）。
                     住所から都道府県が分からない顧客は、エリアを選ぶと数字に入りません。
+                    <br />
+                    ※ パネル②のブランド名を押すと、<b>反響媒体ごとの内訳</b>が開きます。媒体は<b>カードのブランドに来たとき</b>のもので、
+                    重複率は「その媒体で来た反響のうち、相手のブランドにも同じ人がいる割合」です。
                     <br />
                     ※ 来場＝初回面談以降の日付あり、次アポ＝事前審査・第二面談・契約の日付あり、契約＝状況が「契約済み」です。
                     中専は担当店舗が「買い:中古リノベ」の顧客だけです。
