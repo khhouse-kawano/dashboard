@@ -11,6 +11,7 @@ import { runAmbassadorKpi } from '../features/ambassador/kpi';
 import { runStaffContract, toDepartment } from '../features/staffContract';
 import { runIntroductorySummary } from '../features/introductory/summary';
 import { runDuplicateSummary } from '../features/duplicateSummary';
+import { getGuide, listGuide, saveGuide } from '../features/guide';
 import {
   runAuthAccessTimes,
   runAuthInsert,
@@ -741,6 +742,50 @@ register({
   handler: async (ctx) => {
     const text = (key: string) => (typeof ctx.body[key] === 'string' ? (ctx.body[key] as string).trim() : '');
     const result = await runDuplicateSummary({ start: text('startMonth'), end: text('endMonth'), area: text('area') });
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 業務ガイド（v2.2.194）。⚠️ 中身は features/guide.ts。
+ *
+ * ⚠️⚠️ **① に PHP ハンドラは無い。** ⚠️ express_proxy.php の転送リストと転送専用リストの両方に入れてある。
+ * ⚠️⚠️ **guide_save は `auth: 'staff'` で受け、編集権限（Master / BrandAdmin）は saveGuide の中で見る。**
+ *   ⚠️ `auth: 'master'` にすると BrandAdmin が保存できなくなる。
+ */
+register({
+  request: 'guide_list',
+  summary: '業務ガイドの記事一覧（本文なし）と、編集できるか',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await listGuide(ctx.staff);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'guide_article',
+  summary: '業務ガイドの記事1本',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await getGuide(ctx.staff, ctx.body.id);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'guide_save',
+  summary: '【書き込み】業務ガイドの記事を作る・直す（Master / BrandAdmin のみ。直前の内容を履歴に残す）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const { id, title, division, section, summary, body, sort, published } = ctx.body;
+    const result = await saveGuide(ctx.staff, { id, title, division, section, summary, body, sort, published });
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
