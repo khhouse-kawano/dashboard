@@ -12,7 +12,7 @@
  * ─────────────────────────────────────────────
  */
 
-const GUIDE_WINDOW = 'khg-business-guide';
+export const GUIDE_WINDOW = 'khg-business-guide';
 
 /**
  * 業務ガイドの対象の事業。⚠️ 色はトップ画面（Category.tsx）のボタンと同じ。

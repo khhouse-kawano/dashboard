@@ -241,7 +241,8 @@ const Guide: React.FC = () => {
                             </div>
                             <h1 className="gd_h1">{article.title}</h1>
                             {article.summary && <p className="gd_lead">{article.summary}</p>}
-                            <GuideMarkdown body={article.body} titleToId={titleToId} onOpen={openByTitle} />
+                            <GuideMarkdown body={article.body} titleToId={titleToId} onOpen={openByTitle}
+                                articleDivision={article.division === GUIDE_COMMON ? null : article.division} />
                         </article>
                     ) : (
                         <div className="gd_home">
@@ -342,6 +343,32 @@ const CSS = `
           text-decoration: underline; text-decoration-color: #99f6e4; text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .gd_ref:hover { text-decoration-color: #0f766e; }
 .gd_ref.is_missing { color: #dc2626; text-decoration-color: #fecaca; }
+/* ⚠️ v2.2.196: 「画面を開く」ボタン（GuideScreenButton.tsx）。⚠️ 記事へのリンク（緑の下線）と見分けられるよう、青の枠付きの札 */
+.gd_screen_wrap { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; vertical-align: baseline; }
+.gd_screen { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8;
+             border-radius: 999px; padding: 1px 12px 1px 9px; font: inherit; font-size: 13px; font-weight: 700; line-height: 1.7;
+             cursor: pointer; white-space: nowrap; }
+.gd_screen:hover:not(:disabled) { background: #dbeafe; border-color: #93c5fd; }
+.gd_screen:focus-visible { outline: 2px solid #3b82f6; outline-offset: 1px; }
+.gd_screen:disabled { background: #f3f4f6; border-color: #e5e7eb; color: #9ca3af; cursor: default; }
+.gd_screen[aria-busy="true"] { cursor: progress; }
+.gd_screen.is_missing { background: #fef2f2; border-color: #fecaca; color: #dc2626; cursor: default; }
+.gd_screen_icon { font-size: 12px; }
+/* ⚠️ 本文の画面の名前の後ろに付く小さいボタン（GuideMarkdown.tsx の expandMentions）。⚠️ 文の流れを崩さない大きさ */
+.gd_screen.is_compact { font-size: 11px; line-height: 1.6; padding: 0 8px 0 6px; gap: 2px; margin: 0 3px; vertical-align: 1px; }
+.gd_screen.is_compact .gd_screen_icon { font-size: 10px; }
+.gd_screen_note { font-size: 12px; color: #6b7280; }
+.gd_screen_note.is_ok { color: #0f766e; font-weight: 700; }
+.gd_screen_note.is_error { color: #b91c1c; font-weight: 700; }
+/* ⚠️ 開く前の確認（⚠️ 本文の段落の中に置くので span で組む。見た目はモーダル） */
+.gd_confirm_back { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+                   background: rgba(15, 23, 42, .35); padding: 16px; }
+.gd_confirm { display: flex; flex-direction: column; gap: 10px; width: min(100%, 440px); background: #fff; border-radius: 12px;
+              padding: 18px 20px; box-shadow: 0 12px 32px rgba(15, 23, 42, .2); font-size: 14px; line-height: 1.8; cursor: default; }
+.gd_confirm_title { font-size: 16px; font-weight: 700; color: #1f2937; }
+.gd_confirm_text { color: #374151; }
+.gd_confirm_text strong { display: block; margin-top: 4px; color: #b91c1c; background: none; }
+.gd_confirm_actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .gd_callout { margin: 0 0 16px; padding: 10px 14px; border-radius: 10px; border: 1px solid; font-size: 14px; line-height: 1.85; }
 .gd_callout p:last-child { margin-bottom: 0; }
 .gd_callout.is_tip { background: #f0fdfa; border-color: #99f6e4; }
@@ -395,6 +422,7 @@ const CSS = `
 .gd_syntax summary { cursor: pointer; font-weight: 700; }
 .gd_syntax dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
 .gd_syntax dd { margin: 0; }
+.gd_syntax_screens { line-height: 1.8; }
 
 /* ⚠️ 窓が狭いとき: 右の見出しを消す → さらに狭いと左の目次を開閉式にする */
 @media (max-width: 1100px) {
