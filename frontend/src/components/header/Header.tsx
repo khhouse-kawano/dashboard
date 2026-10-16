@@ -35,6 +35,7 @@ import UploadLoan from './UploadLoan';
 import RankingLoader from '../company/RankingLoader';
 import { openDailyAction } from '../DailyAction';
 import { isGuideCategory, openGuide } from '../guide/openGuide';
+import { useGuideScreenReceiver } from '../guide/useGuideScreenReceiver';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
@@ -248,6 +249,79 @@ const Header = ({ }) => {
         'Google口コミ/口コミ集計': <GoogleReview />
     };
 
+    /**
+     * メニューの項目を開く。⚠️ v2.2.196: ドロップダウンの onClick から関数に出した（⚠️ 業務ガイドの「画面を開く」も使う）。
+     * ⚠️ 中身は以前の onClick のまま。⚠️ そのメニューに出ていない項目（権限が無い）は開かずに false。
+     */
+    const openMenuItem = (menu: MenuKey, item: string): boolean => {
+        if (!menuMapping[menu]?.includes(item)) return false;
+        // ⚠️⚠️ 集客イベントの「反響一覧」だけは共通モーダルを
+        //   使わない。EventList が自前の fullscreen モーダルを
+        //   持っているため、共通モーダルに入れると二重になる。
+        //
+        // ⚠️ 以前は menu === '集客イベント' だけで判定しており、
+        //   項目に関係なく必ず EventList を開いていた。
+        //   2026-09-09 に「集客サマリー」を追加したため、
+        //   **項目まで見て分岐する**必要がある。
+        //   item を見ない条件に戻すと、集客サマリーを選んでも
+        //   反響一覧が開く（エラーにならないので気づきにくい）。
+        if (menu === '集客イベント' && item === '反響一覧') {
+            setEventSummary(true);
+            return true;
+        }
+        // ⚠️ 広告費入力も自前のモーダルを持つ。
+        //   共通モーダルに入れず専用の state で開く
+        if (menu === '集客イベント' && item === '広告費入力') {
+            setEventBudget(true);
+            return true;
+        }
+        // ⚠️ おうちづくりフェスタ2026（v2.2.172）も自前の fullscreen モーダル
+        if (menu === '集客イベント' && item === 'おうちづくりフェスタ2026') {
+            setShowFesta(true);
+            return true;
+        }
+        // ⚠️ ローン情報更新も自前のモーダル（md）を持つ（v2.2.168）
+        if (menu === 'システム管理' && item === 'ローン情報更新') {
+            setUploadLoan(true);
+            return true;
+        }
+        // ⚠️ アクションボード（v2.2.169）は ⚠️ **App.tsx に置いてある DailyAction を開くだけ**。
+        //   ⚠️ ActiveUser.tsx のボタンと同じ関数（⚠️ 押したときは取り直し、0件でも開く）。
+        if (menu === '活動サマリー' && item === 'アクションボード') {
+            openDailyAction();
+            return true;
+        }
+        // ⚠️ 契約数ランキング（v2.2.169）も自前のモーダル
+        if (menu === '活動サマリー' && item === '契約数ランキング') {
+            setShowRanking(true);
+            return true;
+        }
+        // ⚠️ キーは `メニュー/項目`。項目名だけだと
+        //   複数のメニューにある「反響一覧」が区別できない
+        setEditMenu(`${menu}/${item}`);
+        setModal(true);
+        return true;
+    };
+
+    /** ⚠️ v2.2.196: 業務ガイドから開く前に、ヘッダーのモーダルを閉じる（⚠️ ページを移ってもヘッダーのモーダルは残るため） */
+    const closeHeaderModals = (): void => {
+        setModal(false);
+        setClaudeModal(false);
+        setEventSummary(false);
+        setShowFesta(false);
+        setEventBudget(false);
+        setUploadLoan(false);
+        setShowRanking(false);
+    };
+
+    // ⚠️ v2.2.196: 業務ガイドの「画面を開く」を受ける（guide/useGuideScreenReceiver.ts）。⚠️ ここで1回だけ
+    useGuideScreenReceiver({
+        // ⚠️ 無いメニュー名は openMenuItem の menuMapping の確かめで false になる
+        openMenuItem: (menu, item) => openMenuItem(menu as MenuKey, item),
+        openClaude,
+        closeHeaderModals,
+    });
+
     useEffect(() => {
         const fetchData = async () => {
             const response = await apiClient.post("", { request: "header" });
@@ -409,53 +483,7 @@ const Header = ({ }) => {
                                 <Dropdown.Item
                                     key={item}
                                     className="py-2 px-3 text-dark position-relative"
-                                    onClick={() => {
-                                        // ⚠️⚠️ 集客イベントの「反響一覧」だけは共通モーダルを
-                                        //   使わない。EventList が自前の fullscreen モーダルを
-                                        //   持っているため、共通モーダルに入れると二重になる。
-                                        //
-                                        // ⚠️ 以前は menu === '集客イベント' だけで判定しており、
-                                        //   項目に関係なく必ず EventList を開いていた。
-                                        //   2026-09-09 に「集客サマリー」を追加したため、
-                                        //   **項目まで見て分岐する**必要がある。
-                                        //   item を見ない条件に戻すと、集客サマリーを選んでも
-                                        //   反響一覧が開く（エラーにならないので気づきにくい）。
-                                        if (menu === '集客イベント' && item === '反響一覧') {
-                                            setEventSummary(true);
-                                            return;
-                                        }
-                                        // ⚠️ 広告費入力も自前のモーダルを持つ。
-                                        //   共通モーダルに入れず専用の state で開く
-                                        if (menu === '集客イベント' && item === '広告費入力') {
-                                            setEventBudget(true);
-                                            return;
-                                        }
-                                        // ⚠️ おうちづくりフェスタ2026（v2.2.172）も自前の fullscreen モーダル
-                                        if (menu === '集客イベント' && item === 'おうちづくりフェスタ2026') {
-                                            setShowFesta(true);
-                                            return;
-                                        }
-                                        // ⚠️ ローン情報更新も自前のモーダル（md）を持つ（v2.2.168）
-                                        if (menu === 'システム管理' && item === 'ローン情報更新') {
-                                            setUploadLoan(true);
-                                            return;
-                                        }
-                                        // ⚠️ アクションボード（v2.2.169）は ⚠️ **App.tsx に置いてある DailyAction を開くだけ**。
-                                        //   ⚠️ ActiveUser.tsx のボタンと同じ関数（⚠️ 押したときは取り直し、0件でも開く）。
-                                        if (menu === '活動サマリー' && item === 'アクションボード') {
-                                            openDailyAction();
-                                            return;
-                                        }
-                                        // ⚠️ 契約数ランキング（v2.2.169）も自前のモーダル
-                                        if (menu === '活動サマリー' && item === '契約数ランキング') {
-                                            setShowRanking(true);
-                                            return;
-                                        }
-                                        // ⚠️ キーは `メニュー/項目`。項目名だけだと
-                                        //   複数のメニューにある「反響一覧」が区別できない
-                                        setEditMenu(`${menu}/${item}`);
-                                        setModal(true);
-                                    }}
+                                    onClick={() => openMenuItem(menu, item)}
                                 >
                                     {/* ⚠️ 競合分析はロゴ＋文言で出す（ヘッダーの「による分析」と同じ形） */}
                                     {item === CLAUDE_COMPETITOR_ITEM

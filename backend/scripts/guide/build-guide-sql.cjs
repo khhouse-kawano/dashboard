@@ -36,6 +36,20 @@ const SECTIONS = ['業務の流れ', '画面の使い方', '用語'];
 const DIVISIONS = ['order', 'spec', 'used', 'common'];
 const MAX_BODY_BYTES = 60000; // ⚠️ ② の features/guide.ts と同じ上限
 const LINK = /\[\[([^[\]\n]+)\]\]/g;
+/** ⚠️ v2.2.196: `[[画面:名前]]`（画面を開くボタン）。⚠️ 記事へのリンクとしては数えない */
+const SCREEN = /^画面[:：](.+)$/;
+
+/**
+ * 画面の名前の一覧（frontend/src/components/guide/guideScreens.ts の GUIDE_SCREENS のキー）。
+ * ⚠️ `// GUIDE_SCREENS_BEGIN` 〜 `// GUIDE_SCREENS_END` の間の `    '名前': {` の行を読む（⚠️ あちらの説明のとおり、この形を崩さない）。
+ */
+const screenNames = (() => {
+  const file = path.join(__dirname, '../../../frontend/src/components/guide/guideScreens.ts');
+  const text = fs.readFileSync(file, 'utf8');
+  const block = /\/\/ GUIDE_SCREENS_BEGIN([\s\S]*?)\/\/ GUIDE_SCREENS_END/.exec(text);
+  if (block === null) throw new Error(`${file}: GUIDE_SCREENS_BEGIN / END の印がありません`);
+  return new Set([...block[1].matchAll(/^ {4}'([^']+)': \{/gm)].map((m) => m[1]));
+})();
 
 const q = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "''") + "'";
 
@@ -74,6 +88,11 @@ const targets = process.argv.slice(2).length > 0
 const withoutCode = (body) => body.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
 for (const a of targets) {
   for (const [, t] of withoutCode(a.body).matchAll(LINK)) {
+    const screen = SCREEN.exec(t.trim());
+    if (screen !== null) {
+      if (!screenNames.has(screen[1].trim())) process.stderr.write(`⚠️ ${a.file}: [[${t.trim()}]] の画面が guideScreens.ts にありません（赤い札になります）\n`);
+      continue;
+    }
     if (!titleCount.has(t.trim())) process.stderr.write(`⚠️ ${a.file}: [[${t.trim()}]] の記事がありません（赤いリンクになります）\n`);
   }
 }
