@@ -39,6 +39,7 @@ import LeadSell from "./components/lead/LeadSell";
 import LeadOpportunity from "./components/lead/LeadOpportunity";
 import LeadResale from "./components/lead/LeadResale";
 import Summary from "./components/summary/Summary";
+import Guide from "./components/guide/Guide";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
 
@@ -77,6 +78,19 @@ function AppInner() {
     setOpen(true);
   }, []);
 
+  /**
+   * ⚠️⚠️ **業務ガイド（v2.2.194）は別ウインドウで開く専用の画面。**
+   *   ⚠️ ヘッダー・メニュー・アクティブユーザー・要確認を出さない（⚠️ 出すとガイドの窓にも二重に出る）。
+   *   ⚠️ ログイン確認（AuthProvider）はほかの画面と同じく効く。
+   */
+  //   ⚠️ 記事は `/guide?id=12`（⚠️ `/guide/12` にすると再読み込みで真っ白になる。Guide.tsx の説明）。
+  if (currentPath === '/guide') {
+    return (
+      <Routes>
+        <Route path="/guide" element={<Guide />} />
+      </Routes>
+    );
+  }
 
 
   return (

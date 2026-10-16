@@ -648,6 +648,17 @@ function expressProxyRequests(): array
         //   ⚠️ ⚠️ **入れないと ① が404を返す。** ⚠️ expressProxyExclusive() にも入れてある。
         // -----------------------------------------------------------------
         'duplicate_summary',
+
+        // -----------------------------------------------------------------
+        // 2026-10-16 新規（v2.2.194）。業務ガイド（guide/Guide.tsx。別ウインドウの `/guide`）。
+        //
+        // ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある**（features/guide.ts）。
+        //   ⚠️ ⚠️ **入れないと ① が404を返す。** ⚠️ expressProxyExclusive() にも入れてある。
+        //   ⚠️ guide_save は書き込み。⚠️ 編集できる人（Master / BrandAdmin）の判定は ② が行う。
+        // -----------------------------------------------------------------
+        'guide_list',
+        'guide_article',
+        'guide_save',
     ];
 }
 
@@ -879,6 +890,10 @@ function expressProxyExclusive(): array
         'introductory_summary',
         // ⚠️ 2026-10-16 新規（v2.2.193）。重複反響サマリー。⚠️ 理由は上と同じ
         'duplicate_summary',
+        // ⚠️ 2026-10-16 新規（v2.2.194）。業務ガイド。⚠️ 理由は上と同じ
+        'guide_list',
+        'guide_article',
+        'guide_save',
     ];
 }
 

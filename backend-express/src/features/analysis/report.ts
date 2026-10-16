@@ -1,6 +1,9 @@
 import type { RowDataPacket } from 'mysql2/promise';
 // ⚠️ `executeLarge` は HTML を書くところだけ。⚠️ 他は従来どおり `execute`
 import { execute, executeLarge, query } from '../../db/pool';
+import { AUTHZ_MASTER } from '../../gateway/auth';
+import type { AuthenticatedStaff } from '../../types/staff';
+import { logger } from '../../utils/logger';
 
 /**
  * Claude が書いた分析レポート（HTML）の保存と取り出し。
@@ -101,6 +104,25 @@ export const getReport = async (no: number): Promise<DynamicRow | null> => {
   );
 
   return rows[0] ?? null;
+};
+
+/**
+ * レポートを開いた人を記録する（v2.2.194）。⚠️ analysis_report_get が本文を返すたびに呼ぶ。
+ *
+ * ⚠️⚠️ **Master は記録しない**（2026-10-16 の指示。⚠️ 確認のたびに数が増えて現場の閲覧が分かりにくくなる）。
+ * ⚠️⚠️ **記録に失敗してもレポートは出す**（⚠️ ここで例外を投げない。⚠️ ログにだけ残す）。
+ * ⚠️ 記録は画面に出さない（指示）。⚠️ 見方は backend/scripts/sql/2026-10-16_analysis_report_view_log.sql の先頭。
+ */
+export const logReportView = async (reportNo: number, staff: AuthenticatedStaff | null): Promise<void> => {
+  if (staff === null || staff.brand === AUTHZ_MASTER) return;
+  try {
+    await execute(
+      'INSERT INTO analysis_report_view_log (report_no, staff_id, staff_name, authority, division) VALUES (?, ?, ?, ?, ?)',
+      [reportNo, staff.id, staff.name.slice(0, 128), staff.brand.slice(0, 32), staff.shop.slice(0, 16)]
+    );
+  } catch (error) {
+    logger.error(`analysis_report_view_log insert failed: report_no=${reportNo} staff_id=${staff.id} ${String(error)}`);
+  }
 };
 
 /** 削除。⚠️ 取り消せないので、呼ぶ側で確認すること */

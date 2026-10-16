@@ -34,6 +34,7 @@ import GoogleReview from './GoogleReview';
 import UploadLoan from './UploadLoan';
 import RankingLoader from '../company/RankingLoader';
 import { openDailyAction } from '../DailyAction';
+import { isGuideCategory, openGuide } from '../guide/openGuide';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
@@ -372,6 +373,18 @@ const Header = ({ }) => {
                 >
                     マーケット情報
                 </div>
+                {/* ⚠️ v2.2.194: 業務ガイド（⚠️ マーケット情報の右・指示）。⚠️ 別ウインドウで開く。⚠️ 注文営業・建売営業・中古リノベ */}
+                {isGuideCategory(category) && (
+                    <div className='rounded-pill text-white me-1 shadow-sm'
+                        role="button" tabIndex={0}
+                        style={{ padding: '2px 10px', fontSize: '10px', cursor: 'pointer', background: '#0f766e' }}
+                        onClick={() => openGuide()}
+                        onKeyDown={(e) => { if (e.key === 'Enter') openGuide(); }}
+                        title="業務ガイドを別ウインドウで開く"
+                    >
+                        業務ガイド
+                    </div>
+                )}
                 {menuArray.map((menu) => (
                     <Dropdown key={menu} className="me-1">
                         <Dropdown.Toggle

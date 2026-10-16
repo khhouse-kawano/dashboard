@@ -3,6 +3,7 @@ import AuthContext from '../context/AuthContext';
 import { useLocation } from "react-router-dom";
 import apiClient from '../utils/apiClient';
 import { openDailyAction, DAILY_CATEGORIES, NO_DAILY_ACTION } from './DailyAction';
+import { isGuideCategory, openGuide } from './guide/openGuide';
 
 type User = { id?: string | number, name: string, heartbeat: string };
 
@@ -24,6 +25,16 @@ const alertButtonStyle: React.CSSProperties = {
     cursor: 'pointer',
     marginBottom: 8,
     whiteSpace: 'nowrap',
+};
+
+/**
+ * 「業務ガイド」ボタンの見た目（v2.2.194）。⚠️ 要確認ボタンと同じ形で、色だけ変える（⚠️ 赤＝要対応と紛れないように緑）。
+ */
+const guideButtonStyle: React.CSSProperties = {
+    ...alertButtonStyle,
+    background: '#f0fdfa',
+    border: '1px solid #99f6e4',
+    color: '#0f766e',
 };
 
 /**
@@ -330,6 +341,15 @@ const ActiveUser: React.FC = () => {
                             aria-label="要確認の顧客を表示"
                         >
                             要確認
+                        </button>
+                    )}
+                    {/*
+                      ⚠️ v2.2.194: 「業務ガイド」（⚠️ 要確認の下・指示）。⚠️ 押すと別ウインドウで開く（guide/openGuide.ts）。
+                        ⚠️ 注文営業・建売営業・中古リノベ（指示）。⚠️ 要確認が出ない画面（トップなど）でも出す。
+                    */}
+                    {isGuideCategory(category) && (
+                        <button type="button" style={guideButtonStyle} onClick={() => openGuide()} aria-label="業務ガイドを別ウインドウで開く">
+                            業務ガイド
                         </button>
                     )}
                     <div style={headerStyle}>

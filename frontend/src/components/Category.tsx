@@ -6,6 +6,7 @@ import apiClient from '../utils/apiClient';
 import Table from "react-bootstrap/Table";
 import { useIsSp } from '../utils/isSp';
 import { markCategoryChosen } from './DailyAction';
+import { openGuide } from './guide/openGuide';
 
 type Log = { no: number, version: string, date: string, note: string };
 
@@ -71,6 +72,19 @@ const Category = () => {
                     <div className="bg-warning text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill pointer my-2" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
                         onClick={() => goToDashboard('used')}>中古リノベ</div>
                 </div>
+                {/*
+                  ⚠️ v2.2.194: 業務ガイド（⚠️ 4つのボタンの下・指示）。⚠️ 別ウインドウで開く（guide/openGuide.ts）。
+                    ⚠️ この画面ではまだ事業を選んでいないので、⚠️ **担当事業（shopValue）が注文営業・建売営業・中古リノベ・全事業の人にだけ**出す。
+                */}
+                {['order', 'spec', 'used', 'all'].includes(shopValue) && (
+                    <div className="text-center mt-2">
+                        <button type="button" onClick={() => openGuide()}
+                            style={{ background: '#f0fdfa', border: '1px solid #99f6e4', color: '#0f766e', borderRadius: 999,
+                                padding: isSp ? '4px 16px' : '6px 24px', fontSize: isSp ? 11 : 13, fontWeight: 700, letterSpacing: '1px', cursor: 'pointer' }}>
+                            業務ガイド
+                        </button>
+                    </div>
+                )}
                 <div style={{ width: '90%', maxWidth: '568px', margin: '30px auto 0', height: '180px', overflowY: 'scroll' }}>
                     <Table striped>
                         <tbody style={{ fontSize: '10px' }}>
