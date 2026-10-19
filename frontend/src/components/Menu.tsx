@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import React, { useEffect, useState, useContext, useMemo } from 'react';
+import React, { useEffect, useState, useContext, useMemo, useId } from 'react';
 import "./SearchBox.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import AuthContext from '../context/AuthContext';
@@ -10,6 +10,8 @@ import { useIsSp } from '../utils/isSp';
 import apiClient from "../utils/apiClient";
 import { isPendingSync } from './list/listTags';
 import { missingLostFields } from '../utils/informationUtils';
+import GuideSearchPanel, { GuideListItem, divisionColorOf, divisionLabelOf, fetchGuideListOnce } from './guide/GuideSearchPanel';
+import { GUIDE_COMMON, allowedGuideDivisions, isGuideCategory, openGuide } from './guide/openGuide';
 
 type UnSync = { inquiry_date: string, sync: number, duplicate_flag: number, support_flag: number, black_flag: number };
 type Cancel = Record<string, string>;
@@ -61,7 +63,7 @@ const fetchMenuOnce = (key: number) => {
 };
 
 const Menu = ({ key, onReload }: Props) => {
-    const { authority, category, version } = useContext(AuthContext);
+    const { authority, category, version, shopName } = useContext(AuthContext);
     const location = useLocation();
     const currentPath = location.pathname;
     const fullPath = location.pathname + location.search;
@@ -81,6 +83,19 @@ const Menu = ({ key, onReload }: Props) => {
     const [lost, setLost] = useState(0);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [estateId, setEstateId] = useState('');
+
+    /**
+     * 業務ガイドの検索（v2.2.198）。⚠️ 記事の一覧は最初に文字を入れたときに取る（⚠️ メニューを開くたびには取らない）。
+     * ⚠️ 選んだ記事は PC なら右側（GuideSearchPanel）、スマホなら業務ガイドの窓で開く。
+     */
+    const [searchGuide, setSearchGuide] = useState('');
+    const [guideList, setGuideList] = useState<GuideListItem[] | null>(null);
+    const [guideListFailed, setGuideListFailed] = useState(false);
+    const [guideActive, setGuideActive] = useState(0);
+    const [guideId, setGuideId] = useState<number | null>(null);
+    /** ⚠️ Menu は2回マウントされるので、候補の id は useId で分ける */
+    const guideListId = useId();
+    const canSearchGuide = isGuideCategory(category) && allowedGuideDivisions(authority, category, shopName).length > 0;
 
     const dateFormate = (value: string) => (value ?? '').replace(/\//g, '-');
 
@@ -153,7 +168,53 @@ const Menu = ({ key, onReload }: Props) => {
     }, [cancelList, serverCounts]);
 
     const handleNavigate = (path: string) => {
+        setGuideId(null);
         navigate(path, { state: { authority } });
+    };
+
+    // ⚠️ ページ・事業を移ったら記事を閉じる（⚠️ 記事の「画面を開く」で移ったときも）
+    useEffect(() => { setGuideId(null); }, [fullPath, category]);
+
+    const loadGuideList = () => {
+        setGuideListFailed(false);
+        fetchGuideListOnce().then(setGuideList).catch(() => setGuideListFailed(true));
+    };
+
+    const onSearchGuide = (value: string) => {
+        setSearchGuide(value);
+        setGuideActive(0);
+        if (guideList === null && value.trim() !== '') loadGuideList();
+    };
+
+    /** 候補。⚠️ タイトルに含むもの・いまの事業と全事業共通の記事だけ・公開中だけ */
+    const guideKeyword = searchGuide.trim().toLowerCase();
+    const guideSuggestions = useMemo(() => {
+        if (guideKeyword === '' || guideList === null) return [];
+        return guideList
+            .filter((a) => a.published !== 0 && (a.division === category || a.division === GUIDE_COMMON))
+            .filter((a) => a.title.toLowerCase().includes(guideKeyword))
+            .slice(0, GUIDE_SUGGEST_MAX);
+    }, [guideList, guideKeyword, category]);
+
+    const chooseGuide = (item: GuideListItem) => {
+        setSearchGuide('');
+        if (isSp) { openGuide(item.title); return; }
+        setGuideId(item.id);
+    };
+
+    const onSearchGuideKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Escape') { setSearchGuide(''); return; }
+        if (guideSuggestions.length === 0) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); setGuideActive((i) => (i + 1) % guideSuggestions.length); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); setGuideActive((i) => (i - 1 + guideSuggestions.length) % guideSuggestions.length); }
+        if (e.key === 'Enter') { e.preventDefault(); chooseGuide(guideSuggestions[Math.min(guideActive, guideSuggestions.length - 1)]); }
+    };
+
+    /** タイトルの一致した部分に印を付ける */
+    const markMatch = (title: string): React.ReactNode => {
+        const at = title.toLowerCase().indexOf(guideKeyword);
+        if (at < 0) return title;
+        return <>{title.slice(0, at)}<mark>{title.slice(at, at + guideKeyword.length)}</mark>{title.slice(at + guideKeyword.length)}</>;
     };
 
     const checkIsActive = (item: MenuItem) => {
@@ -239,6 +300,39 @@ const Menu = ({ key, onReload }: Props) => {
                     </div>
                 </div>
 
+                {canSearchGuide && (
+                    <div className="mg_search">
+                        <style>{GUIDE_SEARCH_CSS}</style>
+                        <div className="mg_box">
+                            <i className="fa-solid fa-book-open mg_icon" aria-hidden="true"></i>
+                            <input type="search" className="mg_input" placeholder="業務ガイドを探す" value={searchGuide}
+                                onChange={(e) => onSearchGuide(e.target.value)} onKeyDown={onSearchGuideKey}
+                                role="combobox" aria-label="業務ガイドの記事を探す" aria-controls={guideListId} aria-expanded={guideKeyword !== ''} />
+                        </div>
+                        {guideKeyword !== '' && (
+                            <ul className="mg_suggest" id={guideListId} role="listbox" aria-label="業務ガイドの記事">
+                                {guideListFailed ? (
+                                    <li className="mg_note">読み込めませんでした。<button type="button" className="mg_retry" onClick={loadGuideList}>もう一度</button></li>
+                                ) : guideList === null ? (
+                                    <li className="mg_note">読み込み中…</li>
+                                ) : guideSuggestions.length === 0 ? (
+                                    <li className="mg_note">該当する記事がありません</li>
+                                ) : guideSuggestions.map((a, i) => (
+                                    <li key={a.id} role="option" aria-selected={i === guideActive}
+                                        className={`mg_item${i === guideActive ? ' is_active' : ''}`}
+                                        onMouseEnter={() => setGuideActive(i)} onClick={() => chooseGuide(a)}>
+                                        <span className="mg_title">{markMatch(a.title)}</span>
+                                        <span className="mg_sub">
+                                            <span className="mg_div" style={{ '--mg-div': divisionColorOf(a.division) } as React.CSSProperties}>{divisionLabelOf(a.division)}</span>
+                                            {a.section}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+
                 {MENU_CONFIG.filter(item => item.show).map((item, index) => {
                     const isActive = checkIsActive(item);
                     return (
@@ -265,8 +359,34 @@ const Menu = ({ key, onReload }: Props) => {
             </div>
 
             <Estate estateId={estateId} setEstateId={setEstateId} />
+            {guideId !== null && guideList !== null && !isSp && (
+                <GuideSearchPanel articleId={guideId} articles={guideList} onSelect={setGuideId} onClose={() => setGuideId(null)} />
+            )}
         </>
     );
 }
+
+/** 業務ガイドの検索の候補の数 */
+const GUIDE_SUGGEST_MAX = 10;
+
+/** 業務ガイドの検索（v2.2.198）。⚠️ 接頭辞 mg_。⚠️ 色は業務ガイド（Guide.tsx）に合わせる */
+const GUIDE_SEARCH_CSS = `
+.mg_search { margin: 4px 4px 10px; font-size: 12px; }
+.mg_box { position: relative; }
+.mg_icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #0f766e; pointer-events: none; }
+.mg_input { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 5px 8px 5px 26px; font-size: 12px; background: #f8fafc; color: #1f2937; }
+.mg_input::placeholder { color: #9ca3af; }
+.mg_input:focus { outline: 2px solid #99f6e4; border-color: #14b8a6; background: #fff; }
+.mg_suggest { list-style: none; margin: 4px 0 0; padding: 4px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;
+              box-shadow: 0 6px 16px rgba(15, 23, 42, .08); max-height: 50vh; overflow-y: auto; }
+.mg_item { display: flex; flex-direction: column; gap: 1px; padding: 5px 7px; border-radius: 6px; cursor: pointer; line-height: 1.4; }
+.mg_item.is_active { background: #ecfdf5; }
+.mg_title { font-weight: 700; color: #1f2937; word-break: break-all; }
+.mg_title mark { padding: 0; background: linear-gradient(transparent 55%, #fef08a 55%); color: inherit; }
+.mg_sub { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #6b7280; }
+.mg_div { color: #fff; background: var(--mg-div); border-radius: 999px; padding: 0 6px; font-weight: 700; white-space: nowrap; }
+.mg_note { padding: 6px 7px; color: #9ca3af; }
+.mg_retry { border: none; background: none; padding: 0; color: #0f766e; font-weight: 700; text-decoration: underline; cursor: pointer; font-size: 12px; }
+`;
 
 export default Menu;
