@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext, useRef, useMemo } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import axios from 'axios';
 import { headers } from '../../utils/headers';
@@ -161,6 +161,8 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
     const { userName } = useContext(AuthContext);
     const { category } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<Shop[]>([]);
+    // ⚠️ v2.2.197: 担当営業の「他店舗の営業」は、この事業（注文事業）の店舗の営業だけ（TableStaff.tsx）
+    const shopNames = useMemo(() => shopArray.map(s => s.shop), [shopArray]);
     const [information, setInformation] = useState<Customer>({});
     const [staffArray, setStaffArray] = useState<Staff[]>([]);
     const [mediumArray, setMediumArray] = useState<Medium[]>([]);
@@ -906,6 +908,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                 setInformation={setInformation}
                                                 idMapping={idMapping}
                                                 staffArray={staffArray}
+                                                shopNames={shopNames}
                                                 setShowDetail={setShowDetail}
                                                 id={id}
                                             />
