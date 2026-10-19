@@ -163,9 +163,11 @@ interface Props {
     onOpen: (title: string) => void;
     /** 記事の事業（⚠️ 全事業共通は null）。⚠️ 「画面を開く」でどの事業の画面を開くかに使う */
     articleDivision: string | null;
+    /** ⚠️ v2.2.198: 渡すと「画面を開く」をいまの窓で開き、開けたら呼ぶ（GuideScreenButton の onOpenedHere） */
+    onScreenOpened?: () => void;
 }
 
-const GuideMarkdown: React.FC<Props> = ({ body, titleToId, onOpen, articleDivision }) => (
+const GuideMarkdown: React.FC<Props> = ({ body, titleToId, onOpen, articleDivision, onScreenOpened }) => (
     <div className="gd_md">
         <ReactMarkdown
             components={{
@@ -173,7 +175,7 @@ const GuideMarkdown: React.FC<Props> = ({ body, titleToId, onOpen, articleDivisi
                     if (href === STRONG_HREF) return <strong>{children}</strong>;
                     // ⚠️ 本文の画面の名前の後ろの小さいボタン（expandMentions）。⚠️ 登録のある名前だけが来る
                     if (href !== undefined && href.startsWith(MINI_PREFIX)) {
-                        return <GuideScreenButton name={decodeURIComponent(href.slice(MINI_PREFIX.length))} articleDivision={articleDivision} compact />;
+                        return <GuideScreenButton name={decodeURIComponent(href.slice(MINI_PREFIX.length))} articleDivision={articleDivision} compact onOpenedHere={onScreenOpened} />;
                     }
                     if (href !== undefined && href.startsWith(SCREEN_PREFIX)) {
                         const name = decodeURIComponent(href.slice(SCREEN_PREFIX.length));
@@ -181,7 +183,7 @@ const GuideMarkdown: React.FC<Props> = ({ body, titleToId, onOpen, articleDivisi
                         if (GUIDE_SCREENS[name] === undefined) {
                             return <span className="gd_screen is_missing" title="この画面は登録されていません">{name}（画面の登録なし）</span>;
                         }
-                        return <GuideScreenButton name={name} articleDivision={articleDivision} />;
+                        return <GuideScreenButton name={name} articleDivision={articleDivision} onOpenedHere={onScreenOpened} />;
                     }
                     if (href !== undefined && href.startsWith(LINK_PREFIX)) {
                         const title = decodeURIComponent(href.slice(LINK_PREFIX.length));

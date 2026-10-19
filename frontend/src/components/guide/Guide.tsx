@@ -171,7 +171,7 @@ const Guide: React.FC = () => {
 
     if (!allowed) {
         return (
-            <div className="gd_root"><style>{CSS}</style>
+            <div className="gd_root"><style>{GUIDE_CSS}</style>
                 <div className="gd_denied">業務ガイドは、いまは注文営業・建売営業・中古リノベの方向けです。</div>
             </div>
         );
@@ -179,7 +179,7 @@ const Guide: React.FC = () => {
 
     return (
         <div className="gd_root">
-            <style>{CSS}</style>
+            <style>{GUIDE_CSS}</style>
             <header className="gd_top">
                 <button type="button" className="gd_menu_btn" onClick={() => setNavOpen((v) => !v)} aria-label="目次を開く" aria-expanded={navOpen}>☰</button>
                 <button type="button" className="gd_brand" onClick={goHome}>業務ガイド</button>
@@ -284,8 +284,9 @@ const Guide: React.FC = () => {
 /**
  * ⚠️ GoogleReview.tsx に合わせた配色・角丸・文字の大きさ（接頭辞 gd_）。
  * ⚠️ 本文は読み物なので、表の画面より文字を大きく、行間を広く、1行を約40字までに抑える。
+ * ⚠️ v2.2.198: 左メニューの業務ガイドの検索（GuideSearchPanel.tsx）でも記事の見た目に使う。
  */
-const CSS = `
+export const GUIDE_CSS = `
 .gd_root { position: fixed; inset: 0; display: flex; flex-direction: column; background: #fff; color: #1f2937;
            font-size: 13px; z-index: 1; }
 .gd_top { flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 10px 20px;
