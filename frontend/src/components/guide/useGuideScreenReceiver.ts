@@ -26,6 +26,17 @@ interface Handlers {
     closeHeaderModals: () => void;
 }
 
+type OpenHere = (name: string, articleDivision: string | null) => string | null;
+let openHereRef: { current: OpenHere } | null = null;
+
+/**
+ * ダッシュボードの窓の中から画面を開く（v2.2.198 追加。左メニューの業務ガイドの検索 → GuideSearchPanel.tsx）。
+ * ⚠️ 中身は下の useGuideScreenReceiver の openRef と同じ（⚠️ 事業の切り替え・ヘッダーのメニュー・権限の判定も同じ）。
+ * ⚠️ 開けなければ、その理由。
+ */
+export const openGuideScreenHere: OpenHere = (name, articleDivision) =>
+    openHereRef === null ? `「${name}」は開けません。画面を再読み込みしてください。` : openHereRef.current(name, articleDivision);
+
 export const useGuideScreenReceiver = (handlers: Handlers): void => {
     const { authority, category, shopName, setCategory } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -54,6 +65,12 @@ export const useGuideScreenReceiver = (handlers: Handlers): void => {
         nav(plan.path, { state: { authority: a } });
         return null;
     });
+
+    // ⚠️ openGuideScreenHere から呼べるようにする（⚠️ Header は1つだけなので、登録も1つ）
+    useEffect(() => {
+        openHereRef = openRef;
+        return () => { if (openHereRef === openRef) openHereRef = null; };
+    }, []);
 
     useEffect(() => {
         const onMessage = (event: MessageEvent) => {

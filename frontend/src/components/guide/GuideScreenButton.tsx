@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import AuthContext from '../../context/AuthContext';
-import { GuideReply, askDashboard, openDashboardWithScreen, screenBlockedReason } from './guideScreens';
+import { ScreenPlan, askDashboard, openDashboardWithScreen, planScreen, screenBlockedReason } from './guideScreens';
+import { openGuideScreenHere } from './useGuideScreenReceiver';
 
 /**
  * 記事の `[[画面:名前]]` から出す「画面を開く」ボタン（v2.2.196 新規）。⚠️ 見た目は Guide.tsx の CSS（gd_screen*）。
@@ -11,6 +12,9 @@ import { GuideReply, askDashboard, openDashboardWithScreen, screenBlockedReason 
  *   ⚠️ 保存していない入力が消えることがあるため。⚠️ 事業を切り替えて開くときも確認を出す。
  *   ⚠️ 何も開いていなければ確認なしで開く。
  * ⚠️ 押せない画面（権限・スマホ）は灰色で、理由を横に出す（⚠️ 見た目だけ。権限は各画面と ② が守る）。
+ *
+ * ⚠️ v2.2.198: `onOpenedHere` を渡すと、**いまの窓（ダッシュボード）で開く**（左メニューの業務ガイドの検索 → GuideSearchPanel.tsx）。
+ *   ⚠️ 窓どうしのやりとりはしない。⚠️ 確認は事業を切り替えるときだけ（⚠️ 開いている画面は記事の後ろにあり、利用者が自分で見ている）。
  * ─────────────────────────────────────────────
  */
 interface Props {
@@ -22,17 +26,22 @@ interface Props {
      * ⚠️ 文字は「開く」だけ（⚠️ 名前は直前に書いてある）。⚠️ 押せない理由は横に出さず、マウスを当てたときの説明だけ（⚠️ 文が読みにくくなるため）
      */
     compact?: boolean;
+    /** いまの窓（ダッシュボード）で開く。⚠️ 開けたら呼ぶ（記事を閉じる） */
+    onOpenedHere?: () => void;
 }
+
+/** 開く前の確認に出す内容（⚠️ ガイドの窓では status の返事＝GuideReply をそのまま入れる） */
+type Confirming = { plan: ScreenPlan; openScreen: string | null };
 
 type Notice = { tone: 'ok' | 'error'; text: string } | null;
 
 const NOTICE_MS = 5000;
 
-const GuideScreenButton: React.FC<Props> = ({ name, articleDivision, compact = false }) => {
-    const { authority } = useContext(AuthContext);
+const GuideScreenButton: React.FC<Props> = ({ name, articleDivision, compact = false, onOpenedHere }) => {
+    const { authority, category, shopName } = useContext(AuthContext);
     const blocked = screenBlockedReason(name, authority);
     const [busy, setBusy] = useState(false);
-    const [confirming, setConfirming] = useState<GuideReply | null>(null);
+    const [confirming, setConfirming] = useState<Confirming | null>(null);
     const [notice, setNotice] = useState<Notice>(null);
     const openButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -56,7 +65,15 @@ const GuideScreenButton: React.FC<Props> = ({ name, articleDivision, compact = f
         setNotice({ tone: 'ok', text: 'ダッシュボードを開き直して開きました' });
     };
 
+    const openHere = () => {
+        setConfirming(null);
+        const error = openGuideScreenHere(name, articleDivision);
+        if (error !== null) { setNotice({ tone: 'error', text: error }); return; }
+        onOpenedHere?.();
+    };
+
     const open = async () => {
+        if (onOpenedHere !== undefined) { openHere(); return; }
         setConfirming(null);
         setBusy(true);
         const reply = await askDashboard('open', name, articleDivision);
@@ -71,6 +88,13 @@ const GuideScreenButton: React.FC<Props> = ({ name, articleDivision, compact = f
     const onClick = async () => {
         if (blocked !== null || busy) return;
         setNotice(null);
+        if (onOpenedHere !== undefined) {
+            const plan = planScreen(name, articleDivision, category, shopName);
+            if (!plan.ok) { setNotice({ tone: 'error', text: plan.message }); return; }
+            if (plan.switchLabel !== null) { setConfirming({ plan, openScreen: null }); return; }
+            openHere();
+            return;
+        }
         setBusy(true);
         const reply = await askDashboard('status', name, articleDivision);
         setBusy(false);
@@ -84,7 +108,7 @@ const GuideScreenButton: React.FC<Props> = ({ name, articleDivision, compact = f
         <span className="gd_screen_wrap">
             <button type="button" className={`gd_screen${compact ? ' is_compact' : ''}`} onClick={onClick} disabled={blocked !== null || busy}
                 aria-busy={busy} aria-label={compact ? `${name}を開く` : undefined}
-                title={blocked ?? `ダッシュボードの窓で「${name}」を開く`}>
+                title={blocked ?? (onOpenedHere !== undefined ? `「${name}」を開く` : `ダッシュボードの窓で「${name}」を開く`)}>
                 <span className="gd_screen_icon" aria-hidden="true">↗</span>
                 {compact ? '開く' : `${name}を開く`}
             </button>
