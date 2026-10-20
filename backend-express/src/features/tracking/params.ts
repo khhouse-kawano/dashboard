@@ -66,4 +66,19 @@ export const parseLandingParams = (text: string | null | undefined): Record<stri
   return result;
 };
 
-export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * 広告の着地か（v2.2.201）。⚠️ 広告以外の訪問（自然検索・直接など）は、対象のキーの列がすべて NULL。
+ * ⚠️ tracking_touches の別名を t にして使う。⚠️ 今の画面（設定の件数・流入履歴）は広告の分だけを出す。
+ */
+export const AD_TOUCH_SQL = `(${Object.keys(TRACKING_KEYS).map((k) => `t.${k} IS NOT NULL`).join(' OR ')})`;
+
+/**
+ * 広告以外の訪問の流入元（v2.2.201）。⚠️ tracker.js の channel() が作る形だけを受ける。
+ *   direct ／ organic/google ／ social/instagram ／ referral/example.com
+ */
+export const ORGANIC_SOURCE_PATTERN = /^(direct|organic\/[a-z]{1,20}|social\/[a-z]{1,20}|referral\/[a-z0-9.-]{1,150})$/;
+
+/** ロボット（検索エンジンの巡回・表示確認の道具）。⚠️ 訪問として数えない */
+export const BOT_UA_PATTERN = /bot|crawl|spider|slurp|headless|lighthouse|preview/i;
+
+export const UUID_PATTERN =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
