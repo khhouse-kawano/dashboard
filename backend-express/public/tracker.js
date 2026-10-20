@@ -87,14 +87,64 @@
     };
     document.addEventListener('mousedown', decorate, true);
     document.addEventListener('click', decorate, true);
+    // ⚠️ v2.2.201 広告以外の訪問も数える（アクセス数の解析用）。1回の訪問につき1件。最後に開いたページから30分たったら次の訪問
+    var VISIT_MS = 30 * 60 * 1000;
+    var visit = function () {
+      var now = Date.now();
+      var last = Number(store.getItem('khg_last') || 0);
+      store.setItem('khg_last', String(now));
+      return !(last > 0 && now - last < VISIT_MS);
+    };
+    // ⚠️ 流入元はどこから来たか（リファラー）で決める。⚠️ ② の ORGANIC_SOURCE_PATTERN と同じ形。自社サイトからの移動は '' （数えない）
+    var channel = function (ref) {
+      var h = '';
+      try { h = ref ? bare(new URL(ref).hostname) : ''; } catch (e) { h = ''; }
+      if (!h) return 'direct';
+      if (h === bare(window.location.hostname) || LINK_HOSTS.indexOf(h) >= 0) return '';
+      if (/google/.test(h)) return 'organic/google';
+      if (/yahoo/.test(h)) return 'organic/yahoo';
+      if (/(^|\.)bing\.com$/.test(h)) return 'organic/bing';
+      if (/instagram/.test(h)) return 'social/instagram';
+      if (/facebook|^fb\.me$/.test(h)) return 'social/facebook';
+      if (/^(t\.co|x\.com|twitter\.com)$/.test(h)) return 'social/x';
+      if (/(^|\.)line\.me$|naver\.line/.test(h)) return 'social/line';
+      if (/youtube/.test(h)) return 'social/youtube';
+      if (/tiktok/.test(h)) return 'social/tiktok';
+      return 'referral/' + h.replace(/[^a-z0-9.-]/g, '').slice(0, 150);
+    };
+    // ⚠️ text/plain で送る（CORS のプリフライトを起こさない）。⚠️ 結果は使わない
+    var send = function (extra) {
+      var payload = {
+        site_key: siteKey, visitor_id: visitor(),
+        landing_url: (url.origin + url.pathname).slice(0, 2000),
+        referrer: (document.referrer || '').slice(0, 2000),
+      };
+      Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
+      var body = JSON.stringify(payload);
+      var sent = false;
+      try {
+        if (navigator.sendBeacon) sent = navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'text/plain' }));
+      } catch (e) { sent = false; }
+      if (!sent && window.fetch) {
+        window.fetch(ENDPOINT, { method: 'POST', body: body, keepalive: true, mode: 'cors', headers: { 'Content-Type': 'text/plain' } })
+          .catch(function () { return null; });
+      }
+    };
+    var isNewVisit = visit();
     var params = {};
     var found = false;
     KEYS.forEach(function (k) {
       var v = url.searchParams.get(k);
       if (v !== null && v !== '') { params[k] = v.slice(0, MAX); found = true; }
     });
-    // ⚠️ 広告のパラメータが無いページ（自然検索・直接・回遊）では、前の値を消さない・送らない
-    if (!found) { repair(); keep(); return; }
+    // ⚠️ 広告のパラメータが無いページ（自然検索・直接・回遊）では、前の値を消さない。⚠️ 新しい訪問のときだけ流入元を付けて送る
+    if (!found) {
+      repair();
+      keep();
+      var ch = passed || !isNewVisit ? '' : channel(document.referrer);
+      if (ch) send({ params: {}, source: ch });
+      return;
+    }
     var vid = visitor();
     window.khgVisitorId = vid;
     var query = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); });
@@ -108,20 +158,7 @@
     if (params.utm_campaign) store.setItem('campaign', params.utm_campaign);
     // ⚠️ v2.2.201 自社サイトから引き継いだ広告の情報は、元のサイトで着地を記録済み。二重に数えないよう送らない
     if (passed) return;
-    var body = JSON.stringify({
-      site_key: siteKey, visitor_id: vid, params: params,
-      landing_url: (url.origin + url.pathname).slice(0, 2000),
-      referrer: (document.referrer || '').slice(0, 2000),
-    });
-    // ⚠️ text/plain で送る（CORS のプリフライトを起こさない）。⚠️ 結果は使わない
-    var sent = false;
-    try {
-      if (navigator.sendBeacon) sent = navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'text/plain' }));
-    } catch (e) { sent = false; }
-    if (!sent && window.fetch) {
-      window.fetch(ENDPOINT, { method: 'POST', body: body, keepalive: true, mode: 'cors', headers: { 'Content-Type': 'text/plain' } })
-        .catch(function () { return null; });
-    }
+    send({ params: params });
   } catch (e) {
     // 何もしない（プライベートブラウズで localStorage が使えないときなど）
   }

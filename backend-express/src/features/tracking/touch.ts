@@ -3,14 +3,15 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { env } from '../../config/env';
 import { execute, query } from '../../db/pool';
 import { logger } from '../../utils/logger';
-import { TRACKING_KEYS, UUID_PATTERN, pickTrackingParams, sourceOf } from './params';
+import { BOT_UA_PATTERN, ORGANIC_SOURCE_PATTERN, TRACKING_KEYS, UUID_PATTERN, pickTrackingParams, sourceOf } from './params';
 
 /**
  * 着地の受け付け（v2.2.199。`POST /api/track/touch`。⚠️ 公開・認証なし）。
  *
  * ─────────────────────────────────────────────
  * ⚠️⚠️ **社外の誰でも叩ける書き込み口。リクエストの値を信用しない。**
- *   ⚠️ 保存するのは、登録済み・有効なサイトの・許可したオリジンからの・UUID の訪問者の・対象キーがある着地だけ。
+ *   ⚠️ 保存するのは、登録済み・有効なサイトの・許可したオリジンからの・UUID の訪問者の、
+ *     対象キーがある着地（広告）か、決まった形の流入元（自然検索・直接など。v2.2.201〜）がある訪問だけ。⚠️ ロボットは保存しない。
  * ⚠️ 応答は成功・失敗とも 204（publicRouter.ts）。⚠️ 理由はログにだけ出す（ブラウザは結果を使わない）。
  * ⚠️ IP は保存しない。⚠️ SHA-256（ソルト付き）だけ。ソルトは `.env` の TRACKING_IP_SALT（未設定なら ip_hash は NULL）。
  * ─────────────────────────────────────────────
@@ -111,13 +112,22 @@ export const recordTouch = async ({ body, origin, ip, userAgent }: TouchInput): 
   if (origin === '' || !site.origins.includes(normalizeOrigin(origin))) return reject(`許可していないオリジン site_id=${site.id}`);
   const visitorId = typeof b.visitor_id === 'string' ? b.visitor_id.toLowerCase() : '';
   if (!UUID_PATTERN.test(visitorId)) return reject('訪問者IDが UUID ではない');
+  if (BOT_UA_PATTERN.test(userAgent)) return reject('ロボットのアクセス');
   const params = pickTrackingParams(b.params);
-  if (Object.keys(params).length === 0) return reject('対象のパラメータが無い');
+  let source: string | null;
+  if (Object.keys(params).length > 0) {
+    source = sourceOf(params);
+  } else {
+    // ⚠️ v2.2.201 広告以外の訪問。⚠️ 流入元は tracker.js が決めた形だけを受ける（自由な文字列は入れさせない）
+    const organic = typeof b.source === 'string' ? b.source : '';
+    if (!ORGANIC_SOURCE_PATTERN.test(organic)) return reject('対象のパラメータも流入元も無い');
+    source = organic;
+  }
 
   const keys = Object.keys(TRACKING_KEYS);
   const columns = ['site_id', 'visitor_id', 'source', ...keys, 'landing_url', 'referrer', 'user_agent', 'ip_hash'];
   const values = [
-    site.id, visitorId, sourceOf(params), ...keys.map((k) => params[k] ?? null),
+    site.id, visitorId, source, ...keys.map((k) => params[k] ?? null),
     text(b.landing_url, 2000), text(b.referrer, 2000), text(userAgent, 500), hashIp(ip),
   ];
   await execute(`INSERT INTO tracking_touches (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`, values);
