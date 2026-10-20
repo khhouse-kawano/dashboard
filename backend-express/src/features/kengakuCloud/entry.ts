@@ -29,6 +29,7 @@ export interface KengakuCloudResult {
 const FORM_KEYS = new Set([
     'request', 'roll', 'name', 'kana', 'mail', 'mobile', 'full_address', 'brand', 'shop', 'campaign',
     'medium', 'reserved_date', 'reserved_time', 'age', 'line_id', 'message', 'benefit_agreement', 'url_params',
+    'landing_params',
 ]);
 
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'] as const;
@@ -101,6 +102,13 @@ export const readUrlParams = (body: Record<string, unknown>): string => {
         .map(([k, v]) => encodePair(k, v)).join('&').slice(0, 2000);
 };
 
+/**
+ * 見学クラウドに置いた tracker.js が保存した landing_params（v2.2.201）。GTM（gtm_reserve_send_v5）が `a=1&b=2` の形で送る。
+ * ⚠️ 顧客ID（khg_vid）と広告の情報が入っている。⚠️ 無ければ空（古い GTM のまま・タグが動かなかったとき）。
+ */
+export const readLandingParams = (body: Record<string, unknown>): string =>
+    clean(typeof body.landing_params === 'string' ? body.landing_params.trim().replace(/^\?/, '') : '', 2000);
+
 /** 予約日時の行（移植元のメールと同じ並び。空の項目は出さない） */
 const line = (label: string, value: string): string => (value === '' ? '' : `${label}：${value}\n`);
 
@@ -131,7 +139,9 @@ export const runKengakuCloudEntry = async (
     const lineId = clean(body.line_id, 200).replace(/\s+/g, '').slice(0, 100);
     const message = cleanMultiline(body.message, 2000);
     const urlParams = readUrlParams(body);
+    const landingParams = readLandingParams(body);
     const query = new URLSearchParams(urlParams);
+    const landingQuery = new URLSearchParams(landingParams);
 
     const now = new Date();
     const t = jstParts(now);
@@ -160,14 +170,16 @@ export const runKengakuCloudEntry = async (
     values.reserved_date = reservedDate;
     values.reserved_time = reservedTime;
     values.remarks = message;
-    for (const key of UTM_KEYS) values[key] = clean(query.get(key), 200);
+    // ⚠️ utm は url_params を優先し、無ければ landing_params（tracker.js が最初のページで覚えたもの）から
+    for (const key of UTM_KEYS) values[key] = clean(query.get(key) ?? landingQuery.get(key), 200);
     values.line_id = lineId === '' ? null : lineId;
     /**
-     * ⚠️ 見学クラウドで取れるのは「最後に見たパラメータ付きページ」の ? 以降だけ（GTM が localStorage に覚えたもの）。
-     *   ⚠️ 公開フォームの url_params / landing_params どちらで探しても見つかるよう、両方に同じ値を入れる。
+     * ⚠️ url_params は GTM が覚えた「最後に見たパラメータ付きページ」の ? 以降（⚠️ 確認画面より前のページでは覚えない）。
+     * ⚠️ landing_params は tracker.js が覚えたもの（v2.2.201〜。顧客ID khg_vid 入り）。届けばこちらを入れる。
+     *   ⚠️ 届かなければ、公開フォームの url_params / landing_params どちらで探しても見つかるよう、両方に同じ値を入れる（v2.2.190 のまま）。
      */
     values.url_params = urlParams === '' ? null : urlParams;
-    values.landing_params = values.url_params;
+    values.landing_params = landingParams !== '' ? landingParams : values.url_params;
 
     const columns = [...(NOT_NULL_COLUMNS as unknown as string[]), 'line_id', 'url_params', 'landing_params'];
 

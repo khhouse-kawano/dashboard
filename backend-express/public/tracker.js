@@ -1,4 +1,4 @@
-// 広告流入トラッキング（v2.2.199）。各ブランドサイトのフッターに貼る:
+// 広告流入トラッキング（v2.2.199）。各ブランドサイトに入れる（GTM 用・フッター用のタグはトラッキング設定が出す）:
 //   <script src="https://api.khg-marketing.info/t/v1/tracker.js" data-site="SITE_KEY" defer></script>
 // ⚠️ フォーム（form_get）は改修しない。フォームが読む localStorage のキー（landing_params / source / campaign）に書く。
 // ⚠️ 訪問者ID（khg_vid）を全員に振り、landing_params に付ける。ほかのスクリプト（MA など）は window.khgVisitorId で読める。
@@ -17,6 +17,11 @@
       'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'flyer'];
     var MAX = 500;
     var ENDPOINT = 'https://api.khg-marketing.info/api/track/touch';
+    var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    // ⚠️ v2.2.201 自社のサイトどうし（見学クラウドを含む）は、リンクに顧客IDと広告の情報を付けて渡す。www の有無は同じとみなす
+    var LINK_HOSTS = ['ie-miru.jp', 'kh-house.jp', 'day-just-house.com', 'nagomi-koumuten.jp', 'furukomi-home.com',
+      '2lhome.net', 'miyazaki.pg-house.jp', 'jusfy-home.com'];
+    var bare = function (host) { return host.toLowerCase().replace(/^www\./, ''); };
     var uuid = function () {
       if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
       var b = new Uint8Array(16);
@@ -27,23 +32,29 @@
       for (var i = 0; i < 16; i++) h.push((b[i] + 256).toString(16).slice(1));
       return h.slice(0, 4).join('') + '-' + h.slice(4, 6).join('') + '-' + h.slice(6, 8).join('') + '-' + h.slice(8, 10).join('') + '-' + h.slice(10).join('');
     };
+    var url = new URL(window.location.href);
+    // ⚠️ v2.2.201 別の自社サイトから khg_vid 付きで来たら、その顧客IDを引き継ぐ（ドメインが違っても同じ人として結びつける）
+    var passed = (url.searchParams.get('khg_vid') || '').toLowerCase();
+    if (!UUID.test(passed)) passed = '';
+    if (passed) store.setItem('khg_vid', passed);
     var visitor = function () {
       var id = store.getItem('khg_vid');
-      if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      if (!id || !UUID.test(id)) {
         id = uuid();
         store.setItem('khg_vid', id);
       }
       return id;
     };
     // ⚠️⚠️ 訪問者ID（khg_vid）は広告で来た人だけでなく全員に振る（2026-10-20 の追加指示。MA で顧客を識別するため）。
-    // ⚠️ landing_params に必ず khg_vid を入れる → フォームがそのまま送るので、どの反響にも ID が付く。
-    // ⚠️ 空なら khg_vid だけ、あれば末尾に付ける（§5-1-8 の補修。フォームのあるページはフォームが ? 以降で上書きするため）。
-    // ⚠️ ID はサイト（ドメイン）ごと。localStorage はドメインをまたげない。
+    // ⚠️ landing_params に必ず今の khg_vid を入れる → フォームがそのまま送るので、どの反響にも ID が付く。
+    // ⚠️ 無ければ足し、引き継ぎで ID が変わっていたら差し替える（§5-1-8 の補修。フォームのあるページはフォームが ? 以降で上書きするため）。
     var repair = function () {
       var id = visitor();
-      var lp = store.getItem('landing_params') || '';
-      if (lp === '') store.setItem('landing_params', 'khg_vid=' + encodeURIComponent(id));
-      else if (lp.indexOf('khg_vid=') < 0) store.setItem('landing_params', lp + '&khg_vid=' + encodeURIComponent(id));
+      var lp = new URLSearchParams(store.getItem('landing_params') || '');
+      if (lp.get('khg_vid') !== id) {
+        lp.set('khg_vid', id);
+        store.setItem('landing_params', lp.toString());
+      }
       window.khgVisitorId = id;
     };
     // ⚠️ フォームのページでは、フォーム（iframe）が後から landing_params を上書きして khg_vid を消す。
@@ -55,7 +66,27 @@
         if (++n >= 1800) window.clearInterval(timer);
       }, 1000);
     };
-    var url = new URL(window.location.href);
+    // ⚠️ v2.2.201 自社の別ドメインへのリンクを押したら、その瞬間に khg_vid と覚えている広告の情報を付け足す（行き先に既にあるキーは変えない）
+    var decorate = function (e) {
+      try {
+        var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if (!a) return;
+        var to = new URL(a.href, window.location.href);
+        if (!/^https?:$/.test(to.protocol) || bare(to.hostname) === bare(window.location.hostname)) return;
+        if (LINK_HOSTS.indexOf(bare(to.hostname)) < 0) return;
+        var lp = new URLSearchParams(store.getItem('landing_params') || '');
+        KEYS.forEach(function (k) {
+          var v = lp.get(k);
+          if (v && !to.searchParams.has(k)) to.searchParams.set(k, v);
+        });
+        to.searchParams.set('khg_vid', visitor());
+        a.href = to.toString();
+      } catch (err) {
+        // 何もしない（リンクはそのまま開く）
+      }
+    };
+    document.addEventListener('mousedown', decorate, true);
+    document.addEventListener('click', decorate, true);
     var params = {};
     var found = false;
     KEYS.forEach(function (k) {
@@ -75,6 +106,8 @@
       || (params.gclid || params.wbraid || params.gbraid ? 'Google' : '') || (params.yclid ? 'Yahoo' : '') || (params.flyer ? 'Flyer' : '');
     if (source) store.setItem('source', source);
     if (params.utm_campaign) store.setItem('campaign', params.utm_campaign);
+    // ⚠️ v2.2.201 自社サイトから引き継いだ広告の情報は、元のサイトで着地を記録済み。二重に数えないよう送らない
+    if (passed) return;
     var body = JSON.stringify({
       site_key: siteKey, visitor_id: vid, params: params,
       landing_url: (url.origin + url.pathname).slice(0, 2000),
