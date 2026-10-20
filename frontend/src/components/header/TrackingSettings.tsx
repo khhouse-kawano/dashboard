@@ -114,6 +114,7 @@ const readableUrl = (url: string): string => {
 /**
  * サイト1つのサマリー（v2.2.202）。⚠️ サイトの行の下に、表と同じ幅で開く。
  * ⚠️ タブ（着地ページ／流入元）と並べ替えはサイトごとに持つ（ほかのサイトと連動しない）。
+ * ⚠️ 表記は「PV」（2026-10-20 の指示）。⚠️ 中身は ② の訪問数（30分以内のページの移動はまとめて1件）で、ページが見られた回数より少ない。
  * ⚠️ reloadKey が変わったら取り直す（親の「再読み込み」）。
  */
 const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, reloadKey }) => {
@@ -165,7 +166,7 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
     return (
         <div className="tk_sum">
             <div className="tk_sum_kpi">
-                <div className="tk_sum_card"><div className="tk_kpi_label">訪問数（直近{data.days}日）</div><div className="tk_sum_value">{data.kpi.visits.toLocaleString()}</div></div>
+                <div className="tk_sum_card"><div className="tk_kpi_label">PV（直近{data.days}日）</div><div className="tk_sum_value">{data.kpi.visits.toLocaleString()}</div></div>
                 <div className="tk_sum_card"><div className="tk_kpi_label">うち広告から</div><div className="tk_sum_value">{data.kpi.ad.toLocaleString()}</div></div>
                 <div className="tk_sum_card"><div className="tk_kpi_label">CV（直近{data.days}日の反響）</div><div className="tk_sum_value">{data.kpi.cv.toLocaleString()}</div></div>
                 <div className="tk_sum_card"><div className="tk_kpi_label">CV率</div><div className="tk_sum_value">{formatRate(rateOf(data.kpi.cv, data.kpi.visits))}</div></div>
@@ -182,7 +183,7 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
                     <thead>
                         <tr>
                             <SortHead label={tab === 'landing' ? '着地ページ' : '流入元'} keyName="key" num={false} />
-                            <SortHead label="訪問数" keyName="visits" />
+                            <SortHead label="PV" keyName="visits" />
                             <SortHead label="うち広告" keyName="ad" />
                             <SortHead label="CV" keyName="cv" />
                             <SortHead label="CV率" keyName="rate" />
@@ -190,10 +191,15 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
                     </thead>
                     <tbody>
                         {rows.length === 0 ? (
-                            <tr><td className="tk_td tk_empty" colSpan={5}>直近{data.days}日の訪問はまだありません。</td></tr>
+                            <tr><td className="tk_td tk_empty" colSpan={5}>直近{data.days}日の PV はまだありません。</td></tr>
                         ) : rows.map((r) => (
                             <tr key={r.key} className="tk_row">
-                                <td className="tk_td tk_sum_key" title={r.key}>{tab === 'landing' ? readableUrl(r.key) : r.key || '（不明）'}</td>
+                                <td className="tk_td tk_sum_key" title={r.key}>
+                                    {/* ⚠️ 着地ページは押すとそのページを別のタブで開く（⚠️ http(s) の URL だけ） */}
+                                    {tab === 'landing' && /^https?:///.test(r.key)
+                                        ? <a className="tk_url" href={r.key} target="_blank" rel="noopener noreferrer">{readableUrl(r.key)}<i className="fa-solid fa-arrow-up-right-from-square tk_url_icon" aria-hidden="true" /></a>
+                                        : tab === 'landing' ? readableUrl(r.key) : r.key || '（不明）'}
+                                </td>
                                 <td className="tk_td tk_num">{r.visits.toLocaleString()}</td>
                                 <td className="tk_td tk_num">{r.ad.toLocaleString()}</td>
                                 <td className="tk_td tk_num">{r.cv > 0 ? <b>{r.cv.toLocaleString()}</b> : 0}</td>
@@ -325,7 +331,7 @@ const TrackingSettings: React.FC = () => {
                 <div className="tk_caution">
                     ※ タグは、サイトの<b>すべてのページ</b>で1回だけ動くように入れます。GTM を使っているサイトは「GTM 用」を、使っていないサイトは「フッター用」を使ってください（GTM にフッター用を入れても動きません）。<br />
                     ※ 「許可するオリジン」は、タグを貼るサイトの <b>https://ドメイン</b> です（例：https://kh-house.jp）。ここに無いドメインからの記録は保存しません。<br />
-                    ※ サイト名を押すと、そのサイトの着地ページ別・流入元別の訪問数（広告以外も含む）と CV が開きます。CV は、直近30日の反響のうち、問い合わせの日までにそのサイトに来ていた人の数です。<br />
+                    ※ サイト名を押すと、そのサイトの着地ページ別・流入元別の PV（広告以外も含む。30分以内のページの移動はまとめて1件）と CV が開きます。CV は、直近30日の反響のうち、問い合わせの日までにそのサイトに来ていた人の数です。<br />
                     ※ 訪問者ごとのID（顧客ID）はブラウザに保存されます。リリース前に、プライバシーポリシーへ利用目的の記載が必要です。
                 </div>
 
@@ -500,6 +506,10 @@ const CSS = `
 .tk_sort_icon { margin-left: 6px; font-size: 10px; color: #cbd5e1; }
 .tk_sort_icon.is_active { color: #2563eb; }
 .tk_sum_key { max-width: 560px; word-break: break-all; font-size: 12px; }
+.tk_url { color: #1d4ed8; text-decoration: none; }
+.tk_url:hover { text-decoration: underline; }
+.tk_url:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; border-radius: 3px; }
+.tk_url_icon { font-size: 9px; margin-left: 5px; color: #94a3b8; }
 .tk_sub { font-size: 11px; color: #6b7280; }
 .tk_tag { font-size: 10px; color: #4b5563; background: #f3f4f6; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 .tk_origin { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }

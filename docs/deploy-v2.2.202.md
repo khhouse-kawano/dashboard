@@ -48,7 +48,7 @@ dcp logs express-api | grep -E "tracking_(site_list|site_save|site_summary|touch
 
 ## 手順3　【WSL】フロントを ① へアップロード
 `npm run build` → `deploy-dashboard`（⚠️ index.html も差し替える）
-- ローカルのビルド結果: `main.437e6137.js` / `main.b8a7c60b.css`（CSS は変化なし）
+- ローカルのビルド結果: `main.d67b3612.js` / `main.b8a7c60b.css`（CSS は変化なし）
 - ⚠️ `/dashboard/funding-plan/金利データ.js`（手で置いたもの）がデプロイ後も残っているか確認すること
 
 ## 手順4　【① phpMyAdmin】更新履歴 ＋ 記事
@@ -61,6 +61,6 @@ SELECT title, updated_by, updated_at FROM guide_article WHERE title = 'トラッ
 
 ## 確認（ログインした状態で）
 1. 「反響管理 → トラッキング設定」→ 上に「再読み込み」、KPI と一覧に「直近30日のCV」が出る。
-2. サイト名を押す → その行の下にサマリー（訪問数・うち広告・CV・CV率、着地ページ／流入元のタブ、表）。もう一度押すと閉じる。
+2. サイト名を押す → その行の下にサマリー（PV・うち広告・CV・CV率、着地ページ／流入元のタブ、表）。もう一度押すと閉じる。着地ページのアドレスを押すと、そのページが別のタブで開く。
 3. 2つのサイトを開いても、それぞれ別に開け閉め・タブの切り替えができる。
 4. 「再読み込み」→ 開いているサマリーも最新になる。
