@@ -128,6 +128,13 @@ services:
       #   起動ログではなく、リクエスト時に error ログが出る。
       - KSNAP_OWNER_KEY=${KSNAP_OWNER_KEY:-}
       - KSNAP_OWNER_IV=${KSNAP_OWNER_IV:-}
+
+      # 広告流入の着地記録で IP をハッシュにするソルト（v2.2.199）。
+      #
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
+      # ⚠️ 一度決めたら変えない（変えると同じ IP でも別のハッシュになる）。
+      # ⚠️ 未設定でも動く（ip_hash が NULL になるだけ）。
+      - TRACKING_IP_SALT=${TRACKING_IP_SALT:-}
     depends_on:
       ssh-tunnel:
         condition: service_started
