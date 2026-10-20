@@ -83,7 +83,7 @@ SELECT title, updated_by, updated_at FROM guide_article WHERE title = 'トラッ
 
 ## 確認（本番・広告以外の訪問）
 ```sql
-SELECT source, COUNT(*) FROM tracking_touches WHERE created_at >= CURDATE() AND utm_source IS NULL AND gclid IS NULL AND fbclid IS NULL AND yclid IS NULL GROUP BY source ORDER BY 2 DESC;
+SELECT source, COUNT(*) FROM tracking_touches WHERE created_at >= CURDATE() AND source REGEXP '^(direct|organic/|social/|referral/)' GROUP BY source ORDER BY 2 DESC;
 ```
 ⚠️ 手順1の後、`organic/google`・`direct` などが増えていけばよい（① phpMyAdmin で見る）。
 
