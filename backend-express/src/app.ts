@@ -8,6 +8,7 @@ import { buildFeatureRouter } from './core/registry';
 import type { RouteSummary } from './core/registry';
 import { createSystemRouter } from './core/systemRouter';
 import { features } from './features';
+import { createTrackingPublicRouter } from './features/tracking/publicRouter';
 import { createGatewayRouter } from './gateway';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { requestContext } from './middlewares/requestContext';
@@ -55,6 +56,15 @@ export const createApp = (): BuiltApp => {
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     })
   );
+
+  // ---------------------------------------------------------------
+  // 1-2. 広告流入トラッキングの公開の口（v2.2.199。GET /t/v1/tracker.js・POST /api/track/touch）
+  //
+  //   ⚠️⚠️ **下の CORS より前に置くこと。** 許可するオリジンを DB（tracking_sites）で決めるため。
+  //     ⚠️ 後ろに置くと、各ブランドサイトからのプリフライトを全体の CORS が先に返してしまう。
+  //   ⚠️ この2つのパス以外は素通しする（features/tracking/publicRouter.ts）。
+  // ---------------------------------------------------------------
+  app.use(createTrackingPublicRouter());
 
   // ---------------------------------------------------------------
   // 2. CORS

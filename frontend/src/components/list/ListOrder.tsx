@@ -14,6 +14,7 @@ import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './
 import type { TagKey } from './listTags';
 import { useIsSp } from '../../utils/isSp';
 import OrderModal from './OrderModal';
+import TrackingTouches, { landingLabel } from './TrackingTouches';
 import { hiraToKata } from '../../utils/nexusUtils';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
@@ -136,6 +137,8 @@ const ListOrder = ({ onReload }: Props) => {
     const [modalBeforeContent, setModalBeforeContent] = useState<Survey>();
     const [show, setShow] = useState(false);
     const [editId, setEditId] = useState('');
+    /** ⚠️ v2.2.199: 流入履歴を開いている反響（TrackingTouches.tsx） */
+    const [trackingTarget, setTrackingTarget] = useState<{ id: string, name: string } | null>(null);
     const [blackList, setBlackList] = useState<Black[]>([]);
     const [sections, setSections] = useState<string[]>([]);
 
@@ -685,6 +688,12 @@ const ListOrder = ({ onReload }: Props) => {
                                      color: #fff; cursor: pointer; }
                 .lo_saas .lo_badge_sync { background: #2563eb; }
                 .lo_saas .lo_badge_survey { background: #16a34a; }
+                /* ⚠️ v2.2.199: 流入履歴（TrackingTouches.tsx）を開く札。⚠️ 媒体名の下に小さく出す */
+                .lo_saas .lo_flow { display: inline-flex; align-items: center; gap: 3px; margin-top: 3px; border: 1px solid #bfdbfe;
+                                    background: #eff6ff; color: #1d4ed8; border-radius: 999px; padding: 0 7px; font-size: 10px;
+                                    font-weight: 700; cursor: pointer; line-height: 1.6; }
+                .lo_saas .lo_flow:hover { background: #dbeafe; }
+                .lo_saas .lo_flow.is_id { border-color: #e5e7eb; background: #f9fafb; color: #6b7280; }
             `}</style>
             <div className='inquiry_table spec lo_saas p-2'>
                 <div className="lo_toolbar d-flex flex-wrap mb-2 align-items-center" style={{ paddingTop: isSp ? '30px' : '' }}>
@@ -826,6 +835,7 @@ const ListOrder = ({ onReload }: Props) => {
                                 const blacklisted = isBlack(item);
                                 const survey = rowSurvey(item);
                                 const duplicates = duplicateMap.get(item.inquiry_id);
+                                const flow = landingLabel(item.landing_params);
 
                                 return (
                                     /* ⚠️ v2.2.165: key を index から inquiry_id に（⚠️ 絞り込みで行がずれても select の状態が混ざらない） */
@@ -880,7 +890,18 @@ const ListOrder = ({ onReload }: Props) => {
                                             </select>
                                         </td>
                                         <td>{item.inquiry_date}</td>
-                                        <td>{item.response_medium || ''}{(item.medium || '') !== 'ホームページ反響' || <><br /><span style={{ fontSize: '10px', fontWeight: 'bold' }}>（{item.hp_campaign || ''}）</span></>}</td>
+                                        <td>{item.response_medium || ''}{(item.medium || '') !== 'ホームページ反響' || <><br /><span style={{ fontSize: '10px', fontWeight: 'bold' }}>（{item.hp_campaign || ''}）</span></>}
+                                            {/* ⚠️ v2.2.199: フォームが送った流入情報（landing_params）がある反響だけ。「ID」は広告の情報が無く顧客IDだけのもの */}
+                                            {flow !== '' && (
+                                                <div>
+                                                    <button type="button" className={`lo_flow${flow === 'ID' ? ' is_id' : ''}`}
+                                                        onClick={() => setTrackingTarget({ id: item.inquiry_id, name: `${item.first_name || ''}${item.last_name || ''}` })}
+                                                        title="流入履歴を見る">
+                                                        <i className="fa-solid fa-route" aria-hidden="true" />流入：{flow}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
                                         <td>{item.first_name || ''}{item.last_name || ''}</td>
                                         <td>{item.pref || ''}{item.city || ''}{item.town || ''}{item.street || ''}{item.building || ''}<br />{toHalfWidth(item.mobile || '')}{(!item.mobile && item.landline) && `/${toHalfWidth(item.landline || '')}`}</td>
                                         {/*
@@ -917,6 +938,7 @@ const ListOrder = ({ onReload }: Props) => {
                 </div>
             </div>
             <OrderModal show={show} modalClose={modalClose} modalContent={modalContent} modalBeforeContent={modalBeforeContent} />
+            <TrackingTouches inquiryId={trackingTarget?.id ?? null} customerName={trackingTarget?.name ?? ''} onClose={() => setTrackingTarget(null)} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </>
     )

@@ -48,6 +48,8 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
+# ⚠️ v2.2.199: 各ブランドサイトに配る tracker.js（features/tracking/publicRouter.ts が起動時に読む）。⚠️ dist には入らないので別にコピーする
+COPY --from=builder /app/public ./public
 
 USER node
 

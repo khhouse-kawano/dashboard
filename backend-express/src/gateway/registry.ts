@@ -12,6 +12,8 @@ import { runStaffContract, toDepartment } from '../features/staffContract';
 import { runIntroductorySummary } from '../features/introductory/summary';
 import { runDuplicateSummary } from '../features/duplicateSummary';
 import { getGuide, listGuide, saveGuide } from '../features/guide';
+import { listTrackingSites, saveTrackingSite } from '../features/tracking/sites';
+import { listInquiryTouches } from '../features/tracking/touches';
 import {
   runAuthAccessTimes,
   runAuthInsert,
@@ -787,6 +789,50 @@ register({
   handler: async (ctx) => {
     const { id, title, division, section, summary, body, sort, published } = ctx.body;
     const result = await saveGuide(ctx.staff, { id, title, division, section, summary, body, sort, published });
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 広告流入トラッキング（v2.2.199）。⚠️ 中身は features/tracking/。
+ *
+ * ⚠️⚠️ **① に PHP ハンドラは無い。** ⚠️ express_proxy.php の転送リストと転送専用リストの両方に入れてある。
+ * ⚠️ サイトの一覧・登録は Master / BrandAdmin（⚠️ `auth: 'master'` だと BrandAdmin が入れないので sites.ts で判定）。
+ * ⚠️ 公開の口（tracker.js・POST /api/track/touch）はゲートウェイではない（features/tracking/publicRouter.ts）。
+ */
+register({
+  request: 'tracking_site_list',
+  summary: '広告流入トラッキングのサイト一覧（直近30日の着地数つき。Master / BrandAdmin のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await listTrackingSites(ctx.staff);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'tracking_site_save',
+  summary: '【書き込み】広告流入トラッキングのサイトを登録・更新・無効化（Master / BrandAdmin のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const { id, name, brand, origins, active, memo } = ctx.body;
+    const result = await saveTrackingSite(ctx.staff, { id, name, brand, origins, active, memo });
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'tracking_touches',
+  summary: '反響1件に結びつく広告流入の着地履歴（landing_params の khg_vid → クリックIDの順で探す）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await listInquiryTouches(ctx.body.inquiry_id);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
