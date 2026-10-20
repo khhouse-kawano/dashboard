@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
+import { AD_TOUCH_SQL } from './params';
 import { clearTrackingSiteCache, normalizeOrigin, parseOrigins } from './touch';
 
 /**
@@ -42,14 +43,14 @@ export interface TrackingResult {
 const ok = (body: Record<string, unknown>): TrackingResult => ({ httpStatus: 200, body: { status: 'ok', ...body } });
 const fail = (httpStatus: number, message: string): TrackingResult => ({ httpStatus, body: { status: 'error', message } });
 
-/** 一覧（⚠️ 運用の確認用に、直近30日の着地数と最後の着地も返す） */
+/** 一覧（⚠️ 運用の確認用に、直近30日の着地数と最後の着地も返す。⚠️ 画面の見出しが「広告からの着地」なので広告の分だけ数える） */
 export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promise<TrackingResult> => {
   if (!canManageTracking(staff)) return fail(403, 'この画面は管理者だけが使えます。');
   const rows = await query<SiteRow>(
     `SELECT s.id, s.site_key, s.name, s.brand, s.allowed_origins, s.is_active, s.memo, s.updated_by,
             DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i') AS updated_at,
-            (SELECT COUNT(*) FROM tracking_touches t WHERE t.site_id = s.id AND t.created_at >= NOW() - INTERVAL 30 DAY) AS touches_30d,
-            (SELECT DATE_FORMAT(MAX(t.created_at), '%Y-%m-%d %H:%i') FROM tracking_touches t WHERE t.site_id = s.id) AS last_touch
+            (SELECT COUNT(*) FROM tracking_touches t WHERE t.site_id = s.id AND t.created_at >= NOW() - INTERVAL 30 DAY AND ${AD_TOUCH_SQL}) AS touches_30d,
+            (SELECT DATE_FORMAT(MAX(t.created_at), '%Y-%m-%d %H:%i') FROM tracking_touches t WHERE t.site_id = s.id AND ${AD_TOUCH_SQL}) AS last_touch
        FROM tracking_sites s
       ORDER BY s.is_active DESC, s.id`
   );

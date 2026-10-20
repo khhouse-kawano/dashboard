@@ -242,3 +242,268 @@ index 90eaf53d..7a35a0ff 100644
 - 手元の `Downloads/gtm_reserve_save_v3.html`（2026-10-12 作成。トリガー DOM Ready・すべてのページ）はこれを直した版だが、GTM には未反映だった。
 - 確認（Playwright、v3 の中身そのもの）：イベントページ `?kc_source=…&utm_source=google&khg_vid=…` → url_params に3つとも保存。予約画面 `/reserve/new?reserve_event[date]=…&_gl=…` に移っても前の値は消えず足される。ページのエラー 0。構文チェック OK。
 - 依頼文を3タグ（1 保存 v3 ＋ トリガー変更、2 送信 v5、3 トラッキング）の全文入りに作り直した。手順書の手順5に 0（保存タグ）を足した。
+
+---
+
+## 追記（2026-10-20）：広告以外の訪問（自然検索・直接など）も記録する（② だけ）
+
+### 依頼
+- 「パラメータなし（オーガニック）でもカウントしたい（アクセス数解析のため）」
+- 「タグを埋め込み直す必要があるなら計画はやめる。② だけで実装可能なら進めたい」→ タグは tracker.js を読み込むだけなので貼り直し不要。DB の構造も変えない計画を承認。「同じブランチでよい」
+- 「201 の次にページビュー実装及び TrackingSettings.tsx の改修をする」→ 次の版（v2.2.202）で行う。今回はやらない。
+
+### 仕組み
+- tracker.js：1回の訪問（最後に開いたページから30分以内は同じ訪問。localStorage `khg_last`）につき1件、広告のパラメータが無くても送る。
+  - 流入元はリファラーから：`direct` ／ `organic/google|yahoo|bing` ／ `social/instagram|facebook|x|line|youtube|tiktok` ／ `referral/ドメイン`
+  - 自社サイト（同じドメイン・LINK_HOSTS）からの移動、顧客IDを引き継いで来たときは数えない。広告のパラメータ付きは今までどおり毎回記録。
+- ②：パラメータが無くても、流入元が決まった形（`ORGANIC_SOURCE_PATTERN`）なら `tracking_touches` に保存（広告の列はすべて NULL、source に流入元）。ロボット（User-Agent に bot・crawl・spider・headless など）は広告も含めて保存しない。
+- 今の画面は変えない：トラッキング設定の件数・最後の着地、反響一覧の流入履歴は、広告の分（`AD_TOUCH_SQL`：広告の列のどれかが NULL でない）だけ。
+- DB の構造・① の PHP・フロント・タグは変更なし。
+
+### 変えたファイル・関数
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| backend-express/public | **tracker.js** | `VISIT_MS`・`visit`（訪問の判定）・`channel`（流入元）・`send`（送信を広告と共通に）を追加。広告が無いページでも新しい訪問なら `source` を付けて送る |
+| backend-express/src/features/tracking | **params.ts** | `AD_TOUCH_SQL`・`ORGANIC_SOURCE_PATTERN`・`BOT_UA_PATTERN` を追加 |
+| 〃 | **touch.ts** | `recordTouch`：ロボットを捨てる。パラメータが無いときは `source` を検査して保存 |
+| 〃 | **sites.ts** | `listTrackingSites`：件数・最後の着地を広告の分だけに |
+| 〃 | **touches.ts** | `listInquiryTouches`：広告の着地だけを返す |
+
+### 差分（v2.2.201 のこれまでの分を含む backend-express 全体）
+```diff
+diff --git a/backend-express/public/tracker.js b/backend-express/public/tracker.js
+index 87f16735..a12daf93 100644
+--- a/backend-express/public/tracker.js
++++ b/backend-express/public/tracker.js
+@@ -87,14 +87,64 @@
+     };
+     document.addEventListener('mousedown', decorate, true);
+     document.addEventListener('click', decorate, true);
++    // ⚠️ v2.2.201 広告以外の訪問も数える（アクセス数の解析用）。1回の訪問につき1件。最後に開いたページから30分たったら次の訪問
++    var VISIT_MS = 30 * 60 * 1000;
++    var visit = function () {
++      var now = Date.now();
++      var last = Number(store.getItem('khg_last') || 0);
++      store.setItem('khg_last', String(now));
++      return !(last > 0 && now - last < VISIT_MS);
++    };
++    // ⚠️ 流入元はどこから来たか（リファラー）で決める。⚠️ ② の ORGANIC_SOURCE_PATTERN と同じ形。自社サイトからの移動は '' （数えない）
++    var channel = function (ref) {
++      var h = '';
++      try { h = ref ? bare(new URL(ref).hostname) : ''; } catch (e) { h = ''; }
++      if (!h) return 'direct';
++      if (h === bare(window.location.hostname) || LINK_HOSTS.indexOf(h) >= 0) return '';
++      if (/google/.test(h)) return 'organic/google';
++      if (/yahoo/.test(h)) return 'organic/yahoo';
++      if (/(^|\.)bing\.com$/.test(h)) return 'organic/bing';
++      if (/instagram/.test(h)) return 'social/instagram';
++      if (/facebook|^fb\.me$/.test(h)) return 'social/facebook';
++      if (/^(t\.co|x\.com|twitter\.com)$/.test(h)) return 'social/x';
++      if (/(^|\.)line\.me$|naver\.line/.test(h)) return 'social/line';
++      if (/youtube/.test(h)) return 'social/youtube';
++      if (/tiktok/.test(h)) return 'social/tiktok';
++      return 'referral/' + h.replace(/[^a-z0-9.-]/g, '').slice(0, 150);
++    };
++    // ⚠️ text/plain で送る（CORS のプリフライトを起こさない）。⚠️ 結果は使わない
++    var send = function (extra) {
++      var payload = {
++        site_key: siteKey, visitor_id: visitor(),
++        landing_url: (url.origin + url.pathname).slice(0, 2000),
++        referrer: (document.referrer || '').slice(0, 2000),
++      };
++      Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
++      var body = JSON.stringify(payload);
++      var sent = false;
++      try {
++        if (navigator.sendBeacon) sent = navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'text/plain' }));
++      } catch (e) { sent = false; }
++      if (!sent && window.fetch) {
++        window.fetch(ENDPOINT, { method: 'POST', body: body, keepalive: true, mode: 'cors', headers: { 'Content-Type': 'text/plain' } })
++          .catch(function () { return null; });
++      }
++    };
++    var isNewVisit = visit();
+     var params = {};
+     var found = false;
+     KEYS.forEach(function (k) {
+       var v = url.searchParams.get(k);
+       if (v !== null && v !== '') { params[k] = v.slice(0, MAX); found = true; }
+     });
+-    // ⚠️ 広告のパラメータが無いページ（自然検索・直接・回遊）では、前の値を消さない・送らない
+-    if (!found) { repair(); keep(); return; }
++    // ⚠️ 広告のパラメータが無いページ（自然検索・直接・回遊）では、前の値を消さない。⚠️ 新しい訪問のときだけ流入元を付けて送る
++    if (!found) {
++      repair();
++      keep();
++      var ch = passed || !isNewVisit ? '' : channel(document.referrer);
++      if (ch) send({ params: {}, source: ch });
++      return;
++    }
+     var vid = visitor();
+     window.khgVisitorId = vid;
+     var query = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); });
+@@ -108,20 +158,7 @@
+     if (params.utm_campaign) store.setItem('campaign', params.utm_campaign);
+     // ⚠️ v2.2.201 自社サイトから引き継いだ広告の情報は、元のサイトで着地を記録済み。二重に数えないよう送らない
+     if (passed) return;
+-    var body = JSON.stringify({
+-      site_key: siteKey, visitor_id: vid, params: params,
+-      landing_url: (url.origin + url.pathname).slice(0, 2000),
+-      referrer: (document.referrer || '').slice(0, 2000),
+-    });
+-    // ⚠️ text/plain で送る（CORS のプリフライトを起こさない）。⚠️ 結果は使わない
+-    var sent = false;
+-    try {
+-      if (navigator.sendBeacon) sent = navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'text/plain' }));
+-    } catch (e) { sent = false; }
+-    if (!sent && window.fetch) {
+-      window.fetch(ENDPOINT, { method: 'POST', body: body, keepalive: true, mode: 'cors', headers: { 'Content-Type': 'text/plain' } })
+-        .catch(function () { return null; });
+-    }
++    send({ params: params });
+   } catch (e) {
+     // 何もしない（プライベートブラウズで localStorage が使えないときなど）
+   }
+diff --git a/backend-express/src/features/tracking/params.ts b/backend-express/src/features/tracking/params.ts
+index 48dc1680..47cb28ec 100644
+--- a/backend-express/src/features/tracking/params.ts
++++ b/backend-express/src/features/tracking/params.ts
+@@ -66,4 +66,19 @@ export const parseLandingParams = (text: string | null | undefined): Record<stri
+   return result;
+ };
+ 
+-export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
++/**
++ * 広告の着地か（v2.2.201）。⚠️ 広告以外の訪問（自然検索・直接など）は、対象のキーの列がすべて NULL。
++ * ⚠️ tracking_touches の別名を t にして使う。⚠️ 今の画面（設定の件数・流入履歴）は広告の分だけを出す。
++ */
++export const AD_TOUCH_SQL = `(${Object.keys(TRACKING_KEYS).map((k) => `t.${k} IS NOT NULL`).join(' OR ')})`;
++
++/**
++ * 広告以外の訪問の流入元（v2.2.201）。⚠️ tracker.js の channel() が作る形だけを受ける。
++ *   direct ／ organic/google ／ social/instagram ／ referral/example.com
++ */
++export const ORGANIC_SOURCE_PATTERN = /^(direct|organic\/[a-z]{1,20}|social\/[a-z]{1,20}|referral\/[a-z0-9.-]{1,150})$/;
++
++/** ロボット（検索エンジンの巡回・表示確認の道具）。⚠️ 訪問として数えない */
++export const BOT_UA_PATTERN = /bot|crawl|spider|slurp|headless|lighthouse|preview/i;
++
++export const UUID_PATTERN =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+diff --git a/backend-express/src/features/tracking/sites.ts b/backend-express/src/features/tracking/sites.ts
+index c927cef2..3b2fdeed 100644
+--- a/backend-express/src/features/tracking/sites.ts
++++ b/backend-express/src/features/tracking/sites.ts
+@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
+ import type { RowDataPacket } from 'mysql2/promise';
+ import { execute, query } from '../../db/pool';
+ import type { AuthenticatedStaff } from '../../types/staff';
++import { AD_TOUCH_SQL } from './params';
+ import { clearTrackingSiteCache, normalizeOrigin, parseOrigins } from './touch';
+ 
+ /**
+@@ -42,14 +43,14 @@ export interface TrackingResult {
+ const ok = (body: Record<string, unknown>): TrackingResult => ({ httpStatus: 200, body: { status: 'ok', ...body } });
+ const fail = (httpStatus: number, message: string): TrackingResult => ({ httpStatus, body: { status: 'error', message } });
+ 
+-/** 一覧（⚠️ 運用の確認用に、直近30日の着地数と最後の着地も返す） */
++/** 一覧（⚠️ 運用の確認用に、直近30日の着地数と最後の着地も返す。⚠️ 画面の見出しが「広告からの着地」なので広告の分だけ数える） */
+ export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promise<TrackingResult> => {
+   if (!canManageTracking(staff)) return fail(403, 'この画面は管理者だけが使えます。');
+   const rows = await query<SiteRow>(
+     `SELECT s.id, s.site_key, s.name, s.brand, s.allowed_origins, s.is_active, s.memo, s.updated_by,
+             DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i') AS updated_at,
+-            (SELECT COUNT(*) FROM tracking_touches t WHERE t.site_id = s.id AND t.created_at >= NOW() - INTERVAL 30 DAY) AS touches_30d,
+-            (SELECT DATE_FORMAT(MAX(t.created_at), '%Y-%m-%d %H:%i') FROM tracking_touches t WHERE t.site_id = s.id) AS last_touch
++            (SELECT COUNT(*) FROM tracking_touches t WHERE t.site_id = s.id AND t.created_at >= NOW() - INTERVAL 30 DAY AND ${AD_TOUCH_SQL}) AS touches_30d,
++            (SELECT DATE_FORMAT(MAX(t.created_at), '%Y-%m-%d %H:%i') FROM tracking_touches t WHERE t.site_id = s.id AND ${AD_TOUCH_SQL}) AS last_touch
+        FROM tracking_sites s
+       ORDER BY s.is_active DESC, s.id`
+   );
+diff --git a/backend-express/src/features/tracking/touch.ts b/backend-express/src/features/tracking/touch.ts
+index 0ac8b682..81b707f3 100644
+--- a/backend-express/src/features/tracking/touch.ts
++++ b/backend-express/src/features/tracking/touch.ts
+@@ -3,14 +3,15 @@ import type { RowDataPacket } from 'mysql2/promise';
+ import { env } from '../../config/env';
+ import { execute, query } from '../../db/pool';
+ import { logger } from '../../utils/logger';
+-import { TRACKING_KEYS, UUID_PATTERN, pickTrackingParams, sourceOf } from './params';
++import { BOT_UA_PATTERN, ORGANIC_SOURCE_PATTERN, TRACKING_KEYS, UUID_PATTERN, pickTrackingParams, sourceOf } from './params';
+ 
+ /**
+  * 着地の受け付け（v2.2.199。`POST /api/track/touch`。⚠️ 公開・認証なし）。
+  *
+  * ─────────────────────────────────────────────
+  * ⚠️⚠️ **社外の誰でも叩ける書き込み口。リクエストの値を信用しない。**
+- *   ⚠️ 保存するのは、登録済み・有効なサイトの・許可したオリジンからの・UUID の訪問者の・対象キーがある着地だけ。
++ *   ⚠️ 保存するのは、登録済み・有効なサイトの・許可したオリジンからの・UUID の訪問者の、
++ *     対象キーがある着地（広告）か、決まった形の流入元（自然検索・直接など。v2.2.201〜）がある訪問だけ。⚠️ ロボットは保存しない。
+  * ⚠️ 応答は成功・失敗とも 204（publicRouter.ts）。⚠️ 理由はログにだけ出す（ブラウザは結果を使わない）。
+  * ⚠️ IP は保存しない。⚠️ SHA-256（ソルト付き）だけ。ソルトは `.env` の TRACKING_IP_SALT（未設定なら ip_hash は NULL）。
+  * ─────────────────────────────────────────────
+@@ -111,13 +112,22 @@ export const recordTouch = async ({ body, origin, ip, userAgent }: TouchInput):
+   if (origin === '' || !site.origins.includes(normalizeOrigin(origin))) return reject(`許可していないオリジン site_id=${site.id}`);
+   const visitorId = typeof b.visitor_id === 'string' ? b.visitor_id.toLowerCase() : '';
+   if (!UUID_PATTERN.test(visitorId)) return reject('訪問者IDが UUID ではない');
++  if (BOT_UA_PATTERN.test(userAgent)) return reject('ロボットのアクセス');
+   const params = pickTrackingParams(b.params);
+-  if (Object.keys(params).length === 0) return reject('対象のパラメータが無い');
++  let source: string | null;
++  if (Object.keys(params).length > 0) {
++    source = sourceOf(params);
++  } else {
++    // ⚠️ v2.2.201 広告以外の訪問。⚠️ 流入元は tracker.js が決めた形だけを受ける（自由な文字列は入れさせない）
++    const organic = typeof b.source === 'string' ? b.source : '';
++    if (!ORGANIC_SOURCE_PATTERN.test(organic)) return reject('対象のパラメータも流入元も無い');
++    source = organic;
++  }
+ 
+   const keys = Object.keys(TRACKING_KEYS);
+   const columns = ['site_id', 'visitor_id', 'source', ...keys, 'landing_url', 'referrer', 'user_agent', 'ip_hash'];
+   const values = [
+-    site.id, visitorId, sourceOf(params), ...keys.map((k) => params[k] ?? null),
++    site.id, visitorId, source, ...keys.map((k) => params[k] ?? null),
+     text(b.landing_url, 2000), text(b.referrer, 2000), text(userAgent, 500), hashIp(ip),
+   ];
+   await execute(`INSERT INTO tracking_touches (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`, values);
+diff --git a/backend-express/src/features/tracking/touches.ts b/backend-express/src/features/tracking/touches.ts
+index fde58738..b301d325 100644
+--- a/backend-express/src/features/tracking/touches.ts
++++ b/backend-express/src/features/tracking/touches.ts
+@@ -1,6 +1,6 @@
+ import type { RowDataPacket } from 'mysql2/promise';
+ import { query } from '../../db/pool';
+-import { CLICK_ID_KEYS, TRACKING_KEYS, UUID_PATTERN, parseLandingParams, sourceOf } from './params';
++import { AD_TOUCH_SQL, CLICK_ID_KEYS, TRACKING_KEYS, UUID_PATTERN, parseLandingParams, sourceOf } from './params';
+ 
+ /**
+  * 反響に結びつく着地の履歴（v2.2.199）。画面は list/TrackingTouches.tsx（反響一覧（注文）の「流入」）。
+@@ -11,6 +11,7 @@ import { CLICK_ID_KEYS, TRACKING_KEYS, UUID_PATTERN, parseLandingParams, sourceO
+  *   2. 無ければ gclid / gbraid / wbraid / fbclid / yclid のどれかが一致する行
+  *     ⚠️ タグを貼る前の反響など、khg_vid が無いとき用（⚠️ tracker.js が landing_params に khg_vid を付け直し続けるので、タグのあるページからの反響には付く）
+  * ⚠️ url_params（送信したページの ? 以降）は見ない。⚠️ tracker.js は URL を書き換えないので khg_vid は入らない。
++ * ⚠️ 広告の着地だけを返す（v2.2.201〜 広告以外の訪問も記録しているが、画面の見出しが「広告からの着地」のため）。
+  * ⚠️ landing_params が空・見つからなければ、空の配列（⚠️ エラーにしない）。
+  * ⚠️ 流入元（source）・キャンペーンは反響に保存されていないので、landing_params から読み取って返す（2026-10-20 の指示）。
+  * ─────────────────────────────────────────────
+@@ -64,7 +65,7 @@ export const listInquiryTouches = async (inquiryIdValue: unknown): Promise<{ htt
+       `SELECT t.id, DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, s.name AS site_name, t.source,
+               ${Object.keys(TRACKING_KEYS).map((k) => `t.${k}`).join(', ')}, t.landing_url, t.referrer
+          FROM tracking_touches t LEFT JOIN tracking_sites s ON s.id = t.site_id
+-        WHERE ${where}
++        WHERE (${where}) AND ${AD_TOUCH_SQL}
+         ORDER BY t.created_at DESC, t.id DESC
+         LIMIT ${LIMIT}`,
+       params
+```
+
+### 確認
+- ② 型チェック OK、tracker.js 構文 OK、ローカル ② 再起動。
+- Playwright（kh-house.jp を模擬、ふつうのブラウザの User-Agent）
+  - Google から → `organic/google` で1件。サイト内の移動・30分以内の再訪 → 増えない。31分後の直接 → `direct`。Instagram から → `social/instagram`。他のブログから → `referral/other-blog.example.com`。同じ訪問中に広告付き → 広告として1件（landing_params は広告の値＋khg_vid）。ページのエラー 0
+  - Googlebot の User-Agent → ② が「ロボットのアクセス」で保存しない
+- DB：保存された5件の source が上のとおり（広告以外は utm 等が NULL）
+- トラッキング設定の件数：広告の1件だけ（広告以外の4件は数えない）
+- 流入履歴（同じ顧客IDの反響）：広告の着地1件だけ（matchedBy khg_vid）
+- 自社フォームの通し（A〜G）・見学クラウドの通し（H〜J）をもう一度流し、前と同じ結果。引き継いで来た訪問は数えない
+- 後片付け：テストの予約・反響・tracking_* を削除（テスト前は 0 件）

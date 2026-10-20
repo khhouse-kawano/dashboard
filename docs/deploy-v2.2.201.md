@@ -1,16 +1,18 @@
-# デプロイ手順 v2.2.201（見学クラウドの予約にも顧客ID・広告の情報を付ける）
+# デプロイ手順 v2.2.201（見学クラウドの予約にも顧客ID・広告の情報を付ける ／ 広告以外の訪問も記録する）
 
 ⚠️ v2.2.200 は main にマージ済み。このブランチは main から切ってある。
 
 | # | 何が変わるか | どこ |
 |---|---|---|
-| 1 | tracker.js（リンクに顧客IDを付ける・引き継ぐ）・見学クラウドの受け口が landing_params を受ける | ⚠️ **② VPS（再ビルド）** |
+| 1 | tracker.js（リンクに顧客IDを付ける・引き継ぐ・広告以外の訪問も送る）・見学クラウドの受け口が landing_params を受ける・着地の受け口が広告以外の訪問も保存（画面の件数・流入履歴は広告の分だけのまま） | ⚠️ **② VPS（再ビルド）** |
 | 2 | 画面の版 | ① フロント（dashboard） |
 | 3 | 更新履歴 ＋ 記事1本（トラッキング設定） | ① DB |
 | 4 | 見学クラウドをサイトとして登録 | ダッシュボード |
 | 5 | 見学クラウドの GTM：tracker.js のタグを追加・送信タグを v5 に | ⚠️ **GTM（GTM-KRKCML59・GTM-5B9M9KGV）** |
 
-- ⚠️ ① PHP・表の作成は無し。form_get も変えない。
+- ⚠️ ① PHP・表の作成は無し（広告以外の訪問も今の tracking_touches に入る）。form_get も変えない。
+- ⚠️ 各サイトのタグは貼り直し不要（tracker.js は ② から配信。ブラウザのキャッシュが切れる1時間以内に行き渡る）。
+- ⚠️ 手順1の後から tracking_touches の行が増えるペースが上がる（広告以外の訪問1回につき1行）。
 - ⚠️ 自社サイト（kh-house.jp）の GTM のタグはそのままでよい（tracker.js が新しくなれば、見学クラウドへのリンクに顧客IDが付く）。
 
 ## 順序
@@ -78,6 +80,12 @@ SELECT title, updated_by, updated_at FROM guide_article WHERE title = 'トラッ
    - トリガー：ページビュー（すべてのページ）。⚠️ 自社サイトの鍵のタグを見学クラウドで動かさないこと
    - ⚠️ 1ページに自社のコンテナが2つ入っているページ（例：GTM-KRKCML59 と GTM-5B9M9KGV）では tracker.js が2回動き、**広告から見学クラウドに直接来た人の着地が2回記録される**（顧客ID・予約への付き方は変わらない）。2026-10-20 にこのままでよいと決定。
 3. プレビューで確かめてから公開
+
+## 確認（本番・広告以外の訪問）
+```sql
+SELECT source, COUNT(*) FROM tracking_touches WHERE created_at >= CURDATE() AND utm_source IS NULL AND gclid IS NULL AND fbclid IS NULL AND yclid IS NULL GROUP BY source ORDER BY 2 DESC;
+```
+⚠️ 手順1の後、`organic/google`・`direct` などが増えていけばよい（① phpMyAdmin で見る）。
 
 ## 確認（本番）
 1. シークレットウィンドウで `https://kh-house.jp/?utm_source=test201&utm_campaign=deploycheck` を開く
