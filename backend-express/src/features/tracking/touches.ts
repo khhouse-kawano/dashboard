@@ -9,7 +9,8 @@ import { CLICK_ID_KEYS, TRACKING_KEYS, UUID_PATTERN, parseLandingParams, sourceO
  * ⚠️ 反響の inquiry_customer.landing_params（フォームが送った値）を読んで、次の順で tracking_touches を探す。
  *   1. khg_vid があれば、visitor_id が一致する行（⚠️ 同じブラウザの着地をすべて）
  *   2. 無ければ gclid / gbraid / wbraid / fbclid / yclid のどれかが一致する行
- *     ⚠️ フォームのあるページに広告付きで着地してそのまま送ると khg_vid が付かない（tracker.js の補修は次のページから効く）
+ *     ⚠️ タグを貼る前の反響など、khg_vid が無いとき用（⚠️ tracker.js が landing_params に khg_vid を付け直し続けるので、タグのあるページからの反響には付く）
+ * ⚠️ url_params（送信したページの ? 以降）は見ない。⚠️ tracker.js は URL を書き換えないので khg_vid は入らない。
  * ⚠️ landing_params が空・見つからなければ、空の配列（⚠️ エラーにしない）。
  * ⚠️ 流入元（source）・キャンペーンは反響に保存されていないので、landing_params から読み取って返す（2026-10-20 の指示）。
  * ─────────────────────────────────────────────

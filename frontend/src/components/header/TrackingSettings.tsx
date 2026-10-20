@@ -5,7 +5,10 @@ import apiClient from '../../utils/apiClient';
  * 広告流入トラッキングの設定（v2.2.199 新規）。ヘッダー「反響管理 → トラッキング設定」（Master / BrandAdmin）。
  *
  * ─────────────────────────────────────────────
- * ⚠️ サイトを登録すると site_key が発行され、各サイトのフッターに貼るタグ（tracker.js）を出す。
+ * ⚠️ サイトを登録すると site_key が発行され、各サイトに入れるタグ（tracker.js）を出す。
+ * ⚠️ タグは2種類（v2.2.200〜）：GTM のカスタム HTML 用（gtmTag）と、フッターに直接貼る用（trackingTag）。
+ *   ⚠️⚠️ GTM に trackingTag をそのまま入れると動かない。GTM は <script src> を作り直すときに data-site を捨て、
+ *   tracker.js がサイトを見分けられず何もしない（2026-10-20 kh-house.jp で確認）。GTM 用は要素を自分で作って data-site を付ける。
  * ⚠️ ② は features/tracking/sites.ts（⚠️ 権限は ② でも確かめる。メニューから隠すだけでは閉じない）。
  * ⚠️ サイトは消さない（着地の記録が残るため）。⚠️「無効」にすると着地を保存しなくなる（タグは貼ったままでもサイトに影響なし）。
  * ⚠️ 全画面モーダル（Header.tsx の isFullscreenMenu）。⚠️ 閉じるボタンは Header.tsx が出す。
@@ -15,6 +18,23 @@ import apiClient from '../../utils/apiClient';
 
 export const TRACKER_URL = 'https://api.khg-marketing.info/t/v1/tracker.js';
 export const trackingTag = (siteKey: string): string => `<script src="${TRACKER_URL}" data-site="${siteKey}" defer></script>`;
+export const gtmTag = (siteKey: string): string => [
+    '<script>',
+    '(function () {',
+    "  var s = document.createElement('script');",
+    `  s.src = '${TRACKER_URL}';`,
+    '  s.defer = true;',
+    `  s.setAttribute('data-site', '${siteKey}');`,
+    '  document.body.appendChild(s);',
+    '})();',
+    '</script>',
+].join('\n');
+
+type TagKind = 'gtm' | 'footer';
+const TAG_KINDS: { kind: TagKind; label: string; make: (siteKey: string) => string }[] = [
+    { kind: 'gtm', label: 'GTM 用：GTM（Googleタグマネージャー）のカスタム HTML に入れるタグ（トリガーは「All Pages」）', make: gtmTag },
+    { kind: 'footer', label: 'フッター用：GTM を使わず、すべてのページのフッターに直接貼るタグ', make: trackingTag },
+];
 
 /** ブランドキー → 表示名（⚠️ ② の TRACKING_BRANDS と同じキー） */
 const BRAND_LABEL: Record<string, string> = {
@@ -66,7 +86,8 @@ const TrackingSettings: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState('');
     const [openTag, setOpenTag] = useState<number | null>(null);
-    const [copied, setCopied] = useState<number | null>(null);
+    /** コピーした（`サイトID:種類`）。⚠️ 先頭が ! ならコピーに失敗した */
+    const [copied, setCopied] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -125,13 +146,13 @@ const TrackingSettings: React.FC = () => {
         }
     };
 
-    const copy = async (site: Site) => {
-        if (await copyText(trackingTag(site.siteKey))) {
-            setCopied(site.id);
-            window.setTimeout(() => setCopied((c) => (c === site.id ? null : c)), 2500);
+    const copy = async (site: Site, kind: TagKind, text: string) => {
+        const key = `${site.id}:${kind}`;
+        if (await copyText(text)) {
+            setCopied(key);
+            window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 2500);
         } else {
-            setOpenTag(site.id);
-            setCopied(-site.id);
+            setCopied(`!${key}`);
         }
     };
 
@@ -153,7 +174,7 @@ const TrackingSettings: React.FC = () => {
                 </div>
 
                 <div className="tk_caution">
-                    ※ タグは、サイトの<b>すべてのページ</b>のフッターに1回だけ貼ります。WordPress の場合は WPCode の Footer 欄、またはテーマのフッターに貼ってください。<br />
+                    ※ タグは、サイトの<b>すべてのページ</b>で1回だけ動くように入れます。GTM を使っているサイトは「GTM 用」を、使っていないサイトは「フッター用」を使ってください（GTM にフッター用を入れても動きません）。<br />
                     ※ 「許可するオリジン」は、タグを貼るサイトの <b>https://ドメイン</b> です（例：https://kh-house.jp）。ここに無いドメインからの記録は保存しません。<br />
                     ※ 訪問者ごとのID（顧客ID）はブラウザに保存されます。リリース前に、プライバシーポリシーへ利用目的の記載が必要です。
                 </div>
@@ -230,15 +251,23 @@ const TrackingSettings: React.FC = () => {
                                     {openTag === s.id && (
                                         <tr className="tk_detail">
                                             <td className="tk_td" colSpan={8}>
-                                                <div className="tk_label">このサイトのすべてのページのフッターに貼るタグ</div>
-                                                <div className="tk_code_row">
-                                                    <code className="tk_code" onClick={(e) => window.getSelection()?.selectAllChildren(e.currentTarget)}>{trackingTag(s.siteKey)}</code>
-                                                    <button type="button" className="tk_btn is_primary" onClick={() => copy(s)}>
-                                                        {copied === s.id ? 'コピーしました' : 'コピー'}
-                                                    </button>
-                                                </div>
-                                                {copied === -s.id && <div className="tk_error">コピーできませんでした。タグを押して選び、Ctrl+C でコピーしてください。</div>}
-                                                <div className="tk_sub">サイトキー：{s.siteKey}（公開される識別子です。パスワードではありません）</div>
+                                                {TAG_KINDS.map(({ kind, label, make }) => {
+                                                    const key = `${s.id}:${kind}`;
+                                                    const text = make(s.siteKey);
+                                                    return (
+                                                        <div key={kind} className="tk_tag_block">
+                                                            <div className="tk_label">{label}</div>
+                                                            <div className="tk_code_row">
+                                                                <code className="tk_code" onClick={(e) => window.getSelection()?.selectAllChildren(e.currentTarget)}>{text}</code>
+                                                                <button type="button" className="tk_btn is_primary" onClick={() => copy(s, kind, text)}>
+                                                                    {copied === key ? 'コピーしました' : 'コピー'}
+                                                                </button>
+                                                            </div>
+                                                            {copied === `!${key}` && <div className="tk_error">コピーできませんでした。タグを押して選び、Ctrl+C でコピーしてください。</div>}
+                                                        </div>
+                                                    );
+                                                })}
+                                                <div className="tk_sub">どちらか一方だけ入れてください（両方あると着地が2回記録されます）。サイトキー：{s.siteKey}（公開される識別子です。パスワードではありません）</div>
                                             </td>
                                         </tr>
                                     )}
@@ -299,7 +328,8 @@ const CSS = `
 .tk_link:hover { text-decoration: underline; }
 .tk_detail > .tk_td { background: #fbfdff; padding: 10px 16px 14px; }
 .tk_code_row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0; }
-.tk_code { flex: 1 1 480px; display: block; font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #1f2937; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; word-break: break-all; cursor: text; }
+.tk_code { flex: 1 1 480px; display: block; font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #1f2937; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; word-break: break-all; cursor: text; }
+.tk_tag_block + .tk_tag_block { margin-top: 10px; }
 .tk_empty { color: #9ca3af; text-align: center; padding: 24px; }
 `;
 

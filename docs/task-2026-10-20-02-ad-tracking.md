@@ -1728,3 +1728,12 @@ index e84a0076..f0cbb3b7 100644
 
 ### 確認
 - `docker compose -f docker-compose.prod.yml config --quiet` → OK（構文に誤りなし。中身は出さない）。
+
+## 追記（2026-10-20）：touches.ts のコメントの食い違いを直す
+*backend-express/src/features/tracking* **touches.ts**（冒頭コメントのみ。処理は変えていない）
+```ts
+ *   2. 無ければ gclid / gbraid / wbraid / fbclid / yclid のどれかが一致する行
+ *     ⚠️ タグを貼る前の反響など、khg_vid が無いとき用（⚠️ tracker.js が landing_params に khg_vid を付け直し続けるので、タグのあるページからの反響には付く）
+ * ⚠️ url_params（送信したページの ? 以降）は見ない。⚠️ tracker.js は URL を書き換えないので khg_vid は入らない。
+```
+- 旧コメント「フォームのあるページに広告付きで着地してそのまま送ると khg_vid が付かない」は、keep()（1秒ごとの付け直し）を入れた後の実装と食い違っていた。

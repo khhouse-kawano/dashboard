@@ -88,9 +88,10 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api.khg-marketing.info/
 ```
 ⚠️ `204` が出ればよい（中身がでたらめなので保存はされない）。
 ```bash
-dcp logs express-api
+dcp logs express-api | grep -E "tracking_(site_list|site_save|touches)" | tail -3
 ```
-⚠️ 起動ログのルート一覧に `tracking_site_list` / `tracking_site_save` / `tracking_touches` がある（`--tail` と `grep` は併記しない。一覧は約190行・五十音順）。
+⚠️ 3行（`tracking_site_list` / `tracking_site_save` / `tracking_touches`）出ればよい。
+- ⚠️ `dcp logs --tail 80 express-api | grep …` のように `--tail` で先に切らない。起動時の一覧は約190行・五十音順なので、`--tail` の範囲から外れて「無い」ように見える。
 
 ## 手順4　【① FTP】PHP
 `backend/src/core/express_proxy.php` を上書き（`expressProxyRequests()` と `expressProxyExclusive()` に3つ足してある）
