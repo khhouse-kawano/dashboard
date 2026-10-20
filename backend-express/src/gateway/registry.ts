@@ -13,6 +13,7 @@ import { runIntroductorySummary } from '../features/introductory/summary';
 import { runDuplicateSummary } from '../features/duplicateSummary';
 import { getGuide, listGuide, saveGuide } from '../features/guide';
 import { listTrackingSites, saveTrackingSite } from '../features/tracking/sites';
+import { trackingSiteSummary } from '../features/tracking/summary';
 import { listInquiryTouches } from '../features/tracking/touches';
 import {
   runAuthAccessTimes,
@@ -821,6 +822,18 @@ register({
   handler: async (ctx) => {
     const { id, name, brand, origins, active, memo } = ctx.body;
     const result = await saveTrackingSite(ctx.staff, { id, name, brand, origins, active, memo });
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'tracking_site_summary',
+  summary: 'トラッキング設定のサイト1つのサマリー（直近30日の着地ページ別・流入元別の訪問数とCV。Master / BrandAdmin のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await trackingSiteSummary(ctx.staff, ctx.body.site_id);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
