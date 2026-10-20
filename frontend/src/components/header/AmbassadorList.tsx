@@ -676,7 +676,22 @@ const AmbassadorList = () => {
               ⚠️ ⚠️ **ランクや見込み月の編集は置かない。** 台帳は成果を見る画面であり、
                 ⚠️ ここで案件を触らせると、どこで直したのか分からなくなる。
             */}
-            <Modal show={kpiTarget !== null} onHide={() => setKpiTarget(null)} size="xl">
+            {/*
+              ⚠️⚠️ 2026-10-20 の指示：**後ろの画面と見分けられるよう、幕で暗くし、枠に影を付ける。**
+                ⚠️ この画面は Header.tsx の全画面モーダル（白）の上に重ねて開く。Bootstrap の幕（.modal-backdrop）は
+                  ⚠️ z-index 1050 で、全画面モーダル（1055）の**下**に描かれるため、後ろが暗くならず
+                  ⚠️ **モーダルが開いているか分からない**ほど同じ色に見えていた。
+                ⚠️ 幕だけ 1055 に上げる（⚠️ 後から出る幕は DOM の後ろにあるので全画面モーダルの上、このモーダルの下になる）。
+                ⚠️ ⚠️ **このモーダル自体の z-index は上げないこと。** 上げると、顧客名から開く顧客情報（InformationEdit。1055）が下に隠れる。
+            */}
+            <style>{`
+                .am_kpi_backdrop.modal-backdrop { z-index: 1055; }
+                .am_kpi_backdrop.modal-backdrop.show { opacity: .55; }
+                .am_kpi_content.modal-content { border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden;
+                    box-shadow: 0 24px 64px rgba(15, 23, 42, .45), 0 2px 8px rgba(15, 23, 42, .2); }
+            `}</style>
+            <Modal show={kpiTarget !== null} onHide={() => setKpiTarget(null)} size="xl"
+                backdropClassName="am_kpi_backdrop" contentClassName="am_kpi_content">
                 <Modal.Header closeButton className="bg-light py-2">
                     <Modal.Title className="fw-bold" style={{ fontSize: '14px' }}>
                         {kpiTarget?.ambassador.name ?? ''}

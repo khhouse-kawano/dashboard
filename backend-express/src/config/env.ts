@@ -50,6 +50,13 @@ export const env = {
    */
   trustProxy: numberEnv('TRUST_PROXY', 0),
 
+  /**
+   * 広告流入トラッキング（v2.2.199）で IP をハッシュにするときのソルト。
+   * ⚠️ IP そのものは保存しない（features/tracking/touch.ts）。⚠️ 未設定なら ip_hash を NULL にする（着地は保存する）。
+   * ⚠️ 一度決めたら変えない（変えると同じ IP でも別のハッシュになる）。
+   */
+  trackingIpSalt: (process.env.TRACKING_IP_SALT ?? '').trim(),
+
   /** リクエストボディの上限。PDF等のアップロードを見込んで少し大きめ */
   bodyLimit: process.env.BODY_LIMIT ?? '10mb',
 

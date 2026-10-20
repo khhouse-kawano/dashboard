@@ -68,6 +68,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     'ブラックリスト設定': { menu: '反響管理/ブラックリスト設定' },
     '事後アンケート': { menu: '反響管理/事後アンケート' },
     '広告費シミュレーター': { menu: '反響管理/広告費シミュレーター', authority: ['Master'] },
+    // ⚠️ v2.2.199（広告流入トラッキング）。Header.tsx の menuMapping と同じく Master / BrandAdmin
+    'トラッキング設定': { menu: '反響管理/トラッキング設定', authority: ADMIN },
     '紹介キャンペーンサマリー': { menu: '紹介キャンペーン/紹介キャンペーンサマリー' },
     '紹介キャンペーンの反響一覧': { menu: '紹介キャンペーン/反響一覧' },
     '月次日報': { menu: '活動サマリー/月次日報' },
