@@ -1699,3 +1699,32 @@ index e84a0076..f0cbb3b7 100644
          </>
      )
 ```
+
+---
+
+## 追記（2026-10-20）：本番の構成ファイルに TRACKING_IP_SALT を渡す ／ デプロイ手順書の書き直し
+
+### 見つかった漏れ
+- 本番の ② は `docker-compose.prod.yml` の `environment:` に書いた名前だけを Express に渡す（`.env.prod` の全部が渡るわけではない）。
+- `TRACKING_IP_SALT` を書いていなかったため、`.env.prod` に足しても ② に届かず、ip_hash が常に NULL になるところだった。
+- 手順書に「.env」と書いていたのも誤り（本番は `.env.prod`）。
+
+### 変えたファイル
+*ルート* **docker-compose.prod.yml**（express-api の environment の末尾、`KSNAP_OWNER_IV` の下に追加）
+```yaml
+
+      # 広告流入の着地記録で IP をハッシュにするソルト（v2.2.199）。
+      #
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
+      # ⚠️ 一度決めたら変えない（変えると同じ IP でも別のハッシュになる）。
+      # ⚠️ 未設定でも動く（ip_hash が NULL になるだけ）。
+      - TRACKING_IP_SALT=${TRACKING_IP_SALT:-}
+```
+
+*docs* **deploy-v2.2.199.md**（書き直し）
+- 手順2：`.env.prod` は作り直さず末尾に1行足す。値を出さずに行の有無を見る確認（`grep -c`）。
+- 手順3：これまでの版と同じ形（`git fetch` → `git checkout FETCH_HEAD` → `dcp build` → `dcp up -d`）。取れたかの確認と、ソルトがコンテナに届いたかの確認（`SET`／`EMPTY` だけ出す）を追加。
+- 手順7：タグを貼る場所（共通フッターに1回・外れた LP には別に・二重に貼らない・LP とフォームは同じドメイン）を追加。
+
+### 確認
+- `docker compose -f docker-compose.prod.yml config --quiet` → OK（構文に誤りなし。中身は出さない）。
