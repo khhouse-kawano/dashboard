@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
+import { attributeConversions } from './conversions';
 import { AD_TOUCH_SQL } from './params';
 import { clearTrackingSiteCache, normalizeOrigin, parseOrigins } from './touch';
 
@@ -43,9 +44,13 @@ export interface TrackingResult {
 const ok = (body: Record<string, unknown>): TrackingResult => ({ httpStatus: 200, body: { status: 'ok', ...body } });
 const fail = (httpStatus: number, message: string): TrackingResult => ({ httpStatus, body: { status: 'error', message } });
 
-/** 一覧（⚠️ 運用の確認用に、直近30日の着地数と最後の着地も返す。⚠️ 画面の見出しが「広告からの着地」なので広告の分だけ数える） */
+/**
+ * 一覧（⚠️ 運用の確認用に、直近30日の着地数と最後の着地も返す。⚠️ 画面の見出しが「広告からの着地」なので広告の分だけ数える）。
+ * ⚠️ v2.2.202 直近30日の CV も返す（数え方は conversions.ts。⚠️ 広告以外の訪問からの CV も含む）。
+ */
 export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promise<TrackingResult> => {
   if (!canManageTracking(staff)) return fail(403, 'この画面は管理者だけが使えます。');
+  const conversions = await attributeConversions();
   const rows = await query<SiteRow>(
     `SELECT s.id, s.site_key, s.name, s.brand, s.allowed_origins, s.is_active, s.memo, s.updated_by,
             DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i') AS updated_at,
@@ -59,7 +64,7 @@ export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promi
     sites: rows.map((r) => ({
       id: Number(r.id), siteKey: r.site_key, name: r.name, brand: r.brand ?? '', origins: parseOrigins(r.allowed_origins),
       active: Number(r.is_active) === 1, memo: r.memo, updatedBy: r.updated_by, updatedAt: r.updated_at,
-      touches30d: Number(r.touches_30d), lastTouch: r.last_touch,
+      touches30d: Number(r.touches_30d), lastTouch: r.last_touch, cv30d: conversions.get(Number(r.id))?.length ?? 0,
     })),
   });
 };

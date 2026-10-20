@@ -10,6 +10,9 @@ import apiClient from '../../utils/apiClient';
  *   ⚠️⚠️ GTM に trackingTag をそのまま入れると動かない。GTM は <script src> を作り直すときに data-site を捨て、
  *   tracker.js がサイトを見分けられず何もしない（2026-10-20 kh-house.jp で確認）。GTM 用は要素を自分で作って data-site を付ける。
  * ⚠️ ② は features/tracking/sites.ts（⚠️ 権限は ② でも確かめる。メニューから隠すだけでは閉じない）。
+ * ⚠️ v2.2.202 サイト名を押すと、その行の下にサマリー（SiteSummary）が開く。⚠️ 開閉はサイトごと（ほかのサイトと連動しない）。
+ *   ⚠️ サマリーは開いたときに取りに行く（tracking_site_summary。② は features/tracking/summary.ts）。⚠️「再読み込み」で一覧と開いているサマリーを取り直す。
+ *   ⚠️ CV の数え方は ② の features/tracking/conversions.ts（直近30日の反響の khg_vid が、問い合わせの日までにそのサイトに来ていたもの）。
  * ⚠️ サイトは消さない（着地の記録が残るため）。⚠️「無効」にすると着地を保存しなくなる（タグは貼ったままでもサイトに影響なし）。
  * ⚠️ 全画面モーダル（Header.tsx の isFullscreenMenu）。⚠️ 閉じるボタンは Header.tsx が出す。
  * ⚠️ 見た目は GoogleReview.tsx に合わせる（接頭辞 tk_）。
@@ -54,6 +57,7 @@ interface Site {
     updatedAt: string;
     touches30d: number;
     lastTouch: string | null;
+    cv30d: number;
 }
 
 interface Draft {
@@ -77,6 +81,132 @@ const copyText = async (text: string): Promise<boolean> => {
     }
 };
 
+interface SummaryRow {
+    key: string;
+    visits: number;
+    ad: number;
+    cv: number;
+}
+
+interface Summary {
+    days: number;
+    kpi: { visits: number; ad: number; cv: number };
+    landing: SummaryRow[];
+    source: SummaryRow[];
+}
+
+type SummaryTab = 'landing' | 'source';
+type SummarySortKey = 'key' | 'visits' | 'ad' | 'cv' | 'rate';
+
+const rateOf = (cv: number, visits: number): number | null => (visits > 0 ? (cv / visits) * 100 : null);
+const formatRate = (rate: number | null): string => (rate === null ? '—' : `${rate.toFixed(1)}%`);
+
+/** 着地ページは % エンコードのまま記録されているので、読める形にして出す（⚠️ 壊れた % なら記録のまま） */
+const readableUrl = (url: string): string => {
+    if (url === '') return '（不明）';
+    try {
+        return decodeURI(url.replace(/^https?:\/\//, ''));
+    } catch {
+        return url.replace(/^https?:\/\//, '');
+    }
+};
+
+/**
+ * サイト1つのサマリー（v2.2.202）。⚠️ サイトの行の下に、表と同じ幅で開く。
+ * ⚠️ タブ（着地ページ／流入元）と並べ替えはサイトごとに持つ（ほかのサイトと連動しない）。
+ * ⚠️ reloadKey が変わったら取り直す（親の「再読み込み」）。
+ */
+const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, reloadKey }) => {
+    const [data, setData] = useState<Summary | null>(null);
+    const [error, setError] = useState('');
+    const [tab, setTab] = useState<SummaryTab>('landing');
+    const [sortKey, setSortKey] = useState<SummarySortKey>('visits');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    useEffect(() => {
+        let alive = true;
+        setError('');
+        apiClient.post('', { request: 'tracking_site_summary', site_id: siteId })
+            .then((response) => { if (alive) setData(response.data as Summary); })
+            .catch((e) => {
+                console.error('tracking_site_summary failed:', e);
+                if (alive) setError('サマリーを読み込めませんでした。「再読み込み」を押してください。');
+            });
+        return () => { alive = false; };
+    }, [siteId, reloadKey]);
+
+    const rows = useMemo(() => {
+        const list = data === null ? [] : [...data[tab]];
+        const dir = sortOrder === 'asc' ? 1 : -1;
+        const value = (r: SummaryRow): number | string => (sortKey === 'key' ? r.key : sortKey === 'rate' ? rateOf(r.cv, r.visits) ?? -1 : r[sortKey]);
+        return list.sort((a, b) => {
+            const x = value(a), y = value(b);
+            return (typeof x === 'string' ? x.localeCompare(String(y), 'ja') : x - Number(y)) * dir;
+        });
+    }, [data, tab, sortKey, sortOrder]);
+
+    if (error !== '') return <div className="tk_error">{error}</div>;
+    if (data === null) return <div className="tk_sub">読み込み中…</div>;
+
+    const SortHead = ({ label, keyName, num = true }: { label: string; keyName: SummarySortKey; num?: boolean }) => {
+        const active = sortKey === keyName;
+        return (
+            <th className={`tk_th tk_th_sort${num ? ' tk_num' : ''}`} title="クリックで並べ替え"
+                onClick={() => {
+                    if (active) setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+                    else { setSortKey(keyName); setSortOrder('desc'); }
+                }}>
+                {label}
+                <span className={`tk_sort_icon${active ? ' is_active' : ''}`}>{active ? (sortOrder === 'asc' ? '▲' : '▼') : '⇅'}</span>
+            </th>
+        );
+    };
+
+    return (
+        <div className="tk_sum">
+            <div className="tk_sum_kpi">
+                <div className="tk_sum_card"><div className="tk_kpi_label">訪問数（直近{data.days}日）</div><div className="tk_sum_value">{data.kpi.visits.toLocaleString()}</div></div>
+                <div className="tk_sum_card"><div className="tk_kpi_label">うち広告から</div><div className="tk_sum_value">{data.kpi.ad.toLocaleString()}</div></div>
+                <div className="tk_sum_card"><div className="tk_kpi_label">CV（直近{data.days}日の反響）</div><div className="tk_sum_value">{data.kpi.cv.toLocaleString()}</div></div>
+                <div className="tk_sum_card"><div className="tk_kpi_label">CV率</div><div className="tk_sum_value">{formatRate(rateOf(data.kpi.cv, data.kpi.visits))}</div></div>
+            </div>
+            <div className="tk_tabs" role="tablist" aria-label="集計の軸">
+                {([['landing', '着地ページ'], ['source', '流入元']] as [SummaryTab, string][]).map(([key, label]) => (
+                    <button key={key} type="button" role="tab" aria-selected={tab === key}
+                        className={`tk_tab${tab === key ? ' is_active' : ''}`} onClick={() => setTab(key)}>{label}</button>
+                ))}
+                <span className="tk_sub">CV は、問い合わせの日までの最後の訪問の{tab === 'landing' ? '着地ページ' : '流入元'}で数えます</span>
+            </div>
+            <div className="tk_sum_table_wrap">
+                <table className="tk_table">
+                    <thead>
+                        <tr>
+                            <SortHead label={tab === 'landing' ? '着地ページ' : '流入元'} keyName="key" num={false} />
+                            <SortHead label="訪問数" keyName="visits" />
+                            <SortHead label="うち広告" keyName="ad" />
+                            <SortHead label="CV" keyName="cv" />
+                            <SortHead label="CV率" keyName="rate" />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.length === 0 ? (
+                            <tr><td className="tk_td tk_empty" colSpan={5}>直近{data.days}日の訪問はまだありません。</td></tr>
+                        ) : rows.map((r) => (
+                            <tr key={r.key} className="tk_row">
+                                <td className="tk_td tk_sum_key" title={r.key}>{tab === 'landing' ? readableUrl(r.key) : r.key || '（不明）'}</td>
+                                <td className="tk_td tk_num">{r.visits.toLocaleString()}</td>
+                                <td className="tk_td tk_num">{r.ad.toLocaleString()}</td>
+                                <td className="tk_td tk_num">{r.cv > 0 ? <b>{r.cv.toLocaleString()}</b> : 0}</td>
+                                <td className="tk_td tk_num">{formatRate(rateOf(r.cv, r.visits))}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
 const TrackingSettings: React.FC = () => {
     const [sites, setSites] = useState<Site[]>([]);
     const [brands, setBrands] = useState<string[]>(Object.keys(BRAND_LABEL));
@@ -88,6 +218,9 @@ const TrackingSettings: React.FC = () => {
     const [openTag, setOpenTag] = useState<number | null>(null);
     /** コピーした（`サイトID:種類`）。⚠️ 先頭が ! ならコピーに失敗した */
     const [copied, setCopied] = useState<string | null>(null);
+    /** サマリーを開いているサイト（⚠️ サイトごとに開閉。ほかのサイトと連動しない） */
+    const [openSummary, setOpenSummary] = useState<Set<number>>(new Set());
+    const [reloadKey, setReloadKey] = useState(0);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -110,7 +243,19 @@ const TrackingSettings: React.FC = () => {
         total: sites.length,
         active: sites.filter((s) => s.active).length,
         touches: sites.reduce((sum, s) => sum + s.touches30d, 0),
+        cv: sites.reduce((sum, s) => sum + s.cv30d, 0),
     }), [sites]);
+
+    const reload = () => {
+        load();
+        setReloadKey((k) => k + 1);
+    };
+
+    const toggleSummary = (id: number) => setOpenSummary((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
 
     const startEdit = (site: Site | null) => {
         setFormError('');
@@ -164,6 +309,9 @@ const TrackingSettings: React.FC = () => {
                     <span className="tk_title"><i className="fa-solid fa-route me-2 text-primary" aria-hidden="true" />トラッキング設定</span>
                     {/* ⚠️ 右端に置かないこと（⚠️ 右上はアクティブユーザーの枠＝ActiveUser.tsx が重なって押せない） */}
                     <button type="button" className="tk_btn is_primary" onClick={() => startEdit(null)}>サイトを登録</button>
+                    <button type="button" className="tk_btn" onClick={reload} disabled={loading}>
+                        <i className="fa-solid fa-rotate-right me-1" aria-hidden="true" />{loading ? '読み込み中…' : '再読み込み'}
+                    </button>
                     <span className="tk_note">広告から来た人の流入情報と、訪問者ごとのID（顧客ID）を、各サイトのタグで記録します</span>
                 </div>
 
@@ -171,11 +319,13 @@ const TrackingSettings: React.FC = () => {
                     <div className="tk_kpi_card"><div className="tk_kpi_label">登録サイト</div><div className="tk_kpi_value">{kpi.total}</div></div>
                     <div className="tk_kpi_card"><div className="tk_kpi_label">有効</div><div className="tk_kpi_value">{kpi.active}</div></div>
                     <div className="tk_kpi_card"><div className="tk_kpi_label">直近30日の広告からの着地</div><div className="tk_kpi_value">{kpi.touches.toLocaleString()}</div></div>
+                    <div className="tk_kpi_card"><div className="tk_kpi_label">直近30日のCV</div><div className="tk_kpi_value">{kpi.cv.toLocaleString()}</div></div>
                 </div>
 
                 <div className="tk_caution">
                     ※ タグは、サイトの<b>すべてのページ</b>で1回だけ動くように入れます。GTM を使っているサイトは「GTM 用」を、使っていないサイトは「フッター用」を使ってください（GTM にフッター用を入れても動きません）。<br />
                     ※ 「許可するオリジン」は、タグを貼るサイトの <b>https://ドメイン</b> です（例：https://kh-house.jp）。ここに無いドメインからの記録は保存しません。<br />
+                    ※ サイト名を押すと、そのサイトの着地ページ別・流入元別の訪問数（広告以外も含む）と CV が開きます。CV は、直近30日の反響のうち、問い合わせの日までにそのサイトに来ていた人の数です。<br />
                     ※ 訪問者ごとのID（顧客ID）はブラウザに保存されます。リリース前に、プライバシーポリシーへ利用目的の記載が必要です。
                 </div>
 
@@ -222,24 +372,33 @@ const TrackingSettings: React.FC = () => {
                                 <th className="tk_th">許可するオリジン</th>
                                 <th className="tk_th">状態</th>
                                 <th className="tk_th tk_num">直近30日の着地</th>
+                                <th className="tk_th tk_num">直近30日のCV</th>
                                 <th className="tk_th">最後の着地</th>
                                 <th className="tk_th">更新</th>
                                 <th className="tk_th"></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {loading ? (
-                                <tr><td className="tk_td tk_empty" colSpan={8}>読み込み中…</td></tr>
+                            {/* ⚠️ 再読み込みのときは表を消さない（開いているサマリーのタブ・並べ替えを残す） */}
+                            {loading && sites.length === 0 ? (
+                                <tr><td className="tk_td tk_empty" colSpan={9}>読み込み中…</td></tr>
                             ) : sites.length === 0 ? (
-                                <tr><td className="tk_td tk_empty" colSpan={8}>まだサイトがありません。「サイトを登録」から始めてください。</td></tr>
+                                <tr><td className="tk_td tk_empty" colSpan={9}>まだサイトがありません。「サイトを登録」から始めてください。</td></tr>
                             ) : sites.map((s) => (
                                 <React.Fragment key={s.id}>
                                     <tr className={`tk_row${s.active ? '' : ' is_off'}`}>
-                                        <td className="tk_td"><div className="tk_name">{s.name}</div>{s.memo && <div className="tk_sub">{s.memo}</div>}</td>
+                                        <td className="tk_td">
+                                            <button type="button" className="tk_name_btn" aria-expanded={openSummary.has(s.id)} onClick={() => toggleSummary(s.id)}
+                                                title={openSummary.has(s.id) ? 'サマリーを閉じる' : 'サマリーを開く'}>
+                                                <i className={`fa-solid fa-chevron-${openSummary.has(s.id) ? 'down' : 'right'} tk_chev`} aria-hidden="true" />{s.name}
+                                            </button>
+                                            {s.memo && <div className="tk_sub">{s.memo}</div>}
+                                        </td>
                                         <td className="tk_td">{s.brand ? <span className="tk_tag">{BRAND_LABEL[s.brand] ?? s.brand}</span> : ''}</td>
                                         <td className="tk_td">{s.origins.map((o) => <div key={o} className="tk_origin">{o}</div>)}</td>
                                         <td className="tk_td"><span className={`tk_state${s.active ? ' is_on' : ''}`}>{s.active ? '有効' : '無効'}</span></td>
                                         <td className="tk_td tk_num">{s.touches30d.toLocaleString()}</td>
+                                        <td className="tk_td tk_num">{s.cv30d.toLocaleString()}</td>
                                         <td className="tk_td tk_date">{s.lastTouch ?? '—'}</td>
                                         <td className="tk_td tk_date">{s.updatedAt}{s.updatedBy && <div className="tk_sub">{s.updatedBy}</div>}</td>
                                         <td className="tk_td tk_actions">
@@ -248,9 +407,14 @@ const TrackingSettings: React.FC = () => {
                                             <button type="button" className="tk_link" onClick={() => startEdit(s)}>直す</button>
                                         </td>
                                     </tr>
+                                    {openSummary.has(s.id) && (
+                                        <tr className="tk_summary">
+                                            <td className="tk_td" colSpan={9}><SiteSummary siteId={s.id} reloadKey={reloadKey} /></td>
+                                        </tr>
+                                    )}
                                     {openTag === s.id && (
                                         <tr className="tk_detail">
-                                            <td className="tk_td" colSpan={8}>
+                                            <td className="tk_td" colSpan={9}>
                                                 {TAG_KINDS.map(({ kind, label, make }) => {
                                                     const key = `${s.id}:${kind}`;
                                                     const text = make(s.siteKey);
@@ -316,7 +480,26 @@ const CSS = `
 .tk_row:hover > .tk_td { background: #f8fafc; }
 .tk_row.is_off > .tk_td { color: #9ca3af; }
 .tk_num { text-align: right; font-variant-numeric: tabular-nums; }
-.tk_name { font-weight: 700; font-size: 13px; }
+.tk_name_btn { font-weight: 700; font-size: 13px; color: #1d4ed8; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: inline-flex; align-items: center; gap: 6px; }
+.tk_name_btn:hover { text-decoration: underline; }
+.tk_name_btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; border-radius: 4px; }
+.tk_chev { font-size: 10px; color: #64748b; width: 10px; }
+.tk_summary > .tk_td { background: #f8fafc; padding: 12px 16px 16px; }
+.tk_sum { display: flex; flex-direction: column; gap: 10px; }
+.tk_sum_kpi { display: flex; gap: 8px; flex-wrap: wrap; }
+.tk_sum_card { flex: 1 1 140px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px 12px; }
+.tk_sum_value { font-size: 17px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.tk_tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tk_tab { border: 1px solid #e5e7eb; background: #fff; border-radius: 999px; padding: 4px 14px; font-size: 12px; font-weight: 700; color: #4b5563; cursor: pointer; }
+.tk_tab:hover { background: #eef2f7; }
+.tk_tab.is_active { background: #2563eb; border-color: #2563eb; color: #fff; }
+.tk_tab:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+.tk_sum_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto; background: #fff; max-height: 360px; }
+.tk_th_sort { cursor: pointer; user-select: none; }
+.tk_th_sort:hover { background: #eef2f7; }
+.tk_sort_icon { margin-left: 6px; font-size: 10px; color: #cbd5e1; }
+.tk_sort_icon.is_active { color: #2563eb; }
+.tk_sum_key { max-width: 560px; word-break: break-all; font-size: 12px; }
 .tk_sub { font-size: 11px; color: #6b7280; }
 .tk_tag { font-size: 10px; color: #4b5563; background: #f3f4f6; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 .tk_origin { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
