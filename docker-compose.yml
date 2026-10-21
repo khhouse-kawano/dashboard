@@ -68,6 +68,15 @@ services:
       # ⚠️ 空にすると受付機能が全て 401 になる。ローカルで受付を試すときは
       #   この値を使うこと。
       - EVENT_CHECKIN_PASSCODE=localtest
+    env_file:
+      # Meta 広告 API のトークンと対象の ID（v2.2.203。META_ACCESS_TOKEN・META_AD_ACCOUNTS）。
+      #
+      # ⚠️ 開発で使う秘密の値だけを書くファイル。.gitignore の **/.env.* で Git には入らない。
+      # ⚠️ 無くても起動する（required: false）。
+      # ⚠️ backend-express/.env は読ませない（中身が本番向きだと、開発中の操作が本番へ向かうおそれがある）。
+      # ⚠️ 上の environment と同じ名前を書いても environment が勝つ。
+      - path: ./backend-express/.env.local
+        required: false
     depends_on:
       mariadb-db:
         condition: service_healthy

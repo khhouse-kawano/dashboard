@@ -1,6 +1,8 @@
 import { createApp } from './app';
 import { env } from './config/env';
 import { closePool, pingDatabase } from './db/pool';
+import { startMetaAdsScheduler } from './features/metaAds/scheduler';
+import { startTrackingMaintenance } from './features/tracking/maintenance';
 import { gatewaySummary, logGatewayRoutes } from './gateway';
 import { logger } from './utils/logger';
 
@@ -27,6 +29,11 @@ const bootstrap = async (): Promise<void> => {
     // すべて失敗するため、起動時に必ず目に入る場所へ出す
     logger.info(gatewaySummary());
     logGatewayRoutes();
+
+    // Meta 広告（自社）の成果の自動取り込み（v2.2.203。.env に無ければ何もしない）
+    startMetaAdsScheduler();
+    // アクセス解析の表の整理（v2.2.203。消さない顧客ID の追加・閲覧の古い行の削除）
+    startTrackingMaintenance();
   });
 
   // 重い集計SQLの途中で切断されないよう、既定より長めに設定する
