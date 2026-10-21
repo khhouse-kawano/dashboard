@@ -43,8 +43,10 @@ const LABEL: Record<string, string> = {
 export const brandLabel = (brand: string): string => LABEL[brand] ?? brand;
 
 /**
- * ブランドのロゴ。
- * ⚠️ ① に置かれている画像を指している。⚠️ ファイル名はブランドキーと同じ。
+ * ブランドのロゴ。⚠️ ファイル名はブランドキーと同じ。
+ * ⚠️ v2.2.204〜 画像は frontend/public/img/ に入れてあり、ビルドと一緒に ① の /dashboard/img/ へ上がる。
+ *   ⚠️ 以前の /dashboard/form/img/（① に手で置いていたもの）が無くなり、全ブランドのロゴが出なくなったため移した。
+ * ⚠️ 開発環境でも出るように、本番の URL を指す（画像はデプロイ後に見える）。
  */
 export const brandLogo = (brand: string): string =>
-    `https://khg-marketing.info/dashboard/form/img/${brand}.png`;
+    `https://khg-marketing.info/dashboard/img/${brand}.png`;

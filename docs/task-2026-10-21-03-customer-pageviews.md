@@ -917,3 +917,168 @@ index f62cbb26..8deebc47 100644
 -export const newVersion = '2.2.203';
 +export const newVersion = '2.2.204';
 ```
+
+---
+
+# 追加の指示：FormBuilder で作るフォームも landing_params を送る（同じ v2.2.204）
+
+## 依頼
+- 「FormBuilder.tsx で生成されるフォームでは landing_params は POST されないよね」→ 送っていなかった（`url` と `utm_source` だけ）
+- 「まだデプロイしてないので同じブランチで FormBuilder.tsx の改修までしてほしい」
+
+## 変更
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| frontend/src/components/campaign | **formBuilderUtils.ts** | `buildHtml` が作る送信処理に `url_params`（送信したページの ? 以降）と `landing_params`（tracker.js が localStorage に覚えている値。khg_vid を含む）を足した。生成物の中に `storedLandingParams()`（localStorage が使えないときは空） |
+| frontend/src/components/campaign | **FormBuilder.tsx** | 生成された HTML の上に注意書き（タグのあるページだけ送られる・v2.2.204 より前に作った HTML は作り直して貼り替える） |
+
+- ② の `features/campaignForm/entry.ts` は前から `url_params`・`landing_params` を受け取って保存しているので変更なし
+- ⚠️ **すでに LP に貼ってある HTML は古いまま。** 作り直して貼り替えないと送られない
+
+## 確認（新しい buildHtml で HTML を作り、本物の tracker.js と一緒に Playwright で送信。本番への通信はすべて横取り）
+| 場面 | url_params | landing_params | 送信 |
+|---|---|---|---|
+| A 広告で着地したページ（タグあり） | `gclid=g123&utm_source=google&utm_campaign=spring` | `gclid=g123&utm_source=google&utm_campaign=spring&khg_vid=<uuid>` | 成功 |
+| B タグなしのページ | `utm_source=google` | 空 | 成功 |
+| C パラメータなし（タグあり） | 空 | `khg_vid=<uuid>` | 成功 |
+| D localStorage が使えない | `utm_source=x` | 空 | 成功 |
+
+- eslint：警告なし。ビルド `main.c4b9c26c.js`
+- FormBuilder の画面の注意書きは、ブラウザでは表示を見ていない（文言を足しただけ）
+
+## 差分
+```diff
+diff --git a/frontend/src/components/campaign/FormBuilder.tsx b/frontend/src/components/campaign/FormBuilder.tsx
+index 2d6dc133..11f96e51 100644
+--- a/frontend/src/components/campaign/FormBuilder.tsx
++++ b/frontend/src/components/campaign/FormBuilder.tsx
+@@ -287,6 +287,10 @@ const FormBuilder: React.FC<Props> = ({ activeTab }) => {
+                             </button>
+                             {!copied || <span style={{ fontSize: '12px', color: 'green' }}>コピーしました</span>}
+                         </div>
++                        {/* ⚠️ v2.2.204〜 生成した HTML は流入の情報（landing_params）も送る（formBuilderUtils.ts の buildHtml） */}
++                        <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '6px' }}>
++                            ※ 広告などの流入の情報と顧客IDは、アクセス解析のタグが入ったページに貼ったときだけ一緒に送られます。v2.2.204 より前に作った HTML は送らないので、作り直して貼り替えてください。
++                        </div>
+                         <textarea value={html} readOnly rows={22}
+                             onFocus={e => e.target.select()}
+                             style={{ width: '100%', fontSize: '11px', fontFamily: 'monospace', border: '1px solid #D3D3D3', borderRadius: '5px', padding: '8px' }} />
+diff --git a/frontend/src/components/campaign/formBuilderUtils.ts b/frontend/src/components/campaign/formBuilderUtils.ts
+index e41a943d..88ae4737 100644
+--- a/frontend/src/components/campaign/formBuilderUtils.ts
++++ b/frontend/src/components/campaign/formBuilderUtils.ts
+@@ -224,6 +224,11 @@ ${rows}
+   var button = document.getElementById('khg-submit');
+   var error = document.getElementById('khg-error');
+ 
++  // ⚠️ localStorage が使えないブラウザ（プライベートモードなど）でも送信は止めない
++  function storedLandingParams() {
++    try { return localStorage.getItem('landing_params') || ''; } catch (e) { return ''; }
++  }
++
+   form.addEventListener('submit', function (event) {
+     event.preventDefault();
+ 
+@@ -240,7 +245,11 @@ ${rows}
+       campaign: ${JSON.stringify(input.campaign)},
+       // ⚠️ どのページから送られたかを残す。反響の出どころが追える
+       url: location.href,
+-      source: (new URLSearchParams(location.search)).get('utm_source') || ''
++      source: (new URLSearchParams(location.search)).get('utm_source') || '',
++      // ⚠️ v2.2.204 送信したページの ? 以降と、tracker.js が覚えている流入の情報（顧客ID khg_vid を含む）。
++      //   ⚠️ tracker.js のタグが無いページでは landing_params は空になる
++      url_params: location.search.replace(/^\\?/, ''),
++      landing_params: storedLandingParams()
+     };
+ 
+     new FormData(form).forEach(function (value, key) { body[key] = value; });
+```
+
+---
+
+# 追加の指示：キャンペーン画面のブランドロゴが出ない（同じ v2.2.204）
+
+## 依頼
+- 「開発環境でも本番環境でも CampaignList.tsx のブランドアイコンが表示されなくなった。リンク不具合」
+- 「C:\Users\shinji-kawano\react\form_post\img の png を /dashboard/img/ ディレクトリに置くのでファイルを書き換えて」
+- 「kh-house.jp/khg/form/img/khg.png も img ディレクトリに配置するので書き換えを」
+
+## 原因
+- ロゴは `https://khg-marketing.info/dashboard/form/img/<ブランド>.png`（① に手で置いた画像。リポジトリには無い）を指していた
+- ① からこの画像が無くなり、存在しないパスとしてダッシュボードの index.html（200・text/html）が返っていた。開発環境も同じ本番 URL を見ているので両方で出ない
+- 同じく手で置いた `/dashboard/funding-plan/金利データ.js` は残っている → デプロイで消えたのではない
+
+## 変更
+| ディレクトリ | ファイル | 内容 |
+|---|---|---|
+| frontend/public/img | **2l.png・djh.png・fh.png・jh.png・kh.png・nagomi.png・pg.png**（新規） | `react/form_post/img/` の写し |
+| frontend/public/img | **khg.png**（新規） | `https://kh-house.jp/khg/form/img/khg.png` から取得 |
+| frontend/src/components/campaign | **brands.ts** | `brandLogo()` を `https://khg-marketing.info/dashboard/img/<ブランド>.png` に |
+| frontend/src/components/campaign | **NewCampaign.tsx** | 見出しのロゴの URL を直書きから `brandLogo()` に |
+| frontend/src/components/campaign | **formPreview.tsx** | プレビューの khg のロゴを `/dashboard/img/khg.png` に（ほかのブランドは各ブランドサイトのロゴのまま） |
+
+- ⚠️ 画像は `frontend/public/img/` に入れたので、`npm run build` で `build/img/` に入り、`deploy-dashboard` で ① の `/dashboard/img/` へ上がる（手で置かなくてよい。リポジトリにも残る）
+- ⚠️ 開発環境も本番の URL を見るので、ロゴが出るのは**デプロイの後**
+- ⚠️ 別のプロジェクト `form_get/src/api/brands.ts`（公開フォーム）と `form_post` には旧 URL が残っている（今回は触っていない）
+
+## 確認
+- ビルド `main.c48b4c6f.js`、`build/img/` に8ファイル
+- Playwright でキャンペーン管理を表示（`/dashboard/img/` をローカルの build/img に向けた）：8ブランドとも `/dashboard/img/<ブランド>.png` を読み、画像が出た
+- eslint：変更した行に警告なし（NewCampaign.tsx の警告3件は前から）
+
+## 差分
+```diff
+diff --git a/frontend/src/components/campaign/NewCampaign.tsx b/frontend/src/components/campaign/NewCampaign.tsx
+index 68da8e2d..37fd812e 100644
+--- a/frontend/src/components/campaign/NewCampaign.tsx
++++ b/frontend/src/components/campaign/NewCampaign.tsx
+@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
+ import { fetchDetail, fetchMaster, insertCampaign, updateCampaign } from './campaignApi';
+ import { PLACEHOLDERS, unknownPlaceholders } from './mailTemplateFields';
+ import FormPreview from './formPreview';
++import { brandLogo } from './brands';
+ import './newCampaign.css';
+ 
+ /** プレビュー（formPreview.tsx）も使う */
+@@ -538,7 +539,7 @@ const NewCampaign = () => {
+     return (
+         <div className="nc">
+             <header className="nc-header">
+-                <img className="nc-header-logo" src={`https://khg-marketing.info/dashboard/form/img/${brandValue}.png`} alt="" />
++                <img className="nc-header-logo" src={brandLogo(brandValue)} alt="" />
+                 <div>
+                     <p className="nc-crumb">キャンペーン一覧 ／ {isEdit ? '修正' : '新規作成'}</p>
+                     <h1 className="nc-title">{isEdit ? 'キャンペーン修正' : 'キャンペーン作成'}</h1>
+diff --git a/frontend/src/components/campaign/brands.ts b/frontend/src/components/campaign/brands.ts
+index a54ef0a0..220899f5 100644
+--- a/frontend/src/components/campaign/brands.ts
++++ b/frontend/src/components/campaign/brands.ts
+@@ -43,8 +43,10 @@ const LABEL: Record<string, string> = {
+ export const brandLabel = (brand: string): string => LABEL[brand] ?? brand;
+ 
+ /**
+- * ブランドのロゴ。
+- * ⚠️ ① に置かれている画像を指している。⚠️ ファイル名はブランドキーと同じ。
++ * ブランドのロゴ。⚠️ ファイル名はブランドキーと同じ。
++ * ⚠️ v2.2.204〜 画像は frontend/public/img/ に入れてあり、ビルドと一緒に ① の /dashboard/img/ へ上がる。
++ *   ⚠️ 以前の /dashboard/form/img/（① に手で置いていたもの）が無くなり、全ブランドのロゴが出なくなったため移した。
++ * ⚠️ 開発環境でも出るように、本番の URL を指す（画像はデプロイ後に見える）。
+  */
+ export const brandLogo = (brand: string): string =>
+-    `https://khg-marketing.info/dashboard/form/img/${brand}.png`;
++    `https://khg-marketing.info/dashboard/img/${brand}.png`;
+diff --git a/frontend/src/components/campaign/formPreview.tsx b/frontend/src/components/campaign/formPreview.tsx
+index 18e54f73..4162062b 100644
+--- a/frontend/src/components/campaign/formPreview.tsx
++++ b/frontend/src/components/campaign/formPreview.tsx
+@@ -16,7 +16,8 @@ const LOGO: Record<string, string> = {
+     '2l': 'https://2lhome.net/wp-content/uploads/2025/08/brand-logo.png',
+     pg: 'https://miyazaki.pg-house.jp/img/logo.webp',
+     jh: 'https://jusfy-home.com/lp/assets/logo-Lleu0Agz.png',
+-    khg: 'https://kh-house.jp/khg/form/img/khg.png',
++    // ⚠️ v2.2.204〜 khg だけはダッシュボードの /dashboard/img/（frontend/public/img/khg.png）。以前は kh-house.jp/khg/form/img/khg.png
++    khg: 'https://khg-marketing.info/dashboard/img/khg.png',
+ };
+ 
+ const ACCENT: Record<string, string> = {
+```
