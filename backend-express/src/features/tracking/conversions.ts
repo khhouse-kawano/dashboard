@@ -10,6 +10,8 @@ import { UUID_PATTERN } from './params';
  *   ⚠️ 1件の反響が複数のサイトを訪問していれば、それぞれのサイトで1件（サイトごとに見る数字のため）。
  *   ⚠️ どの訪問の手柄にするかは、問い合わせの日までの「そのサイトへの最後の訪問」（ラストクリック）。
  * ⚠️ 反響の日付（inquiry_date）は 'YYYY/MM/DD' の文字列で時刻が無い。⚠️ その日の 23:59:59 までの訪問を「問い合わせ前」とみなす。
+ * ⚠️ v2.2.205 かえるホームの反響（inquiry_customer_kaeru。landing_params は cvMatch.ts が書く）も数える。
+ *   ⚠️ id は表ごとの番号なので、どちらの表の反響か（inquiryTable）と組で見ること。
  * ─────────────────────────────────────────────
  */
 
@@ -17,7 +19,12 @@ export const DAYS = 30;
 /** visitor_id を IN で渡す件数（⚠️ プレースホルダーが増えすぎないよう分ける） */
 const CHUNK = 500;
 
+/** 反響の表（⚠️ 注文と、v2.2.205〜 かえるホーム） */
+export const CV_TABLES = ['inquiry_customer', 'inquiry_customer_kaeru'] as const;
+export type CvTable = (typeof CV_TABLES)[number];
+
 interface InquiryRow extends RowDataPacket {
+  inquiry_table: CvTable;
   id: number;
   inquiry_day: string | null;
   vid: string;
@@ -34,6 +41,8 @@ interface TouchRow extends RowDataPacket {
 }
 
 export interface Conversion {
+  /** ⚠️ v2.2.205 どちらの表の反響か（inquiryId は表ごとの番号） */
+  inquiryTable: CvTable;
   inquiryId: number;
   /** 反響の日（YYYY-MM-DD） */
   inquiryDay: string;
@@ -48,12 +57,12 @@ export interface Conversion {
 export const attributeConversions = async (siteId?: number): Promise<Map<number, Conversion[]>> => {
   const result = new Map<number, Conversion[]>();
   const inquiries = (await query<InquiryRow>(
-    `SELECT id, DATE_FORMAT(STR_TO_DATE(TRIM(inquiry_date), '%Y/%m/%d'), '%Y-%m-%d') AS inquiry_day,
-            LOWER(SUBSTRING(landing_params, LOCATE('khg_vid=', landing_params) + 8, 36)) AS vid
-       FROM inquiry_customer
+    CV_TABLES.map((table) => `SELECT '${table}' AS inquiry_table, id, DATE_FORMAT(STR_TO_DATE(TRIM(inquiry_date), '%Y/%m/%d'), '%Y-%m-%d') AS inquiry_day,
+            CONVERT(LOWER(SUBSTRING(landing_params, LOCATE('khg_vid=', landing_params) + 8, 36)) USING utf8mb4) AS vid
+       FROM ${table}
       WHERE landing_params LIKE '%khg_vid=%'
         AND delete_flag = 0
-        AND STR_TO_DATE(TRIM(inquiry_date), '%Y/%m/%d') >= CURDATE() - INTERVAL ${DAYS} DAY`
+        AND STR_TO_DATE(TRIM(inquiry_date), '%Y/%m/%d') >= CURDATE() - INTERVAL ${DAYS} DAY`).join(' UNION ALL ')
   )).filter((r) => r.inquiry_day !== null && UUID_PATTERN.test(r.vid));
   if (inquiries.length === 0) return result;
 
@@ -85,7 +94,7 @@ export const attributeConversions = async (siteId?: number): Promise<Map<number,
     for (const [site, touch] of lastBySite) {
       const list = result.get(site) ?? [];
       list.push({
-        inquiryId: Number(inquiry.id), inquiryDay: inquiry.inquiry_day ?? '', landingUrl: touch.landing_url ?? '', source: touch.source ?? '',
+        inquiryTable: inquiry.inquiry_table, inquiryId: Number(inquiry.id), inquiryDay: inquiry.inquiry_day ?? '', landingUrl: touch.landing_url ?? '', source: touch.source ?? '',
         adId: touch.utm_content ?? '', campaign: touch.utm_campaign ?? '',
       });
       result.set(site, list);

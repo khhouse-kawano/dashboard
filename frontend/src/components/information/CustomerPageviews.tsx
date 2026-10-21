@@ -3,6 +3,7 @@ import apiClient from '../../utils/apiClient';
 
 /**
  * 顧客情報の「HP閲覧履歴」（v2.2.204 新規）。注文営業の顧客情報（InformationEdit.tsx）の商談ステップの上の行。
+ * ⚠️ v2.2.205〜 建売営業（かえるホーム）の顧客情報（InformationEditKaeru.tsx）の備考の下の行にも出す（division='spec'）。
  *
  * ─────────────────────────────────────────────
  * ⚠️ ② の customer_pageviews（features/tracking/customerPageviews.ts）。顧客の id だけを送り、
@@ -30,6 +31,8 @@ interface Visit {
 interface Props {
     /** 顧客の id。⚠️ 新規の顧客は空 */
     customerId: string;
+    /** 事業（v2.2.205）。⚠️ ② は category ではなく division で受け取る（category はゲートウェイの鍵に入るため） */
+    division?: 'order' | 'spec';
 }
 
 const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
@@ -48,7 +51,7 @@ const pathOf = (url: string): string => {
     try { return decodeURI(new URL(url).pathname); } catch { return url; }
 };
 
-const CustomerPageviews = ({ customerId }: Props) => {
+const CustomerPageviews = ({ customerId, division = 'order' }: Props) => {
     const [state, setState] = useState<'loading' | 'error' | 'unlinked' | 'ok'>('loading');
     const [pageviews, setPageviews] = useState<Pageview[]>([]);
     const [limit, setLimit] = useState(0);
@@ -57,7 +60,7 @@ const CustomerPageviews = ({ customerId }: Props) => {
         if (!customerId) { setState('unlinked'); setPageviews([]); return; }
         let alive = true;
         setState('loading');
-        apiClient.post('', { request: 'customer_pageviews', id: customerId })
+        apiClient.post('', { request: 'customer_pageviews', id: customerId, division })
             .then((res) => {
                 if (!alive) return;
                 setPageviews(res.data.pageviews ?? []);
@@ -69,7 +72,7 @@ const CustomerPageviews = ({ customerId }: Props) => {
                 if (alive) setState('error');
             });
         return () => { alive = false; };
-    }, [customerId]);
+    }, [customerId, division]);
 
     /** 新しい訪問が上。⚠️ ② は新しい順で返すので、同じ訪問の行は続いて並ぶ */
     const visits = useMemo(() => {

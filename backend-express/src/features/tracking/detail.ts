@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
 import { isMetaConfigured } from '../metaAds/importer';
-import { attributeConversions, DAYS, type Conversion } from './conversions';
+import { attributeConversions, CV_TABLES, DAYS, type Conversion } from './conversions';
 import { AD_TOUCH_SQL } from './params';
 import { canManageTracking, type TrackingResult } from './sites';
 
@@ -234,13 +234,19 @@ export const trackingDetail = async (
   const flow = axis === 'landing' && key !== '' ? await loadPageFlow(siteId, key) : null;
 
   // CV の一覧（⚠️ 個人情報は出さない）
-  const inquiries = cv.length === 0 ? [] : await query<InquiryRow>(
-    `SELECT id, medium, response_medium, hp_campaign, shop FROM inquiry_customer WHERE id IN (${cv.map(() => '?').join(', ')})`,
-    cv.map((c) => c.inquiryId)
-  );
-  const inquiryById = new Map(inquiries.map((r) => [Number(r.id), r]));
+  // ⚠️ v2.2.205 id は表ごとの番号なので、表ごとに引いて「表:id」で探す
+  const inquiryById = new Map<string, InquiryRow>();
+  for (const table of CV_TABLES) {
+    const ids = cv.filter((c) => c.inquiryTable === table).map((c) => c.inquiryId);
+    if (ids.length === 0) continue;
+    const rows = await query<InquiryRow>(
+      `SELECT id, medium, response_medium, hp_campaign, shop FROM ${table} WHERE id IN (${ids.map(() => '?').join(', ')})`,
+      ids
+    );
+    for (const r of rows) inquiryById.set(`${table}:${Number(r.id)}`, r);
+  }
   const cvList = cv.map((c) => {
-    const r = inquiryById.get(c.inquiryId);
+    const r = inquiryById.get(`${c.inquiryTable}:${c.inquiryId}`);
     return {
       day: c.inquiryDay,
       medium: r?.response_medium || r?.medium || '',

@@ -14,6 +14,9 @@ import TrackingDetail, { type DetailAxis } from './TrackingDetail';
  * ⚠️ v2.2.202 サイト名を押すと、その行の下にサマリー（SiteSummary）が開く。⚠️ 開閉はサイトごと（ほかのサイトと連動しない）。
  *   ⚠️ サマリーは開いたときに取りに行く（tracking_site_summary。② は features/tracking/summary.ts）。⚠️「再読み込み」で一覧と開いているサマリーを取り直す。
  *   ⚠️ CV の数え方は ② の features/tracking/conversions.ts（直近30日の反響の khg_vid が、問い合わせの日までにそのサイトに来ていたもの）。
+ * ⚠️ v2.2.205 自社のフォームでないサイト（かえるホーム）は、CV 用のタグ（cv.js。cvGtmTag）も出す。② が cvForm を返すサイトだけ。
+ *   ⚠️ cv.js は「確認画面へ」でメール・電話のハッシュを送り、② が反響と突き合わせる（features/tracking/cvMatch.ts）。
+ *   ⚠️ 一覧の CV の下に「フォーム送信 n件（結びつき m件）」。送っているのに結びつかないなら、フォームの入力欄の名前が変わったなど。
  * ⚠️ v2.2.203 サマリーの着地ページ・流入元を押すと、詳細のモーダル（TrackingDetail.tsx）が開く。着地ページは右のアイコンでそのページを開く。
  *   ⚠️ 上の「Meta から取り込む」は ② の meta_ads_import（待たずに返る。終わったかは「最後の取り込み」で見る）。⚠️ ② は6時間ごとにも自動で取り込む。
  * ⚠️ サイトは消さない（着地の記録が残るため）。⚠️「無効」にすると着地を保存しなくなる（タグは貼ったままでもサイトに影響なし）。
@@ -24,19 +27,24 @@ import TrackingDetail, { type DetailAxis } from './TrackingDetail';
 
 export const TRACKER_URL = 'https://api.khg-marketing.info/t/v1/tracker.js';
 export const trackingTag = (siteKey: string): string => `<script src="${TRACKER_URL}" data-site="${siteKey}" defer></script>`;
-export const gtmTag = (siteKey: string): string => [
+/** GTM 用。⚠️ src を差し替えて CV 用（cv.js）にも使う */
+const gtmScriptTag = (src: string, siteKey: string): string => [
     '<script>',
     '(function () {',
     "  var s = document.createElement('script');",
-    `  s.src = '${TRACKER_URL}';`,
+    `  s.src = '${src}';`,
     '  s.defer = true;',
     `  s.setAttribute('data-site', '${siteKey}');`,
     '  document.body.appendChild(s);',
     '})();',
     '</script>',
 ].join('\n');
+export const gtmTag = (siteKey: string): string => gtmScriptTag(TRACKER_URL, siteKey);
+/** v2.2.205 自社のフォームでないサイトの CV 用（tracker.js と一緒に、GTM の All Pages で入れる） */
+export const CV_URL = 'https://api.khg-marketing.info/t/v1/cv.js';
+export const cvGtmTag = (siteKey: string): string => gtmScriptTag(CV_URL, siteKey);
 
-type TagKind = 'gtm' | 'footer';
+type TagKind = 'gtm' | 'footer' | 'cv';
 const TAG_KINDS: { kind: TagKind; label: string; make: (siteKey: string) => string }[] = [
     { kind: 'gtm', label: 'GTM 用：GTM（Googleタグマネージャー）のカスタム HTML に入れるタグ（トリガーは「All Pages」）', make: gtmTag },
     { kind: 'footer', label: 'フッター用：GTM を使わず、すべてのページのフッターに直接貼るタグ', make: trackingTag },
@@ -61,6 +69,8 @@ interface Site {
     touches30d: number;
     lastTouch: string | null;
     cv30d: number;
+    /** v2.2.205 CV 用のタグ（cv.js）の直近30日の送信・反響に結びついた件数。⚠️ CV 用のタグを使わないブランドは null */
+    cvForm: { sent: number; matched: number } | null;
 }
 
 interface Draft {
@@ -437,7 +447,10 @@ const TrackingSettings: React.FC = () => {
                                         <td className="tk_td">{s.origins.map((o) => <div key={o} className="tk_origin">{o}</div>)}</td>
                                         <td className="tk_td"><span className={`tk_state${s.active ? ' is_on' : ''}`}>{s.active ? '有効' : '無効'}</span></td>
                                         <td className="tk_td tk_num">{s.touches30d.toLocaleString()}</td>
-                                        <td className="tk_td tk_num">{s.cv30d.toLocaleString()}</td>
+                                        <td className="tk_td tk_num">
+                                            {s.cv30d.toLocaleString()}
+                                            {s.cvForm && <div className="tk_sub">フォーム送信 {s.cvForm.sent.toLocaleString()}件（結びつき {s.cvForm.matched.toLocaleString()}件）</div>}
+                                        </td>
                                         <td className="tk_td tk_date">{s.lastTouch ?? '—'}</td>
                                         <td className="tk_td tk_date">{s.updatedAt}{s.updatedBy && <div className="tk_sub">{s.updatedBy}</div>}</td>
                                         <td className="tk_td tk_actions">
@@ -470,7 +483,23 @@ const TrackingSettings: React.FC = () => {
                                                         </div>
                                                     );
                                                 })}
-                                                <div className="tk_sub">どちらか一方だけ入れてください（両方あると着地が2回記録されます）。サイトキー：{s.siteKey}（公開される識別子です。パスワードではありません）</div>
+                                                {s.cvForm && (() => {
+                                                    const key = `${s.id}:cv`;
+                                                    const text = cvGtmTag(s.siteKey);
+                                                    return (
+                                                        <div className="tk_tag_block">
+                                                            <div className="tk_label">CV 用：自社のフォームでないサイトの問い合わせを反響と結びつけるタグ（GTM のカスタム HTML・トリガーは「All Pages」。上の GTM 用と一緒に入れる）</div>
+                                                            <div className="tk_code_row">
+                                                                <code className="tk_code" onClick={(e) => window.getSelection()?.selectAllChildren(e.currentTarget)}>{text}</code>
+                                                                <button type="button" className="tk_btn is_primary" onClick={() => copy(s, 'cv', text)}>
+                                                                    {copied === key ? 'コピーしました' : 'コピー'}
+                                                                </button>
+                                                            </div>
+                                                            {copied === `!${key}` && <div className="tk_error">コピーできませんでした。タグを押して選び、Ctrl+C でコピーしてください。</div>}
+                                                        </div>
+                                                    );
+                                                })()}
+                                                <div className="tk_sub">GTM 用とフッター用は、どちらか一方だけ入れてください（両方あると着地が2回記録されます）。サイトキー：{s.siteKey}（公開される識別子です。パスワードではありません）</div>
                                             </td>
                                         </tr>
                                     )}

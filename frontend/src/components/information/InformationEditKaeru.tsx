@@ -25,6 +25,7 @@ import TableStatus from './TableStatus';
 import TableMedium from './TableMedium';
 import TableCompetitor from './TableCompetitor';
 import TableCompetitorPdf from './TableCompetitorPdf';
+import CustomerPageviews from './CustomerPageviews';
 import { calculateAge } from '../../utils/informationUtils';
 import { dateFormate } from '../../utils/informationUtils';
 import { useIsSp } from '../../utils/isSp';
@@ -75,7 +76,8 @@ type Expand = {
     call: boolean,
     remarks: boolean,
     reason: boolean,
-    trigger: boolean
+    trigger: boolean,
+    history: boolean
 };
 
 type Props = {
@@ -167,7 +169,8 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
         call: false,
         remarks: false,
         reason: false,
-        trigger: false
+        trigger: false,
+        history: false
     });
     const propertyRef = useRef<HTMLInputElement>(null);
 
@@ -647,7 +650,8 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
             call: false,
             remarks: false,
             reason: false,
-            trigger: false
+            trigger: false,
+            history: false
         });
 
         setInformation({});
@@ -1096,6 +1100,30 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                         </td>
                                         <td></td><td></td>
                                     </tr>
+                                    {/* ⚠️ v2.2.205: その顧客が自社サイト（かえるホーム）で見たページ（CustomerPageviews.tsx。注文の顧客情報と同じ）
+                                        ⚠️ landing_params（反響から引き継いだ流入の情報）がある顧客だけ行を出す（2026-10-21 の指示） */}
+                                    {safeFormate(information.landing_params).trim() !== '' && <tr>
+                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
+                                            <div className="position-relative">
+                                                HP閲覧履歴
+                                                <div className='position-absolute'
+                                                    style={buttonStyle}
+                                                    onClick={() => {
+                                                        setExpand(prev =>
+                                                        ({
+                                                            ...prev,
+                                                            history: !prev.history
+                                                        })
+                                                        );
+                                                    }}>{expand.history ? '×閉じる' : '閲覧'}</div>
+                                            </div>
+                                        </td>
+                                        <td colSpan={3} style={{ verticalAlign: 'top', paddingTop: '25px' }}>
+                                            <div {...expandProps('history')}>
+                                                <CustomerPageviews customerId={id === 'new' ? '' : information.id ?? ''} division='spec' />
+                                            </div>
+                                        </td>
+                                    </tr>}
                                 </tbody>
                             </Table>
                             <Table>

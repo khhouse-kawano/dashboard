@@ -892,11 +892,11 @@ register({
 
 register({
   request: 'customer_pageviews',
-  summary: '顧客1人の HP閲覧履歴（master_data.landing_params の khg_vid → tracking_pageviews。注文の顧客のみ）',
+  summary: '顧客1人の HP閲覧履歴（顧客の landing_params の khg_vid → tracking_pageviews。division: order（既定）／spec）',
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
-    const result = await listCustomerPageviews(ctx.body.id);
+    const result = await listCustomerPageviews(ctx.body.id, ctx.body.division);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
