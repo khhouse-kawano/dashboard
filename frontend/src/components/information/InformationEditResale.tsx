@@ -5,7 +5,7 @@ import { databaseList } from '../../utils/databaseList';
 import FamilyInfo from '../FamilyInfo';
 import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
-import { labelStyle, buttonStyle, valueStyle, inputStyle, selectStyle, requiredStyle, safeFormate, competitorsStyle } from '../../utils/informationUtils';
+import { labelStyle, buttonStyle, valueStyle, inputStyle, selectStyle, requiredStyle, safeFormate, competitorsStyle, collapsedMask, openOnClickCapture } from '../../utils/informationUtils';
 import { kpiColumnFor } from '../../utils/interviewKpi';
 import TableInput from './TableInput';
 import LineIdRow from './LineIdRow';
@@ -614,10 +614,16 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
             border: key === 'interview' || key === 'call' ? '1px solid #dddddda9' : 'transparent',
             borderRadius: '7px',
             height: expand[key] ? 'auto' : '80px',
-            opacity: expand[key] ? '1' : '.3',
+            ...(expand[key] ? {} : collapsedMask),
             overflowY: 'hidden' as const
         }
     };
+
+    /** v2.2.204 閉じている欄は、薄く消えている部分を押しても開く */
+    const expandProps = (key: keyof Expand) => ({
+        style: expandStyle(key),
+        onClickCapture: openOnClickCapture(expand[key], () => setExpand(prev => ({ ...prev, [key]: true })))
+    });
 
     const handleClose = () => {
         setInterviewLog({
@@ -1041,7 +1047,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                             </div>
                                         </td>
                                         <td colSpan={3}>
-                                            <div style={expandStyle('interview')}>
+                                            <div {...expandProps('interview')}>
                                                 <TableInterview
                                                     information={information}
                                                     setInformation={setInformation}
@@ -1073,7 +1079,7 @@ const InformationEditResale = ({ id, token, onClose, authority }: Props) => {
                                             </div>
                                         </td>
                                         <td colSpan={3}>
-                                            <div style={expandStyle('call')}>
+                                            <div {...expandProps('call')}>
                                                 <TableCall
                                                     information={information}
                                                     setInformation={setInformation}
