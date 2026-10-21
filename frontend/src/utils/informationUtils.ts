@@ -1,3 +1,5 @@
+import type { MouseEvent } from 'react';
+
 export const baseStyle = { border: '1px solid #D3D3D3', borderRadius: '4px', height: '35px', width: '150px', paddingLeft: '10px', color: '#303030' };
 export const labelStyle = { color: '#303030', fontSize: '11px', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' };
 export const buttonStyle = {
@@ -31,6 +33,28 @@ export const toHalfWidth = (str: string) => {
         String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
     ).replace(/　/g, ' ');
 };
+/**
+ * 顧客情報の閉じている欄（「編集」「閲覧」の欄）の見せ方（v2.2.204。注文・建売・中古の3画面で共通）。
+ * 高さ80pxで切り、下へ向かって背景に溶けるように消す。上の行は読めるので、開く前から中身が想像できる。
+ * ⚠️ 以前は欄の全体を半透明（opacity .3）にしていた。
+ */
+export const collapsedMask = {
+    maskImage: 'linear-gradient(to bottom, #000 30%, transparent 100%)',
+    WebkitMaskImage: 'linear-gradient(to bottom, #000 30%, transparent 100%)',
+    cursor: 'pointer'
+};
+
+/**
+ * 閉じている欄を押したら開く（v2.2.204）。⚠️ 閉じているあいだは中のボタン・リンクに押した操作を渡さない
+ * （capture で止める。開くつもりで押したのに、中の「追加」などが動かないように）。
+ */
+export const openOnClickCapture = (isOpen: boolean, open: () => void) => (e: MouseEvent) => {
+    if (isOpen) return;
+    e.preventDefault();
+    e.stopPropagation();
+    open();
+};
+
 export const expandButton = {
     ...buttonStyle,
     height: '28px',

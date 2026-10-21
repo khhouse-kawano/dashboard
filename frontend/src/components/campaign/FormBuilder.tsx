@@ -287,6 +287,10 @@ const FormBuilder: React.FC<Props> = ({ activeTab }) => {
                             </button>
                             {!copied || <span style={{ fontSize: '12px', color: 'green' }}>コピーしました</span>}
                         </div>
+                        {/* ⚠️ v2.2.204〜 生成した HTML は流入の情報（landing_params）も送る（formBuilderUtils.ts の buildHtml） */}
+                        <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '6px' }}>
+                            ※ 広告などの流入の情報と顧客IDは、アクセス解析のタグが入ったページに貼ったときだけ一緒に送られます。v2.2.204 より前に作った HTML は送らないので、作り直して貼り替えてください。
+                        </div>
                         <textarea value={html} readOnly rows={22}
                             onFocus={e => e.target.select()}
                             style={{ width: '100%', fontSize: '11px', fontFamily: 'monospace', border: '1px solid #D3D3D3', borderRadius: '5px', padding: '8px' }} />

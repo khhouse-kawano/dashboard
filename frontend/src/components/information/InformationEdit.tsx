@@ -8,10 +8,9 @@ import { baseURL } from '../../utils/baseURL';
 import FamilyInfo from '../FamilyInfo';
 import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
-import Estate from '../Estate';
 import KSnap from './KSnap';
 import IceWorld from '../calendar/IceWorld';
-import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate, statusRequiredError } from '../../utils/informationUtils';
+import { labelStyle, buttonStyle, valueStyle, inputStyle, requiredStyle, safeFormate, expandButton, safeParse, dateFormate, statusRequiredError, collapsedMask, openOnClickCapture } from '../../utils/informationUtils';
 import { kpiColumnFor } from '../../utils/interviewKpi';
 import TableInput from './TableInput';
 import LineIdRow from './LineIdRow';
@@ -28,6 +27,7 @@ import TableShop from './TableShop';
 import TableTextarea from './TableTextarea';
 import TableCheckboxGroup from './TableCheckboxGroup';
 import FundingPlan from './FundingPlan';
+import CustomerPageviews from './CustomerPageviews';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import NexusBadge, { NEXUS_HEADER_LABEL } from '../NexusBadge';
@@ -78,7 +78,8 @@ type Expand = {
     call: boolean,
     remarks: boolean,
     reason: boolean,
-    trigger: boolean
+    trigger: boolean,
+    history: boolean
 };
 
 type Props = {
@@ -205,9 +206,9 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
         call: false,
         remarks: false,
         reason: false,
-        trigger: false
+        trigger: false,
+        history: false
     });
-    const [estateId, setEstateId] = useState('');
     const competitorsRef = useRef<HTMLInputElement>(null);
 
     const now = new Date();
@@ -662,10 +663,16 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
             border: key === 'interview' || key === 'call' ? '1px solid #dddddda9' : 'transparent',
             borderRadius: '7px',
             height: expand[key] ? 'auto' : '80px',
-            opacity: expand[key] ? '1' : '.3',
+            ...(expand[key] ? {} : collapsedMask),
             overflowY: 'hidden' as const
         }
     };
+
+    /** v2.2.204 閉じている欄は、薄く消えている部分を押しても開く */
+    const expandProps = (key: keyof Expand) => ({
+        style: expandStyle(key),
+        onClickCapture: openOnClickCapture(expand[key], () => setExpand(prev => ({ ...prev, [key]: true })))
+    });
 
     const handleClose = () => {
         setInterviewLog({
@@ -706,7 +713,8 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
             call: false,
             remarks: false,
             reason: false,
-            trigger: false
+            trigger: false,
+            history: false
         });
 
         setInformation({});
@@ -989,6 +997,30 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                             />
                                         </td>
                                     </tr>
+                                    {/* ⚠️ v2.2.204: その顧客が自社サイトで見たページ（CustomerPageviews.tsx）。⚠️ 開く前から上の数行は見える
+                                        ⚠️ landing_params（フォームが送った流入情報）がある顧客だけ行を出す（2026-10-21 の指示） */}
+                                    {safeFormate(information.landing_params).trim() !== '' && <tr>
+                                        <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>
+                                            <div className="position-relative">
+                                                HP閲覧履歴
+                                                <div className='position-absolute'
+                                                    style={expandButton}
+                                                    onClick={() => {
+                                                        setExpand(prev =>
+                                                        ({
+                                                            ...prev,
+                                                            history: !prev.history
+                                                        })
+                                                        );
+                                                    }}>{expand.history ? '×閉じる' : '閲覧'}</div>
+                                            </div>
+                                        </td>
+                                        <td colSpan={3} style={{ verticalAlign: 'top', paddingTop: '25px' }}>
+                                            <div {...expandProps('history')}>
+                                                <CustomerPageviews customerId={id === 'new' ? '' : information.id ?? ''} />
+                                            </div>
+                                        </td>
+                                    </tr>}
                                     <tr>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }} className='table-secondary'>
                                             <div className="position-relative">
@@ -1006,7 +1038,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                             </div>
                                         </td>
                                         <td colSpan={3} className='table-secondary'>
-                                            <div style={expandStyle('interview')}>
+                                            <div {...expandProps('interview')}>
                                                 <TableInterview
                                                     information={information}
                                                     setInformation={setInformation}
@@ -1036,7 +1068,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                             </div>
                                         </td>
                                         <td colSpan={3}>
-                                            <div style={expandStyle('call')}>
+                                            <div {...expandProps('call')}>
                                                 <TableCall
                                                     information={information}
                                                     setInformation={setInformation}
@@ -1064,13 +1096,13 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                     }}>{expand.remarks ? '×閉じる' : '編集'}</div>
                                             </div></td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <div style={expandStyle('remarks')}>
+                                            <div {...expandProps('remarks')}>
                                                 <TableTextarea information={information} setInformation={setInformation} itemKey='customized_input_01J95TC6KEES87F0YXH29AJP7K' placeholder='面談前アンケート' />
                                             </div>
                                         </td>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>面談後アンケート</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <div style={expandStyle('remarks')}>
+                                            <div {...expandProps('remarks')}>
                                                 <TableTextarea information={information} setInformation={setInformation} itemKey='remarks' placeholder='面談後アンケート' />
                                             </div>
                                         </td>
@@ -1092,13 +1124,13 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                     }}>{expand.reason ? '×閉じる' : '編集'}</div>
                                             </div></td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <div style={expandStyle('reason')}>
+                                            <div {...expandProps('reason')}>
                                                 <TableCheckboxGroup information={information} setInformation={setInformation} itemKey={idMapping('問い合せのきっかけ')} idPrefix='inquiry_reason' options={inquiryReasons} />
                                             </div>
                                         </td>
                                         <td style={{ ...labelStyle, verticalAlign: 'top', paddingTop: '35px' }}>建築動機</td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <div style={expandStyle('reason')}>
+                                            <div {...expandProps('reason')}>
                                                 <TableCheckboxGroup information={information} setInformation={setInformation} itemKey={idMapping('建築動機')} idPrefix='house_hunting_motivation' options={houseHuntingMotivation.slice(0, 25)} />
                                             </div>
                                         </td>
@@ -1120,7 +1152,7 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                             </div>
                                         </td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <div style={expandStyle('trigger')}>
+                                            <div {...expandProps('trigger')}>
                                                 <TableCheckboxGroup information={information} setInformation={setInformation} itemKey={idMapping('建築動機')} idPrefix='house_hunting_motivation' options={houseHuntingMotivation.slice(16, 25)} />
                                             </div>
                                         </td>
@@ -1322,14 +1354,6 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                             </button>
 
                             <button
-                                className="btn btn-outline-success btn-sm rounded-pill px-2 d-flex align-items-center"
-                                style={footerButtonStyle}
-                                onClick={() => setEstateId(information.id)}
-                            >
-                                <i className="fa-solid fa-map-location-dot me-1"></i>土地コーディネート
-                            </button>
-
-                            <button
                                 className="btn btn-primary btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center"
                                 style={{ ...footerButtonStyle, fontWeight: 'bold', letterSpacing: '1px', opacity: sending ? '1' : '0.5' }}
                                 onClick={handleSave}
@@ -1474,7 +1498,6 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                         </div></>}
                 </Modal.Body>
             </Modal >
-            <Estate estateId={estateId} setEstateId={setEstateId} />
             <KSnap id={kSnap} setKSnap={setKSnap} />
             <IceWorld shopList={shopArray.map(s => ({ brand: '', shop: s.shop }))} editId={editId} showIceWorld={showIceWorld} setShowIceWorld={setShowIceWorld} />
         </>

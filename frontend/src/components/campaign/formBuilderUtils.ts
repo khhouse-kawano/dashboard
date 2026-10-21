@@ -224,6 +224,11 @@ ${rows}
   var button = document.getElementById('khg-submit');
   var error = document.getElementById('khg-error');
 
+  // ⚠️ localStorage が使えないブラウザ（プライベートモードなど）でも送信は止めない
+  function storedLandingParams() {
+    try { return localStorage.getItem('landing_params') || ''; } catch (e) { return ''; }
+  }
+
   form.addEventListener('submit', function (event) {
     event.preventDefault();
 
@@ -240,7 +245,11 @@ ${rows}
       campaign: ${JSON.stringify(input.campaign)},
       // ⚠️ どのページから送られたかを残す。反響の出どころが追える
       url: location.href,
-      source: (new URLSearchParams(location.search)).get('utm_source') || ''
+      source: (new URLSearchParams(location.search)).get('utm_source') || '',
+      // ⚠️ v2.2.204 送信したページの ? 以降と、tracker.js が覚えている流入の情報（顧客ID khg_vid を含む）。
+      //   ⚠️ tracker.js のタグが無いページでは landing_params は空になる
+      url_params: location.search.replace(/^\\?/, ''),
+      landing_params: storedLandingParams()
     };
 
     new FormData(form).forEach(function (value, key) { body[key] = value; });

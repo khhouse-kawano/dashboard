@@ -7,7 +7,7 @@ import { databaseList } from '../../utils/databaseList';
 import FamilyInfo from '../FamilyInfo';
 import { generateULID } from '../../utils/createULID';
 import AuthContext from '../../context/AuthContext';
-import { labelStyle } from '../../utils/informationUtils';
+import { labelStyle, collapsedMask, openOnClickCapture } from '../../utils/informationUtils';
 import { kpiColumnFor } from '../../utils/interviewKpi';
 import { buttonStyle } from '../../utils/informationUtils';
 import { valueStyle } from '../../utils/informationUtils';
@@ -598,10 +598,16 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
             border: key === 'interview' || key === 'call' ? '1px solid #dddddda9' : 'transparent',
             borderRadius: '7px',
             height: expand[key] ? 'auto' : '80px',
-            opacity: expand[key] ? '1' : '.3',
+            ...(expand[key] ? {} : collapsedMask),
             overflowY: 'hidden' as const
         }
     };
+
+    /** v2.2.204 閉じている欄は、薄く消えている部分を押しても開く */
+    const expandProps = (key: keyof Expand) => ({
+        style: expandStyle(key),
+        onClickCapture: openOnClickCapture(expand[key], () => setExpand(prev => ({ ...prev, [key]: true })))
+    });
     const handleClose = () => {
         setInterviewLog({
             id: '',
@@ -1016,7 +1022,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                             </div>
                                         </td>
                                         <td colSpan={3}>
-                                            <div style={expandStyle('call')}>
+                                            <div {...expandProps('call')}>
                                                 <TableCall
                                                     information={information}
                                                     setInformation={setInformation}
@@ -1045,7 +1051,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                             </div>
                                         </td>
                                         <td colSpan={3}>
-                                            <div style={expandStyle('interview')}>
+                                            <div {...expandProps('interview')}>
                                                 <TableInterview
                                                     information={information}
                                                     setInformation={setInformation}
@@ -1075,7 +1081,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                                                     }}>{expand.remarks ? '×閉じる' : '編集'}</div>
                                             </div></td>
                                         <td style={{ ...valueStyle, verticalAlign: 'top', paddingTop: '25px' }}>
-                                            <div style={expandStyle('remarks')}>
+                                            <div {...expandProps('remarks')}>
                                                 <textarea placeholder='反響内容・備考' style={{ ...inputStyle, width: '90%', height: 'auto' }} value={information.remarks}
                                                     rows={information.remarks ? Math.max(2, information.remarks.length / 23) + 2 : 2}
                                                     onChange={(e) => {
