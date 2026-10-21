@@ -135,6 +135,15 @@ services:
       # ⚠️ 一度決めたら変えない（変えると同じ IP でも別のハッシュになる）。
       # ⚠️ 未設定でも動く（ip_hash が NULL になるだけ）。
       - TRACKING_IP_SALT=${TRACKING_IP_SALT:-}
+
+      # Meta 広告（自社）の成果の取り込み（v2.2.203。features/metaAds/）。
+      #
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
+      # ⚠️ META_ACCESS_TOKEN：システムユーザーのトークン（権限 ads_read）。
+      # ⚠️ META_AD_ACCOUNTS：「ブランドキー:キャンペーンID」をカンマでつなぐ（例 kh:120202114039520198,djh:120242527269730489）。
+      # ⚠️ どちらかが空なら取り込みをしない（起動は止まらない。アクセス解析の Meta の数字が出ないだけ）。
+      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN:-}
+      - META_AD_ACCOUNTS=${META_AD_ACCOUNTS:-}
     depends_on:
       ssh-tunnel:
         condition: service_started

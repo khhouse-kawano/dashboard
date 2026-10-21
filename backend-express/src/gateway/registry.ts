@@ -12,8 +12,10 @@ import { runStaffContract, toDepartment } from '../features/staffContract';
 import { runIntroductorySummary } from '../features/introductory/summary';
 import { runDuplicateSummary } from '../features/duplicateSummary';
 import { getGuide, listGuide, saveGuide } from '../features/guide';
-import { listTrackingSites, saveTrackingSite } from '../features/tracking/sites';
+import { canManageTracking, listTrackingSites, saveTrackingSite } from '../features/tracking/sites';
 import { trackingSiteSummary } from '../features/tracking/summary';
+import { trackingDetail } from '../features/tracking/detail';
+import { importMetaAds, isMetaConfigured } from '../features/metaAds/importer';
 import { listInquiryTouches } from '../features/tracking/touches';
 import {
   runAuthAccessTimes,
@@ -836,6 +838,42 @@ register({
     const result = await trackingSiteSummary(ctx.staff, ctx.body.site_id);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
+  },
+});
+
+register({
+  request: 'tracking_detail',
+  summary: 'アクセス解析の詳細（サイト1つの着地ページ1つ／流入元1つ。直近30日の日別・時間帯・端末・広告別・CV。Meta 広告の数字つき。Master / BrandAdmin のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await trackingDetail(ctx.staff, { siteId: ctx.body.site_id, axis: ctx.body.axis, key: ctx.body.key });
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * Meta 広告（自社）の取り込みを今すぐ始める（v2.2.203）。
+ * ⚠️ 取り込みは数分かかる（2026-10-21 ローカルで約4分半）。⚠️ 待たずに「始めた」と返し、画面は最後の取り込み日時で終わりを見る。
+ * ⚠️ 自動の取り込み（features/metaAds/scheduler.ts）と重なっても、2つ同時には動かない（importer.ts）。
+ */
+register({
+  request: 'meta_ads_import',
+  summary: '【書き込み】Meta 広告（自社）の一覧と日別の数字の取り込みを始める（Master / BrandAdmin のみ。待たずに返す）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    if (!canManageTracking(ctx.staff)) {
+      ctx.res.status(403);
+      return { status: 'error', message: 'この画面は管理者だけが使えます。' };
+    }
+    if (!isMetaConfigured()) {
+      ctx.res.status(400);
+      return { status: 'error', message: 'Meta 広告のトークンが設定されていません。管理者に連絡してください。' };
+    }
+    void importMetaAds().catch(() => undefined);
+    return { status: 'ok', started: true };
   },
 });
 

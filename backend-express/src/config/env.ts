@@ -57,6 +57,21 @@ export const env = {
    */
   trackingIpSalt: (process.env.TRACKING_IP_SALT ?? '').trim(),
 
+  /**
+   * Meta 広告（自社）の成果の取り込み（v2.2.203。features/metaAds/）。
+   * ⚠️ トークンは .env にのみ書く（開発は backend-express/.env.local、本番は .env.prod）。⚠️ 画面・ログに出さない。
+   * ⚠️ META_AD_ACCOUNTS は「ブランドキー:ID」をカンマでつなぐ（例 kh:120202114039520198,djh:120242527269730489）。
+   *   ID はキャンペーンID でも広告アカウント（act_…）でもよい。⚠️ ブランドキーは tracking_sites.brand と同じ。
+   * ⚠️ どちらかが空なら取り込みをしない（起動は止めない）。
+   */
+  metaAccessToken: (process.env.META_ACCESS_TOKEN ?? '').trim(),
+  metaAdAccounts: (process.env.META_AD_ACCOUNTS ?? '')
+    .split(',')
+    .map((pair) => pair.trim())
+    .filter((pair) => pair.includes(':'))
+    .map((pair) => ({ brand: pair.slice(0, pair.indexOf(':')).trim(), id: pair.slice(pair.indexOf(':') + 1).trim() }))
+    .filter((a) => a.brand !== '' && /^(act_)?\d+$/.test(a.id)),
+
   /** リクエストボディの上限。PDF等のアップロードを見込んで少し大きめ */
   bodyLimit: process.env.BODY_LIMIT ?? '10mb',
 
