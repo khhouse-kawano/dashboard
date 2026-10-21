@@ -126,7 +126,7 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
                             <section className="td_section">
                                 <h6 className="td_h">ページの前後（閲覧の記録から）</h6>
                                 {data.pageFlow.views === 0 ? (
-                                    <div className="td_sub">まだ閲覧の記録がありません（記録は v2.2.203 から始まりました）。</div>
+                                    <div className="td_sub">まだ閲覧の記録がありません（閲覧の記録を始めた日より前の分はありません）。</div>
                                 ) : (
                                     <div className="td_two">
                                         <FlowTable title="前に見ていたページ" rows={data.pageFlow.prev} emptyLabel="（訪問の最初のページ）" />

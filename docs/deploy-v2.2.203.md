@@ -93,7 +93,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api.khg-marketing.info/
 
 ## 手順5　【WSL】フロントを ① へアップロード
 `npm run build` → `deploy-dashboard`（⚠️ index.html も差し替える）
-- ローカルのビルド結果: `main.be71da09.js` / `main.b8a7c60b.css`（CSS は変化なし）
+- ローカルのビルド結果: `main.d3b6bae7.js` / `main.b8a7c60b.css`（CSS は変化なし）
 - ⚠️ `/dashboard/funding-plan/金利データ.js`（手で置いたもの）がデプロイ後も残っているか確認すること
 
 ## 手順6　【① phpMyAdmin】更新履歴 ＋ 記事

@@ -1645,3 +1645,109 @@ index 8a50fc7b..16070c2c 100644
  .tk_tag { font-size: 10px; color: #4b5563; background: #f3f4f6; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
  .tk_origin { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
 ```
+
+---
+
+## 追記（2026-10-21）：見直し（コードの再読と動作確認のやり直し）
+
+### コードの再読で直したもの
+1. **importer.ts：Meta への問い合わせに待ち時間の上限（60秒）を付けた**（重要）
+   - 無いと、Meta が返事をしないまま止まったとき取り込みが終わらず、2つ同時に動かさない仕組み（running）のせいで、以後の自動の取り込みも画面のボタンも何もしなくなる。
+   - `REQUEST_TIMEOUT_MS = 60_000`、`fetch(…, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })`
+2. **TrackingDetail.tsx：閲覧の記録が無いときの文言**から版の番号を外した（「閲覧の記録を始めた日より前の分はありません」）。
+3. 整理：detail.ts の `deviceOf`・`META_SOURCE_PATTERN` はほかから使っていないので export を外した。tracker.js の先頭のコメントの旧名（トラッキング設定）を直した（コメント行は配信時に消える）。
+
+### 再読で確かめて、直さなかったもの
+- tracker.js の「ひとつ前のページ」（khg_prev）は localStorage なので、同じサイトをタブを2つで見ていると、別のタブのページが前のページになることがある（記録が壊れるわけではない）。
+- 1ページを再読み込みすると、前のページが同じページの行ができる。前後のページの集計では、同じページどうしは除いている。
+- 自動の取り込みの最中に6時間が来ても、2つ目は動かず、動いているほうを待つ。
+
+### 動作確認（やり直し）
+- ② 型チェック OK。tracker.js 構文 OK。
+- ① 経由（トークン無し）：tracking_site_list・tracking_site_save・tracking_site_summary・tracking_detail・meta_ads_import・tracking_touches → すべて 401。公開の口 /api/track/touch・/api/track/pv → 204。配信中の tracker.js に /api/track/pv あり。
+  - ⚠️ 1回目は 502 だったが、自分が流した ② の再起動の途中に送ったため（ログで SIGINT → 起動を確認）。② が落ちたのではない。
+- Meta の取り込み（上限を付けたあと・本物の API）：成功（広告 2,331・日別 13,220・約4分半）。
+- 前の版までの通し（一時的にテスト用のサイトを足して）：v2.2.199 自社フォーム A〜G、v2.2.201 見学クラウド H〜J、広告以外の訪問 L〜S → すべて前と同じ。⚠️ この3本は閲覧の送り先を用意していない古いテストで、閲覧を送れなくてもサイト・フォームに影響が無いことも確かめられた。
+- ページの閲覧（pv.cjs）：前と同じ（1ページ1行・? 以降なし・31分で別の訪問・前のページ・ロボット除外）。
+- 整理（上限2行）：前と同じ（CV の人は残る・それ以外の古い行だけ消える・2回目は 0）。
+- 詳細（tracking_detail）：前と同じ。Meta の数字は取り込み直した分だけ少し増えた（PG の費用 1,839,498 → 1,840,431円）。権限なし 403・サイトなし 404・指定の誤り 400。
+- 画面（再ビルド `main.d3b6bae7.js`・実データの返答で Playwright）：前と同じ（メニュー名・Meta の行・着地ページのボタンとアイコン・lg のモーダルが一番上・ページの前後・Meta 広告 38件と CPA の並べ替え・CV の一覧・幅 390px）。⚠️ 1回目はテスト用のサイト「テスト国分ハウジング」にもボタンの名前が部分一致して止まったので、テストを完全一致に直した（画面の誤りではない）。
+- 記事「アクセス解析」を業務ガイドの画面で表示：新しい節（詳細・Meta 広告・ページの前後）が出る。
+- 後片付け：テスト用のサイト・反響・予約・閲覧・消さない顧客ID・今日の着地を削除。CSV の実データ（7サイト・319件）と Meta の実データは残した。
+
+### 差分（見直しの分）
+```diff
+diff --git a/backend-express/public/tracker.js b/backend-express/public/tracker.js
+index 3c2fd585..44966075 100644
+--- a/backend-express/public/tracker.js
++++ b/backend-express/public/tracker.js
+@@ -1,4 +1,4 @@
+-// 広告流入トラッキング（v2.2.199）。各ブランドサイトに入れる（GTM 用・フッター用のタグはトラッキング設定が出す）:
++// 広告流入トラッキング（v2.2.199）。各ブランドサイトに入れる（GTM 用・フッター用のタグはアクセス解析（旧トラッキング設定）が出す）:
+ //   <script src="https://api.khg-marketing.info/t/v1/tracker.js" data-site="SITE_KEY" defer></script>
+ // ⚠️ フォーム（form_get）は改修しない。フォームが読む localStorage のキー（landing_params / source / campaign）に書く。
+ // ⚠️ 訪問者ID（khg_vid）を全員に振り、landing_params に付ける。ほかのスクリプト（MA など）は window.khgVisitorId で読める。
+diff --git a/backend-express/src/features/metaAds/importer.ts b/backend-express/src/features/metaAds/importer.ts
+index cdb56061..555dc285 100644
+--- a/backend-express/src/features/metaAds/importer.ts
++++ b/backend-express/src/features/metaAds/importer.ts
+@@ -22,6 +22,11 @@ export const META_IMPORT_DAYS = 35;
+ const PAGE_LIMIT = 200;
+ /** 1つの ID で読むページの上限（⚠️ 無限に続かないための安全装置） */
+ const MAX_PAGES = 50;
++/**
++ * 1回の問い合わせの待ち時間の上限。⚠️ 無いと、Meta が返事をしないまま止まったとき取り込みが終わらず、
++ *   running のせいで以後の自動の取り込みも画面のボタンも何もしなくなる（2026-10-21 の見直しで追加）。
++ */
++const REQUEST_TIMEOUT_MS = 60_000;
+ /** 1回の INSERT にまとめる行数（⚠️ 本番の DB は SSH トンネルの先。1行ずつだと遅い：2026-10-21 ローカルで 2,331 件＋13,218 行に 5 分半） */
+ const BATCH = 500;
+ 
+@@ -56,7 +61,10 @@ const fetchAll = async <T>(path: string, params: Record<string, string>): Promis
+     const url = new URL(`${GRAPH}/${path}`);
+     for (const [k, v] of Object.entries({ ...params, limit: String(PAGE_LIMIT) })) url.searchParams.set(k, v);
+     if (after !== '') url.searchParams.set('after', after);
+-    const response = await fetch(url, { headers: { Authorization: `Bearer ${env.metaAccessToken}` } });
++    const response = await fetch(url, {
++      headers: { Authorization: `Bearer ${env.metaAccessToken}` },
++      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
++    });
+     const body = (await response.json()) as Paged<T>;
+     if (!response.ok || body.error) {
+       throw new Error(`Meta API ${response.status} ${path.split('/').pop()}: ${mask(body.error?.message ?? 'エラー')}`);
+diff --git a/backend-express/src/features/tracking/detail.ts b/backend-express/src/features/tracking/detail.ts
+index d10b4099..3a03378a 100644
+--- a/backend-express/src/features/tracking/detail.ts
++++ b/backend-express/src/features/tracking/detail.ts
+@@ -22,7 +22,7 @@ import { canManageTracking, type TrackingResult } from './sites';
+  */
+ 
+ /** Meta 広告の流入元（utm_source の書き方の揺れ・fbclid だけのとき） */
+-export const META_SOURCE_PATTERN = /^(meta|fb|ig|facebook|instagram|facebook\/instagram)$/i;
++const META_SOURCE_PATTERN = /^(meta|fb|ig|facebook|instagram|facebook\/instagram)$/i;
+ /** 1回に読む行の上限（⚠️ 画面が固まらないための安全装置） */
+ const ROW_LIMIT = 50_000;
+ 
+@@ -41,7 +41,7 @@ interface TouchRow extends RowDataPacket {
+ interface Bucket { key: string; visits: number; ad: number; cv: number }
+ 
+ /** ブラウザの情報から端末の種類 */
+-export const deviceOf = (ua: string | null): string => {
++const deviceOf = (ua: string | null): string => {
+   if (!ua) return '不明';
+   if (/iPad|Tablet|PlayBook|Silk|(Android(?!.*Mobile))/i.test(ua)) return 'タブレット';
+   if (/Mobi|iPhone|iPod|Android.*Mobile|Windows Phone/i.test(ua)) return 'スマホ';
+diff --git a/frontend/src/components/header/TrackingDetail.tsx b/frontend/src/components/header/TrackingDetail.tsx
+index f1c2dfd1..8e87fd22 100644
+--- a/frontend/src/components/header/TrackingDetail.tsx
++++ b/frontend/src/components/header/TrackingDetail.tsx
+@@ -126,7 +126,7 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
+                             <section className="td_section">
+                                 <h6 className="td_h">ページの前後（閲覧の記録から）</h6>
+                                 {data.pageFlow.views === 0 ? (
+-                                    <div className="td_sub">まだ閲覧の記録がありません（記録は v2.2.203 から始まりました）。</div>
++                                    <div className="td_sub">まだ閲覧の記録がありません（閲覧の記録を始めた日より前の分はありません）。</div>
+                                 ) : (
+                                     <div className="td_two">
+                                         <FlowTable title="前に見ていたページ" rows={data.pageFlow.prev} emptyLabel="（訪問の最初のページ）" />
+```

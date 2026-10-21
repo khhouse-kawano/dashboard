@@ -22,6 +22,11 @@ export const META_IMPORT_DAYS = 35;
 const PAGE_LIMIT = 200;
 /** 1つの ID で読むページの上限（⚠️ 無限に続かないための安全装置） */
 const MAX_PAGES = 50;
+/**
+ * 1回の問い合わせの待ち時間の上限。⚠️ 無いと、Meta が返事をしないまま止まったとき取り込みが終わらず、
+ *   running のせいで以後の自動の取り込みも画面のボタンも何もしなくなる（2026-10-21 の見直しで追加）。
+ */
+const REQUEST_TIMEOUT_MS = 60_000;
 /** 1回の INSERT にまとめる行数（⚠️ 本番の DB は SSH トンネルの先。1行ずつだと遅い：2026-10-21 ローカルで 2,331 件＋13,218 行に 5 分半） */
 const BATCH = 500;
 
@@ -56,7 +61,10 @@ const fetchAll = async <T>(path: string, params: Record<string, string>): Promis
     const url = new URL(`${GRAPH}/${path}`);
     for (const [k, v] of Object.entries({ ...params, limit: String(PAGE_LIMIT) })) url.searchParams.set(k, v);
     if (after !== '') url.searchParams.set('after', after);
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${env.metaAccessToken}` } });
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${env.metaAccessToken}` },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     const body = (await response.json()) as Paged<T>;
     if (!response.ok || body.error) {
       throw new Error(`Meta API ${response.status} ${path.split('/').pop()}: ${mask(body.error?.message ?? 'エラー')}`);

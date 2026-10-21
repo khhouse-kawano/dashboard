@@ -22,7 +22,7 @@ import { canManageTracking, type TrackingResult } from './sites';
  */
 
 /** Meta 広告の流入元（utm_source の書き方の揺れ・fbclid だけのとき） */
-export const META_SOURCE_PATTERN = /^(meta|fb|ig|facebook|instagram|facebook\/instagram)$/i;
+const META_SOURCE_PATTERN = /^(meta|fb|ig|facebook|instagram|facebook\/instagram)$/i;
 /** 1回に読む行の上限（⚠️ 画面が固まらないための安全装置） */
 const ROW_LIMIT = 50_000;
 
@@ -41,7 +41,7 @@ interface TouchRow extends RowDataPacket {
 interface Bucket { key: string; visits: number; ad: number; cv: number }
 
 /** ブラウザの情報から端末の種類 */
-export const deviceOf = (ua: string | null): string => {
+const deviceOf = (ua: string | null): string => {
   if (!ua) return '不明';
   if (/iPad|Tablet|PlayBook|Silk|(Android(?!.*Mobile))/i.test(ua)) return 'タブレット';
   if (/Mobi|iPhone|iPod|Android.*Mobile|Windows Phone/i.test(ua)) return 'スマホ';
