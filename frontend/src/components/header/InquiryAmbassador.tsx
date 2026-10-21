@@ -109,6 +109,17 @@ const ambassadorLabel = (item: Inquiry): string =>
         .filter(v => v !== '')
         .join(' / ');
 
+/**
+ * 画面の余白（v2.2.205）。⚠️ 左右は画面の幅に合わせて 16〜48px。⚠️ セルは上下 10px・左右 14px（Bootstrap の既定 0.5rem では詰まって見える）
+ * ⚠️ 表は横に長い（16列）ので、列の幅の合計に余白の分を足して minWidth を 2400px にしている
+ */
+const IA_CSS = `
+.ia_wrap { padding: 20px clamp(16px, 3vw, 48px) 32px; }
+.ia_table_wrap { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
+.ia_table > :not(caption) > * > th { padding: 12px 14px; font-size: 12px; letter-spacing: .4px; }
+.ia_table > :not(caption) > * > td { padding: 10px 14px; line-height: 1.6; }
+`;
+
 export const InquiryAmbassador = () => {
     const [list, setList] = useState<Inquiry[]>([]);
     const [loading, setLoading] = useState(true);
@@ -399,7 +410,9 @@ export const InquiryAmbassador = () => {
         //   そちらの Modal.Body は `p-0`（縦を使い切るため）なので、
         //   何も付けないとテーブルが画面の端に貼り付いて読みにくい。
         //   ⚠️ Header.tsx 側に余白を足すと**他の全画面メニューにも効く**ので触らない。
-        <div className="py-3 px-4">
+        <div className="ia_wrap">
+            {/* ⚠️ v2.2.205 表の余白（2026-10-21 の指示「横幅いっぱいで見づらい」）。⚠️ この画面だけに効くよう接頭辞 ia_ */}
+            <style>{IA_CSS}</style>
             <div className="d-flex align-items-center gap-3 flex-wrap mb-3">
                 <span className="fw-bold" style={{ fontSize: '14px' }}>
                     <i className="fa-brands fa-instagram me-2 text-danger" aria-hidden="true" />
@@ -496,8 +509,8 @@ export const InquiryAmbassador = () => {
                     </div>
                 </div>
             ) : (
-                <div className="table-responsive border rounded" style={{ maxHeight: '65vh' }}>
-                    <Table hover bordered className="mb-0 align-middle text-nowrap" style={{ fontSize: '12px', minWidth: '2040px' }}>
+                <div className="table-responsive border rounded ia_table_wrap" style={{ maxHeight: '65vh' }}>
+                    <Table hover bordered className="mb-0 align-middle text-nowrap ia_table" style={{ fontSize: '12px', minWidth: '2400px' }}>
                         <thead className="bg-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                             <tr>
                                 <th className="bg-light text-center" style={{ width: '90px' }}>同期</th>
@@ -507,6 +520,9 @@ export const InquiryAmbassador = () => {
                                 <th className="bg-light" style={{ width: '130px' }}>電話番号</th>
                                 <th className="bg-light" style={{ width: '190px' }}>メールアドレス</th>
                                 <th className="bg-light" style={{ width: '260px' }}>住所</th>
+                                {/* ⚠️ v2.2.205 紹介アンバサダーのインスタのアカウント（反響が届いた時点の値。inquiry_ambassador.account。2026-10-21 の指示で住所の右に）
+                                    ⚠️ 右の「紹介アンバサダー」は台帳の今の値。アカウント名を変えていると食い違う */}
+                                <th className="bg-light" style={{ width: '140px' }}>アカウント</th>
                                 {/* ⚠️ 住所とは別。担当店舗の割り振りはここを見て決める */}
                                 <th className="bg-light" style={{ width: '160px' }}>建築希望地</th>
                                 {/* ⚠️ お客様本人の記入。連絡時間の希望などが入る */}
@@ -574,6 +590,8 @@ export const InquiryAmbassador = () => {
                                             {item.zip ? <span className="text-muted me-1">{item.zip}</span> : null}
                                             {item.address ?? ''}
                                         </td>
+                                        {/* ⚠️ 値に @ は入っていない（紹介アンバサダーの欄と同じく @ を付けて出す）。未入力なら何も出さない */}
+                                        <td>{item.account ? `@${item.account}` : ''}</td>
 
                                         <td style={{ whiteSpace: 'normal' }}>{item.build_area ?? ''}</td>
 
@@ -700,7 +718,7 @@ export const InquiryAmbassador = () => {
 
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={15} className="text-center text-muted py-5">
+                                    <td colSpan={16} className="text-center text-muted py-5">
                                         該当する反響がありません
                                     </td>
                                 </tr>
