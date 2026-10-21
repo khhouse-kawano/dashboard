@@ -668,10 +668,13 @@ function expressProxyRequests(): array
         //   ⚠️ tracking_site_save は書き込み。⚠️ Master / BrandAdmin の判定は ② が行う。
         //   ⚠️ 各サイトの tracker.js・着地の記録（/t/v1/tracker.js・/api/track/touch）は ① を通らない（② へ直接）。
         //   ⚠️ tracking_site_summary は v2.2.202 で追加（サイト名を押すと開くサマリー）。
+        //   ⚠️ tracking_detail・meta_ads_import は v2.2.203 で追加（アクセス解析のモーダル・Meta 広告の取り込み。meta_ads_import は書き込み）。
         // -----------------------------------------------------------------
         'tracking_site_list',
         'tracking_site_save',
         'tracking_site_summary',
+        'tracking_detail',
+        'meta_ads_import',
         'tracking_touches',
     ];
 }
@@ -908,10 +911,12 @@ function expressProxyExclusive(): array
         'guide_list',
         'guide_article',
         'guide_save',
-        // ⚠️ 2026-10-20 新規（v2.2.199）。広告流入トラッキング。⚠️ 理由は上と同じ（tracking_site_summary は v2.2.202）
+        // ⚠️ 2026-10-20 新規（v2.2.199）。広告流入トラッキング。⚠️ 理由は上と同じ（tracking_site_summary は v2.2.202、tracking_detail・meta_ads_import は v2.2.203）
         'tracking_site_list',
         'tracking_site_save',
         'tracking_site_summary',
+        'tracking_detail',
+        'meta_ads_import',
         'tracking_touches',
     ];
 }

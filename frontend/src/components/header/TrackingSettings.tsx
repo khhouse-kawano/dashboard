@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../../utils/apiClient';
+import TrackingDetail, { type DetailAxis } from './TrackingDetail';
 
 /**
- * 広告流入トラッキングの設定（v2.2.199 新規）。ヘッダー「反響管理 → トラッキング設定」（Master / BrandAdmin）。
+ * アクセス解析（v2.2.199 新規「トラッキング設定」→ v2.2.203 で「アクセス解析」に改名）。ヘッダー「反響管理 → アクセス解析」（Master / BrandAdmin）。
  *
  * ─────────────────────────────────────────────
  * ⚠️ サイトを登録すると site_key が発行され、各サイトに入れるタグ（tracker.js）を出す。
@@ -13,6 +14,8 @@ import apiClient from '../../utils/apiClient';
  * ⚠️ v2.2.202 サイト名を押すと、その行の下にサマリー（SiteSummary）が開く。⚠️ 開閉はサイトごと（ほかのサイトと連動しない）。
  *   ⚠️ サマリーは開いたときに取りに行く（tracking_site_summary。② は features/tracking/summary.ts）。⚠️「再読み込み」で一覧と開いているサマリーを取り直す。
  *   ⚠️ CV の数え方は ② の features/tracking/conversions.ts（直近30日の反響の khg_vid が、問い合わせの日までにそのサイトに来ていたもの）。
+ * ⚠️ v2.2.203 サマリーの着地ページ・流入元を押すと、詳細のモーダル（TrackingDetail.tsx）が開く。着地ページは右のアイコンでそのページを開く。
+ *   ⚠️ 上の「Meta から取り込む」は ② の meta_ads_import（待たずに返る。終わったかは「最後の取り込み」で見る）。⚠️ ② は6時間ごとにも自動で取り込む。
  * ⚠️ サイトは消さない（着地の記録が残るため）。⚠️「無効」にすると着地を保存しなくなる（タグは貼ったままでもサイトに影響なし）。
  * ⚠️ 全画面モーダル（Header.tsx の isFullscreenMenu）。⚠️ 閉じるボタンは Header.tsx が出す。
  * ⚠️ 見た目は GoogleReview.tsx に合わせる（接頭辞 tk_）。
@@ -123,6 +126,8 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
     const [tab, setTab] = useState<SummaryTab>('landing');
     const [sortKey, setSortKey] = useState<SummarySortKey>('visits');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    /** 詳細を開いている着地ページ・流入元（v2.2.203） */
+    const [detail, setDetail] = useState<{ axis: DetailAxis; value: string } | null>(null);
 
     useEffect(() => {
         let alive = true;
@@ -195,10 +200,15 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
                         ) : rows.map((r) => (
                             <tr key={r.key} className="tk_row">
                                 <td className="tk_td tk_sum_key" title={r.key}>
-                                    {/* ⚠️ 着地ページは押すとそのページを別のタブで開く（⚠️ http(s) の URL だけ） */}
-                                    {tab === 'landing' && /^https?:///.test(r.key)
-                                        ? <a className="tk_url" href={r.key} target="_blank" rel="noopener noreferrer">{readableUrl(r.key)}<i className="fa-solid fa-arrow-up-right-from-square tk_url_icon" aria-hidden="true" /></a>
-                                        : tab === 'landing' ? readableUrl(r.key) : r.key || '（不明）'}
+                                    {/* ⚠️ v2.2.203 文字を押すと詳細（TrackingDetail）が開く。着地ページは右のアイコンでそのページを別のタブで開く（⚠️ http(s) の URL だけ） */}
+                                    <button type="button" className="tk_key_btn" onClick={() => setDetail({ axis: tab, value: r.key })}>
+                                        {tab === 'landing' ? readableUrl(r.key) : r.key || '（不明）'}
+                                    </button>
+                                    {tab === 'landing' && /^https?:\/\//.test(r.key) && (
+                                        <a className="tk_url_icon" href={r.key} target="_blank" rel="noopener noreferrer" title="このページを開く" aria-label="このページを別のタブで開く">
+                                            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+                                        </a>
+                                    )}
                                 </td>
                                 <td className="tk_td tk_num">{r.visits.toLocaleString()}</td>
                                 <td className="tk_td tk_num">{r.ad.toLocaleString()}</td>
@@ -209,6 +219,7 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
                     </tbody>
                 </table>
             </div>
+            {detail !== null && <TrackingDetail siteId={siteId} axis={detail.axis} value={detail.value} onClose={() => setDetail(null)} />}
         </div>
     );
 };
@@ -227,6 +238,9 @@ const TrackingSettings: React.FC = () => {
     /** サマリーを開いているサイト（⚠️ サイトごとに開閉。ほかのサイトと連動しない） */
     const [openSummary, setOpenSummary] = useState<Set<number>>(new Set());
     const [reloadKey, setReloadKey] = useState(0);
+    /** Meta 広告の取り込みの状態（v2.2.203） */
+    const [meta, setMeta] = useState<{ configured: boolean; lastImportedAt: string | null }>({ configured: false, lastImportedAt: null });
+    const [importMessage, setImportMessage] = useState('');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -235,6 +249,7 @@ const TrackingSettings: React.FC = () => {
             const response = await apiClient.post('', { request: 'tracking_site_list' });
             setSites(response.data?.sites ?? []);
             if (Array.isArray(response.data?.brands)) setBrands(response.data.brands);
+            if (response.data?.meta) setMeta(response.data.meta);
         } catch (e) {
             console.error('tracking_site_list failed:', e);
             setError('サイトの一覧を読み込めませんでした。管理者の権限が必要です。');
@@ -251,6 +266,17 @@ const TrackingSettings: React.FC = () => {
         touches: sites.reduce((sum, s) => sum + s.touches30d, 0),
         cv: sites.reduce((sum, s) => sum + s.cv30d, 0),
     }), [sites]);
+
+    const importMeta = async () => {
+        setImportMessage('');
+        try {
+            await apiClient.post('', { request: 'meta_ads_import' });
+            setImportMessage('取り込みを始めました。数分かかります。少し待ってから「再読み込み」を押してください。');
+        } catch (e: unknown) {
+            const message = (e as { response?: { data?: { message?: string } } }).response?.data?.message;
+            setImportMessage(message ?? '取り込みを始められませんでした。');
+        }
+    };
 
     const reload = () => {
         load();
@@ -312,7 +338,7 @@ const TrackingSettings: React.FC = () => {
             <style>{CSS}</style>
             <div className="tk_inner">
                 <div className="tk_head">
-                    <span className="tk_title"><i className="fa-solid fa-route me-2 text-primary" aria-hidden="true" />トラッキング設定</span>
+                    <span className="tk_title"><i className="fa-solid fa-route me-2 text-primary" aria-hidden="true" />アクセス解析</span>
                     {/* ⚠️ 右端に置かないこと（⚠️ 右上はアクティブユーザーの枠＝ActiveUser.tsx が重なって押せない） */}
                     <button type="button" className="tk_btn is_primary" onClick={() => startEdit(null)}>サイトを登録</button>
                     <button type="button" className="tk_btn" onClick={reload} disabled={loading}>
@@ -320,6 +346,13 @@ const TrackingSettings: React.FC = () => {
                     </button>
                     <span className="tk_note">広告から来た人の流入情報と、訪問者ごとのID（顧客ID）を、各サイトのタグで記録します</span>
                 </div>
+                {meta.configured && (
+                    <div className="tk_meta">
+                        <i className="fa-brands fa-meta me-1 text-primary" aria-hidden="true" />Meta 広告：最後の取り込み <b>{meta.lastImportedAt ?? 'まだありません'}</b>（6時間ごとに自動で取り込みます）
+                        <button type="button" className="tk_btn" onClick={importMeta}>Meta から取り込む</button>
+                        {importMessage !== '' && <span className="tk_sub">{importMessage}</span>}
+                    </div>
+                )}
 
                 <div className="tk_kpi">
                     <div className="tk_kpi_card"><div className="tk_kpi_label">登録サイト</div><div className="tk_kpi_value">{kpi.total}</div></div>
@@ -331,7 +364,7 @@ const TrackingSettings: React.FC = () => {
                 <div className="tk_caution">
                     ※ タグは、サイトの<b>すべてのページ</b>で1回だけ動くように入れます。GTM を使っているサイトは「GTM 用」を、使っていないサイトは「フッター用」を使ってください（GTM にフッター用を入れても動きません）。<br />
                     ※ 「許可するオリジン」は、タグを貼るサイトの <b>https://ドメイン</b> です（例：https://kh-house.jp）。ここに無いドメインからの記録は保存しません。<br />
-                    ※ サイト名を押すと、そのサイトの着地ページ別・流入元別の PV（広告以外も含む。30分以内のページの移動はまとめて1件）と CV が開きます。CV は、直近30日の反響のうち、問い合わせの日までにそのサイトに来ていた人の数です。<br />
+                    ※ サイト名を押すと、そのサイトの着地ページ別・流入元別の PV（広告以外も含む。30分以内のページの移動はまとめて1件）と CV が開きます。CV は、直近30日の反響のうち、問い合わせの日までにそのサイトに来ていた人の数です。サマリーの着地ページ・流入元を押すと、日別・端末・広告別などの詳細が開きます。<br />
                     ※ 訪問者ごとのID（顧客ID）はブラウザに保存されます。リリース前に、プライバシーポリシーへ利用目的の記載が必要です。
                 </div>
 
@@ -506,10 +539,12 @@ const CSS = `
 .tk_sort_icon { margin-left: 6px; font-size: 10px; color: #cbd5e1; }
 .tk_sort_icon.is_active { color: #2563eb; }
 .tk_sum_key { max-width: 560px; word-break: break-all; font-size: 12px; }
-.tk_url { color: #1d4ed8; text-decoration: none; }
-.tk_url:hover { text-decoration: underline; }
-.tk_url:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; border-radius: 3px; }
-.tk_url_icon { font-size: 9px; margin-left: 5px; color: #94a3b8; }
+.tk_key_btn { color: #1d4ed8; background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-size: 12px; word-break: break-all; }
+.tk_key_btn:hover { text-decoration: underline; }
+.tk_key_btn:focus-visible, .tk_url_icon:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; border-radius: 3px; }
+.tk_url_icon { font-size: 10px; margin-left: 6px; color: #64748b; text-decoration: none; }
+.tk_url_icon:hover { color: #1d4ed8; }
+.tk_meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: #374151; }
 .tk_sub { font-size: 11px; color: #6b7280; }
 .tk_tag { font-size: 10px; color: #4b5563; background: #f3f4f6; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 .tk_origin { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }

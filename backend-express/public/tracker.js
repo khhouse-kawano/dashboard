@@ -17,6 +17,7 @@
       'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'flyer'];
     var MAX = 500;
     var ENDPOINT = 'https://api.khg-marketing.info/api/track/touch';
+    var PV_ENDPOINT = 'https://api.khg-marketing.info/api/track/pv';
     var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     // ⚠️ v2.2.201 自社のサイトどうし（見学クラウドを含む）は、リンクに顧客IDと広告の情報を付けて渡す。www の有無は同じとみなす
     var LINK_HOSTS = ['ie-miru.jp', 'kh-house.jp', 'day-just-house.com', 'nagomi-koumuten.jp', 'furukomi-home.com',
@@ -89,11 +90,17 @@
     document.addEventListener('click', decorate, true);
     // ⚠️ v2.2.201 広告以外の訪問も数える（アクセス数の解析用）。1回の訪問につき1件。最後に開いたページから30分たったら次の訪問
     var VISIT_MS = 30 * 60 * 1000;
+    // ⚠️ v2.2.203 新しい訪問のときは訪問ID（khg_sid）を作り直し、ひとつ前のページ（khg_prev）を消す
     var visit = function () {
       var now = Date.now();
       var last = Number(store.getItem('khg_last') || 0);
       store.setItem('khg_last', String(now));
-      return !(last > 0 && now - last < VISIT_MS);
+      var isNew = !(last > 0 && now - last < VISIT_MS);
+      if (isNew || !UUID.test(store.getItem('khg_sid') || '')) {
+        store.setItem('khg_sid', uuid());
+        store.removeItem('khg_prev');
+      }
+      return isNew;
     };
     // ⚠️ 流入元はどこから来たか（リファラー）で決める。⚠️ ② の ORGANIC_SOURCE_PATTERN と同じ形。自社サイトからの移動は '' （数えない）
     var channel = function (ref) {
@@ -113,6 +120,17 @@
       return 'referral/' + h.replace(/[^a-z0-9.-]/g, '').slice(0, 150);
     };
     // ⚠️ text/plain で送る（CORS のプリフライトを起こさない）。⚠️ 結果は使わない
+    var post = function (endpoint, payload) {
+      var body = JSON.stringify(payload);
+      var sent = false;
+      try {
+        if (navigator.sendBeacon) sent = navigator.sendBeacon(endpoint, new Blob([body], { type: 'text/plain' }));
+      } catch (e) { sent = false; }
+      if (!sent && window.fetch) {
+        window.fetch(endpoint, { method: 'POST', body: body, keepalive: true, mode: 'cors', headers: { 'Content-Type': 'text/plain' } })
+          .catch(function () { return null; });
+      }
+    };
     var send = function (extra) {
       var payload = {
         site_key: siteKey, visitor_id: visitor(),
@@ -120,17 +138,16 @@
         referrer: (document.referrer || '').slice(0, 2000),
       };
       Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
-      var body = JSON.stringify(payload);
-      var sent = false;
-      try {
-        if (navigator.sendBeacon) sent = navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'text/plain' }));
-      } catch (e) { sent = false; }
-      if (!sent && window.fetch) {
-        window.fetch(ENDPOINT, { method: 'POST', body: body, keepalive: true, mode: 'cors', headers: { 'Content-Type': 'text/plain' } })
-          .catch(function () { return null; });
-      }
+      post(ENDPOINT, payload);
     };
     var isNewVisit = visit();
+    // ⚠️ v2.2.203 ページの閲覧はすべて送る（広告・自然検索・回遊とも。MA と PV・ページ遷移のため）。⚠️ ? 以降は送らない
+    var here = (url.origin + url.pathname).slice(0, 2000);
+    post(PV_ENDPOINT, {
+      site_key: siteKey, visitor_id: visitor(), visit_id: store.getItem('khg_sid'),
+      url: here, title: (document.title || '').slice(0, 255), prev: store.getItem('khg_prev') || '',
+    });
+    store.setItem('khg_prev', here);
     var params = {};
     var found = false;
     KEYS.forEach(function (k) {

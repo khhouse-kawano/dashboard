@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
+import { isMetaConfigured } from '../metaAds/importer';
 import { attributeConversions } from './conversions';
 import { AD_TOUCH_SQL } from './params';
 import { clearTrackingSiteCache, normalizeOrigin, parseOrigins } from './touch';
@@ -51,6 +52,10 @@ const fail = (httpStatus: number, message: string): TrackingResult => ({ httpSta
 export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promise<TrackingResult> => {
   if (!canManageTracking(staff)) return fail(403, 'この画面は管理者だけが使えます。');
   const conversions = await attributeConversions();
+  // ⚠️ v2.2.203 Meta 広告の最後の取り込み（⚠️ 表がまだ無い＝① に SQL を流す前なら null）
+  const lastImport = await query<RowDataPacket & { at: string | null }>("SELECT DATE_FORMAT(MAX(imported_at), '%Y-%m-%d %H:%i') AS at FROM meta_ad_items")
+    .then((r) => r[0]?.at ?? null)
+    .catch(() => null);
   const rows = await query<SiteRow>(
     `SELECT s.id, s.site_key, s.name, s.brand, s.allowed_origins, s.is_active, s.memo, s.updated_by,
             DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i') AS updated_at,
@@ -61,6 +66,7 @@ export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promi
   );
   return ok({
     brands: TRACKING_BRANDS,
+    meta: { configured: isMetaConfigured(), lastImportedAt: lastImport },
     sites: rows.map((r) => ({
       id: Number(r.id), siteKey: r.site_key, name: r.name, brand: r.brand ?? '', origins: parseOrigins(r.allowed_origins),
       active: Number(r.is_active) === 1, memo: r.memo, updatedBy: r.updated_by, updatedAt: r.updated_at,

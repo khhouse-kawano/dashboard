@@ -3,6 +3,7 @@ import path from 'path';
 import express, { type NextFunction, type Request, type Response, Router } from 'express';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { logger } from '../../utils/logger';
+import { recordPageview } from './pageview';
 import { isKnownOrigin, recordTouch } from './touch';
 
 /**
@@ -10,6 +11,7 @@ import { isKnownOrigin, recordTouch } from './touch';
  *
  *   GET  /t/v1/tracker.js    … 各ブランドサイトのフッターに貼るスクリプト（public/tracker.js）
  *   POST /api/track/touch    … 着地の記録（tracker.js が sendBeacon で送る）
+ *   POST /api/track/pv       … ページの閲覧（v2.2.203。tracker.js がページを開くたびに送る。pageview.ts）
  *
  * ─────────────────────────────────────────────
  * ⚠️⚠️ **app.ts で全体の CORS より前に置くこと。**
@@ -44,6 +46,22 @@ const touchLimiter = rateLimit({
   legacyHeaders: false,
   handler: (req: Request, res: Response) => {
     logger.info(`track/touch: 保存しません（流量の上限） origin="${req.get('origin') ?? ''}"`);
+    res.status(204).end();
+  },
+});
+
+/**
+ * ページの閲覧は同じ IP から1分に120件まで（v2.2.203）。⚠️ 着地（30件）より多い：社内の回線など、1つの IP から何人も見るため。
+ * ⚠️ 超えても 204（保存しないだけ）
+ */
+const pageviewLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  keyGenerator: (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown'),
+  standardHeaders: false,
+  legacyHeaders: false,
+  handler: (req: Request, res: Response) => {
+    logger.info(`track/pv: 保存しません（流量の上限） origin="${req.get('origin') ?? ''}"`);
     res.status(204).end();
   },
 });
@@ -115,6 +133,27 @@ export const createTrackingPublicRouter = (): Router => {
   // ⚠️ 本文が大きすぎる・読めないときも 204（⚠️ 全体の errorHandler に渡すと 400/413 になる）
   router.use('/api/track/touch', (error: Error, _req: Request, res: Response, _next: NextFunction) => {
     logger.info(`track/touch: 保存しません（本文を読めない: ${error.message}）`);
+    res.status(204).end();
+  });
+
+  // v2.2.203 ページの閲覧（⚠️ 着地と同じ CORS・応答は常に 204）
+  router.options('/api/track/pv', trackingCors);
+  router.post(
+    '/api/track/pv',
+    trackingCors,
+    pageviewLimiter,
+    express.text({ type: () => true, limit: '16kb' }),
+    async (req: Request, res: Response) => {
+      try {
+        await recordPageview({ body: readBody(req.body), origin: req.get('origin') ?? '', userAgent: req.get('user-agent') ?? '' });
+      } catch (error) {
+        logger.error(`track/pv: 保存に失敗: ${(error as Error).message}`);
+      }
+      res.status(204).end();
+    }
+  );
+  router.use('/api/track/pv', (error: Error, _req: Request, res: Response, _next: NextFunction) => {
+    logger.info(`track/pv: 保存しません（本文を読めない: ${error.message}）`);
     res.status(204).end();
   });
 
