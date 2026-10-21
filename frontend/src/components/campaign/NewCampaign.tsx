@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { fetchDetail, fetchMaster, insertCampaign, updateCampaign } from './campaignApi';
 import { PLACEHOLDERS, unknownPlaceholders } from './mailTemplateFields';
 import FormPreview from './formPreview';
+import { brandLogo } from './brands';
 import './newCampaign.css';
 
 /** プレビュー（formPreview.tsx）も使う */
@@ -538,7 +539,7 @@ const NewCampaign = () => {
     return (
         <div className="nc">
             <header className="nc-header">
-                <img className="nc-header-logo" src={`https://khg-marketing.info/dashboard/form/img/${brandValue}.png`} alt="" />
+                <img className="nc-header-logo" src={brandLogo(brandValue)} alt="" />
                 <div>
                     <p className="nc-crumb">キャンペーン一覧 ／ {isEdit ? '修正' : '新規作成'}</p>
                     <h1 className="nc-title">{isEdit ? 'キャンペーン修正' : 'キャンペーン作成'}</h1>

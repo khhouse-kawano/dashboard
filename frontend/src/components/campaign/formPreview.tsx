@@ -16,7 +16,8 @@ const LOGO: Record<string, string> = {
     '2l': 'https://2lhome.net/wp-content/uploads/2025/08/brand-logo.png',
     pg: 'https://miyazaki.pg-house.jp/img/logo.webp',
     jh: 'https://jusfy-home.com/lp/assets/logo-Lleu0Agz.png',
-    khg: 'https://kh-house.jp/khg/form/img/khg.png',
+    // ⚠️ v2.2.204〜 khg だけはダッシュボードの /dashboard/img/（frontend/public/img/khg.png）。以前は kh-house.jp/khg/form/img/khg.png
+    khg: 'https://khg-marketing.info/dashboard/img/khg.png',
 };
 
 const ACCENT: Record<string, string> = {

@@ -17,6 +17,7 @@ import { trackingSiteSummary } from '../features/tracking/summary';
 import { trackingDetail } from '../features/tracking/detail';
 import { importMetaAds, isMetaConfigured } from '../features/metaAds/importer';
 import { listInquiryTouches } from '../features/tracking/touches';
+import { listCustomerPageviews } from '../features/tracking/customerPageviews';
 import {
   runAuthAccessTimes,
   runAuthInsert,
@@ -884,6 +885,18 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await listInquiryTouches(ctx.body.inquiry_id);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'customer_pageviews',
+  summary: '顧客1人の HP閲覧履歴（master_data.landing_params の khg_vid → tracking_pageviews。注文の顧客のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await listCustomerPageviews(ctx.body.id);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

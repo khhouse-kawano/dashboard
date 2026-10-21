@@ -676,6 +676,7 @@ function expressProxyRequests(): array
         'tracking_detail',
         'meta_ads_import',
         'tracking_touches',
+        'customer_pageviews',
     ];
 }
 
@@ -918,6 +919,7 @@ function expressProxyExclusive(): array
         'tracking_detail',
         'meta_ads_import',
         'tracking_touches',
+        'customer_pageviews',
     ];
 }
 
