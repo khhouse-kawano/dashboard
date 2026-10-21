@@ -98,16 +98,16 @@ function expressProxyRequests(): array
         //   owner が空文字になり、顧客側の絞り込みが壊れる。
         //   鍵を消す・変える場合はこの行も外すこと。
         //
-        // ⚠️ 以下は**絶対に追加しないこと。** 書き込み系のため、
-        //   自動フォールバックで二重実行される。
-        //     k-snap_update          … 画像アップロード（そもそも ② では動かない）
-        //     k-snap_show            … UPDATE
-        //     k-snap_customer_update … INSERT / UPDATE
+        // ⚠️ 書き込み系はここに書かない（自動フォールバックで二重実行される）。
+        //     k-snap_show・k-snap_customer_update … v2.2.206 から expressProxyExclusive() に入れた
+        //     k-snap_update（画像アップロード）    … multipart は転送しない。① のまま
         'k-snap',
         'k-snap_edit',
         'k-snap_load',
         'k-snap_customer',
         'kSnap',
+        // ⚠️ v2.2.206。公開ギャラリーのログイン（参照のみ）。⚠️ 認証を要求しない（顧客向け）
+        'k-snap_login',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
@@ -920,6 +920,13 @@ function expressProxyExclusive(): array
         'meta_ads_import',
         'tracking_touches',
         'customer_pageviews',
+
+        // ⚠️ 2026-10-21（v2.2.206）。K-SNAP の書き込み（① から外す段階0）。② の features/ksnap/index.ts は PHP と同じ動き。
+        //   ⚠️ k-snap_show … 写真の公開／営業名の表示の切り替え（UPDATE）
+        //   ⚠️ k-snap_customer_update … 公開ギャラリーの閲覧ログ・お気に入り（INSERT / UPDATE）。応答は空（PHP と同じ）
+        //   ⚠️ ① の PHP ハンドラは残っている。障害時はこの2行を消せば ① に戻る。
+        'k-snap_show',
+        'k-snap_customer_update',
     ];
 }
 

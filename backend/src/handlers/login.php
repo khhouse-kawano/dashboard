@@ -18,32 +18,18 @@ require_once __DIR__ . '/../core/google_auth.php';
 // ---------------------------------------------------------------------------
 $credential = (string)($data['credential'] ?? '');
 
-if ($credential !== '') {
-    $mail = verifyGoogleIdToken($credential);
+// ⚠️ credential が無いときも Google の検証に失敗したときも 401。
+//   v2.2.206 で、メールアドレスだけを受け取る古い経路（本人確認なし）を削除した。
+$mail = $credential !== '' ? verifyGoogleIdToken($credential) : null;
 
-    if ($mail === null) {
-        // ⚠️ 理由は返さない。error_log にだけ残る（core/google_auth.php を参照）
-        http_response_code(401);
-        echo json_encode([
-            'message' => 'error',
-            'details' => 'ログインに失敗しました。もう一度お試しください。',
-        ], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-} else {
-    // -----------------------------------------------------------------
-    // ⚠️⚠️ 暫定の互換経路。**本人確認をしていない。**
-    //
-    //   古いフロントを開いたままの利用者がいるため、移行期間だけ残す。
-    //   この経路が残っている限り、なりすましと権限昇格は成立する。
-    //
-    //   下の error_log が出なくなったことを確認して**必ず削除すること。**
-    //   期限を決めずに残すと永久に残り、この改修の意味が消える。
-    //
-    //   削除予定: 2026-09-17（段階1の適用から2週間後）
-    // -----------------------------------------------------------------
-    error_log('login: 旧経路（mail 直接送信）が使われました mail=' . (string)($data['mail'] ?? ''));
-    $mail = (string)($data['mail'] ?? '');
+if ($mail === null) {
+    // ⚠️ 理由は返さない。error_log にだけ残る（core/google_auth.php を参照）
+    http_response_code(401);
+    echo json_encode([
+        'message' => 'error',
+        'details' => 'ログインに失敗しました。もう一度お試しください。',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 // ---------------------------------------------------------------------------
