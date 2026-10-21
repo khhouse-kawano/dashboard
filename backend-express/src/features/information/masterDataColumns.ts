@@ -79,7 +79,8 @@ export const MASTER_DATA_COLUMNS: readonly string[] = [
   'last_action_step_migration_item_date', 'last_action_step_migration_item_name', 'lat_lng',
   // LINE ID（3テーブルとも列あり）
   'line_id',
-  // ⚠️ フォームを埋め込んだページの URL パラメータ。⚠️ master_data にだけ列がある（送られた列だけ使うので、かえる・中古には影響しない）
+  // ⚠️ フォームを埋め込んだページの URL パラメータ。⚠️ url_params は master_data だけ、landing_params は master_data と v2.2.205〜 master_data_kaeru にある
+  //   （送られた列だけ使うので、中古には影響しない）
   'url_params', 'landing_params',
   'memo_developer_application_company', 'memo_fire_insurance', 'memo_ground_survey',
   'memo_lawyer', 'memo_marketing', 'memo_other_related_person', 'memo_site_survey', 'monthly_repayment_amount',

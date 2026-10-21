@@ -7,8 +7,8 @@ import { logger } from '../../utils/logger';
  *
  * ─────────────────────────────────────────────
  * 1. 消さない顧客ID（tracking_keep_visitors）を足す
- *    - cv：反響（inquiry_customer.landing_params）に khg_vid がある人
- *    - master：有効名簿（master_data.landing_params）に khg_vid がある人（MA 用。2026-10-21 の指示）
+ *    - cv：反響（inquiry_customer・v2.2.205〜 inquiry_customer_kaeru の landing_params）に khg_vid がある人
+ *    - master：有効名簿（master_data・v2.2.205〜 master_data_kaeru の landing_params）に khg_vid がある人（MA 用。2026-10-21 の指示）
  * 2. tracking_pageviews が PAGEVIEW_CAP 行を超えていたら、新しい PAGEVIEW_CAP 行より古い行のうち、
  *    消さない顧客ID に無い人の行を消す（⚠️ 一度に DELETE_CHUNK 行ずつ。DB を長く止めないため）
  * ⚠️ 消さない人の行は上限に関係なく残る。⚠️ 増えすぎていないかは手順書の確認の SQL で見る。
@@ -33,7 +33,8 @@ export interface MaintenanceResult {
 /** ⚠️ cap は確かめるときだけ小さくして渡す（ふだんは PAGEVIEW_CAP） */
 export const runTrackingMaintenance = async (cap: number = PAGEVIEW_CAP): Promise<MaintenanceResult> => {
   let kept = 0;
-  for (const [table, reason] of [['inquiry_customer', 'cv'], ['master_data', 'master']] as const) {
+  // ⚠️ v2.2.205 かえるホームの反響（cvMatch.ts が landing_params を書く）と顧客も残す
+  for (const [table, reason] of [['inquiry_customer', 'cv'], ['inquiry_customer_kaeru', 'cv'], ['master_data', 'master'], ['master_data_kaeru', 'master']] as const) {
     const result = await execute(
       `INSERT IGNORE INTO tracking_keep_visitors (visitor_id, reason)
        SELECT DISTINCT CONVERT(${VID_SQL} USING utf8mb4), '${reason}'

@@ -3,6 +3,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
 import { isMetaConfigured } from '../metaAds/importer';
+import { CV_TARGETS } from './conversion';
 import { attributeConversions } from './conversions';
 import { AD_TOUCH_SQL } from './params';
 import { clearTrackingSiteCache, normalizeOrigin, parseOrigins } from './touch';
@@ -48,6 +49,8 @@ const fail = (httpStatus: number, message: string): TrackingResult => ({ httpSta
 /**
  * 一覧（⚠️ 運用の確認用に、直近30日の着地数と最後の着地も返す。⚠️ 画面の見出しが「広告からの着地」なので広告の分だけ数える）。
  * ⚠️ v2.2.202 直近30日の CV も返す（数え方は conversions.ts。⚠️ 広告以外の訪問からの CV も含む）。
+ * ⚠️ v2.2.205 CV 用のタグ（cv.js）を使うブランドのサイトは、直近30日に cv.js が送った件数と、反響に結びついた件数も返す（cvForm）。
+ *   ⚠️ 送っているのに結びつかないなら、フォームの入力欄の名前が変わったなど（cvMatch.ts）。⚠️ 表がまだ無い＝① に SQL を流す前なら 0。
  */
 export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promise<TrackingResult> => {
   if (!canManageTracking(staff)) return fail(403, 'この画面は管理者だけが使えます。');
@@ -56,6 +59,12 @@ export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promi
   const lastImport = await query<RowDataPacket & { at: string | null }>("SELECT DATE_FORMAT(MAX(imported_at), '%Y-%m-%d %H:%i') AS at FROM meta_ad_items")
     .then((r) => r[0]?.at ?? null)
     .catch(() => null);
+  const cvForm = await query<RowDataPacket & { site_id: number; sent: number; matched: number }>(
+    `SELECT site_id, COUNT(*) AS sent, SUM(matched_at IS NOT NULL) AS matched
+       FROM tracking_conversions WHERE created_at >= NOW() - INTERVAL 30 DAY GROUP BY site_id`
+  )
+    .then((r) => new Map(r.map((x) => [Number(x.site_id), { sent: Number(x.sent), matched: Number(x.matched) }])))
+    .catch(() => new Map<number, { sent: number; matched: number }>());
   const rows = await query<SiteRow>(
     `SELECT s.id, s.site_key, s.name, s.brand, s.allowed_origins, s.is_active, s.memo, s.updated_by,
             DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i') AS updated_at,
@@ -71,6 +80,7 @@ export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promi
       id: Number(r.id), siteKey: r.site_key, name: r.name, brand: r.brand ?? '', origins: parseOrigins(r.allowed_origins),
       active: Number(r.is_active) === 1, memo: r.memo, updatedBy: r.updated_by, updatedAt: r.updated_at,
       touches30d: Number(r.touches_30d), lastTouch: r.last_touch, cv30d: conversions.get(Number(r.id))?.length ?? 0,
+      cvForm: CV_TARGETS[r.brand ?? ''] === undefined ? null : cvForm.get(Number(r.id)) ?? { sent: 0, matched: 0 },
     })),
   });
 };
