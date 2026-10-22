@@ -118,6 +118,13 @@ services:
       # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
       - EVENT_CHECKIN_PASSCODE=${EVENT_CHECKIN_PASSCODE:-}
 
+      # 会員登録の取り込み（member_entry。GAS の MEMBERtoDashboard が送る）の合い言葉（v2.2.209）。
+      #
+      # ⚠️ 未設定だと全件 401（素通しにしない）。GAS は ① の予備へ送り直すが、① も同じ値でないと入らない。
+      # ⚠️ GAS のスクリプト プロパティ MEMBER_ENTRY_KEY・① の環境変数と**同じ値**にすること。
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
+      - MEMBER_ENTRY_KEY=${MEMBER_ENTRY_KEY:-}
+
       # K-SNAP の owner を公開ギャラリー向けに暗号化する鍵。
       #
       # ⚠️ ① の .htaccess（SetEnv）と**同じ値**にすること。

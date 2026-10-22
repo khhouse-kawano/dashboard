@@ -178,6 +178,15 @@ export const env = {
    */
   eventCheckinPasscode: (process.env.EVENT_CHECKIN_PASSCODE ?? '').trim(),
 
+  /**
+   * 会員登録の取り込み（member_entry。GAS の MEMBERtoDashboard が送る）の合い言葉。（v2.2.209）
+   *
+   * ⚠️ **未設定なら全件断る**（素通しにしない）。⚠️ requireEnv にはしない（他の機能まで止めないため）。
+   * ⚠️ 同じ値を GAS のスクリプト プロパティ MEMBER_ENTRY_KEY と ① の環境変数にも入れる。
+   *   ⚠️ **リポジトリに書かないこと。** 設定先は ② VPS の .env.prod のみ。
+   */
+  memberEntryKey: (process.env.MEMBER_ENTRY_KEY ?? '').trim(),
+
   /** アンバサダー反響の社内通知先。カンマ区切りで複数可 */
   ambassadorNotifyTo: (process.env.AMBASSADOR_NOTIFY_TO ?? '')
     .split(',')

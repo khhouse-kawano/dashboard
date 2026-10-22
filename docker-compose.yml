@@ -24,6 +24,8 @@ services:
       # ⚠️ localhost ではなく express-api（サービス名）。
       #   php-web コンテナの中から見た宛先なので、localhost は自分自身になる。
       - EXPRESS_API_URL=http://express-api:3001/api/gateway
+      # 会員登録の取り込み（member_entry）の合い言葉。⚠️ 開発用のダミー値。本番の値は ① の環境変数にのみ書く（v2.2.209）
+      - MEMBER_ENTRY_KEY=localtest
     env_file:
       # 実際に価値を持つ秘密情報（暗号化マスターキー等）はこちら。
       # このファイルは .gitignore で保護されており、Gitには入らない。
@@ -68,6 +70,8 @@ services:
       # ⚠️ 空にすると受付機能が全て 401 になる。ローカルで受付を試すときは
       #   この値を使うこと。
       - EVENT_CHECKIN_PASSCODE=localtest
+      # 会員登録の取り込み（member_entry）の合い言葉。⚠️ 開発用のダミー値。本番の値は ② VPS の .env.prod にのみ書く（v2.2.209）
+      - MEMBER_ENTRY_KEY=localtest
     env_file:
       # Meta 広告 API のトークンと対象の ID（v2.2.203。META_ACCESS_TOKEN・META_AD_ACCOUNTS）。
       #
