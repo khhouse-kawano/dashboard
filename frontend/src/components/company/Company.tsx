@@ -66,7 +66,7 @@ const Company = () => {
     const [showMulti, setShowMulti] = useState<boolean>(false);
     const [showRanking, setShowRanking] = useState(false);
     /**
-     * 4半期サマリー（2026-10-05 / v2.2.163）。⚠️ 注文（category === 'order'）だけ。
+     * 4半期サマリー（2026-10-05 / v2.2.163）。注文（category === 'order'）と、v2.2.210 から建売（'spec'）。
      * ⚠️ 中身は QuarterSummary.tsx。⚠️ 契約・予算は**この画面のデータをそのまま渡す**。
      */
     const [showQuarterSummary, setShowQuarterSummary] = useState(false);
@@ -1033,9 +1033,9 @@ const Company = () => {
                         {(category === 'order' || category === 'spec') &&
                             <div className={`text-white bg-${category === 'order' ? 'primary' : 'success'} rounded-pill px-2 py-1 mx-1 shadow-sm`} style={{ fontSize: '10px', cursor: 'pointer' }}
                                 onClick={() => setShowRanking(true)}>契約棟数ランキング</div>}
-                        {/* ⚠️ 注文だけ。⚠️ 見た目は左の「契約棟数ランキング」と同じにしてある */}
-                        {category === 'order' &&
-                            <div className="text-white bg-primary rounded-pill px-2 py-1 mx-1 shadow-sm" style={{ fontSize: '10px', cursor: 'pointer' }}
+                        {/* ⚠️ 注文・建売（建売は v2.2.210）。⚠️ 見た目は左の「契約棟数ランキング」と同じにしてある */}
+                        {(category === 'order' || category === 'spec') &&
+                            <div className={`text-white bg-${category === 'order' ? 'primary' : 'success'} rounded-pill px-2 py-1 mx-1 shadow-sm`} style={{ fontSize: '10px', cursor: 'pointer' }}
                                 onClick={() => setShowQuarterSummary(true)}>4半期サマリー</div>}
                         <div className="bg-white m-1">
                             <label style={{ fontSize: '12px', cursor: 'pointer' }} className='d-flex align-items-center'><input type='checkbox' className='me-1'
@@ -1229,10 +1229,13 @@ const Company = () => {
             <InformationEditKaeru id={editId.kaeru} token={token} onClose={informationEditClose} authority={authority} />
             <InformationEditResale id={editId.resale} token={token} onClose={informationEditClose} authority={authority} />
             <Ranking showRanking={showRanking} setShowRanking={setShowRanking} customerList={customerList} monthArray={monthArray} staffList={staffList} achievement={achievement}/>
-            {category === 'order' &&
+            {(category === 'order' || category === 'spec') &&
                 <QuarterSummary
+                    // ⚠️ 事業が変わったら作り直す（⚠️ 中で反響を1回だけ取って持っているため）
+                    key={category}
                     show={showQuarterSummary}
                     setShow={setShowQuarterSummary}
+                    category={category}
                     targetYear={targetYear}
                     customerList={customerList}
                     shopList={shopList}
