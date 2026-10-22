@@ -141,6 +141,7 @@ import { runSuumoPropertyInsert } from '../features/suumoProperty';
 import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
 import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
+import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -2230,6 +2231,24 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runKengakuCloudEntry(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️⚠️ **事前アンケート（khg-marketing.info/survey_<ブランド>/）の回答受付。認証なしの書き込み口である。**（v2.2.207）
+ *   ⚠️ 防御は campaign_form:entry と同じ（publicFormRateLimit の流量制限・全項目の長さ制限・通知先はコード内の表）。
+ *   ⚠️ ブラウザから ② へ直接送る（① の PHP を通らない）。本番の CORS_ORIGINS に https://khg-marketing.info が要る（2026-10-22 時点で許可済み）。
+ *   ⚠️ 本文に `category` を入れないこと（ゲートウェイの鍵に入る）。
+ */
+register({
+  request: 'before_survey_entry',
+  summary: '【書き込み・認証なし】事前アンケートの回答受付（before_survey）＋通知メール',
+  phpSource: '(Express のみ。旧: survey_<ブランド>/thanks.php のメール → GAS Pre_survey)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runBeforeSurveyEntry(ctx.body as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

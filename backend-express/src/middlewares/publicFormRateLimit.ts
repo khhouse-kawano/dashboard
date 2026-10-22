@@ -46,6 +46,8 @@ const GUARDED_REQUESTS = new Set([
     'campaign_form',
     // ⚠️ 見学クラウドの予約受付（kengaku_cloud:entry）。認証なしの書き込み口
     'kengaku_cloud',
+    // ⚠️ v2.2.207 事前アンケートの回答受付。認証なしの書き込み口
+    'before_survey_entry',
 ]);
 
 const WINDOW_MS = 10 * 60_000;
