@@ -142,6 +142,7 @@ import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
 import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
+import { runMemberEntry } from '../features/memberEntry/entry';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -2249,6 +2250,26 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runBeforeSurveyEntry(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️⚠️ **ホームページの会員登録（KH・2L・なごみ・JH）の取り込み。書き込み口である。**（v2.2.209）
+ *   ⚠️ 送ってくるのは GAS（MEMBERtoDashboard）。スタッフのトークンは無いので auth は none、
+ *     代わりに合い言葉（MEMBER_ENTRY_KEY）を本文の `key` で確かめる。
+ *   ⚠️ GAS は ② に届かなければ ① の handlers/member_entry.php へ送り直す（同じ処理）。
+ *   ⚠️ 同じ inquiry_id は二度入らない（2回目は status: exists）。① の転送が二度届いても安全。
+ *   ⚠️ GATEWAY_REQUIRE_AUTH を true にすると止まる（GAS はスタッフのトークンを持たない）。
+ */
+register({
+  request: 'member_entry',
+  summary: '【書き込み・合い言葉】ホームページの会員登録の取り込み（inquiry_customer）',
+  phpSource: 'khg-marketing.info/api/member.php（handlers/member_entry.php に作り直し）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runMemberEntry(ctx.body as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

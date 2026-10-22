@@ -108,6 +108,12 @@ function expressProxyRequests(): array
         'kSnap',
         // ⚠️ v2.2.206。公開ギャラリーのログイン（参照のみ）。⚠️ 認証を要求しない（顧客向け）
         'k-snap_login',
+        // ⚠️⚠️ v2.2.209。会員登録の取り込み（GAS MEMBERtoDashboard）。**書き込みだが例外として入れる。**
+        //   ⚠️ 同じ inquiry_id は ②・① どちらでも二度入らない（2回目は status: exists）ので、
+        //     ② が保存した直後に応答が失われて ① の handlers/member_entry.php が動いても二重登録にならない。
+        //   ⚠️ ② が落ちたときは ① の PHP が保存する（GAS も ② に直接送れなかったときここへ送り直す）。
+        //   ⚠️ expressProxyExclusive() には入れないこと（入れると ① の予備が動かない）。
+        'member_entry',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
