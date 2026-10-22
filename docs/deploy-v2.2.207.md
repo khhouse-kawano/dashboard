@@ -55,7 +55,7 @@ curl -s -X POST https://api.khg-marketing.info/api/gateway -H 'Content-Type: app
 ⚠️ `アンケートの種類が分かりません` が返ればよい（`該当する処理がありません` なら再ビルドが反映されていない）。
 
 ## 手順3　【① FTP】アンケートの画面（7か所）
-⚠️ 置き換える前に、各ディレクトリの今のファイルを手元に退避しておく（`Downloads/survey` に5つ分の写しあり。jh・2l は無いので先に取る）。
+⚠️ 置き換える前に、各ディレクトリの今のファイルを手元に退避しておく（`Downloads/survey` に7つ分の写しあり）。
 
 上書きする: `backend/forms/survey/index.html` を、次の7か所の `index.html` に**同じファイルのまま**置く（ブランドはディレクトリ名で決まる）。
 ```
@@ -101,5 +101,4 @@ SELECT id, brand, dateStr, name, emailAddress, sync FROM before_survey ORDER BY 
 5. 翌日、GAS が動いていない（同じ回答が2行になっていない）ことを確認する
 
 ## ⚠️ 要確認
-- JUSFY HOME（jh）・ニーエルホーム（2l）の通知先。thanks.php の写しが無かったので、`mkt@kh-house.jp` と GAS の宛先（jh@kh-group.jp・2lhome@kh-group.jp）にしてある。違う場合は `backend-express/src/features/beforeSurvey/questions.ts` の BRANDS を直して ② を再ビルドする。
 - 送信回数の上限は、ほかの公開フォームと同じ「同じ IP から10分で5件」。展示場の Wi-Fi で何組も続けて回答する使い方がある場合は知らせてください。

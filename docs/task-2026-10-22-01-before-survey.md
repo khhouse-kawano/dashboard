@@ -8,7 +8,7 @@
 ## 決めたこと（2026-10-22 に確認）
 - 対象は7ブランド（指示書の5つ ＋ survey_nagomi・survey_fh。どちらも同じアンケートが公開されていた）
 - 選択肢の値の誤り「1年以上前から3」を直し、既存の298件も直す。総予算に「3500万円～4000万円」を足す
-- 通知先は今と同じ（Downloads/survey の thanks.php の $to。jh・2l は写しが無く 要確認）
+- 通知先は今と同じ（Downloads/survey の thanks.php の $to。jh・2l は後から受け取った写しで確認し、2l の宛先を2つ足した）
 - before_survey を utf8mb4 に
 
 ## 調べたこと
@@ -66,7 +66,6 @@
 - 事前アンケートの記事は無く、ダッシュボードの画面の変更も無いため、記事の変更なし
 
 ## 要確認
-- jh・2l の通知先（mkt@kh-house.jp ＋ jh@kh-group.jp／2lhome@kh-group.jp にしてある）
 - デプロイと同時に GAS の Pre_survey を止める（docs/deploy-v2.2.207.md の手順4）
 
 ## コード（全文）
@@ -138,7 +137,6 @@ export interface SurveyBrand {
 
 /**
  * フォームが送ってくるブランドのキー（survey_<キー> のディレクトリ名）→ ブランド。⚠️ ここに無いキーは受け付けない。
- * ⚠️ jh・2l の通知先は thanks.php の写しが無く、v2.2.207 の時点で 要確認（mkt@ ＋ GAS の宛先にしている）。
  */
 export const BRANDS: Record<string, SurveyBrand> = {
   kh: { code: 'KH', short: 'KH', name: '国分ハウジング', notify: ['mkt@kh-house.jp', 'kh@kh-group.jp', 'lead@kh-group.jp', 'kh-t@kh-house.jp'] },
@@ -147,7 +145,7 @@ export const BRANDS: Record<string, SurveyBrand> = {
   fh: { code: 'FH', short: 'FH', name: 'フルコミホーム', notify: ['mkt@kh-house.jp', 'furukomihome@kh-group.jp', 'furukomihome@kh-group.jp.test-google-a.com', 'lead@kh-group.jp.test-google-a.com'] },
   pg: { code: 'PGH', short: 'PG', name: 'PGハウス', notify: ['mkt@kh-house.jp', 'pghouse@kh-house.jp', 'koukoku@pure-growth.net', 'pghouse@pure-growth.net', 'pgh@kh-group.jp'] },
   jh: { code: 'JH', short: 'JH', name: 'JUSFY HOME', notify: ['mkt@kh-house.jp', 'jh@kh-group.jp'] },
-  '2l': { code: '2L', short: '2L', name: 'ニーエルホーム', notify: ['mkt@kh-house.jp', '2lhome@kh-group.jp'] },
+  '2l': { code: '2L', short: '2L', name: 'ニーエルホーム', notify: ['mkt@kh-house.jp', '2lhome@kh-group.jp', '2lhome@kh-group.jp.test-google-a.com', 'lead@kh-group.jp.test-google-a.com'] },
 };
 ```
 

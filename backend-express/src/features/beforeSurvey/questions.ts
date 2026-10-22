@@ -63,7 +63,6 @@ export interface SurveyBrand {
 
 /**
  * フォームが送ってくるブランドのキー（survey_<キー> のディレクトリ名）→ ブランド。⚠️ ここに無いキーは受け付けない。
- * ⚠️ jh・2l の通知先は thanks.php の写しが無く、v2.2.207 の時点で 要確認（mkt@ ＋ GAS の宛先にしている）。
  */
 export const BRANDS: Record<string, SurveyBrand> = {
   kh: { code: 'KH', short: 'KH', name: '国分ハウジング', notify: ['mkt@kh-house.jp', 'kh@kh-group.jp', 'lead@kh-group.jp', 'kh-t@kh-house.jp'] },
@@ -72,5 +71,5 @@ export const BRANDS: Record<string, SurveyBrand> = {
   fh: { code: 'FH', short: 'FH', name: 'フルコミホーム', notify: ['mkt@kh-house.jp', 'furukomihome@kh-group.jp', 'furukomihome@kh-group.jp.test-google-a.com', 'lead@kh-group.jp.test-google-a.com'] },
   pg: { code: 'PGH', short: 'PG', name: 'PGハウス', notify: ['mkt@kh-house.jp', 'pghouse@kh-house.jp', 'koukoku@pure-growth.net', 'pghouse@pure-growth.net', 'pgh@kh-group.jp'] },
   jh: { code: 'JH', short: 'JH', name: 'JUSFY HOME', notify: ['mkt@kh-house.jp', 'jh@kh-group.jp'] },
-  '2l': { code: '2L', short: '2L', name: 'ニーエルホーム', notify: ['mkt@kh-house.jp', '2lhome@kh-group.jp'] },
+  '2l': { code: '2L', short: '2L', name: 'ニーエルホーム', notify: ['mkt@kh-house.jp', '2lhome@kh-group.jp', '2lhome@kh-group.jp.test-google-a.com', 'lead@kh-group.jp.test-google-a.com'] },
 };
