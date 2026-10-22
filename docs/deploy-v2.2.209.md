@@ -82,6 +82,14 @@ curl -s -X POST https://khg-marketing.info/dashboard/api/gateway/ -H 'Content-Ty
 3. コードを `backend/scripts/gas/MEMBERtoDashboard.gs` の中身に**丸ごと**置き換えて保存。
    - ⚠️ トリガーはそのまま（関数名は以前と同じ `MEMBERtoDashboard`）。
    - ⚠️ ライブラリ「Parser」は使わなくなった。消さなくても動く。
+   - ⚠️ **ラベルでは探さない**（差出人＋件名）。Gmail のフィルタ・ラベルはそのままでよい（使わないだけ）。
+   - ⚠️ 差し替える前に、GAS を動かすアカウントの Gmail の検索窓に次を入れ、会員登録の通知が出ることを確かめる（メーリングリストが差出人を書き換えていると出ない）:
+     ```
+     from:kh-t@kh-house.jp subject:("会員登録" OR "登録情報更新") newer_than:7d
+     from:noreply@2lhome.net subject:("会員登録") newer_than:7d
+     from:wordpress@nagomi-koumuten.jp subject:("会員登録") newer_than:7d
+     from:wordpress@jusfy-home.com subject:("会員登録") newer_than:7d
+     ```
 4. エディタで `MEMBERtoDashboard` を選んで「実行」→「実行ログ」を見る:
    - `② 200 homepage… : {"status":"exists",…}` … 取り込み済み（以前の GAS が入れたもの）。⚠️ 過去2日分はほとんどこれになる
    - `② 200 … {"status":"success",…}` … 新しく入った
