@@ -6,6 +6,7 @@
 - ② に API。サンクスメールなし・通知メールあり。登録先は before_survey。列のコメントを質問に合わせる
 
 ## 決めたこと（2026-10-22 に確認）
+- 追加の指示：survey_khg も同じブランチで対象にする。v2.2.206 までの index.html・thanks.php・confirm.php が survey_kh と完全に同じ（改行コードを除く）ため、khg は kh と同じ KH・同じ通知先で受ける（BRANDS の khg）
 - 対象は7ブランド（指示書の5つ ＋ survey_nagomi・survey_fh。どちらも同じアンケートが公開されていた）
 - 選択肢の値の誤り「1年以上前から3」を直し、既存の298件も直す。総予算に「3500万円～4000万円」を足す
 - 通知先は今と同じ（Downloads/survey の thanks.php の $to。jh・2l は後から受け取った写しで確認し、2l の宛先を2つ足した）
@@ -53,6 +54,7 @@
 - 登録 → 完了（段階3・「ホームへ戻る」は https://kh-house.jp/）。before_survey に1行
 - pg（PC幅）：PGハウスの色とロゴ・横にはみ出さない。「ホームへ戻る」は出さない（旧の thanks.php にも無い）
 - /survey_xx/：「このページのアドレスが正しくありません」
+- survey_khg：タイトル・ロゴ・「国分ハウジングが初めて」・登録で brand が KH（② に直接送っても KH）
 - 失敗時：429 の文言・通信失敗の文言がモーダルに出て、ボタンが押せる状態に戻る
 - テストで入れた行はすべて削除済み（before_survey は 3013 行のまま）
 ### 型チェック
@@ -138,8 +140,12 @@ export interface SurveyBrand {
 /**
  * フォームが送ってくるブランドのキー（survey_<キー> のディレクトリ名）→ ブランド。⚠️ ここに無いキーは受け付けない。
  */
+const KH: SurveyBrand = { code: 'KH', short: 'KH', name: '国分ハウジング', notify: ['mkt@kh-house.jp', 'kh@kh-group.jp', 'lead@kh-group.jp', 'kh-t@kh-house.jp'] };
+
 export const BRANDS: Record<string, SurveyBrand> = {
-  kh: { code: 'KH', short: 'KH', name: '国分ハウジング', notify: ['mkt@kh-house.jp', 'kh@kh-group.jp', 'lead@kh-group.jp', 'kh-t@kh-house.jp'] },
+  kh: KH,
+  // ⚠️ survey_khg は survey_kh と中身が同じ（v2.2.206 までの index.html・thanks.php が一致）。KH として受ける
+  khg: KH,
   djh: { code: 'DJH', short: 'DJH', name: 'デイジャストハウス', notify: ['mkt@kh-house.jp', 'info-djh@royalhome.co.jp', 'djh@kh-group.jp'] },
   nagomi: { code: 'なごみ', short: 'なごみ', name: 'なごみ工務店', notify: ['mkt@kh-house.jp', 'nagomi@kh-group.jp', 'nagomi@kh-group.jp.test-google-a.com', 'lead@kh-group.jp.test-google-a.com'] },
   fh: { code: 'FH', short: 'FH', name: 'フルコミホーム', notify: ['mkt@kh-house.jp', 'furukomihome@kh-group.jp', 'furukomihome@kh-group.jp.test-google-a.com', 'lead@kh-group.jp.test-google-a.com'] },
@@ -339,7 +345,7 @@ SELECT considerationStart, COUNT(*) AS n FROM before_survey GROUP BY considerati
 <!DOCTYPE html>
 <!--
   事前アンケート（v2.2.207）。https://khg-marketing.info/survey_<ブランド>/index.html
-  ⚠️ 7ブランド（kh・djh・nagomi・fh・pg・jh・2l）とも**この同じファイル**を置く。ブランドは置いたディレクトリ名（survey_kh など）で決まる。
+  ⚠️ 8か所（survey_kh・khg・djh・nagomi・fh・pg・jh・2l）とも**この同じファイル**を置く。ブランドは置いたディレクトリ名（survey_kh など）で決まる（khg は kh と同じ KH）。
   ⚠️ 回答は ② へ直接送る（POST https://api.khg-marketing.info/api/gateway { request: 'before_survey_entry' }）。① の PHP は通らない。
   ⚠️ 質問は ② の backend-express/src/features/beforeSurvey/questions.ts と対（column がそのまま before_survey の列名）。片方だけ直さないこと。
   ⚠️ 見た目は form_get（src/components/publicForm.css）に合わせている（.pf の変数・部品名も同じ）。
@@ -502,8 +508,10 @@ body {
     'use strict';
 
     /** ⚠️ ② の features/beforeSurvey/questions.ts の BRANDS とキーをそろえる */
+    var KH = { name: '国分ハウジング', logo: 'https://khg-marketing.info/img/kokubu-housing_logo.png', accent: '#0f3675', home: 'https://kh-house.jp/' };
     var BRANDS = {
-        kh: { name: '国分ハウジング', logo: 'https://khg-marketing.info/img/kokubu-housing_logo.png', accent: '#0f3675', home: 'https://kh-house.jp/' },
+        kh: KH,
+        khg: KH,
         djh: { name: 'デイジャストハウス', logo: 'https://khg-marketing.info/img/dayjusthouse_logo.png', accent: '#1d8a94', home: 'https://day-just-house.com/' },
         nagomi: { name: 'なごみ工務店', logo: 'https://khg-marketing.info/img/nagomi_logo.png', accent: '#956134', home: 'https://www.nagomi-koumuten.jp/' },
         fh: { name: 'フルコミホーム', logo: 'https://khg-marketing.info/img/furukomi_logo.png', accent: '#cd3c33', home: 'https://furukomi-home.com/' },
