@@ -32,8 +32,11 @@ export interface MemberEntryResult {
 const INQUIRY_ID_PREFIX = 'homepage';
 const DATE_PATTERN = /^\d{4}\/\d{2}\/\d{2}$/;
 
-/** ⚠️ 長さが違うと timingSafeEqual が例外を投げるので先に比べる（event/checkin.ts と同じ） */
-const keyMatches = (input: string): boolean => {
+/**
+ * ⚠️ 長さが違うと timingSafeEqual が例外を投げるので先に比べる（event/checkin.ts と同じ）。
+ * ⚠️ housingBazar/entry.ts も使う（同じ合い言葉。v2.2.210）
+ */
+export const keyMatches = (input: string): boolean => {
     const expected = env.memberEntryKey;
     if (expected === '') return false;
     const a = Buffer.from(input, 'utf8');
@@ -48,9 +51,9 @@ interface DuplicateRow extends RowDataPacket {
 
 /**
  * 同じメールアドレスの既存の反響を「店舗 媒体 重複」の形で並べる（移植元と同じ形）。
- * ⚠️ 移植元は店舗ごとに1つ（同じ店舗なら後の行の媒体）。
+ * ⚠️ 移植元は店舗ごとに1つ（同じ店舗なら後の行の媒体）。⚠️ housingBazar/entry.ts も使う（v2.2.210）
  */
-const duplicateNote =(rows: ReadonlyArray<{ shop: string; medium: string }>): string => {
+export const duplicateNote = (rows: ReadonlyArray<{ shop: string; medium: string }>): string => {
     const byShop = new Map<string, string>();
     for (const row of rows) byShop.set(row.shop, row.medium);
     return [...byShop].map(([shop, medium]) => `${shop} ${medium} 重複`).join(',');

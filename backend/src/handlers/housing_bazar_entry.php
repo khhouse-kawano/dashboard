@@ -1,0 +1,142 @@
+<?php
+
+/**
+ * ハウジングバザールの問い合わせを inquiry_customer へ保存する。（v2.2.210）
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ **② の features/housingBazar/entry.ts の予備である。同じ処理を持つ。**
+ *   ⚠️ ふだんは ① の express_proxy.php が ② へ転送し、ここは動かない。
+ *   ⚠️ 動くのは ② に届かなかったとき（GAS が送り直したとき・① からの転送が失敗したとき）。
+ *   ⚠️ ここを変えたら entry.ts も同じように変えること。
+ * ⚠️ 合い言葉は member_entry と同じ MEMBER_ENTRY_KEY。⚠️ ブランド・店舗は「KHG・ブランド・店舗未設定」で入れる。
+ * ─────────────────────────────────────────────
+ */
+
+/** 制御文字を空白にし、連続する空白を1つにして長さで切る（② の clean と同じ） */
+function housingBazarClean($value, int $max): string
+{
+    if ($value === null || is_array($value)) {
+        return '';
+    }
+    $text = preg_replace('/[\x00-\x1F\x7F]/u', ' ', (string)$value) ?? '';
+    $text = trim(preg_replace('/ +/u', ' ', $text) ?? '');
+    return mb_substr($text, 0, $max, 'UTF-8');
+}
+
+/** 改行だけ残す（② の cleanMultiline と同じ） */
+function housingBazarCleanMultiline($value, int $max): string
+{
+    if ($value === null || is_array($value)) {
+        return '';
+    }
+    $text = str_replace(["\r\n", "\r"], "\n", (string)$value);
+    $text = preg_replace('/[\x00-\x09\x0B-\x1F\x7F]/u', ' ', $text) ?? '';
+    $lines = array_map('trim', explode("\n", $text));
+    return mb_substr(trim(implode("\n", $lines)), 0, $max, 'UTF-8');
+}
+
+function housingBazarRespond(int $status, array $body): void
+{
+    http_response_code($status);
+    // ⚠️ ② と同じ形にする（inquiry_id をエスケープしない）
+    echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+$expectedKey = trim((string)getenv('MEMBER_ENTRY_KEY'));
+$inputKey = housingBazarClean($data['key'] ?? '', 200);
+if ($expectedKey === '' || !hash_equals($expectedKey, $inputKey)) {
+    if ($expectedKey === '') {
+        error_log('housing_bazar_entry: MEMBER_ENTRY_KEY が未設定のため断りました');
+    }
+    housingBazarRespond(401, ['status' => 'error', 'message' => '合い言葉が違います。']);
+}
+
+$inquiryId   = housingBazarClean($data['inquiry_id'] ?? '', 200);
+$inquiryDate = housingBazarClean($data['inquiry_date'] ?? '', 10);
+$name        = housingBazarClean($data['name'] ?? '', 120);
+$mail        = housingBazarClean($data['mail'] ?? '', 190);
+$mobile      = housingBazarClean($data['mobile'] ?? '', 30);
+
+if (
+    strpos($inquiryId, 'housingBazar') !== 0
+    || !preg_match('#^\d{4}/\d{2}/\d{2}$#', $inquiryDate)
+    || $name === ''
+    || ($mail === '' && $mobile === '')
+) {
+    error_log("housing_bazar_entry: 必要な項目がありません id=\"{$inquiryId}\"");
+    housingBazarRespond(400, ['status' => 'error', 'message' => '必要な項目がありません。']);
+}
+
+try {
+    $stmt = $pdo->prepare('SELECT id FROM inquiry_customer WHERE inquiry_id = ? LIMIT 1');
+    $stmt->execute([$inquiryId]);
+    if ($stmt->fetch()) {
+        housingBazarRespond(200, ['status' => 'exists', 'message' => '登録済みです。', 'id' => $inquiryId]);
+    }
+
+    // ⚠️ 同じ人：メールが一致、または電話の数字が一致（⚠️ 空の値どうしは照合しない）
+    $tel = preg_replace('/\D/', '', $mobile) ?? '';
+    $conditions = [];
+    $params = [];
+    if ($mail !== '') {
+        $conditions[] = 'mail = ?';
+        $params[] = $mail;
+    }
+    if (strlen($tel) >= 10) {
+        $conditions[] = "REPLACE(REPLACE(mobile, '-', ''), ' ', '') = ?";
+        $params[] = $tel;
+    }
+    $duplicate = '';
+    if ($conditions) {
+        $stmt = $pdo->prepare('SELECT shop, medium FROM inquiry_customer WHERE ' . implode(' OR ', $conditions) . ' ORDER BY id');
+        $stmt->execute($params);
+        $notes = [];
+        foreach (array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'medium', 'shop') as $dupShop => $dupMedium) {
+            $notes[] = "{$dupShop} {$dupMedium} 重複";
+        }
+        $duplicate = implode(',', $notes);
+    }
+
+    // ⚠️ NOT NULL の列をすべて埋める（② の NOT_NULL_COLUMNS と同じ）
+    $notNullColumns = [
+        'inquiry_id', 'pg_id', 'mhl_id', 'mhl_url', 'mhl_mail', 'inquiry_date',
+        'medium', 'response_medium',
+        'first_name', 'last_name', 'first_name_kana', 'last_name_kana',
+        'mobile', 'landline', 'mail',
+        'zip', 'pref', 'city', 'town', 'street', 'building',
+        'brand', 'shop', 'sync', 'staff', 'area',
+        'reserved_date', 'reserved_time', 'black_list', 'hp_campaign',
+        'delete_flag', 'duplicate', 'note',
+        'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+        'referrer', 'first_visit', 'hotlead_url', 'remarks',
+    ];
+    $values = array_fill_keys($notNullColumns, '');
+    $values['sync'] = 0;
+    $values['delete_flag'] = 0;
+    $values['inquiry_id'] = $inquiryId;
+    $values['inquiry_date'] = $inquiryDate;
+    $values['medium'] = 'ハウジングバザール';
+    $values['response_medium'] = 'ハウジングバザール';
+    $values['first_name'] = $name;
+    $values['first_name_kana'] = housingBazarClean($data['kana'] ?? '', 120);
+    $values['mobile'] = $mobile;
+    $values['mail'] = $mail;
+    $values['zip'] = housingBazarClean($data['zip'] ?? '', 10);
+    $values['building'] = housingBazarClean($data['address'] ?? '', 300);
+    $values['area'] = housingBazarClean($data['area'] ?? '', 200);
+    $values['brand'] = 'KHG';
+    $values['shop'] = 'ブランド・店舗未設定';
+    $values['remarks'] = housingBazarCleanMultiline($data['remarks'] ?? '', 2000);
+    $values['duplicate'] = $duplicate;
+
+    $placeholders = implode(', ', array_fill(0, count($notNullColumns), '?'));
+    $stmt = $pdo->prepare('INSERT INTO inquiry_customer (' . implode(', ', $notNullColumns) . ") VALUES ({$placeholders})");
+    $stmt->execute(array_values($values));
+} catch (PDOException $e) {
+    error_log("housing_bazar_entry: inquiry_customer への保存に失敗 id=\"{$inquiryId}\": " . $e->getMessage());
+    housingBazarRespond(500, ['status' => 'error', 'message' => 'データの追加に失敗しました。']);
+}
+
+error_log("housing_bazar_entry: ① で受け付けました id=\"{$inquiryId}\"");
+housingBazarRespond(200, ['status' => 'success', 'message' => "{$name} のデータが反響一覧に追加されました。", 'id' => $inquiryId]);
