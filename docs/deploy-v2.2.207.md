@@ -1,4 +1,4 @@
-# デプロイ手順 v2.2.207（事前アンケートの作り直し：7ブランドの HTML を1ファイルに・回答を ② が直接登録）
+# デプロイ手順 v2.2.207（事前アンケートの作り直し：7ブランド・8か所の HTML を1ファイルに・回答を ② が直接登録）
 
 ⚠️ v2.2.206 は main にマージ済み。このブランチは main から切ってある。
 
@@ -6,7 +6,7 @@
 |---|---|---|
 | 1 | before_survey を utf8mb4 に・列のコメント・「1年以上前から3」を「1年以上前から」に直す（298件） | ① DB |
 | 2 | 事前アンケートの受け口 `before_survey_entry`（保存・通知メール）・送信回数の上限 | ⚠️ **② VPS（再ビルド）** |
-| 3 | 7ブランドの事前アンケートの画面を新しい1ファイルに置き換える | ① FTP（`/survey_kh/` など7か所） |
+| 3 | 7ブランド（8か所）の事前アンケートの画面を新しい1ファイルに置き換える | ① FTP（`/survey_kh/` など8か所） |
 | 4 | GAS の Pre_survey を止める | ⚠️ Google Apps Script |
 | 5 | 画面の版 | ① フロント（dashboard） |
 | 6 | 更新履歴 | ① DB |
@@ -19,7 +19,7 @@
 0. GitHub で v2.2.207 を main → production へマージ
 1. ① DB：2026-10-22_before_survey.sql
 2. ② 再ビルド                     ← ⚠️ 1 の後（絵文字入りの回答が utf8mb3 の表に入ると失敗する）
-3. ① FTP：アンケートの画面を7か所   ← ⚠️ 2 の後（先に置くと送信が「該当する処理がありません」になる）
+3. ① FTP：アンケートの画面を8か所   ← ⚠️ 2 の後（先に置くと送信が「該当する処理がありません」になる）
 4. GAS の Pre_survey のトリガーを止める ← ⚠️ 3 と同時（3 の直後）
 5. ① フロント
 6. ① SQL（更新履歴）
@@ -54,12 +54,13 @@ curl -s -X POST https://api.khg-marketing.info/api/gateway -H 'Content-Type: app
 ```
 ⚠️ `アンケートの種類が分かりません` が返ればよい（`該当する処理がありません` なら再ビルドが反映されていない）。
 
-## 手順3　【① FTP】アンケートの画面（7か所）
-⚠️ 置き換える前に、各ディレクトリの今のファイルを手元に退避しておく（`Downloads/survey` に7つ分の写しあり）。
+## 手順3　【① FTP】アンケートの画面（8か所）
+⚠️ 置き換える前に、各ディレクトリの今のファイルを手元に退避しておく（`Downloads/survey` に8つ分の写しあり）。
 
-上書きする: `backend/forms/survey/index.html` を、次の7か所の `index.html` に**同じファイルのまま**置く（ブランドはディレクトリ名で決まる）。
+上書きする: `backend/forms/survey/index.html` を、次の8か所の `index.html` に**同じファイルのまま**置く（ブランドはディレクトリ名で決まる。survey_khg は survey_kh と同じ国分ハウジング）。
 ```
 /survey_kh/index.html
+/survey_khg/index.html
 /survey_djh/index.html
 /survey_jh/index.html
 /survey_pg/index.html

@@ -64,8 +64,12 @@ export interface SurveyBrand {
 /**
  * フォームが送ってくるブランドのキー（survey_<キー> のディレクトリ名）→ ブランド。⚠️ ここに無いキーは受け付けない。
  */
+const KH: SurveyBrand = { code: 'KH', short: 'KH', name: '国分ハウジング', notify: ['mkt@kh-house.jp', 'kh@kh-group.jp', 'lead@kh-group.jp', 'kh-t@kh-house.jp'] };
+
 export const BRANDS: Record<string, SurveyBrand> = {
-  kh: { code: 'KH', short: 'KH', name: '国分ハウジング', notify: ['mkt@kh-house.jp', 'kh@kh-group.jp', 'lead@kh-group.jp', 'kh-t@kh-house.jp'] },
+  kh: KH,
+  // ⚠️ survey_khg は survey_kh と中身が同じ（v2.2.206 までの index.html・thanks.php が一致）。KH として受ける
+  khg: KH,
   djh: { code: 'DJH', short: 'DJH', name: 'デイジャストハウス', notify: ['mkt@kh-house.jp', 'info-djh@royalhome.co.jp', 'djh@kh-group.jp'] },
   nagomi: { code: 'なごみ', short: 'なごみ', name: 'なごみ工務店', notify: ['mkt@kh-house.jp', 'nagomi@kh-group.jp', 'nagomi@kh-group.jp.test-google-a.com', 'lead@kh-group.jp.test-google-a.com'] },
   fh: { code: 'FH', short: 'FH', name: 'フルコミホーム', notify: ['mkt@kh-house.jp', 'furukomihome@kh-group.jp', 'furukomihome@kh-group.jp.test-google-a.com', 'lead@kh-group.jp.test-google-a.com'] },

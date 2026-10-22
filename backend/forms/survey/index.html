@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   事前アンケート（v2.2.207）。https://khg-marketing.info/survey_<ブランド>/index.html
-  ⚠️ 7ブランド（kh・djh・nagomi・fh・pg・jh・2l）とも**この同じファイル**を置く。ブランドは置いたディレクトリ名（survey_kh など）で決まる。
+  ⚠️ 8か所（survey_kh・khg・djh・nagomi・fh・pg・jh・2l）とも**この同じファイル**を置く。ブランドは置いたディレクトリ名（survey_kh など）で決まる（khg は kh と同じ KH）。
   ⚠️ 回答は ② へ直接送る（POST https://api.khg-marketing.info/api/gateway { request: 'before_survey_entry' }）。① の PHP は通らない。
   ⚠️ 質問は ② の backend-express/src/features/beforeSurvey/questions.ts と対（column がそのまま before_survey の列名）。片方だけ直さないこと。
   ⚠️ 見た目は form_get（src/components/publicForm.css）に合わせている（.pf の変数・部品名も同じ）。
@@ -164,8 +164,10 @@ body {
     'use strict';
 
     /** ⚠️ ② の features/beforeSurvey/questions.ts の BRANDS とキーをそろえる */
+    var KH = { name: '国分ハウジング', logo: 'https://khg-marketing.info/img/kokubu-housing_logo.png', accent: '#0f3675', home: 'https://kh-house.jp/' };
     var BRANDS = {
-        kh: { name: '国分ハウジング', logo: 'https://khg-marketing.info/img/kokubu-housing_logo.png', accent: '#0f3675', home: 'https://kh-house.jp/' },
+        kh: KH,
+        khg: KH,
         djh: { name: 'デイジャストハウス', logo: 'https://khg-marketing.info/img/dayjusthouse_logo.png', accent: '#1d8a94', home: 'https://day-just-house.com/' },
         nagomi: { name: 'なごみ工務店', logo: 'https://khg-marketing.info/img/nagomi_logo.png', accent: '#956134', home: 'https://www.nagomi-koumuten.jp/' },
         fh: { name: 'フルコミホーム', logo: 'https://khg-marketing.info/img/furukomi_logo.png', accent: '#cd3c33', home: 'https://furukomi-home.com/' },
