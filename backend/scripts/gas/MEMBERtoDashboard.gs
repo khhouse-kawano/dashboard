@@ -13,6 +13,7 @@
 // ⚠️⚠️ スクリプト プロパティ MEMBER_ENTRY_KEY（合い言葉）が要る。⚠️ ① ② と同じ値。⚠️ ここに直書きしない。
 //
 // ⚠️ 以前の版（api/member.php 宛て）から直したところ:
+//   - Gmail のラベルで探さない（ときどき外れて取りこぼすため）。差出人と件名で探す
 //   - Parser ライブラリを使わない（行ごとに「見出し : 値」で読む。見出しの後ろの空白の数が変わっても読める）
 //   - 氏名・かな・電話・メールの空白を全部消す（以前は最初の1つだけ）
 //   - 郵便番号を住所から分ける・なごみの「町村・番地」を拾う
@@ -30,7 +31,9 @@ const MEMBER_PHP_URL = 'https://khg-marketing.info/dashboard/api/gateway/';
 /**
  * ブランドごとの設定。
  *
- * ⚠️ query は以前の GAS と同じラベル・件名（Gmail のフィルタでラベルが付く）。
+ * ⚠️⚠️ **ラベルは使わない**（ラベルがときどき外れて取りこぼすため）。差出人（from）と件名（subjects のどれかを含む）で探す。
+ *   ⚠️ 差出人・件名は 2026-10 の通知メールの見本から。⚠️ ブランドのサイトの送信元や件名を変えたら、ここも変えること。
+ *   ⚠️ 件名の頭の「[marketing]: [lead]:」などはメーリングリストが付けるもの。部分一致なので気にしなくてよい。
  * ⚠️ labels は「メール本文の見出し → 取り出す項目」。⚠️ 見出しは前後の空白を除いて完全一致で比べる。
  * ⚠️ campaign は inquiry_id と hp_campaign に入る。⚠️ **変えないこと**（変えると同じメールが別の反響として二重に入る）。
  */
@@ -38,7 +41,9 @@ const MEMBER_BRANDS = [
   {
     brand: 'KH',
     campaign: '【KH共通】会員登録',
-    query: 'label:会員登録_KH newer_than:2d',
+    from: 'kh-t@kh-house.jp',
+    // ⚠️ 会員情報の変更（登録情報更新がありました）も取り込む。退会は memberBuildPayload で飛ばす
+    subjects: ['会員登録', '登録情報更新'],
     labels: {
       'お名前': 'name',
       'ふりがな': 'kana',
@@ -56,7 +61,8 @@ const MEMBER_BRANDS = [
   {
     brand: '2L',
     campaign: '【2L鹿児島】会員登録',
-    query: 'label:ラクリア_2L subject:"【2Lhome】会員登録がありました" newer_than:2d',
+    from: 'noreply@2lhome.net',
+    subjects: ['会員登録'],
     labels: {
       '名前(漢字)': 'name',
       '名前(かな)': 'kana',
@@ -78,7 +84,8 @@ const MEMBER_BRANDS = [
   {
     brand: 'Nagomi',
     campaign: '【なごみ共通】会員登録',
-    query: 'label:会員登録_なごみ subject:会員登録がありました newer_than:2d',
+    from: 'wordpress@nagomi-koumuten.jp',
+    subjects: ['会員登録'],
     labels: {
       'お名前': 'name',
       'ふりがな': 'kana',
@@ -96,7 +103,8 @@ const MEMBER_BRANDS = [
   {
     brand: 'JH',
     campaign: '【JH共通】会員登録',
-    query: 'label:会員登録_JH subject:会員登録がありました newer_than:2d',
+    from: 'wordpress@jusfy-home.com',
+    subjects: ['会員登録'],
     labels: {
       'お名前': 'name',
       'フリガナ': 'kana',
@@ -589,6 +597,23 @@ function memberPost(payload) {
   return false;
 }
 
+/** Gmail の検索条件。⚠️ ラベルは使わない（差出人＋件名）。過去2日分を毎回読む（取り込み済みは受け側が飛ばす） */
+function memberQuery(config) {
+  const subjects = config.subjects.map(function (s) { return '"' + s + '"'; }).join(' OR ');
+  return 'from:' + config.from + ' subject:(' + subjects + ') newer_than:2d';
+}
+
+/**
+ * ⚠️ スレッドには条件に合わない返信・転送も混ざる（search はスレッド単位で返す）。1通ずつ差出人と件名を確かめる。
+ * ⚠️ 返信・転送（Re: / Fwd:）は送らない（お客様の通知ではない）。
+ */
+function memberIsTarget(config, from, subject) {
+  const s = String(subject || '');
+  if (/^\s*(re|fw|fwd)\s*[:：]/i.test(s)) return false;
+  return String(from || '').toLowerCase().indexOf(config.from) !== -1
+    && config.subjects.some(function (keyword) { return s.indexOf(keyword) !== -1; });
+}
+
 // =====================================================================
 // ⚠️ メインの実行関数。⚠️ **トリガーはこれを指定する**（以前と同じ関数名）
 // =====================================================================
@@ -600,9 +625,10 @@ function MEMBERtoDashboard() {
   }
 
   MEMBER_BRANDS.forEach(function (config) {
-    const threads = GmailApp.search(config.query);
+    const threads = GmailApp.search(memberQuery(config));
     threads.forEach(function (thread) {
       thread.getMessages().forEach(function (message) {
+        if (!memberIsTarget(config, message.getFrom(), message.getSubject())) return;
         const payload = memberBuildPayload(config, message.getSubject(), message.getPlainBody(), message.getDate());
         if (payload.skip) {
           Logger.log(config.brand + ' 送らない（' + payload.skip + '）: ' + message.getSubject());

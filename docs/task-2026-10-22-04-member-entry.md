@@ -1086,3 +1086,31 @@ index 313eff76..93089c60 100644
 -export const newVersion = '2.2.207';
 +export const newVersion = '2.2.209';
 ```
+
+## 追加の指示（同日）：ラベルではなく件名で取る
+- 「ラベルはたまに外れるので件名で判断してほしい」
+- `MEMBER_BRANDS` の `query`（ラベル）をやめ、`from`（差出人）と `subjects`（件名に含む語）にした
+  - KH：`kh-t@kh-house.jp`・「会員登録」か「登録情報更新」／2L：`noreply@2lhome.net`・「会員登録」／なごみ：`wordpress@nagomi-koumuten.jp`・「会員登録」／JH：`wordpress@jusfy-home.com`・「会員登録」
+  - ⚠️ 差出人は通知メールの見本から。wordpress@ はほかのフォームの通知も送るので、件名で絞る
+- 追加した関数:
+```js
+/** Gmail の検索条件。⚠️ ラベルは使わない（差出人＋件名）。過去2日分を毎回読む（取り込み済みは受け側が飛ばす） */
+function memberQuery(config) {
+  const subjects = config.subjects.map(function (s) { return '"' + s + '"'; }).join(' OR ');
+  return 'from:' + config.from + ' subject:(' + subjects + ') newer_than:2d';
+}
+
+/**
+ * ⚠️ スレッドには条件に合わない返信・転送も混ざる（search はスレッド単位で返す）。1通ずつ差出人と件名を確かめる。
+ * ⚠️ 返信・転送（Re: / Fwd:）は送らない（お客様の通知ではない）。
+ */
+function memberIsTarget(config, from, subject) {
+  const s = String(subject || '');
+  if (/^\s*(re|fw|fwd)\s*[:：]/i.test(s)) return false;
+  return String(from || '').toLowerCase().indexOf(config.from) !== -1
+    && config.subjects.some(function (keyword) { return s.indexOf(keyword) !== -1; });
+}
+```
+- `MEMBERtoDashboard()` は `GmailApp.search(memberQuery(config))` にし、1通ごとに `memberIsTarget` で確かめてから読む
+- テスト：読み取りの結果は変化なし（前回と同じ出力）。差出人・件名の判定 10件（見本の件名・別ブランドの差出人・資料請求・Re:／Fwd:）がすべて期待どおり
+- ⚠️ 未確認：本番の Gmail での検索結果（メーリングリストが差出人を書き換えていないか）。デプロイ手順書の手順3に、検索窓での確認を足した
