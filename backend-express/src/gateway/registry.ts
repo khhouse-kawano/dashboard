@@ -148,6 +148,8 @@ import { runKagosumaEntry } from '../features/kagosuma/entry';
 import { runTochishinchakuEntry } from '../features/tochishinchaku/entry';
 import { runMyhomesEntry } from '../features/myhomes/entry';
 import { importOwnersHouseApplication, listOwnersHouseApplications } from '../features/ownersHouse/application';
+import { runOwnersHouseReservation } from '../features/ownersHouse/reservation';
+import { runEstimateEntry } from '../features/estimate/entry';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -2377,6 +2379,40 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await importOwnersHouseApplication(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️⚠️ **簡単見積もり（2L・JH）の反響受付。認証なしの書き込み口である。**（v2.2.216）
+ *   ⚠️ 中身は campaign_form:entry（見積もりの3キャンペーンだけ受ける）。⚠️ publicFormRateLimit の対象。
+ *   ⚠️ ② に届かないとき送り元は ① の handlers/estimate_entry.php へ送り直す（① の campaign_form.php を使う）。
+ */
+register({
+  request: 'estimate_entry',
+  summary: '【書き込み・認証なし】簡単見積もり（2L・JH）の反響受付（inquiry_customer）',
+  phpSource: 'khg-marketing.info/api/（Authorization: registration, request: homepage。消えた）→ handlers/estimate_entry.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runEstimateEntry(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️⚠️ **オーナーズハウスの見学予約。認証なしの書き込み口である。**（v2.2.216）
+ *   ⚠️ publicFormRateLimit の対象。⚠️ 社内通知の宛先はコードの表から（リクエストの値は使わない）。
+ *   ⚠️ ② に届かないとき送り元は ① の handlers/owners_house_reservation.php へ送り直す（同じ処理）。
+ */
+register({
+  request: 'owners_house_reservation',
+  summary: '【書き込み・認証なし】オーナーズハウスの見学予約（inquiry_customer）',
+  phpSource: 'khg-marketing.info/api/（Authorization: registration, request: owners_house。消えた）→ handlers/owners_house_reservation.php',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runOwnersHouseReservation(ctx.body as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
