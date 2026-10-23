@@ -117,6 +117,9 @@ function expressProxyRequests(): array
         // ⚠️ v2.2.210。ハウジングバザールの取り込み（GAS HousingBtoDashboard）。⚠️ member_entry と同じ理由で例外として入れる
         //   （同じ inquiry_id は二度入らない。⚠️ ① の予備は handlers/housing_bazar_entry.php）
         'housing_bazar_entry',
+        // ⚠️ v2.2.211。カゴスマ・タテルヤの取り込み（GAS KagosumatoDashboard）。⚠️ member_entry と同じ理由で例外として入れる
+        //   （同じ inquiry_id は二度入らない。⚠️ ① の予備は handlers/kagosuma_entry.php）
+        'kagosuma_entry',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
