@@ -123,6 +123,9 @@ function expressProxyRequests(): array
         // ⚠️ v2.2.212。土地新着ネットの取り込み（GAS TochishinchakuToDashboard）。⚠️ member_entry と同じ理由で例外として入れる
         //   （同じ inquiry_id は二度入らない。⚠️ ① の予備は handlers/tochishinchaku_entry.php）
         'tochishinchaku_entry',
+        // ⚠️ v2.2.214。マイホームズの取り込み（GAS MyhomestoDashboard）。⚠️ member_entry と同じ理由で例外として入れる
+        //   （同じ inquiry_id は二度入らない。⚠️ ① の予備は handlers/myhomes_entry.php）
+        'myhomes_entry',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。

@@ -146,6 +146,7 @@ import { runMemberEntry } from '../features/memberEntry/entry';
 import { runHousingBazarEntry } from '../features/housingBazar/entry';
 import { runKagosumaEntry } from '../features/kagosuma/entry';
 import { runTochishinchakuEntry } from '../features/tochishinchaku/entry';
+import { runMyhomesEntry } from '../features/myhomes/entry';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -2327,6 +2328,24 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runTochishinchakuEntry(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️⚠️ **マイホームズの新規リード通知の取り込み。書き込み口である。**（v2.2.214）
+ *   ⚠️ 送ってくるのは GAS（MyhomestoDashboard）。⚠️ 合い言葉は member_entry と同じ MEMBER_ENTRY_KEY（本文の `key`）。
+ *   ⚠️ GAS は ② に届かなければ ① の handlers/myhomes_entry.php へ送り直す（同じ処理）。
+ *   ⚠️ 同じ inquiry_id（と、同じ日の同じ人）は二度入らない（2回目は status: exists）。① の転送が二度届いても安全。
+ */
+register({
+  request: 'myhomes_entry',
+  summary: '【書き込み・合い言葉】マイホームズの新規リード通知の取り込み（inquiry_customer）',
+  phpSource: 'khg-marketing.info/api/（Authorization: 4081Kokubu_myhomes。誤って消えた。handlers/myhomes_entry.php に作り直し）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runMyhomesEntry(ctx.body as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
