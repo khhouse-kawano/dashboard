@@ -22,6 +22,7 @@ import ClaudeIcon from './ClaudeIcon';
 import CompetitorAnalysisReports from './CompetitorAnalysisReports';
 import IntroductorySummary from './IntroductorySummary';
 import DuplicateInquirySummary from './DuplicateInquirySummary';
+import OwnersHouseApplication from './OwnersHouseApplication';
 import TrackingSettings from './TrackingSettings';
 import SatBaseDatabase from './SatBaseDatabase';
 import AmbassadorList from './AmbassadorList';
@@ -163,6 +164,8 @@ const Header = ({ }) => {
             '販促媒体設定', 'ブラックリスト設定',
             ...(authority === 'Master' ? ['広告費シミュレーター'] : []),
             '事後アンケート', '重複反響サマリー',
+            // ⚠️ v2.2.215: 「オーナーズハウス募集」を追加（⚠️ 全員。OwnersHouseApplication.tsx。guideScreens.ts のキーも同じ名前）
+            'オーナーズハウス募集',
             ...((authority === 'Master' || authority === 'BrandAdmin') ? ['アクセス解析'] : []),
         ],
         // ⚠️⚠️ **2026-09-22 に土地情報同期・土地情報一覧をメニューから外した**（指示）。
@@ -222,6 +225,7 @@ const Header = ({ }) => {
         '反響管理/ブラックリスト設定': <EditBlackList />,
         '反響管理/重複反響サマリー': <DuplicateInquirySummary />,
         '反響管理/アクセス解析': <TrackingSettings />,
+        '反響管理/オーナーズハウス募集': <OwnersHouseApplication />,
         '他社動向/他社広告ライブラリ': <MetaAdsDashboard />,
         '他社動向/他社資料': <CompetitorMaterials />,
         // ⚠️ 保存済みレポートを見るだけの画面。⚠️ **Claude は呼ばない（課金なし）**
@@ -357,6 +361,8 @@ const Header = ({ }) => {
         // ⚠️ 口コミ集計は列が8つあり、本文の列に幅が要る。
         //   ⚠️ 外すと（xl だと）本文の列が潰れて読めなくなる（2026-09-15 の指示）。
         'Google口コミ/口コミ集計',
+        // ⚠️ オーナーズハウス募集は列が8つあり、見どころ・写真を行の下に広げる（v2.2.215）
+        '反響管理/オーナーズハウス募集',
         // ⚠️ 他社広告はバナーをグリッドで並べるため、幅が広いほど枚数が入る。
         //   ⚠️ xl のままだと1行2〜3枚しか入らず、比較しづらい（2026-09-16 の指示）。
         '他社動向/他社広告ライブラリ',

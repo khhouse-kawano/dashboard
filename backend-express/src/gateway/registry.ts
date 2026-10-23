@@ -147,6 +147,7 @@ import { runHousingBazarEntry } from '../features/housingBazar/entry';
 import { runKagosumaEntry } from '../features/kagosuma/entry';
 import { runTochishinchakuEntry } from '../features/tochishinchaku/entry';
 import { runMyhomesEntry } from '../features/myhomes/entry';
+import { importOwnersHouseApplication, listOwnersHouseApplications } from '../features/ownersHouse/application';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -2346,6 +2347,36 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runMyhomesEntry(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * オーナーズハウス募集の一覧（Dashboard の「反響管理 → オーナーズハウス募集」）。（v2.2.215）
+ *   ⚠️ フォームからの受付は ① の handlers/owners_house_application.php（写真を含むので ② には無い）。
+ *   ⚠️ ① に PHP ハンドラは無い → express_proxy の expressProxyExclusive() にも入れてある（落ちたとき 502）。
+ */
+register({
+  request: 'owners_house_application_list',
+  summary: 'オーナーズハウス募集の一覧（owners_house_application）',
+  phpSource: '(Express のみ)',
+  auth: 'staff',
+  handler: async () => listOwnersHouseApplications(),
+});
+
+/**
+ * ⚠️⚠️ **オーナーズハウス募集の過去の通知メールの取り込み。書き込み口である。**（v2.2.215）
+ *   ⚠️ 送ってくるのは GAS（OwnersHouseMailImport）。⚠️ 合い言葉は member_entry と同じ MEMBER_ENTRY_KEY（本文の `key`）。
+ *   ⚠️ 同じメール（Gmail の ID）は二度入らない（2回目は status: exists）。
+ */
+register({
+  request: 'owners_house_application_import',
+  summary: '【書き込み・合い言葉】オーナーズハウス募集の過去メールの取り込み（owners_house_application）',
+  phpSource: '(Express のみ)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await importOwnersHouseApplication(ctx.body as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
