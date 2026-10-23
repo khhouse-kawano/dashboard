@@ -67,6 +67,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '重複反響サマリー': { menu: '反響管理/重複反響サマリー' },
     'ブラックリスト設定': { menu: '反響管理/ブラックリスト設定' },
     '事後アンケート': { menu: '反響管理/事後アンケート' },
+    // ⚠️ v2.2.215。Header.tsx の menuMapping と同じく全員
+    'オーナーズハウス募集': { menu: '反響管理/オーナーズハウス募集' },
     '広告費シミュレーター': { menu: '反響管理/広告費シミュレーター', authority: ['Master'] },
     // ⚠️ v2.2.199（広告流入トラッキング）。Header.tsx の menuMapping と同じく Master / BrandAdmin
     'アクセス解析': { menu: '反響管理/アクセス解析', authority: ADMIN },

@@ -328,6 +328,16 @@ function expressProxyRequests(): array
         'analysis_report_delete',
 
         // -----------------------------------------------------------------
+        // v2.2.215 新規。オーナーズハウス募集（owners_house_application）の一覧と過去メールの取り込み。
+        //
+        // ⚠️ ① に PHP ハンドラは無い（② だけ）。⚠️ 転送の許可リストと expressProxyExclusive() の両方に入れてある。
+        // ⚠️⚠️ **フォームからの受付 `owners_house_application`（写真付き・multipart）はどちらにも入れない。**
+        //   ⚠️ ① の handlers/owners_house_application.php が受ける（写真の置き場所が ① のため）。
+        // -----------------------------------------------------------------
+        'owners_house_application_list',
+        'owners_house_application_import',
+
+        // -----------------------------------------------------------------
         // 2026-10-06 新規（v2.2.168）。住宅ローン金利（loan_product / loan_rate）。
         //
         // ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある。**
@@ -754,6 +764,16 @@ function expressProxyExclusive(): array
         'analysis_report_get',
         'analysis_report_upload',
         'analysis_report_delete',
+
+        // -----------------------------------------------------------------
+        // v2.2.215 新規。オーナーズハウス募集（owners_house_application）の一覧と過去メールの取り込み。
+        //
+        // ⚠️ ① に PHP ハンドラは無い（② だけ）。⚠️ 転送の許可リストと expressProxyExclusive() の両方に入れてある。
+        // ⚠️⚠️ **フォームからの受付 `owners_house_application`（写真付き・multipart）はどちらにも入れない。**
+        //   ⚠️ ① の handlers/owners_house_application.php が受ける（写真の置き場所が ① のため）。
+        // -----------------------------------------------------------------
+        'owners_house_application_list',
+        'owners_house_application_import',
 
         // -----------------------------------------------------------------
         // 2026-10-06 新規（v2.2.168）。住宅ローン金利（loan_product / loan_rate）。

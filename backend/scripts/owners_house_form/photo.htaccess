@@ -1,0 +1,23 @@
+# =====================================================================
+# kh-house.jp/owners_house/form/photo/.htaccess（v2.2.215）
+#
+# ⚠️ 以前のフォーム（step3.php）は、送られたファイルを名前のままこのフォルダへ保存していた。
+#   PHP ファイルを置かれると、サーバーで実行されてしまう。
+# ⚠️ このファイルを「.htaccess」という名前で photo/ に置くこと（ファイル名を変えて置く）。
+# ⚠️ 画像の表示には影響しない。
+# =====================================================================
+
+# PHP として動かさない（Apache の PHP モジュールのとき）
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+
+# 画像以外を開けなくする（CGI 版の PHP でも効く）
+<FilesMatch "\.(?i:php\d*|phtml|phar|pl|py|cgi|sh|html?|js|svg)$">
+  Require all denied
+</FilesMatch>
+Options -ExecCGI -Indexes
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
