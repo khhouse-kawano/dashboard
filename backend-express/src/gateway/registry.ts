@@ -144,6 +144,7 @@ import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
 import { runMemberEntry } from '../features/memberEntry/entry';
 import { runHousingBazarEntry } from '../features/housingBazar/entry';
+import { runKagosumaEntry } from '../features/kagosuma/entry';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -2289,6 +2290,24 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runHousingBazarEntry(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️⚠️ **カゴスマ・タテルヤの資料送付／イベント参加リクエストの取り込み。書き込み口である。**（v2.2.211）
+ *   ⚠️ 送ってくるのは GAS（KagosumatoDashboard）。⚠️ 合い言葉は member_entry と同じ MEMBER_ENTRY_KEY（本文の `key`）。
+ *   ⚠️ GAS は ② に届かなければ ① の handlers/kagosuma_entry.php へ送り直す（同じ処理）。
+ *   ⚠️ 同じ inquiry_id は二度入らない（2回目は status: exists）。① の転送が二度届いても安全。
+ */
+register({
+  request: 'kagosuma_entry',
+  summary: '【書き込み・合い言葉】カゴスマ・タテルヤの反響の取り込み（inquiry_customer）',
+  phpSource: 'khg-marketing.info/api/portal.php（誤って消えた。handlers/kagosuma_entry.php に作り直し）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runKagosumaEntry(ctx.body as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
