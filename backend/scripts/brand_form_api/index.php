@@ -24,6 +24,7 @@
  *   ⚠️ ゲートウェイは本文の `request` / `roll` で振り分けるので、ヘッダを読み替えて本文に入れる:
  *       Authorization: form_get      → request: campaign_form, roll: public（フォームの設定の読み込み）
  *       Authorization: form_register → request: campaign_form, roll: entry （反響の受付）
+ *       Authorization: estimate_entry / owners_house_reservation → 同じ名前の request（v2.2.216。下の $routes）
  *   ⚠️ それ以外の Authorization は断る（以前の転送先にあった他の口は、ここからは使われていない）。
  *
  * ⚠️ 公開フォーム（form_get の gateway.ts）は ② に届かなかったときだけここへ来る。ふだんは使われない。
@@ -47,10 +48,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 /** ⚠️ 転送先。⚠️ 環境変数はテスト用（本番のブランドサイトでは設定しない） */
 $targetUrl = getenv('FORM_GATEWAY_URL') ?: 'https://khg-marketing.info/dashboard/api/gateway/';
 
-/** Authorization ヘッダ → ゲートウェイの roll */
-$rolls = [
-    'form_get' => 'public',
-    'form_register' => 'entry',
+/**
+ * Authorization ヘッダ → ゲートウェイの [request, roll]
+ * ⚠️ v2.2.216 で簡単見積もり（JH の画面）・オーナーズハウスの見学予約（kh-house.jp）を足した。
+ *   どちらも ② に届かなかったときだけ、この中継を経由して ① の handlers/estimate_entry.php・owners_house_reservation.php へ届く。
+ */
+$routes = [
+    'form_get' => ['campaign_form', 'public'],
+    'form_register' => ['campaign_form', 'entry'],
+    'estimate_entry' => ['estimate_entry', ''],
+    'owners_house_reservation' => ['owners_house_reservation', ''],
 ];
 
 $rawInput = file_get_contents('php://input');
@@ -73,7 +80,7 @@ if (!$authToken) {
     exit;
 }
 
-if (!isset($rolls[$authToken])) {
+if (!isset($routes[$authToken])) {
     http_response_code(404);
     echo json_encode(['status' => 'error', 'message' => 'Unknown Authorization']);
     exit;
@@ -106,8 +113,8 @@ foreach (array('mail_to', 'mail_cc') as $key) {
 }
 
 // ⚠️ ゲートウェイの振り分けに使う値。⚠️ フォームが送ってきた request / roll は上書きする
-$data['request'] = 'campaign_form';
-$data['roll'] = $rolls[$authToken];
+$data['request'] = $routes[$authToken][0];
+$data['roll'] = $routes[$authToken][1];
 
 $ch = curl_init($targetUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

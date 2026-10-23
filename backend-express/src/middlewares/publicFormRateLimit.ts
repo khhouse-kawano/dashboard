@@ -48,6 +48,10 @@ const GUARDED_REQUESTS = new Set([
     'kengaku_cloud',
     // ⚠️ v2.2.207 事前アンケートの回答受付。認証なしの書き込み口
     'before_survey_entry',
+    // ⚠️ v2.2.216 簡単見積もり（2L・JH）・オーナーズハウスの見学予約の受付。認証なしの書き込み口
+    //   ⚠️ 2L は 2lhome.net の result_api.php（サーバー）から届くので、2L のお客様全員が同じ IP になる（件数は月に十件ほど）
+    'estimate_entry',
+    'owners_house_reservation',
 ]);
 
 const WINDOW_MS = 10 * 60_000;
