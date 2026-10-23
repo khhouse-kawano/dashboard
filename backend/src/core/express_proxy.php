@@ -126,6 +126,12 @@ function expressProxyRequests(): array
         // ⚠️ v2.2.214。マイホームズの取り込み（GAS MyhomestoDashboard）。⚠️ member_entry と同じ理由で例外として入れる
         //   （同じ inquiry_id は二度入らない。⚠️ ① の予備は handlers/myhomes_entry.php）
         'myhomes_entry',
+        // ⚠️ v2.2.216。簡単見積もり（2L・JH）・オーナーズハウスの見学予約。⚠️ member_entry と同じ理由で例外として入れる
+        //   ⚠️ ① の予備は handlers/estimate_entry.php・owners_house_reservation.php。
+        //   ⚠️ 見積もりは campaign_form と同じく、② が保存した直後に応答が失われて ① が動くと二重になりうる
+        //     （① の campaign_form.php が「② が10分以内に保存した同じ人」を飛ばすので、見積もりは防げる）
+        'estimate_entry',
+        'owners_house_reservation',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
