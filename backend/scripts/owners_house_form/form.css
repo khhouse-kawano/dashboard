@@ -1,0 +1,139 @@
+/*
+ * オーナーズハウス募集フォームの入力部分の見た目（v2.2.215）。
+ * ⚠️ form_get（src/components/publicForm.css）・協力業者様募集フォームと同じ作り（接頭辞 .pf）。
+ * ⚠️ 上の LP 部分は以前の Astro の CSS（_astro/index.*.css。Bootstrap 入り）のまま。⚠️ .pf の中だけをここで決める。
+ * ⚠️ 入力欄の文字は 16px（16px 未満だと iPhone で入力時に画面が拡大される）。
+ */
+/* ⚠️ 上の LP の画像の上の文字（.txt）が PC で右へはみ出し、横にスクロールしていた（以前から。1280px で 80px）。⚠️ はみ出しを切る */
+html, body { overflow-x: clip; }
+
+.pf {
+    --pf-accent: #0f3675;
+    --pf-ink: #1d2433;
+    --pf-sub: #5b6476;
+    --pf-line: #d5dbe5;
+    --pf-surface: #f5f7fa;
+    --pf-danger: #c62828;
+    --pf-danger-bg: #fdecec;
+    --pf-radius: 10px;
+
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 48px 16px 64px;
+    color: var(--pf-ink);
+    font-family: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    letter-spacing: .02em;
+}
+.pf *, .pf *::before, .pf *::after { box-sizing: border-box; }
+.pf [hidden] { display: none !important; }
+
+.pf-heading { margin: 0 0 8px; font-size: 26px; font-weight: 900; color: var(--pf-accent); text-align: center; }
+.pf-lead { margin: 0 0 20px; font-size: 14px; color: var(--pf-sub); text-align: center; word-break: auto-phrase; }
+
+.pf-steps { display: flex; justify-content: center; gap: 6px; margin: 0 0 24px; padding: 0; list-style: none; font-size: 12px; color: var(--pf-sub); }
+.pf-steps li { display: flex; align-items: center; gap: 6px; }
+.pf-steps li + li::before { content: ""; width: 18px; height: 1px; background: var(--pf-line); }
+.pf-steps .pf-step-num {
+    display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;
+    border: 1px solid var(--pf-line); background: #fff; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.pf-steps li[aria-current="step"] { color: var(--pf-ink); font-weight: 700; }
+.pf-steps li[aria-current="step"] .pf-step-num { border-color: var(--pf-accent); background: var(--pf-accent); color: #fff; }
+
+.pf-card {
+    display: flex; flex-direction: column; gap: 18px; padding: 20px; margin: 0 0 16px;
+    border: 1px solid var(--pf-line); border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(29, 36, 51, .04);
+}
+.pf-card-title { margin: 0; font-size: 13px; font-weight: 700; color: var(--pf-sub); letter-spacing: .08em; }
+
+.pf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pf-label { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 13px; font-weight: 600; line-height: 1.5; color: var(--pf-ink); }
+.pf-badge { flex: none; display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.6; }
+.pf-badge-req { background: var(--pf-danger-bg); color: var(--pf-danger); }
+.pf-badge-opt { background: var(--pf-surface); color: var(--pf-sub); }
+.pf-hint { margin: 0; font-size: 12px; color: var(--pf-sub); }
+
+.pf-input, .pf-select {
+    width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid var(--pf-line); border-radius: var(--pf-radius);
+    background: #fff; color: var(--pf-ink); font: inherit; font-size: 16px; line-height: 1.5;
+    transition: border-color .15s, box-shadow .15s; appearance: none; -webkit-appearance: none;
+}
+.pf-select {
+    padding-right: 40px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--pf-sub) 50%), linear-gradient(135deg, var(--pf-sub) 50%, transparent 50%);
+    background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.pf-input::placeholder { color: #9aa3b2; }
+.pf-input:focus, .pf-select:focus { outline: none; border-color: var(--pf-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-accent) 22%, transparent); }
+.pf-field[data-invalid="1"] .pf-input, .pf-field[data-invalid="1"] .pf-select, .pf-field[data-invalid="1"] .pf-file { border-color: var(--pf-danger); }
+
+.pf-error { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 600; color: var(--pf-danger); }
+.pf-error::before {
+    content: "!"; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--pf-danger); color: #fff; font-size: 11px; font-weight: 700;
+}
+.pf-error:empty { display: none; }
+
+/* 写真の扱い（撮影を依頼／添付） */
+.pf-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pf-choice label {
+    display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 14px; margin: 0;
+    border: 1px solid var(--pf-line); border-radius: var(--pf-radius); cursor: pointer; font-size: 14px; font-weight: 600;
+}
+.pf-choice input { accent-color: var(--pf-accent); width: 18px; height: 18px; margin: 0; }
+.pf-choice label:has(input:checked) { border-color: var(--pf-accent); background: color-mix(in srgb, var(--pf-accent) 6%, #fff); }
+
+/* 写真を選ぶ欄（⚠️ 5つの欄の間を空ける。カードの gap は #pf-photos の中までは効かない） */
+#pf-photos { display: flex; flex-direction: column; gap: 16px; }
+.pf-file {
+    display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px dashed var(--pf-line); border-radius: var(--pf-radius); background: var(--pf-surface);
+}
+.pf-file input[type=file] { flex: 1; min-width: 0; font-size: 13px; }
+.pf-file img { width: 72px; height: 54px; object-fit: cover; border-radius: 6px; flex: none; background: #fff; }
+
+/* ⚠️ 見えない入力欄（機械よけ）。display:none にすると埋めない機械があるので画面の外へ出す */
+.pf-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.pf-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 28px 0 0; }
+.pf-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 18px;
+    border-radius: var(--pf-radius); border: 1px solid var(--pf-line); background: #fff; color: var(--pf-ink);
+    font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: filter .15s, background-color .15s;
+}
+.pf-btn:hover { background: var(--pf-surface); }
+.pf-btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--pf-accent) 35%, transparent); outline-offset: 2px; }
+.pf-btn-primary {
+    width: 100%; max-width: 360px; min-height: 54px; border-color: var(--pf-accent); background: var(--pf-accent); color: #fff;
+    font-size: 16px; font-weight: 700; letter-spacing: .06em;
+}
+.pf-btn-primary:hover { background: var(--pf-accent); filter: brightness(.92); }
+.pf-btn-primary[aria-busy="true"], .pf-btn-primary:disabled { filter: grayscale(.4) brightness(1.05); cursor: progress; }
+.pf-btn-link { border: none; background: none; color: var(--pf-sub); text-decoration: underline; }
+.pf-btn-link:hover { background: none; color: var(--pf-ink); }
+
+.pf-note { margin: 0; padding: 14px 16px; border-radius: var(--pf-radius); background: var(--pf-surface); color: var(--pf-sub); font-size: 13px; }
+.pf-alert { margin: 0 0 16px; padding: 12px 16px; border-radius: var(--pf-radius); background: var(--pf-danger-bg); color: var(--pf-danger); font-size: 13px; font-weight: 600; }
+
+/* 確認 */
+.pf-summary { margin: 0; }
+.pf-summary-row { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 12px 0; border-bottom: 1px solid var(--pf-line); }
+.pf-summary-row:last-child { border-bottom: none; }
+@media (min-width: 480px) { .pf-summary-row { grid-template-columns: 170px 1fr; gap: 16px; } }
+.pf-summary dt { font-size: 13px; font-weight: 600; color: var(--pf-sub); }
+.pf-summary dd { margin: 0; font-size: 15px; font-weight: 600; word-break: break-word; }
+.pf-summary-photos { display: flex; gap: 8px; flex-wrap: wrap; }
+.pf-summary-photos img { width: 96px; height: 72px; object-fit: cover; border-radius: 6px; }
+
+/* 完了 */
+.pf-done { text-align: center; }
+.pf-done-mark {
+    display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; margin: 0 auto 12px;
+    border-radius: 50%; background: color-mix(in srgb, var(--pf-accent) 10%, #fff); color: var(--pf-accent);
+}
+.pf-done p { margin: 0 0 12px; font-size: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .pf *, .pf *::before, .pf *::after { transition: none !important; }
+}
