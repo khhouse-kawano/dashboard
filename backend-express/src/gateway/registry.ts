@@ -1166,7 +1166,7 @@ register({
 //
 // ⚠️ ai_analysis_start は受け付けて番号を返すだけ。分析は ② の中で数分〜十数分かけて続き、
 //   画面は ai_analysis_list を数秒ごとに呼んで進み具合を見る（実行中の分析があるあいだだけ）。
-// ⚠️ 実行のたびに課金される。1人1日5回・同時3件まで（features/aiAnalysis/index.ts）。
+// ⚠️ 実行のたびに課金される。1人1日1回・同時3件まで（features/aiAnalysis/index.ts）。
 // ⚠️ express_proxy.php の expressProxyRequests() と expressProxyExclusive() の両方に入れてある。
 // ---------------------------------------------------------------------------
 

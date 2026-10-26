@@ -17,8 +17,8 @@ import { runAnalysisJob } from './runner';
 
 export const AI_ANALYSIS_AUTHORITY = ['Master', 'BrandAdmin', 'Manager'];
 
-/** 1人1日の実行上限（2026-10-26 の決定）。⚠️ 失敗も数える */
-export const DAILY_LIMIT = 5;
+/** 1人1日の実行上限（v2.2.218 で 5 → 1。費用が大きかったため。2026-10-26 の指示）。⚠️ 失敗も数える */
+export const DAILY_LIMIT = 1;
 /** 同時に動かす分析の上限（全体）。② の負荷と費用の暴走を防ぐ */
 const MAX_ACTIVE_ALL = 3;
 /** 期間の最大の長さ（月） */
