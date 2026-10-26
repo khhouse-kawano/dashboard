@@ -42,6 +42,8 @@ type Summary = {
     byBrand: FunnelRow[];
     byArea: FunnelRow[];
     byShop: FunnelRow[];
+    /** 担当別（v2.2.218）。⚠️ 注文・建売だけ。反響0の担当は ② が除いて返す */
+    byStaff: FunnelRow[];
     brandSource: Cross;
     areaSource: Cross;
 };
@@ -92,7 +94,7 @@ const valueOf = (row: FunnelRow, key: SortKey): number | string => {
  * 歩留まりの表（紹介元・事業部・ブランド・エリア・店舗で共用）。
  * ⚠️ 並べ替えは見出しクリック（GoogleReview.tsx と同じ作法）。⚠️ 表ごとに独立して並べ替える。
  */
-const FunnelTable = ({ title, rows, label }: { title: string; rows: FunnelRow[]; label: string }) => {
+const FunnelTable = ({ title, rows, label, note }: { title: string; rows: FunnelRow[]; label: string; note?: React.ReactNode }) => {
     /** ⚠️ 既定は反響の多い順。⚠️ **率を既定にすると分母1件で100%の行が先頭に来る** */
     const [sortKey, setSortKey] = useState<SortKey>('inquiry');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -131,6 +133,8 @@ const FunnelTable = ({ title, rows, label }: { title: string; rows: FunnelRow[];
     return (
         <section className="ics_section">
             <div className="ics_section_title">{title}</div>
+            {/* ⚠️ v2.2.218: 表ごとの注記（担当別で使う） */}
+            {note !== undefined && <div className="ics_note mb-1">{note}</div>}
             <div className="ics_table_wrap">
                 <table className="ics_table">
                     <thead>
@@ -503,6 +507,17 @@ const IntroductorySummary = () => {
                         <CrossTable title="エリア × 紹介元（契約率・契約/反響）" label="エリア" cross={summary.areaSource} sources={sourceColumns} />
 
                         <FunnelTable title="店舗別" label="店舗" rows={summary.byShop} />
+
+                        {/* ⚠️ v2.2.218: 担当別。⚠️ 1人の顧客が複数の担当に入るので、足しても全体とは合わない */}
+                        <FunnelTable
+                            title="担当別"
+                            label="担当"
+                            rows={summary.byStaff ?? []}
+                            note={<>
+                                注文・建売の紹介の顧客を、<b>担当営業</b>と<b>商談シートに記録した人</b>の両方で数えています（中古は含みません）。
+                                1人のお客様が複数の担当に入ることがあるため、<b>足しても全体の数とは合いません。</b>紹介の反響が無い担当は出していません。
+                            </>}
+                        />
                     </>
                 )}
             </div>
