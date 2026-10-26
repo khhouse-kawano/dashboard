@@ -82,8 +82,7 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '他社広告ライブラリ': { menu: '他社動向/他社広告ライブラリ' },
     '他社資料': { menu: '他社動向/他社資料' },
     '競合サマリー': { menu: '他社動向/競合サマリー' },
-    // ⚠️ v2.2.217 で「Claudeによる競合分析」から改名（Header.tsx の CLAUDE_COMPETITOR_ITEM と同じ）
-    '競合分析': { menu: '他社動向/競合分析' },
+    'Claudeによる競合分析': { menu: '他社動向/Claudeによる競合分析' },
     '架電状況（注文営業）': { menu: '架電状況/注文営業' },
     '架電状況（建売営業）': { menu: '架電状況/建売営業' },
     '架電状況（中古営業）': { menu: '架電状況/中古営業' },

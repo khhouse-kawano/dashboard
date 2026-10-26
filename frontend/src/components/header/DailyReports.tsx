@@ -9,7 +9,7 @@ import { CLAUDE_ORANGE } from './ClaudeIcon';
 type Props = {
     /**
      * 「最新の他社分析」カードを押したとき（v2.2.165）。
-     * ⚠️ Header.tsx が渡す。⚠️ 同じ全画面モーダルのまま「競合分析」に切り替える。
+     * ⚠️ Header.tsx が渡す。⚠️ 同じ全画面モーダルのまま「Claudeによる競合分析」に切り替える。
      * ⚠️ 渡されなければカードは押せない（⚠️ 件数だけ出す）。
      */
     onOpenCompetitorReports?: () => void;
@@ -548,7 +548,7 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
         >
             {/*
               ⚠️ 最新の他社分析（v2.2.165）。⚠️ 日報の見出しの上に置く。
-              ⚠️ 押すと Header.tsx が「競合分析」に切り替える（onOpenCompetitorReports）。
+              ⚠️ 押すと Header.tsx が「Claudeによる競合分析」に切り替える（onOpenCompetitorReports）。
               ⚠️ 件数が1件以上のときだけ色を付ける（⚠️ 0件のときは控えめに出す）。
             */}
             <style>{`

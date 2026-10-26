@@ -429,7 +429,7 @@ const DailyAction = () => {
         >
             <Modal.Header className='border-bottom-0 pb-0 fw-bold text-secondary d-flex align-items-center gap-3 justify-content-start'
                 style={{ fontSize: '15px' }}>
-                <span>競合分析</span>
+                <span>Claudeによる競合分析</span>
                 <button
                     type='button'
                     onClick={() => setShowReports(false)}

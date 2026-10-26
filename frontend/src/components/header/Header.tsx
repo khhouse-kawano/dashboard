@@ -46,15 +46,16 @@ type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' |
 /**
  * 他社動向メニューの最後に出す項目。
  *
- * ⚠️ v2.2.217 で「（Claudeのロゴ）による競合分析」から文字だけの「競合分析」に変えた（指示書）。
- *   ⚠️ guideScreens.ts の GUIDE_SCREENS（'競合分析'）と同じ名前にすること。
+ * ⚠️ 画面にはロゴ＋「による競合分析」で出す（ヘッダーの「による分析」と同じ形）。
+ *   ⚠️ **この文字列そのものは画面に出さない。** 中で見分けるための鍵である。
+ *   ⚠️ v2.2.217 で一度「競合分析」に変えたが、利用者の指示でこの形に戻した（2026-10-26）。
  *
  * ⚠️⚠️ **開いても Claude は呼ばれない。課金は発生しない。**
  *   ⚠️ 保存済みのレポート（HTML）を見るだけの画面である。
  *   ⚠️ ⚠️ **2026-09-21 まで、ここは画面から Claude を実行していた。**
  *     ⚠️ 1回あたり数百円かかったため、⚠️ **推論は各自の Claude アカウント（MCP）へ移した。**
  */
-const CLAUDE_COMPETITOR_ITEM = '競合分析';
+const CLAUDE_COMPETITOR_ITEM = 'Claudeによる競合分析';
 
 /**
  * 「Claudeによる分析」を使える権限（v2.2.217）。⚠️ ② の AI_ANALYSIS_AUTHORITY と同じ値にすること。
@@ -111,7 +112,7 @@ const Header = ({ }) => {
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
     /**
      * ⚠️ v2.2.217 から Master・BrandAdmin・Manager だけにボタンを出す（Dashboard からの自由分析）。
-     *   ⚠️ 競合分析のレポートはこの画面から外し、他社動向 →「競合分析」だけで読む（全員）。
+     *   ⚠️ 競合分析のレポートはこの画面から外し、他社動向 →「Claudeによる競合分析」だけで読む（全員）。
      */
     const canUseClaude = AI_ANALYSIS_AUTHORITY.includes(authority);
     const openClaude = (): void => {
@@ -506,7 +507,13 @@ const Header = ({ }) => {
                                     className="py-2 px-3 text-dark position-relative"
                                     onClick={() => openMenuItem(menu, item)}
                                 >
-                                    {item}
+                                    {/* ⚠️ 競合分析はロゴ＋文言で出す（ヘッダーの「による分析」と同じ形） */}
+                                    {item === CLAUDE_COMPETITOR_ITEM
+                                        ? <span className="d-flex align-items-center" style={{ gap: '2px' }}>
+                                            <ClaudeIcon height={14} />
+                                            による競合分析
+                                        </span>
+                                        : item}
                                     {isEstate(item) && <div className="position-absolute menu_sync" style={{ top: '12px', right: '10px' }}>新着 {newEstate}件</div>}
                                 </Dropdown.Item>
                             ))}
@@ -527,7 +534,7 @@ const Header = ({ }) => {
                     </span>
                 </Modal.Header>
                 <Modal.Body className="p-0" style={{ overflow: 'hidden', flex: '1 1 auto', minHeight: 0 }}>
-                    {claudeModal && <ClaudeAnalysis />}
+                    {claudeModal && <ClaudeAnalysis onClose={() => setClaudeModal(false)} />}
                 </Modal.Body>
             </Modal>
 

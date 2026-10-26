@@ -119,7 +119,15 @@ const elapsedText = (elapsedSec: number | null, fetchedAt: number, now: number):
 const errorMessageOf = (e: unknown, fallback: string): string =>
     (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
 
-const ClaudeAnalysis: React.FC = () => {
+type Props = {
+    /**
+     * 左上の「閉じる」ボタンで呼ぶ（Header.tsx がモーダルを閉じる）。
+     * ⚠️ 全画面モーダルの閉じるボタンは Header.tsx が右上に出すが、利用者の指示（2026-10-26）で左上にも置いた。
+     */
+    onClose: () => void;
+};
+
+const ClaudeAnalysis: React.FC<Props> = ({ onClose }) => {
     const { authority } = useContext(AuthContext);
     const isMaster = authority === 'Master';
 
@@ -308,6 +316,11 @@ const ClaudeAnalysis: React.FC = () => {
                 .cla_inner { width: 100%; max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column;
                              min-height: 0; flex: 1; gap: 12px; }
                 .cla_note { font-size: 11px; color: #6b7280; line-height: 1.6; }
+                .cla_head { display: flex; align-items: center; gap: 12px; }
+                .cla_close { flex: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #d1d5db;
+                             background: #fff; color: #4b5563; border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
+                .cla_close:hover { border-color: #9ca3af; color: #1f2937; }
+                .cla_close:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
                 .cla_error { font-size: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca;
                              border-radius: 8px; padding: 10px 12px; display: flex; gap: 8px; align-items: flex-start; }
                 .cla_error button { margin-left: auto; border: 0; background: none; color: #b91c1c; cursor: pointer; }
@@ -370,10 +383,16 @@ const ClaudeAnalysis: React.FC = () => {
             `}</style>
 
             <div className="cla_inner">
-                <span className="cla_note">
-                    分析したいことを文章で書くと、Claude がダッシュボードと同じ数字を集めて深掘りし、次の打ち手まで含めたレポートを書きます。
-                    広告費の歩留まりは反響日起算、部署・店舗の歩留まりは実績日起算で数えます。
-                </span>
+                <div className="cla_head">
+                    <button type="button" className="cla_close" onClick={onClose}>
+                        <i className="fa-solid fa-xmark" aria-hidden="true" />
+                        閉じる
+                    </button>
+                    <span className="cla_note">
+                        分析したいことを文章で書くと、Claude がダッシュボードと同じ数字を集めて深掘りし、次の打ち手まで含めたレポートを書きます。
+                        広告費の歩留まりは反響日起算、部署・店舗の歩留まりは実績日起算で数えます。
+                    </span>
+                </div>
 
                 {error !== '' && (
                     <div className="cla_error">

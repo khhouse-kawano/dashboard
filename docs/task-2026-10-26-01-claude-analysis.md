@@ -54,11 +54,11 @@
 | backend/src/handlers | kpi_filter_master.php・kpi_analysis_list.php・kpi_analysis_get.php | `requireMaster` → `requireKpiAnalyst` |
 | 同 | header_auth_insert.php | `$allowedBrands` に `Manager` |
 | frontend/src/components/header | **ClaudeAnalysis.tsx**（作り直し） | 左にカード（新しい分析・分析の一覧・過去の定型分析）、右に結果 |
-| 同 | Header.tsx | `AI_ANALYSIS_AUTHORITY`・`canUseClaude`（ボタンを3つの権限だけに）・全画面のモーダル・競合分析の改名（ロゴを外した） |
+| 同 | Header.tsx | `AI_ANALYSIS_AUTHORITY`・`canUseClaude`（ボタンを3つの権限だけに）・全画面のモーダル（⚠️ 競合分析のメニューの表記は追記で元に戻した） |
 | 同 | EditAuth.tsx | `BRAND_OPTIONS` に Manager（マネージャー）。BrandAdmin を「ブランド管理者」に |
-| 同 | CompetitorAnalysisReports.tsx | 見出しを「競合分析」に（ロゴを外した） |
-| frontend/src/components | DailyAction.tsx | 「Claudeによる競合分析」→「競合分析」 |
-| frontend/src/components/guide | guideScreens.ts | 「Claudeによる分析」に権限、「競合分析」に改名、権限の案内文 |
+| 同 | CompetitorAnalysisReports.tsx | （追記で元に戻した。変更なし） |
+| frontend/src/components | DailyAction.tsx | （追記で元に戻した。変更なし） |
+| frontend/src/components/guide | guideScreens.ts | 「Claudeによる分析」に権限、権限の案内文 |
 | frontend/src/utils | version.ts | 2.2.217 |
 | backend/scripts/sql | **2026-10-26_ai_analysis_job.sql**（新規）・**2026-10-26_update_log_2.2.217.sql**（新規。ガイド記事3本を含む） | |
 | backend/scripts/guide/articles/common | screen-150.md（書き直し）・screen-130.md・screen-190.md | 下を参照 |
@@ -2455,4 +2455,254 @@ summary: 知りたいことを文章で頼むと、Claude がダッシュボー�
 [[画面:競合分析]]
 
 > 要確認：分析の結果は、会議資料に使う前に、もとの画面の数字と見比べてください。母数が少ない店舗・担当者の率は、たまたまの差であることがあります。
+```
+
+---
+# 追記（2026-10-26。利用者の指示）
+
+## 指示
+- 他社動向メニューの競合分析は「（Claudeのアイコン）による競合分析」のままにする（指示書の「表記を消す」は、Claudeによる分析の画面の中に埋め込んでいた競合分析のことだった）
+- ClaudeAnalysis.tsx の左上にも閉じるボタンを付ける
+- デプロイ手順に API キーの発行手順・有効期限の設定を入れる
+
+## したこと
+- DailyAction.tsx・DailyReports.tsx・CompetitorAnalysisReports.tsx を main の状態に戻した（表記だけの変更だったため）
+- Header.tsx: `CLAUDE_COMPETITOR_ITEM` を `Claudeによる競合分析` に戻し、ロゴ＋「による競合分析」の表示を戻した。`ClaudeAnalysis` に `onClose` を渡す
+- guideScreens.ts: `Claudeによる競合分析` の登録を戻した
+- ClaudeAnalysis.tsx: `Props`（`onClose`）を追加し、左上に「閉じる」ボタン（`.cla_head` `.cla_close`）を置いた
+- 記事「Claudeによる分析」: 閉じるボタン、競合分析のレポートの移動先を「他社動向 → Claudeによる競合分析」に。update_log の文言も同じく直した（SQL を作り直し、ローカルにも反映）
+- deploy-v2.2.217.md: サービスアカウント、キーのワークスペース指定（⚠️ 指定しないと ② からの呼び出しが 400）、有効期限（選べるもの・あとから変えられない・期限前のメール・推奨1年）、差し替え手順を追記（Claude の公式ドキュメント get-api-key / authentication で確かめた）
+
+## テスト
+- Playwright: 一般で他社動向の4つ目が「（ロゴ）による競合分析」、開いた画面の見出しもロゴ付き。マネージャーで左上に「閉じる」が出て、押すとモーダルが閉じ、もう一度開ける。ブラウザのエラーなし
+- フロントのビルドが通る（Header.tsx の警告は既存の `({ })`）
+
+## 差分（このコミットより前の版から）
+```diff
+diff --git a/backend/scripts/guide/articles/common/screen-150.md b/backend/scripts/guide/articles/common/screen-150.md
+index c84c5556..f436d273 100644
+--- a/backend/scripts/guide/articles/common/screen-150.md
++++ b/backend/scripts/guide/articles/common/screen-150.md
+@@ -13,7 +13,7 @@ summary: 知りたいことを文章で頼むと、Claude がダッシュボー
+ > 注意：1回の分析に **5〜15分ほど**かかります。待っているあいだにほかの画面を使っても、この画面を閉じても、分析は止まりません。
+ 
+ ## 画面の形
+-左に条件と一覧、右に結果が出ます。
++左に条件と一覧、右に結果が出ます。閉じるときは左上の「閉じる」（または右上の×）を押します。
+ 
+ ## 分析を頼む（左の「新しい分析」）
+ 1. **事業部**を選ぶ（注文事業／建売分譲事業）
+@@ -50,9 +50,9 @@ summary: 知りたいことを文章で頼むと、Claude がダッシュボー
+ - 自分の分析が実行中のあいだは、次の分析を始められません
+ - ほかの人の分析が混み合っているときは、少し待ってから実行してください
+ 
+-## 競合分析はどこへ行ったか
+-競合分析のレポートは、この画面から外しました。ヘッダーの「他社動向 → 競合分析」で読めます（だれでも開けます）。
++## 競合分析のレポートはどこへ行ったか
++競合分析のレポートは、この画面から外しました。ヘッダーの「他社動向 → Claudeによる競合分析」で読めます（だれでも開けます）。
+ 
+-[[画面:競合分析]]
++[[画面:Claudeによる競合分析]]
+ 
+ > 要確認：分析の結果は、会議資料に使う前に、もとの画面の数字と見比べてください。母数が少ない店舗・担当者の率は、たまたまの差であることがあります。
+diff --git a/frontend/src/components/DailyAction.tsx b/frontend/src/components/DailyAction.tsx
+index 25ff4c26..198e7a7e 100644
+--- a/frontend/src/components/DailyAction.tsx
++++ b/frontend/src/components/DailyAction.tsx
+@@ -429,7 +429,7 @@ const DailyAction = () => {
+         >
+             <Modal.Header className='border-bottom-0 pb-0 fw-bold text-secondary d-flex align-items-center gap-3 justify-content-start'
+                 style={{ fontSize: '15px' }}>
+-                <span>競合分析</span>
++                <span>Claudeによる競合分析</span>
+                 <button
+                     type='button'
+                     onClick={() => setShowReports(false)}
+diff --git a/frontend/src/components/guide/guideScreens.ts b/frontend/src/components/guide/guideScreens.ts
+index 69f728eb..0370ffe6 100644
+--- a/frontend/src/components/guide/guideScreens.ts
++++ b/frontend/src/components/guide/guideScreens.ts
+@@ -82,8 +82,7 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
+     '他社広告ライブラリ': { menu: '他社動向/他社広告ライブラリ' },
+     '他社資料': { menu: '他社動向/他社資料' },
+     '競合サマリー': { menu: '他社動向/競合サマリー' },
+-    // ⚠️ v2.2.217 で「Claudeによる競合分析」から改名（Header.tsx の CLAUDE_COMPETITOR_ITEM と同じ）
+-    '競合分析': { menu: '他社動向/競合分析' },
++    'Claudeによる競合分析': { menu: '他社動向/Claudeによる競合分析' },
+     '架電状況（注文営業）': { menu: '架電状況/注文営業' },
+     '架電状況（建売営業）': { menu: '架電状況/建売営業' },
+     '架電状況（中古営業）': { menu: '架電状況/中古営業' },
+diff --git a/frontend/src/components/header/ClaudeAnalysis.tsx b/frontend/src/components/header/ClaudeAnalysis.tsx
+index eda53baf..5335efd4 100644
+--- a/frontend/src/components/header/ClaudeAnalysis.tsx
++++ b/frontend/src/components/header/ClaudeAnalysis.tsx
+@@ -119,7 +119,15 @@ const elapsedText = (elapsedSec: number | null, fetchedAt: number, now: number):
+ const errorMessageOf = (e: unknown, fallback: string): string =>
+     (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
+ 
+-const ClaudeAnalysis: React.FC = () => {
++type Props = {
++    /**
++     * 左上の「閉じる」ボタンで呼ぶ（Header.tsx がモーダルを閉じる）。
++     * ⚠️ 全画面モーダルの閉じるボタンは Header.tsx が右上に出すが、利用者の指示（2026-10-26）で左上にも置いた。
++     */
++    onClose: () => void;
++};
++
++const ClaudeAnalysis: React.FC<Props> = ({ onClose }) => {
+     const { authority } = useContext(AuthContext);
+     const isMaster = authority === 'Master';
+ 
+@@ -308,6 +316,11 @@ const ClaudeAnalysis: React.FC = () => {
+                 .cla_inner { width: 100%; max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column;
+                              min-height: 0; flex: 1; gap: 12px; }
+                 .cla_note { font-size: 11px; color: #6b7280; line-height: 1.6; }
++                .cla_head { display: flex; align-items: center; gap: 12px; }
++                .cla_close { flex: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #d1d5db;
++                             background: #fff; color: #4b5563; border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
++                .cla_close:hover { border-color: #9ca3af; color: #1f2937; }
++                .cla_close:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
+                 .cla_error { font-size: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca;
+                              border-radius: 8px; padding: 10px 12px; display: flex; gap: 8px; align-items: flex-start; }
+                 .cla_error button { margin-left: auto; border: 0; background: none; color: #b91c1c; cursor: pointer; }
+@@ -370,10 +383,16 @@ const ClaudeAnalysis: React.FC = () => {
+             `}</style>
+ 
+             <div className="cla_inner">
+-                <span className="cla_note">
+-                    分析したいことを文章で書くと、Claude がダッシュボードと同じ数字を集めて深掘りし、次の打ち手まで含めたレポートを書きます。
+-                    広告費の歩留まりは反響日起算、部署・店舗の歩留まりは実績日起算で数えます。
+-                </span>
++                <div className="cla_head">
++                    <button type="button" className="cla_close" onClick={onClose}>
++                        <i className="fa-solid fa-xmark" aria-hidden="true" />
++                        閉じる
++                    </button>
++                    <span className="cla_note">
++                        分析したいことを文章で書くと、Claude がダッシュボードと同じ数字を集めて深掘りし、次の打ち手まで含めたレポートを書きます。
++                        広告費の歩留まりは反響日起算、部署・店舗の歩留まりは実績日起算で数えます。
++                    </span>
++                </div>
+ 
+                 {error !== '' && (
+                     <div className="cla_error">
+diff --git a/frontend/src/components/header/CompetitorAnalysisReports.tsx b/frontend/src/components/header/CompetitorAnalysisReports.tsx
+index 749d60d4..d7199762 100644
+--- a/frontend/src/components/header/CompetitorAnalysisReports.tsx
++++ b/frontend/src/components/header/CompetitorAnalysisReports.tsx
+@@ -1,11 +1,11 @@
+ import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+ import apiClient from '../../utils/apiClient';
+ import AuthContext from '../../context/AuthContext';
+-import { CLAUDE_ORANGE } from './ClaudeIcon';
++import ClaudeIcon, { CLAUDE_ORANGE } from './ClaudeIcon';
+ import { toLocalDate } from '../../utils/toLocalDate';
+ 
+ /**
+- * 競合分析（ヘッダー → 他社動向 → 競合分析）。
++ * Claudeによる競合分析（ヘッダー → 他社動向 → Claudeによる競合分析）。
+  *
+  * ─────────────────────────────────────────────
+  * ⚠️⚠️ **この画面は Claude を呼ばない。課金は一切発生しない。**
+@@ -126,7 +126,7 @@ type Props = {
+     /**
+      * Claudeによる分析（ClaudeAnalysis.tsx）の上部に埋め込むとき true（v2.2.191）。
+      *
+-     * ⚠️⚠️ **既定（false）は全画面モーダル用**（他社動向 →「競合分析」）。
++     * ⚠️⚠️ **既定（false）は全画面モーダル用**（他社動向 →「Claudeによる競合分析」）。
+      *   ⚠️ 全画面では高さを画面いっぱいに使うが、⚠️ **xl のモーダルの中では親に高さが無い。**
+      *   ⚠️ ⚠️ **埋め込み時は一覧と本文の高さを 60vh に固定し、外側の余白を外す**（`car_embedded`）。
+      */
+@@ -400,8 +400,10 @@ const CompetitorAnalysisReports = ({ embedded = false }: Props) => {
+ 
+             <div className="car_inner">
+                 <div className="car_head">
+-                    {/* ⚠️ v2.2.217 で Claude のロゴを外し「競合分析」にした（指示書） */}
+-                    <span className="car_title">競合分析</span>
++                    <span className="car_title">
++                        <ClaudeIcon height={16} />
++                        による競合分析
++                    </span>
+                     <span className="car_note">
+                         Claude Desktop で作成した分析レポートを保存して閲覧します。
+                         {/* ⚠️ 課金が発生しないことを明記する。以前は画面から実行していた */}
+diff --git a/frontend/src/components/header/DailyReports.tsx b/frontend/src/components/header/DailyReports.tsx
+index ad96c618..6343299a 100644
+--- a/frontend/src/components/header/DailyReports.tsx
++++ b/frontend/src/components/header/DailyReports.tsx
+@@ -9,7 +9,7 @@ import { CLAUDE_ORANGE } from './ClaudeIcon';
+ type Props = {
+     /**
+      * 「最新の他社分析」カードを押したとき（v2.2.165）。
+-     * ⚠️ Header.tsx が渡す。⚠️ 同じ全画面モーダルのまま「競合分析」に切り替える。
++     * ⚠️ Header.tsx が渡す。⚠️ 同じ全画面モーダルのまま「Claudeによる競合分析」に切り替える。
+      * ⚠️ 渡されなければカードは押せない（⚠️ 件数だけ出す）。
+      */
+     onOpenCompetitorReports?: () => void;
+@@ -548,7 +548,7 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
+         >
+             {/*
+               ⚠️ 最新の他社分析（v2.2.165）。⚠️ 日報の見出しの上に置く。
+-              ⚠️ 押すと Header.tsx が「競合分析」に切り替える（onOpenCompetitorReports）。
++              ⚠️ 押すと Header.tsx が「Claudeによる競合分析」に切り替える（onOpenCompetitorReports）。
+               ⚠️ 件数が1件以上のときだけ色を付ける（⚠️ 0件のときは控えめに出す）。
+             */}
+             <style>{`
+diff --git a/frontend/src/components/header/Header.tsx b/frontend/src/components/header/Header.tsx
+index 371fe9a6..4245b03c 100644
+--- a/frontend/src/components/header/Header.tsx
++++ b/frontend/src/components/header/Header.tsx
+@@ -46,15 +46,16 @@ type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' |
+ /**
+  * 他社動向メニューの最後に出す項目。
+  *
+- * ⚠️ v2.2.217 で「（Claudeのロゴ）による競合分析」から文字だけの「競合分析」に変えた（指示書）。
+- *   ⚠️ guideScreens.ts の GUIDE_SCREENS（'競合分析'）と同じ名前にすること。
++ * ⚠️ 画面にはロゴ＋「による競合分析」で出す（ヘッダーの「による分析」と同じ形）。
++ *   ⚠️ **この文字列そのものは画面に出さない。** 中で見分けるための鍵である。
++ *   ⚠️ v2.2.217 で一度「競合分析」に変えたが、利用者の指示でこの形に戻した（2026-10-26）。
+  *
+  * ⚠️⚠️ **開いても Claude は呼ばれない。課金は発生しない。**
+  *   ⚠️ 保存済みのレポート（HTML）を見るだけの画面である。
+  *   ⚠️ ⚠️ **2026-09-21 まで、ここは画面から Claude を実行していた。**
+  *     ⚠️ 1回あたり数百円かかったため、⚠️ **推論は各自の Claude アカウント（MCP）へ移した。**
+  */
+-const CLAUDE_COMPETITOR_ITEM = '競合分析';
++const CLAUDE_COMPETITOR_ITEM = 'Claudeによる競合分析';
+ 
+ /**
+  * 「Claudeによる分析」を使える権限（v2.2.217）。⚠️ ② の AI_ANALYSIS_AUTHORITY と同じ値にすること。
+@@ -111,7 +112,7 @@ const Header = ({ }) => {
+     const [claudeHover, setClaudeHover] = useState<boolean>(false);
+     /**
+      * ⚠️ v2.2.217 から Master・BrandAdmin・Manager だけにボタンを出す（Dashboard からの自由分析）。
+-     *   ⚠️ 競合分析のレポートはこの画面から外し、他社動向 →「競合分析」だけで読む（全員）。
++     *   ⚠️ 競合分析のレポートはこの画面から外し、他社動向 →「Claudeによる競合分析」だけで読む（全員）。
+      */
+     const canUseClaude = AI_ANALYSIS_AUTHORITY.includes(authority);
+     const openClaude = (): void => {
+@@ -506,7 +507,13 @@ const Header = ({ }) => {
+                                     className="py-2 px-3 text-dark position-relative"
+                                     onClick={() => openMenuItem(menu, item)}
+                                 >
+-                                    {item}
++                                    {/* ⚠️ 競合分析はロゴ＋文言で出す（ヘッダーの「による分析」と同じ形） */}
++                                    {item === CLAUDE_COMPETITOR_ITEM
++                                        ? <span className="d-flex align-items-center" style={{ gap: '2px' }}>
++                                            <ClaudeIcon height={14} />
++                                            による競合分析
++                                        </span>
++                                        : item}
+                                     {isEstate(item) && <div className="position-absolute menu_sync" style={{ top: '12px', right: '10px' }}>新着 {newEstate}件</div>}
+                                 </Dropdown.Item>
+                             ))}
+@@ -527,7 +534,7 @@ const Header = ({ }) => {
+                     </span>
+                 </Modal.Header>
+                 <Modal.Body className="p-0" style={{ overflow: 'hidden', flex: '1 1 auto', minHeight: 0 }}>
+-                    {claudeModal && <ClaudeAnalysis />}
++                    {claudeModal && <ClaudeAnalysis onClose={() => setClaudeModal(false)} />}
+                 </Modal.Body>
+             </Modal>
+ 
 ```
