@@ -55,6 +55,17 @@ const AuthProvider = ({ children }: Props) => {
                     return;
                 }
 
+                /**
+                 * ⚠️ v2.2.218: 権限（staff.brand）を毎回の確認で取り込む。
+                 *   ⚠️ 以前はログインした時の値をずっと使っていたため、権限編集で変えても再ログインまで画面が変わらなかった。
+                 *   ⚠️ 画面を移るたびに get_token が呼ばれるので、次に画面を移った時点で反映される。
+                 *   ⚠️ 権限の判定そのものは ① ② が毎回 DB で行っている（ここは表示を合わせるだけ）。
+                 */
+                const latestAuthority = response.data[0].brand;
+                if (typeof latestAuthority === 'string' && latestAuthority !== localStorage.getItem('authority')) {
+                    setAuthority(latestAuthority);
+                }
+
                 const today = new Date();
                 const responseDate = response.data[0].timestamp ?? '';
                 const diff = today.getTime() - new Date(responseDate).getTime();

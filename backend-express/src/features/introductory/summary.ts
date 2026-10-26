@@ -44,6 +44,11 @@ export const UNSET_LABEL = '（未入力）';
 export const UNKNOWN_AREA = '（不明）';
 
 interface ReferralRow extends RowDataPacket {
+  /** 顧客の id（ULID の文字列）。⚠️ 商談シート（interview_sheet.id）と同じ値 */
+  id: string;
+  /** どの台帳から来たか（担当別を注文・建売に絞るため） */
+  tbl: string;
+  in_charge_user: string | null;
   division: string;
   status: string | null;
   source: string | null;
@@ -54,6 +59,15 @@ interface ReferralRow extends RowDataPacket {
   col_screening: string | null;
   col_appointment: string | null;
   col_contract: string | null;
+}
+
+interface SheetRow extends RowDataPacket {
+  id: string;
+  interview_log: unknown;
+}
+
+interface StaffRow extends RowDataPacket {
+  name: string;
 }
 
 interface ShopRow extends RowDataPacket {
@@ -129,8 +143,36 @@ const inRange = (month: string, filter: SummaryFilter): boolean => {
   return true;
 };
 
+/**
+ * 名前の突き合わせ用。⚠️ 空白（全角を含む）を落とす（staffContract.ts の norm と同じ）。
+ *   ⚠️ 台帳・商談ログ・staff_list で「姓 名」と「姓名」が混ざっている。
+ */
+const norm = (value: unknown): string => String(value ?? '').replace(/[\s　]/g, '');
+
+/**
+ * 商談ログの担当者名を取り出す。
+ * ⚠️ mysql2 はパース済みのオブジェクトで返すことがある（staffContract.ts の toLog と同じ扱い）。
+ */
+const staffInLog = (value: unknown): string[] => {
+  let entries: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      entries = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  const list = Array.isArray(entries) ? entries : entries !== null && typeof entries === 'object' ? [entries] : [];
+  return list.map((e) => norm((e as { staff?: unknown }).staff)).filter((name) => name !== '');
+};
+
 /** 1人分（集計用に整えたもの） */
 interface Customer {
+  /**
+   * この顧客を数える担当（空白を除いた名前）。⚠️ 注文・建売だけ（中古は空）。
+   *   in_charge_user と、商談ログに名前がある人。⚠️ 1人の顧客が複数の担当に入る。
+   */
+  staff: Set<string>;
   division: string;
   source: string;
   brand: string;
@@ -188,11 +230,35 @@ const crossFunnel = (list: Customer[], rowOf: (c: Customer) => string): { rows: 
  *   ⚠️ 絞り込んだ結果から作ると、選んだ瞬間に他の選択肢が消えて戻れなくなる。
  */
 export const runIntroductorySummary = async (filter: SummaryFilter): Promise<SummaryResult> => {
-  const [shops, ...perTable] = await Promise.all([
+  const [shops, staffList, sheets, ...perTable] = await Promise.all([
     query<ShopRow>('SELECT shop, area, parent_shop, report_flag, division FROM shop_list ORDER BY id'),
+    /**
+     * 担当別に出す人（v2.2.218）。⚠️ 営業別契約率と同じく staff_list の report = 1。
+     *   ⚠️ 年度は「今年以下で最新」（kpi/master.ts と同じ選び方）。⚠️ 並びは sort 順
+     */
+    query<StaffRow>(
+      `SELECT name FROM staff_list
+        WHERE report = 1 AND name <> ''
+          AND period = (SELECT MAX(period) FROM staff_list
+                         WHERE period <> '' AND period <= CAST(YEAR(CURDATE()) AS CHAR))
+        GROUP BY name
+        ORDER BY MIN(sort), MIN(id)`
+    ),
+    /**
+     * 商談ログ（v2.2.218）。⚠️ 紹介の顧客（注文・建売）の分だけ引く。
+     *   ⚠️ 商談シートは注文・建売・中古で同じ表で、id が顧客の id。
+     */
+    query<SheetRow>(
+      `SELECT id, interview_log FROM interview_sheet
+        WHERE id IN (SELECT id FROM master_data
+                      WHERE TRIM(REPLACE(REPLACE(sales_promotion_name, '\\r', ''), '\\n', '')) = '紹介'
+                     UNION
+                     SELECT id FROM master_data_kaeru
+                      WHERE TRIM(REPLACE(REPLACE(sales_promotion_name, '\\r', ''), '\\n', '')) = '紹介')`
+    ),
     ...TABLES.map(({ table, division }) =>
       query<ReferralRow>(
-        `SELECT ? AS division, status,
+        `SELECT id, ? AS tbl, in_charge_user, ? AS division, status,
                 introduction_person_category AS source,
                 brand, in_charge_store AS store,
                 ${COL_INQUIRY} AS col_inquiry,
@@ -202,10 +268,17 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
                 ${COL_CONTRACT} AS col_contract
            FROM ${table}
           WHERE TRIM(REPLACE(REPLACE(sales_promotion_name, '\\r', ''), '\\n', '')) = '紹介'`,
-        [division]
+        [table, division]
       )
     ),
   ]);
+
+  /**
+   * 顧客 id → 商談ログの担当者。
+   * ⚠️ id は ULID の文字列で、注文・建売・中古の台帳をまたいで重ならない（実測 2026-10-26）。
+   */
+  const logStaffById = new Map<string, string[]>();
+  for (const sheet of sheets) logStaffById.set(String(sheet.id), staffInLog(sheet.interview_log));
 
   /** 店舗 → 親店舗。⚠️ 併売店は親店舗として数える */
   const parentOf = new Map<string, string>();
@@ -232,7 +305,16 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
     const contract = row.status === '契約済み';
     const inquiryDate = toDate(row.col_inquiry);
     const contractDate = toDate(row.col_contract);
+    // ⚠️ 担当別は注文・建売だけ（v2.2.218 の指示: master_data(_kaeru)）
+    const staff = new Set<string>();
+    if (row.tbl === 'master_data' || row.tbl === 'master_data_kaeru') {
+      const owner = norm(row.in_charge_user);
+      if (owner !== '') staff.add(owner);
+      for (const name of logStaffById.get(String(row.id)) ?? []) staff.add(name);
+    }
+
     customers.push({
+      staff,
       division: row.division,
       source: hasValue(row.source) ? String(row.source).trim() : UNSET_LABEL,
       brand: hasValue(row.brand) ? String(row.brand).trim() : UNSET_LABEL,
@@ -257,6 +339,16 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
     .map((s) => ({ name: s.shop, area: areaOf.get(s.shop) ?? '', division: s.division ?? '' }));
   const areaOptions = [...new Set(shopOptions.map((s) => s.area).filter((a) => a !== ''))];
 
+  /**
+   * 担当別（v2.2.218）。⚠️ 名前は staff_list の表記で出し、突き合わせは空白を除いて行う。
+   *   ⚠️ 反響が0の担当は出さない（2026-10-26 の指示）。⚠️ 反響の多い順。
+   *   ⚠️ 1人の顧客が複数の担当に入るため、足しても全体と合わない（画面に注記する）。
+   */
+  const byStaff = staffList
+    .map((s) => funnelOf(s.name, customers.filter((c) => c.staff.has(norm(s.name)))))
+    .filter((row) => row.inquiry > 0)
+    .sort((a, b) => b.inquiry - a.inquiry);
+
   return {
     httpStatus: 200,
     body: {
@@ -268,6 +360,7 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
       byBrand: groupFunnel(customers, (c) => c.brand),
       byArea: groupFunnel(customers, (c) => c.area),
       byShop: groupFunnel(customers, (c) => c.shop),
+      byStaff,
       brandSource: crossFunnel(customers, (c) => c.brand),
       areaSource: crossFunnel(customers, (c) => c.area),
       shops: shopOptions,

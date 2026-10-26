@@ -17,7 +17,7 @@ import type { AnalysisKind, AnySnapshot, StructuredAnalysis } from './ClaudeAnal
  * ⚠️ 使えるのは Master・BrandAdmin・Manager だけ（Header.tsx がボタンを出し分け、② も確かめる）。
  * ⚠️ 1回で数分〜十数分かかる。分析は ② の中で続くので、画面を閉じても止まらない。
  *   実行中の分析があるあいだ、一覧を数秒ごとに読み直して進み具合を出す。
- * ⚠️ 実行のたびに課金される。1人1日5回まで（② が数える）。
+ * ⚠️ 実行のたびに課金される。1人1日1回まで（② が数える。v2.2.218 で 5 → 1）。
  * ⚠️ レポートは Claude が書いた HTML。必ず iframe（sandbox="allow-scripts" だけ）の中で表示する。
  *   allow-same-origin を足すと、レポートの中からダッシュボードのログイン情報を読めてしまう。
  */
@@ -142,7 +142,7 @@ const ClaudeAnalysis: React.FC<Props> = ({ onClose }) => {
     // 一覧
     const [jobs, setJobs] = useState<Job[]>([]);
     const [usedToday, setUsedToday] = useState(0);
-    const [dailyLimit, setDailyLimit] = useState(5);
+    const [dailyLimit, setDailyLimit] = useState(1);
     /** 自分の staff.id（② が一覧と一緒に返す）。自分の分析かどうかの判定に使う */
     const [myStaffId, setMyStaffId] = useState(0);
     const [legacy, setLegacy] = useState<LegacyItem[]>([]);

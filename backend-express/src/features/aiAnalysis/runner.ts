@@ -14,7 +14,7 @@ import { executeTool, progressLabel, reportInput, SUBMIT_TOOL, TOOLS } from './t
  * 画面からの要求とは切り離して ② のプロセス内で動き、進み具合は ai_analysis_job に書く。
  *
  * ⚠️ 1回で数分〜十数分かかる。ゲートウェイの要求（120秒で切れる）の中で待たないこと。
- * ⚠️ 実行のたびに課金される。上限は registry 側（1人1日5回・同時実行数）でも掛けている。
+ * ⚠️ 実行のたびに課金される。上限は registry 側（1人1日1回・同時実行数）でも掛けている。
  */
 
 export const MODEL = 'claude-opus-5-5';
