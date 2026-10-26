@@ -930,6 +930,8 @@ register({
       endMonth: text('endMonth'),
       shop: text('shop'),
       area: text('area'),
+      // ⚠️ v2.2.220。⚠️ 名前は `source`（`category` にすると ② の振り分けのキーに入り、未登録扱いになる）
+      source: text('source'),
     });
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;

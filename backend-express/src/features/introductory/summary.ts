@@ -86,6 +86,11 @@ export interface SummaryFilter {
   shop: string;
   /** エリア（shop_list.area。⚠️ 空の店舗は店舗名の県名で補ったもの）。⚠️ 空なら絞らない */
   area: string;
+  /**
+   * 紹介元（introduction_person_category。v2.2.220）。⚠️ 空なら絞らない。
+   *   ⚠️ 未入力の顧客は UNSET_LABEL（（未入力））で選ぶ。
+   */
+  source: string;
 }
 
 /** 歩留まり1行。⚠️ 率は画面で出す（分母0の見せ方は画面の判断） */
@@ -292,6 +297,11 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
   }
 
   const customers: Customer[] = [];
+  /**
+   * 紹介元の選択肢（v2.2.220）と件数。⚠️ 紹介元以外の絞り込み（期間・店舗・エリア）を当てたあとで数える。
+   *   ⚠️ 紹介元で絞る前に数えるので、選んでも他の選択肢は消えない。
+   */
+  const sourceCount = new Map<string, number>();
   for (const row of perTable.flat()) {
     if (row.status === '重複') continue;
     if (!inRange(toMonth(row.col_inquiry), filter)) continue;
@@ -301,6 +311,10 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
     const area = areaOf.get(store) ?? '';
     if (filter.shop !== '' && shop !== filter.shop) continue;
     if (filter.area !== '' && area !== filter.area) continue;
+
+    const source = hasValue(row.source) ? String(row.source).trim() : UNSET_LABEL;
+    sourceCount.set(source, (sourceCount.get(source) ?? 0) + 1);
+    if (filter.source !== '' && source !== filter.source) continue;
 
     const contract = row.status === '契約済み';
     const inquiryDate = toDate(row.col_inquiry);
@@ -316,7 +330,7 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
     customers.push({
       staff,
       division: row.division,
-      source: hasValue(row.source) ? String(row.source).trim() : UNSET_LABEL,
+      source,
       brand: hasValue(row.brand) ? String(row.brand).trim() : UNSET_LABEL,
       shop: shop === '' ? UNSET_LABEL : shop,
       area: area === '' ? UNKNOWN_AREA : area,
@@ -365,6 +379,10 @@ export const runIntroductorySummary = async (filter: SummaryFilter): Promise<Sum
       areaSource: crossFunnel(customers, (c) => c.area),
       shops: shopOptions,
       areas: areaOptions,
+      // ⚠️ v2.2.220: 紹介元の選択肢（件数の多い順・未入力は最後）
+      sources: [...sourceCount.entries()]
+        .sort((a, b) => Number(a[0] === UNSET_LABEL) - Number(b[0] === UNSET_LABEL) || b[1] - a[1])
+        .map(([name, count]) => ({ name, count })),
     },
   };
 };

@@ -238,6 +238,8 @@ const IntroductorySummary = () => {
     const [summary, setSummary] = useState<Summary | null>(null);
     const [shops, setShops] = useState<ShopOption[]>([]);
     const [areas, setAreas] = useState<string[]>([]);
+    /** 紹介元の選択肢（v2.2.220）。⚠️ 件数は紹介元以外の絞り込みを当てたあとの数 */
+    const [sources, setSources] = useState<{ name: string; count: number }[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -246,6 +248,8 @@ const IntroductorySummary = () => {
     const [endMonth, setEndMonth] = useState('');
     const [targetShop, setTargetShop] = useState('');
     const [targetArea, setTargetArea] = useState('');
+    /** 紹介元（introduction_person_category。v2.2.220）。⚠️ 空＝すべて */
+    const [targetSource, setTargetSource] = useState('');
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -257,6 +261,8 @@ const IntroductorySummary = () => {
                 endMonth,
                 shop: targetShop,
                 area: targetArea,
+                // ⚠️ `category` という名前で送らないこと（② の振り分けのキーに入り、未登録扱いになる）
+                source: targetSource,
             });
             if (res.data?.status !== 'ok') {
                 setError(res.data?.message ?? '集計を取得できませんでした。');
@@ -265,13 +271,14 @@ const IntroductorySummary = () => {
             setSummary(res.data as Summary);
             setShops(res.data.shops ?? []);
             setAreas(res.data.areas ?? []);
+            setSources(res.data.sources ?? []);
         } catch (e: unknown) {
             const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
             setError(message ?? '集計を取得できませんでした。分析サーバーが停止している可能性があります。');
         } finally {
             setLoading(false);
         }
-    }, [startMonth, endMonth, targetShop, targetArea]);
+    }, [startMonth, endMonth, targetShop, targetArea, targetSource]);
 
     useEffect(() => { void fetchData(); }, [fetchData]);
 
@@ -293,7 +300,7 @@ const IntroductorySummary = () => {
 
     const total = summary?.total;
     const unset = summary?.bySource.find(r => r.key === UNSET_SOURCE);
-    const filtered = startMonth !== '' || endMonth !== '' || targetShop !== '' || targetArea !== '';
+    const filtered = startMonth !== '' || endMonth !== '' || targetShop !== '' || targetArea !== '' || targetSource !== '';
 
     /** KPI の1段。⚠️ 下の小さい数字は「前の段からの率」 */
     const Step = ({ label, count, base, baseLabel, main = false }: { label: string; count: number; base: number; baseLabel: string; main?: boolean }) => (
@@ -385,6 +392,21 @@ const IntroductorySummary = () => {
                 </div>
 
                 <div className="ics_bar_filter">
+                    {/* ⚠️ v2.2.220: 紹介元（introduction_person_category）で絞る。⚠️ 画面のすべての表に効く */}
+                    <div>
+                        <div className="ics_label">紹介元</div>
+                        <Form.Select
+                            size="sm" value={targetSource} style={{ width: '180px', fontSize: '12px' }}
+                            onChange={(e) => setTargetSource(e.target.value)}
+                        >
+                            <option value="">すべて</option>
+                            {sources.map(s => <option key={s.name} value={s.name}>{s.name}（{s.count.toLocaleString()}）</option>)}
+                            {/* ⚠️ 期間などで絞った結果、選んでいる紹介元が0件になっても選択を残す（黙って外さない） */}
+                            {targetSource !== '' && !sources.some(s => s.name === targetSource) && (
+                                <option value={targetSource}>{targetSource}（0）</option>
+                            )}
+                        </Form.Select>
+                    </div>
                     <div>
                         <div className="ics_label">エリア</div>
                         <Form.Select
@@ -434,7 +456,7 @@ const IntroductorySummary = () => {
                         type="button"
                         className="ics_reset"
                         disabled={!filtered}
-                        onClick={() => { setStartMonth(''); setEndMonth(''); setTargetShop(''); setTargetArea(''); }}
+                        onClick={() => { setStartMonth(''); setEndMonth(''); setTargetShop(''); setTargetArea(''); setTargetSource(''); }}
                     >
                         絞り込みを外す
                     </button>
