@@ -187,6 +187,15 @@ export const env = {
    */
   memberEntryKey: (process.env.MEMBER_ENTRY_KEY ?? '').trim(),
 
+  /**
+   * 「Claudeによる分析」（v2.2.217）が使う Anthropic の API キー。
+   *
+   * ⚠️ **未設定なら分析を受け付けない**（他の機能は止めないため requireEnv にはしない）。
+   * ⚠️ **リポジトリに書かないこと。** 設定先は ② VPS の .env.prod のみ。
+   *   差し替えの手順は docs/deploy-v2.2.217.md。
+   */
+  anthropicApiKey: (process.env.ANTHROPIC_API_KEY ?? '').trim(),
+
   /** アンバサダー反響の社内通知先。カンマ区切りで複数可 */
   ambassadorNotifyTo: (process.env.AMBASSADOR_NOTIFY_TO ?? '')
     .split(',')

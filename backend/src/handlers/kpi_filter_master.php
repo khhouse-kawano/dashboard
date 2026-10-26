@@ -21,7 +21,7 @@ require_once __DIR__ . '/../core/kpi.php';
 try {
     // 分析本体と同じ権限にそろえる。ここだけ緩いと、
     // 誰がどの店舗に所属しているかの一覧が漏れる。
-    requireMaster($pdo, $headers);
+    requireKpiAnalyst($pdo, $headers);
 
     // -----------------------------------------------------------------
     // 対象店舗

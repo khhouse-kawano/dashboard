@@ -83,3 +83,16 @@ function requireMaster(PDO $pdo, array $headers): array
     requireAuthority($staff, [AUTHZ_MASTER]);
     return $staff;
 }
+
+/**
+ * 「Claudeによる分析」を使える権限（v2.2.217）。② の AI_ANALYSIS_AUTHORITY と同じ値にすること。
+ */
+const AUTHZ_KPI_ANALYSIS = ['Master', 'BrandAdmin', 'Manager'];
+
+/** 認証と「Claudeによる分析を使える権限であること」の確認（保存済みの定型分析の閲覧で使う） */
+function requireKpiAnalyst(PDO $pdo, array $headers): array
+{
+    $staff = requireStaff($pdo, $headers);
+    requireAuthority($staff, AUTHZ_KPI_ANALYSIS);
+    return $staff;
+}

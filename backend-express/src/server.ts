@@ -1,6 +1,7 @@
 import { createApp } from './app';
 import { env } from './config/env';
 import { closePool, pingDatabase } from './db/pool';
+import { failInterruptedJobs } from './features/aiAnalysis/job';
 import { startMetaAdsScheduler } from './features/metaAds/scheduler';
 import { startCvMatch } from './features/tracking/cvMatch';
 import { startTrackingMaintenance } from './features/tracking/maintenance';
@@ -37,6 +38,10 @@ const bootstrap = async (): Promise<void> => {
     startTrackingMaintenance();
     // 自社のフォームでないサイトの CV と反響の突き合わせ（v2.2.205。5分ごと）
     startCvMatch();
+    // Claudeによる分析（v2.2.217）。再起動で消えた実行中の分析を失敗にする（画面が待ち続けないように）
+    failInterruptedJobs()
+      .then((count) => { if (count > 0) logger.warn(`ai_analysis: 再起動で中断された分析 ${count} 件を失敗にしました`); })
+      .catch((error: unknown) => logger.error('ai_analysis: 中断された分析の整理に失敗しました', error));
   });
 
   // 重い集計SQLの途中で切断されないよう、既定より長めに設定する

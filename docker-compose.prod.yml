@@ -125,6 +125,12 @@ services:
       # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
       - MEMBER_ENTRY_KEY=${MEMBER_ENTRY_KEY:-}
 
+      # 「Claudeによる分析」（v2.2.217）が使う Anthropic の API キー（Claude Console で発行したもの）。
+      #
+      # ⚠️ 未設定だと分析の開始が 503 になる（他の機能は動く）。
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。** 差し替え手順は docs/deploy-v2.2.217.md
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
       # K-SNAP の owner を公開ギャラリー向けに暗号化する鍵。
       #
       # ⚠️ ① の .htaccess（SetEnv）と**同じ値**にすること。

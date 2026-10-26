@@ -15,7 +15,7 @@
 require_once __DIR__ . '/../core/authz.php';
 
 try {
-    requireMaster($pdo, $headers);
+    requireKpiAnalyst($pdo, $headers);
 
     $id = (int)($data['id'] ?? 0);
     if ($id <= 0) {
