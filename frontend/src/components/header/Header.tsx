@@ -48,6 +48,7 @@ type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' |
  *
  * ⚠️ 画面にはロゴ＋「による競合分析」で出す（ヘッダーの「による分析」と同じ形）。
  *   ⚠️ **この文字列そのものは画面に出さない。** 中で見分けるための鍵である。
+ *   ⚠️ v2.2.217 で一度「競合分析」に変えたが、利用者の指示でこの形に戻した（2026-10-26）。
  *
  * ⚠️⚠️ **開いても Claude は呼ばれない。課金は発生しない。**
  *   ⚠️ 保存済みのレポート（HTML）を見るだけの画面である。
@@ -55,6 +56,12 @@ type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' |
  *     ⚠️ 1回あたり数百円かかったため、⚠️ **推論は各自の Claude アカウント（MCP）へ移した。**
  */
 const CLAUDE_COMPETITOR_ITEM = 'Claudeによる競合分析';
+
+/**
+ * 「Claudeによる分析」を使える権限（v2.2.217）。⚠️ ② の AI_ANALYSIS_AUTHORITY と同じ値にすること。
+ *   ⚠️ ボタンを隠すだけでは閉じない。② の ai_analysis_* / kpi_* も同じ3つを確かめている。
+ */
+const AI_ANALYSIS_AUTHORITY = ['Master', 'BrandAdmin', 'Manager'];
 
 const Header = ({ }) => {
     const { authority, category } = useContext(AuthContext);
@@ -104,11 +111,10 @@ const Header = ({ }) => {
     const [claudeModal, setClaudeModal] = useState<boolean>(false);
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
     /**
-     * ⚠️⚠️ **v2.2.191 から全員が開ける**（以前は Master 以外「権限がありません」）。
-     *   ⚠️ 全員に見せるのは上部の競合分析レポート（閲覧のみ・課金なし）だけ。
-     *   ⚠️ ⚠️ **分析の実行と保存済みの分析は ClaudeAnalysis.tsx 側で Master だけに出している**
-     *     （⚠️ ② の `kpi_*` も auth: 'master'）。
+     * ⚠️ v2.2.217 から Master・BrandAdmin・Manager だけにボタンを出す（Dashboard からの自由分析）。
+     *   ⚠️ 競合分析のレポートはこの画面から外し、他社動向 →「Claudeによる競合分析」だけで読む（全員）。
      */
+    const canUseClaude = AI_ANALYSIS_AUTHORITY.includes(authority);
     const openClaude = (): void => {
         setClaudeModal(true);
     };
@@ -432,28 +438,30 @@ const Header = ({ }) => {
                     userSelect: 'none',
                 }}
             >
-                {/* Claudeによる分析：menuMapping とは別の独立したボタン */}
-                <button
-                    type="button"
-                    onClick={() => openClaude()}
-                    onMouseEnter={() => setClaudeHover(true)}
-                    onMouseLeave={() => setClaudeHover(false)}
-                    className="border-0 d-flex align-items-center px-2 py-1 me-2"
-                    style={{
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        // ロゴ画像内の文字が黒のため、続く「による分析」も黒で揃える
-                        color: '#000',
-                        backgroundColor: claudeHover ? '#fdf8f6' : 'transparent',
-                        borderRadius: '4px',
-                        lineHeight: 1,
-                        gap: '2px',
-                    }}
-                    title="Claudeによる分析"
-                >
-                    <ClaudeIcon height={15} />
-                    による分析
-                </button>
+                {/* Claudeによる分析：menuMapping とは別の独立したボタン（⚠️ v2.2.217 から3つの権限だけ） */}
+                {canUseClaude && (
+                    <button
+                        type="button"
+                        onClick={() => openClaude()}
+                        onMouseEnter={() => setClaudeHover(true)}
+                        onMouseLeave={() => setClaudeHover(false)}
+                        className="border-0 d-flex align-items-center px-2 py-1 me-2"
+                        style={{
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            // ロゴ画像内の文字が黒のため、続く「による分析」も黒で揃える
+                            color: '#000',
+                            backgroundColor: claudeHover ? '#fdf8f6' : 'transparent',
+                            borderRadius: '4px',
+                            lineHeight: 1,
+                            gap: '2px',
+                        }}
+                        title="Claudeによる分析"
+                    >
+                        <ClaudeIcon height={15} />
+                        による分析
+                    </button>
+                )}
 
                 <div className='bg-primary rounded-pill text-white me-1 shadow-sm'
                     style={{ padding: '2px 10px', fontSize: '10px', cursor: 'pointer' }}
@@ -516,16 +524,17 @@ const Header = ({ }) => {
 
             </div>}
 
-            {/* Claudeによる分析 */}
-            <Modal show={claudeModal} onHide={() => setClaudeModal(false)} size="xl" centered scrollable>
+            {/* Claudeによる分析（⚠️ v2.2.217 から全画面。左に条件と一覧、右に結果） */}
+            <Modal show={claudeModal} onHide={() => setClaudeModal(false)}
+                dialogClassName="modal-fullscreen" contentClassName="h-100 d-flex flex-column">
                 <Modal.Header closeButton className="border-bottom-0 pb-0" style={{ fontSize: '15px' }}>
                     <span className="fw-bold d-flex align-items-center" style={{ color: '#000', gap: '2px' }}>
                         <ClaudeIcon height={17} />
                         による分析
                     </span>
                 </Modal.Header>
-                <Modal.Body className="pt-2" style={{ maxHeight: '80vh' }}>
-                    <ClaudeAnalysis />
+                <Modal.Body className="p-0" style={{ overflow: 'hidden', flex: '1 1 auto', minHeight: 0 }}>
+                    {claudeModal && <ClaudeAnalysis onClose={() => setClaudeModal(false)} />}
                 </Modal.Body>
             </Modal>
 

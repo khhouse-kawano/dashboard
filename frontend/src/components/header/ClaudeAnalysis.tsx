@@ -1,922 +1,618 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from 'react';
-import ReactMarkdown from 'react-markdown';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import AuthContext from '../../context/AuthContext';
-import { CLAUDE_ORANGE } from './ClaudeIcon';
 import apiClient from '../../utils/apiClient';
+import { CLAUDE_ORANGE } from './ClaudeIcon';
 import ClaudeAnalysisResult from './ClaudeAnalysisResult';
-import ClaudeAnalysisPrint from './ClaudeAnalysisPrint';
-import CompetitorAnalysisReports from './CompetitorAnalysisReports';
-import type { AnySnapshot, AnalysisKind, StructuredAnalysis } from './ClaudeAnalysisResult';
+import type { AnalysisKind, AnySnapshot, StructuredAnalysis } from './ClaudeAnalysisResult';
 
 /**
- * Claude による分析メニュー。
+ * Claudeによる分析（v2.2.217 で作り直した。Dashboard からの自由分析）。
  *
- * 分析は1回あたり40〜60秒かかり、実行のたびに課金が発生する。
- * そのため「実行中はボタンを押せない」「経過時間を表示する」ことを必須としている。
+ * 分析したいことを文章で書き、事業部・課・店舗・期間を選ぶと、Claude がダッシュボードと
+ * 同じ定義の数字を ② から自分で集めて分析し、HTML のレポートを書く。
  *
- * 結果はサーバー側で kpi_analysis_history に保存され、
- * 「保存済みの分析」から課金なしで復元できる。
+ *   左: 新しい分析の条件 → 分析の一覧（全員分）→ 過去の定型分析（v2.2.216 までの保存分）
+ *   右: 選んだ分析の進み具合・結果
  *
- * ⚠️⚠️ **v2.2.191 から全員が開ける**（Header.tsx の openClaude）。
- *   ⚠️ 全員に見せるのは ⚠️ **上部の競合分析レポート**（CompetitorAnalysisReports。閲覧のみ・課金なし）。
- *   ⚠️ ⚠️ **「分析したい内容を選んでください」から下は Master だけ**（「管理者専用」の印を付ける）。
- *     ⚠️ ② の `kpi_filter_master` / `kpi_analysis_list` / `kpi_analyze` などは auth: 'master'。
- *     ⚠️ ⚠️ **Master 以外では呼ばないこと**（⚠️ 呼ぶと 403 になる）。
+ * ⚠️ 使えるのは Master・BrandAdmin・Manager だけ（Header.tsx がボタンを出し分け、② も確かめる）。
+ * ⚠️ 1回で数分〜十数分かかる。分析は ② の中で続くので、画面を閉じても止まらない。
+ *   実行中の分析があるあいだ、一覧を数秒ごとに読み直して進み具合を出す。
+ * ⚠️ 実行のたびに課金される。1人1日5回まで（② が数える）。
+ * ⚠️ レポートは Claude が書いた HTML。必ず iframe（sandbox="allow-scripts" だけ）の中で表示する。
+ *   allow-same-origin を足すと、レポートの中からダッシュボードのログイン情報を読めてしまう。
  */
 
-export type AnalysisType =
-    | 'inquiry_trend'
-    | 'competitor'
-    | 'brand'
-    | 'shop'
-    | 'medium'
-    | 'custom';
-
-type MenuItem = {
-    type: AnalysisType;
-    label: string;
-    description: string;
-    icon: string;
-};
-
-/**
- * 分析対象の部門。
- * サーバー側は受け取った値をホワイトリストで解決するため、
- * ここの値と backend/src/core/kpi.php の KPI_DIVISIONS のキーを一致させること。
- *
- * shopDivision は shop_list.division の値。課・店舗の絞り込みで突き合わせる。
- */
-export type Division = 'order' | 'kaeru';
+type Division = 'order' | 'kaeru';
 
 const DIVISIONS: { value: Division; label: string; shopDivision: string }[] = [
-    { value: 'order', label: '注文事業',     shopDivision: '注文事業' },
+    { value: 'order', label: '注文事業', shopDivision: '注文事業' },
     { value: 'kaeru', label: '建売分譲事業', shopDivision: '建売分譲事業' },
 ];
+const divisionLabel = (value: string): string => DIVISIONS.find((d) => d.value === value)?.label ?? value;
 
-const MENUS: MenuItem[] = [
-    { type: 'inquiry_trend', label: '反響推移を分析', description: '月別の反響数と媒体構成の変化', icon: 'fa-chart-line' },
-    // ⚠️⚠️ **競合分析はここから実行しない**（2026-09-21）。
-    //   ⚠️ 1回あたり数百円かかったため、⚠️ **推論は各自の Claude アカウント（MCP）へ移した。**
-    //   ⚠️ 画面は 他社動向 →「Claudeによる競合分析」で ⚠️ **保存済みのレポートを見るだけ**。
-    { type: 'competitor', label: '競合分析', description: '他社動向メニューから開いてください', icon: 'fa-users-viewfinder' },
-    { type: 'brand', label: 'ブランド別サマリー', description: 'KH / DJH / JH などブランド単位', icon: 'fa-layer-group' },
-    { type: 'shop', label: '店舗別サマリー', description: '店舗ごとの反響・アポ・契約', icon: 'fa-store' },
-    { type: 'medium', label: '販促媒体別サマリー', description: '媒体ごとの獲得数と契約率', icon: 'fa-bullhorn' },
-    { type: 'custom', label: 'その他', description: '分析したい内容を自由に記入', icon: 'fa-pen-to-square' },
+/** 書き出しに迷う人のための例。押すと依頼文の欄に入る */
+const EXAMPLES = [
+    '直近半年で契約が伸びた店舗と落ちた店舗を比べて、差がどこで生まれているか教えて',
+    '広告費に対して契約が取れている媒体と取れていない媒体を知りたい。来期の配分の見直し案も',
+    '次アポ率が低い原因を、担当者別・媒体別に深掘りして',
+    '前年の同じ時期と比べて反響が減っている原因と、すぐ打てる手を教えて',
 ];
 
-/**
- * 画面から選択できる分析タイプ。
- * ここに含まれないメニューはグレーアウトして押せなくする（表示自体は残す）。
- * 実装が済んだものからこのセットに追加していく。
- */
-const AVAILABLE: ReadonlySet<AnalysisType> = new Set<AnalysisType>(['inquiry_trend', 'shop', 'medium']);
+/** 実行中の分析があるとき、一覧を読み直す間隔 */
+const POLL_MS = 5000;
 
-/**
- * バックエンドと接続済みの分析タイプ。
- * ここに含まれないものは API を呼ばず、課金を発生させずにサンプルを表示する。
- */
-const IMPLEMENTED: ReadonlySet<AnalysisType> = new Set<AnalysisType>(['inquiry_trend', 'shop', 'medium']);
+type JobStatus = 'queued' | 'running' | 'done' | 'error';
 
-/** メニュー画面に出す保存済み分析の件数と、「もっと見る」1回あたりの追加件数 */
-const HISTORY_PREVIEW_COUNT = 5;
-const HISTORY_PAGE_SIZE = 20;
-/** kpi_analysis_list が1回に返せる上限（サーバー側と合わせる） */
-const HISTORY_MAX_COUNT = 100;
-
-type Meta = {
+/** ai_analysis_list が返す1件（本文は含まない） */
+type Job = {
+    id: number;
+    staffId: number;
+    staffName: string;
+    status: JobStatus;
+    prompt: string;
+    division: Division;
+    section: string;
+    shop: string;
+    from: string;
+    to: string;
+    progress: string;
+    toolCalls: number;
+    title: string;
+    summary: string;
     model: string;
-    input_tokens: number;
-    output_tokens: number;
-    cost_usd: number | null;
-    duration_ms: number;
-    used_today: number;
-    daily_limit: number;
+    costUsd: number | null;
+    errorMessage: string;
+    createdAt: string;
+    startedAt: string | null;
+    finishedAt: string | null;
+    /** 開始からの経過秒数（② が DB の時計で数える） */
+    elapsedSec: number | null;
 };
 
-/** kpi_filter_master が返す絞り込みマスタ */
-type ShopMaster = { division: string; section: string; shop: string };
-type StaffMaster = { name: string; shop: string; section: string };
-
-/** kpi_analysis_list が返す1件（本体のJSONは含まない） */
-type HistoryItem = {
+/** kpi_analysis_list が返す1件（v2.2.216 までの定型分析） */
+type LegacyItem = {
     id: number;
     title: string;
     headline: string;
-    analysis_type: AnalysisType;
-    division: Division;
-    scope_label: string;
-    model: string;
+    analysis_type: AnalysisKind;
     created_at: string;
     staff_name: string | null;
 };
 
-/** 保存済み結果を開いているときの出所情報。課金メタの代わりに表示する */
-type RestoredInfo = { title: string; staffName: string | null; createdAt: string; model: string };
+type ShopMaster = { division: string; section: string; shop: string };
 
-/** UIの確認用サンプル。実装が済んだタイプでは実際の分析結果に置き換わる */
-const SAMPLE_MARKDOWN = `## 全体傾向
+/** 右に出しているもの */
+type Selected =
+    | { kind: 'job'; id: number }
+    | { kind: 'legacy'; item: LegacyItem };
 
-これは表示確認用のサンプルです。実際の分析結果もこの形式で表示されます。
+const isActive = (status: JobStatus): boolean => status === 'queued' || status === 'running';
 
-## 注目すべき変化
+const ym = (date: Date): string => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-- **契約率**: 3.84%（905件 / 23,555件）→ 媒体構成の偏りが影響
-- **ランク未設定**: 14,697件（62.4%）→ 優先度付けが機能していない
-
-## 要因の仮説
-
-データから読み取れることと推測を分けて記述されます。
-
-## 打ち手の提案
-
-1. 具体的で実行可能な提案が最大3点まで示されます。
-`;
-
-/** '2026-08-27 14:03:11' → '2026/8/27 14:03' */
-const formatSavedAt = (value: string): string => {
-    const d = new Date(value.replace(' ', 'T'));
-    if (Number.isNaN(d.getTime())) return value;
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} `
-        + `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+/** 既定の期間: 締まった直近6ヶ月（当月は月の途中なので入れない） */
+const defaultPeriod = (): { from: string; to: string } => {
+    const now = new Date();
+    return {
+        from: ym(new Date(now.getFullYear(), now.getMonth() - 6, 1)),
+        to: ym(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+    };
 };
 
-const ClaudeAnalysis: React.FC = () => {
-    // 新規実行のときの「実行者」。保存済みを開いた場合は履歴の staff_name を使う
-    const { userName, authority } = useContext(AuthContext);
-    /** ⚠️ 分析の実行・保存済みの分析は Master だけ（v2.2.191） */
+/** '2026-10-26 14:03:11' → '10/26 14:03' */
+const shortTime = (value: string | null): string => {
+    if (value === null || value === '') return '';
+    const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}):(\d{2})/.exec(value);
+    return m === null ? value : `${Number(m[1])}/${Number(m[2])} ${m[3]}:${m[4]}`;
+};
+
+/**
+ * 開始からの経過（分・秒）。② が返した経過秒数に、一覧を読み込んでからの秒数を足す。
+ * ⚠️ 開始時刻と画面の時計を引き算しないこと（DB の時間帯が違うとずれる）。
+ */
+const elapsedText = (elapsedSec: number | null, fetchedAt: number, now: number): string => {
+    if (elapsedSec === null) return '';
+    const sec = Math.max(0, elapsedSec + Math.floor((now - fetchedAt) / 1000));
+    return `${Math.floor(sec / 60)}分${String(sec % 60).padStart(2, '0')}秒`;
+};
+
+const errorMessageOf = (e: unknown, fallback: string): string =>
+    (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
+
+type Props = {
+    /**
+     * 左上の「閉じる」ボタンで呼ぶ（Header.tsx がモーダルを閉じる）。
+     * ⚠️ 全画面モーダルの閉じるボタンは Header.tsx が右上に出すが、利用者の指示（2026-10-26）で左上にも置いた。
+     */
+    onClose: () => void;
+};
+
+const ClaudeAnalysis: React.FC<Props> = ({ onClose }) => {
+    const { authority } = useContext(AuthContext);
     const isMaster = authority === 'Master';
 
-    const [selected, setSelected] = useState<MenuItem | null>(null);
+    // 条件
     const [division, setDivision] = useState<Division>('order');
-    const [customText, setCustomText] = useState<string>('');
-    const [loading, setLoading] = useState<boolean>(false);
-    const [elapsed, setElapsed] = useState<number>(0);
-    const [result, setResult] = useState<string>('');
-    const [structured, setStructured] = useState<StructuredAnalysis | null>(null);
-    const [snapshot, setSnapshot] = useState<AnySnapshot | null>(null);
-    const [meta, setMeta] = useState<Meta | null>(null);
-    const [error, setError] = useState<string>('');
-    const [notice, setNotice] = useState<string>('');
-
-    // 絞り込み（課 → 店舗 → スタッフ）。空文字は「絞り込まない」
+    const [section, setSection] = useState('');
+    const [shop, setShop] = useState('');
+    const [period, setPeriod] = useState(defaultPeriod);
+    const [prompt, setPrompt] = useState('');
     const [shopMaster, setShopMaster] = useState<ShopMaster[]>([]);
-    const [staffMaster, setStaffMaster] = useState<StaffMaster[]>([]);
-    // マスタ取得中。課のセレクトは無効化せず、選択肢の代わりに読み込み中と出す
-    const [masterLoading, setMasterLoading] = useState<boolean>(true);
-    const [section, setSection] = useState<string>('');
-    const [shop, setShop] = useState<string>('');
-    const [staff, setStaff] = useState<string>('');
 
-    // 保存済みの分析
-    const [history, setHistory] = useState<HistoryItem[]>([]);
-    const [historyTotal, setHistoryTotal] = useState<number>(0);
-    const [historyLimit, setHistoryLimit] = useState<number>(HISTORY_PREVIEW_COUNT);
-    const [restored, setRestored] = useState<RestoredInfo | null>(null);
-    // 復元中フラグ。restored は取得後に入るため、待機中の文言の出し分けには使えない
-    const [restoring, setRestoring] = useState<boolean>(false);
+    // 一覧
+    const [jobs, setJobs] = useState<Job[]>([]);
+    const [usedToday, setUsedToday] = useState(0);
+    const [dailyLimit, setDailyLimit] = useState(5);
+    /** 自分の staff.id（② が一覧と一緒に返す）。自分の分析かどうかの判定に使う */
+    const [myStaffId, setMyStaffId] = useState(0);
+    const [legacy, setLegacy] = useState<LegacyItem[]>([]);
+    const [legacyOpen, setLegacyOpen] = useState(false);
 
-    // 印刷プレビューを開いているか。開いている間は本体をスクロールさせない
-    const [printing, setPrinting] = useState<boolean>(false);
+    // 右
+    const [selected, setSelected] = useState<Selected | null>(null);
+    const [html, setHtml] = useState<{ id: number; html: string } | null>(null);
+    const [legacyBody, setLegacyBody] = useState<{ analysis: StructuredAnalysis; kpi: AnySnapshot } | null>(null);
 
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // 実行中の経過秒数を1秒ごとに更新する。
-    // 40〜60秒かかるため、これが無いと「固まった」と誤解される。
-    useEffect(() => {
-        if (loading) {
-            setElapsed(0);
-            timerRef.current = setInterval(() => setElapsed((n) => n + 1), 1000);
-        } else if (timerRef.current !== null) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-        }
-        return () => {
-            if (timerRef.current !== null) {
-                clearInterval(timerRef.current);
-                timerRef.current = null;
-            }
-        };
-    }, [loading]);
+    const [starting, setStarting] = useState(false);
+    const [error, setError] = useState('');
+    const [now, setNow] = useState(() => Date.now());
+    /** 一覧を最後に読み込んだ時刻（経過時間の表示に使う） */
+    const [fetchedAt, setFetchedAt] = useState(() => Date.now());
 
     // ------------------------------------------------------------------
-    // 絞り込みマスタ（起動時に1回だけ取得）
-    //
-    // 3段のカスケードを都度APIで引くと通信が増えるだけなので、
-    // 対象になりうる店舗と担当者をまとめて受け取り、絞り込みは画面側で行う。
-    // 取得に失敗しても分析自体は部門単位で実行できるため、致命的には扱わない。
+    // 読み込み
     // ------------------------------------------------------------------
-    useEffect(() => {
-        // ⚠️ Master 以外は呼ばない（⚠️ ② は auth: 'master'。画面にも出さない）
-        if (!isMaster) return;
-        let cancelled = false;
-
-        void (async () => {
-            try {
-                const res = await apiClient.post('', { request: 'kpi_filter_master' });
-                if (cancelled || res.data?.status !== 'ok') return;
-                setShopMaster(res.data.shops ?? []);
-                setStaffMaster(res.data.staff ?? []);
-            } catch {
-                // 絞り込みが使えないだけで、部門単位の分析は可能。画面は止めない
-            } finally {
-                if (!cancelled) setMasterLoading(false);
-            }
-        })();
-
-        return () => { cancelled = true; };
-    }, [isMaster]);
-
-    const loadHistory = useCallback(async (limit: number): Promise<void> => {
+    const loadJobs = useCallback(async (): Promise<void> => {
         try {
-            const res = await apiClient.post('', { request: 'kpi_analysis_list', limit });
+            const res = await apiClient.post('', { request: 'ai_analysis_list', limit: 50 });
             if (res.data?.status !== 'ok') return;
-            setHistory(res.data.items ?? []);
-            setHistoryTotal(res.data.total ?? 0);
-        } catch {
-            // 履歴が出ないだけ。新規分析の妨げにはしない
+            setJobs((res.data.items ?? []) as Job[]);
+            setFetchedAt(Date.now());
+            setUsedToday(Number(res.data.usedToday ?? 0));
+            setDailyLimit(Number(res.data.dailyLimit ?? 5));
+            setMyStaffId(Number(res.data.myStaffId ?? 0));
+        } catch (e) {
+            setError(errorMessageOf(e, '分析の一覧を読み込めませんでした。'));
         }
     }, []);
 
-    // ⚠️ Master 以外は呼ばない（⚠️ ② の kpi_analysis_list は auth: 'master'）
     useEffect(() => {
-        if (isMaster) void loadHistory(historyLimit);
-    }, [isMaster, loadHistory, historyLimit]);
+        void loadJobs();
+        void (async () => {
+            try {
+                const res = await apiClient.post('', { request: 'kpi_filter_master' });
+                if (res.data?.status === 'ok') setShopMaster((res.data.shops ?? []) as ShopMaster[]);
+            } catch {
+                // 課・店舗を選べないだけ。事業部全体の分析はできるので止めない
+            }
+            try {
+                const res = await apiClient.post('', { request: 'kpi_analysis_list', limit: 100 });
+                if (res.data?.status === 'ok') setLegacy((res.data.items ?? []) as LegacyItem[]);
+            } catch {
+                // 過去の定型分析が出ないだけ
+            }
+        })();
+    }, [loadJobs]);
+
+    // 実行中の分析があるあいだだけ、一覧を読み直す（経過時間の表示も1秒ごとに進める）
+    const hasActive = jobs.some((job) => isActive(job.status));
+    useEffect(() => {
+        if (!hasActive) return;
+        const poll = window.setInterval(() => { void loadJobs(); }, POLL_MS);
+        const tick = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => { window.clearInterval(poll); window.clearInterval(tick); };
+    }, [hasActive, loadJobs]);
+
+    const selectedJob = selected?.kind === 'job' ? jobs.find((job) => job.id === selected.id) ?? null : null;
+
+    // 選んだ分析が終わっていて本文が未取得なら取りに行く（実行中に選んでいた分析が終わったときも）
+    useEffect(() => {
+        if (selectedJob === null || selectedJob.status !== 'done' || html?.id === selectedJob.id) return;
+        let cancelled = false;
+        void (async () => {
+            try {
+                const res = await apiClient.post('', { request: 'ai_analysis_get', id: selectedJob.id });
+                if (!cancelled && res.data?.status === 'ok') setHtml({ id: selectedJob.id, html: String(res.data.html ?? '') });
+            } catch (e) {
+                if (!cancelled) setError(errorMessageOf(e, 'レポートを開けませんでした。'));
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [selectedJob, html]);
 
     // ------------------------------------------------------------------
-    // カスケードの選択肢
+    // 条件の選択肢（部門 → 課 → 店舗）
     // ------------------------------------------------------------------
     const shopDivision = DIVISIONS.find((d) => d.value === division)?.shopDivision ?? '';
-
-    /** 対象部門の課。report_flag = 1 の店舗を持つ課だけがサーバーから届く */
-    const sectionOptions = useMemo<string[]>(() => {
+    const sectionOptions = useMemo(() => {
         const seen = new Set<string>();
-        shopMaster.forEach((s) => {
-            if (s.division === shopDivision && s.section !== '') seen.add(s.section);
-        });
+        shopMaster.forEach((s) => { if (s.division === shopDivision) seen.add(s.section); });
         return Array.from(seen);
     }, [shopMaster, shopDivision]);
+    const shopOptions = useMemo(
+        () => (section === '' ? [] : shopMaster.filter((s) => s.division === shopDivision && s.section === section).map((s) => s.shop)),
+        [shopMaster, shopDivision, section]
+    );
 
-    const shopOptions = useMemo<string[]>(() => {
-        if (section === '') return [];
-        return shopMaster
-            .filter((s) => s.division === shopDivision && s.section === section)
-            .map((s) => s.shop);
-    }, [shopMaster, shopDivision, section]);
+    const periodError = period.from === '' || period.to === ''
+        ? '期間を選んでください。'
+        : period.from > period.to ? '開始月が終了月より後になっています。' : '';
+    const limitReached = usedToday >= dailyLimit;
+    const myActive = jobs.some((job) => isActive(job.status) && job.staffId === myStaffId);
+    const canStart = !starting && !myActive && prompt.trim().length >= 5 && periodError === '' && !limitReached;
 
-    const staffOptions = useMemo<string[]>(() => {
-        if (shop === '') return [];
-        const seen = new Set<string>();
-        staffMaster.forEach((s) => { if (s.shop === shop) seen.add(s.name); });
-        return Array.from(seen);
-    }, [staffMaster, shop]);
-
-    /**
-     * 店舗まで絞り込むと「店舗別サマリー」は棒グラフが1本になり意味を失う。
-     * そのためメニューをグレーアウトして押せなくする（サーバー側でも弾いている）。
-     */
-    const shopSummaryBlocked = shop !== '';
-
-    /** 現在の絞り込みを人が読める形にしたもの */
-    const scopeLabel = [
-        DIVISIONS.find((d) => d.value === division)?.label ?? '',
-        section, shop, staff,
-    ].filter((v) => v !== '').join(' › ');
-
-    // 親を変えたら子はリセットする。整合しない組み合わせはサーバーが弾くが、
-    // そもそも画面に残さないほうが分かりやすい
-    const changeDivision = (value: Division): void => {
-        setDivision(value);
-        setSection('');
-        setShop('');
-        setStaff('');
-    };
-    const changeSection = (value: string): void => {
-        setSection(value);
-        setShop('');
-        setStaff('');
-    };
-    const changeShop = (value: string): void => {
-        setShop(value);
-        setStaff('');
-    };
-
-    const clearResult = (): void => {
-        setResult('');
-        setStructured(null);
-        setSnapshot(null);
-        setMeta(null);
+    // ------------------------------------------------------------------
+    // 操作
+    // ------------------------------------------------------------------
+    const start = async (): Promise<void> => {
         setError('');
-        setNotice('');
-        setRestored(null);
-        setRestoring(false);
-        // 結果が入れ替わるのにプレビューが残ると、古い内容を印刷してしまう
-        setPrinting(false);
-    };
-
-    const reset = (): void => {
-        setSelected(null);
-        setCustomText('');
-        clearResult();
-    };
-
-    const runAnalysis = async (menu: MenuItem): Promise<void> => {
-        clearResult();
-
-        if (!IMPLEMENTED.has(menu.type)) {
-            // 未実装のタイプは API を呼ばない（＝課金しない）
-            setResult(SAMPLE_MARKDOWN);
-            setNotice(`「${menu.label}」はまだ実装されていません。以下は表示確認用のサンプルです（課金は発生していません）。`);
-            return;
-        }
-
-        setLoading(true);
+        setStarting(true);
         try {
-            const response = await apiClient.post('', {
-                request: 'kpi_analyze',
-                type: menu.type,
+            const res = await apiClient.post('', {
+                request: 'ai_analysis_start',
+                prompt: prompt.trim(),
                 division,
-                // 空文字は送らない。サーバー側は未指定＝絞り込みなしとして扱う
-                ...(section !== '' ? { section } : {}),
-                ...(shop    !== '' ? { shop }    : {}),
-                ...(staff   !== '' ? { staff }   : {}),
-                ...(menu.type === 'custom' ? { question: customText.trim() } : {}),
+                section,
+                shop,
+                from: period.from,
+                to: period.to,
             });
-
-            const body = response.data;
-
-            if (body?.status !== 'ok') {
-                setError(body?.message ?? '分析に失敗しました。');
+            if (res.data?.status !== 'ok') {
+                setError(res.data?.message ?? '分析を始められませんでした。');
                 return;
             }
-
-            setMeta(body.meta ?? null);
-
-            if (body.format === 'structured') {
-                setStructured(body.analysis as StructuredAnalysis);
-                setSnapshot(body.kpi as AnySnapshot);
-                // 保存された結果を一覧に反映する
-                void loadHistory(historyLimit);
-            } else {
-                setResult(String(body.analysis ?? ''));
-            }
-        } catch (e: unknown) {
-            // axios は非2xxで例外になる。サーバーが返した日本語メッセージを優先して見せる
-            const message =
-                (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-                ?? '通信に失敗しました。時間をおいて再度お試しください。';
-            setError(message);
+            setPrompt('');
+            setSelected({ kind: 'job', id: Number(res.data.id) });
+            await loadJobs();
+        } catch (e) {
+            setError(errorMessageOf(e, '分析を始められませんでした。時間をおいて、もう一度お試しください。'));
         } finally {
-            setLoading(false);
+            setStarting(false);
         }
     };
 
-    const handleSelect = (menu: MenuItem): void => {
-        setSelected(menu);
-        clearResult();
-
-        // 「その他」は入力欄を出すだけで、すぐには実行しない
-        if (menu.type !== 'custom') {
-            void runAnalysis(menu);
-        }
-    };
-
-    // ------------------------------------------------------------------
-    // 保存済みの分析を開く。Claude は呼ばないので課金は発生しない
-    // ------------------------------------------------------------------
-    const openHistory = async (item: HistoryItem): Promise<void> => {
-        const menu = MENUS.find((m) => m.type === item.analysis_type);
-        if (menu === undefined) {
-            // 保存後にメニュー定義から消えた分析タイプ。描画方法が決まらない
-            setError(`この分析（${item.analysis_type}）は現在の画面では表示できません。`);
-            return;
-        }
-
-        setSelected(menu);
-        clearResult();
-        setRestoring(true);
-        setLoading(true);
-
+    const openLegacy = async (item: LegacyItem): Promise<void> => {
+        setSelected({ kind: 'legacy', item });
+        setLegacyBody(null);
         try {
             const res = await apiClient.post('', { request: 'kpi_analysis_get', id: item.id });
-            const body = res.data;
-
-            if (body?.status !== 'ok') {
-                setError(body?.message ?? '保存された分析結果を開けませんでした。');
-                return;
-            }
-
-            setStructured(body.analysis as StructuredAnalysis);
-            setSnapshot(body.kpi as AnySnapshot);
-            setRestored({
-                title:     body.item?.title ?? item.title,
-                staffName: body.item?.staff_name ?? item.staff_name,
-                createdAt: body.item?.created_at ?? item.created_at,
-                model:     body.item?.model ?? item.model,
-            });
-        } catch (e: unknown) {
-            const message =
-                (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-                ?? '通信に失敗しました。時間をおいて再度お試しください。';
-            setError(message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const deleteHistory = async (item: HistoryItem): Promise<void> => {
-        // 復元できなくなる操作なので、必ず一度確認する
-        if (!window.confirm(`「${item.title}」を削除します。よろしいですか？`)) return;
-
-        try {
-            const res = await apiClient.post('', { request: 'kpi_analysis_delete', id: item.id });
             if (res.data?.status !== 'ok') {
-                setError(res.data?.message ?? '削除に失敗しました。');
+                setError(res.data?.message ?? '保存された分析を開けませんでした。');
                 return;
             }
-            void loadHistory(historyLimit);
-        } catch {
-            setError('削除に失敗しました。時間をおいて再度お試しください。');
+            setLegacyBody({ analysis: res.data.analysis as StructuredAnalysis, kpi: res.data.kpi as AnySnapshot });
+        } catch (e) {
+            setError(errorMessageOf(e, '保存された分析を開けませんでした。'));
         }
     };
 
-    // ------------------------------------------------------------------
-    // メニュー選択画面
-    // ------------------------------------------------------------------
-    if (selected === null) {
-        const selectStyle: React.CSSProperties = { fontSize: '13px', borderColor: '#e8e6dc' };
+    const remove = async (job: Job): Promise<void> => {
+        if (!window.confirm(`「${job.title || job.prompt.slice(0, 30)}」を削除します。よろしいですか？`)) return;
+        try {
+            const res = await apiClient.post('', { request: 'ai_analysis_delete', id: job.id });
+            if (res.data?.status !== 'ok') {
+                setError(res.data?.message ?? '削除できませんでした。');
+                return;
+            }
+            if (selected?.kind === 'job' && selected.id === job.id) setSelected(null);
+            await loadJobs();
+        } catch (e) {
+            setError(errorMessageOf(e, '削除できませんでした。'));
+        }
+    };
 
-        return (
-            <div className="py-2">
-                {/* ⚠️ 競合分析レポート（v2.2.191）。⚠️⚠️ **全員に出す**（閲覧のみ・課金なし）。
-                      ⚠️ 登録・削除のボタンは CompetitorAnalysisReports 側で Master だけに出している */}
-                <CompetitorAnalysisReports embedded />
+    const scopeText = (job: Pick<Job, 'division' | 'section' | 'shop'>): string =>
+        [divisionLabel(job.division), job.section, job.shop].filter((v) => v !== '').join(' › ');
 
-                {/* ⚠️⚠️ **ここから下は Master だけ**（v2.2.191）。⚠️ ② の kpi_* も auth: 'master' */}
-                {isMaster && (
-                    <div className="mt-4 pt-3" style={{ borderTop: '1px solid #e8e6dc' }}>
-                        <p className="text-muted mb-3 d-flex align-items-center flex-wrap gap-2" style={{ fontSize: '13px' }}>
-                            {/* ⚠️ 管理者だけに見えていることを明示する（2026-10-15 の指示） */}
-                            <span
-                                className="px-2 py-1 fw-bold"
-                                style={{
-                                    fontSize: '11px', lineHeight: 1, borderRadius: '4px',
-                                    backgroundColor: '#fdf8f6', color: CLAUDE_ORANGE, border: `1px solid ${CLAUDE_ORANGE}`,
-                                }}
-                            >
-                                <i className="fa-solid fa-lock me-1" aria-hidden="true" />
-                                管理者専用
+    // ------------------------------------------------------------------
+    // 描画
+    // ------------------------------------------------------------------
+    return (
+        <div className="cla_wrap">
+            <style>{`
+                /* ⚠️ 全画面モーダルの Modal.Body は p-0 かつ overflow: hidden（Header.tsx）。余白と高さはこちらで持つ */
+                .cla_wrap { font-size: 13px; color: #1f2937; height: 100%; display: flex; flex-direction: column;
+                            padding: 12px 32px 20px; box-sizing: border-box; }
+                .cla_inner { width: 100%; max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column;
+                             min-height: 0; flex: 1; gap: 12px; }
+                .cla_note { font-size: 11px; color: #6b7280; line-height: 1.6; }
+                .cla_head { display: flex; align-items: center; gap: 12px; }
+                .cla_close { flex: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #d1d5db;
+                             background: #fff; color: #4b5563; border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
+                .cla_close:hover { border-color: #9ca3af; color: #1f2937; }
+                .cla_close:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
+                .cla_error { font-size: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca;
+                             border-radius: 8px; padding: 10px 12px; display: flex; gap: 8px; align-items: flex-start; }
+                .cla_error button { margin-left: auto; border: 0; background: none; color: #b91c1c; cursor: pointer; }
+
+                /* 左にカード、右に結果（競合分析と同じ形） */
+                .cla_body { display: flex; gap: 12px; flex: 1 1 auto; min-height: 0; }
+                .cla_side { width: 360px; flex: none; overflow: auto; display: flex; flex-direction: column; gap: 10px;
+                            padding-right: 2px; }
+                .cla_card { border: 1px solid #e8e6dc; border-radius: 10px; background: #fff; padding: 12px 14px;
+                            display: flex; flex-direction: column; gap: 8px; }
+                .cla_card_title { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+                .cla_row { display: flex; gap: 8px; }
+                .cla_field { display: flex; flex-direction: column; gap: 3px; flex: 1 1 0; min-width: 0; }
+                .cla_label { font-size: 11px; color: #6b7280; font-weight: 700; }
+                .cla_input { border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 8px; font-size: 12px;
+                             background: #fff; color: #1f2937; outline: none; width: 100%; }
+                .cla_input:focus { border-color: ${CLAUDE_ORANGE}; }
+                .cla_input:disabled { background: #f5f4f0; color: #9ca3af; }
+                textarea.cla_input { resize: vertical; min-height: 110px; line-height: 1.6; }
+                .cla_examples { display: flex; flex-wrap: wrap; gap: 5px; }
+                .cla_example { border: 1px solid #f0d9cc; background: #fdf8f6; color: #8a4a33; border-radius: 999px;
+                               font-size: 10.5px; padding: 3px 9px; cursor: pointer; text-align: left; line-height: 1.4; }
+                .cla_example:hover { border-color: ${CLAUDE_ORANGE}; }
+                .cla_start { border: 0; border-radius: 8px; background: ${CLAUDE_ORANGE}; color: #fff; font-size: 13px;
+                             font-weight: 700; padding: 8px 14px; cursor: pointer; }
+                .cla_start:disabled { background: #d1d5db; cursor: not-allowed; }
+                .cla_warn { font-size: 11px; color: #8a6d3b; background: #fdf8e7; border: 1px solid #f0e2b6;
+                            border-radius: 6px; padding: 6px 8px; line-height: 1.6; }
+
+                .cla_item { border: 1px solid #e8e6dc; border-radius: 10px; background: #fff; padding: 9px 11px;
+                            cursor: pointer; text-align: left; width: 100%; display: block; }
+                .cla_item:hover { border-color: ${CLAUDE_ORANGE}; }
+                .cla_item.is_on { border-color: ${CLAUDE_ORANGE}; background: #fdf8f6; }
+                .cla_item_title { font-weight: 700; font-size: 12px; line-height: 1.45; }
+                .cla_item_meta { font-size: 10px; color: #6b7280; margin-top: 4px; display: flex; gap: 5px; flex-wrap: wrap; }
+                .cla_tag { background: #f3f4f6; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+                .cla_state { display: inline-flex; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 700;
+                             border-radius: 999px; padding: 2px 7px; margin-right: 5px; vertical-align: 1px; white-space: nowrap; }
+                .cla_state.is_running { background: ${CLAUDE_ORANGE}; color: #fff; }
+                .cla_state.is_done { background: #dcfce7; color: #166534; }
+                .cla_state.is_error { background: #fee2e2; color: #991b1b; }
+                .cla_del { border: 0; background: none; color: #9ca3af; cursor: pointer; font-size: 11px; padding: 0; margin-top: 4px; }
+                .cla_del:hover { color: #dc2626; }
+                .cla_toggle { border: 0; background: none; padding: 0; font-size: 12px; font-weight: 700; color: #4b5563;
+                              cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+                .cla_view { flex: 1 1 auto; min-width: 0; border: 1px solid #e8e6dc; border-radius: 10px; background: #fff;
+                            display: flex; flex-direction: column; overflow: hidden; }
+                .cla_view_head { border-bottom: 1px solid #e8e6dc; padding: 8px 12px; display: flex; align-items: center;
+                                 gap: 8px; flex-wrap: wrap; }
+                .cla_view_scroll { flex: 1 1 auto; overflow: auto; padding: 14px 18px; }
+                .cla_frame { flex: 1 1 auto; width: 100%; border: 0; }
+                .cla_empty { padding: 48px 24px; color: #6b7280; font-size: 12.5px; line-height: 1.9; max-width: 640px; margin: 0 auto; }
+                .cla_empty h3 { font-size: 15px; color: #1f2937; margin: 0 0 8px; font-weight: 700; }
+                .cla_running { padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+                               text-align: center; }
+                .cla_progress { font-size: 14px; font-weight: 700; color: #1f2937; }
+                .cla_prompt { white-space: pre-wrap; font-size: 12px; color: #4b5563; background: #faf9f5;
+                              border: 1px solid #e8e6dc; border-radius: 8px; padding: 10px 12px; max-width: 640px; text-align: left; }
+            `}</style>
+
+            <div className="cla_inner">
+                <div className="cla_head">
+                    <button type="button" className="cla_close" onClick={onClose}>
+                        <i className="fa-solid fa-xmark" aria-hidden="true" />
+                        閉じる
+                    </button>
+                    <span className="cla_note">
+                        分析したいことを文章で書くと、Claude がダッシュボードと同じ数字を集めて深掘りし、次の打ち手まで含めたレポートを書きます。
+                        広告費の歩留まりは反響日起算、部署・店舗の歩留まりは実績日起算で数えます。
+                    </span>
+                </div>
+
+                {error !== '' && (
+                    <div className="cla_error">
+                        <i className="fa-solid fa-triangle-exclamation mt-1" aria-hidden="true" />
+                        <span>{error}</span>
+                        <button type="button" onClick={() => setError('')} aria-label="閉じる">×</button>
+                    </div>
+                )}
+
+                <div className="cla_body">
+                    {/* ───────── 左: カード ───────── */}
+                    <div className="cla_side">
+                        <div className="cla_card">
+                            <span className="cla_card_title">
+                                <i className="fa-solid fa-wand-magic-sparkles" style={{ color: CLAUDE_ORANGE }} aria-hidden="true" />
+                                新しい分析
                             </span>
-                            <span>分析したい内容を選んでください。ダッシュボードの集計値をもとに Claude が分析します。</span>
-                        </p>
 
-                        {/* 履歴の削除・復元の失敗はこの画面で起きる。
-                            結果画面にしかエラー欄が無いと、失敗が黙って握り潰される */}
-                        {error !== '' && (
-                            <div className="alert alert-danger d-flex align-items-start gap-2" style={{ fontSize: '13px' }}>
-                                <i className="fa-solid fa-triangle-exclamation mt-1" aria-hidden="true" />
-                                <span className="flex-grow-1">{error}</span>
-                                <button
-                                    type="button"
-                                    onClick={() => setError('')}
-                                    className="btn-close flex-shrink-0"
-                                    aria-label="閉じる"
-                                />
+                            <div className="cla_row">
+                                <label className="cla_field">
+                                    <span className="cla_label">事業部</span>
+                                    <select id="cla-division" className="cla_input" value={division}
+                                        onChange={(e) => { setDivision(e.target.value as Division); setSection(''); setShop(''); }}>
+                                        {DIVISIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                                    </select>
+                                </label>
+                                <label className="cla_field">
+                                    <span className="cla_label">課</span>
+                                    <select id="cla-section" className="cla_input" value={section}
+                                        onChange={(e) => { setSection(e.target.value); setShop(''); }}>
+                                        <option value="">事業部全体</option>
+                                        {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </label>
+                            </div>
+
+                            <label className="cla_field">
+                                <span className="cla_label">店舗</span>
+                                <select id="cla-shop" className="cla_input" value={shop} disabled={section === ''}
+                                    onChange={(e) => setShop(e.target.value)}>
+                                    <option value="">{section === '' ? '課を選ぶと選べます' : '課内すべて'}</option>
+                                    {shopOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </label>
+
+                            <div className="cla_row">
+                                <label className="cla_field">
+                                    <span className="cla_label">期間（開始月）</span>
+                                    <input id="cla-from" type="month" className="cla_input" value={period.from}
+                                        onChange={(e) => setPeriod((p) => ({ ...p, from: e.target.value }))} />
+                                </label>
+                                <label className="cla_field">
+                                    <span className="cla_label">期間（終了月）</span>
+                                    <input id="cla-to" type="month" className="cla_input" value={period.to}
+                                        onChange={(e) => setPeriod((p) => ({ ...p, to: e.target.value }))} />
+                                </label>
+                            </div>
+                            {periodError !== '' && <span className="cla_note" style={{ color: '#b91c1c' }}>{periodError}</span>}
+
+                            <label className="cla_field">
+                                <span className="cla_label">分析したいこと</span>
+                                <textarea id="cla-prompt" className="cla_input" value={prompt} maxLength={4000}
+                                    onChange={(e) => setPrompt(e.target.value)}
+                                    placeholder="例: 鹿児島の店舗で契約が減っている理由と、来月からできる対策を教えて" />
+                            </label>
+                            <div className="cla_examples">
+                                {EXAMPLES.map((text) => (
+                                    <button key={text} type="button" className="cla_example" onClick={() => setPrompt(text)}>
+                                        {text}
+                                    </button>
+                                ))}
+                            </div>
+                            <span className="cla_note">
+                                うまく書けなくても大丈夫です。「もっと詳しく」くらいの書き方でも、最初から深掘りして、次の打ち手まで出します。
+                            </span>
+
+                            <div className="cla_warn">
+                                <i className="fa-regular fa-clock me-1" aria-hidden="true" />
+                                分析には <b>5〜15分ほど</b>かかります。画面を閉じても分析は続き、終わると下の一覧に出ます。
+                                <br />1人1日 {dailyLimit} 回まで（今日 {usedToday} 回）。実行のたびに費用がかかります。
+                            </div>
+
+                            <button type="button" className="cla_start" disabled={!canStart}
+                                onClick={() => { void start(); }}>
+                                {starting ? '受け付けています…' : myActive ? 'あなたの分析が実行中です' : limitReached ? '今日の上限に達しました' : '分析を始める'}
+                            </button>
+                        </div>
+
+                        <span className="cla_card_title mt-1">分析の一覧</span>
+                        {jobs.length === 0 && <span className="cla_note">まだ分析がありません。</span>}
+                        {jobs.map((job) => (
+                            <div key={job.id}>
+                                <button type="button"
+                                    className={`cla_item${selected?.kind === 'job' && selected.id === job.id ? ' is_on' : ''}`}
+                                    onClick={() => setSelected({ kind: 'job', id: job.id })}>
+                                    <span className="cla_item_title d-block">
+                                        {isActive(job.status) && <span className="cla_state is_running"><i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />実行中</span>}
+                                        {job.status === 'error' && <span className="cla_state is_error">失敗</span>}
+                                        {job.status === 'done' && <span className="cla_state is_done">完了</span>}
+                                        {job.title !== '' ? job.title : job.prompt.slice(0, 60)}
+                                    </span>
+                                    <span className="cla_item_meta">
+                                        <span className="cla_tag">{scopeText(job)}</span>
+                                        <span className="cla_tag">{job.from}〜{job.to}</span>
+                                        <span className="cla_tag">{shortTime(job.createdAt)}</span>
+                                        <span className="cla_tag">{job.staffName || '－'}</span>
+                                    </span>
+                                </button>
+                                {!isActive(job.status) && (isMaster || job.staffId === myStaffId) && (
+                                    <button type="button" className="cla_del" onClick={() => { void remove(job); }}>削除</button>
+                                )}
+                            </div>
+                        ))}
+
+                        {legacy.length > 0 && (
+                            <>
+                                <button type="button" className="cla_toggle mt-2" onClick={() => setLegacyOpen((v) => !v)}>
+                                    <i className={`fa-solid fa-chevron-${legacyOpen ? 'down' : 'right'}`} aria-hidden="true" />
+                                    過去の定型分析（{legacy.length}件）
+                                </button>
+                                {legacyOpen && legacy.map((item) => (
+                                    <button key={item.id} type="button"
+                                        className={`cla_item${selected?.kind === 'legacy' && selected.item.id === item.id ? ' is_on' : ''}`}
+                                        onClick={() => { void openLegacy(item); }}>
+                                        <span className="cla_item_title d-block">{item.title}</span>
+                                        <span className="cla_item_meta">
+                                            <span className="cla_tag">{item.created_at.slice(0, 10)}</span>
+                                            <span className="cla_tag">{item.staff_name ?? '－'}</span>
+                                        </span>
+                                    </button>
+                                ))}
+                            </>
+                        )}
+                    </div>
+
+                    {/* ───────── 右: 結果 ───────── */}
+                    <div className="cla_view">
+                        {selected === null && (
+                            <div className="cla_empty">
+                                <h3>Claude に分析を頼む</h3>
+                                左の「新しい分析」で、事業部・課・店舗・期間を選び、知りたいことを書いて「分析を始める」を押してください。
+                                <br />Claude がダッシュボードの数字を自分で何度も集計しながら、推移・内訳・比較・ファネルの順に掘り下げ、
+                                最後に「次の打ち手」まで書いたレポートを出します。
+                                <br /><br />
+                                <b>分析には5〜15分ほどかかります。</b>待っているあいだにほかの画面を使っても、この画面を閉じても大丈夫です。
+                                <br />終わった分析は、左の一覧からいつでも開けます（開くだけなら費用はかかりません）。
                             </div>
                         )}
 
-                        {/* 分析対象。部門 → 課 → 店舗 → スタッフ の順に絞り込める。
-                            親を選ばないと子は選べない（サーバー側も同じ制約で検証する） */}
-                        <div className="row g-2 mb-2">
-                            <div className="col-6 col-md-3">
-                                <label htmlFor="claude-division" className="form-label fw-bold mb-1" style={{ fontSize: '12px' }}>
-                                    分析対象
-                                </label>
-                                <select
-                                    id="claude-division"
-                                    className="form-select form-select-sm"
-                                    value={division}
-                                    onChange={(e) => changeDivision(e.target.value as Division)}
-                                    style={selectStyle}
-                                >
-                                    {DIVISIONS.map((d) => (
-                                        <option key={d.value} value={d.value}>{d.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="col-6 col-md-3">
-                                <label htmlFor="claude-section" className="form-label fw-bold mb-1" style={{ fontSize: '12px' }}>
-                                    課を選択
-                                </label>
-                                {/* 分析対象は常に選択済みなので、この欄も初回描画から操作できる。
-                                    マスタ取得中は選択肢がまだ無いことだけを伝える */}
-                                <select
-                                    id="claude-section"
-                                    className="form-select form-select-sm"
-                                    value={section}
-                                    onChange={(e) => changeSection(e.target.value)}
-                                    style={selectStyle}
-                                >
-                                    <option value="">部門全体</option>
-                                    {/* value を空にすると「部門全体」と重複するため別値にする。
-                                        disabled なので選択されることはない */}
-                                    {masterLoading && <option value="__loading" disabled>読み込み中…</option>}
-                                    {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-
-                            <div className="col-6 col-md-3">
-                                <label htmlFor="claude-shop" className="form-label fw-bold mb-1" style={{ fontSize: '12px' }}>
-                                    店舗を選択
-                                </label>
-                                <select
-                                    id="claude-shop"
-                                    className="form-select form-select-sm"
-                                    value={shop}
-                                    onChange={(e) => changeShop(e.target.value)}
-                                    disabled={section === ''}
-                                    style={selectStyle}
-                                >
-                                    <option value="">課内すべて</option>
-                                    {shopOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-
-                            <div className="col-6 col-md-3">
-                                <label htmlFor="claude-staff" className="form-label fw-bold mb-1" style={{ fontSize: '12px' }}>
-                                    スタッフを選択
-                                </label>
-                                <select
-                                    id="claude-staff"
-                                    className="form-select form-select-sm"
-                                    value={staff}
-                                    onChange={(e) => setStaff(e.target.value)}
-                                    disabled={shop === ''}
-                                    style={selectStyle}
-                                >
-                                    <option value="">店舗内すべて</option>
-                                    {staffOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        <p className="text-muted mb-3" style={{ fontSize: '12px' }}>
-                            <i className="fa-solid fa-filter me-1" aria-hidden="true" />
-                            {scopeLabel} のデータを分析します
-                        </p>
-
-                        <div className="row g-2">
-                            {MENUS.map((menu) => {
-                                // 店舗を絞り込んでいる間は「店舗別サマリー」を選べない
-                                const blocked   = menu.type === 'shop' && shopSummaryBlocked;
-                                const available = AVAILABLE.has(menu.type) && !blocked;
-                                const badge     = blocked ? '対象外' : (!AVAILABLE.has(menu.type) ? '準備中' : null);
-                                const tip       = blocked
-                                    ? '店舗・スタッフを絞り込んでいる間は選択できません'
-                                    : (available ? menu.description : '準備中です');
-
-                                return (
-                                    <div key={menu.type} className="col-12 col-md-6 col-lg-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSelect(menu)}
-                                            disabled={!available}
-                                            title={tip}
-                                            className="btn w-100 h-100 text-start d-flex align-items-start gap-2 p-3 position-relative"
-                                            style={{
-                                                fontSize: '13px',
-                                                border: '1px solid #e8e6dc',
-                                                borderRadius: '8px',
-                                                backgroundColor: available ? '#fff' : '#f5f4f0',
-                                                boxShadow: 'none',
-                                                // 選べないメニューは薄く見せる（表示自体は残す）
-                                                opacity: available ? 1 : 0.5,
-                                                cursor: available ? 'pointer' : 'not-allowed',
-                                                // Bootstrap の disabled 既定より、上の opacity を優先させる
-                                                pointerEvents: 'auto',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!available) return;
-                                                e.currentTarget.style.borderColor = CLAUDE_ORANGE;
-                                                e.currentTarget.style.backgroundColor = '#fdf8f6';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                if (!available) return;
-                                                e.currentTarget.style.borderColor = '#e8e6dc';
-                                                e.currentTarget.style.backgroundColor = '#fff';
-                                            }}
-                                        >
-                                            <i
-                                                className={`fa-solid ${menu.icon} mt-1`}
-                                                style={{ color: available ? CLAUDE_ORANGE : '#b0aea5', width: '16px' }}
-                                                aria-hidden="true"
-                                            />
-                                            <span>
-                                                <span className="d-block fw-bold text-dark">{menu.label}</span>
-                                                <span className="d-block text-muted mt-1" style={{ fontSize: '12px' }}>
-                                                    {blocked ? tip : menu.description}
-                                                </span>
-                                            </span>
-
-                                            {badge !== null && (
-                                                <span
-                                                    className="position-absolute top-0 end-0 mt-2 me-2 px-2 py-1"
-                                                    style={{
-                                                        fontSize: '10px',
-                                                        backgroundColor: '#e8e6dc',
-                                                        color: '#6c6a63',
-                                                        borderRadius: '4px',
-                                                        lineHeight: 1,
-                                                    }}
-                                                >
-                                                    {badge}
-                                                </span>
-                                            )}
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <p className="text-muted mt-3 mb-0" style={{ fontSize: '12px' }}>
-                            <i className="fa-regular fa-clock me-1" aria-hidden="true" />
-                            分析には40〜60秒かかります。1回あたり十数円の費用が発生します。
-                        </p>
-
-                        {/* 保存済みの分析。開いても課金は発生しない */}
-                        {history.length > 0 && (
-                            <div className="mt-4">
-                                <div className="d-flex align-items-center gap-2 mb-2">
+                        {selected?.kind === 'job' && selectedJob !== null && (
+                            <>
+                                <div className="cla_view_head">
                                     <span className="fw-bold" style={{ fontSize: '13px' }}>
-                                        <i className="fa-regular fa-bookmark me-1" style={{ color: CLAUDE_ORANGE }} aria-hidden="true" />
-                                        保存済みの分析
+                                        {selectedJob.title !== '' ? selectedJob.title : '分析中'}
                                     </span>
-                                    <span className="text-muted" style={{ fontSize: '11px' }}>
-                                        開いても課金は発生しません（全{historyTotal}件）
+                                    <span className="cla_tag">{scopeText(selectedJob)}</span>
+                                    <span className="cla_tag">{selectedJob.from}〜{selectedJob.to}</span>
+                                    <span className="cla_note ms-auto">
+                                        {selectedJob.staffName}・{shortTime(selectedJob.createdAt)}
+                                        {selectedJob.status === 'done' && selectedJob.costUsd !== null && `・約 $${selectedJob.costUsd.toFixed(2)}`}
                                     </span>
                                 </div>
 
-                                {history.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        className="d-flex align-items-start gap-2 px-3 py-2 mb-1"
-                                        style={{ border: '1px solid #e8e6dc', borderRadius: '8px', backgroundColor: '#fff' }}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={() => void openHistory(item)}
-                                            className="btn btn-link p-0 text-start flex-grow-1"
-                                            style={{ fontSize: '12px', textDecoration: 'none', color: 'inherit' }}
-                                        >
-                                            <span className="d-block fw-bold text-dark">{item.title}</span>
-                                            <span
-                                                className="d-block text-muted mt-1"
-                                                style={{
-                                                    fontSize: '11px', lineHeight: 1.6,
-                                                    display: '-webkit-box', WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                                                }}
-                                            >
-                                                {item.headline}
-                                            </span>
-                                            <span className="d-block text-muted mt-1" style={{ fontSize: '10px' }}>
-                                                {formatSavedAt(item.created_at)}
-                                                {item.staff_name !== null && ` ／ ${item.staff_name}`}
-                                            </span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => void deleteHistory(item)}
-                                            className="btn btn-sm btn-link text-muted p-1 flex-shrink-0"
-                                            title="この分析結果を削除"
-                                            style={{ fontSize: '12px' }}
-                                        >
-                                            <i className="fa-regular fa-trash-can" aria-hidden="true" />
+                                {isActive(selectedJob.status) && (
+                                    <div className="cla_running">
+                                        <div className="spinner-border" style={{ color: CLAUDE_ORANGE }} role="status">
+                                            <span className="visually-hidden">分析中</span>
+                                        </div>
+                                        <span className="cla_progress">{selectedJob.progress}</span>
+                                        <span className="cla_note">
+                                            {elapsedText(selectedJob.elapsedSec, fetchedAt, now)} 経過・データを集めた回数 {selectedJob.toolCalls} 回
+                                        </span>
+                                        <span className="cla_note">
+                                            5〜15分ほどかかります。画面を閉じても分析は続きます。終わると左の一覧に「完了」と出ます。
+                                        </span>
+                                        <div className="cla_prompt">{selectedJob.prompt}</div>
+                                    </div>
+                                )}
+
+                                {selectedJob.status === 'error' && (
+                                    <div className="cla_empty">
+                                        <div className="cla_error mb-3">
+                                            <i className="fa-solid fa-triangle-exclamation mt-1" aria-hidden="true" />
+                                            <span>{selectedJob.errorMessage || '分析に失敗しました。'}</span>
+                                        </div>
+                                        <div className="cla_prompt">{selectedJob.prompt}</div>
+                                        <button type="button" className="cla_example mt-2"
+                                            onClick={() => setPrompt(selectedJob.prompt)}>
+                                            この依頼文を左の欄に入れる
                                         </button>
                                     </div>
-                                ))}
-
-                                {/* 上限まで到達したらボタンを出さない。
-                                    押しても増えないボタンが残ると壊れて見える */}
-                                {historyTotal > history.length && history.length < HISTORY_MAX_COUNT && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setHistoryLimit((n) => Math.min(n + HISTORY_PAGE_SIZE, HISTORY_MAX_COUNT))}
-                                        className="btn btn-sm btn-link p-0 mt-1"
-                                        style={{ fontSize: '12px', color: CLAUDE_ORANGE, textDecoration: 'none' }}
-                                    >
-                                        もっと見る（残り {historyTotal - history.length} 件）
-                                    </button>
                                 )}
-                            </div>
+
+                                {selectedJob.status === 'done' && (
+                                    html?.id === selectedJob.id ? (
+                                        // ⚠️ sandbox は allow-scripts だけ（グラフのスクリプトは動かす。ログイン情報は読ませない）
+                                        <iframe className="cla_frame" title={selectedJob.title} sandbox="allow-scripts" srcDoc={html.html} />
+                                    ) : (
+                                        <div className="cla_running"><span className="cla_note">レポートを開いています…</span></div>
+                                    )
+                                )}
+                            </>
+                        )}
+
+                        {selected?.kind === 'legacy' && (
+                            <>
+                                <div className="cla_view_head">
+                                    <span className="fw-bold" style={{ fontSize: '13px' }}>{selected.item.title}</span>
+                                    <span className="cla_tag">過去の定型分析</span>
+                                </div>
+                                <div className="cla_view_scroll">
+                                    {legacyBody === null
+                                        ? <span className="cla_note">開いています…</span>
+                                        : <ClaudeAnalysisResult type={selected.item.analysis_type} snapshot={legacyBody.kpi} analysis={legacyBody.analysis} />}
+                                </div>
+                            </>
                         )}
                     </div>
-                )}
+                </div>
             </div>
-        );
-    }
-
-    // ------------------------------------------------------------------
-    // 選択後（入力・実行中・結果）
-    // ------------------------------------------------------------------
-    return (
-        <div className="py-2">
-            <div className="d-flex align-items-center flex-wrap gap-2 mb-3">
-                <button
-                    type="button"
-                    onClick={reset}
-                    disabled={loading}
-                    className="btn btn-sm btn-outline-secondary"
-                    style={{ fontSize: '12px' }}
-                >
-                    <i className="fa-solid fa-chevron-left me-1" aria-hidden="true" />
-                    メニューへ戻る
-                </button>
-                <span className="fw-bold" style={{ fontSize: '14px' }}>{selected.label}</span>
-
-                {/* どの範囲の分析か。結果を取り違えないよう常に表示する */}
-                <span
-                    className="px-2 py-1"
-                    style={{
-                        fontSize: '11px',
-                        borderRadius: '4px',
-                        backgroundColor: '#fdf8f6',
-                        color: CLAUDE_ORANGE,
-                        border: `1px solid ${CLAUDE_ORANGE}`,
-                        lineHeight: 1.4,
-                    }}
-                >
-                    {restored !== null && snapshot !== null
-                        ? ((snapshot as { scope_label?: string }).scope_label ?? scopeLabel)
-                        : scopeLabel}
-                </span>
-
-                {restored !== null && (
-                    <span
-                        className="px-2 py-1"
-                        style={{
-                            fontSize: '11px', borderRadius: '4px', lineHeight: 1.4,
-                            backgroundColor: '#f0efe9', color: '#5c5a52',
-                        }}
-                    >
-                        <i className="fa-regular fa-bookmark me-1" aria-hidden="true" />
-                        保存済み
-                    </span>
-                )}
-
-                {/* 印刷プレビュー。グラフ付きの構造化結果だけが対象。
-                    Markdown のサンプル表示には出さない（印刷する意味がない） */}
-                {structured !== null && snapshot !== null && !loading && (
-                    <button
-                        type="button"
-                        onClick={() => setPrinting(true)}
-                        className="btn btn-sm ms-auto"
-                        style={{
-                            fontSize: '12px',
-                            border: `1px solid ${CLAUDE_ORANGE}`,
-                            color: CLAUDE_ORANGE,
-                            backgroundColor: '#fff',
-                        }}
-                    >
-                        <i className="fa-solid fa-file-pdf me-1" aria-hidden="true" />
-                        プレビュー / PDF
-                    </button>
-                )}
-            </div>
-
-            {/* 「その他」の入力欄 */}
-            {selected.type === 'custom' && result === '' && (
-                <div className="mb-3">
-                    <label className="form-label text-muted" style={{ fontSize: '13px' }}>
-                        分析したい内容を記入してください
-                    </label>
-                    <textarea
-                        className="form-control"
-                        rows={4}
-                        value={customText}
-                        onChange={(e) => setCustomText(e.target.value)}
-                        placeholder="例：直近3ヶ月で失注が増えている店舗と、その共通点を教えてください"
-                        style={{ fontSize: '13px' }}
-                        disabled={loading}
-                    />
-                    <button
-                        type="button"
-                        onClick={() => void runAnalysis(selected)}
-                        disabled={loading || customText.trim() === ''}
-                        className="btn mt-2"
-                        style={{
-                            fontSize: '13px',
-                            backgroundColor: CLAUDE_ORANGE,
-                            borderColor: CLAUDE_ORANGE,
-                            color: '#fff',
-                        }}
-                    >
-                        <span>分析する</span>
-                    </button>
-                </div>
-            )}
-
-            {/* 実行中 */}
-            {loading && (
-                <div className="text-center py-5">
-                    <div className="spinner-border" style={{ color: CLAUDE_ORANGE }} role="status">
-                        <span className="visually-hidden">分析中</span>
-                    </div>
-                    {/* 保存済みの読み込みは一瞬で終わるため、待ち時間の案内は出さない */}
-                    {!restoring && (
-                        <>
-                            <p className="text-muted mt-3 mb-0" style={{ fontSize: '13px' }}>
-                                分析中です… {elapsed} 秒経過
-                            </p>
-                            <p className="text-muted mb-0" style={{ fontSize: '12px' }}>
-                                通常40〜60秒かかります。画面を閉じずにお待ちください。
-                            </p>
-                        </>
-                    )}
-                </div>
-            )}
-
-            {/* エラー */}
-            {error !== '' && (
-                <div className="alert alert-danger" style={{ fontSize: '13px' }}>
-                    <i className="fa-solid fa-triangle-exclamation me-2" aria-hidden="true" />
-                    {error}
-                </div>
-            )}
-
-            {/* 注意書き（未実装のサンプル表示など） */}
-            {notice !== '' && (
-                <div className="alert" style={{ fontSize: '12px', backgroundColor: '#fdf8f6', border: `1px solid ${CLAUDE_ORANGE}`, color: '#8a4a33' }}>
-                    <i className="fa-solid fa-circle-info me-2" aria-hidden="true" />
-                    {notice}
-                </div>
-            )}
-
-            {/* 結果：構造化（グラフ付きダッシュボード） */}
-            {structured !== null && snapshot !== null && !loading && (
-                <ClaudeAnalysisResult
-                    type={selected.type as AnalysisKind}
-                    snapshot={snapshot}
-                    analysis={structured}
-                />
-            )}
-
-            {/* 結果：Markdown（未実装タイプのサンプル表示など） */}
-            {result !== '' && !loading && (
-                <div
-                    className="claude-analysis-result px-3 py-2"
-                    style={{
-                        fontSize: '13px',
-                        lineHeight: 1.8,
-                        backgroundColor: '#faf9f5',
-                        border: '1px solid #e8e6dc',
-                        borderRadius: '8px',
-                    }}
-                >
-                    <ReactMarkdown>{result}</ReactMarkdown>
-                </div>
-            )}
-
-            {/* 出所。新規実行なら課金メタ、復元なら保存日時と実行者 */}
-            {(structured !== null || result !== '') && !loading && (
-                <>
-                    {restored !== null ? (
-                        <p className="text-muted mt-2 mb-0" style={{ fontSize: '11px' }}>
-                            {formatSavedAt(restored.createdAt)} に保存された分析結果です
-                            {restored.staffName !== null && `（実行者: ${restored.staffName}）`}
-                            ／{restored.model}／再実行していないため課金は発生していません
-                        </p>
-                    ) : meta !== null && (
-                        <p className="text-muted mt-2 mb-0" style={{ fontSize: '11px' }}>
-                            {meta.model}／入力 {meta.input_tokens.toLocaleString()} トークン・
-                            出力 {meta.output_tokens.toLocaleString()} トークン／
-                            {meta.cost_usd !== null && `約 $${meta.cost_usd.toFixed(4)}／`}
-                            {(meta.duration_ms / 1000).toFixed(1)} 秒／
-                            本日 {meta.used_today} / {meta.daily_limit} 回
-                        </p>
-                    )}
-                </>
-            )}
-
-            {/* 印刷プレビュー。body 直下のポータルに描画される */}
-            {printing && structured !== null && snapshot !== null && (
-                <ClaudeAnalysisPrint
-                    type={selected.type as AnalysisKind}
-                    snapshot={snapshot}
-                    analysis={structured}
-                    title={restored?.title ?? selected.label}
-                    scopeLabel={
-                        restored !== null
-                            ? ((snapshot as { scope_label?: string }).scope_label ?? scopeLabel)
-                            : scopeLabel
-                    }
-                    model={restored?.model ?? meta?.model ?? ''}
-                    savedAt={restored?.createdAt ?? null}
-                    staffName={restored?.staffName ?? (userName === '' ? null : userName)}
-                    onClose={() => setPrinting(false)}
-                />
-            )}
         </div>
     );
 };

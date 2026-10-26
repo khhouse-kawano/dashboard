@@ -132,6 +132,11 @@ function expressProxyRequests(): array
         //     （① の campaign_form.php が「② が10分以内に保存した同じ人」を飛ばすので、見積もりは防げる）
         'estimate_entry',
         'owners_house_reservation',
+        // ⚠️ v2.2.217。Claudeによる分析（Dashboard からの自由分析）。⚠️ ② のみ（① に PHP 版は無い）
+        'ai_analysis_start',
+        'ai_analysis_list',
+        'ai_analysis_get',
+        'ai_analysis_delete',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
@@ -770,6 +775,12 @@ function expressProxyExclusive(): array
         'analysis_report_get',
         'analysis_report_upload',
         'analysis_report_delete',
+
+        // v2.2.217 新規。Claudeによる分析。⚠️ 分析は ② の中で数分かけて続くため、① では代われない
+        'ai_analysis_start',
+        'ai_analysis_list',
+        'ai_analysis_get',
+        'ai_analysis_delete',
 
         // -----------------------------------------------------------------
         // v2.2.215 新規。オーナーズハウス募集（owners_house_application）の一覧と過去メールの取り込み。

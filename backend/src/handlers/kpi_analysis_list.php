@@ -12,7 +12,7 @@
  *   1件あたり数十KBあり、一覧で全部返すと無駄に重くなる。
  *   本体は kpi_analysis_get で1件ずつ取る。
  *
- * Master権限者だけが使う機能のため、一覧は実行者を問わず全件を返し、
+ * Master・BrandAdmin・Manager（v2.2.217〜）だけが使う機能のため、一覧は実行者を問わず全件を返し、
  * 誰が実行したかを staff_name で示す。
  */
 
@@ -20,7 +20,7 @@ require_once __DIR__ . '/../core/authz.php';
 require_once __DIR__ . '/../core/kpi.php';
 
 try {
-    requireMaster($pdo, $headers);
+    requireKpiAnalyst($pdo, $headers);
 
     // 上限を設けないと、履歴が増えたときに一覧だけで重くなる
     $limit  = (int)($data['limit']  ?? 20);
