@@ -1,0 +1,117 @@
+# デプロイ手順 v2.2.217　Claudeによる分析（Dashboard からの自由分析）・権限「マネージャー」
+
+| # | 何が変わるか | どこ |
+|---|---|---|
+| 1 | 新しい表 `ai_analysis_job`（分析の実行記録と結果） | ① DB `backend/scripts/sql/2026-10-26_ai_analysis_job.sql` |
+| 2 | 分析の本体（Claude を呼ぶ）・新しい request 4つ・権限 Manager | ⚠️ **② VPS（再ビルド）**。⚠️ **.env.prod に `ANTHROPIC_API_KEY` を足す** |
+| 3 | ① から ② への転送・定型分析の閲覧の権限・権限の許可リスト | ① PHP 6ファイル |
+| 4 | 画面（Claudeによる分析の作り直し・競合分析の改名・権限の選択肢） | ① フロント（いつもの手順） |
+| 5 | 更新履歴・業務ガイドの記事3本 | ① DB `backend/scripts/sql/2026-10-26_update_log_2.2.217.sql` |
+
+## 順序
+```
+0. GitHub で v2.2.217 を main → production へマージ
+1. ① SQL（新しい表）               ← ⚠️ 2 より先（② が起動時にこの表を読む）
+2. ② API キーを .env.prod に入れて再ビルド
+3. ① PHP（6ファイル）              ← ⚠️ 2 の後
+4. ① フロント                      ← ⚠️ 2・3 の後
+5. ① SQL（更新履歴・ガイド）
+```
+
+## 手順1　【① phpMyAdmin】新しい表
+ファイル: `backend/scripts/sql/2026-10-26_ai_analysis_job.sql`
+
+確認: `SHOW TABLES LIKE 'ai_analysis_job';` で1行出る。
+
+## 手順2　【Claude Console → ② VPS】API キー・再ビルド
+
+### 2-1. Claude Console で API キーを発行する
+1. https://platform.claude.com/ にログインし、**API Keys** を開く
+2. **Create Key** を押し、名前を `dashboard-analysis` などにして作る
+3. 表示されたキー（`sk-ant-` で始まる）をコピーする。⚠️ **この画面でしか表示されない。** チャットやメールに貼らない
+4. （推奨）**Limits** で月の使用額の上限を決めておく（費用の暴走を防ぐ最後の安全装置）
+
+### 2-2. ② の .env.prod に入れる
+```bash
+cd ~/dashboard
+nano .env.prod
+```
+末尾に1行足して保存する（`=` の前後に空白を入れない）。
+```
+ANTHROPIC_API_KEY=sk-ant-（2-1 でコピーしたキー）
+```
+⚠️ **このファイルは Git に入れない。** キーをリポジトリ・docs・チャットに書かない。
+
+### 2-3. 再ビルド
+```bash
+cd ~/dashboard
+git fetch --depth 1 origin production
+git checkout FETCH_HEAD
+```
+```bash
+ls backend-express/src/features/aiAnalysis/
+```
+⚠️ `index.ts job.ts prompt.ts runner.ts tools.ts` の5つが出ること。
+```bash
+dcp build express-api
+```
+⚠️ 新しいライブラリ（`@anthropic-ai/sdk`）を入れたため、**build を省略しないこと。**
+```bash
+dcp up -d express-api
+```
+確認1（キーが入ったか。⚠️ 値は表示しない）:
+```bash
+dcp exec express-api sh -c '[ -n "$ANTHROPIC_API_KEY" ] && echo SET || echo EMPTY'
+```
+⚠️ `SET` ならよい。`EMPTY` なら .env.prod の綴りと、`docker-compose.prod.yml` が新しい版か（`ANTHROPIC_API_KEY` の行があるか）を見る。
+
+確認2（受け口ができたか。保存も課金もされない）:
+```bash
+curl -s -X POST https://api.khg-marketing.info/api/gateway -H 'Content-Type: application/json' -d '{"request":"ai_analysis_list"}'
+```
+⚠️ `認証が必要です。`（401）が返ればよい（`該当する処理がありません` なら再ビルドが反映されていない）。
+
+## 手順3　【① FTP】PHP
+アップロード（`/dashboard/api/gateway/` の下）:
+- `core/express_proxy.php`（新しい request 4つを転送の許可リストと「② だけ」のリストに足した）
+- `core/authz.php`（`requireKpiAnalyst()` を足した）
+- `handlers/kpi_filter_master.php`・`handlers/kpi_analysis_list.php`・`handlers/kpi_analysis_get.php`（Master だけ → 3つの権限）
+- `handlers/header_auth_insert.php`（許可する権限に Manager を足した）
+
+確認（トークン無し。① を通して ② まで届くか）:
+```bash
+curl -s -X POST https://khg-marketing.info/dashboard/api/gateway/ -H 'Content-Type: application/json' -d '{"request":"ai_analysis_list"}'
+```
+⚠️ `認証が必要です。`（401）。⚠️ `該当する処理がありません`（404）なら express_proxy.php が古い。
+
+## 手順4　【① フロント】いつもの手順
+
+## 手順5　【① phpMyAdmin】更新履歴・業務ガイド
+ファイル: `backend/scripts/sql/2026-10-26_update_log_2.2.217.sql`（更新履歴1行と、記事「Claudeによる分析」「営業別契約率」「業務ガイドの書き方（編集できる人向け）」の上書き）
+
+## 終わったら（動作確認）
+1. Master でログインし、ヘッダー左上の「Claudeによる分析」を開く（全画面で、左に条件、右に説明が出る）
+2. 事業部・期間を選び、短い依頼（例: 「直近半年の契約の動きを教えて」）で1回だけ実行する
+   - ⚠️ **本物の Claude を呼ぶので費用がかかる**（1回 数百円程度の見込み。依頼の深さで変わる）
+   - 5〜15分で一覧に「完了」が出て、右にレポートが出る。数字をもとの画面（店舗・担当別反響／販促媒体別広告費）と見比べる
+3. 一般の権限の人には「Claudeによる分析」のボタンが出ないこと、ヘッダーの「他社動向」に「競合分析」があることを確かめる
+4. 使ってほしい人の権限を「権限編集」で **マネージャー** に変える（ブランド管理者は今までどおり使える）
+
+## API キーを差し替えるとき（あとから）
+1. Claude Console で新しいキーを作る（2-1 と同じ）
+2. ⚠️ **実行中の分析が無いときに行う**（② を作り直すと、実行中の分析は「中断」で失敗になる）。① の phpMyAdmin で確かめる:
+   ```sql
+   SELECT id, staff_name, status FROM ai_analysis_job WHERE status IN ('queued','running') AND deleted_at IS NULL;
+   ```
+   0行ならよい。
+3. ② の `.env.prod` の `ANTHROPIC_API_KEY=` の行を新しいキーに書き換える
+4. `dcp up -d express-api`（⚠️ キーの差し替えだけなら build は不要。環境変数は作り直しで読み直される）
+5. 確認1（`SET`）を流す
+6. Claude Console で古いキーを無効にする（Disable / Delete）
+
+> 注意：v2.2.216 までの定型分析（① の `kpi_analyze`）が使っていたキーは、① の DB（api_credential）に入っている。v2.2.217 で画面から定型分析を外したため、もう使われない。不要なら Claude Console でそのキーを無効にしてよい。
+
+## 費用と上限（② のコードで決めている値）
+- モデル: Claude Opus 5.5（思考の深さ high）。1回の分析でデータを取りに行くのは最大40往復
+- 1人1日5回まで（失敗・削除した分も数える）。自分の分析が実行中のあいだは次を始められない。全体で同時3件まで
+- 1回の費用の目安は、一覧で完了した分析を開くと右上に出る（`約 $`）

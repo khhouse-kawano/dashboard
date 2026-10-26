@@ -57,8 +57,10 @@ curl -s -X POST https://api.khg-marketing.info/api/gateway -H 'Content-Type: app
 - `handlers/owners_house_reservation.php`（新規）
 - `core/express_proxy.php`（許可リストに2つ足した）
 
-## 手順3　【8サイト FTP】form/api/index.php
-`Downloads/upload_v2.2.216/form_api/index.php` を、8サイトの `form/api/index.php` に上書き（一覧は deploy-v2.2.213.md）。
+## 手順3　【kh-house.jp・JH のサイト FTP】form/api/index.php
+`Downloads/upload_v2.2.216/form_api/index.php` を、**kh-house.jp（オーナーズハウス）と JH のサイト（簡単見積もり）の `form/api/index.php` にだけ**上書きする。
+- ほかの6サイト（DJH・なごみ・2L・FH・PGH など）は今回は不要。予備の送り直しは「画面を置いたサイト自身の /form/api/」へ行くため（2L はサーバーから①へ直接送るので使わない）。
+- ⚠️ ただし v2.2.213 の form/api をまだ置いていないサイトには、この版を置けば v2.2.213 の分も入る（中身は v2.2.213 に2つ足しただけ）。
 
 確認（保存されない）:
 ```bash

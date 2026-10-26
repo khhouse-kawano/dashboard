@@ -1,11 +1,11 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
-import ClaudeIcon, { CLAUDE_ORANGE } from './ClaudeIcon';
+import { CLAUDE_ORANGE } from './ClaudeIcon';
 import { toLocalDate } from '../../utils/toLocalDate';
 
 /**
- * Claudeによる競合分析（ヘッダー → 他社動向 → Claudeによる競合分析）。
+ * 競合分析（ヘッダー → 他社動向 → 競合分析）。
  *
  * ─────────────────────────────────────────────
  * ⚠️⚠️ **この画面は Claude を呼ばない。課金は一切発生しない。**
@@ -126,7 +126,7 @@ type Props = {
     /**
      * Claudeによる分析（ClaudeAnalysis.tsx）の上部に埋め込むとき true（v2.2.191）。
      *
-     * ⚠️⚠️ **既定（false）は全画面モーダル用**（他社動向 →「Claudeによる競合分析」）。
+     * ⚠️⚠️ **既定（false）は全画面モーダル用**（他社動向 →「競合分析」）。
      *   ⚠️ 全画面では高さを画面いっぱいに使うが、⚠️ **xl のモーダルの中では親に高さが無い。**
      *   ⚠️ ⚠️ **埋め込み時は一覧と本文の高さを 60vh に固定し、外側の余白を外す**（`car_embedded`）。
      */
@@ -400,10 +400,8 @@ const CompetitorAnalysisReports = ({ embedded = false }: Props) => {
 
             <div className="car_inner">
                 <div className="car_head">
-                    <span className="car_title">
-                        <ClaudeIcon height={16} />
-                        による競合分析
-                    </span>
+                    {/* ⚠️ v2.2.217 で Claude のロゴを外し「競合分析」にした（指示書） */}
+                    <span className="car_title">競合分析</span>
                     <span className="car_note">
                         Claude Desktop で作成した分析レポートを保存して閲覧します。
                         {/* ⚠️ 課金が発生しないことを明記する。以前は画面から実行していた */}

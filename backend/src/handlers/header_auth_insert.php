@@ -10,7 +10,7 @@ $brand = $data['brand'] ?? 'ordinary';
 
 // 権限は許可リストで検証する。リクエストの値がそのまま入ると
 // 想定外の権限文字列が保存され、画面上どの選択肢にも一致しなくなる。
-$allowedBrands = ['Master', 'BrandAdmin', 'ordinary'];
+$allowedBrands = ['Master', 'BrandAdmin', 'Manager', 'ordinary'];
 
 if ($name === '') {
     echo json_encode(["status" => "error", "message" => "氏名を入力してください。"], JSON_UNESCAPED_UNICODE);

@@ -47,7 +47,11 @@ import { logger } from '../utils/logger';
  * ⚠️ `insideSales` は Menu.tsx の「ISカレンダー」の判定に使われている。
  *   ⚠️ 選択肢に無いので**この画面からは付与できない**（2026-10-05 時点の指示どおり）。
  */
-export const AUTH_BRANDS = ['Master', 'BrandAdmin', 'ordinary', 'Consulting'] as const;
+/*
+ * ⚠️ `Manager`（マネージャー）は v2.2.217 で追加。⚠️ いまは「Claudeによる分析」を使えることだけが違う。
+ *   ⚠️ 一般（ordinary）でないため、`!== 'ordinary'` で判定している画面では一般より広く見える。
+ */
+export const AUTH_BRANDS = ['Master', 'BrandAdmin', 'Manager', 'ordinary', 'Consulting'] as const;
 
 /**
  * 事業区分（`staff.shop`）として保存してよい値。⚠️ 画面の選択肢もこの順。

@@ -41,9 +41,14 @@ import AuthContext from '../../context/AuthContext';
  * ⚠️⚠️ **② の AUTH_BRANDS（features/staffAdmin.ts）と同じ並び・同じ値にすること。**
  *   ⚠️ ここだけ増やしても ② が「許可されていない権限です」で弾く。
  */
+/*
+ * ⚠️ v2.2.217: Manager を追加し、BrandAdmin の表示名を「マネージャー」から「ブランド管理者」に変えた
+ *   （同じ表示名が2つにならないように。2026-10-26 の決定）。保存値は変えていない。
+ */
 const BRAND_OPTIONS = [
     { value: 'Master', label: '開発者権限' },
-    { value: 'BrandAdmin', label: 'マネージャー' },
+    { value: 'BrandAdmin', label: 'ブランド管理者' },
+    { value: 'Manager', label: 'マネージャー' },
     { value: 'ordinary', label: '一般' },
     { value: 'Consulting', label: 'コンサル' },
 ] as const;

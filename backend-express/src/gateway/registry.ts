@@ -150,6 +150,13 @@ import { runMyhomesEntry } from '../features/myhomes/entry';
 import { importOwnersHouseApplication, listOwnersHouseApplications } from '../features/ownersHouse/application';
 import { runOwnersHouseReservation } from '../features/ownersHouse/reservation';
 import { runEstimateEntry } from '../features/estimate/entry';
+import {
+  AI_ANALYSIS_AUTHORITY,
+  deleteAiAnalysis,
+  getAiAnalysis,
+  listAiAnalysis,
+  startAiAnalysis,
+} from '../features/aiAnalysis';
 import type { GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -1095,29 +1102,38 @@ register({
 // ---------------------------------------------------------------------------
 // KPI分析（ClaudeAnalysis.tsx）— 参照系のみ
 //
-// ⚠️ auth: 'master' にしている。移植元がいずれも requireMaster() を呼んでおり、
-//   経営数値と分析結果を返すため。'none' にすると認証なしで取得できてしまう。
+// ⚠️ v2.2.217 から Master・BrandAdmin・Manager が見られる（AI_ANALYSIS_AUTHORITY）。
+//   auth: 'staff' で本人を特定したうえで、権限を手で確かめる（① は requireAuthority）。
+//   ⚠️ 'none' にすると認証なしで経営数値を取得できてしまう。
 //
 // ⚠️ kpi_analyze（Claude API呼び出し＋INSERT）と kpi_analysis_delete（DELETE）は
 //   移植していない。自動フォールバックがあるため、② で完了した直後に応答が
 //   失われると ① でも実行され、**二重課金・履歴の二重INSERT**になる。
-//   これらを移すには「フォールバック禁止」の仕組みが先に必要。
+//   v2.2.217 で画面から定型分析の実行を外したため、これらはもう呼ばれない。
 // ---------------------------------------------------------------------------
+
+const aiAnalysisForbidden = (ctx: { staff: { brand: string } | null; res: { status: (code: number) => unknown } }) => {
+  if (AI_ANALYSIS_AUTHORITY.includes(ctx.staff?.brand ?? '')) return null;
+  ctx.res.status(403);
+  return { status: 'error', message: 'この操作を行う権限がありません。' };
+};
 
 register({
   request: 'kpi_filter_master',
   summary: 'KPI分析の絞り込みマスタ（部門→課→店舗→スタッフ）',
   phpSource: 'backend/src/handlers/kpi_filter_master.php',
-  auth: 'master',
-  handler: async () => runKpiFilterMaster(),
+  auth: 'staff',
+  handler: async (ctx) => aiAnalysisForbidden(ctx) ?? runKpiFilterMaster(),
 });
 
 register({
   request: 'kpi_analysis_list',
   summary: '保存済みKPI分析の一覧（本体JSONは含まない）',
   phpSource: 'backend/src/handlers/kpi_analysis_list.php',
-  auth: 'master',
+  auth: 'staff',
   handler: async (ctx) => {
+    const denied = aiAnalysisForbidden(ctx);
+    if (denied !== null) return denied;
     const result = await runKpiAnalysisList({
       limit: ctx.body.limit,
       offset: ctx.body.offset,
@@ -1134,12 +1150,69 @@ register({
   request: 'kpi_analysis_get',
   summary: '保存済みKPI分析の1件取得（結果画面の復元用。課金は発生しない）',
   phpSource: 'backend/src/handlers/kpi_analysis_get.php',
-  auth: 'master',
+  auth: 'staff',
   handler: async (ctx) => {
+    const denied = aiAnalysisForbidden(ctx);
+    if (denied !== null) return denied;
     const result = await runKpiAnalysisGet(ctx.body.id);
     // ⚠️ PHP は 400 / 404 / 422 を出し分けている。同じコードを返す
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Claudeによる分析（v2.2.217。Dashboard からの自由分析）— ② のみ（① に PHP 版は無い）
+//
+// ⚠️ ai_analysis_start は受け付けて番号を返すだけ。分析は ② の中で数分〜十数分かけて続き、
+//   画面は ai_analysis_list を数秒ごとに呼んで進み具合を見る（実行中の分析があるあいだだけ）。
+// ⚠️ 実行のたびに課金される。1人1日5回・同時3件まで（features/aiAnalysis/index.ts）。
+// ⚠️ express_proxy.php の expressProxyRequests() と expressProxyExclusive() の両方に入れてある。
+// ---------------------------------------------------------------------------
+
+/** 結果の型を問わず、HTTP ステータスを付けて本文を返す */
+const withStatus = <T>(ctx: { res: { status: (code: number) => unknown } }, result: { httpStatus: number; body: T }): T => {
+  if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+  return result.body;
+};
+
+register({
+  request: 'ai_analysis_start',
+  summary: 'Claudeによる分析を始める（受付番号を返す。分析は裏で続く）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const denied = aiAnalysisForbidden(ctx);
+    if (denied !== null || ctx.staff === null) return denied;
+    return withStatus(ctx, await startAiAnalysis({ id: ctx.staff.id, name: ctx.staff.name }, ctx.body));
+  },
+});
+
+register({
+  request: 'ai_analysis_list',
+  summary: 'Claudeによる分析の一覧（全員分。本文は含まない）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => aiAnalysisForbidden(ctx) ?? listAiAnalysis(ctx.staff?.id ?? 0, ctx.body),
+});
+
+register({
+  request: 'ai_analysis_get',
+  summary: 'Claudeによる分析の結果（HTML 本文つき）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => aiAnalysisForbidden(ctx) ?? withStatus(ctx, await getAiAnalysis(ctx.body)),
+});
+
+register({
+  request: 'ai_analysis_delete',
+  summary: 'Claudeによる分析の削除（実行した本人か Master のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const denied = aiAnalysisForbidden(ctx);
+    if (denied !== null || ctx.staff === null) return denied;
+    return withStatus(ctx, await deleteAiAnalysis({ id: ctx.staff.id, brand: ctx.staff.brand }, ctx.body));
   },
 });
 

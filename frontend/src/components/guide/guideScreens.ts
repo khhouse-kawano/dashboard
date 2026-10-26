@@ -63,7 +63,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '予算詳細': { route: '/budget', divisions: ['order', 'spec', 'used'], authority: ADMIN, pcOnly: true },
     'マーケット情報': { route: '/market' },
     // ── ヘッダーのメニュー（Header.tsx の menuMapping と同じ条件）
-    'Claudeによる分析': { claude: true },
+    // ⚠️ v2.2.217 から Master・BrandAdmin・Manager だけ（Header.tsx の AI_ANALYSIS_AUTHORITY と同じ）
+    'Claudeによる分析': { claude: true, authority: ['Master', 'BrandAdmin', 'Manager'] },
     '重複反響サマリー': { menu: '反響管理/重複反響サマリー' },
     'ブラックリスト設定': { menu: '反響管理/ブラックリスト設定' },
     '事後アンケート': { menu: '反響管理/事後アンケート' },
@@ -81,7 +82,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '他社広告ライブラリ': { menu: '他社動向/他社広告ライブラリ' },
     '他社資料': { menu: '他社動向/他社資料' },
     '競合サマリー': { menu: '他社動向/競合サマリー' },
-    'Claudeによる競合分析': { menu: '他社動向/Claudeによる競合分析' },
+    // ⚠️ v2.2.217 で「Claudeによる競合分析」から改名（Header.tsx の CLAUDE_COMPETITOR_ITEM と同じ）
+    '競合分析': { menu: '他社動向/競合分析' },
     '架電状況（注文営業）': { menu: '架電状況/注文営業' },
     '架電状況（建売営業）': { menu: '架電状況/建売営業' },
     '架電状況（中古営業）': { menu: '架電状況/中古営業' },
@@ -156,7 +158,8 @@ export const screenBlockedReason = (name: string, authority: string): string | n
     const screen = GUIDE_SCREENS[name];
     if (screen === undefined) return 'この画面はまだ登録されていません';
     if (screen.authority && !screen.authority.includes(authority)) {
-        return screen.authority.length === 1 ? '管理者だけが開ける画面です' : 'マネージャー・管理者だけが開ける画面です';
+        // ⚠️ v2.2.217 で BrandAdmin の表示名が「ブランド管理者」に、Manager が「マネージャー」になったため、権限名を並べない
+        return screen.authority.length === 1 ? '管理者だけが開ける画面です' : '権限のある人だけが開ける画面です';
     }
     if (isPcOnly(screen) && isPhoneScreen()) return 'PC で開いてください';
     return null;
