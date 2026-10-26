@@ -116,6 +116,29 @@ const elapsedText = (elapsedSec: number | null, fetchedAt: number, now: number):
     return `${Math.floor(sec / 60)}分${String(sec % 60).padStart(2, '0')}秒`;
 };
 
+/** ファイル名に使えない文字を落とす（Windows で保存できない文字と改行） */
+const safeFileName = (value: string): string =>
+    value.replace(/[\\/:*?"<>|\r\n\t]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80);
+
+/**
+ * レポートの HTML を1つのファイルとして保存させる（v2.2.219）。
+ * ⚠️ ファイル名は「題_実行日.html」。題が無いときは依頼文の頭を使う。
+ * ⚠️ 中身は Claude が書いた HTML そのまま（1ファイルで完結しているので、そのままブラウザで開ける）。
+ */
+const downloadHtml = (job: Pick<Job, 'title' | 'prompt' | 'createdAt'>, body: string): void => {
+    const name = safeFileName(job.title !== '' ? job.title : job.prompt) || 'Claudeによる分析';
+    const date = job.createdAt.slice(0, 10);
+    const url = URL.createObjectURL(new Blob([body], { type: 'text/html;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name}_${date}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // ⚠️ すぐ消すと保存が始まらないブラウザがあるため、少し待ってから解放する
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 const errorMessageOf = (e: unknown, fallback: string): string =>
     (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
 
@@ -373,6 +396,11 @@ const ClaudeAnalysis: React.FC<Props> = ({ onClose }) => {
                                  gap: 8px; flex-wrap: wrap; }
                 .cla_view_scroll { flex: 1 1 auto; overflow: auto; padding: 14px 18px; }
                 .cla_frame { flex: 1 1 auto; width: 100%; border: 0; }
+                .cla_download { display: inline-flex; align-items: center; gap: 5px; border: 1px solid ${CLAUDE_ORANGE};
+                                background: #fff; color: ${CLAUDE_ORANGE}; border-radius: 6px; font-size: 11.5px;
+                                font-weight: 700; padding: 3px 10px; cursor: pointer; }
+                .cla_download:hover { background: #fdf8f6; }
+                .cla_download:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
                 .cla_empty { padding: 48px 24px; color: #6b7280; font-size: 12.5px; line-height: 1.9; max-width: 640px; margin: 0 auto; }
                 .cla_empty h3 { font-size: 15px; color: #1f2937; margin: 0 0 8px; font-weight: 700; }
                 .cla_running { padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px;
@@ -550,6 +578,14 @@ const ClaudeAnalysis: React.FC<Props> = ({ onClose }) => {
                                     </span>
                                     <span className="cla_tag">{scopeText(selectedJob)}</span>
                                     <span className="cla_tag">{selectedJob.from}〜{selectedJob.to}</span>
+                                    {/* ⚠️ v2.2.219: 右上はアクティブユーザーの枠に隠れるため、見出しの並びに置く */}
+                                    {selectedJob.status === 'done' && html?.id === selectedJob.id && (
+                                        <button type="button" className="cla_download"
+                                            onClick={() => downloadHtml(selectedJob, html.html)}>
+                                            <i className="fa-solid fa-download" aria-hidden="true" />
+                                            HTMLをダウンロード
+                                        </button>
+                                    )}
                                     <span className="cla_note ms-auto">
                                         {selectedJob.staffName}・{shortTime(selectedJob.createdAt)}
                                         {selectedJob.status === 'done' && selectedJob.costUsd !== null && `・約 $${selectedJob.costUsd.toFixed(2)}`}
