@@ -44,6 +44,10 @@ import LeadResale from "./components/realty/resale/LeadResale";
 import WeeklyPlan from "./components/realty/weekly/WeeklyPlan";
 import Compliance from "./components/realty/compliance/Compliance";
 import RealtySettings from "./components/realty/settings/RealtySettings";
+import MonthlySales from "./components/realty/sales/MonthlySales";
+import BaikaiMonthly from "./components/realty/bmonthly/BaikaiMonthly";
+import LostAnalysis from "./components/realty/lost/LostAnalysis";
+import RealtyPending from "./components/realty/RealtyPending";
 import Guide from "./components/guide/Guide";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
@@ -191,6 +195,11 @@ function AppInner() {
             <Route path="/realtyWeekly" element={<RealtyRoute><WeeklyPlan /></RealtyRoute>} />
             <Route path="/realtyCompliance" element={<RealtyRoute><Compliance /></RealtyRoute>} />
             <Route path="/realtySettings" element={<RealtyRoute><RealtySettings /></RealtyRoute>} />
+            {/* ⚠️ v2.2.225: 以前のアプリのメニューから移した画面・まだ移していない画面の案内（realty/RealtyMenu.tsx） */}
+            <Route path="/realtySales" element={<RealtyRoute><MonthlySales /></RealtyRoute>} />
+            <Route path="/realtyBaikaiMonthly" element={<RealtyRoute><BaikaiMonthly /></RealtyRoute>} />
+            <Route path="/realtyLost" element={<RealtyRoute><LostAnalysis /></RealtyRoute>} />
+            <Route path="/realtyPending" element={<RealtyRoute><RealtyPending /></RealtyRoute>} />
             {/* ⚠️ v2.2.221〜222 の2段の URL。⚠️ 画面の中から移ってきたときだけ効く（再読み込みは上の理由で届かない） */}
             <Route path="/realty/summary" element={<Navigate to="/summary" replace />} />
             <Route path="/realty/report" element={<Navigate to="/report" replace />} />

@@ -167,6 +167,7 @@ import {
   runBrokerList,
   runBrokerUpdate,
   runPlannerLead,
+  runPlannerRecords,
   runPlannerSummary,
   shopForbidden,
 } from '../features/realty';
@@ -1213,6 +1214,7 @@ register({ request: 'activity', roll: 'read', summary: '【書き込み】不動
 // ⚠️ v2.2.223 新規（② だけ）。設定・週次行動計画・コンプライアンス（app_state）。features/realty/state.ts
 //   ⚠️ 本番アプリと同じく、担当事業が realty / all の人なら誰でも直せる。
 //     ⚠️ 例外は確定済みの月の週次目標（マスター・マネージャーだけ。state.ts の isWeeklyAdmin）
+register({ request: 'planner', roll: 'records', summary: '不動産企画係: 種類を指定して行と設定を読む（以前のアプリから移す画面用）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runPlannerRecords(body)) });
 register({ request: 'planner', roll: 'state', summary: '不動産企画係: 設定・週次行動計画・コンプライアンスと、架電実績を数える売り反響', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s) => runPlannerState(s)) });
 register({ request: 'planner', roll: 'settings', summary: '【書き込み】不動産企画係: 設定の項目を保存', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runPlannerSettings(body)) });
 register({ request: 'planner', roll: 'weekly', summary: '【書き込み】不動産企画係: 週次行動計画のセルを保存', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runPlannerWeekly(s, body)) });

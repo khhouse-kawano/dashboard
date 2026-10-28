@@ -5,13 +5,156 @@
 -- ⚠️ 実行環境: ① レンタルサーバー（phpMyAdmin）
 -- =====================================================================
 INSERT INTO update_log (version, date, note) VALUES
-('2.2.225', '2026-10-28', '不動産企画係の売り反響・買い反響の画面の歩留まり（上のタイル・反響元別／ポータル別・担当者別のファネル）を、以前のアプリと同じ数え方・同じ列にした。対象期間は月別（今期）・通期・全期間から選べる。チームサマリーの一括査定KPI・買い反響KPIも以前のアプリと同じ列にした。以前のアプリのデータの取り込みに「全面差し替え」を加えた（ファイルに無い行はすべて非表示）。');
+('2.2.225', '2026-10-28', '不動産企画係のメニューを以前のアプリと同じ見出し（日々の行動・集計・分析・入力・台帳・点検・管理）と順番にした。月次売上管理・月次媒介管理・失注・他決の分析を追加し、チームサマリーを以前のアプリのダッシュボードと同じ並び（営業司令塔は最下段、朝礼用アラートに買取再販の期限）にした。売り反響・買い反響の画面の歩留まりを以前のアプリと同じ数え方・同じ列にし、期間は月別（今期）・通期・全期間から選べるようにした。まだ移していない画面はメニューに「移行中」と出す。以前のアプリのデータの取り込みに「全面差し替え」を加えた。');
 
 -- ---------------------------------------------------------------
--- 業務ガイドの記事（2本）。backend/scripts/guide/build-guide-sql.cjs で作成
+-- 業務ガイドの記事（7本）。backend/scripts/guide/build-guide-sql.cjs で作成
 -- ⚠️ 先に guide_article / guide_history の表があること（2026-10-16_guide_article.sql）
 -- ⚠️ 同じタイトルの記事は上書きする（⚠️ 手で直された記事でも開発側を優先）。⚠️ 直前の内容は guide_history に残す
 -- ---------------------------------------------------------------
+-- common/screen-230.md：不動産企画係の画面（入口と権限）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '不動産企画係の画面（入口と権限）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('不動産企画係の画面（入口と権限）', 'common', '画面の使い方', '不動産企画係の画面に入れる人と、入り方。', '不動産企画係の画面は、Dashboard の中の不動産企画係専用のアプリです。以前のアプリと同じメニューを、同じ見出し・同じ順番で左に出しています。
+
+## メニュー
+- **日々の行動**：今日の架電キュー・架電ナビ（一括査定）
+- **集計・分析**：チームサマリー（以前のアプリの「ダッシュボード」）・月次売上管理・月次媒介管理・失注・他決の分析
+- **入力・台帳**：売り反響（一括査定）・買い反響（ポータル）・商談案件管理・買取再販案件・媒介獲得台帳・売主への販売報告・媒介更新履歴・週次行動計画
+- **点検・管理**：データ品質チェック・コンプライアンス・設定・データ管理
+- **Dashboard**：月次報告書・掲載物件一覧（Dashboard にだけある画面）
+
+> 注意：「移行中」と付いている画面は、いま Dashboard に移している途中です。開くと以前のアプリへの案内が出るので、移し終えるまでは以前のアプリの同じ画面を使ってください。
+
+## 入れる人
+- 担当事業が「**不動産企画係**」の人
+- 担当事業が「**全事業**」の人
+
+ほかの担当事業（注文・建売・中古）の人は入れません。画面のアドレスを直接開いても、事業を選ぶ画面に戻ります。
+
+> 注意：媒介獲得台帳のデータは、中古リノベの顧客DB・顧客詳細からも読み書きします。そのため中古リノベの人も、その画面からは今までどおり使えます。
+
+## 入り方
+1. Dashboard にログインする
+2. 事業を選ぶ画面で「**不動産企画係**」を押す
+3. チームサマリーが開く。左のメニューから各画面へ移る
+
+## 担当事業を「不動産企画係」にする
+ヘッダーの「システム管理 → 権限編集」で、その人の担当事業を「不動産企画係」に変えます（変えられるのは管理者だけです）。
+
+> 注意：変えたあと、本人が次に画面を移ったときに反映されます。ログインし直す必要はありません。
+
+## 通知
+画面の右上のベルに出る通知は、**ログインしている本人宛のものだけ**です。
+
+## ブックマーク
+画面のアドレスは、以前と同じ形（/summary・/leadSell など）です。
+
+> 要確認：10月28日ごろの短い期間だけ、アドレスが /realty/summary のような形になっていました。この形をブックマークした人は、開くと画面が真っ白になります。左のメニューから開き直して、ブックマークを付け直してください。
+', 230, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+-- common/screen-240.md：チームサマリー（不動産企画係）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = 'チームサマリー（不動産企画係）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('チームサマリー（不動産企画係）', 'common', '画面の使い方', '以前のアプリの「ダッシュボード」と同じ画面。歩留まり・年間予算の進捗・担当者別の月次KPI・架電実績・朝礼用アラート・営業司令塔。', '不動産企画係の画面の最初のページで、以前のアプリの「📊 ダッシュボード」と同じ画面です。事業を選ぶ画面で「不動産企画係」を押すと開きます（[[不動産企画係の画面（入口と権限）]]）。
+
+## 対象月
+左上で月を選びます。選べるのは**今期の12か月**です（期首月は設定の値。いまは6月はじまり）。
+
+## 上から順に（以前のアプリと同じ並び）
+- **歩留まりファネル**：対象月に受信した売り反響・買い反響が、どこまで進んだか（数え方は[[売り反響・買い反響の歩留まり（不動産企画係）]]）
+- **年間予算進捗**：期首から対象月までの**売上計上額の累計**を、担当者の年間予算の合計で割ったもの。経過月数に比べて遅れていれば赤、先行していれば緑です
+- **月次KPIサマリー**：担当者ごとの今月目標・今月見込の売上・達成率・契約件数・媒介獲得・未決の案件など
+- **架電実績**：担当者ごとの本日・今週（月曜はじまり）・今月の架電の数（売り・買い）
+- **一括査定KPIサマリー・買い反響KPIサマリー**：対象月に受信した反響の通電率・査定率・受託率・目標達成率・前月比・反響費用・獲得単価など
+- **朝礼用アラート**：直近14日に商談リストへ登録された案件、新しく獲得した媒介、買取再販の期限・要対応（在庫日数・取得後2年・建物の按分）。14日を過ぎると自動で外れます
+- **営業司令塔**（最下段・押すと開く）：反響を点数で並べ、「今日やること」「ホットな反響」「停滞アラート」の3つのタブで出します。「自分の担当のみ」で絞れます。「開く」でその反響を直せます
+
+## 売上の数え方
+- **売上計上額 ＝ 仲介手数料 ＋ リフォーム粗利**。リフォームの受注額は売上に入れず、参考として出します
+- 商談案件の**契約日の月**で数えます。失注した案件は数えません
+- 仲介手数料は、手数料を手で入れた案件はその金額、それ以外は売買価格から計算します（800万円以下は30万円、それより上は価格の3％＋6万円）
+- 共同担当がいる案件は、売上は割合で分け、件数は0.5件ずつ数えます
+- 契約率は、失注を除いた案件のうち、契約済・契約予定・決済完了の割合です
+
+> 注意：担当者・年間予算・今月目標・媒介受託の目標・反響単価・期首月は、[[設定（不動産企画係）]]の値です。
+
+> 注意：営業司令塔の「次回設定」ボタンはまだありません。次回アクションは「開く」から直してください。
+', 240, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+-- common/screen-242.md：月次売上管理（不動産企画係）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '月次売上管理（不動産企画係）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('月次売上管理（不動産企画係）', 'common', '画面の使い方', '担当者別・月別の売上計上額（仲介手数料＋リフォーム粗利）、グラフ、確定売上・契約件数・リフォームの内訳。', '不動産企画係の左のメニュー「集計・分析」の「月次売上管理」で開きます。以前のアプリの「📈 月次売上管理」と同じ画面です。
+
+## 数え方
+- 商談案件の**契約日の月**に計上します。失注は数えません
+- **売上計上額＝仲介手数料＋リフォーム粗利**です。リフォーム受注額は売上に入れず、参考として出します
+- 共同担当のいる案件は、売上を割合で分け、件数は0.5件ずつ数えます
+- 対象は今期の12か月です（期首月は[[設定（不動産企画係）]]の値）
+
+## 上から順に
+- **担当者別 月次売上**：月別は万円、年間は円。年間目標（年間予算）と達成率・順位
+- **月次売上グラフ**：棒が月次目標と実績（濃い色が確定・淡い色が見込を含む全体）、折れ線が年間予算に対する累計の達成率
+- **内訳①：確定売上**：契約済・契約予定・決済完了の分と、見込み残
+- **内訳②：月次契約件数**：件数と1件平均の売上
+- **内訳③**：「仲介手数料のみ」「リフォーム粗利」「リフォーム受注額（参考）」を切り替えて見る
+
+## 内訳を見る
+数字の入ったマスを押すと、その月の案件の一覧（物件・顧客・成約価格・手数料・リフォーム）が出ます。担当者の行から開いたときは、共同担当の割合で分けた後の金額です。
+
+> 注意：手数料の欄が黄色の案件は、手数料を手で入れた案件です。
+', 242, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+-- common/screen-243.md：月次媒介管理（不動産企画係）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '月次媒介管理（不動産企画係）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('月次媒介管理（不動産企画係）', 'common', '画面の使い方', '担当者別・月別の媒介獲得件数、グラフ、買取の獲得・契約、媒介種別別・反響元別の件数。', '不動産企画係の左のメニュー「集計・分析」の「月次媒介管理」で開きます。以前のアプリの「📉 月次媒介管理」と同じ画面です。
+
+## 数え方
+- 媒介獲得台帳の**契約日の月**で数えます
+- 台帳の担当欄は略称です。[[設定（不動産企画係）]]の担当者の略称と1文字でも違うと、担当者の行に入りません（表の下に件数が出ます）
+- 対象は今期の12か月です
+
+## 上から順に
+- **担当者別 月次獲得件数**：年間合計・年間目標（年間媒介目標）・達成率・うち買取・台帳全期間
+- **月次媒介獲得グラフ**
+- **買取の獲得件数**（媒介獲得台帳）と**買取の契約件数**（商談案件管理）
+- **媒介種別別・反響元別の月次獲得件数**：構成比つき。設定の候補に無い値は「未分類」に入ります
+
+## 内訳を見る
+数字の入ったマスを押すと、その媒介の一覧（台帳No.・担当・売主・所在地・媒介種別・反響元・販売価格・契約日）が出ます。
+', 243, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+-- common/screen-244.md：失注・他決の分析（不動産企画係）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '失注・他決の分析（不動産企画係）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('失注・他決の分析（不動産企画係）', 'common', '画面の使い方', '売り反響の追客終了・他決の理由、他決の決め手と他決先、商談の失注理由を、担当者別・反響元別に見る。', '不動産企画係の左のメニュー「集計・分析」の「失注・他決の分析」で開きます。以前のアプリの「🧩 失注・他決の分析」と同じ画面です。
+
+## 対象期間
+左上で「月別（今期）」「通期」「全期間」から選びます。開いたときは今期の通期です。
+
+## 見られること
+- 売り反響の受信数（うち追客終了）、他決の件数（決め手の入力数）、他社の価格と自社の査定額の差の平均、商談案件の失注（理由の入力数）
+- 理由ごとの表（割合つき）：売り反響の終了理由×担当・×反響元、他決の決め手×担当、商談の失注理由×担当、買い反響の終了理由×担当
+- 他決先の上位10社
+- 決め手が入っていない他決の一覧（先頭50件）
+- 失注した商談案件の一覧
+- 「他決・失注の明細CSV」で一覧を保存できます
+
+> 注意：理由や決め手を直すときは、売り反響・商談案件の画面から直します。
+', 244, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
 -- common/screen-245.md：売り反響・買い反響の歩留まり（不動産企画係）
 INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
   SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '売り反響・買い反響の歩留まり（不動産企画係）';

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useContext } from 'react';
 import apiClient from '../../../utils/apiClient';
 import LeadHeader from '../common/LeadHeader'; // パスは環境に合わせて調整してください
 import { thisYear } from '../../../utils/thisYear';
-import { removeSpaces, formatDate } from './summaryUtiles'; // パスは環境に合わせて調整してください
+import { formatDate } from './summaryUtiles';
 import AuthContext from '../../../context/AuthContext';
 // 💡 追加: タスク一覧の「開く」から顧客情報を編集する
 import LeadEdit, { LeadCategory } from '../common/LeadEdit';
@@ -14,6 +14,11 @@ import {
     monthLabel, pct, reformByStaffMonth, reformGpByStaffMonth, salesByStaffMonth, sumRow, todayStr,
 } from './kpi';
 import type { Row, Settings } from './kpi';
+// ⚠️ v2.2.225: 以前のダッシュボードと同じ並び（営業司令塔は最下段）・買取再販の期限アラート
+import { useNavigate } from 'react-router-dom';
+import CommandCenter from './CommandCenter';
+import { resaleDashAlerts } from './resaleAlerts';
+import { loadRecords } from '../common/realtyState';
 
 // ==========================================
 // 💡 型定義 (推論ベース)
@@ -65,20 +70,6 @@ const calcRate = (part: number, total: number) => {
     return ((part / total) * 100).toFixed(1) + '%';
 };
 
-const now = new Date();
-const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
-const isOver = (nextDate: string | null) => {
-    if (!nextDate) return false;
-    return new Date(nextDate).getTime() < today;
-};
-const isToday = (nextDate: string | null) => {
-    if (!nextDate) return false;
-    const t = new Date(nextDate).getTime();
-    return t >= today && t < today + 86400000;
-};
-const isNotNext = (nextDate: string | null) => !nextDate || nextDate.startsWith('0000');
-
 // 💡 アプリ全体設定（planner_summary が app_state.settings をそのまま返す）。⚠️ v2.2.222 から kpi.ts の Settings
 type AppSettings = Settings;
 
@@ -115,12 +106,6 @@ const prevMonth = (month: string) => {
     const d = new Date(y, m - 2, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
-const isFollow = (phase: string | null) => ['追客中', '通電済み', '内見予約', '内見済み'].includes(phase || '');
-const diffDays = (base: string | null) => {
-    if (!base || base.startsWith('0000')) return null;
-    return Math.floor((today - new Date(base).getTime()) / (1000 * 60 * 60 * 24));
-};
-
 // ==========================================
 // 💡 コンパクトな共通スタイル
 // ==========================================
@@ -175,8 +160,6 @@ const Summary = () => {
     const { userName } = useContext(AuthContext);
 
     // State
-    const [myself, setMyself] = useState(false);
-    const [activeTab, setActiveTab] = useState('today');
     const [isLoading, setIsLoading] = useState(false);
 
     const [leads, setLeads] = useState<SummaryLead[]>([]); // 売り反響
@@ -194,8 +177,6 @@ const Summary = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [customerInfo, setCustomerInfo] = useState<Partial<SummaryLead>>({});
     const [editCategory, setEditCategory] = useState<LeadCategory>('sell');
-
-    const realTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
     // 💡 データの取得 (モックの代わりにAPI呼び出しを想定)
     useEffect(() => {
@@ -217,6 +198,8 @@ const Summary = () => {
                         setBuyLeads(allLeads.filter(l => l.kind === 'buyLeads'));
                     }
                     setDeals(((response.data.deals ?? []) as Row[]).filter(d => !isSoftDeleted(d)));
+                    // ⚠️ v2.2.225: 買取再販の期限アラート（以前のアプリの朝礼用アラートの最後）
+                    loadRecords(['resales']).then(r => setResales(r.records.resales)).catch(e => console.error('[Summary] 買取再販を読めませんでした', e));
                     setLedger(((response.data.ledger ?? []) as Row[]).filter(l => !isSoftDeleted(l)));
                     if (response.data.staff) {
                         setStaffList(response.data.staff.filter((st: any) => st.period === String(thisYear)).map((st: any) => st.name));
@@ -232,70 +215,6 @@ const Summary = () => {
         };
         fetchData();
     }, []);
-
-    // ==========================================
-    // 💡 1. 営業司令塔 KPIサマリー (売・買リードを合算)
-    // ==========================================
-    const dashboardSummary = useMemo(() => {
-        const summary = { over: 0, today: 0, next: 0, slowdown: 0, hot: 0, follow: 0 };
-
-        // 売りと買いのリードを統合して処理
-        const allLeads = [...leads, ...buyLeads];
-        const staffLeads = allLeads.filter(l => myself ? removeSpaces(l.staff) === removeSpaces(userName) : true);
-
-        staffLeads.forEach(lead => {
-            if (isOver(lead.nextDate)) summary.over++;
-            if (isToday(lead.nextDate)) summary.today++;
-            if (isNotNext(lead.nextDate) && isFollow(lead.phase)) summary.next++;
-            if (isFollow(lead.phase)) summary.follow++;
-
-            const elapsed = diffDays(lead.contactDate || lead.receivedDate);
-            if (elapsed && elapsed >= 14 && isFollow(lead.phase)) summary.slowdown++;
-
-            if (['内見済み', '訪問査定', '査定書提出', '購入申込'].includes(lead.phase || '')) {
-                summary.hot++;
-            }
-        });
-        return summary;
-    }, [leads, buyLeads, myself, userName]);
-
-    // ==========================================
-    // 💡 2. タスク・アラート抽出（司令塔下部のテーブル用）
-    // ==========================================
-    const toDoSummary = useMemo(() => {
-        // 売りと買いのリードを統合
-        const allLeads = [...leads, ...buyLeads];
-        let targetLeads = allLeads.filter(l => myself ? removeSpaces(l.staff) === removeSpaces(userName) : true);
-
-        if (activeTab === 'today') {
-            targetLeads = targetLeads.filter(l => isOver(l.nextDate) || isToday(l.nextDate));
-        } else if (activeTab === 'hot') {
-            targetLeads = targetLeads.filter(l => ['内見済み', '訪問査定', '査定書提出', '購入申込'].includes(l.phase || ''));
-        } else if (activeTab === 'stale') {
-            targetLeads = targetLeads.filter(l => {
-                const elapsed = diffDays(l.contactDate || l.receivedDate);
-                return isFollow(l.phase) && ((elapsed && elapsed >= 14) || isNotNext(l.nextDate));
-            });
-        }
-
-        return targetLeads.map(t => {
-            // kindプロパティがない場合などのフォールバック
-            const isBuy = t.kind === 'buyLeads' || t.targetProperty != null;
-            return {
-                id: t.id,
-                kindLabel: isBuy ? '買' : '売',
-                kindColor: isBuy ? '#0d6efd' : '#dc3545',
-                name: t.name || t.seller || '不明',
-                staff: t.staff || '未割当',
-                next: t.nextDate ? t.nextDate.split(' ')[0] : '未設定',
-                note: t.nextNote || t.note || '-',
-                diff: diffDays(t.nextDate) || 0,
-                addr: t.addr1 || t.addr || t.targetProperty || '住所不明',
-                contact: `${t.phone || ''} ${t.mail || ''}`.trim(),
-                phase: t.phase || '不明'
-            }
-        }).sort((a, b) => b.diff - a.diff);
-    }, [leads, buyLeads, myself, userName, activeTab]);
 
     // ==========================================
     // 💡 タスク一覧「開く」→ 顧客情報編集
@@ -484,6 +403,14 @@ const Summary = () => {
     }, [leads, buyLeads, settings.staff]);
 
     /** 🆕 朝礼用アラート（v2.2.222）。直近14日に商談リストへ登録した案件・新規の媒介獲得 */
+    const navigate = useNavigate();
+    const [resales, setResales] = useState<Row[]>([]);
+    /** 買取再販の期限・要対応（RSA.dashAlerts）。⚠️ 期首月は買取再販の消費税の設定（rsVat.fyStart。既定6月） */
+    const resaleAlerts = useMemo(() => {
+        const rsVat = (settings as { rsVat?: { fyStart?: number } }).rsVat;
+        return resaleDashAlerts(resales, Number(rsVat?.fyStart) || 6);
+    }, [resales, settings]);
+
     const alerts = useMemo(() => {
         const w = alertWindow();
         const staffSettings = settings.staff ?? [];
@@ -568,129 +495,6 @@ const Summary = () => {
 
             {!isLoading && (
                 <div>
-                    {/* ==========================================
-                        🎯 1. 営業司令塔 (KPI & タスク)
-                    ========================================== */}
-                    <div style={s.card}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                            <div style={s.cardTitle}>
-                                🎯 営業司令塔
-                                <span style={s.badge('#22405c')}>Dashboard集計</span>
-                                <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal', marginLeft: '8px' }}>
-                                    次回アクション・停滞・ホット度をサーバ側で一括算出（{realTime} 時点）
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <label style={{ fontSize: '11px', color: '#495057', cursor: 'pointer', margin: 0 }}>
-                                    <input type="checkbox" checked={myself} onChange={(e) => setMyself(e.target.checked)} style={{ marginRight: '6px' }} />
-                                    自分の担当のみ（{userName}）
-                                </label>
-                                <button style={{ fontSize: '10px', padding: '2px 8px', border: '1px solid #ced4da', backgroundColor: '#fff', borderRadius: '4px', cursor: 'pointer' }}>
-                                    ↻ 再集計
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* KPI チップス */}
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                            <div style={{ flex: 1, border: '1px solid #ffcdd2', borderRadius: '6px', padding: '8px', textAlign: 'center', backgroundColor: '#fff5f5' }}>
-                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#dc3545' }}>{dashboardSummary.over}</div>
-                                <div style={{ fontSize: '10px', color: '#dc3545' }}>期日超過</div>
-                            </div>
-                            <div style={{ flex: 1, border: '1px solid #ffecb3', borderRadius: '6px', padding: '8px', textAlign: 'center', backgroundColor: '#fff8f1' }}>
-                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fd7e14' }}>{dashboardSummary.today}</div>
-                                <div style={{ fontSize: '10px', color: '#fd7e14' }}>本日</div>
-                            </div>
-                            <div style={{ flex: 1, border: '1px solid #ffcdd2', borderRadius: '6px', padding: '8px', textAlign: 'center', backgroundColor: '#fff5f5' }}>
-                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#dc3545' }}>{dashboardSummary.next}</div>
-                                <div style={{ fontSize: '10px', color: '#dc3545' }}>次回未設定</div>
-                            </div>
-                            <div style={{ flex: 1, border: '1px solid #ffecb3', borderRadius: '6px', padding: '8px', textAlign: 'center', backgroundColor: '#fff8f1' }}>
-                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fd7e14' }}>{dashboardSummary.slowdown}</div>
-                                <div style={{ fontSize: '10px', color: '#fd7e14' }}>停滞</div>
-                            </div>
-                            <div style={{ flex: 1, border: '1px solid #bbdefb', borderRadius: '6px', padding: '8px', textAlign: 'center', backgroundColor: '#f0f7ff' }}>
-                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#0d6efd' }}>{dashboardSummary.hot}</div>
-                                <div style={{ fontSize: '10px', color: '#0d6efd' }}>ホット</div>
-                            </div>
-                            <div style={{ flex: 1, border: '1px solid #e9ecef', borderRadius: '6px', padding: '8px', textAlign: 'center', backgroundColor: '#f8f9fa' }}>
-                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#6c757d' }}>{dashboardSummary.follow}</div>
-                                <div style={{ fontSize: '10px', color: '#6c757d' }}>追客中 合計</div>
-                            </div>
-                        </div>
-
-                        {/* タブ */}
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                            <button onClick={() => setActiveTab('today')} style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ced4da', backgroundColor: activeTab === 'today' ? '#343a40' : '#fff', color: activeTab === 'today' ? '#fff' : '#495057', fontWeight: 'bold' }}>
-                                ⏰ 今日やること <span style={s.badge('#dc3545')}>{dashboardSummary.over + dashboardSummary.today}</span>
-                            </button>
-                            <button onClick={() => setActiveTab('hot')} style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ced4da', backgroundColor: activeTab === 'hot' ? '#343a40' : '#fff', color: activeTab === 'hot' ? '#fff' : '#495057', fontWeight: 'bold' }}>
-                                🔥 ホットな反響 <span style={s.badge('#0d6efd')}>{dashboardSummary.hot}</span>
-                            </button>
-                            <button onClick={() => setActiveTab('stale')} style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ced4da', backgroundColor: activeTab === 'stale' ? '#343a40' : '#fff', color: activeTab === 'stale' ? '#fff' : '#495057', fontWeight: 'bold' }}>
-                                🚨 停滞アラート <span style={s.badge('#ffc107', '#212529')}>{dashboardSummary.slowdown + dashboardSummary.next}</span>
-                            </button>
-                        </div>
-
-                        {/* リスト表示部 */}
-                        <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid #dee2e6', borderRadius: '4px' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                                    <tr>
-                                        <th style={{ ...s.th, width: '40px', textAlign: 'center' }}>区分</th>
-                                        <th style={{ ...s.th, width: '180px' }}>相手先 / 連絡先</th>
-                                        <th style={{ ...s.th, width: '80px' }}>担当</th>
-                                        <th style={{ ...s.th, width: '80px' }}>状態</th>
-                                        <th style={{ ...s.th, width: '90px' }}>予定日</th>
-                                        <th style={s.th}>次回アクション</th>
-                                        <th style={{ ...s.th, width: '60px', textAlign: 'center' }}>超過</th>
-                                        <th style={{ ...s.th, width: '80px', textAlign: 'center' }}>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {toDoSummary.length > 0 ? (
-                                        toDoSummary.map((t) => (
-                                            <tr key={t.id} style={{ backgroundColor: t.diff > 0 ? '#fff5f5' : '#fff' }}>
-                                                <td style={{ ...s.td, textAlign: 'center' }}>
-                                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: t.kindColor, border: `1px solid ${t.kindColor}`, padding: '1px 4px', borderRadius: '3px', backgroundColor: `${t.kindColor}15` }}>
-                                                        {t.kindLabel}
-                                                    </span>
-                                                </td>
-                                                <td style={s.td}>
-                                                    <div style={{ fontWeight: 'bold', color: '#212529', fontSize: '12px' }}>{t.name}</div>
-                                                    <div style={{ fontSize: '10px', color: '#6c757d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
-                                                        {t.contact} / {t.addr}
-                                                    </div>
-                                                </td>
-                                                <td style={s.td}>{t.staff}</td>
-                                                <td style={s.td}>
-                                                    <span style={{ backgroundColor: '#e9ecef', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>{t.phase}</span>
-                                                </td>
-                                                <td style={{ ...s.td, color: t.diff > 0 ? '#dc3545' : '#495057', fontWeight: t.diff > 0 ? 'bold' : 'normal' }}>
-                                                    {t.next}
-                                                </td>
-                                                <td style={s.td}>{t.note}</td>
-                                                <td style={{ ...s.td, textAlign: 'center' }}>
-                                                    {t.diff > 0 ? (
-                                                        <span style={s.badge('#dc3545')}>{t.diff}日</span>
-                                                    ) : '-'}
-                                                </td>
-                                                <td style={{ ...s.td, textAlign: 'center' }}>
-                                                    <button
-                                                        style={{ fontSize: '10px', padding: '2px 8px', border: '1px solid #ced4da', backgroundColor: '#fff', borderRadius: '4px', cursor: 'pointer', color: '#0d6efd' }}
-                                                        onClick={() => handleOpenLead(t.id)}
-                                                    >開く</button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr><td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#6c757d', fontSize: '11px' }}>該当するタスクはありません</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
                     {/* ==========================================
                         🔻 2. 歩留まりファネル
                     ========================================== */}
@@ -1060,10 +864,44 @@ const Summary = () => {
                                     </tbody>
                                 </table>
                             ))}
-                        <div style={{ fontSize: '10px', color: '#6c757d', marginTop: '8px' }}>
-                            ※ 買取再販の期限アラートと営業司令塔の詳細は、買取再販・商談案件の移植のときに足します。
-                        </div>
+                        {/* ⚠️ v2.2.225: 買取再販の期限・要対応（以前のアプリの RSA.dashAlerts。summary/resaleAlerts.ts） */}
+                        {showAlerts && resaleAlerts.length > 0 && (
+                            <>
+                                <div style={{ fontSize: '12px', fontWeight: 'bold', margin: '12px 0 6px' }}>
+                                    🏗 買取再販の期限・要対応 <span style={s.badge('#fd7e14')}>{resaleAlerts.length}件</span>
+                                </div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead><tr>{['物件', '仕入担当', 'ステータス', '内容', ''].map(h => <th key={h} style={{ ...s.th, textAlign: 'left' }}>{h}</th>)}</tr></thead>
+                                    <tbody>
+                                        {resaleAlerts.map(({ r, a }) => (
+                                            <tr key={String(r.id)}>
+                                                <td style={{ ...s.td, textAlign: 'left' }}>{String(r.property || '（名称未設定）')}</td>
+                                                <td style={{ ...s.td, textAlign: 'left' }}>{String(r.staff ?? '')}</td>
+                                                <td style={{ ...s.td, textAlign: 'left' }}>{String(r.status ?? '')}</td>
+                                                <td style={{ ...s.td, textAlign: 'left' }}>
+                                                    {a.map(x => <span key={x.t} style={{ ...s.badge(x.lv >= 2 ? '#dc3545' : '#ffc107', x.lv >= 2 ? '#fff' : '#212529'), marginRight: 4 }}>{x.t}</span>)}
+                                                </td>
+                                                <td style={{ ...s.td, textAlign: 'left' }}>
+                                                    <button type="button" onClick={() => navigate('/leadResale')} style={{ fontSize: '10px', padding: '1px 8px', border: '1px solid #ced4da', background: '#fff', borderRadius: 4 }}>開く</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </>
+                        )}
                     </div>
+
+                    {/* ==========================================
+                        🧭 8. 営業司令塔（v2.2.225。以前のアプリと同じく最下段・折りたたみ式。summary/CommandCenter.tsx）
+                    ========================================== */}
+                    <CommandCenter
+                        leads={leads as unknown as Row[]}
+                        buyLeads={buyLeads as unknown as Row[]}
+                        deals={deals}
+                        me={userName}
+                        onOpen={(kind, id) => (kind === 'deals' ? navigate('/leadOpportunity') : handleOpenLead(id))}
+                    />
 
                 </div>
             )}

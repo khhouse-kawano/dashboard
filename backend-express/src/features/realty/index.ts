@@ -94,6 +94,33 @@ export const runPlannerSummary = async (): Promise<Result> => {
   return ok({ lead, deals, ledger, staff, settings });
 };
 
+/** planner:records で読める種類（以前のアプリの SYNC_KINDS。features/realty/importer.ts と同じ） */
+const RECORD_KINDS = [
+  'deals', 'ledger', 'renewals', 'leads', 'buyLeads', 'docs', 'settlements', 'resales',
+  'logs', 'notices', 'sellerReports', 'viewings', 'comments',
+];
+
+/**
+ * 不動産企画係の行を種類を指定して読む（v2.2.225。② だけ）。以前のアプリから移す画面（月次売上・月次媒介・失注分析・営業司令塔など）用。
+ * body.kinds = ['deals', 'ledger', …]。⚠️ 削除済み（show_dashboard = 0）は返さない。設定（settings）も返す
+ * 応答: { status, records: { [kind]: 行[] }, settings }
+ */
+export const runPlannerRecords = async (body: Record<string, unknown>): Promise<Result> => {
+  const kinds = Array.isArray(body.kinds) ? [...new Set(body.kinds.map(String))] : [];
+  if (kinds.length === 0 || kinds.some((k) => !RECORD_KINDS.includes(k))) return fail(400, '読む種類（kinds）が正しくありません');
+  const [rows, settings] = await Promise.all([
+    query<DynamicRow>(
+      `SELECT * FROM brokerage_listings WHERE kind IN (${kinds.map(() => '?').join(', ')}) AND (show_dashboard IS NULL OR show_dashboard <> 0)`,
+      kinds
+    ),
+    readSettings(),
+  ]);
+  const records: Record<string, DynamicRow[]> = {};
+  for (const k of kinds) records[k] = [];
+  for (const r of rows) records[String(r.kind)].push(r);
+  return ok({ status: 'success', records, settings });
+};
+
 // ---------------------------------------------------------------------------
 // broker（媒介台帳など）
 // ---------------------------------------------------------------------------
