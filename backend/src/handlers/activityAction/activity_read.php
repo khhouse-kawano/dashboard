@@ -23,7 +23,7 @@ try {
     if ($all) {
         $sql = "UPDATE `brokerage_listings`
                    SET `read` = 1
-                 WHERE kind = 'notices' AND `to` = ? AND (`read` IS NULL OR `read` = 0)";
+                 WHERE kind = 'notices' AND REPLACE(REPLACE(`to`, ' ', ''), '　', '') = ? AND (`read` IS NULL OR `read` = 0)";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$to]);
     } else {
@@ -36,7 +36,7 @@ try {
         $placeholders = implode(', ', array_fill(0, count($ids), '?'));
         $sql = "UPDATE `brokerage_listings`
                    SET `read` = 1
-                 WHERE kind = 'notices' AND `to` = ? AND `id` IN ({$placeholders})";
+                 WHERE kind = 'notices' AND REPLACE(REPLACE(`to`, ' ', ''), '　', '') = ? AND `id` IN ({$placeholders})";
         $stmt = $pdo->prepare($sql);
         $stmt->execute(array_merge([$to], array_values($ids)));
     }
@@ -46,7 +46,7 @@ try {
     // 更新後の未読件数を返し、フロントがバッジを再計算せずに済むようにする
     $countStmt = $pdo->prepare(
         "SELECT COUNT(*) FROM `brokerage_listings`
-          WHERE kind = 'notices' AND `to` = ? AND (`read` IS NULL OR `read` = 0)"
+          WHERE kind = 'notices' AND REPLACE(REPLACE(`to`, ' ', ''), '　', '') = ? AND (`read` IS NULL OR `read` = 0)"
     );
     $countStmt->execute([$to]);
     $unread = (int) $countStmt->fetchColumn();

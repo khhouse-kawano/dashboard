@@ -1,11 +1,11 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
-import apiClient from '../../utils/apiClient';
-import { thisYear } from '../../utils/thisYear';
-import AuthContext from '../../context/AuthContext';
-import { COMPANY } from './documentUtils';
-import LeadNotifications from './LeadNotifications';
-import { safeParse, saveBrokerageRecord, softDeleteRecord, logChange, recordFieldChanges, isSoftDeleted } from './leadUtiles';
+import apiClient from '../../../utils/apiClient';
+import { thisYear } from '../../../utils/thisYear';
+import AuthContext from '../../../context/AuthContext';
+import { COMPANY } from '../documents/documentUtils';
+import LeadNotifications from '../common/LeadNotifications';
+import { safeParse, saveBrokerageRecord, softDeleteRecord, logChange, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
 
 // ==========================================
 // 💡 型定義

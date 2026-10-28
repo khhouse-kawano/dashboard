@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
-import apiClient from '../../utils/apiClient';
-import LeadHeader from '../lead/LeadHeader'; // パスは環境に合わせて調整してください
-import { thisYear } from '../../utils/thisYear';
+import apiClient from '../../../utils/apiClient';
+import LeadHeader from '../common/LeadHeader'; // パスは環境に合わせて調整してください
+import { thisYear } from '../../../utils/thisYear';
 import { removeSpaces, formatDate } from './summaryUtiles'; // パスは環境に合わせて調整してください
-import AuthContext from '../../context/AuthContext';
+import AuthContext from '../../../context/AuthContext';
 // 💡 追加: タスク一覧の「開く」から顧客情報を編集する
-import LeadEdit, { LeadCategory } from '../lead/LeadEdit';
-import { saveBrokerageRecord, recordFieldChanges } from '../lead/leadUtiles';
+import LeadEdit, { LeadCategory } from '../common/LeadEdit';
+import { saveBrokerageRecord, recordFieldChanges } from '../common/leadUtiles';
 
 // ==========================================
 // 💡 型定義 (推論ベース)

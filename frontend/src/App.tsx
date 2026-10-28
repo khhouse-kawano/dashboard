@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Calendar from "./components/calendar/Calendar";
 import Category from "./components/Category";
 import DailyAction from "./components/DailyAction";
@@ -32,13 +32,15 @@ import MapRouter from "./components/map/MapRouter";
 import { useIsSp } from './utils/isSp';
 import CampaignRouter from './components/campaign/CampaignRouter';
 import DatabaseBroker from "./components/database/DatabaseBroker";
-import MonthlySalesReport from "./components/MonthlySalesReport";
 import InsideSales from "./components/insideSales/InsideSales";
-import LeadBuy from "./components/lead/LeadBuy";
-import LeadSell from "./components/lead/LeadSell";
-import LeadOpportunity from "./components/lead/LeadOpportunity";
-import LeadResale from "./components/lead/LeadResale";
-import Summary from "./components/summary/Summary";
+// ⚠️ v2.2.221: 不動産企画係（category = realty）の画面は components/realty にまとめた
+import RealtyRoute from "./components/realty/RealtyRoute";
+import Summary from "./components/realty/summary/Summary";
+import MonthlySalesReport from "./components/realty/report/MonthlySalesReport";
+import LeadSell from "./components/realty/sell/LeadSell";
+import LeadBuy from "./components/realty/buy/LeadBuy";
+import LeadOpportunity from "./components/realty/deals/LeadOpportunity";
+import LeadResale from "./components/realty/resale/LeadResale";
 import Guide from "./components/guide/Guide";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
@@ -170,14 +172,23 @@ function AppInner() {
             <Route path="/property" element={<DatabaseProperty />} />
             <Route path="/photo" element={<Photo />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
-            <Route path="/broker" element={<DatabaseBroker />} />
-            <Route path="/report" element={<MonthlySalesReport/>} />
             <Route path="/insideSales" element={<InsideSales/>} />
-            <Route path="/leadBuy" element={<LeadBuy/>} />
-            <Route path="/leadSell" element={<LeadSell/>} />
-            <Route path="/leadOpportunity" element={<LeadOpportunity/>} />
-            <Route path="/leadResale" element={<LeadResale/>} />
-            <Route path="/summary" element={<Summary/>} />
+            {/* ⚠️ v2.2.221: 不動産企画係の画面。⚠️ 担当事業が realty / all の人だけ（RealtyRoute） */}
+            <Route path="/realty/summary" element={<RealtyRoute><Summary /></RealtyRoute>} />
+            <Route path="/realty/report" element={<RealtyRoute><MonthlySalesReport /></RealtyRoute>} />
+            <Route path="/realty/sell" element={<RealtyRoute><LeadSell /></RealtyRoute>} />
+            <Route path="/realty/buy" element={<RealtyRoute><LeadBuy /></RealtyRoute>} />
+            <Route path="/realty/deals" element={<RealtyRoute><LeadOpportunity /></RealtyRoute>} />
+            <Route path="/realty/resale" element={<RealtyRoute><LeadResale /></RealtyRoute>} />
+            <Route path="/realty/ledger" element={<RealtyRoute><DatabaseBroker /></RealtyRoute>} />
+            {/* ⚠️ v2.2.220 までの URL（ブックマーク）は新しい URL へ送る */}
+            <Route path="/summary" element={<Navigate to="/realty/summary" replace />} />
+            <Route path="/report" element={<Navigate to="/realty/report" replace />} />
+            <Route path="/leadSell" element={<Navigate to="/realty/sell" replace />} />
+            <Route path="/leadBuy" element={<Navigate to="/realty/buy" replace />} />
+            <Route path="/leadOpportunity" element={<Navigate to="/realty/deals" replace />} />
+            <Route path="/leadResale" element={<Navigate to="/realty/resale" replace />} />
+            <Route path="/broker" element={<Navigate to="/realty/ledger" replace />} />
             <Route path="*" element={<Category />} />
 
           </Routes>

@@ -37,7 +37,8 @@ const Category = () => {
             order: '/company',
             spec: '/company',
             used: '/company',
-            planner: '/summary'
+            // ⚠️ v2.2.221: planner → realty（不動産企画係）
+            realty: '/realty/summary'
         };
         await setCategory(categoryValue);
         /**
@@ -68,7 +69,7 @@ const Category = () => {
                     <div className="bg-success text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill me-md-2 my-4 pointer" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
                         onClick={() => goToDashboard('spec')}>建売営業</div>
                     <div className="bg-info text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill pointer me-md-2 my-4" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
-                        onClick={() => goToDashboard('planner')}>不動産企画係</div>
+                        onClick={() => goToDashboard('realty')}>不動産企画係</div>
                     <div className="bg-warning text-center text-white py-2 py-md-3  px-4 px-md-5 rounded-pill pointer my-2" style={{ fontWeight: isSp ? '500' : '700', letterSpacing: '1px', fontSize: isSp ? '10px' : '14px' }}
                         onClick={() => goToDashboard('used')}>中古リノベ</div>
                 </div>

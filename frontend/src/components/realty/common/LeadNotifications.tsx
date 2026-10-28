@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import AuthContext from '../../context/AuthContext';
+import AuthContext from '../../../context/AuthContext';
 import { fetchNotices, markNoticesRead, isUnread, NoticeRow } from './leadUtiles';
 
 // ==========================================

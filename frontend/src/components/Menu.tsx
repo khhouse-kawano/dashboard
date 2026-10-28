@@ -226,31 +226,31 @@ const Menu = ({ key, onReload }: Props) => {
         'order': { label: '注文営業', class: 'text-white bg-primary rounded px-2 py-0 ms-1' },
         'spec': { label: '建売営業', class: 'text-white bg-success rounded px-2 py-0 ms-1' },
         'used': { label: '中古リノベ', class: 'text-white bg-warning rounded px-2 py-0 ms-1' },
-        'planner': { label: '不動産企画係', class: 'text-white bg-info rounded px-2 py-0 ms-1' },
+        'realty': { label: '不動産企画係', class: 'text-white bg-info rounded px-2 py-0 ms-1' },
     };
 
     const MENU_CONFIG: MenuItem[] = useMemo(() => [
-        { id: 'company', path: '/company', icon: 'fa-rainbow', label: '全社報告用フォーマット', show: category !== 'planner', exact: true },
-        { id: 'summary', path: '/summary', icon: 'fa-chart-line', label: 'チームサマリー', show: !isSp && category === 'planner', exact: true },
-        { id: 'report', path: '/report', icon: 'fa-calendar', label: '月次報告書', show: !isSp && category === 'planner', exact: true },
-        { id: 'leadSell', path: '/leadSell', icon: 'fa-calculator', label: '売り反響(一括査定)', show: !isSp && category === 'planner', exact: true },
-        { id: 'leadBuy', path: '/leadBuy', icon: 'fa-desktop', label: '買い反響(ポータル)', show: !isSp && category === 'planner', exact: true },
-        { id: 'report', path: '/leadOpportunity', icon: 'fa-user-tie', label: '商談案件', show: !isSp && category === 'planner', exact: true },
-        { id: 'leadResale', path: '/leadResale', icon: 'fa-arrows-rotate', label: '買取再販案件', show: !isSp && category === 'planner', exact: true },
+        { id: 'company', path: '/company', icon: 'fa-rainbow', label: '全社報告用フォーマット', show: category !== 'realty', exact: true },
+        { id: 'summary', path: '/realty/summary', icon: 'fa-chart-line', label: 'チームサマリー', show: !isSp && category === 'realty', exact: true },
+        { id: 'report', path: '/realty/report', icon: 'fa-calendar', label: '月次報告書', show: !isSp && category === 'realty', exact: true },
+        { id: 'leadSell', path: '/realty/sell', icon: 'fa-calculator', label: '売り反響(一括査定)', show: !isSp && category === 'realty', exact: true },
+        { id: 'leadBuy', path: '/realty/buy', icon: 'fa-desktop', label: '買い反響(ポータル)', show: !isSp && category === 'realty', exact: true },
+        { id: 'deals', path: '/realty/deals', icon: 'fa-user-tie', label: '商談案件', show: !isSp && category === 'realty', exact: true },
+        { id: 'leadResale', path: '/realty/resale', icon: 'fa-arrows-rotate', label: '買取再販案件', show: !isSp && category === 'realty', exact: true },
         {
             id: 'list', path: '/list', icon: 'fa-phone', label: '反響一覧', show: (category === 'order' || category === 'spec'), exact: true,
             badges: (category === 'order' && sync > 0) ? [{ label: `未同期 ${sync}件`, top: '8px' }] : []
         },
         { id: 'list_renove', path: '/list?shop=renove', icon: 'fa-phone', label: '反響一覧', show: category === 'used', exact: true },
         {
-            id: 'database', path: '/database', icon: 'fa-magnifying-glass', label: '顧客DB', show: category !== 'planner', exact: true,
+            id: 'database', path: '/database', icon: 'fa-magnifying-glass', label: '顧客DB', show: category !== 'realty', exact: true,
             badges: category === 'order' ? [
                 cancel > 0 ? { label: `来場未入力 ${cancel}件`, top: '2px' } : null,
                 lost > 0 ? { label: `失注未入力 ${lost}件`, top: '16px' } : null
             ].filter(Boolean) as Badge[] : []
         },
-        { id: 'rank', path: '/rank', icon: 'fa-person', label: '店舗・担当別反響', show: category !== 'planner', exact: true },
-        { id: 'map', path: '/map', icon: 'fa-map', label: '反響MAP', show: category !== 'planner', exact: true },
+        { id: 'rank', path: '/rank', icon: 'fa-person', label: '店舗・担当別反響', show: category !== 'realty', exact: true },
+        { id: 'map', path: '/map', icon: 'fa-map', label: '反響MAP', show: category !== 'realty', exact: true },
         /**
          * ⚠️ 建売（spec）も 2026-09-16 から表示する。
          *   ⚠️ 画面（customer/CustomerKaeru.tsx）も ② の `customer:spec` も
@@ -273,10 +273,10 @@ const Menu = ({ key, onReload }: Props) => {
          *   ⚠️ **同じ名前の列で数字が違う。** 揃えるかは利用者の判断を待っている。
          */
         { id: 'shop', path: '/shop', icon: 'fa-chart-pie', label: '店舗別広告費', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
-        { id: 'property_used', path: '/property', icon: 'fa-house', label: '掲載物件一覧', show: category === 'planner', exact: false },
-        { id: 'broker', path: '/broker', icon: 'fa-house', label: '媒介獲得台帳', show: category === 'planner', exact: false },
+        { id: 'property_used', path: '/property', icon: 'fa-house', label: '掲載物件一覧', show: category === 'realty', exact: false },
+        { id: 'broker', path: '/realty/ledger', icon: 'fa-house', label: '媒介獲得台帳', show: category === 'realty', exact: false },
         { id: 'customerTrend', path: '/customerTrend', icon: 'fa-chart-bar', label: '販促媒体別反響推移', show: !isSp && (category === 'order' || category === 'spec'), exact: true },
-        { id: 'shopTrend', path: '/shopTrend', icon: 'fa-shop', label: '店舗別反響推移', show: !isSp && category !== 'planner', exact: true },
+        { id: 'shopTrend', path: '/shopTrend', icon: 'fa-shop', label: '店舗別反響推移', show: !isSp && category !== 'realty', exact: true },
         { id: 'calendar', path: '/calendar', icon: 'fa-calendar', label: 'カレンダー', show: !isSp && category === 'order', exact: true },
         { id: 'property_spec', path: '/property', icon: 'fa-house', label: '物件DB', show: !isSp && category === 'spec', exact: false },
         { id: 'campaign', path: '/campaign', activePaths: ['/campaign', '/editcampaign'], icon: 'fa-calendar-days', label: 'キャンペーン管理', show: !isSp && category === 'order' && (authority === "BrandAdmin" || authority === "Master"), isAdminOnly: true },

@@ -282,7 +282,7 @@ const DailyAction = () => {
     /**
      * ⚠️ そもそも出す対象か。⚠️ **通信の前に判定する**（無駄な通信を避ける）
      * ⚠️ v2.2.175: 注文だけ → ⚠️ **注文・建売・中古**（指示書「全category表示」）。
-     *   ⚠️ planner などは対象外（⚠️ サーバーの DAILY_SOURCES に無い）。
+     *   ⚠️ realty（不動産企画係）などは対象外（⚠️ サーバーの DAILY_SOURCES に無い）。
      */
     const isTarget = !isSp && DAILY_CATEGORIES.includes(category);
     /** ⚠️ v2.2.175 修正: 事業を選ぶ画面（`/`・`/home`）とログインでは ⚠️ **自動でもボタンでも出さない** */
