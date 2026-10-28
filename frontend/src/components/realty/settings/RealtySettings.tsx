@@ -1,6 +1,9 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import AuthContext from '../../../context/AuthContext';
 import RealtyImport from './RealtyImport';
+import RealtyLogImport from './RealtyLogImport';
+import { CQ_SCRIPTS, TAGS, callqConf, callqScripts } from '../callq/callqLogic';
+import type { CallqConf } from '../callq/callqLogic';
 import {
     REALTY_CSS, loadRealtyState, newId, saveRealtySettings,
 } from '../common/realtyState';
@@ -13,7 +16,8 @@ import type { StaffSetting } from '../summary/kpi';
  * ⚠️ 移植元は本番アプリの「⚙ 設定・データ管理」（renderSettings）。ここを直すと、チームサマリーなど全画面に反映される。
  * ⚠️ 保存は**入力欄を離れたとき**に、その項目だけ（② の planner:settings）。
  * ⚠️ 本番アプリの次のカードはまだ移していない（それを使う画面と一緒に移す）:
- *   買取再販の粗利の計算方式・経費科目マスタ／架電キュー／売主への販売報告／データ管理（バックアップ・CSV）
+ *   買取再販の粗利の計算方式・経費科目マスタ／売主への販売報告／データ管理（バックアップ・CSV）
+ * ⚠️ v2.2.226: 「架電キュー（抽出ルールと一言目）」（V16.settingsCard）と、以前のアプリの通話記録・練習記録の取り込み（マスター）を足した
  */
 
 const MAX_STAFF = 10;
@@ -102,6 +106,10 @@ const RealtySettings: React.FC = () => {
     }, [edit, persist]);
 
     const staff = settings.staff ?? [];
+    // ⚠️ v2.2.226: 架電キュー。未設定の項目は以前のアプリの既定値（CQ_DEFAULTS / CQ_SCRIPTS）
+    const callq = callqConf(settings.callq);
+    const scripts = callqScripts(settings.callqScripts);
+    const setCallq = <K extends keyof CallqConf>(key: K, value: CallqConf[K]) => edit('callq', { ...callq, [key]: value });
     const sources = settings.sources ?? [];
     const buyPortals = settings.buyPortals ?? [];
     const templates = settings.templates ?? [];
@@ -301,11 +309,70 @@ const RealtySettings: React.FC = () => {
                 </div>
             </div>
 
+            <div className="rlt-card">
+                <div className="rlt-card-head">
+                    <h3>📞 架電キュー（抽出ルールと一言目）</h3>
+                    <span className="rlt-note">チーム全員で共有されます。差込語：{'{{name}}／{{staff}}／{{company}}／{{addr}}／{{property}}／{{next}}'}</span>
+                </div>
+                <div className="rlt-body rlt-set-grid">
+                    {/* ⚠️ 以前のアプリと同じ: 件数だけ 1〜50、ほかは 1 以上（9999 は桁あふれよけ。② も同じ範囲で確かめる） */}
+                    {([
+                        ['size', '1日に並べる件数', 1, 50],
+                        ['staleSell', '売り反響：この日数ふれていなければ対象', 1, 9999],
+                        ['staleBuy', '買い反響：この日数ふれていなければ対象', 1, 9999],
+                        ['dailyDivisor', '1日の目標＝週目標÷', 1, 9999],
+                    ] as const).map(([key, label, min, max]) => (
+                        <div key={key}>
+                            <label>{label}</label>
+                            <input type="number" min={min} max={max} className="rlt-input" style={{ width: 100, textAlign: 'right' }}
+                                value={callq[key]}
+                                onChange={e => setCallq(key, Math.max(min, Math.min(max, Math.round(Number(e.target.value) || min))))}
+                                onBlur={() => persist('callq')} />
+                        </div>
+                    ))}
+                    <div className="wide">
+                        <label>買い反響もキューに含める</label>
+                        <select className="rlt-input" value={callq.includeBuy ? '1' : '0'}
+                            onChange={e => editAndSave('callq', { ...callq, includeBuy: e.target.value === '1' })}>
+                            <option value="1">含める</option>
+                            <option value="0">売り反響のみ</option>
+                        </select>
+                    </div>
+                </div>
+                <div className="rlt-tblwrap">
+                    <table className="rlt-tbl">
+                        <thead><tr><th style={{ width: 130 }}>要件タグ</th><th>一言目のスクリプト</th></tr></thead>
+                        <tbody>
+                            {TAGS.map(t => (
+                                <tr key={t.k}>
+                                    <td style={{ whiteSpace: 'nowrap' }}>
+                                        {t.lbl}
+                                        <div className="rlt-note">{t.k === 'first' ? '売り・初回' : t.k === 'firstBuy' ? '買い・初回' : ''}</div>
+                                    </td>
+                                    <td>
+                                        <textarea className="rlt-input" rows={3} style={{ width: '100%' }} value={scripts[t.k]}
+                                            onChange={e => edit('callqScripts', { ...scripts, [t.k]: e.target.value })}
+                                            onBlur={() => persist('callqScripts')} />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="rlt-body" style={{ paddingTop: 10 }}>
+                    <button className="rlt-btn sec" onClick={() => {
+                        if (window.confirm('一言目のスクリプトを初期値に戻しますか？')) editAndSave('callqScripts', CQ_SCRIPTS());
+                    }}>一言目を初期値に戻す</button>
+                </div>
+            </div>
+
             {/* ⚠️ v2.2.224: 以前のアプリのバックアップの取り込み。マスターだけ（② も auth: 'master' で確かめる） */}
             {authority === 'Master' && <RealtyImport onFinished={reload} />}
+            {/* ⚠️ v2.2.226: 以前のアプリの通話記録・練習記録（Supabase の CSV）。マスターだけ */}
+            {authority === 'Master' && <RealtyLogImport />}
 
             <p className="rlt-sub">
-                以前のアプリの「買取再販の粗利の計算方式・経費科目」「架電キュー」「売主への販売報告」「データ管理」は、それを使う画面と一緒に、のちの版で移します。
+                以前のアプリの「買取再販の粗利の計算方式・経費科目」「売主への販売報告」「データ管理」は、それを使う画面と一緒に、のちの版で移します。
             </p>
         </div>
     );
