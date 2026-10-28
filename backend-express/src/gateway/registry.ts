@@ -157,7 +157,22 @@ import {
   listAiAnalysis,
   startAiAnalysis,
 } from '../features/aiAnalysis';
-import type { GatewayEntry, GatewayKey } from './types';
+import {
+  BROKER_SHOPS,
+  REALTY_SHOPS,
+  runActivityHistory,
+  runActivityNotice,
+  runActivityRead,
+  runBrokerCustomer,
+  runBrokerList,
+  runBrokerUpdate,
+  runPlannerLead,
+  runPlannerSummary,
+  shopForbidden,
+} from '../features/realty';
+import type { Result as RealtyResult } from '../features/realty';
+import type { AuthenticatedStaff } from '../types/staff';
+import type { GatewayContext, GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
 /**
@@ -1162,6 +1177,36 @@ register({
     return result.body;
   },
 });
+
+// ---------------------------------------------------------------------------
+// 不動産企画係（category = realty）のデータ（v2.2.221 で ① から移植）
+//
+// ⚠️⚠️ v2.2.220 までは ① で**ログインしていなくても読み書きできた**。ここで本人と担当事業を確かめる。
+//   planner:* / activity:* … 担当事業が realty / all（REALTY_SHOPS）
+//   broker:*               … realty / all / used（BROKER_SHOPS。中古の顧客DB・顧客詳細も台帳を書く）
+// ⚠️ 書き込み（broker:update・activity:read）は express_proxy.php の expressProxyExclusive() に入れてある
+//   （② で済んだ直後に応答が失われて ① でも動くと、二重に書き込むため）。
+// ---------------------------------------------------------------------------
+
+/** 担当事業を確かめてから実行し、HTTP ステータスを付けて返す */
+const realty = (allowed: string[], run: (staff: AuthenticatedStaff, body: GatewayContext['body']) => Promise<RealtyResult>) =>
+  async (ctx: GatewayContext) => {
+    const denied = shopForbidden(ctx.staff, allowed);
+    const result = denied !== null || ctx.staff === null ? denied : await run(ctx.staff, ctx.body);
+    if (result === null) return null;
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  };
+
+register({ request: 'planner', roll: 'lead', summary: '不動産企画係: 案件一覧（売り・買い反響・媒介台帳・買取再販）', phpSource: 'plannerAction/planner_lead.php', auth: 'staff', handler: realty(REALTY_SHOPS, () => runPlannerLead()) });
+register({ request: 'planner', roll: 'summary', summary: '不動産企画係: チームサマリーの元データと設定', phpSource: 'plannerAction/planner_summary.php', auth: 'staff', handler: realty(REALTY_SHOPS, () => runPlannerSummary()) });
+register({ request: 'broker', roll: 'list', summary: '媒介台帳などの全件と担当者', phpSource: 'brokerAction/broker_list.php', auth: 'staff', handler: realty(BROKER_SHOPS, () => runBrokerList()) });
+register({ request: 'broker', roll: 'report', summary: '月次報告書の元データ（broker:list と同じ）', phpSource: 'brokerAction/broker_report.php', auth: 'staff', handler: realty(BROKER_SHOPS, () => runBrokerList()) });
+register({ request: 'broker', roll: 'customer', summary: '中古の顧客と物件（台帳との紐づけ用）', phpSource: 'brokerAction/broker_customer.php', auth: 'staff', handler: realty(BROKER_SHOPS, () => runBrokerCustomer()) });
+register({ request: 'broker', roll: 'update', summary: '【書き込み】台帳などの1件を保存（UPSERT）', phpSource: 'brokerAction/broker_update.php', auth: 'staff', handler: realty(BROKER_SHOPS, (_s, body) => runBrokerUpdate(body)) });
+register({ request: 'activity', roll: 'history', summary: '不動産企画係: 変更履歴', phpSource: 'activityAction/activity_history.php', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runActivityHistory(body)) });
+register({ request: 'activity', roll: 'notice', summary: '不動産企画係: 本人宛の通知', phpSource: 'activityAction/activity_notice.php', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runActivityNotice(s, body)) });
+register({ request: 'activity', roll: 'read', summary: '【書き込み】不動産企画係: 本人宛の通知を既読にする', phpSource: 'activityAction/activity_read.php', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runActivityRead(s, body)) });
 
 // ---------------------------------------------------------------------------
 // Claudeによる分析（v2.2.217。Dashboard からの自由分析）— ② のみ（① に PHP 版は無い）

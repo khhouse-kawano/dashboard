@@ -12,7 +12,11 @@ const AuthProvider = ({ children }: Props) => {
     const location = useLocation();
     const [authority, setAuthority] = useState(() => localStorage.getItem("authority") || "");
     const [token, setToken] = useState(() => localStorage.getItem("token") || "");
-    const [category, setCategory] = useState(() => localStorage.getItem("category") || "");
+    // ⚠️ v2.2.221: 不動産企画係の category を planner → realty に変えた。前の値を覚えているブラウザは読み替える
+    const [category, setCategory] = useState(() => {
+        const saved = localStorage.getItem("category") || "";
+        return saved === "planner" ? "realty" : saved;
+    });
     const [userName, setUserName] = useState(() => localStorage.getItem("userName") || "");
     const [shopName, setShopName] = useState(() => localStorage.getItem("shopName") || "");
     const version = newVersion;

@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useMemo, useContext } from 'react';
-import apiClient from '../../utils/apiClient';
+import apiClient from '../../../utils/apiClient';
 import Card from 'react-bootstrap/Card';
 import Table from 'react-bootstrap/Table';
-import AuthContext from '../../context/AuthContext';
-import LeadEdit from './LeadEdit';
-import DocumentViewer from './DocumentViewer';
-import PlannerGenerator, { PlannerInputState } from './PlannerGenerator';
-import LeadNotifications from './LeadNotifications';
-import { saveBrokerageRecord, recordFieldChanges, isSoftDeleted } from './leadUtiles';
+import AuthContext from '../../../context/AuthContext';
+import LeadEdit from '../common/LeadEdit';
+import DocumentViewer from '../documents/DocumentViewer';
+import PlannerGenerator, { PlannerInputState } from '../documents/PlannerGenerator';
+import LeadNotifications from '../common/LeadNotifications';
+import { saveBrokerageRecord, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
 // ==========================================
 // 💡 型定義
 // ==========================================

@@ -66,6 +66,8 @@ const SHOP_OPTIONS = [
     { value: 'order', label: '注文' },
     { value: 'spec', label: '建売' },
     { value: 'used', label: '中古' },
+    // ⚠️ v2.2.221: 不動産企画係だけを見る人（入れるのは不動産企画係の画面だけ）
+    { value: 'realty', label: '不動産企画係' },
     { value: 'all', label: '全事業' },
 ] as const;
 

@@ -134,3 +134,7 @@ ReadMeClaude.md
 #   ⚠️ 2026-09-22 に `MCP_修正.zip` を誤ってコミットし、同日に取り消した。
 # ---------------------------------------------------------------------------
 mcp-server/*.zip
+
+# ⚠️ v2.2.221: 不動産企画係アプリ（Supabase）の書き出し。顧客の個人情報を含むので Git にも Web 公開の場所にも置かない
+backend/src/handlers/data.json
+backend/src/handlers/app_state.json

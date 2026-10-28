@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useContext, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
-import AuthContext from '../../context/AuthContext';
+import AuthContext from '../../../context/AuthContext';
 import { removeSpaces, NEXT_QUICK, addDaysISO, LEAD_END_REASONS, BUY_END_REASONS } from './leadUtiles';
 // 💡 追加: DocumentViewerをインポート
-import DocumentViewer from './DocumentViewer';
+import DocumentViewer from '../documents/DocumentViewer';
 // 💡 追加: サーバー保存済みの変更履歴
 import LeadHistory from './LeadHistory';
 
