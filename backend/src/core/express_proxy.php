@@ -137,6 +137,17 @@ function expressProxyRequests(): array
         'ai_analysis_list',
         'ai_analysis_get',
         'ai_analysis_delete',
+        // ⚠️ v2.2.221。不動産企画係（realty）のデータ。② で本人と担当事業を確かめる
+        //   ⚠️ 読み出しは ② に届かなければ ① の PHP が代わりに処理する（① でも同じ確認をする）
+        'planner:lead',
+        'planner:summary',
+        'broker:list',
+        'broker:report',
+        'broker:customer',
+        'broker:update',
+        'activity:history',
+        'activity:notice',
+        'activity:read',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
@@ -781,6 +792,10 @@ function expressProxyExclusive(): array
         'ai_analysis_list',
         'ai_analysis_get',
         'ai_analysis_delete',
+
+        // v2.2.221。不動産企画係の書き込み。⚠️ ② で済んだ直後に応答が失われて ① でも動くと二重に書き込むため
+        'broker:update',
+        'activity:read',
 
         // -----------------------------------------------------------------
         // v2.2.215 新規。オーナーズハウス募集（owners_house_application）の一覧と過去メールの取り込み。

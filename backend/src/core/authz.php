@@ -89,6 +89,30 @@ function requireMaster(PDO $pdo, array $headers): array
  */
 const AUTHZ_KPI_ANALYSIS = ['Master', 'BrandAdmin', 'Manager'];
 
+/**
+ * 不動産企画係（realty）の画面を使える担当事業（v2.2.221）。② の REALTY_SHOPS / BROKER_SHOPS と同じ値にすること。
+ *   媒介台帳（broker）は中古の顧客DB・顧客詳細も読み書きするため used も可。
+ */
+const AUTHZ_REALTY_SHOPS = ['realty', 'all'];
+const AUTHZ_BROKER_SHOPS = ['realty', 'all', 'used'];
+
+/**
+ * 認証と「担当事業（staff.shop）が許されていること」の確認（v2.2.221）。
+ * ⚠️ 権限（staff.brand）ではなく担当事業で判定する。持っていなければ 403 を返して終了する。
+ */
+function requireShop(PDO $pdo, array $headers, array $allowedShops): array
+{
+    $staff = requireStaff($pdo, $headers);
+    $shop = (string)($staff['shop'] ?? '');
+    if (!in_array($shop, $allowedShops, true)) {
+        error_log(sprintf('authz denied: staff_id=%s shop=%s required=%s', $staff['id'] ?? '?', $shop === '' ? '(空)' : $shop, implode('/', $allowedShops)));
+        http_response_code(403);
+        echo json_encode(['status' => 'error', 'message' => 'この操作を行う権限がありません。'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    return $staff;
+}
+
 /** 認証と「Claudeによる分析を使える権限であること」の確認（保存済みの定型分析の閲覧で使う） */
 function requireKpiAnalyst(PDO $pdo, array $headers): array
 {

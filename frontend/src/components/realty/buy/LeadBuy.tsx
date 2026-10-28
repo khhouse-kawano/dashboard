@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useMemo, useRef, useContext } from 'react';
-import apiClient from '../../utils/apiClient';
-import { thisYear } from '../../utils/thisYear';
+import apiClient from '../../../utils/apiClient';
+import { thisYear } from '../../../utils/thisYear';
 import Table from 'react-bootstrap/Table';
-import LeadHeader from './LeadHeader';
-import AuthContext from '../../context/AuthContext';
-import { removeSpaces, safeParse, BUY_END_REASONS, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from './leadUtiles';
-import LeadEdit from './LeadEdit';
-import LeadCall, { CallLog } from './LeadCall';
-import DocumentViewer from './DocumentViewer';
+import LeadHeader from '../common/LeadHeader';
+import AuthContext from '../../../context/AuthContext';
+import { removeSpaces, safeParse, BUY_END_REASONS, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
+import LeadEdit from '../common/LeadEdit';
+import LeadCall, { CallLog } from '../common/LeadCall';
+import DocumentViewer from '../documents/DocumentViewer';
 
 // ==========================================
 // 💡 型定義

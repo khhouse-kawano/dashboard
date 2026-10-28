@@ -22,7 +22,7 @@ $limit = isset($data['limit']) ? (int) $data['limit'] : 50;
 if ($limit < 1) $limit = 1;
 if ($limit > 200) $limit = 200;
 
-$where = "kind = 'notices' AND `to` = ?";
+$where = "kind = 'notices' AND REPLACE(REPLACE(`to`, ' ', ''), '　', '') = ?";
 $params = [$to];
 
 if ($unreadOnly) {
@@ -39,7 +39,7 @@ $sql = "SELECT `id`, `at`, `by`, `to`, `type`, `title`, `body`,
 
 // 未読バッジ用の件数。一覧の LIMIT に影響されない実数を返す。
 $countSql = "SELECT COUNT(*) FROM `brokerage_listings`
-              WHERE kind = 'notices' AND `to` = ? AND (`read` IS NULL OR `read` = 0)";
+              WHERE kind = 'notices' AND REPLACE(REPLACE(`to`, ' ', ''), '　', '') = ? AND (`read` IS NULL OR `read` = 0)";
 
 try {
     $stmt = $pdo->prepare($sql);

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import Modal from 'react-bootstrap/Modal';
-import AuthContext from '../../context/AuthContext';
+import AuthContext from '../../../context/AuthContext';
 import { getYK, COMPANY } from './documentUtils'; // COMPANYは内部で定義されているため除外
-import { safeParse, saveBrokerageRecord, nowDateTime } from './leadUtiles';
+import { safeParse, saveBrokerageRecord, nowDateTime } from '../common/leadUtiles';
 
 // ==========================================
 // 💡 1. ユーティリティ・定数

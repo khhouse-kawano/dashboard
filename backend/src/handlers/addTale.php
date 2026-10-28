@@ -21,6 +21,10 @@
 $isCli = (PHP_SAPI === 'cli');
 
 if (!$isCli) {
+    // ⚠️⚠️ v2.2.221: Web からの実行は Master だけ（v2.2.220 までは confirm さえ付ければ誰でも本番データを上書きできた）
+    require_once __DIR__ . '/../core/authz.php';
+    requireMaster($pdo, $headers);
+
     // index.php 経由の場合 $data にリクエストボディが入っている
     $confirm = $data['confirm'] ?? null;
     if ($confirm !== 'IMPORT') {
