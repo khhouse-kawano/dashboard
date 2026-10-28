@@ -6,6 +6,14 @@ $stmt_lead = $pdo->prepare($sql_lead);
 $stmt_lead->execute();
 $response_lead = $stmt_lead->fetchAll(PDO::FETCH_ASSOC);
 
+// ⚠️ v2.2.222: チームサマリーの売上・媒介獲得・朝礼用アラートのため、商談案件と媒介台帳も返す（② の features/realty と同じ）
+$stmt_deals = $pdo->prepare("SELECT * FROM brokerage_listings WHERE kind = 'deals'");
+$stmt_deals->execute();
+$response_deals = $stmt_deals->fetchAll(PDO::FETCH_ASSOC);
+$stmt_ledger = $pdo->prepare("SELECT * FROM brokerage_listings WHERE kind = 'ledger'");
+$stmt_ledger->execute();
+$response_ledger = $stmt_ledger->fetchAll(PDO::FETCH_ASSOC);
+
 
 // スタッフ情報
 $sql_staff = "SELECT * FROM staff_list WHERE shop = '不動産企画係';";
@@ -31,6 +39,8 @@ if (!is_array($response_settings)) {
 
 $result = [
     "lead" => $response_lead,
+    "deals" => $response_deals,
+    "ledger" => $response_ledger,
     "staff" => $response_staff,
     "settings" => $response_settings
 ];
