@@ -62,10 +62,15 @@ export const runPlannerLead = async (): Promise<Result> => {
   return ok({ lead, staff });
 };
 
-/** 移植元: plannerAction/planner_summary.php。⚠️ settings が無くても空のオブジェクトを返す */
+/**
+ * 移植元: plannerAction/planner_summary.php。⚠️ settings が無くても空のオブジェクトを返す。
+ * ⚠️ v2.2.222: チームサマリーの売上・媒介獲得・朝礼用アラートのため、商談案件（deals）と媒介台帳（ledger）も返す。
+ */
 export const runPlannerSummary = async (): Promise<Result> => {
-  const [lead, staff, state] = await Promise.all([
+  const [lead, deals, ledger, staff, state] = await Promise.all([
     query<DynamicRow>("SELECT * FROM brokerage_listings WHERE kind IN ('leads', 'buyLeads')"),
+    query<DynamicRow>("SELECT * FROM brokerage_listings WHERE kind = 'deals'"),
+    query<DynamicRow>("SELECT * FROM brokerage_listings WHERE kind = 'ledger'"),
     realtyStaffList(),
     query<DynamicRow>("SELECT `data` FROM app_state WHERE `key` = 'settings' LIMIT 1"),
   ]);
@@ -78,7 +83,7 @@ export const runPlannerSummary = async (): Promise<Result> => {
     settings = {};
   }
   // ⚠️ PHP の json_decode(…, true) は空のオブジェクトを [] にする。画面は Object として読むので {} で返す
-  return ok({ lead, staff, settings: Array.isArray(settings) && settings.length === 0 ? {} : settings });
+  return ok({ lead, deals, ledger, staff, settings: Array.isArray(settings) && settings.length === 0 ? {} : settings });
 };
 
 // ---------------------------------------------------------------------------
@@ -117,6 +122,8 @@ const ALLOWED_COLUMNS = [
   'expiry', 'expiryFix', 'reinsDate', 'priceRevDate', 'lastReportDate',
   'type', 'priority', 'dealId', 'dealNo', 'ledgerId', 'ledgerNo', 'extId',
   'subStaff', 'subRatio', 'coBroker', 'delivery',
+  // ⚠️ v2.2.222: 本番アプリ（V14.11〜）で増えた商談のリフォーム受注と、商談リストの登録日
+  'reformPrice', 'reformGp', 'reformNote', 'createdAt',
   'reason', 'timing', 'endReason', 'callDates', 'nextDate', 'nextNote',
   'receivedDate', 'connectDate', 'visitDate', 'viewDate', 'baikaiDate',
   'contactDate', 'contractDate', 'settleDate', 'followDate',

@@ -19,6 +19,13 @@ type Props = {
         overdue: number;
         missing: number;
     };
+    /**
+     * 月の選択肢に「全期間」を出すか（既定 true）。
+     * ⚠️ v2.2.222: チームサマリーは年間予算の累計・月次KPIを月ごとに出すので「全期間」を出さない。
+     */
+    allowAllPeriod?: boolean;
+    /** 月の後ろに付ける文言（既定「 受信分」）。⚠️ チームサマリーは契約月の集計も含むので付けない */
+    monthSuffix?: string;
 };
 
 // ==========================================
@@ -95,6 +102,8 @@ const LeadHeader: React.FC<Props> = ({
     isAdding,
     headerLabel,
     nextActionAlert,
+    allowAllPeriod = true,
+    monthSuffix = ' 受信分',
 }) => {
     const hasAlert = !!nextActionAlert && (nextActionAlert.overdue > 0 || nextActionAlert.missing > 0);
     return (
@@ -113,10 +122,10 @@ const LeadHeader: React.FC<Props> = ({
                         value={selectedMonth}
                         onChange={(e) => setSelectedMonth(e.target.value)}
                     >
-                        <option value="">全期間</option>
+                        {allowAllPeriod && <option value="">全期間</option>}
                         {availableMonths.map(m => {
                             const [y, mon] = m.split('-');
-                            return <option key={m} value={m}>{`${y}年${Number(mon)}月 受信分`}</option>;
+                            return <option key={m} value={m}>{`${y}年${Number(mon)}月${monthSuffix}`}</option>;
                         })}
                     </select>
                 </div>

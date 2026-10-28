@@ -26,6 +26,8 @@ $allowedColumns = [
     // 商談
     'type', 'priority', 'dealId', 'dealNo', 'ledgerId', 'ledgerNo', 'extId',
     'subStaff', 'subRatio', 'coBroker', 'delivery',
+    // ⚠️ v2.2.222: 本番アプリで増えた商談のリフォーム受注と登録日（② の ALLOWED_COLUMNS と同じ）
+    'reformPrice', 'reformGp', 'reformNote', 'createdAt',
     // リード（追客）
     'reason', 'timing', 'endReason', 'callDates', 'nextDate', 'nextNote',
     'receivedDate', 'connectDate', 'visitDate', 'viewDate', 'baikaiDate',
