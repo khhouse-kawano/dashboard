@@ -155,6 +155,7 @@ const costMap = (v: unknown, label: string): Record<string, number> => {
 };
 
 const COMPANY_FIELDS = ['name', 'rep', 'dept', 'addr', 'tel', 'fax', 'license', 'assoc', 'agent', 'agentNo'] as const;
+const CALLQ_SCRIPT_KEYS = ['first', 'firstBuy', 'redial', 'report', 'newprop', 'overdue', 'long', 'ask'] as const;
 
 /**
  * 画面から直せる設定の項目と、その確かめ方。
@@ -199,6 +200,30 @@ const SETTINGS_FIELDS: Record<string, (v: unknown) => unknown> = {
     if (!isObject(v)) throw new InvalidInput('宅建業者情報の形が正しくありません');
     const out: Record<string, string> = {};
     for (const f of COMPANY_FIELDS) out[f] = text(v[f], 200, '宅建業者情報');
+    return out;
+  },
+  // ⚠️ v2.2.226: 今日の架電キューの抽出ルール（以前のアプリの CQ_DEFAULTS と V16.setSize / setConf の範囲）
+  //   ⚠️ 以前のアプリは件数だけ 1〜50 に丸め、ほかは 1 以上しか確かめない（実データに「週目標÷10」がある）。上限は桁あふれよけ
+  callq: (v) => {
+    if (!isObject(v)) throw new InvalidInput('架電キューの設定の形が正しくありません');
+    const int = (raw: unknown, min: number, max: number, label: string): number => {
+      const n = Math.round(Number(raw));
+      if (!Number.isFinite(n) || n < min || n > max) throw new InvalidInput(`${label}は${min}〜${max}で入力してください`);
+      return n;
+    };
+    return {
+      size: int(v.size, 1, 50, '1日に並べる件数'),
+      staleSell: int(v.staleSell, 1, 9999, '売り反響の日数'),
+      staleBuy: int(v.staleBuy, 1, 9999, '買い反響の日数'),
+      dailyDivisor: int(v.dailyDivisor, 1, 9999, '1日の目標の割る数'),
+      includeBuy: v.includeBuy !== false,
+    };
+  },
+  // ⚠️ v2.2.226: 今日の架電キューの一言目（要件タグごと。以前のアプリの CQ_SCRIPTS のキー）
+  callqScripts: (v) => {
+    if (!isObject(v)) throw new InvalidInput('一言目の形が正しくありません');
+    const out: Record<string, string> = {};
+    for (const k of CALLQ_SCRIPT_KEYS) out[k] = text(v[k], 2000, '一言目');
     return out;
   },
 };

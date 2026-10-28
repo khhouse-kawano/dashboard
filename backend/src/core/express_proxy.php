@@ -159,6 +159,13 @@ function expressProxyRequests(): array
         'planner:import_finish',
         // ⚠️ v2.2.225。以前のアプリから移す画面の読み出し（② だけ）。expressProxyExclusive() にも入れてある
         'planner:records',
+        // ⚠️ v2.2.226。今日の架電キュー・架電ナビ・通話記録（② だけ）。expressProxyExclusive() にも入れてある
+        'planner:call_mark',
+        'planner:call_undo',
+        'planner:navi_save',
+        'planner:call_logs',
+        'planner:call_logs_import',
+        'planner:practice_logs_import',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
@@ -818,6 +825,13 @@ function expressProxyExclusive(): array
         'planner:import_finish',
         // v2.2.225 新規。以前のアプリから移す画面の読み出し。⚠️ ① に PHP ハンドラは無い（② だけ）
         'planner:records',
+        // v2.2.226 新規。今日の架電キュー・架電ナビ・通話記録。⚠️ ① に PHP ハンドラは無い（② だけ）
+        'planner:call_mark',
+        'planner:call_undo',
+        'planner:navi_save',
+        'planner:call_logs',
+        'planner:call_logs_import',
+        'planner:practice_logs_import',
 
         // -----------------------------------------------------------------
         // v2.2.215 新規。オーナーズハウス募集（owners_house_application）の一覧と過去メールの取り込み。

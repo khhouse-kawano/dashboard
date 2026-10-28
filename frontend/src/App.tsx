@@ -48,6 +48,8 @@ import MonthlySales from "./components/realty/sales/MonthlySales";
 import BaikaiMonthly from "./components/realty/bmonthly/BaikaiMonthly";
 import LostAnalysis from "./components/realty/lost/LostAnalysis";
 import RealtyPending from "./components/realty/RealtyPending";
+import CallQueue from "./components/realty/callq/CallQueue";
+import CallNavi from "./components/realty/navi/CallNavi";
 import Guide from "./components/guide/Guide";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
@@ -199,6 +201,9 @@ function AppInner() {
             <Route path="/realtySales" element={<RealtyRoute><MonthlySales /></RealtyRoute>} />
             <Route path="/realtyBaikaiMonthly" element={<RealtyRoute><BaikaiMonthly /></RealtyRoute>} />
             <Route path="/realtyLost" element={<RealtyRoute><LostAnalysis /></RealtyRoute>} />
+            {/* ⚠️ v2.2.226: 今日の架電キュー・架電ナビ（一括査定） */}
+            <Route path="/realtyCallQueue" element={<RealtyRoute><CallQueue /></RealtyRoute>} />
+            <Route path="/realtyCallNavi" element={<RealtyRoute><CallNavi /></RealtyRoute>} />
             <Route path="/realtyPending" element={<RealtyRoute><RealtyPending /></RealtyRoute>} />
             {/* ⚠️ v2.2.221〜222 の2段の URL。⚠️ 画面の中から移ってきたときだけ効く（再読み込みは上の理由で届かない） */}
             <Route path="/realty/summary" element={<Navigate to="/summary" replace />} />

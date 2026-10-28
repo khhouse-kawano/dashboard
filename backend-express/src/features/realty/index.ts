@@ -41,7 +41,7 @@ const ok = (body: Record<string, unknown>): Result => ({ httpStatus: 200, body }
 const fail = (httpStatus: number, message: string): Result => ({ httpStatus, body: { status: 'error', message } });
 
 /** 名前の突き合わせ用。⚠️ 空白（全角を含む）を落とす（staff と staff_list で表記が揺れる） */
-const norm = (value: unknown): string => String(value ?? '').replace(/[\s　]/g, '');
+export const norm = (value: unknown): string => String(value ?? '').replace(/[\s　]/g, '');
 
 /** SQL の中で `to` の空白を落とす式（norm と同じ） */
 const TO_NORM = "REPLACE(REPLACE(`to`, ' ', ''), '　', '')";

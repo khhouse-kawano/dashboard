@@ -11,6 +11,8 @@ import { removeSpaces, safeParse, LEAD_END_REASONS, saveBrokerageRecord, newReco
 import LeadEdit from '../common/LeadEdit';
 import LeadCall, { CallLog } from '../common/LeadCall';
 import DocumentViewer from '../documents/DocumentViewer';
+import { openNavi } from '../navi/naviHost';
+import { sameName } from '../callq/callqLogic';
 
 export type SellLead = {
   internal_id: string;
@@ -433,6 +435,31 @@ const LeadSell = () => {
     setIsCallModalOpen(true);
   };
 
+  /**
+   * ⚠️ v2.2.226: 架電ナビ（以前のアプリの「🧭」）。記録は ② が反響を書き換えるので、返ってきた行で置き換える。
+   * 「自分」は設定の担当者名（ログイン名と空白の入り方が違うことがある）
+   */
+  const openNaviFor = (lead: SellLead) => {
+    const me = (settings.staff ?? []).find(s => s.name && sameName(s.name, userName || ''))?.name ?? (userName || '');
+    openNavi({
+      lead: lead as unknown as Row, settings: settings as Record<string, unknown>, me,
+      onSaved: row => {
+        if (!row) return;
+        setLeads(prev => prev.map(l => (l.id === row.id ? {
+          ...l,
+          callDates: row.callDates as string | null,
+          phase: row.phase as string,
+          nextDate: dateFormate(row.nextDate as string | null),
+          nextNote: (row.nextNote as string) || null,
+          connectDate: dateFormate(row.connectDate as string | null),
+          endReason: row.endReason as string,
+          reason: row.reason as string,
+          timing: row.timing as string,
+        } : l)));
+      },
+    });
+  };
+
   const handleSaveCallLog = (leadId: string, updatedCallDatesJson: string, nextDate?: string, nextNote?: string) => {
     // 3項目を1リクエストにまとめる（別々に送ると途中で失敗したとき中途半端に保存される）
     void handleApiPatch(leadId, {
@@ -685,6 +712,13 @@ const LeadSell = () => {
                           >
                             📞 架電
                           </button>
+                          <button
+                            style={{ fontSize: '9px', padding: '0 6px', height: '20px', backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '10px', cursor: 'pointer' }}
+                            onClick={() => openNaviFor(lead)}
+                            title="架電ナビ（トーク伴走・自動聞き取り）で架電"
+                          >
+                            🧭
+                          </button>
                         </div>
                       </td>
                       <td style={getTdStyle(isUnassigned)}>
@@ -773,6 +807,11 @@ const LeadSell = () => {
         setCustomerInfo={setCustomerInfo}
         leadCategory="sell"
         staffList={staffList}
+        onNavi={() => {
+          const lead = leads.find(l => l.id === customerInfo.id);
+          setIsEditModalOpen(false);
+          if (lead) openNaviFor(lead);
+        }}
       />
 
       <DocumentViewer
