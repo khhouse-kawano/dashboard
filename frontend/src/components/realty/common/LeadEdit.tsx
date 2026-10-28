@@ -38,6 +38,8 @@ export type LeadEditProps = {
     setCustomerInfo: React.Dispatch<React.SetStateAction<any>>;
     leadCategory: LeadCategory;
     staffList: string[];
+    /** 架電ナビで架電する（v2.2.226。売り反響の画面だけが渡す） */
+    onNavi?: () => void;
 };
 
 // 💡 追加: DocumentViewerへ渡すデータの型定義
@@ -126,7 +128,8 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     customerInfo,
     setCustomerInfo,
     leadCategory,
-    staffList
+    staffList,
+    onNavi
 }) => {
     const { userName } = useContext(AuthContext);
 
@@ -663,6 +666,10 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                         </button>
                     </div>
                     <div className="d-flex gap-2">
+                        {/* ⚠️ v2.2.226: 売り反響の画面から開いたときだけ（以前のアプリの編集画面の「🧭 ナビで架電」）。⚠️ 入力中の内容は保存せずに閉じる */}
+                        {onNavi && customerInfo?.id && (
+                            <button className="btn btn-outline-primary btn-sm px-3 fw-bold" style={{ fontSize: '11px' }} onClick={onNavi}>🧭 ナビで架電</button>
+                        )}
                         <button className="btn btn-outline-secondary btn-sm px-3 fw-bold" style={{ fontSize: '11px' }} onClick={onClose}>キャンセル</button>
                         <button className="btn btn-primary btn-sm px-4 fw-bold shadow-sm" style={{ fontSize: '11px' }} onClick={handleSaveClick}>保存する</button>
                     </div>

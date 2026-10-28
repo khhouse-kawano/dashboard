@@ -16,8 +16,8 @@ type Group = { label: string; items: RealtyMenuItem[] };
 export const REALTY_MENU: Group[] = [
     {
         label: '日々の行動', items: [
-            { id: 'callq', path: '/realtyPending?view=callq', icon: 'fa-phone', label: '今日の架電キュー', pending: true },
-            { id: 'navi', path: '/realtyPending?view=navi', icon: 'fa-compass', label: '架電ナビ（一括査定）', pending: true },
+            { id: 'callq', path: '/realtyCallQueue', icon: 'fa-phone', label: '今日の架電キュー' },
+            { id: 'navi', path: '/realtyCallNavi', icon: 'fa-compass', label: '架電ナビ（一括査定）' },
         ],
     },
     {

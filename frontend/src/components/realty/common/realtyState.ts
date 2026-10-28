@@ -26,6 +26,10 @@ export type RealtySettings = {
     portalCosts?: Record<string, number>;
     templates?: Template[];
     company?: Partial<Company>;
+    /** 今日の架電キューの抽出ルール（v2.2.226。中身は callq/callqLogic.ts の CallqConf） */
+    callq?: Record<string, unknown>;
+    /** 今日の架電キューの一言目（v2.2.226。要件タグ → 文面） */
+    callqScripts?: Record<string, string>;
 };
 
 /** 週次行動計画の1行（担当者 × 週）。g = 目標・a = 実績。c 架電・t 追客・n 内見・s 商談 */

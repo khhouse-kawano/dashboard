@@ -174,6 +174,7 @@ import {
 import type { Result as RealtyResult } from '../features/realty';
 import { runPlannerCompliance, runPlannerSettings, runPlannerState, runPlannerWeekly } from '../features/realty/state';
 import { runImportCheck, runImportFinish, runImportRecords } from '../features/realty/importer';
+import { runCallLogs, runCallLogsImport, runCallMark, runCallUndo, runNaviSave, runPracticeLogsImport } from '../features/realty/calls';
 import type { AuthenticatedStaff } from '../types/staff';
 import type { GatewayContext, GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
@@ -1231,6 +1232,16 @@ const realtyMaster = (run: (body: GatewayContext['body']) => Promise<RealtyResul
 register({ request: 'planner', roll: 'import_check', summary: '不動産企画係: 以前のアプリのバックアップの下見（書き込まない）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runImportCheck) });
 register({ request: 'planner', roll: 'import_records', summary: '【書き込み】不動産企画係: 以前のアプリのバックアップの行を取り込む（300件まで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runImportRecords) });
 register({ request: 'planner', roll: 'import_finish', summary: '【書き込み】不動産企画係: 取り込みの仕上げ（消えた行の非表示・設定の置き換え）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runImportFinish) });
+
+// ⚠️ v2.2.226 新規（② だけ）。今日の架電キュー・架電ナビ・通話記録。features/realty/calls.ts
+//   ⚠️ 通話記録（文字起こし）は不動産企画係の全員が読める（2026-10-28 の利用者の判断。以前のアプリと同じ）
+//   ⚠️ CSV の取り込み（以前のアプリの call_logs・practice_logs）はマスターだけ
+register({ request: 'planner', roll: 'call_mark', summary: '【書き込み】不動産企画係: 架電キューの1タップ記録（架電記録・フェーズ・次回連絡予定日）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runCallMark(s, body)) });
+register({ request: 'planner', roll: 'call_undo', summary: '【書き込み】不動産企画係: 架電キューの直前の記録を取り消す', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runCallUndo(body)) });
+register({ request: 'planner', roll: 'navi_save', summary: '【書き込み】不動産企画係: 架電ナビの記録（反響の更新と通話記録）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runNaviSave(s, body)) });
+register({ request: 'planner', roll: 'call_logs', summary: '不動産企画係: 架電ナビの通話記録（期間を指定）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runCallLogs(body)) });
+register({ request: 'planner', roll: 'call_logs_import', summary: '【書き込み】不動産企画係: 以前のアプリの通話記録（CSV）を取り込む（300件まで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runCallLogsImport) });
+register({ request: 'planner', roll: 'practice_logs_import', summary: '【書き込み】不動産企画係: 以前のアプリの練習記録（CSV）を取り込む（300件まで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runPracticeLogsImport) });
 
 // ---------------------------------------------------------------------------
 // Claudeによる分析（v2.2.217。Dashboard からの自由分析）— ② のみ（① に PHP 版は無い）

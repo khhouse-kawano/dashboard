@@ -5,6 +5,7 @@ import {
 } from '../common/realtyState';
 import type { RealtyState, WeeklyCell, WeeklyKey, WeeklyRow } from '../common/realtyState';
 import { fiscalMonths, monthLabel, pct, prevMonth } from '../summary/kpi';
+import ContactQualityPanel from '../callq/ContactQualityPanel';
 
 /**
  * 週次行動計画・実績（不動産企画係。v2.2.223）。
@@ -13,7 +14,7 @@ import { fiscalMonths, monthLabel, pct, prevMonth } from '../summary/kpi';
  *   ・黄色＝目標（手入力）／白＝実績（手入力）。⚠️ 架電実績だけは売り反響の📞架電の記録から数える（手入力不可）
  *   ・週：1〜7日／8〜14日／15〜21日／22日〜月末
  *   ・前月より前の月は、翌月5日を過ぎると目標を直せない（マスター・マネージャーは直せる）。実績はいつでも直せる
- * ⚠️ 本番アプリ V16 の「接触の質」の表は、架電の結果（不在・通電・アポ・終了）を記録する「今日の架電キュー」と一緒に移す。
+ * ⚠️ v2.2.226: 本番アプリ V16 の「接触の質」の表を、以前のアプリと同じく表の上に出す（callq/ContactQualityPanel.tsx）。
  */
 
 const STYLE = `
@@ -169,6 +170,8 @@ const WeeklyPlan: React.FC = () => {
                 <div className="rlt-alert">担当者が登録されていません。設定画面で担当者を追加してください。</div>
             ) : (
                 <>
+                    <ContactQualityPanel month={month} names={names} />
+
                     <div className="rlt-card rlt-tblwrap">
                         <table className="rlt-tbl rlt-wk">
                             <thead><tr>
