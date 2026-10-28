@@ -37,8 +37,8 @@ const Category = () => {
             order: '/company',
             spec: '/company',
             used: '/company',
-            // ⚠️ v2.2.221: planner → realty（不動産企画係）
-            realty: '/realty/summary'
+            // ⚠️ v2.2.221: planner → realty（不動産企画係）。⚠️ v2.2.223: URL は1段（App.tsx の注記）
+            realty: '/summary'
         };
         await setCategory(categoryValue);
         /**

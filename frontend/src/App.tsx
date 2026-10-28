@@ -41,6 +41,9 @@ import LeadSell from "./components/realty/sell/LeadSell";
 import LeadBuy from "./components/realty/buy/LeadBuy";
 import LeadOpportunity from "./components/realty/deals/LeadOpportunity";
 import LeadResale from "./components/realty/resale/LeadResale";
+import WeeklyPlan from "./components/realty/weekly/WeeklyPlan";
+import Compliance from "./components/realty/compliance/Compliance";
+import RealtySettings from "./components/realty/settings/RealtySettings";
 import Guide from "./components/guide/Guide";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
@@ -173,22 +176,29 @@ function AppInner() {
             <Route path="/photo" element={<Photo />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
             <Route path="/insideSales" element={<InsideSales/>} />
-            {/* ⚠️ v2.2.221: 不動産企画係の画面。⚠️ 担当事業が realty / all の人だけ（RealtyRoute） */}
-            <Route path="/realty/summary" element={<RealtyRoute><Summary /></RealtyRoute>} />
-            <Route path="/realty/report" element={<RealtyRoute><MonthlySalesReport /></RealtyRoute>} />
-            <Route path="/realty/sell" element={<RealtyRoute><LeadSell /></RealtyRoute>} />
-            <Route path="/realty/buy" element={<RealtyRoute><LeadBuy /></RealtyRoute>} />
-            <Route path="/realty/deals" element={<RealtyRoute><LeadOpportunity /></RealtyRoute>} />
-            <Route path="/realty/resale" element={<RealtyRoute><LeadResale /></RealtyRoute>} />
-            <Route path="/realty/ledger" element={<RealtyRoute><DatabaseBroker /></RealtyRoute>} />
-            {/* ⚠️ v2.2.220 までの URL（ブックマーク）は新しい URL へ送る */}
-            <Route path="/summary" element={<Navigate to="/realty/summary" replace />} />
-            <Route path="/report" element={<Navigate to="/realty/report" replace />} />
-            <Route path="/leadSell" element={<Navigate to="/realty/sell" replace />} />
-            <Route path="/leadBuy" element={<Navigate to="/realty/buy" replace />} />
-            <Route path="/leadOpportunity" element={<Navigate to="/realty/deals" replace />} />
-            <Route path="/leadResale" element={<Navigate to="/realty/resale" replace />} />
-            <Route path="/broker" element={<Navigate to="/realty/ledger" replace />} />
+            {/* ⚠️ v2.2.221: 不動産企画係の画面。⚠️ 担当事業が realty / all の人だけ（RealtyRoute）
+                ⚠️⚠️ v2.2.223: URL は**1段**に戻した（v2.2.220 までと同じ）。⚠️ `/realty/summary` のような2段にしないこと。
+                  index.html が画面の部品を相対パス（./static/...）で読むため、2段の URL で再読み込みすると
+                  /dashboard/realty/static/... を取りに行き、HTML が返って真っ白になる（Guide.tsx の注記と同じ） */}
+            <Route path="/summary" element={<RealtyRoute><Summary /></RealtyRoute>} />
+            <Route path="/report" element={<RealtyRoute><MonthlySalesReport /></RealtyRoute>} />
+            <Route path="/leadSell" element={<RealtyRoute><LeadSell /></RealtyRoute>} />
+            <Route path="/leadBuy" element={<RealtyRoute><LeadBuy /></RealtyRoute>} />
+            <Route path="/leadOpportunity" element={<RealtyRoute><LeadOpportunity /></RealtyRoute>} />
+            <Route path="/leadResale" element={<RealtyRoute><LeadResale /></RealtyRoute>} />
+            <Route path="/broker" element={<RealtyRoute><DatabaseBroker /></RealtyRoute>} />
+            {/* ⚠️ v2.2.223: 週次行動計画・コンプライアンス・設定（本番アプリから移植） */}
+            <Route path="/realtyWeekly" element={<RealtyRoute><WeeklyPlan /></RealtyRoute>} />
+            <Route path="/realtyCompliance" element={<RealtyRoute><Compliance /></RealtyRoute>} />
+            <Route path="/realtySettings" element={<RealtyRoute><RealtySettings /></RealtyRoute>} />
+            {/* ⚠️ v2.2.221〜222 の2段の URL。⚠️ 画面の中から移ってきたときだけ効く（再読み込みは上の理由で届かない） */}
+            <Route path="/realty/summary" element={<Navigate to="/summary" replace />} />
+            <Route path="/realty/report" element={<Navigate to="/report" replace />} />
+            <Route path="/realty/sell" element={<Navigate to="/leadSell" replace />} />
+            <Route path="/realty/buy" element={<Navigate to="/leadBuy" replace />} />
+            <Route path="/realty/deals" element={<Navigate to="/leadOpportunity" replace />} />
+            <Route path="/realty/resale" element={<Navigate to="/leadResale" replace />} />
+            <Route path="/realty/ledger" element={<Navigate to="/broker" replace />} />
             <Route path="*" element={<Category />} />
 
           </Routes>

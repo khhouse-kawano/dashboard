@@ -509,7 +509,8 @@ const NewCampaign = () => {
         if (response?.status === 'duplicate') {
             alert('キャンペーンIDが重複しています')
         } else if (response?.status === 'success') {
-            navigate(`/campaign/?brand=${form.brand}`);
+            // ⚠️ v2.2.223: `/campaign/?…` と末尾に / を付けない（再読み込みで ./static の場所がずれて真っ白になる。App.tsx の注記）
+            navigate(`/campaign?brand=${form.brand}`);
         }
     }, [response])
 
@@ -534,7 +535,7 @@ const NewCampaign = () => {
     );
 
     const isEdit = Boolean(idValue);
-    const backToList = () => navigate(`/campaign/?brand=${brandValue ?? ''}`);
+    const backToList = () => navigate(`/campaign?brand=${brandValue ?? ''}`);
 
     return (
         <div className="nc">
