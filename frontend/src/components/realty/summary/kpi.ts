@@ -156,19 +156,19 @@ export const CONFIRMED = ['契約済', '契約予定', '決済完了'];
 const stdFee = (price: number): number => (!price || price <= 0 ? 0 : price <= 8_000_000 ? 300_000 : Math.round(price * 0.03 + 60_000));
 
 /** 仲介手数料（dealFee）。手入力のときはその値 */
-const dealFee = (d: Row): number => (num(d.feeManual) ? num(d.fee) : stdFee(num(d.price)));
-const dealReform = (d: Row): number => Math.max(0, Math.round(num(d.reformPrice)));
-const dealReformGp = (d: Row): number => Math.round(num(d.reformGp));
+export const dealFee = (d: Row): number => (num(d.feeManual) ? num(d.fee) : stdFee(num(d.price)));
+export const dealReform = (d: Row): number => Math.max(0, Math.round(num(d.reformPrice)));
+export const dealReformGp = (d: Row): number => Math.round(num(d.reformGp));
 /** 売上計上額＝仲介手数料＋リフォーム粗利（dealSales） */
-const dealSales = (d: Row): number => dealFee(d) + dealReformGp(d);
+export const dealSales = (d: Row): number => dealFee(d) + dealReformGp(d);
 
-type Share = { name: string; ratio: number; cnt: number };
+export type Share = { name: string; ratio: number; cnt: number };
 
 /**
  * 主担当と共同担当の按分（dealShares）。
  * 共同担当なし・割合0・同一人物 → 主担当100%・1件／主担当なし → 共同担当100%・1件／両方 → 売上は割合、件数は0.5件ずつ
  */
-const dealShares = (d: Row): Share[] => {
+export const dealShares = (d: Row): Share[] => {
     const main = str(d.staff).trim();
     const sub = str(d.subStaff).trim();
     const r = Math.min(100, Math.max(0, num(d.subRatio)));
@@ -179,12 +179,13 @@ const dealShares = (d: Row): Share[] => {
 
 export type StaffMonth = Record<string, Record<string, number>>;
 
-/** 担当者 × 契約月の集計（dealSumByStaffMonth）。⚠️ 契約日のない案件・失注は数えない */
-const sumByStaffMonth = (deals: Row[], pick: (d: Row) => number): StaffMonth => {
+/** 担当者 × 契約月の集計（dealSumByStaffMonth）。⚠️ 契約日のない案件・失注は数えない。filter で絞れる（確定だけ など） */
+export const sumByStaffMonth = (deals: Row[], pick: (d: Row) => number, filter?: (d: Row) => boolean): StaffMonth => {
     const out: StaffMonth = {};
     for (const d of deals) {
         const cd = str(d.contractDate);
         if (!cd || str(d.phase) === '失注') continue;
+        if (filter && !filter(d)) continue;
         const mk = cd.slice(0, 7);
         const v = pick(d);
         for (const sh of dealShares(d)) {
@@ -314,6 +315,15 @@ export const daysAgoLabel = (ds: string, today: string): string => {
 /** '¥1,234,567'（fmtYen）。値が無ければ ― */
 export const fmtYen = (v: number | null | undefined): string =>
     v === null || v === undefined || Number.isNaN(v) ? '―' : `¥${Math.round(v).toLocaleString()}`;
+
+/** '123万'（fmtMan）。万円に四捨五入 */
+export const fmtMan = (v: number): string => `${Math.round(v / 10000).toLocaleString()}万`;
+
+/** その人の取り分（dealFeeFor / dealReformFor / dealReformGpFor）。担当でなければ 0 */
+export const shareOf = (d: Row, name: string, pick: (d: Row) => number): number => {
+    const sh = dealShares(d).find(x => x.name === name);
+    return sh ? Math.round(pick(d) * sh.ratio) : 0;
+};
 
 /** 0 のときは ―（fmtYen0） */
 export const fmtYen0 = (v: number): string => (v > 0 ? fmtYen(v) : '―');

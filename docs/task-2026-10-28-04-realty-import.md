@@ -950,3 +950,28 @@ index 935dec58..1cdda918 100644
 -export const newVersion = '2.2.223';
 +export const newVersion = '2.2.224';
 ```
+
+## 追記（同日）: 実データでの取り込みと歩留まりの突き合わせ
+- 依頼: 「アプリケーションと開発画面（最新データ反映版）で歩留まりが合うか調べて」
+- ローカルに `営業管理バックアップ_20261028.json`（2637件）を取り込み画面で取り込んだ（8秒）
+- **直したこと**: 販売報告（sellerReports）2件が「Data too long for column 'portal'」で入らなかった。販売報告の portal はポータルごとの数字の配列で、反響元の列（VARCHAR）に入らない。
+  → `importer.ts` に JSON_COLUMNS（callDates・costs・coBroker・data・docDraft）を足し、それ以外の列に配列・オブジェクトが来たら列には入れない（原本 raw_data には残る）。流し直して全件入った（新規2・変わらない2635）
+
+```ts
+const JSON_COLUMNS = new Set(['callDates', 'costs', 'coBroker', 'data', 'docDraft']);
+// runImportRecords の中
+for (const [key, value] of Object.entries(rec.data)) {
+  if (!IMPORT_COLUMNS.has(key)) continue;
+  if (value !== null && typeof value === 'object' && !JSON_COLUMNS.has(key)) continue; // 原本にだけ残す（JSON_COLUMNS の注記）
+  row[key] = toColumnValue(key, value, warn);
+}
+```
+
+- 突き合わせ（スクラッチパッドの yield_compare.cjs。以前のアプリは V18 の leadKpi / buyKpi をそのまま、Dashboard は Summary.tsx・LeadSell.tsx・LeadBuy.tsx の計算をそのまま。データは ① を通して取得）
+  - 両方にある行は、受信月・段階・通電日・内見日・訪問日がすべて一致（差 0件）
+  - **チームサマリーの歩留まりファネル**: 定義は同じ。違うのは Dashboard にだけある反響（ポータル取り込み）がある月の件数だけ（2026-04〜10）
+  - **売り反響・買い反響の画面の上のカード**: 定義が V18 と違う（通電・訪問の段階の一覧、contactDate の月、contractDate の月で受託、架電はその月に受信した反響の全架電、買いは「内見済み」〈V18 は「内見済」〉）。ほぼ全月でずれる
+- Dashboard にだけある反響 109件（売り47・買い62）
+  - 67件は以前のアプリに同じ名前・同じ受信日の反響がある＝同じ反響が反響番号の作り方の違いで別の行になっている
+    （イエウール: Dashboard「受信日:名前」⇔ 以前のアプリ「問い合わせ番号」、アットホーム: 以前のアプリはメール由来の番号、SUUMO: 番号自体が違う、HOME'S・イエイ: 以前のアプリは番号なしが多い）
+  - 4件は名前だけ同じ（受信日が違う）、38件は以前のアプリに見当たらない（SUUMO 29件が多い）

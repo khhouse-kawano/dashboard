@@ -11,12 +11,14 @@ SELECT k.kind AS 種類,
        IFNULL(a.cnt, 0) AS 取り込み後,
        IFNULL(a.visible, 0) AS うち表示中,
        IFNULL(a.hidden_import, 0) AS うち以前のアプリで削除,
+       IFNULL(a.hidden_not_in_app, 0) AS うち以前のアプリに無い行,
        IFNULL(a.hidden_dup, 0) AS うち重複で非表示
   FROM (SELECT DISTINCT kind FROM brokerage_listings) k
   LEFT JOIN (SELECT kind, COUNT(*) cnt FROM brokerage_listings_bk_import GROUP BY kind) b ON b.kind = k.kind
   LEFT JOIN (SELECT kind, COUNT(*) cnt,
                     SUM(show_dashboard IS NULL OR show_dashboard <> 0) visible,
                     SUM(deleted_by = '以前のアプリで削除') hidden_import,
+                    SUM(deleted_by = '以前のアプリに無い行') hidden_not_in_app,
                     SUM(deleted_by = '以前のアプリと重複') hidden_dup
                FROM brokerage_listings GROUP BY kind) a ON a.kind = k.kind
  ORDER BY k.kind;

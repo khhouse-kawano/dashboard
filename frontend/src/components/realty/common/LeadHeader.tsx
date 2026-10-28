@@ -26,6 +26,11 @@ type Props = {
     allowAllPeriod?: boolean;
     /** 月の後ろに付ける文言（既定「 受信分」）。⚠️ チームサマリーは契約月の集計も含むので付けない */
     monthSuffix?: string;
+    /**
+     * ⚠️ v2.2.225: 期間をグループで選ぶ（以前のアプリの periodSelHtml: 月別（今期）／通期／全期間）。
+     *   渡したときは availableMonths・allowAllPeriod・monthSuffix は使わず、selectedMonth に 'm:…' 'fy:…' 'all' が入る
+     */
+    periodGroups?: { label: string; options: { value: string; label: string }[] }[];
 };
 
 // ==========================================
@@ -104,6 +109,7 @@ const LeadHeader: React.FC<Props> = ({
     nextActionAlert,
     allowAllPeriod = true,
     monthSuffix = ' 受信分',
+    periodGroups,
 }) => {
     const hasAlert = !!nextActionAlert && (nextActionAlert.overdue > 0 || nextActionAlert.missing > 0);
     return (
@@ -118,15 +124,23 @@ const LeadHeader: React.FC<Props> = ({
                     {/* form-selectクラスはドロップダウンの矢印UIを維持するために残しつつ、スタイルを上書き */}
                     <select
                         className="form-select shadow-sm"
-                        style={customStyles.selectBox}
+                        style={periodGroups ? { ...customStyles.selectBox, width: '260px' } : customStyles.selectBox}
                         value={selectedMonth}
                         onChange={(e) => setSelectedMonth(e.target.value)}
                     >
-                        {allowAllPeriod && <option value="">全期間</option>}
-                        {availableMonths.map(m => {
-                            const [y, mon] = m.split('-');
-                            return <option key={m} value={m}>{`${y}年${Number(mon)}月${monthSuffix}`}</option>;
-                        })}
+                        {periodGroups ? periodGroups.map(g => (
+                            <optgroup key={g.label} label={g.label}>
+                                {g.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </optgroup>
+                        )) : (
+                            <>
+                                {allowAllPeriod && <option value="">全期間</option>}
+                                {availableMonths.map(m => {
+                                    const [y, mon] = m.split('-');
+                                    return <option key={m} value={m}>{`${y}年${Number(mon)}月${monthSuffix}`}</option>;
+                                })}
+                            </>
+                        )}
                     </select>
                 </div>
                 
