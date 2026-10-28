@@ -53,10 +53,10 @@ export type RealtyState = {
 };
 
 /** ② が返す本文。⚠️ 失敗のときは status = 'error' と message */
-type ApiBody = { status?: string; message?: string; [key: string]: unknown };
+export type ApiBody = { status?: string; message?: string; [key: string]: unknown };
 
-/** 失敗のときは ② のメッセージを投げる（画面は alert で出す） */
-const post = async (roll: string, body: Record<string, unknown> = {}): Promise<ApiBody> => {
+/** request = planner の roll を呼ぶ。失敗のときは ② のメッセージを投げる（画面は alert で出す） */
+export const post = async (roll: string, body: Record<string, unknown> = {}): Promise<ApiBody> => {
     try {
         const res = await apiClient.post<ApiBody>('', { request: 'planner', roll, ...body });
         if (res.data?.status === 'error') throw new Error(res.data.message || '保存に失敗しました');

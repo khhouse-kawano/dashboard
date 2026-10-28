@@ -153,6 +153,10 @@ function expressProxyRequests(): array
         'planner:settings',
         'planner:weekly',
         'planner:compliance',
+        // ⚠️ v2.2.224。以前のアプリのバックアップの取り込み（マスターだけ）。⚠️ ② だけ。expressProxyExclusive() にも入れてある
+        'planner:import_check',
+        'planner:import_records',
+        'planner:import_finish',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
@@ -806,6 +810,10 @@ function expressProxyExclusive(): array
         'planner:settings',
         'planner:weekly',
         'planner:compliance',
+        // v2.2.224 新規。以前のアプリのバックアップの取り込み（マスターだけ）。⚠️ ① に PHP ハンドラは無い（② だけ）
+        'planner:import_check',
+        'planner:import_records',
+        'planner:import_finish',
 
         // -----------------------------------------------------------------
         // v2.2.215 新規。オーナーズハウス募集（owners_house_application）の一覧と過去メールの取り込み。

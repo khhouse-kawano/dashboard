@@ -172,6 +172,7 @@ import {
 } from '../features/realty';
 import type { Result as RealtyResult } from '../features/realty';
 import { runPlannerCompliance, runPlannerSettings, runPlannerState, runPlannerWeekly } from '../features/realty/state';
+import { runImportCheck, runImportFinish, runImportRecords } from '../features/realty/importer';
 import type { AuthenticatedStaff } from '../types/staff';
 import type { GatewayContext, GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
@@ -1216,6 +1217,18 @@ register({ request: 'planner', roll: 'state', summary: '不動産企画係: 設�
 register({ request: 'planner', roll: 'settings', summary: '【書き込み】不動産企画係: 設定の項目を保存', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runPlannerSettings(body)) });
 register({ request: 'planner', roll: 'weekly', summary: '【書き込み】不動産企画係: 週次行動計画のセルを保存', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runPlannerWeekly(s, body)) });
 register({ request: 'planner', roll: 'compliance', summary: '【書き込み】不動産企画係: コンプライアンスの入力を保存・クリア', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runPlannerCompliance(body)) });
+
+// ⚠️ v2.2.224 新規（② だけ）。以前の不動産企画係アプリのバックアップの取り込み。features/realty/importer.ts
+//   ⚠️ マスターだけ（auth: 'master'）。担当事業は問わない（マスターは全事業）
+const realtyMaster = (run: (body: GatewayContext['body']) => Promise<RealtyResult>) =>
+  async (ctx: GatewayContext) => {
+    const result = await run(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  };
+register({ request: 'planner', roll: 'import_check', summary: '不動産企画係: 以前のアプリのバックアップの下見（書き込まない）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runImportCheck) });
+register({ request: 'planner', roll: 'import_records', summary: '【書き込み】不動産企画係: 以前のアプリのバックアップの行を取り込む（300件まで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runImportRecords) });
+register({ request: 'planner', roll: 'import_finish', summary: '【書き込み】不動産企画係: 取り込みの仕上げ（消えた行の非表示・設定の置き換え）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runImportFinish) });
 
 // ---------------------------------------------------------------------------
 // Claudeによる分析（v2.2.217。Dashboard からの自由分析）— ② のみ（① に PHP 版は無い）
