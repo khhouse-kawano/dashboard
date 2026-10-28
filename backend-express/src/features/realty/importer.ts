@@ -89,6 +89,12 @@ const DATE_COLUMNS = new Set([
 ]);
 /** DATETIME の列 */
 const DATETIME_COLUMNS = new Set(['docDraftAt']);
+/**
+ * 配列・オブジェクトを入れてよい列（JSON 文字列で持つ）。
+ * ⚠️ それ以外の列に配列・オブジェクトが来たら列には入れない（原本 raw_data には残る）。
+ *   例: 販売報告（sellerReports）の portal はポータルごとの数字の配列で、反響元の列（VARCHAR）に入らない（2026-10-28 に実データで発見）
+ */
+const JSON_COLUMNS = new Set(['callDates', 'costs', 'coBroker', 'data', 'docDraft']);
 /** 数値の列。⚠️ 数値として読めない値（台帳の no に 'to' など）は NULL */
 const INT_COLUMNS = new Set([
   'no', 'price', 'budget', 'fee', 'subRatio', 'entityNo', 'targetGp',
@@ -330,7 +336,9 @@ export const runImportRecords = async (body: Record<string, unknown>): Promise<R
       // ② UPSERT。⚠️ 原本（raw_data）が 64KB を超えることがある（契約書の下書き）ため executeLarge
       const row: Record<string, SqlValue> = { id: rec.id, kind: rec.kind, raw_data: JSON.stringify(rec.data) };
       for (const [key, value] of Object.entries(rec.data)) {
-        if (IMPORT_COLUMNS.has(key)) row[key] = toColumnValue(key, value, warn);
+        if (!IMPORT_COLUMNS.has(key)) continue;
+        if (value !== null && typeof value === 'object' && !JSON_COLUMNS.has(key)) continue; // 原本にだけ残す（JSON_COLUMNS の注記）
+        row[key] = toColumnValue(key, value, warn);
       }
       if (ext === null && 'extId' in row && row.extId !== null) {
         row.extId = null;
