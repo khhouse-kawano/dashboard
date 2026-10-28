@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import AuthContext from '../../../context/AuthContext';
+import RealtyImport from './RealtyImport';
 import {
     REALTY_CSS, loadRealtyState, newId, saveRealtySettings,
 } from '../common/realtyState';
@@ -56,12 +58,16 @@ const RealtySettings: React.FC = () => {
     // ⚠️ 打っただけで離れていない項目。離れたときにだけ送る（打つたびに送らない）
     const dirty = useRef<Set<Key>>(new Set());
 
-    useEffect(() => {
+    const { authority } = useContext(AuthContext);
+
+    const reload = useCallback(() => {
         loadRealtyState()
-            .then(st => { latest.current = st.settings; setSettings(st.settings); })
+            .then(st => { latest.current = st.settings; dirty.current.clear(); setSettings(st.settings); })
             .catch((e: Error) => alert(`設定を読み込めませんでした: ${e.message}`))
             .finally(() => setLoading(false));
     }, []);
+
+    useEffect(() => { reload(); }, [reload]);
 
     /** 画面の値だけ変える（保存はしない） */
     const edit = useCallback(<K extends Key>(key: K, value: Settings[K]) => {
@@ -294,6 +300,9 @@ const RealtySettings: React.FC = () => {
                     ))}
                 </div>
             </div>
+
+            {/* ⚠️ v2.2.224: 以前のアプリのバックアップの取り込み。マスターだけ（② も auth: 'master' で確かめる） */}
+            {authority === 'Master' && <RealtyImport onFinished={reload} />}
 
             <p className="rlt-sub">
                 以前のアプリの「買取再販の粗利の計算方式・経費科目」「架電キュー」「売主への販売報告」「データ管理」は、それを使う画面と一緒に、のちの版で移します。
