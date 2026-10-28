@@ -55,11 +55,6 @@ type SummaryLead = {
 // ==========================================
 // 💡 ヘルパー関数・定数
 // ==========================================
-const formatYen = (num: number | string | null | undefined) => {
-    if (num == null || isNaN(Number(num))) return '―';
-    return `¥${Number(num).toLocaleString()}`;
-};
-
 const formatMan = (num: number | string | null | undefined) => {
     if (num == null || isNaN(Number(num))) return '―';
     return `${Math.round(Number(num) / 10000).toLocaleString()}万`;
@@ -925,73 +920,82 @@ const Summary = () => {
                     </div>
 
                     {/* ==========================================
-                        📊 6. 反響KPI (売り/買い 横並び)
+                        📊 6. 一括査定KPI・買い反響KPI
+                        ⚠️ v2.2.225: 以前のアプリ（renderDash）と同じ列・同じ表示にした（前月比はマイナスもそのまま出す）
                     ========================================== */}
-                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                        {/* 売り反響KPI */}
-                        <div style={{ ...s.card, flex: 1, minWidth: '550px' }}>
-                            <div style={s.cardTitle}>
-                                一括査定KPIサマリー（{selectedMonth.replace('-', '年')}月）
-                            </div>
-                            <div style={{ overflowX: 'auto', border: '1px solid #dee2e6', borderRadius: '4px' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
-                                    <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                                        <tr>
-                                            <th style={s.th}>リード数</th>
-                                            <th style={s.th}>架電数</th>
-                                            <th style={s.th}>通電率</th>
-                                            <th style={s.th}>査定率</th>
-                                            <th style={s.th}>受託率(リード比)</th>
-                                            <th style={s.th}>目標達成率</th>
-                                            <th style={s.th}>獲得単価</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr style={{ backgroundColor: '#fff' }}>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa' }}>{sellKpiSummary.leads}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa' }}>{sellKpiSummary.calls}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa', color: '#0d6efd', fontWeight: 'bold' }}>{calcRate(sellKpiSummary.connects, sellKpiSummary.leads)}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa', color: '#0d6efd', fontWeight: 'bold' }}>{calcRate(sellKpiSummary.visits, sellKpiSummary.leads)}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa', color: '#198754', fontWeight: 'bold' }}>{calcRate(sellKpiSummary.wins, sellKpiSummary.leads)}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#fff8f1', color: '#fd7e14' }}>{calcRate(sellKpiSummary.wins, sellKpiSummary.target)}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa' }}>{sellKpiSummary.wins ? formatYen(sellKpiSummary.cost / sellKpiSummary.wins) : '―'}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                    <div style={s.card}>
+                        <div style={s.cardTitle}>
+                            一括査定KPIサマリー（{monthLabel(selectedMonth)}受信リード・チーム合計）
+                            <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal' }}>売り反響から自動集計</span>
                         </div>
-
-                        {/* 買い反響KPI */}
-                        <div style={{ ...s.card, flex: 1, minWidth: '550px' }}>
-                            <div style={s.cardTitle}>
-                                買い反響KPIサマリー（{selectedMonth.replace('-', '年')}月）
-                            </div>
-                            <div style={{ overflowX: 'auto', border: '1px solid #dee2e6', borderRadius: '4px' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
-                                    <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                        <div style={{ overflowX: 'auto', border: '1px solid #dee2e6', borderRadius: '4px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                                <thead>
+                                    <tr>
+                                        {['リード受信数', '架電数(延べ)', '通電数', '通電率', '訪問査定獲得数', '査定獲得率', '媒介受託数', '受託率(リード比)', '受託率(査定比)', '目標受託数', '目標達成率', '前月比受託数', '反響費用', '媒介獲得単価']
+                                            .map(h => <th key={h} style={{ ...s.th, textAlign: 'right' }}>{h}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sellKpiSummary.leads === 0 && sellKpiSummary.calls === 0 ? (
+                                        <tr><td colSpan={14} style={{ ...s.td, textAlign: 'center', color: '#6c757d' }}>{monthLabel(selectedMonth)}受信のリードはまだ登録されていません</td></tr>
+                                    ) : (
                                         <tr>
-                                            <th style={s.th}>反響数</th>
-                                            <th style={s.th}>通電率</th>
-                                            <th style={s.th}>内見率</th>
-                                            <th style={s.th}>申込率(反響比)</th>
-                                            <th style={s.th}>成約数</th>
-                                            <th style={s.th}>前月比申込</th>
-                                            <th style={s.th}>申込単価</th>
+                                            <td style={s.td}>{sellKpiSummary.leads}</td>
+                                            <td style={s.td}>{sellKpiSummary.calls}</td>
+                                            <td style={s.td}>{sellKpiSummary.connects}</td>
+                                            <td style={s.td}>{calcRate(sellKpiSummary.connects, sellKpiSummary.leads)}</td>
+                                            <td style={s.td}>{sellKpiSummary.visits}</td>
+                                            <td style={s.td}>{calcRate(sellKpiSummary.visits, sellKpiSummary.leads)}</td>
+                                            <td style={s.td}>{sellKpiSummary.wins}</td>
+                                            <td style={s.td}>{calcRate(sellKpiSummary.wins, sellKpiSummary.leads)}</td>
+                                            <td style={s.td}>{calcRate(sellKpiSummary.wins, sellKpiSummary.visits)}</td>
+                                            <td style={{ ...s.td, backgroundColor: '#fff8e1' }}>{sellKpiSummary.target}</td>
+                                            <td style={s.td}>{calcRate(sellKpiSummary.wins, sellKpiSummary.target)}</td>
+                                            <td style={s.td}>{sellKpiSummary.lastMonthDiff >= 0 ? '+' : ''}{sellKpiSummary.lastMonthDiff}</td>
+                                            <td style={s.td}>{fmtYen0(sellKpiSummary.cost)}</td>
+                                            <td style={s.td}>{sellKpiSummary.wins && sellKpiSummary.cost ? fmtYen(Math.round(sellKpiSummary.cost / sellKpiSummary.wins)) : '―'}</td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr style={{ backgroundColor: '#fff' }}>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa' }}>{buyKpiSummary.leads}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa', color: '#0d6efd', fontWeight: 'bold' }}>{calcRate(buyKpiSummary.connects, buyKpiSummary.leads)}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa', color: '#0d6efd', fontWeight: 'bold' }}>{calcRate(buyKpiSummary.views, buyKpiSummary.leads)}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa', color: '#198754', fontWeight: 'bold' }}>{calcRate(buyKpiSummary.offers, buyKpiSummary.leads)}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa' }}>{buyKpiSummary.wins}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa' }}>+{buyKpiSummary.lastMonthDiff}</td>
-                                            <td style={{ ...s.td, backgroundColor: '#f8f9fa' }}>{buyKpiSummary.offers ? formatYen(buyKpiSummary.cost / buyKpiSummary.offers) : '―'}</td>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div style={s.card}>
+                        <div style={s.cardTitle}>
+                            買い反響KPIサマリー（{monthLabel(selectedMonth)}受信・チーム合計）
+                            <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal' }}>買い反響から自動集計</span>
+                        </div>
+                        <div style={{ overflowX: 'auto', border: '1px solid #dee2e6', borderRadius: '4px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                                <thead>
+                                    <tr>
+                                        {['反響受信数', '架電数(延べ)', '通電数', '通電率', '内見数', '内見率', '購入申込', '申込率(反響比)', '成約数', '前月比申込', '反響費用', '申込単価']
+                                            .map(h => <th key={h} style={{ ...s.th, textAlign: 'right' }}>{h}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {buyKpiSummary.leads === 0 && buyKpiSummary.calls === 0 ? (
+                                        <tr><td colSpan={12} style={{ ...s.td, textAlign: 'center', color: '#6c757d' }}>{monthLabel(selectedMonth)}受信の買い反響はまだ登録されていません</td></tr>
+                                    ) : (
+                                        <tr>
+                                            <td style={s.td}>{buyKpiSummary.leads}</td>
+                                            <td style={s.td}>{buyKpiSummary.calls}</td>
+                                            <td style={s.td}>{buyKpiSummary.connects}</td>
+                                            <td style={s.td}>{calcRate(buyKpiSummary.connects, buyKpiSummary.leads)}</td>
+                                            <td style={s.td}>{buyKpiSummary.views}</td>
+                                            <td style={s.td}>{calcRate(buyKpiSummary.views, buyKpiSummary.leads)}</td>
+                                            <td style={s.td}>{buyKpiSummary.offers}</td>
+                                            <td style={s.td}>{calcRate(buyKpiSummary.offers, buyKpiSummary.leads)}</td>
+                                            <td style={s.td}>{buyKpiSummary.wins}</td>
+                                            <td style={s.td}>{buyKpiSummary.lastMonthDiff >= 0 ? '+' : ''}{buyKpiSummary.lastMonthDiff}</td>
+                                            <td style={s.td}>{fmtYen0(buyKpiSummary.cost)}</td>
+                                            <td style={s.td}>{buyKpiSummary.offers && buyKpiSummary.cost ? fmtYen(Math.round(buyKpiSummary.cost / buyKpiSummary.offers)) : '―'}</td>
                                         </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 

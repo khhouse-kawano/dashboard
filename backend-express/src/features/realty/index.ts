@@ -53,13 +53,30 @@ const TO_NORM = "REPLACE(REPLACE(`to`, ' ', ''), '　', '')";
 const realtyStaffList = (): Promise<DynamicRow[]> =>
   query<DynamicRow>("SELECT * FROM staff_list WHERE shop = '不動産企画係'");
 
-/** 移植元: plannerAction/planner_lead.php。⚠️ kind で絞るのは画面側 */
+/** app_state.settings（無ければ・読めなければ空のオブジェクト） */
+const readSettings = async (): Promise<unknown> => {
+  const state = await query<DynamicRow>("SELECT `data` FROM app_state WHERE `key` = 'settings' LIMIT 1");
+  try {
+    const raw = state[0]?.data;
+    const parsed: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    // ⚠️ PHP の json_decode(…, true) は空のオブジェクトを [] にする。画面は Object として読むので {} で返す
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+/**
+ * 移植元: plannerAction/planner_lead.php。⚠️ kind で絞るのは画面側
+ * ⚠️ v2.2.225: 売り反響・買い反響の画面の歩留まり（担当者・反響単価・期首月）のため settings も返す
+ */
 export const runPlannerLead = async (): Promise<Result> => {
-  const [lead, staff] = await Promise.all([
+  const [lead, staff, settings] = await Promise.all([
     query<DynamicRow>("SELECT * FROM brokerage_listings WHERE kind IN ('leads', 'buyLeads', 'ledger', 'resales')"),
     realtyStaffList(),
+    readSettings(),
   ]);
-  return ok({ lead, staff });
+  return ok({ lead, staff, settings });
 };
 
 /**
@@ -67,23 +84,14 @@ export const runPlannerLead = async (): Promise<Result> => {
  * ⚠️ v2.2.222: チームサマリーの売上・媒介獲得・朝礼用アラートのため、商談案件（deals）と媒介台帳（ledger）も返す。
  */
 export const runPlannerSummary = async (): Promise<Result> => {
-  const [lead, deals, ledger, staff, state] = await Promise.all([
+  const [lead, deals, ledger, staff, settings] = await Promise.all([
     query<DynamicRow>("SELECT * FROM brokerage_listings WHERE kind IN ('leads', 'buyLeads')"),
     query<DynamicRow>("SELECT * FROM brokerage_listings WHERE kind = 'deals'"),
     query<DynamicRow>("SELECT * FROM brokerage_listings WHERE kind = 'ledger'"),
     realtyStaffList(),
-    query<DynamicRow>("SELECT `data` FROM app_state WHERE `key` = 'settings' LIMIT 1"),
+    readSettings(),
   ]);
-  let settings: unknown = {};
-  try {
-    const raw = state[0]?.data;
-    const parsed: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (parsed !== null && typeof parsed === 'object') settings = parsed;
-  } catch {
-    settings = {};
-  }
-  // ⚠️ PHP の json_decode(…, true) は空のオブジェクトを [] にする。画面は Object として読むので {} で返す
-  return ok({ lead, deals, ledger, staff, settings: Array.isArray(settings) && settings.length === 0 ? {} : settings });
+  return ok({ lead, deals, ledger, staff, settings });
 };
 
 // ---------------------------------------------------------------------------

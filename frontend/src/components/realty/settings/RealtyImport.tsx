@@ -100,11 +100,26 @@ const RealtyImport: React.FC<{ onFinished: () => void }> = ({ onFinished }) => {
     const [parsed, setParsed] = useState<Parsed | null>(null);
     const [check, setCheck] = useState<Check | null>(null);
     const [hide, setHide] = useState(true);
+    /**
+     * 非表示にする範囲（② の importer.ts の HideScope）。
+     * ⚠️ v2.2.225: 既定は全面差し替え（2026-10-28「既存の brokerage_listings は無いものとして考えてよい」）
+     */
+    const [hideScope, setHideScope] = useState<'all' | 'imported'>('all');
     const [busy, setBusy] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
     const [result, setResult] = useState<{ totals: Totals; hidden: number; hideSkipped: string | null; warnings: string[]; errors: string[] } | null>(null);
 
     const reset = () => { setParsed(null); setCheck(null); setResult(null); setProgress(null); };
+
+    /** 下見。⚠️ 非表示の件数は範囲で変わるので、範囲を変えたら呼び直す */
+    const runCheck = async (p: Parsed, scope: 'all' | 'imported') => {
+        const c = await post('import_check', {
+            records: p.records.map(r => ({ id: r.id, kind: r.kind, extId: r.data.extId ?? null })),
+            hideScope: scope,
+        });
+        setCheck(c as unknown as Check);
+        setHide(!c.hideRefusal);
+    };
 
     const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -114,12 +129,21 @@ const RealtyImport: React.FC<{ onFinished: () => void }> = ({ onFinished }) => {
         setBusy(true);
         try {
             const p = parseBackup(f.name, await f.text());
-            const c = await post('import_check', {
-                records: p.records.map(r => ({ id: r.id, kind: r.kind, extId: r.data.extId ?? null })),
-            });
+            await runCheck(p, hideScope);
             setParsed(p);
-            setCheck(c as unknown as Check);
-            setHide(!c.hideRefusal);
+        } catch (err) {
+            alert((err as Error).message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const changeScope = async (scope: 'all' | 'imported') => {
+        setHideScope(scope);
+        if (!parsed) return;
+        setBusy(true);
+        try {
+            await runCheck(parsed, scope);
         } catch (err) {
             alert((err as Error).message);
         } finally {
@@ -129,7 +153,9 @@ const RealtyImport: React.FC<{ onFinished: () => void }> = ({ onFinished }) => {
 
     const run = async () => {
         if (!parsed || !check) return;
-        const hideNote = hide && check.hide > 0 ? `\n以前のアプリで消えた ${check.hide} 件を非表示にします。` : '';
+        const hideNote = hide && check.hide > 0
+            ? `\n${hideScope === 'all' ? 'ファイルに無い' : '以前のアプリで消えた'} ${check.hide} 件を非表示にします。`
+            : '';
         if (!window.confirm(`${parsed.records.length} 件を取り込み、設定・週次行動計画・コンプライアンスを以前のアプリの内容で置き換えます。${hideNote}\nよろしいですか？`)) return;
         setBusy(true);
         const totals: Totals = { inserted: 0, updated: 0, unchanged: 0, merged: 0, retired: 0, failed: 0 };
@@ -150,6 +176,7 @@ const RealtyImport: React.FC<{ onFinished: () => void }> = ({ onFinished }) => {
             const fin = await post('import_finish', {
                 ids: parsed.records.map(r => r.id),
                 hide: hide && !check.hideRefusal,
+                hideScope,
                 settingsJson: JSON.stringify(parsed.settings),
                 weeklyJson: JSON.stringify(parsed.weekly),
                 complianceJson: JSON.stringify(parsed.compliance),
@@ -188,7 +215,7 @@ const RealtyImport: React.FC<{ onFinished: () => void }> = ({ onFinished }) => {
                                     <th>種類</th><th className="r">ファイル</th><th className="r">新規</th><th className="r">更新</th>
                                     <th className="r" title="同じ反響番号の行が Dashboard にある。以前のアプリの内容にそろえる">そろえる</th>
                                     <th className="r" title="同じ反響の行が Dashboard に2行ある。Dashboard 側を非表示にする">重複</th>
-                                    <th className="r" title="以前のアプリで消えた行">非表示</th>
+                                    <th className="r" title="ファイルに無いため非表示にする行（範囲は下で選ぶ）">非表示</th>
                                 </tr></thead>
                                 <tbody>
                                     {KINDS.filter(k => check.counts[k.key]).map(k => {
@@ -207,9 +234,19 @@ const RealtyImport: React.FC<{ onFinished: () => void }> = ({ onFinished }) => {
                             <p className="rlt-sub">ファイルの中で反響番号が重複している反響が {check.dupExtIds.length} 件あります。その反響は反響番号を空にして取り込みます。</p>
                         )}
                         {check.hideRefusal && <div className="rlt-alert" style={{ marginTop: 8 }}>{check.hideRefusal}</div>}
+                        <div className="rlt-sub" style={{ margin: '8px 0' }}>
+                            <label style={{ display: 'block' }}>
+                                <input type="radio" name="rlt-hide-scope" checked={hideScope === 'all'} disabled={busy} onChange={() => changeScope('all')} />{' '}
+                                <b>全面差し替え</b>：ファイルに無い行はすべて非表示（Dashboard のポータル取り込みで入った反響も）
+                            </label>
+                            <label style={{ display: 'block' }}>
+                                <input type="radio" name="rlt-hide-scope" checked={hideScope === 'imported'} disabled={busy} onChange={() => changeScope('imported')} />{' '}
+                                以前のアプリで消えた行だけ非表示（Dashboard で入った行は残す）
+                            </label>
+                        </div>
                         <label className="rlt-sub" style={{ display: 'block', margin: '8px 0' }}>
                             <input type="checkbox" checked={hide} disabled={!!check.hideRefusal || busy} onChange={e => setHide(e.target.checked)} />{' '}
-                            以前のアプリで消えた行（{check.hide} 件）を非表示にする（行は消さないので戻せます）
+                            {hideScope === 'all' ? 'ファイルに無い行' : '以前のアプリで消えた行'}（{check.hide} 件）を非表示にする（行は消さないので戻せます）
                         </label>
                         <p className="rlt-sub">設定・週次行動計画・コンプライアンスは、以前のアプリの内容で置き換えます。</p>
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

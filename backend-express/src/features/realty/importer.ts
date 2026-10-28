@@ -22,7 +22,7 @@ import type { Result } from './index';
  *   ・同じポータル反響（反響番号 extId が同じで id が違う）が Dashboard にもあるときは、**以前のアプリを正**にする。
  *     Dashboard の行の id を以前のアプリの id に付け替えてから上書きする（変更履歴・通知・商談の紐づけの id も付け替える）
  *   ・以前のアプリで消えた行（前に取り込んだが今のファイルに無い）は**非表示**（論理削除）。行は消さない
- *     ⚠️ 対象は「以前のアプリから取り込んだ行」（raw_data がある行）だけ。Dashboard で入った行は触らない
+ *     ⚠️ v2.2.225: 全面差し替え（hideScope = all）では、Dashboard で入った行もファイルに無ければ非表示（HideScope の注記）
  * ⚠️ Dashboard だけの列（show_dashboard・deleted_*・master_data_id・property_db_*）は取り込みで上書きしない。
  *   ⚠️ ただし、この取り込みで非表示にした行がファイルに戻ってきたら、表示に戻す。
  * ─────────────────────────────────────────────
@@ -43,8 +43,10 @@ const IMPORT_KINDS = [
   'logs', 'notices', 'sellerReports', 'viewings', 'comments',
 ] as const;
 
-/** この取り込みで非表示にした印（deleted_by） */
+/** この取り込みで非表示にした印（deleted_by）。以前のアプリから取り込んだ行で、今のファイルに無いもの */
 const DELETED_BY = '以前のアプリで削除';
+/** 全面差し替え（hideScope = all）で非表示にした、以前のアプリから来ていない行（Dashboard のポータル取り込みなど） */
+const NOT_IN_APP = '以前のアプリに無い行';
 /** ファイルの行がこれより少なければ、消えた行の非表示を断る（違うファイル・途中で切れたファイルの事故よけ） */
 const MIN_RECORDS_FOR_HIDE = 300;
 /** 非表示にする行が、以前のアプリから取り込んだ行のこの割合を超えたら断る */
@@ -192,27 +194,37 @@ const readKeys = (raw: unknown): { id: string; kind: string; extId: string | nul
 
 type KindCount = { file: number; insert: number; update: number; merge: number; conflict: number; hide: number };
 
-/** 以前のアプリから取り込んだ、表示中の行（非表示にする候補） */
-const importedVisibleRows = () =>
+/**
+ * 非表示にする範囲（v2.2.225）。
+ *   all      … **全面差し替え**。ファイルに無い表示中の行はすべて非表示（Dashboard のポータル取り込み・Dashboard で入れた行も）
+ *   imported … 以前のアプリから取り込んだ行（raw_data がある行）のうち、ファイルに無いものだけ（v2.2.224 の動き）
+ * ⚠️ 2026-10-28 の利用者の指示: 「既存の brokerage_listings は無いものとして考えてよい」「明日から不動産企画係が使い始める」
+ *   → 画面は all を既定にする。同じ反響が反響番号の作り方の違いで2行になっていた分（109件）もこれで消える
+ */
+type HideScope = 'all' | 'imported';
+const hideScopeOf = (v: unknown): HideScope => (v === 'all' ? 'all' : 'imported');
+
+/** 非表示にする候補（表示中の行） */
+const visibleRows = (scope: HideScope) =>
   query<DynamicRow>(
     `SELECT id, kind FROM brokerage_listings
-      WHERE raw_data IS NOT NULL AND kind IN (${IMPORT_KINDS.map(() => '?').join(', ')})
+      WHERE ${scope === 'imported' ? 'raw_data IS NOT NULL AND ' : ''}kind IN (${IMPORT_KINDS.map(() => '?').join(', ')})
         AND (show_dashboard IS NULL OR show_dashboard <> 0)`,
     [...IMPORT_KINDS]
   );
 
-/** 非表示にする行（以前のアプリから取り込んだが、今のファイルに無い） */
-const rowsToHide = async (fileIds: Set<string>) => {
-  const imported = await importedVisibleRows();
-  return { imported, hide: imported.filter((r) => !fileIds.has(String(r.id))) };
+/** 非表示にする行（今のファイルに無い） */
+const rowsToHide = async (fileIds: Set<string>, scope: HideScope) => {
+  const candidates = await visibleRows(scope);
+  return { candidates, hide: candidates.filter((r) => !fileIds.has(String(r.id))) };
 };
 
 /** 非表示を断る理由（無ければ null） */
-const hideRefusal = (fileCount: number, importedCount: number, hideCount: number): string | null => {
+const hideRefusal = (fileCount: number, candidateCount: number, hideCount: number): string | null => {
   if (hideCount === 0) return null;
-  if (fileCount < MIN_RECORDS_FOR_HIDE) return `ファイルの行が ${fileCount} 件しかありません。違うファイルの可能性があるため、消えた行の非表示はしません`;
-  if (hideCount > importedCount * MAX_HIDE_RATIO) {
-    return `非表示にする行が ${hideCount} 件（以前のアプリから取り込んだ行の ${Math.round((hideCount / importedCount) * 100)}%）と多すぎます。古いファイルや途中で切れたファイルの可能性があるため、非表示はしません`;
+  if (fileCount < MIN_RECORDS_FOR_HIDE) return `ファイルの行が ${fileCount} 件しかありません。違うファイルの可能性があるため、非表示はしません`;
+  if (hideCount > candidateCount * MAX_HIDE_RATIO) {
+    return `非表示にする行が ${hideCount} 件（いま表示中の行の ${Math.round((hideCount / candidateCount) * 100)}%）と多すぎます。古いファイルや途中で切れたファイルの可能性があるため、非表示はしません`;
   }
   return null;
 };
@@ -249,7 +261,7 @@ export const runImportCheck = async (body: Record<string, unknown>): Promise<Res
     else kc.insert++;
   }
 
-  const { imported, hide } = await rowsToHide(new Set(ids));
+  const { candidates, hide } = await rowsToHide(new Set(ids), hideScopeOf(body.hideScope));
   for (const r of hide) c(String(r.kind)).hide++;
 
   return ok({
@@ -257,7 +269,7 @@ export const runImportCheck = async (body: Record<string, unknown>): Promise<Res
     counts,
     total: keys.length,
     hide: hide.length,
-    hideRefusal: hideRefusal(keys.length, imported.length, hide.length),
+    hideRefusal: hideRefusal(keys.length, candidates.length, hide.length),
     dupExtIds,
   });
 };
@@ -348,15 +360,15 @@ export const runImportRecords = async (body: Record<string, unknown>): Promise<R
       const updates = cols.filter((c) => c !== 'id').map((c) => `\`${c}\` = VALUES(\`${c}\`)`);
       // ⚠️ この取り込みで非表示にした行が戻ってきたら表示に戻す。⚠️ deleted_by は最後に（左から順に評価される）
       updates.push(
-        'show_dashboard = IF(deleted_by <=> ?, 1, show_dashboard)',
-        'deleted_at = IF(deleted_by <=> ?, NULL, deleted_at)',
-        'deleted_by = IF(deleted_by <=> ?, NULL, deleted_by)'
+        'show_dashboard = IF(deleted_by IN (?, ?), 1, show_dashboard)',
+        'deleted_at = IF(deleted_by IN (?, ?), NULL, deleted_at)',
+        'deleted_by = IF(deleted_by IN (?, ?), NULL, deleted_by)'
       );
       const res = await executeLarge(
         `INSERT INTO brokerage_listings (${cols.map((c) => `\`${c}\``).join(', ')})
          VALUES (${cols.map(() => '?').join(', ')})
          ON DUPLICATE KEY UPDATE ${updates.join(', ')}`,
-        [...cols.map((c) => row[c]), DELETED_BY, DELETED_BY, DELETED_BY]
+        [...cols.map((c) => row[c]), DELETED_BY, NOT_IN_APP, DELETED_BY, NOT_IN_APP, DELETED_BY, NOT_IN_APP]
       );
       // ⚠️ mysql2 は既定で FOUND_ROWS を付けるので、変わらない行も affectedRows = 1（新規と同じ）になる。
       //   新規かどうかは、書く前に同じ id の行があったかで決める。あった行は 2 = 更新、それ以外 = 変わらない
@@ -378,7 +390,7 @@ export const runImportRecords = async (body: Record<string, unknown>): Promise<R
 // ---------------------------------------------------------------------------
 
 /**
- * body = { ids: ファイルの全行の id, hide: true/false, settingsJson, weeklyJson, complianceJson（それぞれ文字列にした JSON。parseJsonText の注記） }
+ * body = { ids: ファイルの全行の id, hide: true/false, hideScope: 'all' | 'imported', settingsJson, weeklyJson, complianceJson（それぞれ文字列にした JSON。parseJsonText の注記） }
  * ⚠️ 行の書き込みが全部終わってから呼ぶ（途中で呼ぶと、まだ書いていない行を「消えた」と判断しないよう ids はファイル全体）
  */
 export const runImportFinish = async (body: Record<string, unknown>): Promise<Result> => {
@@ -388,15 +400,17 @@ export const runImportFinish = async (body: Record<string, unknown>): Promise<Re
   let hidden = 0;
   let hideSkipped: string | null = null;
   if (body.hide === true) {
-    const { imported, hide } = await rowsToHide(new Set(ids));
-    hideSkipped = hideRefusal(ids.length, imported.length, hide.length);
+    const { candidates, hide } = await rowsToHide(new Set(ids), hideScopeOf(body.hideScope));
+    hideSkipped = hideRefusal(ids.length, candidates.length, hide.length);
     if (hideSkipped === null) {
       for (let i = 0; i < hide.length; i += 500) {
         const chunk = hide.slice(i, i + 500).map((r) => String(r.id));
+        // ⚠️ 以前のアプリから取り込んだ行（raw_data あり）は「以前のアプリで削除」、それ以外は「以前のアプリに無い行」
         const res = await executeLarge(
-          `UPDATE brokerage_listings SET show_dashboard = 0, deleted_at = NOW(), deleted_by = ?
+          `UPDATE brokerage_listings
+              SET show_dashboard = 0, deleted_at = NOW(), deleted_by = IF(raw_data IS NULL, ?, ?)
             WHERE id IN (${chunk.map(() => '?').join(', ')})`,
-          [DELETED_BY, ...chunk]
+          [NOT_IN_APP, DELETED_BY, ...chunk]
         );
         hidden += res.affectedRows;
       }
