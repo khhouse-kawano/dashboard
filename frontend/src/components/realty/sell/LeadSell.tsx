@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useMemo, useRef, useContext } from 'react';
 import apiClient from '../../../utils/apiClient';
 import { thisYear } from '../../../utils/thisYear';
-import Table from 'react-bootstrap/Table';
+import LeadFunnelPanel from '../common/LeadFunnelPanel';
+import { callCountOf, defaultPeriod, periodGroups, periodHas, recvMonthKey } from '../common/leadFunnel';
+import type { Period } from '../common/leadFunnel';
+import type { Row, Settings } from '../summary/kpi';
 import LeadHeader from '../common/LeadHeader';
 import AuthContext from '../../../context/AuthContext';
 import { removeSpaces, safeParse, LEAD_END_REASONS, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
@@ -80,17 +83,8 @@ export type SellLead = {
   deleted_by?: string | null;
 };
 
-type PeriodSummary = {
-  count: number;     // リード数
-  contact: number;   // 通電数
-  visit: number;     // 訪問査定数
-  propose: number;   // 査定書提出数
-  contract: number;  // 媒介受託数
-  call: number;      // 架電総数
-  today: number;     // 本日架電数
-  thisWeek: number;  // 今週架電数
-  mail: number;      // メール数
-};
+/** 設定のうち歩留まりの表で使うもの（担当者・期首月・反響単価） */
+type LeadSettings = Settings & { srcCosts?: Record<string, number>; portalCosts?: Record<string, number> };
 
 type initialData = {
     name: string | null;
@@ -105,15 +99,8 @@ type initialData = {
     docDraft?: string | null;   // 保存済みの下書き JSON
 };
 
-const parseCallCounts = (callDatesJson: string | null) => {
-  try {
-    const parsed = safeParse(callDatesJson) || [];
-    const calls = parsed.filter((c: CallLog) => c.type === 'call');
-    return { call: calls.length, sms: 0, mail: 0 };
-  } catch (e) {
-    return { call: 0, sms: 0, mail: 0 };
-  }
-};
+/** 一覧の「架電」の数。⚠️ v2.2.225: 以前のアプリと同じく type の無い記録も架電に数える（leadFunnel.ts の callCountOf） */
+const parseCallCounts = (callDatesJson: string | null) => ({ call: callCountOf({ callDates: callDatesJson }), sms: 0, mail: 0 });
 
 const formatDate = (dateStr: string | null | Date) => {
   if (!dateStr || String(dateStr).startsWith('0000')) return '―';
@@ -124,35 +111,6 @@ const formatDate = (dateStr: string | null | Date) => {
     return `${y}/${m}/${d}`;
   }
   return dateStr.replace(/-/g, '/');
-};
-
-const calcRate = (part: number, total: number) => {
-  if (total === 0) return '0.0%';
-  return ((part / total) * 100).toFixed(1) + '%';
-};
-
-const getCurrentDateTime = () => {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  return now.toISOString().slice(0, 16);
-};
-
-const getThisWeekDates = () => {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const start = new Date(now.setDate(diff));
-
-  const days: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const dt = String(d.getDate()).padStart(2, '0');
-    days.push(`${y}-${m}-${dt}`);
-  }
-  return days;
 };
 
 const getLastAction = (callDatesJson: string | null) => {
@@ -223,7 +181,9 @@ const LeadSell = () => {
   const [isAdding, setIsAdding] = useState(false);
 
   const [displayLimit, setDisplayLimit] = useState<number>(15);
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  // ⚠️ v2.2.225: 期間（'m:YYYY-MM'・'fy:YYYY-MM'・'all'）と設定。歩留まりは以前のアプリと同じ計算（common/leadFunnel.ts）
+  const [period, setPeriod] = useState<Period>('');
+  const [settings, setSettings] = useState<LeadSettings>({});
 
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [callTargetLead, setCallTargetLead] = useState<SellLead | null>(null);
@@ -239,24 +199,6 @@ const LeadSell = () => {
   const newSellerRef = useRef<HTMLInputElement>(null);
   const newStaffRef = useRef<HTMLSelectElement>(null);
   const newPhaseRef = useRef<HTMLSelectElement>(null);
-
-  const formattedMonth = selectedMonth.replace('年', '-').replace('月', '-');
-
-  const isReceived = (receivedDate: string | null) => {
-    return !!receivedDate && receivedDate.includes(formattedMonth);
-  };
-  const isContacted = (phase: string | null, contactDate: string | null) => {
-    return ['訪問査定', '査定書提出', '媒介受託', '売却済'].includes(phase || '') || (!!contactDate && contactDate.includes(formattedMonth));
-  };
-  const isVisited = (phase: string | null, visitDate: string | null) => {
-    return ['訪問査定', '査定書提出', '媒介受託', '売却済'].includes(phase || '') || (!!visitDate && visitDate.includes(formattedMonth));
-  };
-  const isProposed = (phase: string | null) => {
-    return ['査定書提出', '媒介受託', '売却済'].includes(phase || '');
-  };
-  const isContracted = (phase: string | null, contractDate: string | null) => {
-    return ['媒介受託', '売却済'].includes(phase || '') || (!!contractDate && contractDate.includes(formattedMonth));
-  };
 
   const dateFormate = (date: string | null) => {
     return (date === '0000-00-00' || !date) ? '' : date;
@@ -283,6 +225,10 @@ const LeadSell = () => {
             nextNote: l.nextNote || null
           }));
           setLeads(responseLead);
+          // ⚠️ v2.2.225: 担当者・反響単価・期首月（歩留まりの表）。期間の既定は今月（今期に無ければ期首月）
+          const st: LeadSettings = response.data.settings ?? {};
+          setSettings(st);
+          setPeriod(prev => prev || defaultPeriod(st.fiscalStart));
           setStaffList(response.data.staff.filter((s: any) => s.period === String(thisYear)).map((s: any) => s.name));
         }
       } catch (e) {
@@ -305,55 +251,18 @@ const LeadSell = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const availableMonths = useMemo(() => {
-    const months = leads.map(l => {
-      if (!l.receivedDate || l.receivedDate.startsWith('0000')) return '';
-      const [y, m] = l.receivedDate.split('-');
-      return `${y}-${m}`;
-    }).filter(Boolean);
-    return Array.from(new Set(months)).sort((a, b) => b.localeCompare(a));
-  }, [leads]);
+  /** ⚠️ v2.2.225: 期間の選択肢（以前のアプリと同じ: 月別（今期）／通期／全期間） */
+  const periodOptions = useMemo(() => periodGroups(settings.fiscalStart, leads as unknown as Row[]), [settings.fiscalStart, leads]);
 
+  /** 一覧は選んだ期間に受信した反響（受信日の新しい順） */
   const filteredLeads = useMemo(() => {
-    let result = leads;
-    if (selectedMonth) {
-      result = leads.filter(l => l.receivedDate?.startsWith(selectedMonth));
-    }
+    const result = period ? leads.filter(l => periodHas(period, recvMonthKey(l as unknown as Row), settings.fiscalStart)) : leads;
     return result.sort((a, b) => (b.receivedDate || '').localeCompare(a.receivedDate || ''));
-  }, [leads, selectedMonth]);
+  }, [leads, period, settings.fiscalStart]);
 
   useEffect(() => {
     setDisplayLimit(15);
-  }, [selectedMonth]);
-
-  const periodSummary = useMemo<PeriodSummary>(() => {
-    let total = { count: 0, contact: 0, visit: 0, propose: 0, contract: 0, call: 0, today: 0, thisWeek: 0, mail: 0 };
-
-    const callLogArray = filteredLeads.map(f => safeParse(f.callDates));
-    const flatLogs = callLogArray.flat();
-
-    total.call = flatLogs.filter((f: CallLog) => f?.type === 'call').length;
-
-    const thisWeekDates = getThisWeekDates();
-
-    const todayLength = flatLogs.filter((c: CallLog) => c?.date && c.date.startsWith(today)).length;
-    const thisWeekLength = flatLogs.filter((c: CallLog) => c?.date && thisWeekDates.some(d => c.date?.startsWith(d))).length;
-    const mailLength = flatLogs.filter((c: CallLog) => c?.type === 'mail').length;
-
-    total.today = todayLength;
-    total.thisWeek = thisWeekLength;
-    total.mail = mailLength;
-
-    filteredLeads.forEach(lead => {
-      if (isReceived(lead.receivedDate)) { total.count++; }
-      if (isContacted(lead.phase, lead.contactDate)) { total.contact++; }
-      if (isVisited(lead.phase, lead.visitDate)) { total.visit++; }
-      if (isProposed(lead.phase)) { total.propose++; }
-      if (isContracted(lead.phase, lead.contractDate)) { total.contract++; }
-    });
-
-    return total;
-  }, [filteredLeads, selectedMonth, today]);
+  }, [period]);
 
   // 💡 追加: 次回アクション未設定・期限超過件数（LeadHeaderへ渡すアラート用）
   const nextActionAlert = useMemo(() => {
@@ -365,52 +274,6 @@ const LeadSell = () => {
     }
     return { overdue, missing };
   }, [filteredLeads, today]);
-
-  const sourceSummary = useMemo(() => {
-    const summary: Record<string, any> = {};
-    let total = { count: 0, contact: 0, visit: 0, propose: 0, contract: 0 };
-
-    filteredLeads.forEach(lead => {
-      const source = lead.source || lead.portal || 'その他';
-      if (!summary[source]) summary[source] = { count: 0, contact: 0, visit: 0, propose: 0, contract: 0 };
-
-      summary[source].count++;
-      total.count++;
-
-      if (isContacted(lead.phase, lead.contactDate)) { summary[source].contact++; total.contact++; }
-      if (isVisited(lead.phase, lead.visitDate)) { summary[source].visit++; total.visit++; }
-      if (isProposed(lead.phase)) { summary[source].propose++; total.propose++; }
-      if (isContracted(lead.phase, lead.contractDate)) { summary[source].contract++; total.contract++; }
-    });
-
-    const sorted = Object.entries(summary).sort((a, b) => b[1].count - a[1].count);
-    return { sorted, total };
-  }, [filteredLeads]);
-
-  const staffSummary = useMemo(() => {
-    const summary: Record<string, any> = {};
-    let total = { count: 0, contact: 0, visit: 0, propose: 0, contract: 0 };
-
-    filteredLeads.forEach(lead => {
-      const rawStaff = lead.staff || '未割当';
-      const staffKey = rawStaff !== '未割当' ? removeSpaces(rawStaff) : rawStaff;
-
-      if (!summary[staffKey]) {
-        summary[staffKey] = { count: 0, contact: 0, visit: 0, propose: 0, contract: 0 };
-      }
-
-      summary[staffKey].count++;
-      total.count++;
-
-      if (isContacted(lead.phase, lead.contactDate)) { summary[staffKey].contact++; total.contact++; }
-      if (isVisited(lead.phase, lead.visitDate)) { summary[staffKey].visit++; total.visit++; }
-      if (isProposed(lead.phase)) { summary[staffKey].propose++; total.propose++; }
-      if (isContracted(lead.phase, lead.contractDate)) { summary[staffKey].contract++; total.contract++; }
-    });
-
-    const sorted = Object.entries(summary).sort((a, b) => b[1].count - a[1].count);
-    return { sorted, total };
-  }, [filteredLeads]);
 
 
   /**
@@ -668,9 +531,10 @@ const LeadSell = () => {
   return (
     <div style={{ padding: '20px', backgroundColor: '#fafbfe', minHeight: '100vh', width: '100%', overflowX: 'auto' }}>
       <LeadHeader
-        selectedMonth={selectedMonth}
-        setSelectedMonth={setSelectedMonth}
-        availableMonths={availableMonths}
+        selectedMonth={period}
+        setSelectedMonth={setPeriod}
+        availableMonths={[]}
+        periodGroups={periodOptions}
         handleAddClick={handleAddClick}
         isAdding={isAdding}
         headerLabel={headerLabel}
@@ -679,127 +543,8 @@ const LeadSell = () => {
 
       {!isLoading && (
         <>
-          {/* サマリーエリア */}
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', minWidth: '1200px' }}>
-            {[
-              { label: `${selectedMonth || '全期間'}受信リード`, value: periodSummary.count, color: '#3182ce', sub: '' },
-              { label: `架電数(${selectedMonth || '全期間'})`, value: periodSummary.call, color: '#38b2ac', sub: `本日 ${periodSummary.today}件／今週 ${periodSummary.thisWeek}件（チーム）\n✉️メール ${periodSummary.mail}件` },
-              { label: '通電', value: periodSummary.contact, color: '#ed8936', sub: `通電率 ${calcRate(periodSummary.contact, periodSummary.count)}` },
-              { label: '訪問査定', value: periodSummary.visit, color: '#9f7aea', sub: `獲得率 ${calcRate(periodSummary.visit, periodSummary.contact)}／査定書提出 ${periodSummary.propose}件` },
-              { label: '媒介受託', value: periodSummary.contract, color: '#48bb78', sub: `受託率(リード比) ${calcRate(periodSummary.contract, periodSummary.count)}\n受託率(査定比) ${calcRate(periodSummary.contract, periodSummary.visit)}` },
-            ].map((item, idx) => (
-              <div key={idx} style={{ flex: 1, backgroundColor: '#fff', borderRadius: '8px', padding: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', borderLeft: `4px solid ${item.color}` }}>
-                <div style={{ fontSize: '11px', color: '#6c757d', fontWeight: 'bold', marginBottom: '4px' }}>{item.label}</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: item.color === '#48bb78' ? '#198754' : '#212529' }}>{item.value}</div>
-                {item.sub && <div style={{ fontSize: '10px', color: '#6c757d', marginTop: '4px', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{item.sub}</div>}
-              </div>
-            ))}
-          </div>
-
-          {/* ファネルエリア */}
-          <div style={{ display: 'flex', gap: '20px', marginBottom: '24px', minWidth: '1200px', flexWrap: 'wrap' }}>
-            {/* 💡 反響元（Source）別ファネル */}
-            <div style={{ flex: 1, minWidth: '500px', backgroundColor: '#fff', borderRadius: '8px', padding: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-              <h6 style={{ fontSize: '13px', fontWeight: 'bold', color: '#343a40', marginBottom: '12px' }}>
-                反響元別ファネル <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal' }}>(対象月受信分・自動集計)</span>
-              </h6>
-              <Table bordered hover className="mb-0 text-center align-middle text-nowrap" style={{ fontSize: '11px' }}>
-                <thead className="bg-light">
-                  <tr>
-                    <th style={compactThStyle} className="text-start ps-2">反響元</th>
-                    <th style={compactThStyle} className="text-end">反響</th>
-                    <th style={compactThStyle} className="text-end">通電</th>
-                    <th style={compactThStyle} className="text-end">通電率</th>
-                    <th style={compactThStyle} className="text-end">訪問査定</th>
-                    <th style={compactThStyle} className="text-end">獲得率(通電比)</th>
-                    <th style={compactThStyle} className="text-end">査定書提出</th>
-                    <th style={compactThStyle} className="text-end">媒介受託</th>
-                    <th style={compactThStyle} className="text-end">受託率(反響比)</th>
-                    <th style={compactThStyle} className="text-end">受託率(査定比)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sourceSummary.sorted.map(([source, stats]) => (
-                    <tr key={source}>
-                      <td style={compactTdStyle} className="text-start ps-2 fw-bold text-dark">{source}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold">{stats.count}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold">{stats.contact}</td>
-                      <td style={compactTdStyle} className="text-end text-primary">{calcRate(stats.contact, stats.count)}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold">{stats.visit}</td>
-                      <td style={compactTdStyle} className="text-end text-primary">{calcRate(stats.visit, stats.contact)}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold">{stats.propose}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold text-success">{stats.contract}</td>
-                      <td style={compactTdStyle} className="text-end text-success">{calcRate(stats.contract, stats.count)}</td>
-                      <td style={compactTdStyle} className="text-end text-success">{calcRate(stats.contract, stats.visit)}</td>
-                    </tr>
-                  ))}
-                  <tr style={{ backgroundColor: '#f8f9fa' }}>
-                    <td style={compactTdStyle} className="text-start ps-2 fw-bold text-dark border-top border-2">合計</td>
-                    <td style={compactTdStyle} className="text-end fw-bold border-top border-2">{sourceSummary.total.count}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold border-top border-2">{sourceSummary.total.contact}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-primary border-top border-2">{calcRate(sourceSummary.total.contact, sourceSummary.total.count)}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold border-top border-2">{sourceSummary.total.visit}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-primary border-top border-2">{calcRate(sourceSummary.total.visit, sourceSummary.total.contact)}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold border-top border-2">{sourceSummary.total.propose}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-success border-top border-2">{sourceSummary.total.contract}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-success border-top border-2">{calcRate(sourceSummary.total.contract, sourceSummary.total.count)}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-success border-top border-2">{calcRate(sourceSummary.total.contract, sourceSummary.total.visit)}</td>
-                  </tr>
-                </tbody>
-              </Table>
-            </div>
-
-            {/* 担当者別ファネル */}
-            <div style={{ flex: 1, minWidth: '500px', backgroundColor: '#fff', borderRadius: '8px', padding: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-              <h6 style={{ fontSize: '13px', fontWeight: 'bold', color: '#343a40', marginBottom: '12px' }}>
-                担当者別ファネル <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal' }}>(対象月受信分・自動集計)</span>
-              </h6>
-              <Table bordered hover className="mb-0 text-center align-middle text-nowrap" style={{ fontSize: '11px' }}>
-                <thead className="bg-light">
-                  <tr>
-                    <th style={compactThStyle} className="text-start ps-2">担当者</th>
-                    <th style={compactThStyle} className="text-end">反響</th>
-                    <th style={compactThStyle} className="text-end">通電</th>
-                    <th style={compactThStyle} className="text-end">通電率</th>
-                    <th style={compactThStyle} className="text-end">訪問査定</th>
-                    <th style={compactThStyle} className="text-end">獲得率(通電比)</th>
-                    <th style={compactThStyle} className="text-end">査定書提出</th>
-                    <th style={compactThStyle} className="text-end">媒介受託</th>
-                    <th style={compactThStyle} className="text-end">受託率(反響比)</th>
-                    <th style={compactThStyle} className="text-end">受託率(査定比)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {staffSummary.sorted.map(([staff, stats]) => (
-                    <tr key={staff}>
-                      <td style={compactTdStyle} className="text-start ps-2 fw-bold text-dark">{staff}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold">{stats.count}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold">{stats.contact}</td>
-                      <td style={compactTdStyle} className="text-end text-primary">{calcRate(stats.contact, stats.count)}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold">{stats.visit}</td>
-                      <td style={compactTdStyle} className="text-end text-primary">{calcRate(stats.visit, stats.contact)}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold">{stats.propose}</td>
-                      <td style={compactTdStyle} className="text-end fw-bold text-success">{stats.contract}</td>
-                      <td style={compactTdStyle} className="text-end text-success">{calcRate(stats.contract, stats.count)}</td>
-                      <td style={compactTdStyle} className="text-end text-success">{calcRate(stats.contract, stats.visit)}</td>
-                    </tr>
-                  ))}
-                  <tr style={{ backgroundColor: '#f8f9fa' }}>
-                    <td style={compactTdStyle} className="text-start ps-2 fw-bold text-dark border-top border-2">チーム合計</td>
-                    <td style={compactTdStyle} className="text-end fw-bold border-top border-2">{staffSummary.total.count}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold border-top border-2">{staffSummary.total.contact}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-primary border-top border-2">{calcRate(staffSummary.total.contact, staffSummary.total.count)}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold border-top border-2">{staffSummary.total.visit}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-primary border-top border-2">{calcRate(staffSummary.total.visit, staffSummary.total.contact)}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold border-top border-2">{staffSummary.total.propose}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-success border-top border-2">{staffSummary.total.contract}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-success border-top border-2">{calcRate(staffSummary.total.contract, staffSummary.total.count)}</td>
-                    <td style={compactTdStyle} className="text-end fw-bold text-success border-top border-2">{calcRate(staffSummary.total.contract, staffSummary.total.visit)}</td>
-                  </tr>
-                </tbody>
-              </Table>
-            </div>
-          </div>
+          {/* ⚠️ v2.2.225: タイル・反響元別・担当者別ファネルは以前のアプリ（renderLeads）と同じ計算（common/LeadFunnelPanel.tsx） */}
+          <LeadFunnelPanel kind="sell" rows={leads as unknown as Row[]} period={period} settings={settings} />
         </>
       )}
 

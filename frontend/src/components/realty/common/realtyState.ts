@@ -7,7 +7,7 @@
  */
 import apiClient from '../../../utils/apiClient';
 import { callsOf, prevMonth } from '../summary/kpi';
-import type { Row, StaffSetting } from '../summary/kpi';
+import type { Row, Settings, StaffSetting } from '../summary/kpi';
 
 export type Template = { id: string; title: string; body: string };
 
@@ -78,6 +78,18 @@ export const loadRealtyState = async (): Promise<RealtyState> => {
         isWeeklyAdmin: d.isWeeklyAdmin === true,
         today: typeof d.today === 'string' ? d.today : '',
     };
+};
+
+export type RecordKind = 'deals' | 'ledger' | 'renewals' | 'leads' | 'buyLeads' | 'docs' | 'settlements' | 'resales'
+    | 'logs' | 'notices' | 'sellerReports' | 'viewings' | 'comments';
+
+/**
+ * 種類を指定して行と設定を読む（② の planner:records。v2.2.225）。以前のアプリから移す画面用。
+ * ⚠️ 削除済み（show_dashboard = 0）は入っていない。⚠️ 日付は 'YYYY-MM-DD'、callDates などは JSON 文字列のまま（kpi.ts の callsOf で読む）
+ */
+export const loadRecords = async <K extends RecordKind>(kinds: K[]): Promise<{ records: Record<K, Row[]>; settings: RealtySettings & Settings }> => {
+    const d = await post('records', { kinds });
+    return { records: (d.records ?? {}) as Record<K, Row[]>, settings: (d.settings ?? {}) as RealtySettings & Settings };
 };
 
 /** 設定の項目を保存して、保存後の設定全体を返す */
