@@ -171,6 +171,7 @@ import {
   shopForbidden,
 } from '../features/realty';
 import type { Result as RealtyResult } from '../features/realty';
+import { runPlannerCompliance, runPlannerSettings, runPlannerState, runPlannerWeekly } from '../features/realty/state';
 import type { AuthenticatedStaff } from '../types/staff';
 import type { GatewayContext, GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
@@ -1207,6 +1208,14 @@ register({ request: 'broker', roll: 'update', summary: '【書き込み】台帳
 register({ request: 'activity', roll: 'history', summary: '不動産企画係: 変更履歴', phpSource: 'activityAction/activity_history.php', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runActivityHistory(body)) });
 register({ request: 'activity', roll: 'notice', summary: '不動産企画係: 本人宛の通知', phpSource: 'activityAction/activity_notice.php', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runActivityNotice(s, body)) });
 register({ request: 'activity', roll: 'read', summary: '【書き込み】不動産企画係: 本人宛の通知を既読にする', phpSource: 'activityAction/activity_read.php', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runActivityRead(s, body)) });
+
+// ⚠️ v2.2.223 新規（② だけ）。設定・週次行動計画・コンプライアンス（app_state）。features/realty/state.ts
+//   ⚠️ 本番アプリと同じく、担当事業が realty / all の人なら誰でも直せる。
+//     ⚠️ 例外は確定済みの月の週次目標（マスター・マネージャーだけ。state.ts の isWeeklyAdmin）
+register({ request: 'planner', roll: 'state', summary: '不動産企画係: 設定・週次行動計画・コンプライアンスと、架電実績を数える売り反響', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s) => runPlannerState(s)) });
+register({ request: 'planner', roll: 'settings', summary: '【書き込み】不動産企画係: 設定の項目を保存', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runPlannerSettings(body)) });
+register({ request: 'planner', roll: 'weekly', summary: '【書き込み】不動産企画係: 週次行動計画のセルを保存', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runPlannerWeekly(s, body)) });
+register({ request: 'planner', roll: 'compliance', summary: '【書き込み】不動産企画係: コンプライアンスの入力を保存・クリア', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runPlannerCompliance(body)) });
 
 // ---------------------------------------------------------------------------
 // Claudeによる分析（v2.2.217。Dashboard からの自由分析）— ② のみ（① に PHP 版は無い）

@@ -148,6 +148,11 @@ function expressProxyRequests(): array
         'activity:history',
         'activity:notice',
         'activity:read',
+        // ⚠️ v2.2.223。設定・週次行動計画・コンプライアンス。⚠️ ① に PHP は無い（② だけ）。expressProxyExclusive() にも入れてある
+        'planner:state',
+        'planner:settings',
+        'planner:weekly',
+        'planner:compliance',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
@@ -796,6 +801,11 @@ function expressProxyExclusive(): array
         // v2.2.221。不動産企画係の書き込み。⚠️ ② で済んだ直後に応答が失われて ① でも動くと二重に書き込むため
         'broker:update',
         'activity:read',
+        // v2.2.223 新規。不動産企画係の設定・週次行動計画・コンプライアンス。⚠️ ① に PHP ハンドラは無い（② だけ）
+        'planner:state',
+        'planner:settings',
+        'planner:weekly',
+        'planner:compliance',
 
         // -----------------------------------------------------------------
         // v2.2.215 新規。オーナーズハウス募集（owners_house_application）の一覧と過去メールの取り込み。
