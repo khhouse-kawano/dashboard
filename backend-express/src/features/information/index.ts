@@ -157,7 +157,12 @@ const fetchOne = async (
   return rows[0] ?? EMPTY;
 };
 
-/** 個別データ4点（顧客・架電・面談・競合PDF）をまとめて引く */
+/**
+ * 個別データ4点（顧客・架電・面談・競合PDF）をまとめて引く。
+ *
+ * ⚠️ v2.2.229: 個人情報削除で削除済み（delete_dashboard = 1）の顧客は、4点とも返さず deleted: true だけを付ける。
+ *   画面は「削除済みの顧客です」と出して閉じる（空の入力欄のまま保存されないように）。
+ */
 const fetchIndividual = async (
   tableName: string,
   id: string
@@ -167,9 +172,10 @@ const fetchIndividual = async (
   interview: Record<string, unknown> | EmptyObject;
   // ⚠️ pdf だけ配列。⚠️ 2026-09-21 に1ファイル1行へ変えた（PDF_SQL のコメント参照）
   pdf: Record<string, unknown>[];
+  deleted: boolean;
 }> => {
   if (!hasIndividualData(id)) {
-    return { customer: EMPTY, call: EMPTY, interview: EMPTY, pdf: [] };
+    return { customer: EMPTY, call: EMPTY, interview: EMPTY, pdf: [], deleted: false };
   }
 
   const [customer, call, interview, pdf] = await Promise.all([
@@ -179,8 +185,15 @@ const fetchIndividual = async (
     query<DynamicRow>(PDF_SQL, [id]),
   ]);
 
-  return { customer, call, interview, pdf };
+  if (Number((customer as Record<string, unknown>).delete_dashboard) === 1) {
+    return { customer: EMPTY, call: EMPTY, interview: EMPTY, pdf: [], deleted: true };
+  }
+  return { customer, call, interview, pdf, deleted: false };
 };
+
+/** 削除済みのときだけ応答に deleted: true を足す（⚠️ それ以外は PHP と同じ形のまま） */
+const withDeleted = <T extends object>(body: T, deleted: boolean): T & { deleted?: true } =>
+  deleted ? { ...body, deleted: true } : body;
 
 // ---------------------------------------------------------------------------
 // 注文（order）
@@ -196,6 +209,8 @@ export interface InformationOrderResponse {
   maker: Record<string, unknown>[];
   introductory: Record<string, unknown>[];
   pdf: Record<string, unknown>[];
+  /** v2.2.229: 個人情報削除で削除済みの顧客のときだけ true（顧客・架電・面談・PDF は空） */
+  deleted?: true;
 }
 
 const runInformationOrder = async (id: string): Promise<InformationOrderResponse> => {
@@ -210,7 +225,7 @@ const runInformationOrder = async (id: string): Promise<InformationOrderResponse
 
   // ⚠️ キーの順序も PHP の $result と同じにする。
   //   JSON のキー順が変わるとバイト単位の比較で差分になる。
-  return {
+  return withDeleted({
     staff,
     shop,
     medium,
@@ -220,7 +235,7 @@ const runInformationOrder = async (id: string): Promise<InformationOrderResponse
     maker,
     introductory,
     pdf: individual.pdf,
-  };
+  }, individual.deleted);
 };
 
 // ---------------------------------------------------------------------------
@@ -238,6 +253,8 @@ export interface InformationSpecResponse {
   maker: Record<string, unknown>[];
   introductory: Record<string, unknown>[];
   pdf: Record<string, unknown>[];
+  /** v2.2.229: 個人情報削除で削除済みの顧客のときだけ true（顧客・架電・面談・PDF は空） */
+  deleted?: true;
 }
 
 const runInformationSpec = async (id: string): Promise<InformationSpecResponse> => {
@@ -252,7 +269,7 @@ const runInformationSpec = async (id: string): Promise<InformationSpecResponse> 
   ]);
 
   // ⚠️ order と違い property が shop の次に入る。PHP の順序どおり
-  return {
+  return withDeleted({
     staff,
     shop,
     medium,
@@ -263,7 +280,7 @@ const runInformationSpec = async (id: string): Promise<InformationSpecResponse> 
     maker,
     introductory,
     pdf: individual.pdf,
-  };
+  }, individual.deleted);
 };
 
 // ---------------------------------------------------------------------------
@@ -290,6 +307,8 @@ export interface InformationUsedResponse {
    *   真偽判定（`if (response.data.broker)`）の結果が変わる。
    */
   broker: Record<string, unknown> | false;
+  /** v2.2.229: 個人情報削除で削除済みの顧客のときだけ true（顧客・架電・面談・PDF・媒介は空） */
+  deleted?: true;
 }
 
 const runInformationUsed = async (id: string): Promise<InformationUsedResponse> => {
@@ -310,7 +329,7 @@ const runInformationUsed = async (id: string): Promise<InformationUsedResponse> 
     ]);
 
   // ⚠️ shop キーは無い。足さないこと（PHP に無いため）
-  return {
+  return withDeleted({
     staff,
     medium,
     property,
@@ -320,8 +339,9 @@ const runInformationUsed = async (id: string): Promise<InformationUsedResponse> 
     maker,
     introductory,
     pdf: individual.pdf,
-    broker: brokerRows[0] ?? false,
-  };
+    // ⚠️ 削除済みなら媒介も返さない
+    broker: individual.deleted ? false : (brokerRows[0] ?? false),
+  }, individual.deleted);
 };
 
 // ---------------------------------------------------------------------------

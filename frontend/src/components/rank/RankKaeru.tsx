@@ -17,6 +17,7 @@ import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import { CustomerName } from '../../utils/deletedCustomer';
 
 type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -634,10 +635,10 @@ const RankOrder = () => {
                                             <td>{item.shop}</td>
                                             <td>{item.staff}</td>
                                             <td>
-                                                <div style={{ textDecoration: 'underline dotted', cursor: 'pointer', width: 'fit-content' }}
-                                                    onClick={() => setEditId(item.id)}>
+                                                {/* v2.2.229: 削除済みの顧客は「削除済み顧客」で押せない */}
+                                                <CustomerName row={item} onClick={() => setEditId(item.id)} style={{ display: 'inline-block' }}>
                                                     {item.status === '契約済み' && <i className="fa-solid fa-crown pe-1"></i>}{item.customer}
-                                                </div>
+                                                </CustomerName>
                                             </td>
                                             <td>
                                                 <select className='target' style={{ width: '80px' }} value={item.rank}

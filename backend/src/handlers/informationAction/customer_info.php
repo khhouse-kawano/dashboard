@@ -10,6 +10,17 @@ if (!$id) {
     exit;
 }
 
+// v2.2.229: 個人情報削除で削除済み（delete_dashboard = 1）の顧客は上書きしない（伏せ字が戻るのを防ぐ）。⚠️ PDF の保存より前で止める
+$deletedTables = ['order' => 'master_data', 'spec' => 'master_data_kaeru', 'used' => 'master_data_resale'];
+if (isset($deletedTables[$data['category'] ?? ''])) {
+    $deletedStmt = $pdo->prepare("SELECT delete_dashboard FROM {$deletedTables[$data['category']]} WHERE id = :id");
+    $deletedStmt->execute(['id' => $id]);
+    if ((int) $deletedStmt->fetchColumn() === 1) {
+        echo json_encode(['status' => 'error', 'message' => '削除済みの顧客のため保存できません。'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
 // =========================================================
 // 【追加機能】 PDFファイルのアップロードと competitor_pdf テーブルへの保存（完全上書き版）
 // ※この部分は元のコードのまま変更していません

@@ -138,7 +138,8 @@ export const runBrokerList = async (): Promise<Result> => {
 /** 移植元: brokerAction/broker_customer.php */
 export const runBrokerCustomer = async (): Promise<Result> => {
   const [customer, property] = await Promise.all([
-    query<DynamicRow>('SELECT * FROM master_data_resale WHERE show_dashboard = 1'),
+    // ⚠️ v2.2.229: 個人情報削除で削除済みの顧客（delete_dashboard = 1）は出さない（① の broker_customer.php も同じ）
+    query<DynamicRow>('SELECT * FROM master_data_resale WHERE show_dashboard = 1 AND COALESCE(delete_dashboard, 0) = 0'),
     query<DynamicRow>('SELECT * FROM property_db'),
   ]);
   return ok({ customer, property });

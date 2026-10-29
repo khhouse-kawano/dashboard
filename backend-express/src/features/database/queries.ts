@@ -53,6 +53,12 @@ const MEDIUM_SQL: Record<DatabaseCategory, string> = {
 };
 
 /**
+ * 個人情報削除で削除済みにした顧客（delete_dashboard = 1。v2.2.229）は顧客DB に返さない。
+ * ⚠️ show_dashboard（ゴミ箱）とは別。ゴミ箱の顧客は今までどおり返す（画面が trash で分ける）。
+ */
+const NOT_DELETED = 'COALESCE(delete_dashboard, 0) = 0';
+
+/**
  * 顧客一覧。
  * ⚠️ `gift_base`（条件①②）だけをここで取り、残りは giftApplyToCustomers が付ける。
  */
@@ -114,7 +120,8 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
   COALESCE(call_log, '') AS call_log,
   COALESCE(hotlead_id, '') AS hotlead_id,
   COALESCE(k_snap, '') AS k_snap
- FROM master_data`,
+ FROM master_data
+ WHERE ${NOT_DELETED}`,
 
   spec: `SELECT
   id,
@@ -148,7 +155,8 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
   COALESCE(extra_address_info, '') AS mail_2,
   COALESCE(integration, '') AS integration,
   COALESCE(call_log, '') AS call_log
- FROM master_data_kaeru`,
+ FROM master_data_kaeru
+ WHERE ${NOT_DELETED}`,
 };
 
 /**

@@ -3,6 +3,7 @@ import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
 import { ModalBody } from 'react-bootstrap';
 import InterviewLog from './InterviewLog';
+import { CustomerName, isDelete } from '../utils/deletedCustomer';
 
 /**
  * KPIの歩留まりに該当する顧客の一覧モーダル。
@@ -25,6 +26,10 @@ import InterviewLog from './InterviewLog';
  * ⚠️ 顧客詳細（InformationEdit）は事業ごとに別コンポーネントなので、
  *   ここには置かず `onSelectCustomer` で呼び出し側へ渡す。
  *   商談ステップ（InterviewLog）は3事業共通なので、ここで持つ。
+ *
+ * 使っている画面: customerTrend（注文・建売）、shopTrend（注文・建売・中古。v2.2.229 で各画面の同じ作りの一覧から置き換え）
+ * ⚠️ v2.2.229: 個人情報削除で削除済みの顧客（delete_dashboard = 1）は「削除済み顧客」と出し、顧客名も商談ステップの「表示」も押せない
+ *   （商談の記録に名前などが書かれていることがあるため）。utils/deletedCustomer.tsx
  */
 
 /** ⚠️ 画面ごとに列が違うので Record で受ける。使うキーだけ下で読む */
@@ -105,10 +110,10 @@ const CustomerListModal: React.FC<Props> = ({ show, label, list, onHide, onSelec
                                     {/* ⚠️ ページをまたいでも通し番号になるようにする */}
                                     <td>{(page - 1) * PAGE_SIZE + index + 1}</td>
                                     <td>
-                                        {onSelectCustomer
-                                            ? <span onClick={() => onSelectCustomer(item.id ?? '')}
-                                                style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{item.customer}</span>
-                                            : item.customer}
+                                        {/* ⚠️ v2.2.229: 削除済みの顧客は「削除済み顧客」で押せない */}
+                                        <CustomerName row={item} onClick={onSelectCustomer ? () => onSelectCustomer(item.id ?? '') : undefined}>
+                                            {item.customer}
+                                        </CustomerName>
                                     </td>
                                     <td>{item.shop}</td>
                                     <td>{item.staff}</td>
@@ -117,8 +122,10 @@ const CustomerListModal: React.FC<Props> = ({ show, label, list, onHide, onSelec
                                     <td>{item.status}</td>
                                     <td>{item.rank}</td>
                                     <td>{item.medium}</td>
-                                    <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
-                                        onClick={() => setInterviewId(item.id ?? '')}>表示</div></td>
+                                    <td>{isDelete(item)
+                                        ? <div className="text-secondary text-center">-</div>
+                                        : <div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
+                                            onClick={() => setInterviewId(item.id ?? '')}>表示</div>}</td>
                                 </tr>)}
                         </tbody>
                     </Table>
