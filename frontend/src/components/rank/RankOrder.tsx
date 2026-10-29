@@ -17,6 +17,7 @@ import { getYears } from '../../utils/getYears';
 import { staffSorter } from '../../utils/staffSorter';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import { CustomerName, isDelete } from '../../utils/deletedCustomer';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string, prev_staff: string };
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -623,10 +624,10 @@ const RankOrder = () => {
                                             <td>{item.shop}</td>
                                             <td>{currentStaff}{prevStaff}</td>
                                             <td>
-                                                <div style={{ textDecoration: 'underline dotted', cursor: 'pointer', width: 'fit-content' }}
-                                                    onClick={() => setEditId(item.id)}>
+                                                {/* v2.2.229: 削除済みの顧客は「削除済み顧客」で押せない */}
+                                                <CustomerName row={item} onClick={() => setEditId(item.id)} style={{ display: 'inline-block' }}>
                                                     {item.status === '契約済み' && <i className="fa-solid fa-crown pe-1"></i>}{item.customer}
-                                                </div>
+                                                </CustomerName>
                                             </td>
                                             <td>
                                                 <select className='target' style={{ width: '80px' }} value={item.rank}
@@ -655,8 +656,10 @@ const RankOrder = () => {
                                             <td>{dateFormate(item.register)}</td>
                                             <td>{dateFormate(item.interview)}</td>
                                             <td>{dateFormate(item.contract)}</td>
-                                            <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
-                                                onClick={() => setInterviewId(item.id)}>表示</div></td>
+                                            <td>{isDelete(item)
+                                                ? <div className="text-secondary text-center">-</div>
+                                                : <div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
+                                                    onClick={() => setInterviewId(item.id)}>表示</div>}</td>
                                         </tr>
                                     })}
                                 </tbody>

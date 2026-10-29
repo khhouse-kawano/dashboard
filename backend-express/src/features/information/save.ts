@@ -130,7 +130,15 @@ export const runInformationCustomerInfo = async (
   }
 
   try {
-    const exists = await query<DynamicRow>(`SELECT id FROM ${tableName} WHERE id = ?`, [id]);
+    const exists = await query<DynamicRow>(`SELECT id, delete_dashboard FROM ${tableName} WHERE id = ?`, [id]);
+
+    // ⚠️ v2.2.229: 個人情報削除で削除済みの顧客は上書きしない（伏せ字が戻るのを防ぐ）
+    if (Number(exists[0]?.delete_dashboard) === 1) {
+      return {
+        httpStatus: 200,
+        body: { status: 'error', message: '削除済みの顧客のため保存できません。' },
+      };
+    }
 
     if (exists.length > 0) {
       // --- UPDATE ---

@@ -6,7 +6,8 @@ import apiClient from './apiClient';
  * ⚠️⚠️ 元に戻せない。必ず confirmPrivacyErase で確かめてから送る。
  * ⚠️ 処理は ② の features/privacy.ts（privacy_erase:master / privacy_erase:inquiry）。
  *   氏名・ふりがな・電話番号・メールアドレス・住所（郵便番号を含む）を ******** にする。
- *   顧客DB は show_dashboard = 0（一覧から消える）、反響は sync = 1（取込済み）。
+ *   顧客DB は delete_dashboard = 1（v2.2.229〜。顧客DB・顧客詳細から消え、集計には「削除済み顧客」として残る。utils/deletedCustomer.tsx）、
+ *   反響は sync = 1（取込済み）。
  */
 
 export const PRIVACY_MASK = '********';

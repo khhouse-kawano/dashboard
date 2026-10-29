@@ -1,6 +1,7 @@
 import React from 'react';
 import Table from "react-bootstrap/Table";
 import Modal from 'react-bootstrap/Modal';
+import { CustomerName } from '../../utils/deletedCustomer';
 
 type Customer = Record<string, string>;
 
@@ -41,14 +42,13 @@ const CustomerDetail = ({ show, setShow, contract, setEditId }: Props) => {
                                     : c.contract || c.contract_broker || '-';
                                 return <tr key={index}>
                                     <td>{contractDate}</td>
-                                    <td><span onClick={() => {
+                                    {/* v2.2.229: 削除済みの顧客は「削除済み顧客」で押せない */}
+                                    <td><CustomerName row={c} onClick={() => {
                                         setEditId(prev => ({
                                             ...prev,
                                             [idMapping[c.category]]: c.id
                                         }));
-                                    }
-                                    }
-                                        style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{c.customer} 様</span>
+                                    }}>{c.customer} 様</CustomerName>
                                         {c.contract_broker && <span className='bg-success text-white rounded px-1 ms-1' style={{fontSize: '9px'}}>仲介</span>}</td>
                                     <td>{categoryValue === '中専' ? c.staff || '-' : c.shop}</td>
                                     <td>{categoryValue === '中専' ? `${c.contraction_contract_price || '-'}万円` : c.staff}</td>

@@ -95,6 +95,16 @@ if ($id !== '' && $id !== 'new') {
 // ==========================================
 // JSON出力
 // ==========================================
+// v2.2.229: 個人情報削除で削除済み（delete_dashboard = 1）の顧客は中身を返さず deleted だけ付ける（② の information/index.ts と同じ）
+$deleted = is_array($response_customer) && (int)($response_customer['delete_dashboard'] ?? 0) === 1;
+if ($deleted) {
+    $response_customer = new stdClass();
+    $response_call = new stdClass();
+    $response_interview = new stdClass();
+    $response_pdf = [];
+    $response_broker = false;
+}
+
 $result = [
     "staff" => $response_staff,
     "medium" => $response_medium,
@@ -107,5 +117,9 @@ $result = [
     "pdf" => $response_pdf,
     "broker" => $response_broker
 ];
+
+if ($deleted) {
+    $result['deleted'] = true;
+}
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

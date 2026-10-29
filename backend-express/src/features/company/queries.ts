@@ -64,7 +64,7 @@ export const CONTRACT_SQL = `
   step_migration_item_01J82Z5F1RR18Z792C7KZS88QG as contract,
   '' as contract_broker,
   status,
-  rank_period FROM master_data
+  rank_period, COALESCE(delete_dashboard, 0) AS delete_dashboard FROM master_data
   WHERE show_dashboard = 1 and (step_migration_item_01J82Z5F1RR18Z792C7KZS88QG <> '' or customized_input_01J82Z5F366ZQ897PXWF6H5ZAM IN ('Sランク','Aランク', 'Bランク', 'Cランク'))`;
 
 /**
@@ -108,7 +108,7 @@ export const CONTRACT_KAERU_SQL = `
   step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW as contract,
   step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0 as contract_broker,
   status,
-  rank_period FROM master_data_kaeru
+  rank_period, COALESCE(delete_dashboard, 0) AS delete_dashboard FROM master_data_kaeru
   WHERE show_dashboard = 1 AND customized_input_01J82Z5F366ZQ897PXWF6H5ZAM IN ('Sランク','Aランク', 'Bランク', 'Cランク')`;
 
 /**
@@ -137,7 +137,7 @@ export const CONTRACT_RESALE_SQL = `
   status,
   contraction_contract_price,
   additional_contraction_contract_price,
-  rank_period FROM master_data_resale
+  rank_period, COALESCE(delete_dashboard, 0) AS delete_dashboard FROM master_data_resale
   WHERE show_dashboard = 1`;
 
 /** 契約目標。⚠️ 絞り込みなしの全件（フロントが期で絞る） */

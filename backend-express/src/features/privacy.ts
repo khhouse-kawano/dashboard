@@ -13,6 +13,8 @@ import { logger } from '../utils/logger';
  *   ・反響一覧（ListOrder / ListKaeru / ListResale の各行）… 同じ列をアスタリスクにして sync = 1（privacy_erase:inquiry）
  *   ・対象の列は「同じ種類の列も含める」（ふりがな・2人目の氏名・固定電話・郵便番号も）。押せるのはその画面を使える全員
  *   ・2026-10-29 追加: 注文の顧客DB（InformationEdit・master_data）にも
+ *   ・v2.2.229: 顧客DB は show_dashboard = 0 をやめ、delete_dashboard = 1（削除済み）にする。
+ *     顧客DB・顧客詳細には返さず、集計（歩留まり）には数える。集計の一覧では「削除済み顧客」と出す（画面の utils/deletedCustomer.ts）
  *
  * ⚠️⚠️ **元に戻せない。** 画面は「元に戻せません」の確認を出してから送る。
  * ⚠️ 値が入っている列だけ伏せる（空の列に入れると、2人目の氏名などが居るように見えるため）。
@@ -89,11 +91,13 @@ export const runPrivacyEraseMaster = async (staff: AuthenticatedStaff, category:
   const done = await withTransaction(async (tx) => {
     const rows = await tx.query<DynamicRow>(`SELECT id FROM ${table} WHERE id = ? FOR UPDATE`, [id]);
     if (rows.length === 0) return false;
-    await tx.execute(`UPDATE ${table} SET ${maskSets(MASTER_COLUMNS)}, show_dashboard = 0 WHERE id = ?`, [id]);
+    // ⚠️ v2.2.229: show_dashboard は変えない（集計の歩留まりに数え続ける）。delete_dashboard = 1 で顧客DB・顧客詳細から外す
+    await tx.execute(`UPDATE ${table} SET ${maskSets(MASTER_COLUMNS)}, delete_dashboard = 1 WHERE id = ?`, [id]);
     // ⚠️ log は JSON でないと入らない（CHECK json_valid）。資金計画書の書き戻しと同じく source と columns の形。⚠️ 値は書かない
+    // ⚠️ source = 'privacy_erase' は 2026-10-29_master_delete_dashboard.sql が v2.2.227〜228 の削除分を探すのに使う。変えないこと
     await tx.execute(
       'INSERT INTO master_data_log (id, customer, staff, updated_at, log) VALUES (?, ?, ?, ?, ?)',
-      [id, MASK, staff.name, nowForLog(), JSON.stringify({ source: 'privacy_erase', columns: [...MASTER_COLUMNS, 'show_dashboard'], note: `個人情報削除（${MASK} にして非表示）` })]
+      [id, MASK, staff.name, nowForLog(), JSON.stringify({ source: 'privacy_erase', columns: [...MASTER_COLUMNS, 'delete_dashboard'], note: `個人情報削除（${MASK} にして削除済み）` })]
     );
     return true;
   });

@@ -97,7 +97,8 @@ const CUSTOMER_SQL: Record<CustomerTrendCategory, string> = {
       COALESCE(step_migration_item_01JSENACS2FC422ZHEZWNSXNYA, '') as appointment,
       COALESCE(step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR, '') as screening,
       COALESCE(reserved_interview, '') as reserved_interview,
-      COALESCE(status , '') as status
+      COALESCE(status , '') as status,
+      COALESCE(delete_dashboard, 0) AS delete_dashboard
       FROM master_data WHERE show_dashboard = 1`,
   spec: `
     SELECT id,
@@ -118,7 +119,8 @@ const CUSTOMER_SQL: Record<CustomerTrendCategory, string> = {
       COALESCE(step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z, '') as contact,
       COALESCE(hp_campaign, '') as hp_campaign,
       COALESCE(show_dashboard, 0) as show_dashboard,
-      COALESCE(status , '') as status
+      COALESCE(status , '') as status,
+      COALESCE(delete_dashboard, 0) AS delete_dashboard
       FROM master_data_kaeru`,
 };
 
