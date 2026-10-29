@@ -136,6 +136,7 @@ import {
   saveReport,
 } from '../features/analysis/report';
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
+import { runMetaScrape } from '../features/metaAds/scrape';
 import { runPropertySuumo } from '../features/property';
 import { runSuumoPropertyInsert } from '../features/suumoProperty';
 import { runShopList } from '../features/shopList';
@@ -2641,6 +2642,26 @@ register({
   phpSource: 'backend/src/handlers/meta_ads.php',
   auth: 'staff',
   handler: async (ctx) => runMetaAdsBookmark(ctx.body),
+});
+
+/**
+ * ⚠️⚠️ **他社広告の取り込み。書き込み口である。**（v2.2.230）
+ *   ⚠️ 送ってくるのは拡張機能 extensions/meta（scraper.ts が押す「自社DBに保存」）。スタッフのトークンは無いので auth は none、
+ *     代わりに合い言葉（META_SCRAPER_KEY）を本文の `key` で確かめる。
+ *   ⚠️ 拡張機能は ② に届かない・5xx なら ① の handlers/meta_scrape.php へ送り直す（同じ処理）。同じ広告は二度入らない（skipped）。
+ *   ⚠️ 画像は ① の meta_scrape_image へ渡して ① の dashboard/img/meta/ に置く（features/metaAds/scrape.ts）。
+ *   ⚠️ ① の許可リスト（express_proxy.php）には入れない（拡張機能は ② へ直接送る。① に届いたものは ① が処理する予備）。
+ */
+register({
+  request: 'meta_scrape',
+  summary: '【書き込み・合い言葉】他社広告（Meta 広告ライブラリ）の取り込み（meta_ads・画像は ①）',
+  phpSource: 'khg-marketing.info/api/meta/（handlers/meta_scrape.php に作り直し）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runMetaScrape(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
 });
 
 // ---------------------------------------------------------------------------

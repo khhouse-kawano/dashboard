@@ -125,6 +125,13 @@ services:
       # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
       - MEMBER_ENTRY_KEY=${MEMBER_ENTRY_KEY:-}
 
+      # 他社広告の取り込み（meta_scrape。拡張機能 extensions/meta が送る）の合い言葉（v2.2.230）。
+      #
+      # ⚠️ 未設定だと全件 401（素通しにしない）。⚠️ ② は画像を ① の meta_scrape_image へ渡すときにもこの値を付ける。
+      # ⚠️ 拡張機能の config.js・① の環境変数と**同じ値**にすること。
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
+      - META_SCRAPER_KEY=${META_SCRAPER_KEY:-}
+
       # 「Claudeによる分析」（v2.2.217）が使う Anthropic の API キー（Claude Console で発行したもの）。
       #
       # ⚠️ 未設定だと分析の開始が 503 になる（他の機能は動く）。
