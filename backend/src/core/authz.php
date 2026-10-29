@@ -93,8 +93,9 @@ const AUTHZ_KPI_ANALYSIS = ['Master', 'BrandAdmin', 'Manager'];
  * 不動産企画係（realty）の画面を使える担当事業（v2.2.221）。② の REALTY_SHOPS / BROKER_SHOPS と同じ値にすること。
  *   媒介台帳（broker）は中古の顧客DB・顧客詳細も読み書きするため used も可。
  */
-const AUTHZ_REALTY_SHOPS = ['realty', 'all'];
-const AUTHZ_BROKER_SHOPS = ['realty', 'all', 'used'];
+// ⚠️ v2.2.227: estate（建売・中古・不動産企画係）も入れる（② の features/realty/index.ts と同じ）
+const AUTHZ_REALTY_SHOPS = ['realty', 'estate', 'all'];
+const AUTHZ_BROKER_SHOPS = ['realty', 'estate', 'all', 'used'];
 
 /**
  * 認証と「担当事業（staff.shop）が許されていること」の確認（v2.2.221）。

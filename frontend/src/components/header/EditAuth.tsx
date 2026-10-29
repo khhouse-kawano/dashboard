@@ -68,6 +68,8 @@ const SHOP_OPTIONS = [
     { value: 'used', label: '中古' },
     // ⚠️ v2.2.221: 不動産企画係だけを見る人（入れるのは不動産企画係の画面だけ）
     { value: 'realty', label: '不動産企画係' },
+    // ⚠️ v2.2.227: 建売・中古・不動産企画係の3つに入れる人（utils/shopAccess.ts）
+    { value: 'estate', label: '建売・中古・不動産企画係' },
     { value: 'all', label: '全事業' },
 ] as const;
 

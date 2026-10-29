@@ -30,6 +30,7 @@ import FundingPlan from './FundingPlan';
 import CustomerPageviews from './CustomerPageviews';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import NexusBadge, { NEXUS_HEADER_LABEL } from '../NexusBadge';
 import { isNexus, nexusNameMessages, nexusRankMessage } from '../../utils/nexusUtils';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
@@ -674,6 +675,23 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
         onClickCapture: openOnClickCapture(expand[key], () => setExpand(prev => ({ ...prev, [key]: true })))
     });
 
+    /**
+     * 個人情報削除（v2.2.227）。氏名・電話番号・メールアドレス・住所を ******** にして、顧客DBの一覧から外す（show_dashboard = 0）。
+     * ⚠️ 元に戻せない。⚠️ 入力中で保存していない内容は保存せずに閉じる
+     */
+    const erasePersonalInfo = async () => {
+        if (!id || id === 'new') return;
+        if (!confirmPrivacyErase(String(information.customer_contacts_name ?? ''), '顧客DBの一覧から外します')) return;
+        try {
+            await postPrivacyErase('master', category, { id });
+            alert('個人情報を削除しました。');
+            modalClose();
+            handleClose();
+        } catch (e) {
+            alert((e as Error).message);
+        }
+    };
+
     const handleClose = () => {
         setInterviewLog({
             id: '',
@@ -858,6 +876,14 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                     {id !== 'new' && isNexus(information) && <NexusBadge className='me-1' label={NEXUS_HEADER_LABEL} />}
                     {id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
                     <div style={{ background: 'rgb(233, 233, 233)', fontSize: '11px' }} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
+                    {/* ⚠️ v2.2.227: 個人情報削除（元に戻せない。utils/privacyErase.ts） */}
+                    {id !== 'new' && (
+                        <button type="button" className="btn btn-outline-danger btn-sm ms-3" style={{ fontSize: '11px', padding: '1px 10px' }}
+                            disabled={!information.id} title={information.id ? undefined : '読み込み中'}
+                            onClick={() => void erasePersonalInfo()}>
+                            <i className="fa-solid fa-user-slash me-1" aria-hidden="true" />個人情報削除
+                        </button>
+                    )}
                 </Modal.Header>
                 <Modal.Body>
                     <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll', zoom: isSp ? 0.35 : 1 }}>

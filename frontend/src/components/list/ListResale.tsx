@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useContext, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import Table from "react-bootstrap/Table";
 import apiClient from '../../utils/apiClient';
@@ -11,6 +11,8 @@ import { setStyleClassUsed } from '../../utils/setStyleClassUsed';
 import { thisYear } from '../../utils/thisYear';
 import { useIsSp } from '../../utils/isSp';
 import { dateFormate, monthFormate, handleBlack, toHalfWidth, matchesBlackList, positions, previousMonthValue, currentMonthValue, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
+import BlackReasonModal from './BlackReasonModal';
+import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { hiraToKata } from '../../utils/nexusUtils';
@@ -86,6 +88,39 @@ const ListResale = ({ onReload }: Props) => {
     const loaderRef = useRef<HTMLDivElement>(null);
     const isSp = useIsSp();
 
+    const [reloading, setReloading] = useState(false);
+    /**
+     * 一覧のデータを読む（v2.2.227: 「再読み込み」ボタンからも呼ぶ）。
+     * ⚠️ 期間・店舗などの絞り込みはここでは変えない（初回の設定は下の useEffect）。
+     */
+    const loadList = useCallback(async () => {
+        try {
+            const response = await apiClient.post('', { request: 'list', category });
+            setCustomerList(response.data.summary);
+            const targetShop = categoryMapping[shopValue] === '買い:中古リノベ' ? '中古住宅専門店' : '不動産企画係';
+            const staffResponse = response.data.staff
+                .sort((a, b) => {
+                    const positionA = positions.indexOf(a.position) ?? 6;
+                    const positionB = positions.indexOf(b.position) ?? 6;
+                    return positionA - positionB
+                })
+                .filter((s: Staff) => s.shop  === targetShop)
+            setStaffList(staffResponse);
+            setMediumArray(response.data.medium.map((m: any) => m.medium));
+            setOriginalList(response.data.inquiry);
+            setOriginalBeforeList(response.data.survey || []);
+            setBlackList(response.data.black);
+        } catch (error) {
+            console.error("データ取得エラー:", error);
+        }
+    }, [category, shopValue]);
+
+    const reload = async () => {
+        setReloading(true);
+        await loadList();
+        setReloading(false);
+    };
+
     useEffect(() => {
         const now = new Date();
         const year = now.getFullYear();
@@ -104,30 +139,8 @@ const ListResale = ({ onReload }: Props) => {
         setEndMonth(currentMonthValue());
         setSelectedMonth([`${year}/${month}`]);
 
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post('', { request: 'list', category });
-                setCustomerList(response.data.summary);
-                const targetShop = categoryMapping[shopValue] === '買い:中古リノベ' ? '中古住宅専門店' : '不動産企画係';
-                const staffResponse = response.data.staff
-                    .sort((a, b) => {
-                        const positionA = positions.indexOf(a.position) ?? 6;
-                        const positionB = positions.indexOf(b.position) ?? 6;
-                        return positionA - positionB
-                    })
-                    .filter((s: Staff) => s.shop  === targetShop)
-                setStaffList(staffResponse);
-                setMediumArray(response.data.medium.map((m: any) => m.medium));
-                setOriginalList(response.data.inquiry);
-                setOriginalBeforeList(response.data.survey || []);
-                setBlackList(response.data.black);
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        };
-
-        fetchData();
-    }, [category, shopValue]);
+        void loadList();
+    }, [category, shopValue, loadList]);
 
     useEffect(() => {
         const startIndex = startMonth ? monthArray.indexOf(startMonth) : 0;
@@ -334,13 +347,35 @@ const ListResale = ({ onReload }: Props) => {
     };
 
     /**
+     * 個人情報削除（v2.2.227）。氏名・電話番号・メールアドレス・住所を ******** にして取込済み（sync = 1）にする。
+     * ⚠️ 元に戻せない（utils/privacyErase.ts・② の features/privacy.ts）
+     */
+    const erasePrivacy = async (item: InquiryCustomer) => {
+        const id = String(item.inquiry_id || '');
+        if (!confirmPrivacyErase(`${item.first_name || ''}${item.last_name || ''}`, '取込済みにします')) return;
+        try {
+            const d = await postPrivacyErase('inquiry', category, { inquiry_id: id });
+            const patch = (d.row ?? {}) as Partial<InquiryCustomer>;
+            setInquiryList(prev => prev.map(row => (String(row.inquiry_id) === id ? { ...row, ...patch } : row)));
+            onReload();
+        } catch (e) {
+            alert((e as Error).message);
+        }
+    };
+
+    /** ブラックリストの理由を入れているお客様（v2.2.227。⚠️ 外すときは出さない） */
+    const [blackTarget, setBlackTarget] = useState<InquiryCustomer | null>(null);
+
+    /**
      * 顧客タグの ON / OFF。
      *
      * ⚠️ 旧実装は black_list に文字列を追記し、出現回数の偶奇で判定していた。
      *   「押すたびに反転」する仕様のため、通信が二重に走ると状態がずれた。
      *   次の値を明示して送ることで冪等にしている。
+     *
+     * ⚠️ v2.2.227: reason はブラックリストに登録するときの理由（BlackReasonModal で入れる）。
      */
-    const toggleTag = async (item: InquiryCustomer, tag: TagKey) => {
+    const toggleTag = async (item: InquiryCustomer, tag: TagKey, reason?: string) => {
         const nextValue = isTagOn(item, tag) ? 0 : 1;
         const field = TAG_FIELD[tag];
 
@@ -384,7 +419,8 @@ const ListResale = ({ onReload }: Props) => {
                 item.mail || '',
                 item.zip || '',
                 `${item.pref || ''}${item.city || ''}${item.town || ''}${item.street || ''}${item.building || ''}`,
-                category
+                category,
+                reason
             );
         }
 
@@ -551,6 +587,12 @@ const ListResale = ({ onReload }: Props) => {
 
                     <div className="bg-warning text-dark px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
                         onClick={() => setEditId('new')}>新規登録</div>
+                    {/* ⚠️ v2.2.227: データだけ読み直す（絞り込みはそのまま） */}
+                    <button type="button" className="bg-white text-primary px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center"
+                        style={{ border: '1px solid #0d6efd', cursor: reloading ? 'wait' : 'pointer', fontSize: '13px' }}
+                        onClick={() => void reload()} disabled={reloading}>
+                        <i className={`fa-solid fa-arrows-rotate me-1${reloading ? ' fa-spin' : ''}`} aria-hidden="true" />再読み込み
+                    </button>
 
                     {/* 💡 一括登録ボタン（チェックされている場合のみ表示） */}
                     {checkedIds.length > 0 && (
@@ -595,7 +637,8 @@ const ListResale = ({ onReload }: Props) => {
                                 )}
                             </tbody>
                         </Table>}
-                    <Table striped bordered hover style={{ width: isSp ? '1200px' : '1500px', fontSize: isSp ? "8px" : "12px" }}>
+                    {/* ⚠️ v2.2.227: PC の幅は列の幅の合計（顧客タグは ListOrder と同じ 400px・個人情報 110px）。合計より狭いと顧客タグのボタンが折れる */}
+                    <Table striped bordered hover style={{ width: isSp ? '1200px' : '1830px', fontSize: isSp ? "8px" : "12px" }}>
                         <thead className='sticky-header'>
                             <tr className='sticky-header align-middle'>
                                 {/* 💡 顧客取込列にチェックボックスと同期ボタンを統合 */}
@@ -609,7 +652,8 @@ const ListResale = ({ onReload }: Props) => {
                                 <td style={{ width: '200px' }}>連絡先</td>
                                 <td style={{ width: '130px' }}>物件名</td>
                                 <td style={{ width: '120px' }}>希望エリア</td>
-                                <td style={{ width: '500px' }}>顧客タグ</td>
+                                <td style={{ width: '400px' }}>顧客タグ</td>
+                                <td style={{ width: '110px', textAlign: 'center' }}>個人情報</td>
                             </tr>
                         </thead>
                         <tbody>
@@ -678,15 +722,20 @@ const ListResale = ({ onReload }: Props) => {
                                         <td>{item.property || ''}</td>
                                         <td>{item.area || ''}</td>
                                         <td>
-                                            <div className='d-flex'>
+                                            <div className='d-flex' style={{ whiteSpace: 'nowrap' }}>
                                                 {TAG_DEFINITIONS.map(tag => (
                                                     <div
                                                         key={tag.key}
                                                         className={`${tag.className} text-white rounded-pill px-2 me-2 tag ${isTagOn(item, tag.key) ? 'checked' : ''}`}
-                                                        onClick={() => toggleTag(item, tag.key)}
+                                                        onClick={() => (tag.key === 'black' && !isTagOn(item, 'black') ? setBlackTarget(item) : toggleTag(item, tag.key))}
                                                     >{tag.label}</div>
                                                 ))}
                                             </div>
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            {/* ⚠️ v2.2.227: 個人情報削除（元に戻せない） */}
+                                            <button type="button" className="btn btn-outline-danger btn-sm" style={{ fontSize: '10px', padding: '0 6px' }}
+                                                onClick={() => void erasePrivacy(item)}>個人情報削除</button>
                                         </td>
                                     </tr>);
                             })}
@@ -707,6 +756,16 @@ const ListResale = ({ onReload }: Props) => {
                     )}
                 </Modal.Body>
             </Modal>
+            {/* ⚠️ v2.2.227: ブラックリストに登録する理由（一番小さい sm。理由が空なら登録できない） */}
+            <BlackReasonModal
+                name={blackTarget ? `${blackTarget.first_name || ''}${blackTarget.last_name || ''}` : null}
+                onCancel={() => setBlackTarget(null)}
+                onSubmit={reason => {
+                    const target = blackTarget;
+                    setBlackTarget(null);
+                    if (target) void toggleTag(target, 'black', reason);
+                }}
+            />
         </>
     )
 }

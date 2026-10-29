@@ -283,7 +283,8 @@ const Menu = ({ key, onReload }: Props) => {
 
     return (
         <>
-            <div className="d-md-flex flex-column p-2" style={{ height: '100vh', borderRight: '1px solid #D3D3D3', overflowY: 'auto' }}>
+            {/* ⚠️ v2.2.227: 高さは枠（PC は index.css の .modal_menu＝画面に固定、スマホは .modal_menu_sp＝100vh）いっぱい。はみ出た分はここでスクロール */}
+            <div className="d-md-flex flex-column p-2" style={{ height: '100%', borderRight: '1px solid #D3D3D3', overflowY: 'auto' }}>
                 <div className="menuLogo m-3 position-relative" style={{ cursor: 'pointer' }} onClick={() => handleNavigate("/home")}>
                     <img src={Logo} alt="PG-CLOUDダッシュボード" className="w-100" />
                     <div style={{ fontSize: '10px', bottom: '-10px', right: '0' }} className="position-absolute">

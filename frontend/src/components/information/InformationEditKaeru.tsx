@@ -30,6 +30,7 @@ import { calculateAge } from '../../utils/informationUtils';
 import { dateFormate } from '../../utils/informationUtils';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
+import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
 import type { CompetitorPdfItem } from '../../utils/competitorPdfUpload';
 
@@ -611,6 +612,23 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
         style: expandStyle(key),
         onClickCapture: openOnClickCapture(expand[key], () => setExpand(prev => ({ ...prev, [key]: true })))
     });
+    /**
+     * 個人情報削除（v2.2.227）。氏名・電話番号・メールアドレス・住所を ******** にして、顧客DBの一覧から外す（show_dashboard = 0）。
+     * ⚠️ 元に戻せない。⚠️ 入力中で保存していない内容は保存せずに閉じる
+     */
+    const erasePersonalInfo = async () => {
+        if (!id || id === 'new') return;
+        if (!confirmPrivacyErase(String(information.customer_contacts_name ?? ''), '顧客DBの一覧から外します')) return;
+        try {
+            await postPrivacyErase('master', category, { id });
+            alert('個人情報を削除しました。');
+            modalClose();
+            handleClose();
+        } catch (e) {
+            alert((e as Error).message);
+        }
+    };
+
     const handleClose = () => {
         setInterviewLog({
             id: '',
@@ -772,7 +790,17 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
                     handleClose();
                 }}
             >
-                <Modal.Header closeButton><div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{id === 'new' ? <div>新規顧客登録 <span className='text-danger'>※は入力必須</span></div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div></Modal.Header>
+                <Modal.Header closeButton>
+                    <div style={{ fontSize: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{id === 'new' ? <div>新規顧客登録 <span className='text-danger'>※は入力必須</span></div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
+                    {/* ⚠️ v2.2.227: 個人情報削除（元に戻せない。utils/privacyErase.ts） */}
+                    {id !== 'new' && (
+                        <button type="button" className="btn btn-outline-danger btn-sm ms-3" style={{ fontSize: '11px', padding: '1px 10px' }}
+                            disabled={!information.id} title={information.id ? undefined : '読み込み中'}
+                            onClick={() => void erasePersonalInfo()}>
+                            <i className="fa-solid fa-user-slash me-1" aria-hidden="true" />個人情報削除
+                        </button>
+                    )}
+                </Modal.Header>
                 <Modal.Body>
                     <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll', zoom: isSp ? 0.35 : 1 }}>
                         <div style={{ minWidth: '1000px' }}>

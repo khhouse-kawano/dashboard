@@ -24,9 +24,10 @@ import type { AuthenticatedStaff } from '../../types/staff';
  */
 
 /** 不動産企画係の画面を使える担当事業 */
-export const REALTY_SHOPS = ['realty', 'all'];
+// ⚠️ v2.2.227: estate（建売・中古・不動産企画係）も入れる（frontend/src/utils/shopAccess.ts）
+export const REALTY_SHOPS = ['realty', 'estate', 'all'];
 /** 媒介台帳（broker:*）を使える担当事業。⚠️ 中古の顧客DB・顧客詳細も台帳を読み書きする */
-export const BROKER_SHOPS = ['realty', 'all', 'used'];
+export const BROKER_SHOPS = ['realty', 'estate', 'all', 'used'];
 
 interface DynamicRow extends RowDataPacket {
   [key: string]: unknown;
