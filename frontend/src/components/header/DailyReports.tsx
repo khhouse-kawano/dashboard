@@ -152,12 +152,12 @@ const authorityMapping: Record<string, string> = {
     'order': '注文事業',
     'spec': '建売分譲事業',
     'used': '中古リノベ',
-    // ⚠️ v2.2.227: estate（建売・中古・不動産企画係）は建売の人として扱う（日報は建売の分）
-    'estate': '建売分譲事業',
+    // ⚠️ v2.2.228: 不動産企画係（realty）の人は中古の人として扱う（中古リノベと不動産企画係の両方に入れるため）
+    'realty': '中古リノベ',
 };
 
-/** 日報の書き手（authority）と突き合わせる担当事業。⚠️ estate は建売（spec）として見る */
-const reportShopOf = (shopName: string): string => (shopName === 'estate' ? 'spec' : shopName);
+/** 日報の行（authority ＝ 事業）と突き合わせる担当事業。⚠️ realty は中古（used）として見る */
+const reportShopOf = (shopName: string): string => (shopName === 'realty' ? 'used' : shopName);
 
 const positions = ['常務', '部長', '課長', '課長代理', '店長', '店長代理', '一般'];
 

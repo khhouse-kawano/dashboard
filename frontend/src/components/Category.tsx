@@ -30,7 +30,7 @@ const Category = () => {
     }, []);
 
     const goToDashboard = async (categoryValue: string) => {
-        // ⚠️ v2.2.227: estate（建売・中古・不動産企画係）も見る（utils/shopAccess.ts）
+        // ⚠️ v2.2.228: 中古（used）と不動産企画係（realty）の人は、どちらも中古リノベと不動産企画係に入れる（utils/shopAccess.ts）
         if (!canEnterCategory(shopValue, categoryValue)) {
             alert('閲覧権限がありません');
             return;
@@ -77,9 +77,9 @@ const Category = () => {
                 </div>
                 {/*
                   ⚠️ v2.2.194: 業務ガイド（⚠️ 4つのボタンの下・指示）。⚠️ 別ウインドウで開く（guide/openGuide.ts）。
-                    ⚠️ この画面ではまだ事業を選んでいないので、⚠️ **担当事業（shopValue）が注文営業・建売営業・中古リノベ・全事業の人にだけ**出す。
+                    ⚠️ この画面ではまだ事業を選んでいないので、⚠️ **担当事業（shopValue）が注文営業・建売営業・中古リノベ・不動産企画係（v2.2.228 から。中古にも入れるため）・全事業の人にだけ**出す。
                 */}
-                {['order', 'spec', 'used', 'estate', 'all'].includes(shopValue) && (
+                {['order', 'spec', 'used', 'realty', 'all'].includes(shopValue) && (
                     <div className="text-center mt-2">
                         <button type="button" onClick={() => openGuide()}
                             style={{ background: '#f0fdfa', border: '1px solid #99f6e4', color: '#0f766e', borderRadius: 999,

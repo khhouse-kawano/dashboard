@@ -65,11 +65,10 @@ const BRAND_OPTIONS = [
 const SHOP_OPTIONS = [
     { value: 'order', label: '注文' },
     { value: 'spec', label: '建売' },
+    // ⚠️ v2.2.228: 中古と不動産企画係は、どちらを選んでも中古リノベと不動産企画係の両方に入れる（utils/shopAccess.ts）
     { value: 'used', label: '中古' },
     // ⚠️ v2.2.221: 不動産企画係だけを見る人（入れるのは不動産企画係の画面だけ）
     { value: 'realty', label: '不動産企画係' },
-    // ⚠️ v2.2.227: 建売・中古・不動産企画係の3つに入れる人（utils/shopAccess.ts）
-    { value: 'estate', label: '建売・中古・不動産企画係' },
     { value: 'all', label: '全事業' },
 ] as const;
 
