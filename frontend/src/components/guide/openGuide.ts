@@ -31,7 +31,7 @@ export const GUIDE_COMMON = 'common';
 export const isGuideCategory = (category: string): boolean => GUIDE_DIVISIONS.some((d) => d.value === category);
 
 /**
- * 見られる事業。⚠️ shopName は担当事業（order / spec / used / estate / all）。
+ * 見られる事業。⚠️ shopName は担当事業（order / spec / used / realty / all）。
  * ⚠️ Master と全事業（all）の人はすべて。⚠️ 選んでいる事業（category）も足す（⚠️ 事業の権限はトップ画面が確かめている）。
  */
 export const allowedGuideDivisions = (authority: string, category: string, shopName: string): string[] =>
