@@ -91,7 +91,8 @@ const CUSTOMER_SQL: Record<RankCategory, string> = {
            step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 as register,
            step_migration_item_01JSENACS2FC422ZHEZWNSXNYA as appointment,
            status,
-           rank_period
+           rank_period,
+           COALESCE(delete_dashboard, 0) AS delete_dashboard
       FROM master_data
      WHERE show_dashboard = 1`,
 
@@ -112,7 +113,8 @@ const CUSTOMER_SQL: Record<RankCategory, string> = {
            step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR as screening,
            step_migration_item_01J95TGVT725CV1Z4HTWB22DAV as obtain,
            status,
-           rank_period
+           rank_period,
+           COALESCE(delete_dashboard, 0) AS delete_dashboard
       FROM master_data_kaeru
      WHERE show_dashboard = 1 AND in_charge_store <> ''`,
 
@@ -133,7 +135,8 @@ const CUSTOMER_SQL: Record<RankCategory, string> = {
            contract_land_application_date as budget_reform,
            contract_building_application_date as budget_apply,
            status,
-           rank_period
+           rank_period,
+           COALESCE(delete_dashboard, 0) AS delete_dashboard
       FROM master_data_resale
      WHERE show_dashboard = 1`,
 };
@@ -169,7 +172,8 @@ const UPDATED_CUSTOMER_SQL: Record<RankCategory, string> = {
            step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7 as interview,
            step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 as register,
            status,
-           rank_period
+           rank_period,
+           COALESCE(delete_dashboard, 0) AS delete_dashboard
       FROM master_data
      WHERE show_dashboard = 1`,
 
@@ -183,7 +187,8 @@ const UPDATED_CUSTOMER_SQL: Record<RankCategory, string> = {
            step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7 as interview,
            step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 as register,
            status,
-           rank_period
+           rank_period,
+           COALESCE(delete_dashboard, 0) AS delete_dashboard
       FROM master_data_kaeru
      WHERE show_dashboard = 1`,
 
@@ -197,7 +202,8 @@ const UPDATED_CUSTOMER_SQL: Record<RankCategory, string> = {
            step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7 as interview,
            step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99 as register,
            status,
-           rank_period
+           rank_period,
+           COALESCE(delete_dashboard, 0) AS delete_dashboard
       FROM master_data_resale
      WHERE show_dashboard = 1`,
 };

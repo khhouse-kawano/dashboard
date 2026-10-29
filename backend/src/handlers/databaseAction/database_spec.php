@@ -73,7 +73,8 @@ $sql_customer = "SELECT
   COALESCE(extra_address_info, '') AS mail_2,
   COALESCE(integration, '') AS integration,
   COALESCE(call_log, '') AS call_log
-  FROM master_data_kaeru;
+  FROM master_data_kaeru
+  WHERE COALESCE(delete_dashboard, 0) = 0; -- v2.2.229: 個人情報削除で削除済みの顧客は返さない（② の database/queries.ts と同じ）
 ";
 $stmt_customer = $pdo->prepare($sql_customer);
 $stmt_customer->execute();

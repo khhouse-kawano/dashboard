@@ -248,6 +248,12 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
         const fetchData = async () => {
             try {
                 const response = await apiClient.post("", { request: "information", category, id });
+                // v2.2.229: 個人情報削除で削除済みの顧客は ② が中身を返さない（deleted: true）。空の入力欄のまま保存されないよう閉じる
+                if (response.data.deleted) {
+                    alert('この顧客は個人情報を削除済みのため開けません。');
+                    modalClose();
+                    return;
+                }
 
                 setShopArray(response.data.shop);
                 setStaffArray(response.data.staff.filter(s => s.category === 1 && Number(s.period) === thisYear));
@@ -618,7 +624,7 @@ const InformationEditKaeru = ({ id, token, onClose, authority }: Props) => {
      */
     const erasePersonalInfo = async () => {
         if (!id || id === 'new') return;
-        if (!confirmPrivacyErase(String(information.customer_contacts_name ?? ''), '顧客DBの一覧から外します')) return;
+        if (!confirmPrivacyErase(String(information.customer_contacts_name ?? ''), '顧客DBから外します（集計の数には残ります）')) return;
         try {
             await postPrivacyErase('master', category, { id });
             alert('個人情報を削除しました。');

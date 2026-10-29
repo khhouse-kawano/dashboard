@@ -20,9 +20,8 @@ import { setStaffLength } from '../../utils/setStaffLength';
 import { budgetFilter } from '../../utils/budgetFilter';
 import { get11MonthsAgoString } from '../../utils/get11MonthsAgoString';
 import { isLastYear } from '../../utils/isLastYear';
-import { ModalBody } from 'react-bootstrap';
 import InformationEditKaeru from '../information/InformationEditKaeru';
-import InterviewLog from '../InterviewLog';
+import CustomerListModal from '../CustomerListModal';
 import { thisYear } from '../../utils/thisYear';
 import apiClient from '../../utils/apiClient';
 
@@ -97,11 +96,8 @@ const ShopTrendKaeru = () => {
     const [mediumChecked, setMediumChecked] = useState({});
     const [listShow, setListShow] = useState({ show: false, label: '' });
     const [modalList, setModalList] = useState<Customer[]>([]);
-    const [listPage, setListPage] = useState(1);
 
     const [editId, setEditId] = useState('');
-    /** 商談ステップ（InterviewLog）を開く顧客ID。'' なら閉じている */
-    const [interviewId, setInterviewId] = useState('');
     const [isReverse, setIsReverse] = useState(true);
 
     useEffect(() => {
@@ -208,7 +204,6 @@ const ShopTrendKaeru = () => {
         setShow(false);
         setGeminiApi(false);
         setListShow({ show: false, label: '' });
-        setListPage(1);
     };
 
     const checkedChange = (e) => {
@@ -909,58 +904,8 @@ const ShopTrendKaeru = () => {
                     </div>
                 </Modal.Body>
             </Modal>
-            <Modal show={listShow.show} onHide={modalClose} size='xl'>
-                <Modal.Header closeButton>{listShow.label}一覧</Modal.Header>
-                <ModalBody>
-                    <Table bordered striped>
-                        <tbody style={{ fontSize: '12px' }} className='align-middle'>
-                            <tr>
-                                <td>No</td>
-                                <td>顧客名</td>
-                                <td>店舗</td>
-                                <td>担当営業</td>
-                                <td>初回来場日</td>
-                                <td>ステータス</td>
-                                <td>ランク</td>
-                                <td>販促媒体</td>
-                                <td>商談ステップ</td>
-                            </tr>
-                            {modalList.slice(listPage * 10 - 10, listPage * 10).map((item, index) =>
-                                <tr key={index}>
-                                    <td>{index + 1}</td>
-                                    <td><span onClick={() => setEditId(item.id)} style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>{item.customer}</span></td>
-                                    <td>{item.shop}</td>
-                                    <td>{item.staff}</td>
-                                    {/* ⚠️ 未来場（来場予約・キャンセルの一覧）では空になるので '-' を出す */}
-                                    <td>{item.interview || '-'}</td>
-                                    <td>{item.status}</td>
-                                    <td>{item.rank}</td>
-                                    <td>{item.medium}</td>
-                                    <td><div className="bg-danger text-white rounded text-center px-3 py-1 mx-auto" style={{ width: 'fit-content', cursor: 'pointer' }}
-                                        onClick={() => setInterviewId(item.id)}>表示</div></td>
-                                </tr>)}
-                        </tbody>
-                    </Table>
-                    <div className="d-flex px-3 justify-content-around" style={{ fontSize: '12px' }}>
-                        <div className={`${listPage > 1 ? 'text-primary' : ''}`}
-                            style={{ cursor: listPage > 1 ? 'pointer' : 'text' }}
-                            onClick={() => {
-                                if (listPage > 1) {
-                                    setListPage(listPage - 1);
-                                }
-                            }}>前の10件</div>
-                        <div className={`${modalList.length - listPage * 10 > 0 ? 'text-primary' : ''}`}
-                            style={{ cursor: modalList.length - listPage * 10 > 0 ? 'pointer' : 'text' }}
-                            onClick={() => {
-                                if (modalList.length - listPage * 10 > 0) {
-                                    setListPage(listPage + 1);
-                                }
-                            }}
-                        >次の10件</div>
-                    </div>
-                </ModalBody>
-            </Modal>
-            <InterviewLog idValue={interviewId} setInterviewId={setInterviewId} />
+            {/* v2.2.229: 同じ作りの一覧を共通の CustomerListModal にした（削除済み顧客の表示もそちら） */}
+            <CustomerListModal show={listShow.show} label={listShow.label} list={modalList} onHide={modalClose} onSelectCustomer={setEditId} />
             <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
         </>
     )
