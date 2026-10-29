@@ -1822,3 +1822,167 @@ index 7516f962..d6065a29 100644
  
  > 注意：変えたあと、本人が次に画面を移ったときに反映されます。ログインし直す必要はありません。
 ```
+
+## 追記（同日）: 注文の顧客DB（InformationEdit）にも個人情報削除（同じ v2.2.227。マージ前のため）
+### 依頼
+- 「InformationEdit に個人情報削除ボタンがない」→「order にも実装して」。伏せる項目を広げるのは次の版で
+
+### 決めたこと・作ったもの
+- InformationEdit.tsx のヘッダーに建売・中古と同じボタン（読み込みが終わるまで押せない）
+- ② の privacy_erase:master に order（master_data）を追加。① の許可リスト2か所に privacy_erase:master:order
+- 記事「顧客DB」（注文）に個人情報削除の節。更新履歴の文を「顧客DB（注文・建売・中古）」に
+
+### 確認したこと
+- ① を通して ② まで届くか（トークン無しで 401）: privacy_erase:master:order
+- 画面（Playwright。開発サーバーは 3100）: テスト用の注文の顧客で、確認（名前つき）→ 知らせ → 閉じる。DB は5列が ********・show_dashboard = 0、変更履歴に source = privacy_erase。ページのエラー 0。テストのデータは消した
+- ② の型チェック
+
+### 差分
+
+#### frontend/src/components/information/InformationEdit.tsx
+```diff
+diff --git a/frontend/src/components/information/InformationEdit.tsx b/frontend/src/components/information/InformationEdit.tsx
+index f61b8f6c..0c2bf70c 100644
+--- a/frontend/src/components/information/InformationEdit.tsx
++++ b/frontend/src/components/information/InformationEdit.tsx
+@@ -30,6 +30,7 @@ import FundingPlan from './FundingPlan';
+ import CustomerPageviews from './CustomerPageviews';
+ import { useIsSp } from '../../utils/isSp';
+ import apiClient from '../../utils/apiClient';
++import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
+ import NexusBadge, { NEXUS_HEADER_LABEL } from '../NexusBadge';
+ import { isNexus, nexusNameMessages, nexusRankMessage } from '../../utils/nexusUtils';
+ import { uploadCompetitorPdf } from '../../utils/competitorPdfUpload';
+@@ -674,6 +675,23 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
+         onClickCapture: openOnClickCapture(expand[key], () => setExpand(prev => ({ ...prev, [key]: true })))
+     });
+ 
++    /**
++     * 個人情報削除（v2.2.227）。氏名・電話番号・メールアドレス・住所を ******** にして、顧客DBの一覧から外す（show_dashboard = 0）。
++     * ⚠️ 元に戻せない。⚠️ 入力中で保存していない内容は保存せずに閉じる
++     */
++    const erasePersonalInfo = async () => {
++        if (!id || id === 'new') return;
++        if (!confirmPrivacyErase(String(information.customer_contacts_name ?? ''), '顧客DBの一覧から外します')) return;
++        try {
++            await postPrivacyErase('master', category, { id });
++            alert('個人情報を削除しました。');
++            modalClose();
++            handleClose();
++        } catch (e) {
++            alert((e as Error).message);
++        }
++    };
++
+     const handleClose = () => {
+         setInterviewLog({
+             id: '',
+@@ -858,6 +876,14 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
+                     {id !== 'new' && isNexus(information) && <NexusBadge className='me-1' label={NEXUS_HEADER_LABEL} />}
+                     {id === 'new' ? <div>新規顧客登録 </div> : `${information.in_charge_store ?? ''} ${information.customer_contacts_name ?? ''}様`}</div>
+                     <div style={{ background: 'rgb(233, 233, 233)', fontSize: '11px' }} className='ms-1 fw-bold p-1 rounded'>※着色部分は特典進呈申請の際の必須項目</div>
++                    {/* ⚠️ v2.2.227: 個人情報削除（元に戻せない。utils/privacyErase.ts） */}
++                    {id !== 'new' && (
++                        <button type="button" className="btn btn-outline-danger btn-sm ms-3" style={{ fontSize: '11px', padding: '1px 10px' }}
++                            disabled={!information.id} title={information.id ? undefined : '読み込み中'}
++                            onClick={() => void erasePersonalInfo()}>
++                            <i className="fa-solid fa-user-slash me-1" aria-hidden="true" />個人情報削除
++                        </button>
++                    )}
+                 </Modal.Header>
+                 <Modal.Body>
+                     <div style={{ height: '78vh', overflowY: 'scroll', overflowX: 'scroll', zoom: isSp ? 0.35 : 1 }}>
+```
+
+#### backend-express/src/features/privacy.ts
+```diff
+diff --git a/backend-express/src/features/privacy.ts b/backend-express/src/features/privacy.ts
+index d1387f06..eeb22e7d 100644
+--- a/backend-express/src/features/privacy.ts
++++ b/backend-express/src/features/privacy.ts
+@@ -8,10 +8,11 @@ import { logger } from '../utils/logger';
+  *
+  * ─────────────────────────────────────────────
+  * 2026-10-29 の指示:
+- *   ・顧客DB（InformationEditKaeru / InformationEditResale のヘッダー）… 氏名・電話番号・メールアドレス・住所を
++ *   ・顧客DB（InformationEdit / InformationEditKaeru / InformationEditResale のヘッダー）… 氏名・電話番号・メールアドレス・住所を
+  *     アスタリスク8個にして show_dashboard = 0（privacy_erase:master）
+  *   ・反響一覧（ListOrder / ListKaeru / ListResale の各行）… 同じ列をアスタリスクにして sync = 1（privacy_erase:inquiry）
+  *   ・対象の列は「同じ種類の列も含める」（ふりがな・2人目の氏名・固定電話・郵便番号も）。押せるのはその画面を使える全員
++ *   ・2026-10-29 追加: 注文の顧客DB（InformationEdit・master_data）にも
+  *
+  * ⚠️⚠️ **元に戻せない。** 画面は「元に戻せません」の確認を出してから送る。
+  * ⚠️ 値が入っている列だけ伏せる（空の列に入れると、2人目の氏名などが居るように見えるため）。
+@@ -32,8 +33,9 @@ export interface PrivacyResult {
+ 
+ const MASK = '********';
+ 
+-/** 顧客DB（事業区分 → 表）。⚠️ 指示は建売・中古だけ */
++/** 顧客DB（事業区分 → 表） */
+ const MASTER_TABLES: Record<string, string> = {
++  order: 'master_data',
+   spec: 'master_data_kaeru',
+   used: 'master_data_resale',
+ };
+```
+
+#### backend-express/src/gateway/registry.ts
+```diff
+diff --git a/backend-express/src/gateway/registry.ts b/backend-express/src/gateway/registry.ts
+index 828a77fe..74004258 100644
+--- a/backend-express/src/gateway/registry.ts
++++ b/backend-express/src/gateway/registry.ts
+@@ -1833,7 +1833,7 @@ for (const category of ['order', 'spec', 'used']) {
+ 
+ // ---------------------------------------------------------------------------
+ // 個人情報削除（v2.2.227。② だけ）。features/privacy.ts
+-//   privacy_erase:master  … 顧客DB（InformationEditKaeru / Resale のヘッダー）。建売・中古
++//   privacy_erase:master  … 顧客DB（InformationEdit / Kaeru / Resale のヘッダー）。注文・建売・中古
+ //   privacy_erase:inquiry … 反響一覧（ListOrder / Kaeru / Resale の各行）。注文・建売・中古
+ // ⚠️ 元に戻せない書き込み。⚠️ express_proxy.php の expressProxyRequests() と expressProxyExclusive() の両方に入れてある
+ // ⚠️ 押せるのはその画面を使える全員（2026-10-29 の利用者の判断）。ログインは必須（auth: 'staff'）
+```
+
+#### backend/src/core/express_proxy.php
+```diff
+diff --git a/backend/src/core/express_proxy.php b/backend/src/core/express_proxy.php
+index 596dc7ab..196be41c 100644
+--- a/backend/src/core/express_proxy.php
++++ b/backend/src/core/express_proxy.php
+@@ -167,6 +167,7 @@ function expressProxyRequests(): array
+         'planner:call_logs_import',
+         'planner:practice_logs_import',
+         // ⚠️ v2.2.227。個人情報削除（元に戻せない・② だけ）。expressProxyExclusive() にも入れてある
++        'privacy_erase:master:order',
+         'privacy_erase:master:spec',
+         'privacy_erase:master:used',
+         'privacy_erase:inquiry:order',
+@@ -839,6 +840,7 @@ function expressProxyExclusive(): array
+         'planner:call_logs_import',
+         'planner:practice_logs_import',
+         // v2.2.227 新規。個人情報削除（元に戻せない）。⚠️ ① に PHP ハンドラは無い（② だけ）
++        'privacy_erase:master:order',
+         'privacy_erase:master:spec',
+         'privacy_erase:master:used',
+         'privacy_erase:inquiry:order',
+```
+
+#### backend/scripts/guide/articles/order/screen-020.md
+```diff
+diff --git a/backend/scripts/guide/articles/order/screen-020.md b/backend/scripts/guide/articles/order/screen-020.md
+index 58177e06..c2b0bd61 100644
+--- a/backend/scripts/guide/articles/order/screen-020.md
++++ b/backend/scripts/guide/articles/order/screen-020.md
+@@ -55,3 +55,11 @@ summary: お客様の検索と、商談の日付・ステータス・ランク
+ - [[来場予約が入ったら・来場したら]]
+ - [[契約したら（注文営業）]]
+ - [[ランク]]
++
++## 個人情報削除
++顧客情報の編集の上（お客様の名前の横）の「個人情報削除」を押すと、そのお客様の**氏名・ふりがな・電話番号・メールアドレス・住所**を「********」に置き換え、顧客DBの一覧から外します。
++- 誰がいつ消したかは、そのお客様の変更履歴に残ります（消した値は残りません）
++
++> 注意：元に戻せません。押すと確認が出るので、お客様の名前を確かめてから「OK」を押してください。
++
++> 要確認：個人情報を消してよいか（お客様からの削除の依頼など）は、社内のルールに従ってください。
+```

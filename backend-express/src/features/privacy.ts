@@ -8,10 +8,11 @@ import { logger } from '../utils/logger';
  *
  * ─────────────────────────────────────────────
  * 2026-10-29 の指示:
- *   ・顧客DB（InformationEditKaeru / InformationEditResale のヘッダー）… 氏名・電話番号・メールアドレス・住所を
+ *   ・顧客DB（InformationEdit / InformationEditKaeru / InformationEditResale のヘッダー）… 氏名・電話番号・メールアドレス・住所を
  *     アスタリスク8個にして show_dashboard = 0（privacy_erase:master）
  *   ・反響一覧（ListOrder / ListKaeru / ListResale の各行）… 同じ列をアスタリスクにして sync = 1（privacy_erase:inquiry）
  *   ・対象の列は「同じ種類の列も含める」（ふりがな・2人目の氏名・固定電話・郵便番号も）。押せるのはその画面を使える全員
+ *   ・2026-10-29 追加: 注文の顧客DB（InformationEdit・master_data）にも
  *
  * ⚠️⚠️ **元に戻せない。** 画面は「元に戻せません」の確認を出してから送る。
  * ⚠️ 値が入っている列だけ伏せる（空の列に入れると、2人目の氏名などが居るように見えるため）。
@@ -32,8 +33,9 @@ export interface PrivacyResult {
 
 const MASK = '********';
 
-/** 顧客DB（事業区分 → 表）。⚠️ 指示は建売・中古だけ */
+/** 顧客DB（事業区分 → 表） */
 const MASTER_TABLES: Record<string, string> = {
+  order: 'master_data',
   spec: 'master_data_kaeru',
   used: 'master_data_resale',
 };

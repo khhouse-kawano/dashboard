@@ -1833,7 +1833,7 @@ for (const category of ['order', 'spec', 'used']) {
 
 // ---------------------------------------------------------------------------
 // 個人情報削除（v2.2.227。② だけ）。features/privacy.ts
-//   privacy_erase:master  … 顧客DB（InformationEditKaeru / Resale のヘッダー）。建売・中古
+//   privacy_erase:master  … 顧客DB（InformationEdit / Kaeru / Resale のヘッダー）。注文・建売・中古
 //   privacy_erase:inquiry … 反響一覧（ListOrder / Kaeru / Resale の各行）。注文・建売・中古
 // ⚠️ 元に戻せない書き込み。⚠️ express_proxy.php の expressProxyRequests() と expressProxyExclusive() の両方に入れてある
 // ⚠️ 押せるのはその画面を使える全員（2026-10-29 の利用者の判断）。ログインは必須（auth: 'staff'）
