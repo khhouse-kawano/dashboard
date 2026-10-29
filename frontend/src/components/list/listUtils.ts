@@ -8,7 +8,12 @@ export const dateFormate = (date: string) => {
     return date ? date.replace(/-/g, '/') : '';
 };
 
-export const handleBlack = async (brandValue: string, nameValue: string, mobileValue: string, mailValue: string, zipValue: string, addressValue: string, category: string) => {
+/**
+ * ブラックリスト（名簿 black_list）への登録。
+ * ⚠️ v2.2.227: reason（理由）を渡すと「登録だけ」（value = 1）で送り、理由を備考に残す。
+ *   渡さないと今までどおりのトグル（登録中なら解除）。② の features/list/save.ts の runListBlack
+ */
+export const handleBlack = async (brandValue: string, nameValue: string, mobileValue: string, mailValue: string, zipValue: string, addressValue: string, category: string, reason?: string) => {
     const fetchData = async () => {
         try {
             const response = await apiClient.post('',
@@ -21,7 +26,8 @@ export const handleBlack = async (brandValue: string, nameValue: string, mobileV
                     address: addressValue,
                     request: 'list',
                     category,
-                    roll: 'black'
+                    roll: 'black',
+                    ...(reason ? { value: 1, note: reason } : {}),
                 });
             console.log(response.data.status);
         } catch (err) {

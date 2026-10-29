@@ -21,6 +21,7 @@
  */
 
 import { GUIDE_WINDOW } from './openGuide';
+import { canEnterCategory } from '../../utils/shopAccess';
 
 export type GuideDivision = 'order' | 'spec' | 'used';
 
@@ -173,7 +174,7 @@ export type ScreenPlan =
  * どの事業で・どのページを開くかを決める（⚠️ ダッシュボードの窓で呼ぶ）。
  * @param articleDivision 記事の事業（⚠️ 全事業共通の記事は null。そのときはいま選んでいる事業を優先）
  * @param category ダッシュボードで選んでいる事業
- * @param shopName 担当事業（order / spec / used / all）。⚠️ 切り替えてよいかの判定は Category.tsx の goToDashboard と同じ
+ * @param shopName 担当事業（order / spec / used / estate / all）。⚠️ 切り替えてよいかの判定は Category.tsx の goToDashboard と同じ（utils/shopAccess.ts）
  */
 export const planScreen = (name: string, articleDivision: string | null, category: string, shopName: string): ScreenPlan => {
     const screen = GUIDE_SCREENS[name];
@@ -186,7 +187,7 @@ export const planScreen = (name: string, articleDivision: string | null, categor
         else division = divisions[0];
     }
     const switching = division !== null && division !== category;
-    if (switching && shopName !== 'all' && shopName !== division) {
+    if (switching && !canEnterCategory(shopName, division as string)) {
         return { ok: false, message: `「${name}」は${DIVISION_LABEL[division as GuideDivision]}の画面です。担当の事業ではないため開けません。` };
     }
     let path: string | null = null;

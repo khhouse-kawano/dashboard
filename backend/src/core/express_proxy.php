@@ -166,6 +166,13 @@ function expressProxyRequests(): array
         'planner:call_logs',
         'planner:call_logs_import',
         'planner:practice_logs_import',
+        // ⚠️ v2.2.227。個人情報削除（元に戻せない・② だけ）。expressProxyExclusive() にも入れてある
+        'privacy_erase:master:order',
+        'privacy_erase:master:spec',
+        'privacy_erase:master:used',
+        'privacy_erase:inquiry:order',
+        'privacy_erase:inquiry:spec',
+        'privacy_erase:inquiry:used',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
@@ -832,6 +839,13 @@ function expressProxyExclusive(): array
         'planner:call_logs',
         'planner:call_logs_import',
         'planner:practice_logs_import',
+        // v2.2.227 新規。個人情報削除（元に戻せない）。⚠️ ① に PHP ハンドラは無い（② だけ）
+        'privacy_erase:master:order',
+        'privacy_erase:master:spec',
+        'privacy_erase:master:used',
+        'privacy_erase:inquiry:order',
+        'privacy_erase:inquiry:spec',
+        'privacy_erase:inquiry:used',
 
         // -----------------------------------------------------------------
         // v2.2.215 新規。オーナーズハウス募集（owners_house_application）の一覧と過去メールの取り込み。
