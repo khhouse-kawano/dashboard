@@ -4,7 +4,8 @@ import AuthContext from '../../context/AuthContext';
 import SatBaseImport from './SatBaseImport';
 
 /**
- * SatBaseサマリー（ヘッダー → 土地・物件管理 → SatBaseサマリー）。
+ * SatBaseサマリー（以前はヘッダー → 土地・物件管理 → SatBaseサマリー）。
+ * ⚠️ v2.2.231 でメニューごと外した（未使用のため）。⚠️ ファイルだけ残している。開く口は無い（Header.tsx の説明）。
  *
  * ─────────────────────────────────────────────
  * ⚠️ 元データは SatBase の物件台帳（中間加工）。

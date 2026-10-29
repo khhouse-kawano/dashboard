@@ -14,7 +14,6 @@ import BudgetSimulator from './BudgetSimulator';
 import AfterInterview from './AfterInterview';
 import apiClient from '../../utils/apiClient';
 import CompetitorSummary from './CompetitorSummary';
-import RegisterBrokerageListings from './RegisterBrokerageListings';
 import DailyReports from './DailyReports';
 import StaffContractRate from './StaffContractRate';
 import ClaudeAnalysis from './ClaudeAnalysis';
@@ -24,7 +23,6 @@ import IntroductorySummary from './IntroductorySummary';
 import DuplicateInquirySummary from './DuplicateInquirySummary';
 import OwnersHouseApplication from './OwnersHouseApplication';
 import TrackingSettings from './TrackingSettings';
-import SatBaseDatabase from './SatBaseDatabase';
 import AmbassadorList from './AmbassadorList';
 import { InquiryAmbassador } from './InquiryAmbassador';
 import InquiryIntroductory from './InquiryIntroductory';
@@ -41,7 +39,7 @@ import { useGuideScreenReceiver } from '../guide/useGuideScreenReceiver';
 import { useNavigate } from "react-router-dom";
 
 // 型安全のための定義
-type MenuKey = 'システム管理' | '反響管理' | '土地・物件管理' | '他社動向' | '架電状況' | '活動サマリー' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
+type MenuKey = 'システム管理' | '反響管理' | '他社動向' | '架電状況' | '活動サマリー' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
 
 /**
  * 他社動向メニューの最後に出す項目。
@@ -103,7 +101,7 @@ const Header = ({ }) => {
     const [showRanking, setShowRanking] = useState<boolean>(false);
     const [modal, setModal] = useState<boolean>(false);
     const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['システム管理', '反響管理', '土地・物件管理', '他社動向', '活動サマリー', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
+    const menuArray: MenuKey[] = ['システム管理', '反響管理', '他社動向', '活動サマリー', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
@@ -177,7 +175,9 @@ const Header = ({ }) => {
         // ⚠️⚠️ **2026-09-22 に土地情報同期・土地情報一覧をメニューから外した**（指示）。
         //   ⚠️ ⚠️ **コンポーネント（SyncEstate / Estate）は消していない。**
         //     ⚠️ Estate は顧客詳細からも開くため、消すとそちらが壊れる。
-        '土地・物件管理': ['仲介物件登録', 'SatBaseサマリー'],
+        // ⚠️⚠️ **v2.2.231（2026-10-30）に「土地・物件管理」のメニューごと外した**（指示。未使用のため）。
+        //   ⚠️ 仲介物件登録（RegisterBrokerageListings.tsx）はファイルも消した。
+        //   ⚠️ SatBaseサマリー（SatBaseDatabase.tsx・SatBaseImport.tsx）は**ファイルだけ残した**（開く口は無い）。戻すときはここと下の2か所・guideScreens.ts に足す。
         // ⚠️ 最後の1つは Claude による競合分析。
         //
         // ⚠️⚠️ **2026-10-01、Master 限定をやめて全員に出すようにした。**
@@ -242,9 +242,6 @@ const Header = ({ }) => {
         '反響管理/広告費シミュレーター': <BudgetSimulator />,
         '反響管理/事後アンケート': <AfterInterview name={''} staff={''} id={''} shop={''} />,
         '他社動向/競合サマリー': <CompetitorSummary />,
-        '土地・物件管理/仲介物件登録': <RegisterBrokerageListings setModal={setModal} />,
-        // ⚠️ 物件台帳（satbase_property）の一覧。⚠️ **列が40あるので全画面**（下を参照）
-        '土地・物件管理/SatBaseサマリー': <SatBaseDatabase />,
         // ⚠️ v2.2.165: 上部の「最新の他社分析」カードから、同じモーダルのまま他社分析へ切り替える。
         //   ⚠️ どちらも isFullscreenMenu に入っているので、⚠️ 全画面のまま中身だけ替わる。
         '活動サマリー/月次日報': <DailyReports onOpenCompetitorReports={() => setEditMenu(`他社動向/${CLAUDE_COMPETITOR_ITEM}`)} />,
@@ -387,10 +384,6 @@ const Header = ({ }) => {
         //   ⚠️ 2026-09-19 の SaaS 化に合わせて全画面にした。
         //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
         '反響管理/ブラックリスト設定',
-        // ⚠️ SatBaseサマリーは**選べる列が40**あり、xl では数列しか入らない。
-        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
-        //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
-        '土地・物件管理/SatBaseサマリー',
         // ⚠️ 営業別契約率は 2026-10-02 に**担当変更理由の8列**が増えて**16列**になった。
         //   ⚠️ xl のままだと右半分が隠れて横スクロール頼みになる（2026-10-02 の指示で全画面）。
         //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
