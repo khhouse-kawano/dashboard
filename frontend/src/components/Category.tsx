@@ -7,6 +7,7 @@ import Table from "react-bootstrap/Table";
 import { useIsSp } from '../utils/isSp';
 import { markCategoryChosen } from './DailyAction';
 import { openGuide } from './guide/openGuide';
+import { canEnterCategory } from '../utils/shopAccess';
 
 type Log = { no: number, version: string, date: string, note: string };
 
@@ -29,7 +30,8 @@ const Category = () => {
     }, []);
 
     const goToDashboard = async (categoryValue: string) => {
-        if (shopValue !== 'all' && shopValue !== categoryValue) {
+        // ⚠️ v2.2.227: estate（建売・中古・不動産企画係）も見る（utils/shopAccess.ts）
+        if (!canEnterCategory(shopValue, categoryValue)) {
             alert('閲覧権限がありません');
             return;
         }
@@ -77,7 +79,7 @@ const Category = () => {
                   ⚠️ v2.2.194: 業務ガイド（⚠️ 4つのボタンの下・指示）。⚠️ 別ウインドウで開く（guide/openGuide.ts）。
                     ⚠️ この画面ではまだ事業を選んでいないので、⚠️ **担当事業（shopValue）が注文営業・建売営業・中古リノベ・全事業の人にだけ**出す。
                 */}
-                {['order', 'spec', 'used', 'all'].includes(shopValue) && (
+                {['order', 'spec', 'used', 'estate', 'all'].includes(shopValue) && (
                     <div className="text-center mt-2">
                         <button type="button" onClick={() => openGuide()}
                             style={{ background: '#f0fdfa', border: '1px solid #99f6e4', color: '#0f766e', borderRadius: 999,

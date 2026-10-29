@@ -65,7 +65,8 @@ export const AUTH_BRANDS = ['Master', 'BrandAdmin', 'Manager', 'ordinary', 'Cons
  *   （2026-10-05 に利用者と確認済み）。
  */
 // ⚠️ v2.2.221: realty（不動産企画係）を追加。⚠️ realty の人は不動産企画係の画面にだけ入れる
-export const AUTH_SHOPS = ['order', 'spec', 'used', 'realty', 'all'] as const;
+// ⚠️ v2.2.227: estate（建売・中古・不動産企画係の3つに入れる人）を追加
+export const AUTH_SHOPS = ['order', 'spec', 'used', 'realty', 'estate', 'all'] as const;
 
 const isAuthBrand = (value: string): boolean => (AUTH_BRANDS as readonly string[]).includes(value);
 const isAuthShop = (value: string): boolean => (AUTH_SHOPS as readonly string[]).includes(value);

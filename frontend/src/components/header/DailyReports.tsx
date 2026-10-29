@@ -151,8 +151,13 @@ const parseLogs = (json: string | null): ActionLog[] => {
 const authorityMapping: Record<string, string> = {
     'order': '注文事業',
     'spec': '建売分譲事業',
-    'used': '中古リノベ'
+    'used': '中古リノベ',
+    // ⚠️ v2.2.227: estate（建売・中古・不動産企画係）は建売の人として扱う（日報は建売の分）
+    'estate': '建売分譲事業',
 };
+
+/** 日報の書き手（authority）と突き合わせる担当事業。⚠️ estate は建売（spec）として見る */
+const reportShopOf = (shopName: string): string => (shopName === 'estate' ? 'spec' : shopName);
 
 const positions = ['常務', '部長', '課長', '課長代理', '店長', '店長代理', '一般'];
 
@@ -250,7 +255,7 @@ const DailyReports = ({ onOpenCompetitorReports }: Props) => {
                 if (response.data) {
                     // ⚠️ shop はサーバーで読み替え済み
                     setResponseList((response.data.response || [])
-                        .filter((r: ResponseInfo) => (!shopName || shopName === 'all') ? true : r.authority === shopName));
+                        .filter((r: ResponseInfo) => (!shopName || shopName === 'all') ? true : r.authority === reportShopOf(shopName)));
                     setCallList(response.data.call || []);
                     setInterviewList(response.data.interview || []);
                     

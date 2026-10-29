@@ -171,6 +171,13 @@ textarea::placeholder {
 .modal_menu {
   width: 20%;
   max-width: 200px;
+  /* v2.2.227: メニューは画面に固定し、右側のスクロールと一緒に動かさない。はみ出た分はメニューの中でスクロール（components/Menu.tsx）
+     ⚠️ fixed にすると右側が幅のぶんずれるため sticky。上はヘッダーの高さ（Header.tsx が --header-h に入れる。App.tsx の paddingTop と同じ） */
+  position: sticky;
+  top: calc(var(--header-h, 30px) + 6px);
+  height: calc(100vh - var(--header-h, 30px) - 6px);
+  align-self: flex-start;
+  flex-shrink: 0;
 }
 
 @media screen and (min-width: 769px) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useContext, useMemo, useRef } from 'react';
 import Table from "react-bootstrap/Table";
 import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
@@ -10,6 +10,8 @@ import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
 import { positions } from './listUtils';
 import { monthFormate, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
+import BlackReasonModal from './BlackReasonModal';
+import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { useIsSp } from '../../utils/isSp';
@@ -169,6 +171,40 @@ const ListOrder = ({ onReload }: Props) => {
         [summaryShops]
     );
 
+    const [reloading, setReloading] = useState(false);
+    /**
+     * 一覧のデータを読む（v2.2.227: 「再読み込み」ボタンからも呼ぶ）。
+     * ⚠️ 期間・店舗などの絞り込みはここでは変えない（初回の設定は下の useEffect）。
+     */
+    const loadList = useCallback(async () => {
+        const now = new Date();
+        const thisYear = now.getMonth() <= 4 ? now.getFullYear() : now.getFullYear() + 1;
+        try {
+            const response = await apiClient.post('', { request: 'list', category });
+            setCustomerList(response.data.summary);
+            setShopArray(response.data.shop);
+            const responseSection = response.data.section.filter(s => s.division === '注文事業').map(s => s.name);
+            setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && responseSection.includes(s.section))
+        .sort((a, b) => {
+            const positionA = positions.indexOf(a.position) ?? 6;
+            const positionB = positions.indexOf(b.position) ?? 6;
+            return positionA - positionB}));
+            setMediumArray(response.data.medium.filter((m: Medium) => m.list_medium === 1));
+            setOriginalList(response.data.inquiry);
+            setOriginalBeforeList(response.data.survey);
+            setBlackList(response.data.black);
+            setSections(responseSection);
+        } catch (error) {
+            console.error("データ取得エラー:", error);
+        }
+    }, [category]);
+
+    const reload = async () => {
+        setReloading(true);
+        await loadList();
+        setReloading(false);
+    };
+
     useEffect(() => {
         const now = new Date();
         const year = now.getFullYear();
@@ -185,31 +221,9 @@ const ListOrder = ({ onReload }: Props) => {
         setStartMonth(previousMonthValue({ monthArray: months }));
         setEndMonth(currentMonthValue());
         setSelectedMonth([`${year}/${month}`]);
-        const thisYear = now.getMonth() <= 4 ? year : year + 1;
 
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post('', { request: 'list', category });
-                setCustomerList(response.data.summary);
-                setShopArray(response.data.shop);
-                const responseSection = response.data.section.filter(s => s.division === '注文事業').map(s => s.name);
-                setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && responseSection.includes(s.section))
-            .sort((a, b) => {
-                const positionA = positions.indexOf(a.position) ?? 6;
-                const positionB = positions.indexOf(b.position) ?? 6;
-                return positionA - positionB}));
-                setMediumArray(response.data.medium.filter((m: Medium) => m.list_medium === 1));
-                setOriginalList(response.data.inquiry);
-                setOriginalBeforeList(response.data.survey);
-                setBlackList(response.data.black);
-                setSections(responseSection);
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        };
-
-        fetchData();
-    }, [category]);
+        void loadList();
+    }, [category, loadList]);
 
     useEffect(() => {
         const startIndex = startMonth ? monthArray.indexOf(startMonth) : 0;
@@ -535,13 +549,35 @@ const ListOrder = ({ onReload }: Props) => {
     };
 
     /**
+     * 個人情報削除（v2.2.227）。氏名・電話番号・メールアドレス・住所を ******** にして取込済み（sync = 1）にする。
+     * ⚠️ 元に戻せない（utils/privacyErase.ts・② の features/privacy.ts）
+     */
+    const erasePrivacy = async (item: InquiryCustomer) => {
+        const id = String(item.inquiry_id || '');
+        if (!confirmPrivacyErase(`${item.first_name || ''}${item.last_name || ''}`, '取込済みにします')) return;
+        try {
+            const d = await postPrivacyErase('inquiry', category, { inquiry_id: id });
+            const patch = (d.row ?? {}) as Partial<InquiryCustomer>;
+            patchRow(id, patch);
+            onReload();
+        } catch (e) {
+            alert((e as Error).message);
+        }
+    };
+
+    /** ブラックリストの理由を入れているお客様（v2.2.227。⚠️ 外すときは出さない） */
+    const [blackTarget, setBlackTarget] = useState<InquiryCustomer | null>(null);
+
+    /**
      * 顧客タグの ON / OFF。
      *
      * ⚠️ 旧実装は black_list に文字列を追記し、出現回数の偶奇で判定していた。
      *   「押すたびに反転」する仕様だったため、通信が二重に走ると状態が
      *   ずれて戻せなくなった。ここでは次の値を明示して送るので冪等になる。
+     *
+     * ⚠️ v2.2.227: reason はブラックリストに登録するときの理由（BlackReasonModal で入れる）。
      */
-    const toggleTag = async (item: InquiryCustomer, tag: TagKey) => {
+    const toggleTag = async (item: InquiryCustomer, tag: TagKey, reason?: string) => {
         const nextValue = isTagOn(item, tag) ? 0 : 1;
         const field = TAG_FIELD[tag];
 
@@ -579,7 +615,8 @@ const ListOrder = ({ onReload }: Props) => {
                 item.mail || '',
                 item.zip || '',
                 `${item.pref || ''}${item.city || ''}${item.town || ''}${item.street || ''}${item.building || ''}`,
-                category
+                category,
+                reason
             );
         }
 
@@ -674,6 +711,9 @@ const ListOrder = ({ onReload }: Props) => {
                 .lo_saas .lo_btn_primary:hover { background: #1d4ed8; }
                 .lo_saas .lo_btn_success { background: #16a34a; color: #fff; }
                 .lo_saas .lo_btn_success:hover { background: #15803d; }
+                .lo_saas .lo_btn_secondary { background: #fff; color: #2563eb; border: 1px solid #2563eb; }
+                .lo_saas .lo_btn_secondary:hover { background: #eff6ff; }
+                .lo_saas .lo_btn:disabled { opacity: .6; cursor: wait; }
 
                 .lo_saas .inquiry { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
                                     box-shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 1px 2px rgba(15, 23, 42, .04); }
@@ -765,6 +805,10 @@ const ListOrder = ({ onReload }: Props) => {
                     <button type="button" className="lo_btn lo_btn_primary m-1" onClick={() => setEditId('new')}>
                         <i className="fa-solid fa-plus" aria-hidden="true" />新規登録
                     </button>
+                    {/* ⚠️ v2.2.227: データだけ読み直す（絞り込みはそのまま） */}
+                    <button type="button" className="lo_btn lo_btn_secondary m-1" onClick={() => void reload()} disabled={reloading}>
+                        <i className={`fa-solid fa-arrows-rotate${reloading ? ' fa-spin' : ''}`} aria-hidden="true" />再読み込み
+                    </button>
 
                     {checkedIds.length > 0 && (
                         <button type="button" className="lo_btn lo_btn_success m-1" onClick={() => handleSync(checkedIds)}>
@@ -826,6 +870,7 @@ const ListOrder = ({ onReload }: Props) => {
                                 <td style={{ width: '130px' }}>詳細</td>
                                 <td style={{ width: '120px' }}>予定地</td>
                                 <td style={{ width: '400px' }}>顧客タグ</td>
+                                <td style={{ width: '110px', textAlign: 'center' }}>個人情報</td>
                             </tr>
                         </thead>
                         <tbody>
@@ -921,10 +966,15 @@ const ListOrder = ({ onReload }: Props) => {
                                                     <div
                                                         key={tag.key}
                                                         className={`${tag.className} text-white rounded-pill px-2 me-2 tag ${isTagOn(item, tag.key) ? 'checked' : ''}`}
-                                                        onClick={() => toggleTag(item, tag.key)}
+                                                        onClick={() => (tag.key === 'black' && !isTagOn(item, 'black') ? setBlackTarget(item) : toggleTag(item, tag.key))}
                                                     >{tag.label}</div>
                                                 ))}
                                             </div>
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            {/* ⚠️ v2.2.227: 個人情報削除（元に戻せない） */}
+                                            <button type="button" className="btn btn-outline-danger btn-sm" style={{ fontSize: '10px', padding: '0 6px' }}
+                                                onClick={() => void erasePrivacy(item)}>個人情報削除</button>
                                         </td>
                                     </tr>);
                             })}
@@ -940,6 +990,16 @@ const ListOrder = ({ onReload }: Props) => {
             <OrderModal show={show} modalClose={modalClose} modalContent={modalContent} modalBeforeContent={modalBeforeContent} />
             <TrackingTouches inquiryId={trackingTarget?.id ?? null} customerName={trackingTarget?.name ?? ''} onClose={() => setTrackingTarget(null)} />
             <InformationEdit id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
+            {/* ⚠️ v2.2.227: ブラックリストに登録する理由（一番小さい sm。理由が空なら登録できない） */}
+            <BlackReasonModal
+                name={blackTarget ? `${blackTarget.first_name || ''}${blackTarget.last_name || ''}` : null}
+                onCancel={() => setBlackTarget(null)}
+                onSubmit={reason => {
+                    const target = blackTarget;
+                    setBlackTarget(null);
+                    if (target) void toggleTag(target, 'black', reason);
+                }}
+            />
         </>
     )
 }

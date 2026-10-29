@@ -175,6 +175,7 @@ import type { Result as RealtyResult } from '../features/realty';
 import { runPlannerCompliance, runPlannerSettings, runPlannerState, runPlannerWeekly } from '../features/realty/state';
 import { runImportCheck, runImportFinish, runImportRecords } from '../features/realty/importer';
 import { runCallLogs, runCallLogsImport, runCallMark, runCallUndo, runNaviSave, runPracticeLogsImport } from '../features/realty/calls';
+import { INQUIRY_CATEGORIES, MASTER_CATEGORIES, runPrivacyEraseInquiry, runPrivacyEraseMaster } from '../features/privacy';
 import type { AuthenticatedStaff } from '../types/staff';
 import type { GatewayContext, GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
@@ -1824,6 +1825,47 @@ for (const category of ['order', 'spec', 'used']) {
     auth: 'staff',
     handler: async (ctx) => {
       const result = await runListBlack(ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 個人情報削除（v2.2.227。② だけ）。features/privacy.ts
+//   privacy_erase:master  … 顧客DB（InformationEditKaeru / Resale のヘッダー）。建売・中古
+//   privacy_erase:inquiry … 反響一覧（ListOrder / Kaeru / Resale の各行）。注文・建売・中古
+// ⚠️ 元に戻せない書き込み。⚠️ express_proxy.php の expressProxyRequests() と expressProxyExclusive() の両方に入れてある
+// ⚠️ 押せるのはその画面を使える全員（2026-10-29 の利用者の判断）。ログインは必須（auth: 'staff'）
+// ⚠️ category は本文の値（事業区分）。ゲートウェイの鍵に入るので値ごとに登録する
+// ---------------------------------------------------------------------------
+for (const category of MASTER_CATEGORIES) {
+  register({
+    request: 'privacy_erase',
+    roll: 'master',
+    category,
+    summary: `【書き込み・元に戻せない】顧客DBの個人情報を伏せて非表示（${category}）`,
+    phpSource: '(Express のみ。PHPハンドラは無い)',
+    auth: 'staff',
+    handler: async (ctx) => {
+      if (!ctx.staff) return null;
+      const result = await runPrivacyEraseMaster(ctx.staff, category, ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+for (const category of INQUIRY_CATEGORIES) {
+  register({
+    request: 'privacy_erase',
+    roll: 'inquiry',
+    category,
+    summary: `【書き込み・元に戻せない】反響の個人情報を伏せて取込済みに（${category}）`,
+    phpSource: '(Express のみ。PHPハンドラは無い)',
+    auth: 'staff',
+    handler: async (ctx) => {
+      if (!ctx.staff) return null;
+      const result = await runPrivacyEraseInquiry(ctx.staff, category, ctx.body);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

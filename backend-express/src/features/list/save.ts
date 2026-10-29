@@ -14,7 +14,7 @@ import type { ListResult } from './index';
  *   roll = 'shop_change'  → 担当店舗（中古はカテゴリー）の変更
  *   roll = 'staff_change' → 担当営業の変更
  *   roll = 'tag'          → 顧客タグ（重複/ギフト/業者/ブラック）の ON・OFF
- *   roll = 'black'        → ブラックリストの登録・解除（トグル）
+ *   roll = 'black'        → ブラックリストの登録・解除（トグル。value = 1 なら登録だけ。v2.2.227）
  *   roll = 'insert'       → 顧客台帳への取り込み（upsert）＋反響の同期済み化
  *
  * ⚠️⚠️ **① の PHP ハンドラは実在する。** いずれも書き込みなので、
@@ -296,6 +296,11 @@ export const runListTag = async (body: unknown): Promise<ListResult> => {
  *
  * ⚠️ 登録日は `date('Y/m/d')` と同じ 'YYYY/MM/DD'（スラッシュ区切り）。
  *   ハイフンにすると既存データと書式が混ざる。
+ *
+ * ⚠️⚠️ v2.2.227: **value = 1 のときは登録だけ**（反響一覧で理由を入れて登録するとき）。
+ *   トグルのままだと、別の反響で同じ人がすでに登録されていると「登録」のつもりで**解除**になっていた。
+ *   value = 1 のとき: 1. 登録中 → そのまま（理由を備考に書き足す）／2. 解除済み → 戻して理由を書き足す／3. 無し → 新規
+ *   ⚠️ 理由（note）は備考の末尾に「日付 理由」で足す（前の理由を消さない）。value が無ければ今までどおりのトグル
  */
 const BLACK_DATE = (): string => {
   const parts = new Intl.DateTimeFormat('ja-JP', {
@@ -313,6 +318,11 @@ export const runListBlack = async (body: unknown): Promise<ListResult> => {
 
   const mobile = asString(data.mobile);
   const mail = asString(data.mail);
+  const registerOnly = data.value === 1 || data.value === '1';
+  const note = asString(data.note).trim().slice(0, 500);
+  // 備考に「日付 理由」を書き足す式（備考が空ならそのまま入れる）
+  const appendNote = "note = IF(? = '', note, IF(note = '', ?, CONCAT(note, '\n', ?)))";
+  const noteParams = (): SqlParam[] => [note, `${BLACK_DATE()} ${note}`, `${BLACK_DATE()} ${note}`];
 
   // ⚠️ 両方空だと無関係な行に当たる（上のコメント参照）
   if (mobile === '' && mail === '') {
@@ -329,6 +339,14 @@ export const runListBlack = async (body: unknown): Promise<ListResult> => {
         [mobile, mail]
       );
 
+      if (active.length > 0 && registerOnly) {
+        await tx.execute(
+          `UPDATE black_list SET ${appendNote} WHERE (mobile = ? OR mail = ?) AND show_key = 1`,
+          [...noteParams(), mobile, mail]
+        );
+        return 'already_active';
+      }
+
       if (active.length > 0) {
         await tx.execute(
           'UPDATE black_list SET show_key = 0 WHERE (mobile = ? OR mail = ?) AND show_key = 1',
@@ -343,7 +361,8 @@ export const runListBlack = async (body: unknown): Promise<ListResult> => {
       );
 
       if (any.length > 0) {
-        await tx.execute('UPDATE black_list SET show_key = 1 WHERE mobile = ? OR mail = ?', [
+        await tx.execute(`UPDATE black_list SET show_key = 1, ${appendNote} WHERE mobile = ? OR mail = ?`, [
+          ...noteParams(),
           mobile,
           mail,
         ]);
@@ -379,7 +398,7 @@ export const runListBlack = async (body: unknown): Promise<ListResult> => {
           asString(data.zip),
           // ⚠️ フロントは `address` で送るが、列名は full_address
           asString(data.address),
-          asString(data.note),
+          note === '' ? '' : `${BLACK_DATE()} ${note}`,
         ]
       );
       return 'insert_success';
