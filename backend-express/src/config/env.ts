@@ -188,6 +188,14 @@ export const env = {
   memberEntryKey: (process.env.MEMBER_ENTRY_KEY ?? '').trim(),
 
   /**
+   * 他社広告の取り込み（meta_scrape。拡張機能 extensions/meta が送る）の合い言葉。（v2.2.230）
+   *
+   * ⚠️ **未設定なら全件断る**（素通しにしない）。⚠️ 画像を ① の meta_scrape_image へ渡すときにも付ける。
+   * ⚠️ 同じ値を拡張機能の config.js と ① の環境変数にも入れる。⚠️ **リポジトリに書かないこと。**
+   */
+  metaScraperKey: (process.env.META_SCRAPER_KEY ?? '').trim(),
+
+  /**
    * 「Claudeによる分析」（v2.2.217）が使う Anthropic の API キー。
    *
    * ⚠️ **未設定なら分析を受け付けない**（他の機能は止めないため requireEnv にはしない）。

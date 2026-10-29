@@ -36,7 +36,8 @@ const MetaAdsDashboard = () => {
 
     const [showOnlyBookmarked, setShowOnlyBookmarked] = useState(false);
 
-    const IMAGE_BASE_URL = 'https://khg-marketing.info/api/meta/images/';
+    // ⚠️ v2.2.230: 画像の置き場所を api/meta/images/ から dashboard/img/meta/ に移した（① の core/meta_scrape.php が置く）
+    const IMAGE_BASE_URL = 'https://khg-marketing.info/dashboard/img/meta/';
 
     useEffect(() => {
         const fetchData = async () => {

@@ -26,6 +26,10 @@ services:
       - EXPRESS_API_URL=http://express-api:3001/api/gateway
       # 会員登録の取り込み（member_entry）の合い言葉。⚠️ 開発用のダミー値。本番の値は ① の環境変数にのみ書く（v2.2.209）
       - MEMBER_ENTRY_KEY=localtest
+      # 他社広告の取り込み（meta_scrape・meta_scrape_image）の合い言葉。⚠️ 開発用のダミー値。本番の値は ① の環境変数にのみ書く（v2.2.230）
+      - META_SCRAPER_KEY=localtest
+      # 他社広告の画像の置き場所（v2.2.230）。⚠️ 本番は指定しない（core/meta_scrape.php が /dashboard/img/meta/ を使う）。ローカルはコンテナの中の /tmp に置く
+      - META_IMAGE_DIR=/tmp/img/meta
     env_file:
       # 実際に価値を持つ秘密情報（暗号化マスターキー等）はこちら。
       # このファイルは .gitignore で保護されており、Gitには入らない。
@@ -72,6 +76,8 @@ services:
       - EVENT_CHECKIN_PASSCODE=localtest
       # 会員登録の取り込み（member_entry）の合い言葉。⚠️ 開発用のダミー値。本番の値は ② VPS の .env.prod にのみ書く（v2.2.209）
       - MEMBER_ENTRY_KEY=localtest
+      # 他社広告の取り込み（meta_scrape）の合い言葉。⚠️ 開発用のダミー値。本番の値は ② VPS の .env.prod にのみ書く（v2.2.230）
+      - META_SCRAPER_KEY=localtest
     env_file:
       # Meta 広告 API のトークンと対象の ID（v2.2.203。META_ACCESS_TOKEN・META_AD_ACCOUNTS）。
       #
