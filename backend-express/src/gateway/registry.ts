@@ -15,6 +15,7 @@ import { getGuide, listGuide, saveGuide } from '../features/guide';
 import { canManageTracking, listTrackingSites, saveTrackingSite } from '../features/tracking/sites';
 import { trackingSiteSummary } from '../features/tracking/summary';
 import { trackingDetail } from '../features/tracking/detail';
+import { trackingVendorFunnel } from '../features/tracking/vendorFunnel';
 import { importMetaAds, isMetaConfigured } from '../features/metaAds/importer';
 import { listInquiryTouches } from '../features/tracking/touches';
 import { listCustomerPageviews } from '../features/tracking/customerPageviews';
@@ -874,6 +875,18 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await trackingSiteSummary(ctx.staff, ctx.body.site_id);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'tracking_vendor_funnel',
+  summary: 'アクセス解析の業者別の歩留まり（サイト1つ・業者1つ。utm_campaign の末尾 _pt1/_pt2 から来た顧客の店舗別の反響・来場・次アポ・契約。Master / BrandAdmin のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await trackingVendorFunnel(ctx.staff, ctx.body.site_id, ctx.body.vendor);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
