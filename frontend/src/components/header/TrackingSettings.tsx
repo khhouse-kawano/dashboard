@@ -21,7 +21,7 @@ import TrackingVendorFunnel from './TrackingVendorFunnel';
  * ⚠️ v2.2.203 サマリーの着地ページ・流入元を押すと、詳細のモーダル（TrackingDetail.tsx）が開く。着地ページは右のアイコンでそのページを開く。
  *   ⚠️ 上の「Meta から取り込む」は ② の meta_ads_import（待たずに返る。終わったかは「最後の取り込み」で見る）。⚠️ ② は6時間ごとにも自動で取り込む。
  * ⚠️ v2.2.232 サマリーの表の上に帯グラフ（PV・CV の割合）。流入元タブでは「業者別」（PURE GROWTH・Bander。② の vendors.ts）も出し、
- *   社名を押すと店舗別の歩留まり（TrackingVendorFunnel.tsx）が開く。
+ *   社名を押すと店舗別の歩留まり（TrackingVendorFunnel.tsx）が開く。⚠️ v2.2.233 業者別は国分ハウジング（brand kh）のサイトだけ（VENDOR_BRANDS）。
  * ⚠️ サイトは消さない（着地の記録が残るため）。⚠️「無効」にすると着地を保存しなくなる（タグは貼ったままでもサイトに影響なし）。
  * ⚠️ 全画面モーダル（Header.tsx の isFullscreenMenu）。⚠️ 閉じるボタンは Header.tsx が出す。
  * ⚠️ 見た目は GoogleReview.tsx に合わせる（接頭辞 tk_）。
@@ -126,6 +126,8 @@ type SummaryTab = 'landing' | 'source';
 type SummarySortKey = 'key' | 'visits' | 'ad' | 'cv' | 'rate';
 /** 帯グラフの切り替え（v2.2.232）。⚠️ 業者別は流入元タブだけ */
 type BandMode = 'visits' | 'cv' | 'vendor';
+/** 業者別を出すブランド（v2.2.233。2026-10-30 の指示で国分ハウジングだけ） */
+const VENDOR_BRANDS = ['kh'];
 /** 帯グラフに出す件数。⚠️ これより後ろは「その他」にまとめる */
 const BAND_TOP = 8;
 const BAND_COLORS = ['#2563eb', '#f97316', '#10b981', '#a855f7', '#eab308', '#06b6d4', '#ef4444', '#ec4899'];
@@ -184,7 +186,7 @@ const readableUrl = (url: string): string => {
  * ⚠️ 表記は「PV」（2026-10-20 の指示）。⚠️ 中身は ② の訪問数（30分以内のページの移動はまとめて1件）で、ページが見られた回数より少ない。
  * ⚠️ reloadKey が変わったら取り直す（親の「再読み込み」）。
  */
-const SiteSummary: React.FC<{ siteId: number; siteName: string; reloadKey: number }> = ({ siteId, siteName, reloadKey }) => {
+const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; reloadKey: number }> = ({ siteId, siteName, brand, reloadKey }) => {
     const [data, setData] = useState<Summary | null>(null);
     const [error, setError] = useState('');
     const [tab, setTab] = useState<SummaryTab>('landing');
@@ -195,8 +197,9 @@ const SiteSummary: React.FC<{ siteId: number; siteName: string; reloadKey: numbe
     const [bandMode, setBandMode] = useState<BandMode>('visits');
     /** 歩留まりを開いている業者（v2.2.232） */
     const [vendor, setVendor] = useState<VendorRow | null>(null);
-    // ⚠️ 業者別は流入元タブだけ。着地ページに切り替えたら PV に戻して見せる
-    const mode: BandMode = bandMode === 'vendor' && tab !== 'source' ? 'visits' : bandMode;
+    // ⚠️ 業者別は VENDOR_BRANDS のサイトの流入元タブだけ。着地ページに切り替えたら PV に戻して見せる
+    const showVendor = tab === 'source' && VENDOR_BRANDS.includes(brand);
+    const mode: BandMode = bandMode === 'vendor' && !showVendor ? 'visits' : bandMode;
 
     useEffect(() => {
         let alive = true;
@@ -272,7 +275,7 @@ const SiteSummary: React.FC<{ siteId: number; siteName: string; reloadKey: numbe
             </div>
             <div className="tk_band_wrap">
                 <div className="tk_band_switch" role="group" aria-label="帯グラフの切り替え">
-                    {([['visits', 'PV'], ['cv', 'CV'], ...(tab === 'source' ? [['vendor', '業者別']] : [])] as [BandMode, string][]).map(([key, label]) => (
+                    {([['visits', 'PV'], ['cv', 'CV'], ...(showVendor ? [['vendor', '業者別']] : [])] as [BandMode, string][]).map(([key, label]) => (
                         <button key={key} type="button" aria-pressed={mode === key}
                             className={`tk_tab${mode === key ? ' is_active' : ''}`} onClick={() => setBandMode(key)}>{label}</button>
                     ))}
@@ -558,7 +561,7 @@ const TrackingSettings: React.FC = () => {
                                     </tr>
                                     {openSummary.has(s.id) && (
                                         <tr className="tk_summary">
-                                            <td className="tk_td" colSpan={9}><SiteSummary siteId={s.id} siteName={s.name} reloadKey={reloadKey} /></td>
+                                            <td className="tk_td" colSpan={9}><SiteSummary siteId={s.id} siteName={s.name} brand={s.brand ?? ''} reloadKey={reloadKey} /></td>
                                         </tr>
                                     )}
                                     {openTag === s.id && (
