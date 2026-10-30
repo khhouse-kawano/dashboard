@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../../utils/apiClient';
 import TrackingDetail, { type DetailAxis } from './TrackingDetail';
+import TrackingVendorFunnel from './TrackingVendorFunnel';
 
 /**
  * アクセス解析（v2.2.199 新規「トラッキング設定」→ v2.2.203 で「アクセス解析」に改名）。ヘッダー「反響管理 → アクセス解析」（Master / BrandAdmin）。
@@ -19,6 +20,8 @@ import TrackingDetail, { type DetailAxis } from './TrackingDetail';
  *   ⚠️ 一覧の CV の下に「フォーム送信 n件（結びつき m件）」。送っているのに結びつかないなら、フォームの入力欄の名前が変わったなど。
  * ⚠️ v2.2.203 サマリーの着地ページ・流入元を押すと、詳細のモーダル（TrackingDetail.tsx）が開く。着地ページは右のアイコンでそのページを開く。
  *   ⚠️ 上の「Meta から取り込む」は ② の meta_ads_import（待たずに返る。終わったかは「最後の取り込み」で見る）。⚠️ ② は6時間ごとにも自動で取り込む。
+ * ⚠️ v2.2.232 サマリーの表の上に帯グラフ（PV・CV の割合）。流入元タブでは「業者別」（PURE GROWTH・Bander。② の vendors.ts）も出し、
+ *   社名を押すと店舗別の歩留まり（TrackingVendorFunnel.tsx）が開く。
  * ⚠️ サイトは消さない（着地の記録が残るため）。⚠️「無効」にすると着地を保存しなくなる（タグは貼ったままでもサイトに影響なし）。
  * ⚠️ 全画面モーダル（Header.tsx の isFullscreenMenu）。⚠️ 閉じるボタンは Header.tsx が出す。
  * ⚠️ 見た目は GoogleReview.tsx に合わせる（接頭辞 tk_）。
@@ -101,15 +104,66 @@ interface SummaryRow {
     cv: number;
 }
 
+/** v2.2.232 業者別（utm_campaign の末尾 _pt1・_pt2。② の vendors.ts）。⚠️ 業者の付いていない分は来ない */
+interface VendorRow {
+    key: string;
+    /** utm_campaign の末尾（例 _pt1） */
+    suffix: string;
+    name: string;
+    visits: number;
+    cv: number;
+}
+
 interface Summary {
     days: number;
     kpi: { visits: number; ad: number; cv: number };
     landing: SummaryRow[];
     source: SummaryRow[];
+    vendors: VendorRow[];
 }
 
 type SummaryTab = 'landing' | 'source';
 type SummarySortKey = 'key' | 'visits' | 'ad' | 'cv' | 'rate';
+/** 帯グラフの切り替え（v2.2.232）。⚠️ 業者別は流入元タブだけ */
+type BandMode = 'visits' | 'cv' | 'vendor';
+/** 帯グラフに出す件数。⚠️ これより後ろは「その他」にまとめる */
+const BAND_TOP = 8;
+const BAND_COLORS = ['#2563eb', '#f97316', '#10b981', '#a855f7', '#eab308', '#06b6d4', '#ef4444', '#ec4899'];
+const BAND_REST_COLOR = '#cbd5e1';
+
+interface BandItem {
+    label: string;
+    value: number;
+    color: string;
+    /** 押すと開く（業者の社名） */
+    onClick?: () => void;
+}
+
+/** 100% の帯グラフ（v2.2.232）。⚠️ 0件の項目は帯に出さないが、凡例には出す */
+const BandChart: React.FC<{ title: string; items: BandItem[] }> = ({ title, items }) => {
+    const total = items.reduce((s, i) => s + i.value, 0);
+    const share = (v: number): string => (total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '—');
+    return (
+        <div className="tk_band_block">
+            <div className="tk_band_title">{title}<span className="tk_sub">（計 {total.toLocaleString()}）</span></div>
+            <div className="tk_band" role="img" aria-label={`${title}の割合`}>
+                {/* ⚠️ key に番号を付ける（http と https の着地ページは同じ表示になる） */}
+                {total === 0 ? <div className="tk_band_empty">記録がありません</div> : items.map((i, n) => i.value > 0 && (
+                    <div key={`${n}-${i.label}`} className="tk_band_seg" style={{ width: `${(i.value / total) * 100}%`, background: i.color }} title={`${i.label}　${i.value.toLocaleString()}（${share(i.value)}）`} />
+                ))}
+            </div>
+            <div className="tk_band_legend">
+                {items.map((i, n) => (
+                    <span key={`${n}-${i.label}`} className="tk_band_item" title={i.label}>
+                        <span className="tk_band_swatch" style={{ background: i.color }} />
+                        {i.onClick ? <button type="button" className="tk_key_btn tk_band_name" onClick={i.onClick}>{i.label}</button> : <span className="tk_band_name">{i.label}</span>}
+                        <span className="tk_band_num">{i.value.toLocaleString()}（{share(i.value)}）</span>
+                    </span>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 const rateOf = (cv: number, visits: number): number | null => (visits > 0 ? (cv / visits) * 100 : null);
 const formatRate = (rate: number | null): string => (rate === null ? '—' : `${rate.toFixed(1)}%`);
@@ -130,7 +184,7 @@ const readableUrl = (url: string): string => {
  * ⚠️ 表記は「PV」（2026-10-20 の指示）。⚠️ 中身は ② の訪問数（30分以内のページの移動はまとめて1件）で、ページが見られた回数より少ない。
  * ⚠️ reloadKey が変わったら取り直す（親の「再読み込み」）。
  */
-const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, reloadKey }) => {
+const SiteSummary: React.FC<{ siteId: number; siteName: string; reloadKey: number }> = ({ siteId, siteName, reloadKey }) => {
     const [data, setData] = useState<Summary | null>(null);
     const [error, setError] = useState('');
     const [tab, setTab] = useState<SummaryTab>('landing');
@@ -138,6 +192,11 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     /** 詳細を開いている着地ページ・流入元（v2.2.203） */
     const [detail, setDetail] = useState<{ axis: DetailAxis; value: string } | null>(null);
+    const [bandMode, setBandMode] = useState<BandMode>('visits');
+    /** 歩留まりを開いている業者（v2.2.232） */
+    const [vendor, setVendor] = useState<VendorRow | null>(null);
+    // ⚠️ 業者別は流入元タブだけ。着地ページに切り替えたら PV に戻して見せる
+    const mode: BandMode = bandMode === 'vendor' && tab !== 'source' ? 'visits' : bandMode;
 
     useEffect(() => {
         let alive = true;
@@ -161,8 +220,26 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
         });
     }, [data, tab, sortKey, sortOrder]);
 
+    /** 帯グラフの項目（PV・CV）。⚠️ 表の並べ替えに関係なく多い順。上位 BAND_TOP 件と「その他」 */
+    const bandItems = useMemo((): BandItem[] => {
+        if (data === null || mode === 'vendor') return [];
+        const metric = mode;
+        const list = data[tab].filter((r) => r[metric] > 0).sort((a, b) => b[metric] - a[metric]);
+        const items: BandItem[] = list.slice(0, BAND_TOP).map((r, i) => ({
+            label: tab === 'landing' ? readableUrl(r.key) : r.key || '（不明）', value: r[metric], color: BAND_COLORS[i],
+        }));
+        const rest = list.slice(BAND_TOP).reduce((s, r) => s + r[metric], 0);
+        if (rest > 0) items.push({ label: `その他（${list.length - BAND_TOP}件）`, value: rest, color: BAND_REST_COLOR });
+        return items;
+    }, [data, tab, mode]);
+
     if (error !== '') return <div className="tk_error">{error}</div>;
     if (data === null) return <div className="tk_sub">読み込み中…</div>;
+
+    // ⚠️ 業者別の分母は _pt1・_pt2 の付いた分だけ（それ以外は ② が返さない）
+    const vendorItems = (metric: 'visits' | 'cv'): BandItem[] => data.vendors.map((v, i) => ({
+        label: v.name, value: v[metric], color: BAND_COLORS[i], onClick: () => setVendor(v),
+    }));
 
     const SortHead = ({ label, keyName, num = true }: { label: string; keyName: SummarySortKey; num?: boolean }) => {
         const active = sortKey === keyName;
@@ -192,6 +269,25 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
                         className={`tk_tab${tab === key ? ' is_active' : ''}`} onClick={() => setTab(key)}>{label}</button>
                 ))}
                 <span className="tk_sub">CV は、問い合わせの日までの最後の訪問の{tab === 'landing' ? '着地ページ' : '流入元'}で数えます</span>
+            </div>
+            <div className="tk_band_wrap">
+                <div className="tk_band_switch" role="group" aria-label="帯グラフの切り替え">
+                    {([['visits', 'PV'], ['cv', 'CV'], ...(tab === 'source' ? [['vendor', '業者別']] : [])] as [BandMode, string][]).map(([key, label]) => (
+                        <button key={key} type="button" aria-pressed={mode === key}
+                            className={`tk_tab${mode === key ? ' is_active' : ''}`} onClick={() => setBandMode(key)}>{label}</button>
+                    ))}
+                    {mode === 'vendor' && (
+                        <span className="tk_sub">
+                            utm_campaign の末尾が{data.vendors.map((v) => ` ${v.suffix} なら ${v.name}`).join('、')}。社名を押すと店舗別の歩留まりが開きます
+                        </span>
+                    )}
+                </div>
+                {mode === 'vendor' ? (
+                    <>
+                        <BandChart title="PV" items={vendorItems('visits')} />
+                        <BandChart title="CV" items={vendorItems('cv')} />
+                    </>
+                ) : <BandChart title={mode === 'visits' ? 'PV' : 'CV'} items={bandItems} />}
             </div>
             <div className="tk_sum_table_wrap">
                 <table className="tk_table">
@@ -230,6 +326,7 @@ const SiteSummary: React.FC<{ siteId: number; reloadKey: number }> = ({ siteId, 
                 </table>
             </div>
             {detail !== null && <TrackingDetail siteId={siteId} axis={detail.axis} value={detail.value} onClose={() => setDetail(null)} />}
+            {vendor !== null && <TrackingVendorFunnel siteId={siteId} siteName={siteName} vendor={vendor} onClose={() => setVendor(null)} />}
         </div>
     );
 };
@@ -461,7 +558,7 @@ const TrackingSettings: React.FC = () => {
                                     </tr>
                                     {openSummary.has(s.id) && (
                                         <tr className="tk_summary">
-                                            <td className="tk_td" colSpan={9}><SiteSummary siteId={s.id} reloadKey={reloadKey} /></td>
+                                            <td className="tk_td" colSpan={9}><SiteSummary siteId={s.id} siteName={s.name} reloadKey={reloadKey} /></td>
                                         </tr>
                                     )}
                                     {openTag === s.id && (
@@ -562,6 +659,19 @@ const CSS = `
 .tk_tab:hover { background: #eef2f7; }
 .tk_tab.is_active { background: #2563eb; border-color: #2563eb; color: #fff; }
 .tk_tab:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+.tk_band_wrap { display: flex; flex-direction: column; gap: 8px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; }
+.tk_band_switch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tk_band_block { display: flex; flex-direction: column; gap: 4px; }
+.tk_band_title { font-size: 11px; font-weight: 700; color: #4b5563; }
+.tk_band { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: #f3f4f6; }
+.tk_band_seg { height: 100%; min-width: 2px; }
+.tk_band_seg + .tk_band_seg { border-left: 1px solid #fff; }
+.tk_band_empty { font-size: 11px; color: #9ca3af; line-height: 22px; padding: 0 8px; }
+.tk_band_legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; color: #374151; }
+.tk_band_item { display: inline-flex; align-items: center; gap: 5px; max-width: 360px; min-width: 0; }
+.tk_band_swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.tk_band_name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.tk_band_num { color: #6b7280; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tk_sum_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto; background: #fff; max-height: 360px; }
 .tk_th_sort { cursor: pointer; user-select: none; }
 .tk_th_sort:hover { background: #eef2f7; }
