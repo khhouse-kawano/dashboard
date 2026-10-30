@@ -384,6 +384,10 @@ function expressProxyRequests(): array
         'owners_house_application_list',
         'owners_house_application_import',
 
+        // v2.2.236 新規。LIFULL HOME'S の査定依頼メール → 売り反響（brokerage_listings）。⚠️ ① に PHP ハンドラは無い（② だけ）
+        //   ⚠️ GAS（HomesSaleAssessmentToDashboard）は ② に直接送る。① を通る経路は確認用
+        'homes_sale_assessment_entry',
+
         // -----------------------------------------------------------------
         // 2026-10-06 新規（v2.2.168）。住宅ローン金利（loan_product / loan_rate）。
         //
@@ -858,6 +862,10 @@ function expressProxyExclusive(): array
         // -----------------------------------------------------------------
         'owners_house_application_list',
         'owners_house_application_import',
+
+        // v2.2.236 新規。LIFULL HOME'S の査定依頼メール → 売り反響（brokerage_listings）。⚠️ ① に PHP ハンドラは無い（② だけ）
+        //   ⚠️ GAS（HomesSaleAssessmentToDashboard）は ② に直接送る。① を通る経路は確認用
+        'homes_sale_assessment_entry',
 
         // -----------------------------------------------------------------
         // 2026-10-06 新規（v2.2.168）。住宅ローン金利（loan_product / loan_rate）。
