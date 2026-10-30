@@ -21,7 +21,7 @@ import TrackingVendorFunnel from './TrackingVendorFunnel';
  * ⚠️ v2.2.203 サマリーの着地ページ・流入元を押すと、詳細のモーダル（TrackingDetail.tsx）が開く。着地ページは右のアイコンでそのページを開く。
  *   ⚠️ 上の「Meta から取り込む」は ② の meta_ads_import（待たずに返る。終わったかは「最後の取り込み」で見る）。⚠️ ② は6時間ごとにも自動で取り込む。
  * ⚠️ v2.2.232 サマリーの表の上に帯グラフ（PV・CV の割合）。流入元タブでは「業者別」（PURE GROWTH・Bander。② の vendors.ts）も出し、
- *   社名を押すと店舗別の歩留まり（TrackingVendorFunnel.tsx）が開く。⚠️ v2.2.233 業者別は国分ハウジング（brand kh）のサイトだけ（VENDOR_BRANDS）。v2.2.234 で DAY JUST HOUSE（djh）を追加。
+ *   社名を押すと店舗別の歩留まり（TrackingVendorFunnel.tsx）が開く。⚠️ v2.2.233 業者別は国分ハウジング（brand kh）のサイトだけ（VENDOR_BRANDS）。v2.2.234 で DAY JUST HOUSE（djh）、v2.2.235 でかえるホーム（khf）を追加。
  * ⚠️ サイトは消さない（着地の記録が残るため）。⚠️「無効」にすると着地を保存しなくなる（タグは貼ったままでもサイトに影響なし）。
  * ⚠️ 全画面モーダル（Header.tsx の isFullscreenMenu）。⚠️ 閉じるボタンは Header.tsx が出す。
  * ⚠️ 見た目は GoogleReview.tsx に合わせる（接頭辞 tk_）。
@@ -126,8 +126,8 @@ type SummaryTab = 'landing' | 'source';
 type SummarySortKey = 'key' | 'visits' | 'ad' | 'cv' | 'rate';
 /** 帯グラフの切り替え（v2.2.232）。⚠️ 業者別は流入元タブだけ */
 type BandMode = 'visits' | 'cv' | 'vendor';
-/** 業者別を出すブランド（v2.2.233 国分ハウジング。v2.2.234 で DAY JUST HOUSE を追加。2026-10-30 の指示） */
-const VENDOR_BRANDS = ['kh', 'djh'];
+/** 業者別を出すブランド（v2.2.233 国分ハウジング。v2.2.234 で DAY JUST HOUSE、v2.2.235 でかえるホームを追加。2026-10-30 の指示） */
+const VENDOR_BRANDS = ['kh', 'djh', 'khf'];
 /** 帯グラフに出す件数。⚠️ これより後ろは「その他」にまとめる */
 const BAND_TOP = 8;
 const BAND_COLORS = ['#2563eb', '#f97316', '#10b981', '#a855f7', '#eab308', '#06b6d4', '#ef4444', '#ec4899'];
