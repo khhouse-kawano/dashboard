@@ -150,6 +150,7 @@ import { runKagosumaEntry } from '../features/kagosuma/entry';
 import { runTochishinchakuEntry } from '../features/tochishinchaku/entry';
 import { runMyhomesEntry } from '../features/myhomes/entry';
 import { importOwnersHouseApplication, listOwnersHouseApplications } from '../features/ownersHouse/application';
+import { importHomesAssessment } from '../features/realty/homesAssessment';
 import { runOwnersHouseReservation } from '../features/ownersHouse/reservation';
 import { runEstimateEntry } from '../features/estimate/entry';
 import {
@@ -2590,6 +2591,23 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await importOwnersHouseApplication(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * ⚠️⚠️ **LIFULL HOME'S の査定依頼メール → 売り反響（brokerage_listings の kind = leads）。書き込み口である。**（v2.2.236）
+ *   ⚠️ 送ってくるのは GAS（HomesSaleAssessmentToDashboard。5分おき・newer_than:1d）。⚠️ 合い言葉は MEMBER_ENTRY_KEY（本文の `key`）。
+ *   ⚠️ 同じ査定ID・前後90日に同じ電話番号の売り反響があれば入れない（status: exists）。features/realty/homesAssessment.ts
+ */
+register({
+  request: 'homes_sale_assessment_entry',
+  summary: "【書き込み・合い言葉】LIFULL HOME'S の査定依頼メールを売り反響に登録（brokerage_listings）",
+  phpSource: '(Express のみ)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await importHomesAssessment(ctx.body as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
