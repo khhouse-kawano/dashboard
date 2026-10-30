@@ -16,12 +16,12 @@ import { keyMatches } from '../memberEntry/entry';
  *   1. 外部ID（extId = 'homes:' + 査定ID）が同じ売り反響がある。⚠️ extId は UNIQUE
  *   2. 電話番号（数字だけで比べる）が同じ売り反響が、受信日の前後90日にある
  *      ⚠️ 同じメールがコールセンター（ミカタ）にも届き、あとからミカタの明細でも同じお客様が入るため
- * ⚠️ 反響元は "HOME's"（売り反響の設定の反響元・反響単価のキーと同じ書き方）。⚠️ フェーズは「リード受信」。担当は空（画面で割り当てる）。
+ * ⚠️ 反響元は "HOME'S"（v2.2.237 で一覧の選択肢・設定・既存の行もこの書き方にそろえた）。⚠️ フェーズは「リード受信」。担当は空（画面で割り当てる）。
  * ⚠️ id は画面（realty/common/leadUtiles.ts の newRecordId）と同じ形（'x' ＋ 時刻の36進 ＋ 乱数）。
  * ─────────────────────────────────────────────
  */
 
-const HOMES_SOURCE = "HOME's";
+const HOMES_SOURCE = "HOME'S";
 const PHASE = 'リード受信';
 const EXT_PREFIX = 'homes:';
 /** 電話番号で重複を見る期間（受信日の前後） */
