@@ -656,18 +656,25 @@ const LeadSell = () => {
                   const counts = parseCallCounts(lead.callDates);
                   // 💡 ハイライト判定: 担当者が未設定の場合
                   const isUnassigned = !lead.staff || lead.staff.trim() === '';
+                  const currentSource = lead.source || lead.portal || '';
 
                   return (
                     <tr key={lead.id}>
                       <td style={getTdStyle(isUnassigned)}>{formatDate(lead.receivedDate)}</td>
                       <td style={getTdStyle(isUnassigned)}>
+                        {/*
+                          ⚠️ v2.2.237: 値が変わったときだけ保存する。選択肢に無い反響元（営業案件・問合せなど）もその値を選択肢に出す。
+                            以前は選択肢に無い値だと「反響元」（空）と表示され、触っただけで source が NULL で上書きされていた
+                        */}
                         <select
                           style={{ ...compactInputStyle, fontWeight: 'bold' }}
-                          defaultValue={lead.source || lead.portal || ''}
-                          onBlur={(e) => handleApiUpdate(lead.id, 'source', e.target.value)}
+                          defaultValue={currentSource}
+                          onBlur={(e) => {
+                            if (e.target.value !== currentSource) handleApiUpdate(lead.id, 'source', e.target.value);
+                          }}
                         >
                           <option value="">反響元</option>
-                          {SELL_SOURCES.map(p => <option key={p} value={p}>{p}</option>)}
+                          {[...SELL_SOURCES, ...(currentSource && !SELL_SOURCES.includes(currentSource) ? [currentSource] : [])].map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </td>
                       <td style={getTdStyle(isUnassigned)} className="fw-bold">
