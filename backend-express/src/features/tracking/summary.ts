@@ -4,7 +4,7 @@ import type { AuthenticatedStaff } from '../../types/staff';
 import { attributeConversions, DAYS } from './conversions';
 import { AD_TOUCH_SQL } from './params';
 import { canManageTracking, type TrackingResult } from './sites';
-import { TRACKING_VENDORS, VENDOR_CASE_SQL, vendorOf } from './vendors';
+import { GOOGLE_LISTING_SQL, isGoogleListing, TRACKING_VENDORS, VENDOR_CASE_SQL, vendorOf } from './vendors';
 
 /**
  * トラッキング設定のサマリーと CV（v2.2.202）。画面は header/TrackingSettings.tsx（サイト名を押すと開く）。
@@ -14,8 +14,8 @@ import { TRACKING_VENDORS, VENDOR_CASE_SQL, vendorOf } from './vendors';
  * ⚠️ 訪問数は広告・広告以外の両方（tracking_touches の行数）。⚠️ 一覧の「直近30日の着地」は広告の分だけ（sites.ts）。
  * ⚠️ CV の数え方は conversions.ts。着地ページ別・流入元別は、その CV の「最後の訪問」の着地ページ・流入元に1件を付ける。
  *   ⚠️ その訪問が30日より前なら、訪問数 0 の行として出る。
- * ⚠️ v2.2.232 業者別（vendors。utm_campaign の末尾 _pt1・_pt2。vendors.ts）。⚠️ CV も「最後の訪問」の utm_campaign で分ける。
- *   ⚠️ 業者に当たらない分は返さない（画面の割合の分母は業者の付いた分だけ）。
+ * ⚠️ v2.2.232 業者別（vendors）。⚠️ v2.2.238 から、2026-10-22 以降の Google リスティング広告の訪問だけを数える（判定は vendors.ts）。
+ *   ⚠️ CV は「最後の訪問」が Google リスティング広告のものだけ、その訪問の utm_campaign・utm_medium で分ける。
  * ─────────────────────────────────────────────
  */
 
@@ -51,26 +51,27 @@ export const trackingSiteSummary = async (staff: AuthenticatedStaff | null, site
   const siteId = Number(siteIdValue);
   if (!Number.isInteger(siteId) || siteId <= 0) return { httpStatus: 400, body: { status: 'error', message: 'サイトが指定されていません。' } };
 
-  /** ⚠️ expr は SQL に直接入る（列名か、VENDOR_CASE_SQL などの定数だけ） */
-  const group = (expr: string): Promise<GroupRow[]> => query<GroupRow>(
+  /** ⚠️ expr・where は SQL に直接入る（列名か、VENDOR_CASE_SQL・GOOGLE_LISTING_SQL などの定数だけ） */
+  const group = (expr: string, where = ''): Promise<GroupRow[]> => query<GroupRow>(
     `SELECT ${expr} AS k, COUNT(*) AS visits, SUM(${AD_TOUCH_SQL}) AS ad
        FROM tracking_touches t
-      WHERE t.site_id = ? AND t.created_at >= NOW() - INTERVAL ${DAYS} DAY
+      WHERE t.site_id = ? AND t.created_at >= NOW() - INTERVAL ${DAYS} DAY${where === '' ? '' : ` AND ${where}`}
       GROUP BY k`,
     [siteId]
   );
   const [landingRows, sourceRows, vendorRows, conversions] = await Promise.all([
-    group('t.landing_url'), group('t.source'), group(VENDOR_CASE_SQL), attributeConversions(siteId),
+    group('t.landing_url'), group('t.source'), group(VENDOR_CASE_SQL, GOOGLE_LISTING_SQL), attributeConversions(siteId),
   ]);
   const cv = conversions.get(siteId) ?? [];
   const landing = mergeRows(landingRows, cv.map((c) => c.landingUrl), false);
   const source = mergeRows(sourceRows, cv.map((c) => c.source), true);
   // v2.2.232 業者別。⚠️ 業者が0件でも行を出す（帯グラフの凡例をそろえる）
-  // ⚠️ どの業者にも当たらない分は返さない（割合の分母は _pt1・_pt2 の付いた分だけ。2026-10-30 の指示）
-  const byVendor = new Map(mergeRows(vendorRows, cv.map((c) => vendorOf(c.campaign)), false).map((r) => [r.key, r]));
+  // ⚠️ v2.2.238 割合の分母は 2026-10-22 以降の Google リスティング広告の分だけ（2026-11-02 の指示）
+  const listingCv = cv.filter((c) => isGoogleListing(c.utmSource, c.utmMedium, c.touchedAt));
+  const byVendor = new Map(mergeRows(vendorRows, listingCv.map((c) => vendorOf(c.campaign, c.utmMedium)), false).map((r) => [r.key, r]));
   const vendors = TRACKING_VENDORS.map((v) => {
     const row = byVendor.get(v.key);
-    return { key: v.key, suffix: v.suffix, name: v.name, visits: row?.visits ?? 0, cv: row?.cv ?? 0 };
+    return { key: v.key, rule: v.rule, name: v.name, visits: row?.visits ?? 0, cv: row?.cv ?? 0 };
   });
 
   return {

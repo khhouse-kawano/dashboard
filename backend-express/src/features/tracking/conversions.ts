@@ -38,6 +38,8 @@ interface TouchRow extends RowDataPacket {
   source: string | null;
   utm_content: string | null;
   utm_campaign: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
 }
 
 export interface Conversion {
@@ -51,6 +53,10 @@ export interface Conversion {
   /** v2.2.203 最後の訪問の utm_content（Meta 広告なら広告ID）・utm_campaign */
   adId: string;
   campaign: string;
+  /** v2.2.238 最後の訪問の utm_source・utm_medium・日時（業者別の判定に使う。vendors.ts） */
+  utmSource: string;
+  utmMedium: string;
+  touchedAt: string;
 }
 
 /** サイトID → そのサイトの CV（反響1件につき、最後の訪問1つ） */
@@ -71,7 +77,7 @@ export const attributeConversions = async (siteId?: number): Promise<Map<number,
   for (let i = 0; i < vids.length; i += CHUNK) {
     const part = vids.slice(i, i + CHUNK);
     const rows = await query<TouchRow>(
-      `SELECT t.site_id, t.visitor_id, DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, t.landing_url, t.source, t.utm_content, t.utm_campaign
+      `SELECT t.site_id, t.visitor_id, DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, t.landing_url, t.source, t.utm_content, t.utm_campaign, t.utm_source, t.utm_medium
          FROM tracking_touches t
         WHERE t.visitor_id IN (${part.map(() => '?').join(', ')})${siteId === undefined ? '' : ' AND t.site_id = ?'}
         ORDER BY t.created_at, t.id`,
@@ -96,6 +102,7 @@ export const attributeConversions = async (siteId?: number): Promise<Map<number,
       list.push({
         inquiryTable: inquiry.inquiry_table, inquiryId: Number(inquiry.id), inquiryDay: inquiry.inquiry_day ?? '', landingUrl: touch.landing_url ?? '', source: touch.source ?? '',
         adId: touch.utm_content ?? '', campaign: touch.utm_campaign ?? '',
+        utmSource: touch.utm_source ?? '', utmMedium: touch.utm_medium ?? '', touchedAt: touch.created_at,
       });
       result.set(site, list);
     }
