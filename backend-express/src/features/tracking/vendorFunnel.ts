@@ -3,17 +3,18 @@ import { query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
 import { UUID_PATTERN } from './params';
 import { canManageTracking, type TrackingResult } from './sites';
-import { findVendor, vendorLike } from './vendors';
+import { findVendor, GOOGLE_LISTING_SQL, VENDOR_CASE_SQL } from './vendors';
 
 /**
  * 業者別の歩留まり（v2.2.232）。画面は header/TrackingVendorFunnel.tsx（アクセス解析 → サイトのサマリー → 流入元 → 業者別 → 社名）。
  *
  * ─────────────────────────────────────────────
  * ⚠️ 対象 ＝ 顧客台帳（注文 master_data・建売 master_data_kaeru）の landing_params の khg_vid が、
- *   問い合わせの日（反響取得日）までに、そのサイトへその業者の広告（utm_campaign の末尾）から一度でも来ていた顧客（2026-10-30 の指示）。
+ *   問い合わせの日（反響取得日）までに、そのサイトへその業者の広告から一度でも来ていた顧客（2026-10-30 の指示）。
+ *   ⚠️ v2.2.238 業者の広告 ＝ 2026-10-22 以降の Google リスティング広告で、業者の判定は vendors.ts（2026-11-02 の指示）。
  *   ⚠️ 最後の訪問ではない（サマリーの CV はラストクリック。数えている顧客も反響の表も違うので、数は一致しない）。
  *   ⚠️ 反響取得日が読めない顧客は、日付で切らずに数える。
- * ⚠️ 期間で切らない（記録を始めた 2026-10-20 以降のすべて）。
+ * ⚠️ 期間で切らない（v2.2.238 から、業者別の対象が始まる 2026-10-22 以降のすべて。vendors.ts の VENDOR_START）。
  * ⚠️ 歩留まりの列は紹介キャンペーンサマリー（introductory/summary.ts）と同じ。⚠️ status＝重複は数えない。
  * ⚠️ 店舗は in_charge_store。⚠️ 併売店（shop_list.parent_shop がある店舗）は親店舗にまとめる。
  * ⚠️ KPI単価（広告費 ÷ 件数）は、広告費が入力できるようになってから総計の行にだけ付ける（2026-10-30 の指示）。
@@ -99,9 +100,9 @@ export const trackingVendorFunnel = async (staff: AuthenticatedStaff | null, sit
     const rows = await query<FirstTouchRow>(
       `SELECT t.visitor_id, DATE_FORMAT(MIN(t.created_at), '%Y-%m-%d %H:%i:%s') AS first_at
          FROM tracking_touches t
-        WHERE t.site_id = ? AND TRIM(t.utm_campaign) LIKE ? AND t.visitor_id IN (${part.map(() => '?').join(', ')})
+        WHERE t.site_id = ? AND ${GOOGLE_LISTING_SQL} AND (${VENDOR_CASE_SQL}) = ? AND t.visitor_id IN (${part.map(() => '?').join(', ')})
         GROUP BY t.visitor_id`,
-      [siteId, vendorLike(vendor), ...part]
+      [siteId, vendor.key, ...part]
     );
     for (const row of rows) firstTouch.set(row.visitor_id, row.first_at);
   }
