@@ -883,7 +883,7 @@ register({
 
 register({
   request: 'tracking_vendor_funnel',
-  summary: 'アクセス解析の業者別の歩留まり（サイト1つ・業者1つ。utm_campaign の末尾 _pt1/_pt2 から来た顧客の店舗別の反響・来場・次アポ・契約。Master / BrandAdmin のみ）',
+  summary: 'アクセス解析の業者別の歩留まり（サイト1つ・業者1つ。2026-10-22 以降の Google リスティング広告（_pt2 を含めば Bander、それ以外は PURE GROWTH）から来た顧客の店舗別の反響・来場・次アポ・契約。Master / BrandAdmin のみ）',
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {

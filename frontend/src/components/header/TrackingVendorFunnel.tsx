@@ -43,7 +43,8 @@ const pct = (a: number, b: number): string => (b > 0 ? `${((a / b) * 100).toFixe
 /** 業者（② の vendors.ts。サマリーの vendors の1行） */
 interface Vendor {
     key: string;
-    suffix: string;
+    /** 判定の説明（例「_pt2 を含む」） */
+    rule: string;
     name: string;
 }
 
@@ -141,7 +142,7 @@ const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor:
                             </table>
                         </div>
                         <div className="tv_note">
-                            ※ 問い合わせの日までに、このサイトへ {vendor.name} の広告（キャンペーン名の末尾が {vendor.suffix}）から一度でも来ていた反響を数えます（記録を始めた 2026-10-20 以降）。
+                            ※ 問い合わせの日までに、このサイトへ {vendor.name} の Google リスティング広告（キャンペーン名か媒体が {vendor.rule}もの）から一度でも来ていた反響を数えます（2026-10-22 以降の訪問）。
                             サマリーの CV は最後の訪問で数えるため、件数は一致しません。<br />
                             ※ 来場＝初回面談以降の日付あり、次アポ＝事前審査・第二面談・契約の日付あり、契約＝契約済み。重複は数えません。率は総反響に対する割合です。
                         </div>

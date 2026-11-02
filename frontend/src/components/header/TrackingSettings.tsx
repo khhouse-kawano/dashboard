@@ -104,11 +104,11 @@ interface SummaryRow {
     cv: number;
 }
 
-/** v2.2.232 業者別（utm_campaign の末尾 _pt1・_pt2。② の vendors.ts）。⚠️ 業者の付いていない分は来ない */
+/** v2.2.232 業者別（② の vendors.ts）。⚠️ v2.2.238 から 2026-10-22 以降の Google リスティング広告の訪問だけ */
 interface VendorRow {
     key: string;
-    /** utm_campaign の末尾（例 _pt1） */
-    suffix: string;
+    /** 判定の説明（例「_pt2 を含む」） */
+    rule: string;
     name: string;
     visits: number;
     cv: number;
@@ -281,7 +281,7 @@ const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; r
                     ))}
                     {mode === 'vendor' && (
                         <span className="tk_sub">
-                            utm_campaign の末尾が{data.vendors.map((v) => ` ${v.suffix} なら ${v.name}`).join('、')}。社名を押すと店舗別の歩留まりが開きます
+                            2026-10-22 以降の Google リスティング広告の訪問だけ。キャンペーン名か媒体（utm_campaign・utm_medium）が{data.vendors.map((v) => ` ${v.rule}なら ${v.name}`).join('、')}。社名を押すと店舗別の歩留まりが開きます
                         </span>
                     )}
                 </div>
