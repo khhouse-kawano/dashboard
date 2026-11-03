@@ -32,11 +32,7 @@
 SetEnv META_SCRAPER_KEY <合い言葉>
 ```
 - ⚠️ 値をリポジトリ・チャットに書かないこと
-- ② に入ったかの確認（値は出ない）:
-```bash
-dcp exec express-api sh -c 'test -n "$META_SCRAPER_KEY" && echo SET || echo EMPTY'
-```
-  ⚠️ 手順4（再ビルド）の後に流す。`EMPTY` なら .env.prod の行を見直して `dcp up -d express-api`
+- ⚠️ ② に入ったかの確認は**手順4の後**（合い言葉をコンテナへ渡す行は v2.2.230 の docker-compose.prod.yml にあり、手順4で取り込むまでは必ず EMPTY になる）
 
 ### 手順2　【① サーバー】画像の置き場所と、今ある画像のコピー
 - `dashboard/` の下に `img/meta/` を作る（`dashboard/img/` が無ければ一緒に作る）。権限は 755
@@ -81,6 +77,12 @@ dcp build express-api
 dcp up -d express-api
 ```
 ⚠️ `.env.prod` を変えたので、`up -d` で作り直すこと（restart では新しい値が入らない）。
+
+合い言葉が入ったかの確認（値は出ない）:
+```bash
+dcp exec express-api sh -c 'test -n "$META_SCRAPER_KEY" && echo SET || echo EMPTY'
+```
+⚠️ `EMPTY` なら: `grep -c META_SCRAPER_KEY ~/dashboard/docker-compose.prod.yml` が 0 なら取り込みが古い（fetch からやり直す）。1 以上なら .env.prod の行（`META_SCRAPER_KEY=値`。= の前後に空白・export を付けない）を見直して `dcp up -d --force-recreate express-api`
 
 確認（合い言葉なし）:
 ```bash
