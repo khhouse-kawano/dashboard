@@ -232,6 +232,8 @@ const Menu = ({ key, onReload }: Props) => {
 
     const MENU_CONFIG: MenuItem[] = useMemo(() => [
         { id: 'company', path: '/company', icon: 'fa-rainbow', label: '全社報告用フォーマット', show: category !== 'realty', exact: true },
+        // ⚠️ v2.2.239: 中古リノベの今日の架電キュー（callq/UsedCallQueue.tsx）。⚠️ 不動産企画係の同じ名前の画面は realty/RealtyMenu.tsx
+        { id: 'callq_used', path: '/usedCallQueue', icon: 'fa-phone-volume', label: '今日の架電キュー', show: category === 'used', exact: true },
         // ⚠️ v2.2.225: 不動産企画係（category = realty）の項目は realty/RealtyMenu.tsx に移した（以前のアプリと同じ並び・見出し）
         {
             id: 'list', path: '/list', icon: 'fa-phone', label: '反響一覧', show: (category === 'order' || category === 'spec'), exact: true,
