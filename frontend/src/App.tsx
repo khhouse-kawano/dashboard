@@ -19,6 +19,7 @@ import Photo from "./components/photo/Photo";
 import Hab from "./components/Hab";
 import BudgetKaeru from "./components/BudgetKaeru";
 import Market from "./components/Market";
+import LoanRates from "./components/header/LoanRates";
 import Login from "./components/Login";
 import KengakuCloud from "./components/KengakuCloud";
 import ActiveUser from "./components/ActiveUser";
@@ -179,6 +180,8 @@ function AppInner() {
             <Route path="/map" element={<MapRouter />} />
             <Route path="/specBudget" element={<BudgetKaeru />} />
             <Route path="/market" element={<Market />} />
+            {/* ⚠️ v2.2.240: 金利データ（ヘッダーの「金利データ」） */}
+            <Route path="/loanRates" element={<LoanRates />} />
             <Route path="/property" element={<DatabaseProperty />} />
             <Route path="/photo" element={<Photo />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />

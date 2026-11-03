@@ -399,6 +399,9 @@ function expressProxyRequests(): array
         // -----------------------------------------------------------------
         'loan_rate_latest',
         'loan_rate_upload',
+        // ⚠️ v2.2.240。金利データ（プラン別金利）。⚠️ ② だけ（① に PHP は無い）。upload は書き込み（Master だけ）
+        'loan_plan_rate_list',
+        'loan_plan_rate_upload',
 
         // -----------------------------------------------------------------
         // 2026-09-22 新規。SatBaseサマリー（物件台帳）。
@@ -881,6 +884,9 @@ function expressProxyExclusive(): array
         // -----------------------------------------------------------------
         'loan_rate_latest',
         'loan_rate_upload',
+        // ⚠️ v2.2.240。金利データ（プラン別金利）。⚠️ ② だけ（① に PHP は無い）。upload は書き込み（Master だけ）
+        'loan_plan_rate_list',
+        'loan_plan_rate_upload',
 
         // -----------------------------------------------------------------
         // 2026-09-22 新規。SatBaseサマリー（物件台帳）。
