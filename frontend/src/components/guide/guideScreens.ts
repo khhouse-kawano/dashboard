@@ -47,6 +47,8 @@ const ADMIN = ['Master', 'BrandAdmin'];
 export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     // ── 左のメニュー（Menu.tsx の MENU_CONFIG と同じ条件）
     '全社報告用フォーマット': { route: '/company', divisions: ['order', 'spec', 'used'] },
+    // ⚠️ v2.2.239。メニューの名前は「今日の架電キュー」。⚠️ 不動産企画係の記事の「今日の架電キュー」にボタンが付かないよう、名前に（中古リノベ）を付けている
+    '今日の架電キュー（中古リノベ）': { route: '/usedCallQueue', divisions: ['used'] },
     '反響一覧': {
         route: { order: '/list', spec: '/list', used: '/list?shop=renove' },
     },
