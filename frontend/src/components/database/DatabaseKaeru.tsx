@@ -5,7 +5,7 @@ import Table from "react-bootstrap/Table";
 import apiClient from '../../utils/apiClient';
 import AuthContext from '../../context/AuthContext';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
-import CallStatusList from '../header/CallStatusList';
+import CallStatusList from '../header/callStatus/CallStatusList';
 import InformationEditKaeru from '../information/InformationEditKaeru';
 import IntegrateModal from './IntegrateModal';
 import { useIsSp } from '../../utils/isSp';
@@ -14,7 +14,7 @@ import { useDebounce } from './useDebounce';
 import { kataToHira, staffOptionsOf } from './databaseUtils';
 import { thisYear } from '../../utils/thisYear';
 // ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
-import { sortStaff } from '../header/useAmbassadorMaster';
+import { sortStaff } from '../header/ambassador/useAmbassadorMaster';
 import { GiftDot, GiftLegend } from './GiftMark';
 import { CustomerNameCell, cleanCustomerName } from './customerName2';
 

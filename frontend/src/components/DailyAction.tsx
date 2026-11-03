@@ -7,8 +7,8 @@ import { useIsSp } from '../utils/isSp';
 // ⚠️ 店舗名 → ブランド色。⚠️ **対応表はあちらに持たせたまま使う**（brandColor を参照）
 import { setStyleClass } from '../utils/setStyleClass';
 // ⚠️ v2.2.165: 「最新の他社分析 〇件」。⚠️ 数え方は月次日報と共用（countRecentReports）
-import CompetitorAnalysisReports, { countRecentReports, RECENT_DAYS } from './header/CompetitorAnalysisReports';
-import ClaudeIcon, { CLAUDE_ORANGE } from './header/ClaudeIcon';
+import CompetitorAnalysisReports, { countRecentReports, RECENT_DAYS } from './header/competitor/CompetitorAnalysisReports';
+import ClaudeIcon, { CLAUDE_ORANGE } from './header/claude/ClaudeIcon';
 
 /**
  * 注文営業のダッシュボードを開いた直後に出す「要確認」。

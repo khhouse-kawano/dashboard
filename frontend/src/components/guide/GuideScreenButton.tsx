@@ -122,7 +122,7 @@ const GuideScreenButton: React.FC<Props> = ({ name, articleDivision, compact = f
                         <span id="gd_confirm_title" className="gd_confirm_title">「{name}」を開きます</span>
                         {confirming.openScreen !== null && (
                             <span className="gd_confirm_text">
-                                ダッシュボードの窓で「{confirming.openScreen}」が開いています。開くと、いまの画面は閉じるか後ろに隠れます。
+                                ダッシュボードの窓で「{confirming.openScreen}」が開いています。開くと、いまの画面は閉じるか、ほかの画面に切り替わります。
                                 <strong>保存していない内容は消えることがあります。</strong>
                             </span>
                         )}

@@ -1,121 +1,33 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import EditStaff from './EditStaff';
-import EditAuth from './EditAuth';
-import EditShop from './EditShop';
-import EditBlackList from './EditBlackList';
-import Modal from 'react-bootstrap/Modal';
 import Dropdown from 'react-bootstrap/Dropdown';
-import MetaAdsDashboard from './MetaAdsDashboard';
-import CompetitorMaterials from './CompetitorMaterials';
-import CallStatus from './CallStatusList';
 import { useIsSp } from '../../utils/isSp';
 import AuthContext from '../../context/AuthContext';
-import BudgetSimulator from './BudgetSimulator';
-import AfterInterview from './AfterInterview';
 import apiClient from '../../utils/apiClient';
-import CompetitorSummary from './CompetitorSummary';
-import DailyReports from './DailyReports';
-import StaffContractRate from './StaffContractRate';
-import ClaudeAnalysis from './ClaudeAnalysis';
-import ClaudeIcon from './ClaudeIcon';
-import CompetitorAnalysisReports from './CompetitorAnalysisReports';
-import IntroductorySummary from './IntroductorySummary';
-import DuplicateInquirySummary from './DuplicateInquirySummary';
-import OwnersHouseApplication from './OwnersHouseApplication';
-import TrackingSettings from './TrackingSettings';
-import AmbassadorList from './AmbassadorList';
-import { InquiryAmbassador } from './InquiryAmbassador';
-import InquiryIntroductory from './InquiryIntroductory';
-import EventList from './EventList';
-import FestaDashboard from './FestaDashboard';
-import EventSummary from './EventSummary';
-import EventBudget from './EventBudget';
-import GoogleReview from './GoogleReview';
-import UploadLoan from './UploadLoan';
-import RankingLoader from '../company/RankingLoader';
-import { openDailyAction } from '../DailyAction';
+import ClaudeIcon from './claude/ClaudeIcon';
 import { isGuideCategory, openGuide } from '../guide/openGuide';
 import { useGuideScreenReceiver } from '../guide/useGuideScreenReceiver';
 import { useNavigate } from "react-router-dom";
-
-// 型安全のための定義
-type MenuKey = 'システム管理' | '反響管理' | '他社動向' | '架電状況' | '活動サマリー' | '公式アンバサダー' | '紹介キャンペーン' | '集客イベント' | 'Google口コミ';
-
-/**
- * 他社動向メニューの最後に出す項目。
- *
- * ⚠️ 画面にはロゴ＋「による競合分析」で出す（ヘッダーの「による分析」と同じ形）。
- *   ⚠️ **この文字列そのものは画面に出さない。** 中で見分けるための鍵である。
- *   ⚠️ v2.2.217 で一度「競合分析」に変えたが、利用者の指示でこの形に戻した（2026-10-26）。
- *
- * ⚠️⚠️ **開いても Claude は呼ばれない。課金は発生しない。**
- *   ⚠️ 保存済みのレポート（HTML）を見るだけの画面である。
- *   ⚠️ ⚠️ **2026-09-21 まで、ここは画面から Claude を実行していた。**
- *     ⚠️ 1回あたり数百円かかったため、⚠️ **推論は各自の Claude アカウント（MCP）へ移した。**
- */
-const CLAUDE_COMPETITOR_ITEM = 'Claudeによる競合分析';
+import { AI_ANALYSIS_AUTHORITY, MENU_KEYS, menuItemsOf } from './headerScreens';
+import type { HeaderScreen } from './headerScreens';
 
 /**
- * 「Claudeによる分析」を使える権限（v2.2.217）。⚠️ ② の AI_ANALYSIS_AUTHORITY と同じ値にすること。
- *   ⚠️ ボタンを隠すだけでは閉じない。② の ai_analysis_* / kpi_* も同じ3つを確かめている。
+ * 画面上部のヘッダー（メニュー）。
+ *
+ * ⚠️ v2.2.241 から、メニューの項目は App.tsx のページへ移るだけ（⚠️ それまではここでモーダルを開いていた）。
+ *   ⚠️ 項目・URL・見られる人は headerScreens.tsx にまとめてある。⚠️ ここに項目を書き足さないこと。
  */
-const AI_ANALYSIS_AUTHORITY = ['Master', 'BrandAdmin', 'Manager'];
-
 const Header = ({ }) => {
     const { authority, category } = useContext(AuthContext);
-    /** 表示中のメニュー項目。⚠️ `メニュー/項目` 形式（editMapping のキーと同じ） */
-    const [editMenu, setEditMenu] = useState<string>('');
-    /**
-     * 集客イベントの表示。
-     *
-     * ⚠️ EventList は自前の fullscreen モーダルを持っているため、
-     *   共通モーダル（下の modal）には載せず専用の state で開く。
-     *   共通モーダルの中に入れるとモーダルが二重になる。
-     */
-    const [eventSummary, setEventSummary] = useState<boolean>(false);
-    /**
-     * おうちづくりフェスタ2026（v2.2.172）。⚠️ イベント当日に使う画面。
-     * ⚠️ FestaDashboard も自前の fullscreen モーダルを持つので、EventList と同じく専用の state で開く。
-     */
-    const [showFesta, setShowFesta] = useState<boolean>(false);
-    /**
-     * 広告費入力の表示。
-     *
-     * ⚠️ EventBudget も自前のモーダルを持つため、共通モーダル（modal）とは
-     *   別の state で開く。⚠️ 共通モーダルの中に入れると二重モーダルになる。
-     *
-     * ⚠️ 集客サマリーを共通モーダルで開いたまま、その上に重ねて開く経路がある
-     *   （サマリー右上の「広告費入力」）。react-bootstrap はモーダルの重ねに
-     *   対応しているが、閉じる順を変えないこと。
-     */
-    const [eventBudget, setEventBudget] = useState<boolean>(false);
-    /**
-     * ローン情報更新（v2.2.168）。
-     * ⚠️ UploadLoan も自前のモーダル（md）を持つため、共通モーダル（xl）には載せず専用の state で開く。
-     */
-    const [uploadLoan, setUploadLoan] = useState<boolean>(false);
-    /**
-     * 契約数ランキング（v2.2.169）。
-     * ⚠️ Ranking も自前のモーダルを持つため、共通モーダル（xl）には載せず専用の state で開く。
-     */
-    const [showRanking, setShowRanking] = useState<boolean>(false);
-    const [modal, setModal] = useState<boolean>(false);
-    const [callStatusShow, setCallStatusShow] = useState(true);
-    const menuArray: MenuKey[] = ['システム管理', '反響管理', '他社動向', '活動サマリー', '架電状況', '公式アンバサダー', '紹介キャンペーン', '集客イベント', 'Google口コミ'];
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
-    // Claudeによる分析（menuMapping とは独立した導線）
-    const [claudeModal, setClaudeModal] = useState<boolean>(false);
+    // Claudeによる分析（メニューとは独立した導線）
     const [claudeHover, setClaudeHover] = useState<boolean>(false);
     /**
      * ⚠️ v2.2.217 から Master・BrandAdmin・Manager だけにボタンを出す（Dashboard からの自由分析）。
      *   ⚠️ 競合分析のレポートはこの画面から外し、他社動向 →「Claudeによる競合分析」だけで読む（全員）。
      */
     const canUseClaude = AI_ANALYSIS_AUTHORITY.includes(authority);
-    const openClaude = (): void => {
-        setClaudeModal(true);
-    };
 
     const isSp = useIsSp();
 
@@ -130,6 +42,7 @@ const Header = ({ }) => {
      *
      * ⚠️ そこで実測して CSS 変数（--header-h）に入れ、App.tsx がそれを使う。
      *   ⚠️ 片方だけ直さないこと。変数名を変えるなら App.tsx も直す。
+     *   ⚠️ v2.2.241: ヘッダーのメニューのページ（HeaderPage.tsx）も、この変数で本文の高さを決めている。
      *
      * ⚠️ ResizeObserver を使うのは、折り返しが**幅の変化で起きる**ため。
      *   リサイズだけを見ていると、メニューの増減に追従できない。
@@ -155,185 +68,14 @@ const Header = ({ }) => {
         return () => observer.disconnect();
     }, [isSp]);
 
-    const menuMapping: Record<MenuKey, string[]> = {
-        // ⚠️ v2.2.168 に「店舗管理」「スタッフ管理」を1つにまとめた。
-        // ⚠️ ローン情報更新は ⚠️⚠️ **Master だけ**（⚠️ お客様に出る金利を確定するため）。
-        //   ⚠️ ⚠️ **ここを外すだけでは権限は閉じない**（⚠️ ② の loan_rate_upload も auth: 'master'）。
-        'システム管理': authority === 'Master'
-            ? ['店舗編集', 'スタッフ編集・追加', '権限編集', 'ローン情報更新']
-            : ['店舗編集', 'スタッフ編集・追加', '権限編集'],
-        // ⚠️ v2.2.193: 「重複反響サマリー」を追加（⚠️ 全員。DuplicateInquirySummary.tsx）
-        // ⚠️ v2.2.199: 「トラッキング設定」を追加（⚠️ Master / BrandAdmin。TrackingSettings.tsx。⚠️ ② の tracking_site_* でも確かめる）。⚠️ v2.2.203 で「アクセス解析」に改名（guideScreens.ts のキー・業務ガイドの記事のタイトルも同じ名前）
-        '反響管理': [
-            '販促媒体設定', 'ブラックリスト設定',
-            ...(authority === 'Master' ? ['広告費シミュレーター'] : []),
-            '事後アンケート', '重複反響サマリー',
-            // ⚠️ v2.2.215: 「オーナーズハウス募集」を追加（⚠️ 全員。OwnersHouseApplication.tsx。guideScreens.ts のキーも同じ名前）
-            'オーナーズハウス募集',
-            ...((authority === 'Master' || authority === 'BrandAdmin') ? ['アクセス解析'] : []),
-        ],
-        // ⚠️⚠️ **2026-09-22 に土地情報同期・土地情報一覧をメニューから外した**（指示）。
-        //   ⚠️ ⚠️ **コンポーネント（SyncEstate / Estate）は消していない。**
-        //     ⚠️ Estate は顧客詳細からも開くため、消すとそちらが壊れる。
-        // ⚠️⚠️ **v2.2.231（2026-10-30）に「土地・物件管理」のメニューごと外した**（指示。未使用のため）。
-        //   ⚠️ 仲介物件登録（RegisterBrokerageListings.tsx）はファイルも消した。
-        //   ⚠️ SatBaseサマリー（SatBaseDatabase.tsx・SatBaseImport.tsx）は**ファイルだけ残した**（開く口は無い）。戻すときはここと下の2か所・guideScreens.ts に足す。
-        // ⚠️ 最後の1つは Claude による競合分析。
-        //
-        // ⚠️⚠️ **2026-10-01、Master 限定をやめて全員に出すようにした。**
-        //   ⚠️ ⚠️ **この画面は Claude を呼ばない。** 保存済みのHTMLを出すだけで、
-        //     ⚠️ **開いても課金は発生しない**（推論は利用者自身のClaude Desktop側）。
-        //   ⚠️ ⚠️ **読むのは全員、登録・削除は Master だけ**という形になっている。
-        //     ⚠️ サーバー側も `analysis_report_list` / `_get` は `auth: 'staff'`、
-        //       ⚠️ `_upload` / `_delete` は `auth: 'master'` で分けてある。
-        //     ⚠️ 画面側も登録・削除のボタンを `isMaster` で隠している。
-        //   ⚠️⚠️ **ここを戻すだけでは権限は閉じない**（⚠️ メニューから消えるだけ）。
-        '他社動向': ['他社広告ライブラリ', '他社資料', '競合サマリー', CLAUDE_COMPETITOR_ITEM],
-        '架電状況': ['注文営業', '建売営業', '中古営業'],
-        // ⚠️ 営業別契約率は ⚠️⚠️ **Master と BrandAdmin のみ。**
-        //   ⚠️ 個人別の成績が並ぶため、全員には出さない。
-        //   ⚠️ ⚠️ **ここを外すだけでは権限は閉じない**（⚠️ メニューから消えるだけ）。
-        //     ⚠️ ② 側も `staff_contract` で同じ2つを確かめている。
-        //   ⚠️ 他の管理者向け画面（Menu.tsx の予算詳細など）と同じ条件に揃えてある。
-        //
-        // ⚠️ v2.2.169 に「日報」から「活動サマリー」へ改名し、2つ足した。
-        //   ⚠️ アクションボード … ⚠️ **category === 'order' だけ**（⚠️ DailyAction 自体も注文だけを対象にしている）。
-        //   ⚠️ 契約数ランキング … 全員（⚠️ Master 以外は上位10位前後だけ出る仕組みが Ranking 側にある）。
-        '活動サマリー': [
-            '月次日報',
-            ...((authority === 'Master' || authority === 'BrandAdmin') ? ['営業別契約率'] : []),
-            ...(category === 'order' ? ['アクションボード'] : []),
-            '契約数ランキング',
-        ],
-        '公式アンバサダー': ['アンバサダー管理', '反響一覧'],
-        // ⚠️ v2.2.192: 「紹介キャンペーンサマリー」を追加（⚠️ 顧客台帳の「紹介」の歩留まり。IntroductorySummary.tsx）
-        '紹介キャンペーン': ['反響一覧', '紹介キャンペーンサマリー'],
-        // ⚠️ v2.2.172: 「おうちづくりフェスタ2026」を追加（⚠️ イベント当日用。FestaDashboard.tsx）
-        '集客イベント': ['反響一覧', '集客サマリー', '広告費入力', 'おうちづくりフェスタ2026'],
-        'Google口コミ': ['口コミ集計']
-    };
-
-    /**
-     * メニュー項目 → 表示するコンポーネント。
-     *
-     * ⚠️⚠️ **キーは `メニュー/項目` にすること。** 項目名だけをキーにすると、
-     *   複数のメニューが同じ項目名を持てなくなる。現に「反響一覧」は
-     *   公式アンバサダー・紹介キャンペーン・集客イベントの3つにあり、
-     *   項目名だけをキーにすると**後から書いたものが前のものを上書きして、
-     *   どのメニューから開いても同じ画面が出る。** エラーにならないため
-     *   気づきにくい（2026-09-06 にこの形へ変更した）。
-     */
-    const editMapping: Record<string, React.ReactNode> = {
-        // ⚠️ 'システム管理/ローン情報更新' はここに入れない（⚠️ UploadLoan は自前のモーダル。下の JSX を参照）
-        'システム管理/スタッフ編集・追加': <EditStaff />,
-        'システム管理/権限編集': <EditAuth />,
-        'システム管理/店舗編集': <EditShop />,
-        '反響管理/ブラックリスト設定': <EditBlackList />,
-        '反響管理/重複反響サマリー': <DuplicateInquirySummary />,
-        '反響管理/アクセス解析': <TrackingSettings />,
-        '反響管理/オーナーズハウス募集': <OwnersHouseApplication />,
-        '他社動向/他社広告ライブラリ': <MetaAdsDashboard />,
-        '他社動向/他社資料': <CompetitorMaterials />,
-        // ⚠️ 保存済みレポートを見るだけの画面。⚠️ **Claude は呼ばない（課金なし）**
-        [`他社動向/${CLAUDE_COMPETITOR_ITEM}`]: <CompetitorAnalysisReports />,
-        '架電状況/注文営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='order' />,
-        '架電状況/建売営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='spec' />,
-        '架電状況/中古営業': <CallStatus callStatusShow={callStatusShow} setCallStatusShow={setCallStatusShow} source='used' />,
-        '反響管理/広告費シミュレーター': <BudgetSimulator />,
-        '反響管理/事後アンケート': <AfterInterview name={''} staff={''} id={''} shop={''} />,
-        '他社動向/競合サマリー': <CompetitorSummary />,
-        // ⚠️ v2.2.165: 上部の「最新の他社分析」カードから、同じモーダルのまま他社分析へ切り替える。
-        //   ⚠️ どちらも isFullscreenMenu に入っているので、⚠️ 全画面のまま中身だけ替わる。
-        '活動サマリー/月次日報': <DailyReports onOpenCompetitorReports={() => setEditMenu(`他社動向/${CLAUDE_COMPETITOR_ITEM}`)} />,
-        '活動サマリー/営業別契約率': <StaffContractRate />,
-        '公式アンバサダー/アンバサダー管理': <AmbassadorList />,
-        '公式アンバサダー/反響一覧': <InquiryAmbassador />,
-        '紹介キャンペーン/反響一覧': <InquiryIntroductory />,
-        '紹介キャンペーン/紹介キャンペーンサマリー': <IntroductorySummary />,
-        // ⚠️ '集客イベント/反響一覧' はここに入れない。
-        //   EventList は**自前の fullscreen モーダル**を持っているため、
-        //   下の共通モーダルの中に入れると二重のモーダルになる。
-        //   別の state（eventSummary）で開く。下の JSX を参照。
-        //
-        // ⚠️ 一方 '集客サマリー' は自前のモーダルを持たないので、
-        //   共通モーダルに載せる（EventList とは扱いが違う）。
-        '集客イベント/集客サマリー': <EventSummary />,
-        // ⚠️ 表が横に広いので isFullscreenMenu に入れてある（上を参照）
-        'Google口コミ/口コミ集計': <GoogleReview />
-    };
-
-    /**
-     * メニューの項目を開く。⚠️ v2.2.196: ドロップダウンの onClick から関数に出した（⚠️ 業務ガイドの「画面を開く」も使う）。
-     * ⚠️ 中身は以前の onClick のまま。⚠️ そのメニューに出ていない項目（権限が無い）は開かずに false。
-     */
-    const openMenuItem = (menu: MenuKey, item: string): boolean => {
-        if (!menuMapping[menu]?.includes(item)) return false;
-        // ⚠️⚠️ 集客イベントの「反響一覧」だけは共通モーダルを
-        //   使わない。EventList が自前の fullscreen モーダルを
-        //   持っているため、共通モーダルに入れると二重になる。
-        //
-        // ⚠️ 以前は menu === '集客イベント' だけで判定しており、
-        //   項目に関係なく必ず EventList を開いていた。
-        //   2026-09-09 に「集客サマリー」を追加したため、
-        //   **項目まで見て分岐する**必要がある。
-        //   item を見ない条件に戻すと、集客サマリーを選んでも
-        //   反響一覧が開く（エラーにならないので気づきにくい）。
-        if (menu === '集客イベント' && item === '反響一覧') {
-            setEventSummary(true);
-            return true;
-        }
-        // ⚠️ 広告費入力も自前のモーダルを持つ。
-        //   共通モーダルに入れず専用の state で開く
-        if (menu === '集客イベント' && item === '広告費入力') {
-            setEventBudget(true);
-            return true;
-        }
-        // ⚠️ おうちづくりフェスタ2026（v2.2.172）も自前の fullscreen モーダル
-        if (menu === '集客イベント' && item === 'おうちづくりフェスタ2026') {
-            setShowFesta(true);
-            return true;
-        }
-        // ⚠️ ローン情報更新も自前のモーダル（md）を持つ（v2.2.168）
-        if (menu === 'システム管理' && item === 'ローン情報更新') {
-            setUploadLoan(true);
-            return true;
-        }
-        // ⚠️ アクションボード（v2.2.169）は ⚠️ **App.tsx に置いてある DailyAction を開くだけ**。
-        //   ⚠️ ActiveUser.tsx のボタンと同じ関数（⚠️ 押したときは取り直し、0件でも開く）。
-        if (menu === '活動サマリー' && item === 'アクションボード') {
-            openDailyAction();
-            return true;
-        }
-        // ⚠️ 契約数ランキング（v2.2.169）も自前のモーダル
-        if (menu === '活動サマリー' && item === '契約数ランキング') {
-            setShowRanking(true);
-            return true;
-        }
-        // ⚠️ キーは `メニュー/項目`。項目名だけだと
-        //   複数のメニューにある「反響一覧」が区別できない
-        setEditMenu(`${menu}/${item}`);
-        setModal(true);
-        return true;
-    };
-
-    /** ⚠️ v2.2.196: 業務ガイドから開く前に、ヘッダーのモーダルを閉じる（⚠️ ページを移ってもヘッダーのモーダルは残るため） */
-    const closeHeaderModals = (): void => {
-        setModal(false);
-        setClaudeModal(false);
-        setEventSummary(false);
-        setShowFesta(false);
-        setEventBudget(false);
-        setUploadLoan(false);
-        setShowRanking(false);
+    /** メニューの項目を開く。⚠️ アクションボードだけはページではなく action（DailyAction を開く） */
+    const openScreen = (screen: HeaderScreen): void => {
+        if (screen.action) screen.action();
+        else if (screen.path) navigate(screen.path);
     };
 
     // ⚠️ v2.2.196: 業務ガイドの「画面を開く」を受ける（guide/useGuideScreenReceiver.ts）。⚠️ ここで1回だけ
-    useGuideScreenReceiver({
-        // ⚠️ 無いメニュー名は openMenuItem の menuMapping の確かめで false になる
-        openMenuItem: (menu, item) => openMenuItem(menu as MenuKey, item),
-        openClaude,
-        closeHeaderModals,
-    });
+    useGuideScreenReceiver();
 
     useEffect(() => {
         const fetchData = async () => {
@@ -347,67 +89,6 @@ const Header = ({ }) => {
     const isEstate = (value: string) => {
         return newEstate !== null && newEstate > 0 && value === '土地情報一覧';
     };
-
-    // 月次日報は日付が横に31列並ぶため、固定の 80vh 枠では縦が足りない。
-    // 反響一覧も横に列が多いため同じ扱いにする。
-    // ⚠️ キーは `メニュー/項目` 形式（editMapping と同じ）
-    const isFullscreenMenu = [
-        '活動サマリー/月次日報',
-        '公式アンバサダー/アンバサダー管理',
-        '公式アンバサダー/反響一覧',
-        '紹介キャンペーン/反響一覧',
-        // 集客サマリーは KPI が5列＋広告費で横に広く、行も伸びるため同じ扱い
-        '集客イベント/集客サマリー',
-        // ⚠️ 広告費シミュレーターは媒体の数だけ表が縦に伸びる。
-        //   ⚠️ 全画面にすると Modal.Header に「閉じる」ボタンも出る（下を参照）。
-        '反響管理/広告費シミュレーター',
-        // ⚠️ 口コミ集計は列が8つあり、本文の列に幅が要る。
-        //   ⚠️ 外すと（xl だと）本文の列が潰れて読めなくなる（2026-09-15 の指示）。
-        'Google口コミ/口コミ集計',
-        // ⚠️ オーナーズハウス募集は列が8つあり、見どころ・写真を行の下に広げる（v2.2.215）
-        '反響管理/オーナーズハウス募集',
-        // ⚠️ 他社広告はバナーをグリッドで並べるため、幅が広いほど枚数が入る。
-        //   ⚠️ xl のままだと1行2〜3枚しか入らず、比較しづらい（2026-09-16 の指示）。
-        '他社動向/他社広告ライブラリ',
-        // ⚠️ 競合サマリーは**7ブランド × 4列＝28列**あり、xl では大半が隠れる。
-        //   ⚠️ 2026-09-18 の指示で全画面にした。
-        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る**（下の JSX を参照）。
-        //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
-        '他社動向/競合サマリー',
-        // ⚠️ 他社資料は 2026-09-21 にフォルダ表示へ作り替えた。
-        //   ⚠️ フォルダを並べる幅と、資料一覧の縦が要る。
-        //   ⚠️ **外すとフォルダが1列になり、表も潰れる。**
-        '他社動向/他社資料',
-        // ⚠️ レポートは左に一覧・右に本文を並べる。⚠️ **外すと本文が読めない幅になる**
-        `他社動向/${CLAUDE_COMPETITOR_ITEM}`,
-        // ⚠️ ブラックリスト設定は住所・備考まで10列あり、xl では入力欄が潰れる。
-        //   ⚠️ 2026-09-19 の SaaS 化に合わせて全画面にした。
-        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
-        '反響管理/ブラックリスト設定',
-        // ⚠️ 営業別契約率は 2026-10-02 に**担当変更理由の8列**が増えて**16列**になった。
-        //   ⚠️ xl のままだと右半分が隠れて横スクロール頼みになる（2026-10-02 の指示で全画面）。
-        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
-        //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
-        '活動サマリー/営業別契約率',
-        // ⚠️ 紹介キャンペーンサマリー（v2.2.192）は表が縦に7つ並び、横にも広い（2026-10-15 の指示で全画面）。
-        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。**
-        //     ⚠️ コンポーネント側に閉じるボタンを実装しないこと。二重になる。
-        '紹介キャンペーン/紹介キャンペーンサマリー',
-        // ⚠️ 重複反響サマリー（v2.2.193）はカード9枚をグリッドで並べる（2026-10-16 の指示で全画面）。
-        //   ⚠️ **この1行で「左上の閉じるボタン」も一緒に出る。** コンポーネント側に作らないこと。
-        '反響管理/重複反響サマリー',
-        // ⚠️ アクセス解析（v2.2.199 トラッキング設定 → v2.2.203 改名）は表が9列＋サマリー・タグの行。⚠️ この1行で「左上の閉じるボタン」も出る。コンポーネント側に作らないこと。
-        '反響管理/アクセス解析',
-    ].includes(editMenu);
-
-    // 見出しには項目名だけを出す（キーの `メニュー/` は表示に使わない）
-    const editLabel = editMenu.includes('/') ? editMenu.split('/')[1] : editMenu;
-
-    const modalBody = editMapping[editMenu] ?? (
-        <div className="text-muted text-center py-4" style={{ fontSize: '13px' }}>
-            現在、{editLabel} のコンポーネントを準備中です。
-        </div>
-    );
 
     return (
         <>
@@ -431,11 +112,11 @@ const Header = ({ }) => {
                     userSelect: 'none',
                 }}
             >
-                {/* Claudeによる分析：menuMapping とは別の独立したボタン（⚠️ v2.2.217 から3つの権限だけ） */}
+                {/* Claudeによる分析：メニューとは別の独立したボタン（⚠️ v2.2.217 から3つの権限だけ） */}
                 {canUseClaude && (
                     <button
                         type="button"
-                        onClick={() => openClaude()}
+                        onClick={() => navigate('/claudeAnalysis')}
                         onMouseEnter={() => setClaudeHover(true)}
                         onMouseLeave={() => setClaudeHover(false)}
                         className="border-0 d-flex align-items-center px-2 py-1 me-2"
@@ -462,7 +143,7 @@ const Header = ({ }) => {
                 >
                     マーケット情報
                 </div>
-                {/* ⚠️ v2.2.240: 金利データ（⚠️ マーケット情報の右・指示）。⚠️ 色は濃いシアン（bg-info は白い文字が読みにくいため。2026-11-03 の決定）。header/LoanRates.tsx */}
+                {/* ⚠️ v2.2.240: 金利データ（⚠️ マーケット情報の右・指示）。⚠️ 色は濃いシアン（bg-info は白い文字が読みにくいため。2026-11-03 の決定）。header/market/LoanRates.tsx */}
                 <div className='rounded-pill text-white me-1 shadow-sm'
                     role="button" tabIndex={0}
                     style={{ padding: '2px 10px', fontSize: '10px', cursor: 'pointer', background: '#0891b2' }}
@@ -484,7 +165,7 @@ const Header = ({ }) => {
                         業務ガイド
                     </div>
                 )}
-                {menuArray.map((menu) => (
+                {MENU_KEYS.map((menu) => (
                     <Dropdown key={menu} className="me-1">
                         <Dropdown.Toggle
                             variant="text"
@@ -504,20 +185,15 @@ const Header = ({ }) => {
                             className="shadow-sm border border-light-subtle py-1"
                             style={{ fontSize: '13px', minWidth: '160px' }}
                         >
-                            {menuMapping[menu].map((item) => (
+                            {menuItemsOf(menu, { authority, category }).map((screen) => (
                                 <Dropdown.Item
-                                    key={item}
+                                    key={screen.item}
                                     className="py-2 px-3 text-dark position-relative"
-                                    onClick={() => openMenuItem(menu, item)}
+                                    onClick={() => openScreen(screen)}
                                 >
-                                    {/* ⚠️ 競合分析はロゴ＋文言で出す（ヘッダーの「による分析」と同じ形） */}
-                                    {item === CLAUDE_COMPETITOR_ITEM
-                                        ? <span className="d-flex align-items-center" style={{ gap: '2px' }}>
-                                            <ClaudeIcon height={14} />
-                                            による競合分析
-                                        </span>
-                                        : item}
-                                    {isEstate(item) && <div className="position-absolute menu_sync" style={{ top: '12px', right: '10px' }}>新着 {newEstate}件</div>}
+                                    {/* ⚠️ 競合分析はロゴ＋文言で出す（ヘッダーの「による分析」と同じ形。headerScreens.tsx の label） */}
+                                    {screen.label ?? screen.item}
+                                    {isEstate(screen.item) && <div className="position-absolute menu_sync" style={{ top: '12px', right: '10px' }}>新着 {newEstate}件</div>}
                                 </Dropdown.Item>
                             ))}
                         </Dropdown.Menu>
@@ -526,104 +202,6 @@ const Header = ({ }) => {
 
 
             </div>}
-
-            {/* Claudeによる分析（⚠️ v2.2.217 から全画面。左に条件と一覧、右に結果） */}
-            <Modal show={claudeModal} onHide={() => setClaudeModal(false)}
-                dialogClassName="modal-fullscreen" contentClassName="h-100 d-flex flex-column">
-                <Modal.Header closeButton className="border-bottom-0 pb-0" style={{ fontSize: '15px' }}>
-                    <span className="fw-bold d-flex align-items-center" style={{ color: '#000', gap: '2px' }}>
-                        <ClaudeIcon height={17} />
-                        による分析
-                    </span>
-                </Modal.Header>
-                <Modal.Body className="p-0" style={{ overflow: 'hidden', flex: '1 1 auto', minHeight: 0 }}>
-                    {claudeModal && <ClaudeAnalysis onClose={() => setClaudeModal(false)} />}
-                </Modal.Body>
-            </Modal>
-
-            <Modal
-                show={modal}
-                onHide={() => setModal(false)}
-                size={isFullscreenMenu ? undefined : 'xl'}
-                // 全画面表示のときに centered を付けると上下に余白が生まれ、縦を使い切れない
-                centered={!isFullscreenMenu}
-                // fullscreen プロパティは型が 'true | string' のため、真偽値を渡せない。
-                // 同じ見た目になる Bootstrap のクラスを直接当てる
-                dialogClassName={isFullscreenMenu ? 'modal-fullscreen' : ''}
-                // ヘッダー以外（Body）を伸ばして縦いっぱいに使うための土台
-                contentClassName={isFullscreenMenu ? 'h-100 d-flex flex-column' : ''}
-            >
-                <Modal.Header
-                    // 全画面では右上の × が本文から遠いため、見出しの隣に閉じるボタンを置く
-                    closeButton={!isFullscreenMenu}
-                    // .modal-header は justify-content: space-between のため、
-                    // そのままだとボタンが右端へ飛ぶ。見出しの隣に並べるため左寄せに上書きする
-                    className={'border-bottom-0 pb-0 fw-bold text-secondary'
-                        + (isFullscreenMenu ? ' d-flex align-items-center gap-3 justify-content-start' : '')}
-                    style={{ fontSize: '15px' }}
-                >
-                    <span>{editLabel}</span>
-                    {/* ⚠️ 集客サマリーのときだけ。閉じるボタンの**左隣**に置く
-                        （.modal-header は左寄せに上書きしてあるので、
-                          閉じるボタンより前に書けば左に並ぶ） */}
-                    {editMenu === '集客イベント/集客サマリー' && (
-                        <button
-                            type="button"
-                            onClick={() => setEventBudget(true)}
-                            className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 fw-normal"
-                            style={{ fontSize: '12px' }}
-                        >
-                            <i className="fa-solid fa-yen-sign" aria-hidden="true" />
-                            広告費入力
-                        </button>
-                    )}
-                    {isFullscreenMenu && (
-                        <button
-                            type="button"
-                            onClick={() => setModal(false)}
-                            className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 fw-normal"
-                            style={{ fontSize: '12px' }}
-                        >
-                            <i className="fa-solid fa-xmark" aria-hidden="true" />
-                            閉じる
-                        </button>
-                    )}
-                </Modal.Header>
-
-                {/* 全画面時はBodyを伸ばし、スクロールは中身に持たせる。
-                    それ以外は従来どおり 80vh の枠に収める */}
-                <Modal.Body
-                    className={isFullscreenMenu ? 'p-0 flex-grow-1' : 'pt-2'}
-                    style={isFullscreenMenu ? { overflow: 'hidden', minHeight: 0 } : undefined}
-                >
-                    {isFullscreenMenu ? (
-                        <div style={{ height: '100%', overflow: 'auto' }}>{modalBody}</div>
-                    ) : (
-                        <div style={{ overflow: 'auto' }}>
-                            <div style={{ height: '80vh' }}>{modalBody}</div>
-                        </div>
-                    )}
-                </Modal.Body>
-            </Modal>
-
-            {/* 集客イベント。⚠️ EventList が自前の fullscreen モーダルを持つため、
-                上の共通モーダルとは別に置く（入れ子にすると二重モーダルになる）。
-                ⚠️ 以前は ListOrder（反響一覧の画面内ボタン）から開いていた。
-                2026-09-06 にヘッダーへ移した */}
-            <EventList eventSummary={eventSummary} setEventSummary={setEventSummary} />
-
-            {/* おうちづくりフェスタ2026（v2.2.172）。⚠️ 自前の fullscreen モーダル。⚠️ データは開いたときに取る */}
-            <FestaDashboard show={showFesta} setShow={setShowFesta} />
-
-            {/* 広告費入力。⚠️ 集客サマリーの上に重ねて開くこともあるため、
-                共通モーダルの外（ここ）に置く */}
-            <EventBudget show={eventBudget} setShow={setEventBudget} />
-
-            {/* ローン情報更新（v2.2.168）。⚠️ 自前のモーダル（md）なので共通モーダルの外に置く */}
-            <UploadLoan show={uploadLoan} setShow={setUploadLoan} />
-
-            {/* 契約数ランキング（v2.2.169）。⚠️ データは RankingLoader が開いたときに取る */}
-            <RankingLoader show={showRanking} setShow={setShowRanking} />
         </>
     );
 };

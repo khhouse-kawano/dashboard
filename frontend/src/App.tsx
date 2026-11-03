@@ -19,7 +19,7 @@ import Photo from "./components/photo/Photo";
 import Hab from "./components/Hab";
 import BudgetKaeru from "./components/BudgetKaeru";
 import Market from "./components/Market";
-import LoanRates from "./components/header/LoanRates";
+import LoanRates from "./components/header/market/LoanRates";
 import Login from "./components/Login";
 import KengakuCloud from "./components/KengakuCloud";
 import ActiveUser from "./components/ActiveUser";
@@ -28,6 +28,8 @@ import { useJsApiLoader } from "@react-google-maps/api";
 import MenuD from "./components/Menu";
 import Dev from "./components/Dev";
 import Header from "./components/header/Header";
+import HeaderPage from "./components/header/HeaderPage";
+import { HEADER_SCREENS } from "./components/header/headerScreens";
 import CustomerTrendRouter from "./components/customerTrend/CustomerTrendRouter";
 import MapRouter from "./components/map/MapRouter";
 import { useIsSp } from './utils/isSp';
@@ -182,6 +184,11 @@ function AppInner() {
             <Route path="/market" element={<Market />} />
             {/* ⚠️ v2.2.240: 金利データ（ヘッダーの「金利データ」） */}
             <Route path="/loanRates" element={<LoanRates />} />
+            {/* ⚠️ v2.2.241: ヘッダーのメニューの画面（⚠️ それまではヘッダーのモーダル）。⚠️ 一覧・URL・見られる人は header/headerScreens.tsx
+                ⚠️ key に path を渡す（⚠️ 渡さないと、架電状況の注文 → 建売のように同じ部品のページへ移ったとき、前の画面の状態が残って取り直さない） */}
+            {HEADER_SCREENS.filter((s) => s.path).map((s) => (
+              <Route key={s.path} path={s.path} element={<HeaderPage key={s.path} screen={s} />} />
+            ))}
             <Route path="/property" element={<DatabaseProperty />} />
             <Route path="/photo" element={<Photo />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
