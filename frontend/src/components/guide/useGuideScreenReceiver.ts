@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
 import { markCategoryChosen } from '../DailyAction';
+import { canOpenScreen, headerScreenOf } from '../header/headerScreens';
 import {
     DIVISION_PARAM, GUIDE_SCREENS, SCREEN_PARAM, isGuideRequest, openScreenLabel, planScreen, replyToGuide,
 } from './guideScreens';
@@ -14,18 +15,11 @@ import {
  *   1. ガイドの窓からの postMessage（status → open）
  *   2. 開き直したときの URL の目印 `?guide_screen=名前`（⚠️ 読んだら URL から消す）
  * ⚠️ ページはメニューと同じく `navigate(path, { state: { authority } })`（Menu.tsx の handleNavigate と同じ）。
+ *   ⚠️ v2.2.241 からヘッダーのメニューの画面・Claudeによる分析もページ（headerScreens.tsx）なので、同じく navigate だけ。
+ *   ⚠️ アクションボードだけは action（DailyAction を開く）。⚠️ 見られない人には開かない（headerScreens.tsx の allow）。
  * ⚠️ 事業を切り替えるときは Category.tsx の goToDashboard と同じく setCategory ＋ markCategoryChosen。
- * ⚠️ ヘッダーで開いているモーダルは先に閉じる（⚠️ 開いたままページを移ると、新しいページの上に残る）。
  * ─────────────────────────────────────────────
  */
-interface Handlers {
-    /** ヘッダーのメニューの画面を開く。⚠️ そのメニューに出ていない項目（権限が無い）なら false */
-    openMenuItem: (menu: string, item: string) => boolean;
-    openClaude: () => void;
-    /** ヘッダーが開いているモーダルを閉じる */
-    closeHeaderModals: () => void;
-}
-
 type OpenHere = (name: string, articleDivision: string | null) => string | null;
 let openHereRef: { current: OpenHere } | null = null;
 
@@ -37,30 +31,28 @@ let openHereRef: { current: OpenHere } | null = null;
 export const openGuideScreenHere: OpenHere = (name, articleDivision) =>
     openHereRef === null ? `「${name}」は開けません。画面を再読み込みしてください。` : openHereRef.current(name, articleDivision);
 
-export const useGuideScreenReceiver = (handlers: Handlers): void => {
+export const useGuideScreenReceiver = (): void => {
     const { authority, category, shopName, setCategory } = useContext(AuthContext);
     const navigate = useNavigate();
     const location = useLocation();
     // ⚠️ message の受け口は1回だけ付ける。⚠️ 最新の値は ref から読む
-    const latest = useRef({ handlers, authority, category, shopName, setCategory, navigate });
-    latest.current = { handlers, authority, category, shopName, setCategory, navigate };
+    const latest = useRef({ authority, category, shopName, setCategory, navigate });
+    latest.current = { authority, category, shopName, setCategory, navigate };
 
     /** 開く。⚠️ 開けなければ、その理由 */
     const openRef = useRef((name: string, articleDivision: string | null): string | null => {
-        const { handlers: h, authority: a, category: c, shopName: s, setCategory: setC, navigate: nav } = latest.current;
+        const { authority: a, category: c, shopName: s, setCategory: setC, navigate: nav } = latest.current;
         const plan = planScreen(name, articleDivision, c, s);
         if (!plan.ok) return plan.message;
         const screen = GUIDE_SCREENS[name];
+        // ⚠️ ヘッダーの画面は、切り替えたあとの事業で見られるかを確かめる（⚠️ 見られない項目はメニューにも出ていない）
+        const header = screen.header === undefined ? undefined : headerScreenOf(screen.header);
+        if (header && !canOpenScreen(header, { authority: a, category: plan.division ?? c })) return `「${name}」はこのアカウントでは開けません。`;
         if (plan.switchLabel !== null && plan.division !== null) {
             setC(plan.division);
             markCategoryChosen(plan.division);
         }
-        h.closeHeaderModals();
-        if (screen.claude) { h.openClaude(); return null; }
-        if (screen.menu !== undefined) {
-            const [menu, item] = screen.menu.split('/');
-            return h.openMenuItem(menu, item) ? null : `「${name}」はこのアカウントでは開けません。`;
-        }
+        if (header?.action) { header.action(); return null; }
         if (plan.path === null) return `「${name}」は開けません。`;
         nav(plan.path, { state: { authority: a } });
         return null;

@@ -1,0 +1,707 @@
+import React, { useEffect, useState, useContext, useMemo } from 'react';
+import Table from 'react-bootstrap/Table';
+import Card from 'react-bootstrap/Card';
+import AuthContext from '../../../context/AuthContext';
+import apiClient from '../../../utils/apiClient';
+import { countRecentReports, RECENT_DAYS } from '../competitor/CompetitorAnalysisReports';
+import { CLAUDE_ORANGE } from '../claude/ClaudeIcon';
+
+type Props = {
+    /**
+     * 「最新の他社分析」カードを押したとき（v2.2.165）。
+     * ⚠️ headerScreens.tsx が渡す。⚠️ v2.2.241 から「Claudeによる競合分析」のページへ移る（それまでは同じモーダルの中身を切り替えていた）。
+     * ⚠️ 渡されなければカードは押せない（⚠️ 件数だけ出す）。
+     */
+    onOpenCompetitorReports?: () => void;
+};
+
+// ==========================================
+// 💡 型定義
+// ==========================================
+type ResponseInfo = {
+    authority: string | null;
+    shop: string | null;
+    staff: string | null;
+    medium: string | null;
+    register: string | null;
+    interview: string | null;
+    appointment: string | null;
+    contract: string | null;
+};
+
+/**
+ * 追客・商談ログの1件（call_log / interview_log の JSON の要素）。
+ * ⚠️ サーバー（daily_report.php）が day / action / staff だけに削り、⚠️ day は `YYYY-MM-DD` に揃えて返す。
+ */
+type ActionLog = {
+    day: string | null;
+    action: string | null;
+    staff: string | null;
+};
+
+/** ⚠️ shop は shop_list の店舗名に読み替え済み（⚠️ 読み替えは daily_report.php だけ） */
+type CallInfo = {
+    shop: string | null;
+    call_log: string | null;
+};
+
+type InterviewInfo = {
+    shop: string | null;
+    interview_log: string | null;
+};
+
+type ShopInfo = {
+    id: number;
+    brand: string;
+    shop: string;
+    division: string;
+    section: string;
+    area: string;
+    report_flag: number;
+};
+
+type StaffInfo = {
+    id: number;
+    name: string;
+    shop: string;
+    section: string;
+    period: string;
+    status: string;
+    report: number;
+    position: string;
+};
+
+type DailyMetrics = {
+    registers: number;
+    interviews: number;
+    contracts: number;
+    totalCalls: number;
+    connected: number;
+    unconnected: number;
+    sms: number;
+    email: number;
+    postalMail: number;
+    firstInterview: number;
+    subsequentInterview: number;
+    propertyTour: number;
+    assessmentApo: number;
+    assessmentSubmit: number;
+    visitAssessment: number;
+    materialSend: number;
+    zeroCustomer: number;
+    lineGroup: number;
+    preExam: number;
+    interviewContract: number;
+    contact: number;
+    application: number;
+    ownContract: number;
+    brokerageContract: number;
+    reformContract: number;
+    buySellContract: number;
+    brokerageAcquisition: number;
+};
+
+// 💡 PHPからのデータ揺れ（スペースの有無）を吸収する関数
+const removeSpaces = (str: string | null | undefined) => (str || '').replace(/[\s\u3000]+/g, '');
+
+/**
+ * 追客ログ（call_log）の行動 → 数える項目。⚠️ 通電・未通電は電話数（totalCalls）にも入る。
+ */
+const CALL_METRICS: Record<string, (keyof DailyMetrics)[]> = {
+    '通電': ['totalCalls', 'connected'],
+    '未通電': ['totalCalls', 'unconnected'],
+    'SMS送信': ['sms'],
+    'メール送信': ['email'],
+    '資料郵送': ['postalMail'],
+};
+
+/** 商談ログ（interview_log）の行動 → 数える項目 */
+const INTERVIEW_METRICS: Record<string, (keyof DailyMetrics)[]> = {
+    '初回来場': ['firstInterview'],
+    '初回面談': ['firstInterview'],
+    '2回目以降面談': ['subsequentInterview'],
+    '物件案内': ['propertyTour'],
+    '査定アポ': ['assessmentApo'],
+    '査定書提出': ['assessmentSubmit'],
+    '訪問査定': ['visitAssessment'],
+    '資料送付': ['materialSend'],
+    '0次接客': ['zeroCustomer'],
+    'LINEグループ作成': ['lineGroup'],
+    '事前審査': ['preExam'],
+    '契約': ['interviewContract'],
+    '接触（通話・返信）': ['contact'],
+    '申し込み': ['application'],
+    '自社契約': ['ownContract'],
+    '仲介契約': ['brokerageContract'],
+    'リフォーム契約': ['reformContract'],
+    '売買契約': ['buySellContract'],
+    '媒介取得': ['brokerageAcquisition'],
+};
+
+/** ログ（JSON 文字列）を配列にする。⚠️ 壊れていれば空（⚠️ 1件の不正で日報全体を止めない） */
+const parseLogs = (json: string | null): ActionLog[] => {
+    try {
+        const logs = JSON.parse(json || '[]');
+        return Array.isArray(logs) ? logs : [];
+    } catch {
+        return [];
+    }
+};
+
+const authorityMapping: Record<string, string> = {
+    'order': '注文事業',
+    'spec': '建売分譲事業',
+    'used': '中古リノベ',
+    // ⚠️ v2.2.228: 不動産企画係（realty）の人は中古の人として扱う（中古リノベと不動産企画係の両方に入れるため）
+    'realty': '中古リノベ',
+};
+
+/** 日報の行（authority ＝ 事業）と突き合わせる担当事業。⚠️ realty は中古（used）として見る */
+const reportShopOf = (shopName: string): string => (shopName === 'realty' ? 'used' : shopName);
+
+const positions = ['常務', '部長', '課長', '課長代理', '店長', '店長代理', '一般'];
+
+// 💡 共通の空メトリクス生成関数（集計用と総数計算用で使い回すため外出し）
+const createEmptyMetric = (): DailyMetrics => ({
+    registers: 0, interviews: 0, contracts: 0,
+    totalCalls: 0, connected: 0, unconnected: 0, sms: 0, email: 0, postalMail: 0,
+    firstInterview: 0, subsequentInterview: 0, propertyTour: 0, assessmentApo: 0, assessmentSubmit: 0, visitAssessment: 0,
+    materialSend: 0, zeroCustomer: 0, lineGroup: 0, preExam: 0, interviewContract: 0,
+    contact: 0, application: 0, ownContract: 0, brokerageContract: 0, reformContract: 0, buySellContract: 0, brokerageAcquisition: 0
+});
+
+const DailyReports = ({ onOpenCompetitorReports }: Props) => {
+    const { category, shopName } = useContext(AuthContext);
+
+    /**
+     * 最新の他社分析の件数（v2.2.165）。⚠️ null は取得中・取得失敗。
+     *
+     * ⚠️ 他社分析の画面（CompetitorAnalysisReports.tsx）と ⚠️ **同じ API・同じ isRecent** で数える。
+     * ⚠️⚠️ **`category` という名前で送らないこと**（⚠️ ② の振り分けキーと衝突して 502 になる）。
+     * ⚠️ 0件でも ⚠️ **カードは常に出す**（2026-10-06 の確認。⚠️ 他社分析への入口を兼ねる）。
+     * ⚠️ 日報の集計とは別に取る（⚠️ 失敗しても日報は出す）。
+     */
+    const [recentReports, setRecentReports] = useState<number | null>(null);
+    useEffect(() => {
+        let alive = true;
+        // ⚠️ 数え方は CompetitorAnalysisReports.tsx の countRecentReports に1つだけ（要確認と共用）
+        countRecentReports()
+            .then((count) => { if (alive) setRecentReports(count); })
+            .catch((err) => console.error('他社分析の取得に失敗しました:', err));
+        return () => { alive = false; };
+    }, []);
+
+    // ==========================================
+    // 💡 月選択リストの生成 (2025年6月〜当月)
+    // ==========================================
+    const monthOptions = useMemo(() => {
+        const options: string[] = [];
+        const startDate = new Date(2025, 5, 1); // 2025年6月
+        const endDate = new Date();
+        let curr = new Date(startDate);
+        while (curr <= endDate || (curr.getFullYear() === endDate.getFullYear() && curr.getMonth() === endDate.getMonth())) {
+            const y = curr.getFullYear();
+            const m = String(curr.getMonth() + 1).padStart(2, '0');
+            options.push(`${y}-${m}`);
+            curr.setMonth(curr.getMonth() + 1);
+        }
+        return options.reverse();
+    }, []);
+
+    const [targetMonth, setTargetMonth] = useState(() => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+    });
+
+    /**
+     * 表示する事業（v2.2.167）。⚠️ **空（全事業部）にはしない。**
+     * ⚠️ サーバーは1つの事業 × 1か月分だけを返す（⚠️ 全件だとメモリ上限を超えて応答が返らない）。
+     * ⚠️ ログイン中の事業が決まっていればそこから開く。決まっていなければ注文事業。
+     */
+    const [targetDivision, setTargetDivision] = useState(() => authorityMapping[shopName || ''] ?? '注文事業');
+    const [targetShop, setTargetShop] = useState('');
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [responseList, setResponseList] = useState<ResponseInfo[]>([]);
+    const [callList, setCallList] = useState<CallInfo[]>([]);
+    const [interviewList, setInterviewList] = useState<InterviewInfo[]>([]);
+    const [shopList, setShopList] = useState<ShopInfo[]>([]);
+    const [staffList, setStaffList] = useState<StaffInfo[]>([]);
+
+    // ⚠️ ログイン中の事業が後から分かったとき（AuthContext の読み込み待ち）はそちらに合わせる
+    useEffect(() => {
+        const filteredDivision = authorityMapping[shopName || ''] ?? '';
+        if (filteredDivision) setTargetDivision(filteredDivision);
+    }, [shopName]);
+
+    /**
+     * 日報データ（v2.2.167）。⚠️ **事業か月が変わるたびに取り直す。**
+     * ⚠️ サーバー（daily_report.php）はその事業の店舗・その月のログだけを返す。
+     * ⚠️ 切り替えが続いたときに古い応答で上書きしないよう alive で捨てる。
+     */
+    useEffect(() => {
+        let alive = true;
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const response = await apiClient.post('', {
+                    request: 'daily_report',
+                    division: targetDivision,
+                    month: targetMonth,
+                });
+                if (!alive) return;
+                if (response.data) {
+                    // ⚠️ shop はサーバーで読み替え済み
+                    setResponseList((response.data.response || [])
+                        .filter((r: ResponseInfo) => (!shopName || shopName === 'all') ? true : r.authority === reportShopOf(shopName)));
+                    setCallList(response.data.call || []);
+                    setInterviewList(response.data.interview || []);
+                    
+                    setShopList((response.data.shop || []).filter((s: ShopInfo) => Number(s.report_flag) === 1));
+                    const responseStaff = (response.data.staff || []).filter((s: StaffInfo) => Number(s.report) === 1)
+                        .sort((a: StaffInfo, b: StaffInfo) => {
+                            const positionA = positions.indexOf(a.position) !== -1 ? positions.indexOf(a.position) : 6;
+                            const positionB = positions.indexOf(b.position) !== -1 ? positions.indexOf(b.position) : 6;
+                            return positionA - positionB;
+                        });
+                    setStaffList(responseStaff || []);
+                }
+            } catch (error) {
+                console.error("日報データの取得に失敗しました:", error);
+            } finally {
+                if (alive) setIsLoading(false);
+            }
+        };
+        fetchData();
+        return () => { alive = false; };
+    }, [category, shopName, targetDivision, targetMonth]);
+
+    // ==========================================
+    // 💡 フィルタリング用データ生成
+    // ==========================================
+    const divisions = useMemo(() => {
+        return Array.from(new Set(shopList.filter(s => s.division !== '不動産企画室').map(s => s.division).filter(Boolean)));
+    }, [shopList]);
+
+    // ⚠️ targetDivision は常に入っている（v2.2.167。⚠️ 「全事業部」は無い）
+    const filteredShops = useMemo(() => {
+        return Array.from(new Set(shopList.filter(s => s.division === targetDivision).map(s => s.shop).filter(Boolean)));
+    }, [shopList, targetDivision]);
+
+    // ==========================================
+    // 💡 日付配列の生成 (当月の1日〜末日)
+    // ==========================================
+    const datesInMonth = useMemo(() => {
+        if (!targetMonth) return [];
+        const [y, m] = targetMonth.split('-').map(Number);
+        const lastDay = new Date(y, m, 0).getDate();
+        const dates: string[] = [];
+        for (let i = 1; i <= lastDay; i++) {
+            const d = String(i).padStart(2, '0');
+            dates.push(`${y}-${String(m).padStart(2, '0')}-${d}`);
+        }
+        return dates;
+    }, [targetMonth]);
+
+    // ==========================================
+    // 💡 店舗別・スタッフ別の一括集計
+    // ==========================================
+    const aggregatedData = useMemo(() => {
+        const shopData: Record<string, Record<string, DailyMetrics>> = {};
+        const staffData: Record<string, Record<string, DailyMetrics>> = {};
+
+        filteredShops.forEach(shop => {
+            shopData[shop] = {};
+            datesInMonth.forEach(d => shopData[shop][d] = createEmptyMetric());
+        });
+
+        const activeStaffs = staffList.filter(s => String(s.period) === '2027');
+        activeStaffs.forEach(staff => {
+            const sKey = removeSpaces(staff.name);
+            staffData[sKey] = {};
+            datesInMonth.forEach(d => staffData[sKey][d] = createEmptyMetric());
+        });
+
+        /**
+         * ログ・反響の担当者名 → staffData のキー。⚠️ 名字だけ・空白違いも拾う。
+         * ⚠️ 同じ名前が何度も出てくるので結果を覚えておく。
+         */
+        const staffKeyCache = new Map<string, string>();
+        const getStaffKey = (logStaffName: string | null | undefined) => {
+            if (!logStaffName) return '';
+            const cleanLogName = removeSpaces(logStaffName);
+            const cached = staffKeyCache.get(cleanLogName);
+            if (cached !== undefined) return cached;
+
+            let key = '';
+            if (staffData[cleanLogName]) {
+                key = cleanLogName;
+            } else {
+                const matched = activeStaffs.find(s => {
+                    const fullClean = removeSpaces(s.name);
+                    const lastName = s.name.split(/[\s　]+/)[0];
+                    return fullClean.includes(cleanLogName) ||
+                           cleanLogName.includes(fullClean) ||
+                           lastName === cleanLogName ||
+                           cleanLogName.includes(lastName);
+                });
+                key = matched ? removeSpaces(matched.name) : '';
+            }
+            staffKeyCache.set(cleanLogName, key);
+            return key;
+        };
+
+        /** 店舗とスタッフの両方に1件足す。⚠️ 月外の日付・対象外の店舗は数えない */
+        const add = (shop: string, staffKey: string, date: string, keys: (keyof DailyMetrics)[]) => {
+            const shopDay = shopData[shop]?.[date];
+            if (!shopDay) return;
+            const staffDay = staffKey ? staffData[staffKey]?.[date] : undefined;
+            keys.forEach(key => {
+                shopDay[key]++;
+                if (staffDay) staffDay[key]++;
+            });
+        };
+
+        const toDate = (value: string | null) => String(value || '').replace(/\//g, '-');
+
+        // 1. 反響・契約（⚠️ shop はサーバーで読み替え済み）
+        responseList.forEach(r => {
+            const shop = r.shop || '';
+            if (!shopData[shop]) return;
+            const staffKey = getStaffKey(r.staff);
+            const intDate = toDate(r.interview);
+            const appDate = toDate(r.appointment);
+
+            add(shop, staffKey, toDate(r.register), ['registers']);
+            add(shop, staffKey, intDate, ['interviews']);
+            if (appDate !== intDate) add(shop, staffKey, appDate, ['interviews']);
+            add(shop, staffKey, toDate(r.contract), ['contracts']);
+        });
+
+        // 2. 追客ログ・3. 商談ログ（⚠️ 行動ごとの項目は CALL_METRICS / INTERVIEW_METRICS）
+        const countLogs = (shop: string | null, json: string | null, metricsOf: Record<string, (keyof DailyMetrics)[]>) => {
+            if (!shop || !shopData[shop]) return;
+            parseLogs(json).forEach(log => {
+                const keys = metricsOf[log.action || ''];
+                if (!keys) return;
+                add(shop, getStaffKey(log.staff), toDate(log.day), keys);
+            });
+        };
+        callList.forEach(c => countLogs(c.shop, c.call_log, CALL_METRICS));
+        interviewList.forEach(i => countLogs(i.shop, i.interview_log, INTERVIEW_METRICS));
+
+        return { shopData, staffData };
+    }, [datesInMonth, responseList, callList, interviewList, staffList, filteredShops]);
+
+    // ==========================================
+    // 💡 UI / レンダリング関数
+    // ==========================================
+    const formatDateHeader = (dateStr: string) => {
+        const d = new Date(dateStr);
+        const days = ['日', '月', '火', '水', '木', '金', '土'];
+        const isWeekend = d.getDay() === 0 ? 'text-danger' : d.getDay() === 6 ? 'text-info' : '';
+        return (
+            <div className={isWeekend}>
+                <div style={{ fontSize: '14px' }}>{d.getDate()}</div>
+                <div style={{ fontSize: '10px', fontWeight: 'normal' }}>({days[d.getDay()]})</div>
+            </div>
+        );
+    };
+
+    // 💡 セル描画用コンポーネント (isTotalフラグを追加して背景色を強調)
+    const EntityCell = ({ data, division, rowShop, isTotal = false }: { data: DailyMetrics, division: string, rowShop: string, isTotal?: boolean }) => {
+        const hasKpi = data.registers > 0 || data.contracts > 0;
+        
+        const showOrder = division === '注文事業';
+        const showSpec = division === '建売分譲事業';
+        
+        const showRenove = division === '中古リノベ' || 
+                           rowShop === '中古住宅専門店' || 
+                           rowShop === '不動産企画係' || 
+                           targetShop === '中古住宅専門店' || 
+                           targetShop === '不動産企画係';
+
+        const isUnknown = !showOrder && !showSpec && !showRenove;
+
+        // 💡 isTotal の場合は背景色を変えて境界線を強調
+        const cellClass = `text-center align-top text-nowrap ${isTotal ? 'bg-light border-end border-3 border-secondary-subtle' : ''}`;
+
+        return (
+            <td className={cellClass} style={{ padding: '8px 6px', minWidth: '160px', fontSize: '11px', lineHeight: '1.5' }}>
+                <div 
+                    className={`p-2 mb-2 rounded border ${hasKpi ? 'border-primary' : 'border-light'}`}
+                    style={{ backgroundColor: hasKpi ? '#e7f1ff' : (isTotal ? '#fff' : '#f8f9fa') }}
+                >
+                    <div className={data.registers > 0 ? "text-primary fw-bold" : "text-muted"}>反響数: {data.registers}</div>
+                    <div className={data.contracts > 0 ? "text-success fw-bold" : "text-muted"}>契約数: {data.contracts}</div>
+                </div>
+
+                <div className="text-start mb-2 px-1">
+                    <div className="fw-bold text-secondary mb-1 border-bottom border-secondary-subtle" style={{ fontSize: '10px' }}>
+                        <i className="fa-solid fa-phone me-1"></i>追客
+                    </div>
+                    <div className={data.totalCalls > 0 ? "text-dark fw-bold" : "text-muted"}>架電: {data.totalCalls}</div>
+                    <div className={data.connected > 0 ? "text-success fw-bold" : "text-muted"}>通電数: {data.connected}</div>
+                    <div className={data.sms > 0 ? "text-dark fw-bold" : "text-muted"}>SMS送信: {data.sms}</div>
+                    <div className={data.email > 0 ? "text-dark fw-bold" : "text-muted"}>メール送信: {data.email}</div>
+                    <div className={data.postalMail > 0 ? "text-dark fw-bold" : "text-muted"}>資料郵送: {data.postalMail}</div>
+                </div>
+
+                <div className="text-start px-1">
+                    <div className="fw-bold text-secondary mb-1 border-bottom border-secondary-subtle" style={{ fontSize: '10px' }}>
+                        <i className="fa-solid fa-handshake me-1"></i>商談
+                    </div>
+                    
+                    {showOrder && (
+                        <>
+                            <div className={data.materialSend > 0 ? "text-info fw-bold" : "text-muted"}>資料送付: {data.materialSend}</div>
+                            <div className={data.zeroCustomer > 0 ? "text-info fw-bold" : "text-muted"}>0次接客: {data.zeroCustomer}</div>
+                            <div className={data.firstInterview > 0 ? "text-info fw-bold" : "text-muted"}>初回面談: {data.firstInterview}</div>
+                            <div className={data.subsequentInterview > 0 ? "text-info fw-bold" : "text-muted"}>2回目以降面談: {data.subsequentInterview}</div>
+                            <div className={data.preExam > 0 ? "text-info fw-bold" : "text-muted"}>事前審査: {data.preExam}</div>
+                            <div className={data.lineGroup > 0 ? "text-info fw-bold" : "text-muted"}>LINE作成: {data.lineGroup}</div>
+                            <div className={data.interviewContract > 0 ? "text-info fw-bold" : "text-muted"}>契約: {data.interviewContract}</div>
+                        </>
+                    )}
+
+                    {showSpec && (
+                        <>
+                            <div className={data.contact > 0 ? "text-info fw-bold" : "text-muted"}>接触(通話・返信): {data.contact}</div>
+                            <div className={data.firstInterview > 0 ? "text-info fw-bold" : "text-muted"}>初回面談: {data.firstInterview}</div>
+                            <div className={data.subsequentInterview > 0 ? "text-info fw-bold" : "text-muted"}>2回目以降面談: {data.subsequentInterview}</div>
+                            <div className={data.application > 0 ? "text-info fw-bold" : "text-muted"}>申し込み: {data.application}</div>
+                            <div className={data.ownContract > 0 ? "text-info fw-bold" : "text-muted"}>自社契約: {data.ownContract}</div>
+                            <div className={data.brokerageContract > 0 ? "text-info fw-bold" : "text-muted"}>仲介契約: {data.brokerageContract}</div>
+                        </>
+                    )}
+
+                    {showRenove && (
+                        <>
+                            <div className={data.firstInterview > 0 ? "text-info fw-bold" : "text-muted"}>初回面談: {data.firstInterview}</div>
+                            <div className={data.propertyTour > 0 ? "text-info fw-bold" : "text-muted"}>物件案内: {data.propertyTour}</div>
+                            <div className={data.subsequentInterview > 0 ? "text-info fw-bold" : "text-muted"}>2回目以降面談: {data.subsequentInterview}</div>
+                            <div className={data.preExam > 0 ? "text-info fw-bold" : "text-muted"}>事前審査: {data.preExam}</div>
+                            <div className={data.reformContract > 0 ? "text-info fw-bold" : "text-muted"}>リフォーム契約: {data.reformContract}</div>
+                            <div className={data.buySellContract > 0 ? "text-info fw-bold" : "text-muted"}>売買契約: {data.buySellContract}</div>
+                            <div className={data.assessmentApo > 0 ? "text-info fw-bold" : "text-muted"}>査定アポ: {data.assessmentApo}</div>
+                            <div className={data.assessmentSubmit > 0 ? "text-info fw-bold" : "text-muted"}>査定書提出: {data.assessmentSubmit}</div>
+                            <div className={data.visitAssessment > 0 ? "text-info fw-bold" : "text-muted"}>訪問査定: {data.visitAssessment}</div>
+                            <div className={data.brokerageAcquisition > 0 ? "text-info fw-bold" : "text-muted"}>媒介取得: {data.brokerageAcquisition}</div>
+                        </>
+                    )}
+
+                    {isUnknown && (
+                        <div className="text-muted" style={{ fontSize: '9px' }}>設定外の事業部です({division || rowShop || '未設定'})</div>
+                    )}
+                </div>
+            </td>
+        );
+    };
+
+    // ⚠️ 事業別の行（'division'）は v2.2.167 で廃止（⚠️ 「全事業部」が無くなったため）
+    const renderRow = (name: string, data: Record<string, DailyMetrics>, type: 'shop' | 'staff') => {
+        if (!data) return null;
+
+        let rowDivision = '';
+        let rowShop = '';
+        if (type === 'shop') {
+            rowDivision = shopList.find(s => s.shop === name)?.division || '';
+            rowShop = name;
+        } else if (type === 'staff') {
+            const staffShop = staffList.find(s => s.name === name)?.shop;
+            rowDivision = shopList.find(s => s.shop === staffShop)?.division || '';
+            rowShop = staffShop || '';
+        }
+
+        // 💡 該当行の全日付分を合算し「総数」を算出する
+        const monthlyTotal = createEmptyMetric();
+        Object.values(data).forEach(dayData => {
+            (Object.keys(monthlyTotal) as (keyof DailyMetrics)[]).forEach(key => {
+                monthlyTotal[key] += dayData[key];
+            });
+        });
+
+        return (
+            <tr key={name}>
+                <th style={{ position: 'sticky', left: 0, backgroundColor: '#fff', zIndex: 2, boxShadow: 'inset -1px 0 0 #dee2e6', verticalAlign: 'middle' }} className="text-start text-dark fw-bold">
+                    {type === 'shop' && <i className="fa-solid fa-shop text-warning me-2" style={{ marginLeft: '10px' }}></i>}
+                    {type === 'staff' && <i className="fa-solid fa-user-tie text-muted me-2" style={{ marginLeft: '20px' }}></i>}
+                    {name}
+                </th>
+                
+                {/* 💡 総数列をレンダリング（isTotal を true にして背景を調整） */}
+                <EntityCell data={monthlyTotal} division={rowDivision} rowShop={rowShop} isTotal={true} />
+                
+                {datesInMonth.map(d => (
+                    <EntityCell key={d} data={data[d]} division={rowDivision} rowShop={rowShop} />
+                ))}
+            </tr>
+        );
+    };
+
+    const displayTitle = targetShop ? `${targetShop} 月次日報` : targetDivision ? `${targetDivision} 月次日報` : '全社 月次日報';
+
+    return (
+        // 全画面モーダルの中で使う想定。100vh を直接指定すると
+        // モーダルのヘッダー分だけはみ出すため、親から与えられた高さいっぱいに広がる。
+        // minHeight: 0 が無いと flex 子要素が縮まず、表の内部スクロールが効かない。
+        <div
+            className="d-flex flex-column p-3 p-md-4"
+            style={{ backgroundColor: '#fafbfe', height: '100%', minHeight: 0 }}
+        >
+            {/*
+              ⚠️ 最新の他社分析（v2.2.165）。⚠️ 日報の見出しの上に置く。
+              ⚠️ 押すと「Claudeによる競合分析」のページへ移る（onOpenCompetitorReports。headerScreens.tsx）。
+              ⚠️ 件数が1件以上のときだけ色を付ける（⚠️ 0件のときは控えめに出す）。
+            */}
+            <style>{`
+                .dr_recent { display: inline-flex; align-items: center; gap: 12px; align-self: flex-start;
+                             background: #fff; border: 1px solid #e8e6dc; border-radius: 12px;
+                             box-shadow: 0 1px 2px rgba(15, 23, 42, .05); padding: 10px 16px;
+                             color: #1f2937; text-align: left; }
+                .dr_recent.is_link { cursor: pointer; }
+                .dr_recent.is_link:hover { border-color: ${CLAUDE_ORANGE}; box-shadow: 0 2px 8px rgba(217, 119, 87, .15); }
+                .dr_recent:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
+                .dr_recent_icon { width: 32px; height: 32px; border-radius: 8px; display: inline-flex;
+                                  align-items: center; justify-content: center; background: #f3f4f6; color: #6b7280; }
+                .dr_recent.has_new .dr_recent_icon { background: ${CLAUDE_ORANGE}; color: #fff; }
+                .dr_recent_label { font-size: 12px; color: #6b7280; line-height: 1.2; }
+                .dr_recent_count { font-size: 18px; font-weight: 800; line-height: 1.2; }
+                .dr_recent.has_new .dr_recent_count { color: ${CLAUDE_ORANGE}; }
+                .dr_recent_count small { font-size: 12px; font-weight: 700; margin-left: 2px; color: #4b5563; }
+                .dr_recent_go { font-size: 11px; color: #9ca3af; margin-left: 4px; }
+            `}</style>
+            <button
+                type="button"
+                className={`dr_recent mb-3 flex-shrink-0${onOpenCompetitorReports ? ' is_link' : ''}${(recentReports ?? 0) > 0 ? ' has_new' : ''}`}
+                onClick={onOpenCompetitorReports}
+                disabled={!onOpenCompetitorReports}
+                title={`直近${RECENT_DAYS}日以内に登録された他社分析レポート`}
+            >
+                <span className="dr_recent_icon"><i className="fa-solid fa-chart-pie" aria-hidden="true" /></span>
+                {/* ⚠️ 指示書の表記どおり「最新の他社分析 〇件」を1行で */}
+                <span className="d-inline-flex align-items-baseline gap-2">
+                    <span className="dr_recent_label">最新の他社分析</span>
+                    <span className="dr_recent_count">
+                        {recentReports === null ? '－' : recentReports}<small>件</small>
+                    </span>
+                </span>
+                {onOpenCompetitorReports && <span className="dr_recent_go">開く <i className="fa-solid fa-chevron-right" aria-hidden="true" /></span>}
+            </button>
+
+            <div className="d-flex flex-wrap justify-content-between align-items-end mb-3 border-bottom pb-3 gap-3 flex-shrink-0">
+                <h4 className="fw-bold text-secondary mb-0" style={{ letterSpacing: '1px' }}>
+                    <i className="fa-solid fa-calendar-days me-2 text-primary"></i>{displayTitle}
+                </h4>
+
+                <div className="d-flex flex-wrap gap-2 align-items-center">
+                    <select
+                        className="form-select form-select-sm shadow-sm border-primary text-primary fw-bold"
+                        style={{ width: 'auto', cursor: 'pointer', minWidth: '120px' }}
+                        value={targetMonth}
+                        onChange={e => setTargetMonth(e.target.value)}
+                    >
+                        {monthOptions.map(month => <option key={month} value={month}>{month.replace('-', '年')}月</option>)}
+                    </select>
+
+                    <select
+                        className="form-select form-select-sm shadow-sm"
+                        style={{ width: 'auto', cursor: 'pointer', minWidth: '130px' }}
+                        value={targetDivision}
+                        onChange={e => {
+                            setTargetDivision(e.target.value);
+                            setTargetShop('');
+                        }}
+                    >
+                        {/* ⚠️ 「全事業部」は無い（v2.2.167。⚠️ 全事業を一度に取ると応答が返らない） */}
+                        {divisions.map(div => <option key={div} value={div}>{div}</option>)}
+                    </select>
+
+                    <select
+                        className="form-select form-select-sm shadow-sm"
+                        style={{ width: 'auto', cursor: 'pointer', minWidth: '130px' }}
+                        value={targetShop}
+                        onChange={e => setTargetShop(e.target.value)}
+                    >
+                        <option value="">全店舗</option>
+                        {filteredShops.map(shop => <option key={shop} value={shop}>{shop}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            {isLoading ? (
+                <div className="text-center mt-5">
+                    <div className="spinner-border text-primary" role="status"></div>
+                    <div className="mt-2 text-muted">データを集計中...</div>
+                </div>
+            ) : (
+                // 残りの縦幅をすべて表に渡す。スクロールは table-responsive が持ち、
+                // thead / 1列目の sticky はこのスクロール枠を基準に効く
+                <Card className="shadow-sm border-0 rounded-3 flex-grow-1 d-flex flex-column" style={{ minHeight: 0 }}>
+                    <Card.Body className="p-0 flex-grow-1 d-flex flex-column" style={{ minHeight: 0 }}>
+                        <div className="table-responsive flex-grow-1" style={{ minHeight: 0 }}>
+                            <Table bordered hover className="mb-0 text-center text-nowrap" style={{ fontSize: '12px' }}>
+                                <thead style={{ position: 'sticky', top: 0, zIndex: 3 }}>
+                                    <tr>
+                                        <th style={{ position: 'sticky', left: 0, top: 0, backgroundColor: '#0f3675', color: '#fff', zIndex: 4, minWidth: '180px', verticalAlign: 'middle' }}>
+                                            項目 / 日付
+                                        </th>
+                                        
+                                        {/* 💡 総数用のヘッダーを追加 */}
+                                        <th style={{ top: 0, backgroundColor: '#0c2e63', color: '#fff', zIndex: 3, minWidth: '160px', verticalAlign: 'middle' }}>
+                                            合計
+                                        </th>
+                                        
+                                        {datesInMonth.map(date => (
+                                            <th key={date} style={{ backgroundColor: '#0f3675', color: '#fff', minWidth: '120px', verticalAlign: 'middle' }}>
+                                                {formatDateHeader(date)}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {!targetShop && (
+                                        <>
+                                            <tr>
+                                                {/* 💡 colSpan を調整 (datesInMonth.length + 2) */}
+                                                <th colSpan={datesInMonth.length + 2} className="bg-light text-secondary text-start px-3 py-2 border-bottom-0">
+                                                    <i className="fa-solid fa-folder-open me-2"></i>【{targetDivision}】店舗サマリ
+                                                </th>
+                                            </tr>
+                                            {filteredShops.map(shop => renderRow(shop, aggregatedData.shopData[shop], 'shop'))}
+                                        </>
+                                    )}
+
+                                    {targetShop && (
+                                        <>
+                                            <tr>
+                                                <th colSpan={datesInMonth.length + 2} className="bg-light text-secondary text-start px-3 py-2 border-bottom-0">
+                                                    <i className="fa-solid fa-store me-2"></i>【{targetShop}】全体サマリ
+                                                </th>
+                                            </tr>
+                                            {renderRow(targetShop, aggregatedData.shopData[targetShop], 'shop')}
+
+                                            <tr>
+                                                <th colSpan={datesInMonth.length + 2} className="bg-light text-secondary text-start px-3 py-2 mt-2 border-bottom-0" style={{ borderTop: '2px solid #dee2e6' }}>
+                                                    <i className="fa-solid fa-users me-2"></i>スタッフ別 行動アクション
+                                                </th>
+                                            </tr>
+                                            {staffList
+                                                .filter(s => String(s.period) === '2027' && s.shop === targetShop)
+                                                .map(staff => renderRow(staff.name, aggregatedData.staffData[removeSpaces(staff.name)], 'staff'))
+                                            }
+                                        </>
+                                    )}
+                                </tbody>
+                            </Table>
+                        </div>
+                    </Card.Body>
+                </Card>
+            )}
+        </div>
+    );
+};
+
+export default DailyReports;

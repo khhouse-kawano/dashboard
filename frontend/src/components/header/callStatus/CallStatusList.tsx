@@ -1,0 +1,589 @@
+import React, { useMemo, useState, useEffect, useContext } from 'react';
+import Table from 'react-bootstrap/Table';
+import Modal from 'react-bootstrap/Modal';
+import Form from 'react-bootstrap/Form';
+import Badge from 'react-bootstrap/Badge';
+import Spinner from 'react-bootstrap/Spinner';
+import apiClient from '../../../utils/apiClient';
+import { staffSorter } from '../../../utils/staffSorter';
+import { getYearMonthArray } from '../../../utils/getYearMonthArray';
+import { thisYear } from '../../../utils/thisYear';
+import AuthContext from '../../../context/AuthContext';
+
+
+// --- Types ---
+type shopList = { brand: string, shop: string, section: string, show_flag: number };
+type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string, inside: number, section: string };
+type CallLogList = {
+    id: string;
+    shop: string;
+    name: string;
+    staff: string;
+    status: string;
+    reserved_status: string;
+    call_log: string;
+    add: Boolean;
+};
+type CustomerList = Record<string, string>;
+type CallAction = {
+    day: string;
+    time: string;
+    action: string;
+    note: string;
+    staff: string;
+};
+type Props = {
+    callStatusShow: boolean,
+    setCallStatusShow: React.Dispatch<React.SetStateAction<boolean>>,
+    source?: string
+};
+
+const parseLogs = (raw: string | null | undefined): CallAction[] => {
+    if (!raw || raw.trim() === "") return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+        if (typeof parsed === "object") return [parsed];
+        return [];
+    } catch {
+        return [];
+    }
+};
+
+const filteredStaffName = (value: string) => {
+    if (!value) return '';
+    return value.includes('牟田') ? '牟田' : value.replace(/[  ]+/g, '');
+};
+
+const dateFormate = (value: string) => (value ?? '').replace(/-/g, '/');
+
+/**
+ * 総架電数に数える action（v2.2.186）。
+ * ⚠️ 2026-10-10 の指示で ⚠️ **SMS送信も総架電数に入れる**（それまでは 通電・未通電 だけ）。
+ * ⚠️ 通電数は 通電 だけ（変更なし）。⚠️ インサイドセールス表示の「SMS送信数」の行は別に残る（SMS は両方に出る）。
+ * ⚠️ 店舗スタッフ表示とインサイドセールス表示の両方でこの一覧を使う（⚠️ 片方だけ直さない）。
+ */
+const CALL_COUNT_ACTIONS = ['通電', '未通電', 'SMS送信'];
+const isCallCountAction = (action: string): boolean => CALL_COUNT_ACTIONS.includes(action);
+
+/**
+ * インサイドセールスの対象店舗。
+ *
+ * ⚠️ 基本は `section === '熊本営業課'` だが、2026-09-18 の指示で
+ *   `PGH霧島店`（section は熊本営業課ではない）も対象に加えた。
+ * ⚠️ 絞り込み（targetShopList）と表の行（displayShops）の2か所で使う。
+ *   片方だけ直すと「表には出るのに数字が0」「数字はあるのに行が出ない」になる。
+ */
+const INSIDE_SALES_SECTION = '熊本営業課';
+const INSIDE_SALES_EXTRA_SHOPS = ['PGH霧島店'];
+const isInsideSalesShop = (s: shopList): boolean =>
+    s.section === INSIDE_SALES_SECTION || INSIDE_SALES_EXTRA_SHOPS.includes(s.shop);
+
+/** 合計行の見出し。⚠️ 熊本営業課以外も含むため「熊本営業課」とは書かない。 */
+const INSIDE_SALES_TOTAL_LABEL = 'インサイドセールス全体';
+
+const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) => {
+    const [insideSalesCategory, setInsideSalesCategory] = useState('');
+    const [targetShop, setTargetShop] = useState('');
+    const [callLogList, setCallLogList] = useState<CallLogList[]>([]);
+    const [shopArray, setShopArray] = useState<shopList[]>([]);
+    const [staffArray, setStaffArray] = useState<staffList[]>([]);
+    const now = useMemo(() => new Date(), []);
+    const yearValue = now.getFullYear();
+    const monthValue = now.getMonth() + 1;
+    const [monthArray, setMonthArray] = useState<string[]>([]);
+    const [originalDatabase, setOriginalDatabase] = useState<CustomerList[]>([]);
+    const { category } = useContext(AuthContext);
+    const categoryValue = source ?? category;
+    const [targetInsideSales, setTargetInsideSales] = useState('');
+
+    /**
+     * 読み込み中の表示（v2.2.177）。
+     *
+     * ⚠️ 時間がかかるのは2か所: ① 取得（call_sheet 全件など）② 表の集計（⚠️ 描画の中で全架電記録を数えている）。
+     *   ・loading   … 取得中
+     *   ・rendering … ⚠️ 表を描く前に一度スピナーを描かせるための目印。
+     *     ⚠️ 集計は同期処理で画面が固まるので、⚠️ **先にスピナーを描いてから**（setTimeout）表を描く。
+     *     ⚠️ 店舗・担当を切り替えたときも立てる（⚠️ 集計し直しになるため）。
+     */
+    const [loading, setLoading] = useState(false);
+    const [rendering, setRendering] = useState(true);
+    useEffect(() => {
+        if (!rendering || loading) return;
+        const timer = window.setTimeout(() => setRendering(false), 50);
+        return () => window.clearTimeout(timer);
+    }, [rendering, loading]);
+
+    useEffect(() => {
+        setMonthArray(getYearMonthArray(2025, 1));
+        if (!callStatusShow) return;
+        const fetchData = async () => {
+            setLoading(true);
+            setRendering(true);
+            try {
+                const response = await apiClient.post('', { request: 'callStatusList', category: categoryValue });
+                /*
+                  ⚠️⚠️ 応答の形を先に確かめる（v2.2.177 修正: `Cannot read properties of undefined (reading 'map')`）。
+                    ⚠️ 応答は 45〜60MB と大きく、⚠️ エラーの本文（{ status: 'error' … }）や途中で切れた応答だと
+                      ⚠️ callLog が無い。⚠️ 以前はそのまま setCallLogList(undefined) して ⚠️ **描画で落ちていた**（画面が真っ白）。
+                    ⚠️ 配列が揃っていなければ ⚠️ **何も state に入れずに**失敗として扱う。
+                */
+                const body = response?.data;
+                if (!body || !Array.isArray(body.callLog) || !Array.isArray(body.shop)
+                    || !Array.isArray(body.customer) || !Array.isArray(body.staff)) {
+                    console.error('架電状況の応答が正しくありません', typeof body === 'object' && body ? Object.keys(body) : typeof body);
+                    throw new Error('invalid callStatusList response');
+                }
+                /*
+                  ⚠️ v2.2.177 修正（指示）: ⚠️ **show_dashboard = 1 の顧客だけ**を集計の対象にする。
+                    ⚠️ サーバーは全件返す（⚠️ show_dashboard は `trash` という名前で入っている。⚠️ 名前と中身が逆なので注意）。
+                    ⚠️ 架電シートも ⚠️ **この事業の show_dashboard = 1 の顧客の分だけ**にする
+                      （⚠️ 非表示の顧客への架電を数えない）。⚠️ 顧客台帳に無い id の架電シートも数えない。
+                */
+                const visibleCustomers = body.customer.filter((o: any) => Number(o.trash) === 1);
+                const visibleIds = new Set(visibleCustomers.map((o: any) => String(o.id)));
+                setCallLogList(body.callLog.filter((c: any) => visibleIds.has(String(c.id))));
+                const divisionMapping: Record<string, string> = {
+                    'order': '注文事業',
+                    'spec': '建売分譲事業',
+                    'used': '中古リノベ'
+                };
+                const filteredShopList = body.shop.filter((s: any) => s.division === divisionMapping[categoryValue] && s.show_flag === 1);
+                setShopArray(filteredShopList);
+                setOriginalDatabase(visibleCustomers);
+                setStaffArray(body.staff.filter((s: any) => Number(s.period) === thisYear));
+
+                if (categoryValue === 'order') {
+                    setInsideSalesCategory('inside_sales');
+                    setTargetShop('inside_sales');
+                } else if (categoryValue === 'used') {
+                    setInsideSalesCategory('shopStaff');
+                    setTargetShop('中古住宅専門店');
+                } else {
+                    setInsideSalesCategory('shopStaff');
+                    setTargetShop(filteredShopList.map((f: any) => f.shop)[0]);
+                }
+            } catch (error) {
+                alert('架電状況の取得に失敗しました');
+                console.error(error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+
+
+    }, [callStatusShow]);
+
+    const insideSaleStaffs = staffArray.filter(s => s.inside === 1);
+
+    const targetShopList = useMemo(() => {
+        if (categoryValue === 'order') {
+            if (targetShop === 'inside_sales') {
+                return shopArray.filter(isInsideSalesShop).map(s => s.shop);
+            }
+            return shopArray.filter(s => s.shop === targetShop).map(s => s.shop);
+        }
+        if (categoryValue === 'spec') {
+            return shopArray.filter(s => s.shop === targetShop).map(s => s.shop);
+        }
+        if (categoryValue === 'used') {
+            return ['買い:中古リノベ', '買い:ポータル', '売り:ポータル'];
+        }
+        return [];
+    }, [targetShop, shopArray, categoryValue]);
+
+    const changedStaff = useMemo(() => {
+        if (category === 'used') return staffArray.filter(s => s.section === '中古住宅専門店');
+        return staffArray.sort(staffSorter()).filter(s =>
+            s.rank === 1 && (targetShop === 'estate' ? s.estate === 1 : (targetShop ? s.shop === targetShop : false))
+        );
+    }, [staffArray, targetShop]);
+
+    const parsedCallLogs = useMemo(() => {
+        // ⚠️ 念のため配列でなければ空（⚠️ 描画で落とさない）
+        return (Array.isArray(callLogList) ? callLogList : []).map(log => ({
+            ...log,
+            parsedActions: parseLogs(log.call_log)
+        }));
+    }, [callLogList]);
+
+    const targetCallLog = useMemo(() => {
+        return parsedCallLogs.filter(c => targetShop !== 'estate' ? targetShopList.includes(c.shop) : true);
+    }, [parsedCallLogs, targetShop, targetShopList]);
+
+    /**
+     * ⚠️⚠️ v2.2.177: 店舗スタッフ表示は ⚠️ **架電シートの店舗（call_sheet.shop）で絞らない**（指示書）。
+     *   ⚠️ スタッフ名だけで、⚠️ **全ての架電記録**から数える（⚠️ 所属店舗以外の顧客への架電も入る）。
+     *   ⚠️ 以前は targetCallLog（選んだ店舗の架電シートだけ）から取っていた。
+     * ⚠️ インサイドセールス表示（renderInsideSalesList）は従来どおり targetCallLog を使う。
+     */
+    const allParsedActions = useMemo(() => {
+        return parsedCallLogs.flatMap(log => log.parsedActions);
+    }, [parsedCallLogs]);
+
+    const safeFormate = (value: string): string => {
+        return (value ?? '').replace(/[\s\u3000]+/g, '');
+    };
+
+    const filteredCustomer = useMemo(() => {
+        let ids: string[] = [];
+
+        if (targetInsideSales && targetShop === 'inside_sales') {
+            ids = parsedCallLogs.filter(c =>
+                c.parsedActions.some(action =>
+                    safeFormate(action.staff).includes(safeFormate(targetInsideSales))
+                )
+            ).map(c => c.id);
+        }
+
+        return originalDatabase.filter(o => {
+            const isShopMatch = targetShop !== 'estate' ? targetShopList.includes(o.shop) : true;
+            const isStaffMatch = (targetInsideSales && targetShop === 'inside_sales') ? ids.includes(o.id) : true;
+            return isShopMatch && isStaffMatch;
+        });
+
+    }, [originalDatabase, targetShop, targetShopList, targetInsideSales, parsedCallLogs]);
+
+    const isThisMonth = (month: string) => month === `${String(yearValue).padStart(2, '0')}/${String(monthValue).padStart(2, '0')}`;
+    const formate = (value: number, month: string) => {
+        const [yearStr, monthStr] = month.split('/');
+        const days = new Date(Number(yearStr), Number(monthStr), 0).getDate();
+        return isThisMonth(month) ? (value * days) / now.getDate() : value;
+    };
+
+    const renderInsideSalesList = () => {
+        /** ⚠️ 表に出す月（v2.2.177 修正: 合計列もこの月だけで数える） */
+        const insideMonths = monthArray.slice(8);
+        // ⚠️ 先頭は合計行。sIndex === 0 を isTotalRow として扱うので、並び順を変えないこと。
+        const displayShops: shopList[] = [
+            { brand: '', shop: INSIDE_SALES_TOTAL_LABEL, section: INSIDE_SALES_SECTION, show_flag: 1 },
+            ...shopArray.filter(isInsideSalesShop),
+        ];
+        const metrics = ['総反響数', '対応反響数', '対応中', 'アポ取得数', '対応反響数からの来場数', '総架電数', '資料郵送数', 'SMS送信数', 'メール送信数'];
+
+        return (
+            <div className="table-responsive shadow-sm rounded mb-3 border" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                <Table hover className="mb-0 bg-white" style={{ minWidth: `${monthArray.slice(8).length * 110 + 220}px` }} bordered>
+                    <thead className="bg-light text-muted" style={{ fontSize: '12px' }}>
+                        <tr>
+                            <th className="bg-light" style={{ position: 'sticky', top: 0, left: 0, width: '120px', minWidth: '120px', zIndex: 3 }}>店舗</th>
+                            <th className="bg-light border-end" style={{ position: 'sticky', top: 0, left: '120px', width: '160px', minWidth: '160px', zIndex: 3 }}>種別</th>
+                            <th className="bg-light text-center" style={{ position: 'sticky', top: 0, width: '80px', zIndex: 2 }}>合計</th>
+                            {monthArray.slice(8).map((month, mIndex) => (
+                                <th key={mIndex} className="bg-light text-center" style={{ position: 'sticky', top: 0, minWidth: '100px', zIndex: 2 }}>{month}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody style={{ fontSize: '12px' }} className="align-middle">
+                        {displayShops.map((s, sIndex) => {
+                            // 💡 1. この行が「合計行（インデックス0）」かどうかを判定
+                            const isTotalRow = sIndex === 0;
+
+                            // 💡 2. 対象の店舗 ＆ 担当者で CallLog を正確に絞り込む（Unicodeエスケープ対策済）
+                            const customerFilter = targetCallLog.filter(c => {
+                                const shopMatch = isTotalRow ? true : c.shop === s.shop;
+                                const staffMatch = targetInsideSales
+                                    ? c.parsedActions.some(action => safeFormate(action.staff).includes(safeFormate(targetInsideSales)))
+                                    : true;
+                                return shopMatch && staffMatch;
+                            });
+
+                            // 💡 3. 各ベース配列を「この行の店舗」にスコープを限定する
+                            const registerFilter = originalDatabase.filter(o => isTotalRow ? targetShopList.includes(o.shop) : o.shop === s.shop);
+                            // 全体を絞り込んだ filteredCustomer を、さらにこの行の店舗で絞り込む
+                            const calledCustomer = filteredCustomer.filter(c => isTotalRow ? true : c.shop === s.shop);
+
+                            // 💡 4. アクション（架電やSMS）も、この行の customerFilter から展開する
+                            const base = customerFilter.flatMap(c => c.parsedActions).filter(a =>
+                                targetInsideSales ? safeFormate(a.staff).includes(safeFormate(targetInsideSales)) : true
+                            );
+
+                            // ⚠️ v2.2.186: SMS送信も総架電数に入れる（CALL_COUNT_ACTIONS）
+                            const callFilter = base.filter(p => isCallCountAction(p.action));
+                            const postFilter = base.filter(p => p.action === '資料郵送');
+                            const mailFilter = base.filter(p => p.action === 'メール送信');
+                            const smsFilter = base.filter(p => p.action === 'SMS送信');
+
+                            const continueFilter = customerFilter.filter(c => c.status === '継続');
+                            const appointFilter = customerFilter.filter(c => c.status === '来場アポ');
+                            const interviewFilter = customerFilter.filter(c => c.status === '来場済み');
+
+                            return metrics.map((metric, index) => {
+                                const isImportant = index === 3 || index === 4;
+                                return (
+                                    <tr key={`${sIndex}-${index}`}>
+                                        {index === 0 && (
+                                            <td rowSpan={9} className="align-middle fw-bold bg-white" style={{ position: 'sticky', left: 0, width: '120px', minWidth: '120px', zIndex: 1 }}>
+                                                {s.shop}
+                                            </td>
+                                        )}
+                                        <td className={`border-end bg-white ${index === 4 ? 'text-primary' : index === 3 ? 'text-danger' : 'text-secondary'}`} style={{ position: 'sticky', left: '120px', zIndex: 1 }}>
+                                            {isImportant ? <Badge bg={index === 3 ? 'danger' : 'primary'} className="me-1">{metric}</Badge> : metric}
+                                        </td>
+
+                                        {['total', ...monthArray.slice(8)].map((month, mIndex) => {
+                                            /*
+                                              ⚠️ v2.2.177 修正: 合計列は ⚠️ **表に出ている月（monthArray.slice(8)）の分だけ**。
+                                                ⚠️ 以前は全期間（mIndex === 0 なら true）で、⚠️ 月の列を足しても合計と合わなかった。
+                                                ⚠️ 月の列と同じ判定（includes）を表示中の月で回すので、⚠️ 月の列の合計と必ず一致する。
+                                            */
+                                            const monthMatch = (dateStr: string) => mIndex === 0
+                                                ? insideMonths.some(m => dateFormate(dateStr).includes(m))
+                                                : dateFormate(dateStr).includes(month);
+
+                                            let value: string | number = 0;
+                                            if (index === 0) value = registerFilter.filter(r => monthMatch(r.register)).length;
+                                            else if (index === 1) value = calledCustomer.filter(c => monthMatch(c.register)).length;
+                                            else if (index === 2) {
+                                                value = continueFilter.filter(c => {
+                                                    const newest = c.parsedActions.length > 0 ? c.parsedActions[c.parsedActions.length - 1] : null;
+                                                    return newest ? monthMatch(newest.day) : false;
+                                                }).length;
+                                            }
+                                            else if (index === 3) {
+                                                const appts = appointFilter.filter(c => monthMatch(c.reserved_status)).length;
+                                                const ints = interviewFilter.filter(c => monthMatch(c.reserved_status)).length;
+                                                const baseCount = calledCustomer.filter(c => monthMatch(c.register)).length;
+                                                const rate = baseCount > 0 ? Math.ceil((appts + ints) / baseCount * 1000) / 10 : 0;
+                                                value = `${appts + ints} (${rate}%)`;
+                                            }
+                                            else if (index === 4) value = interviewFilter.filter(c => monthMatch(c.reserved_status)).length;
+                                            else if (index === 5) value = callFilter.filter(c => monthMatch(c.day)).length;
+                                            else if (index === 6) value = postFilter.filter(c => monthMatch(c.day)).length;
+                                            else if (index === 7) value = smsFilter.filter(c => monthMatch(c.day)).length;
+                                            else if (index === 8) value = mailFilter.filter(c => monthMatch(c.day)).length;
+
+                                            return (
+                                                <td key={mIndex} className={`text-end ${mIndex === 0 ? 'fw-bold bg-light' : ''} ${index === 4 ? 'text-primary fw-bold' : index === 3 ? 'text-danger fw-bold' : ''}`}>
+                                                    {value}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            });
+                        })}
+                    </tbody>
+                </Table>
+            </div>
+        );
+    };
+
+    const renderShopStaffList = () => {
+        /** ⚠️ 表に出す月（v2.2.177 修正: 合計列もこの月だけで数える） */
+        const staffMonths = monthArray.slice(12);
+        console.log(changedStaff)
+        const staffListToRender = [{ name: '合計', shop: '', pg_id: '', category: 0, estate: 1 } as unknown as staffList, ...changedStaff];
+        const targetCategories = targetShop === 'estate' ? ['土地新着ネット反響数', '総架電数', '通電数', 'アポ取得数', '架電からの来場数'] : ['総架電数', '通電数', 'アポ取得数', '架電からの来場数'];
+
+        return (
+            <div className="table-responsive shadow-sm rounded mb-3 border" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                <Table hover className="mb-0 bg-white" style={{ minWidth: `${monthArray.slice(12).length * 100 + 470}px` }} bordered>
+                    <thead className="bg-light text-muted" style={{ fontSize: '12px' }}>
+                        <tr>
+                            <th className="bg-light" style={{ position: 'sticky', top: 0, left: 0, width: '150px', minWidth: '150px', zIndex: 3 }}>担当</th>
+                            <th className="bg-light border-end" style={{ position: 'sticky', top: 0, left: '150px', width: '240px', minWidth: '240px', zIndex: 3 }}>種別</th>
+                            <th className="bg-light text-center" style={{ position: 'sticky', top: 0, width: '80px', zIndex: 2 }}>合計</th>
+                            {monthArray.slice(12).map((month, idx) => (
+                                <th key={idx} className="bg-light text-center" style={{ position: 'sticky', top: 0, minWidth: '100px', zIndex: 2 }}>{month}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody style={{ fontSize: '12px' }} className="align-middle">
+                        {staffListToRender.map((staff, sIndex) => {
+                            const fStaffName = filteredStaffName(staff.name);
+                            const validStaffNames = targetShop === 'estate' ? staffArray.filter(s => s.estate === 1).map(s => filteredStaffName(s.name)) : staffArray.filter(s => targetShop ? s.shop === targetShop : true).map(s => filteredStaffName(s.name));
+
+                            /*
+                              ⚠️ v2.2.177: 架電シートは ⚠️ **店舗で絞らない**（parsedCallLogs = 全件）。
+                                ⚠️ そのスタッフが担当（c.staff）か、架電記録に名前がある顧客。
+                                ⚠️ 土地新着ネット（estate）は以前から店舗で絞っていないので結果は同じ。
+                            */
+                            const staffLogs = parsedCallLogs.filter(c => {
+                                if (sIndex > 0) {
+                                    return filteredStaffName(c.staff) === fStaffName || c.parsedActions.some(l => filteredStaffName(l.staff) === fStaffName);
+                                }
+                                return validStaffNames.includes(filteredStaffName(c.staff)) || c.parsedActions.some(l => validStaffNames.includes(filteredStaffName(l.staff)));
+                            });
+
+                            /*
+                              ⚠️ v2.2.177: アポ取得数・架電からの来場数も ⚠️ **店舗で絞らない**（2026-10-08 合意）。
+                                ⚠️ 架電数だけ全店舗にすると「架電 → アポ → 来場」の比率が合わなくなるため。
+                                ⚠️ 以前は filteredCustomer（選んだ店舗の顧客）で引いていた → ⚠️ originalDatabase（この事業の全顧客）。
+                            */
+                            const appointLogIds = new Set(staffLogs.filter(c => c.status === '来場アポ').map(c => c.id));
+                            const appointCustomerRegs = originalDatabase.filter(o => appointLogIds.has(o.id)).map(o => o.register);
+
+                            const interviewLogIds = new Set(staffLogs.filter(c => c.status === '来場済み').map(c => c.id));
+                            const interviewCustomerRegs = originalDatabase.filter(o => interviewLogIds.has(o.id)).map(o => o.register);
+
+                            const estateResponses = filteredCustomer.filter(o => o.medium === '土地新着ネット' && (sIndex === 0 || o.staff === staff.name));
+
+                            return targetCategories.map((category, cIndex) => {
+                                const isEstate = targetShop === 'estate';
+                                const subText = isEstate && sIndex > 0 ? (category === '総架電数' ? ' (目標100件)' : category === '通電数' ? ' (目標15件)' : category === 'アポ取得数' ? ' (目標2件)' : '') : '';
+
+                                return (
+                                    <tr key={`${sIndex}-${cIndex}`}>
+                                        {cIndex === 0 && (
+                                            <td rowSpan={targetCategories.length} className="align-middle fw-bold bg-white" style={{ position: 'sticky', left: 0, width: '150px', minWidth: '150px', zIndex: 1 }}>
+                                                {sIndex === 0 ? `${targetShop.replace('estate', '土地新着ネット')}合計` : staff.name}
+                                            </td>
+                                        )}
+                                        <td className="border-end bg-white text-secondary" style={{ position: 'sticky', left: '150px', width: '240px', minWidth: '240px', zIndex: 1 }}>
+                                            {category} <span className="text-muted" style={{ fontSize: '10px' }}>{subText}</span>
+                                        </td>
+                                        {(() => {
+                                            const preFilteredActions = (category === '総架電数' || category === '通電数')
+                                                // ⚠️ v2.2.177: 全架電記録から（⚠️ 店舗で絞らない。スタッフ名だけ）
+                                                ? allParsedActions.filter(log => {
+                                                    const staffName = filteredStaffName(log.staff);
+                                                    const isTargetStaff = sIndex > 0 ? staffName === fStaffName : validStaffNames.includes(staffName);
+
+                                                    if (!isTargetStaff) return false;
+
+                                                    // ⚠️ v2.2.186: SMS送信も総架電数に入れる（CALL_COUNT_ACTIONS）
+                                                    if (category === '総架電数') return isCallCountAction(log.action);
+                                                    if (category === '通電数') return log.action === '通電';
+                                                    return false;
+                                                })
+                                                : [];
+
+                                            return ['total', ...monthArray.slice(12)].map((month, mIndex) => {
+                                                const targetMonthStr = mIndex > 0 ? dateFormate(month) : '';
+                                                /*
+                                                  ⚠️ v2.2.177 修正: 合計列は ⚠️ **表に出ている月（monthArray.slice(12)）の分だけ**。
+                                                    ⚠️ 以前は全期間で、⚠️ 月の列を足しても合計と合わなかった。
+                                                    ⚠️ 月の列と同じ判定を表示中の月で回す（⚠️ 月の列の合計と必ず一致する）。
+                                                */
+                                                const matchMonth = (dateStr: string) => mIndex === 0
+                                                    ? staffMonths.some(m => dateFormate(dateStr).includes(m))
+                                                    : dateFormate(dateStr).includes(targetMonthStr);
+                                                const matchRegMonth = (reg: string) => mIndex === 0
+                                                    ? staffMonths.includes(dateFormate(reg.slice(0, 7)))
+                                                    : dateFormate(reg.slice(0, 7)) === month;
+
+                                                let value = 0;
+                                                let textColorClass = '';
+
+                                                if (category === '土地新着ネット反響数') {
+                                                    value = estateResponses.filter(r => matchMonth(r.register)).length;
+                                                } else if (category === '総架電数') {
+                                                    // 事前フィルタ済みの配列から、月だけを判定するから爆速
+                                                    value = preFilteredActions.filter(log => matchMonth(log.day)).length;
+                                                    textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 100 ? 'text-danger' : 'text-success fw-bold') : '';
+                                                } else if (category === '通電数') {
+                                                    // 事前フィルタ済みの配列から、月だけを判定
+                                                    value = preFilteredActions.filter(log => matchMonth(log.day)).length;
+                                                    textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 15 ? 'text-danger' : 'text-success fw-bold') : '';
+                                                } else if (category === 'アポ取得数') {
+                                                    value = appointCustomerRegs.filter(matchRegMonth).length;
+                                                    textColorClass = isEstate && mIndex > 0 && sIndex > 0 ? (formate(value, month) < 2 ? 'text-danger' : 'text-success fw-bold') : '';
+                                                } else if (category === '架電からの来場数') {
+                                                    value = interviewCustomerRegs.filter(matchRegMonth).length;
+                                                }
+
+                                                return (
+                                                    <td key={mIndex} className={`text-end ${mIndex === 0 ? 'bg-light fw-bold' : ''} ${textColorClass}`}>
+                                                        {value}
+                                                    </td>
+                                                );
+                                            });
+                                        })()}
+                                    </tr>
+                                );
+                            });
+                        })}
+                    </tbody>
+                </Table>
+            </div>
+        );
+    };
+
+    const selectCategory = (
+        <div className="d-flex justify-content-start align-items-center mb-4 px-1">
+            <div className="w-25 min-w-200 me-3">
+                <Form.Label className="text-muted small fw-bold mb-1">表示カテゴリを選択</Form.Label>
+                <Form.Select
+                    value={targetShop}
+                    onChange={(e) => {
+                        // ⚠️ v2.2.177: 集計し直しになるので先に読み込み中を出す
+                        setRendering(true);
+                        setTargetShop(e.target.value);
+                        setInsideSalesCategory(e.target.value === 'inside_sales' ? 'inside_sales' : 'shopStaff');
+                    }}
+                    style={{ fontSize: '13px' }}
+                    className="shadow-sm border-0"
+                >
+                    {categoryValue === 'order' && <>
+                        <option value="inside_sales">インサイドセールス</option>
+                        <option value="estate">土地新着ネット</option>
+                    </>}
+                    {shopArray
+                        .filter(s => !s.shop.includes('全店舗') && !s.shop.includes('未設定'))
+                        .map((item, index) => (
+                            <option key={index} value={item.shop}>{item.shop}</option>
+                        ))}
+                </Form.Select>
+            </div>
+            {targetShop === 'inside_sales' && <div className="w-25 min-w-200">
+                <Form.Label className="text-muted small fw-bold mb-1">担当を選択</Form.Label>
+                <Form.Select
+                    value={targetInsideSales}
+                    onChange={(e) => {
+                        // ⚠️ v2.2.177: 集計し直しになるので先に読み込み中を出す
+                        setRendering(true);
+                        setTargetInsideSales(e.target.value)
+                    }}
+                    style={{ fontSize: '13px' }}
+                    className="shadow-sm border-0"
+                >
+                    <option value="">インサイドセールス全体</option>
+                    {insideSaleStaffs.map(item =>
+                        <option key={item.name} value={item.name}>{item.name}</option>
+                    )}
+                </Form.Select>
+            </div>}
+        </div>
+    )
+
+    /**
+     * 統計の表、または読み込み中の表示（v2.2.177）。
+     * ⚠️ 取得中・集計前は表を描かない（⚠️ 描くと集計で画面が固まり、スピナーも出ない）。
+     */
+    const statsOrLoading = (loading || rendering)
+        ? (
+            <div className="d-flex flex-column align-items-center justify-content-center bg-white rounded border shadow-sm mb-3"
+                style={{ minHeight: '240px', gap: '10px' }} role="status" aria-live="polite">
+                <Spinner animation="border" variant="primary" />
+                <div className="text-muted" style={{ fontSize: '13px' }}>
+                    {loading ? '架電状況を読み込んでいます…' : '集計しています…'}
+                </div>
+            </div>
+        )
+        : (insideSalesCategory === 'shopStaff' ? renderShopStaffList() : renderInsideSalesList());
+
+    return (
+        <>{source ?
+            <>
+                { selectCategory}
+                {statsOrLoading}
+            </>
+            :
+            <Modal show={callStatusShow} onHide={() => setCallStatusShow(false)} size="xl" dialogClassName="modal-90w">
+                <Modal.Header closeButton className="bg-light">
+                    <Modal.Title className="fs-5 fw-bold text-secondary">
+                        <i className="bi bi-telephone-fill me-2"></i>架電状況詳細
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body className="bg-light pt-4">
+                    {categoryValue !== 'used' && selectCategory}
+                    {statsOrLoading}
+                </Modal.Body>
+            </Modal>}
+        </>
+    );
+};
+
+export default CallStatusList;
