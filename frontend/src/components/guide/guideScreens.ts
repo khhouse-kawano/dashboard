@@ -16,27 +16,29 @@
  *     ⚠️ ダッシュボードを `?guide_screen=名前` 付きで開き直す（Header.tsx の useGuideScreenReceiver が読む）。
  *
  * ⚠️⚠️ **ここで画面を隠すのは見た目だけ。** 権限は各画面と ② が守る。
- *   ⚠️ メニューの画面は、受け取った側（Header.tsx）が自分のメニューに出ている項目かも確かめる。
+ *   ⚠️ ヘッダーの画面は、受け取った側（useGuideScreenReceiver.ts）が headerScreens.tsx の allow でも確かめる。
  * ─────────────────────────────────────────────
  */
 
 import { GUIDE_WINDOW } from './openGuide';
 import { canEnterCategory } from '../../utils/shopAccess';
+import { headerScreenOf } from '../header/headerScreens';
 
 export type GuideDivision = 'order' | 'spec' | 'used';
 
 export interface GuideScreen {
     /** 左のメニューのページ。⚠️ 事業でページが違えば事業ごとに書く */
     route?: string | Partial<Record<GuideDivision, string>>;
-    /** ヘッダーのメニュー（`メニュー/項目`。Header.tsx の editMapping・menuMapping と同じ形） */
-    menu?: string;
-    /** ヘッダー左上の「Claudeによる分析」 */
-    claude?: true;
+    /**
+     * ヘッダーの画面（`メニュー/項目`。⚠️ 左上の「Claudeによる分析」は項目名だけ）。⚠️ headerScreens.tsx の headerScreenOf で引く。
+     * ⚠️ v2.2.241 からページ（URL は headerScreens.tsx の path）。⚠️ それまでは menu / claude でモーダルを開いていた
+     */
+    header?: string;
     /** ページのある事業（⚠️ route が文字列のとき必須。事業ごとに書いたときはそのキー）。⚠️ 無ければどの事業でも開ける */
     divisions?: GuideDivision[];
     /** 開ける権限（⚠️ 無ければ全員） */
     authority?: string[];
-    /** PC でしか開けない（⚠️ メニュー・Claude はいつも PC だけ） */
+    /** PC でしか開けない（⚠️ ヘッダーの画面はいつも PC だけ） */
     pcOnly?: true;
 }
 
@@ -67,39 +69,39 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     'マーケット情報': { route: '/market' },
     // ⚠️ v2.2.240。ヘッダーの「金利データ」（マーケット情報の右）
     '金利データ': { route: '/loanRates' },
-    // ── ヘッダーのメニュー（Header.tsx の menuMapping と同じ条件）
-    // ⚠️ v2.2.217 から Master・BrandAdmin・Manager だけ（Header.tsx の AI_ANALYSIS_AUTHORITY と同じ）
-    'Claudeによる分析': { claude: true, authority: ['Master', 'BrandAdmin', 'Manager'] },
-    '重複反響サマリー': { menu: '反響管理/重複反響サマリー' },
-    'ブラックリスト設定': { menu: '反響管理/ブラックリスト設定' },
-    '事後アンケート': { menu: '反響管理/事後アンケート' },
-    // ⚠️ v2.2.215。Header.tsx の menuMapping と同じく全員
-    'オーナーズハウス募集': { menu: '反響管理/オーナーズハウス募集' },
-    '広告費シミュレーター': { menu: '反響管理/広告費シミュレーター', authority: ['Master'] },
-    // ⚠️ v2.2.199（広告流入トラッキング）。Header.tsx の menuMapping と同じく Master / BrandAdmin
-    'アクセス解析': { menu: '反響管理/アクセス解析', authority: ADMIN },
-    '紹介キャンペーンサマリー': { menu: '紹介キャンペーン/紹介キャンペーンサマリー' },
-    '紹介キャンペーンの反響一覧': { menu: '紹介キャンペーン/反響一覧' },
-    '月次日報': { menu: '活動サマリー/月次日報' },
-    '営業別契約率': { menu: '活動サマリー/営業別契約率', authority: ADMIN },
-    'アクションボード': { menu: '活動サマリー/アクションボード', divisions: ['order'] },
-    '契約数ランキング': { menu: '活動サマリー/契約数ランキング' },
-    '他社広告ライブラリ': { menu: '他社動向/他社広告ライブラリ' },
-    '他社資料': { menu: '他社動向/他社資料' },
-    '競合サマリー': { menu: '他社動向/競合サマリー' },
-    'Claudeによる競合分析': { menu: '他社動向/Claudeによる競合分析' },
-    '架電状況（注文営業）': { menu: '架電状況/注文営業' },
-    '架電状況（建売営業）': { menu: '架電状況/建売営業' },
-    '架電状況（中古営業）': { menu: '架電状況/中古営業' },
-    'アンバサダー管理': { menu: '公式アンバサダー/アンバサダー管理' },
-    'アンバサダーの反響一覧': { menu: '公式アンバサダー/反響一覧' },
-    '集客イベントの反響一覧': { menu: '集客イベント/反響一覧' },
-    '集客サマリー': { menu: '集客イベント/集客サマリー' },
-    'イベントの広告費入力': { menu: '集客イベント/広告費入力' },
-    '口コミ集計': { menu: 'Google口コミ/口コミ集計' },
-    '店舗編集': { menu: 'システム管理/店舗編集' },
-    'スタッフ編集・追加': { menu: 'システム管理/スタッフ編集・追加' },
-    '権限編集': { menu: 'システム管理/権限編集' },
+    // ── ヘッダーの画面（⚠️ authority・divisions は headerScreens.tsx の allow と同じ条件）
+    // ⚠️ v2.2.217 から Master・BrandAdmin・Manager だけ（headerScreens.tsx の AI_ANALYSIS_AUTHORITY と同じ）
+    'Claudeによる分析': { header: 'Claudeによる分析', authority: ['Master', 'BrandAdmin', 'Manager'] },
+    '重複反響サマリー': { header: '反響管理/重複反響サマリー' },
+    'ブラックリスト設定': { header: '反響管理/ブラックリスト設定' },
+    '事後アンケート': { header: '反響管理/事後アンケート' },
+    // ⚠️ v2.2.215。全員
+    'オーナーズハウス募集': { header: '反響管理/オーナーズハウス募集' },
+    '広告費シミュレーター': { header: '反響管理/広告費シミュレーター', authority: ['Master'] },
+    // ⚠️ v2.2.199（広告流入トラッキング）。Master / BrandAdmin
+    'アクセス解析': { header: '反響管理/アクセス解析', authority: ADMIN },
+    '紹介キャンペーンサマリー': { header: '紹介キャンペーン/紹介キャンペーンサマリー' },
+    '紹介キャンペーンの反響一覧': { header: '紹介キャンペーン/反響一覧' },
+    '月次日報': { header: '活動サマリー/月次日報' },
+    '営業別契約率': { header: '活動サマリー/営業別契約率', authority: ADMIN },
+    'アクションボード': { header: '活動サマリー/アクションボード', divisions: ['order'] },
+    '契約数ランキング': { header: '活動サマリー/契約数ランキング' },
+    '他社広告ライブラリ': { header: '他社動向/他社広告ライブラリ' },
+    '他社資料': { header: '他社動向/他社資料' },
+    '競合サマリー': { header: '他社動向/競合サマリー' },
+    'Claudeによる競合分析': { header: '他社動向/Claudeによる競合分析' },
+    '架電状況（注文営業）': { header: '架電状況/注文営業' },
+    '架電状況（建売営業）': { header: '架電状況/建売営業' },
+    '架電状況（中古営業）': { header: '架電状況/中古営業' },
+    'アンバサダー管理': { header: '公式アンバサダー/アンバサダー管理' },
+    'アンバサダーの反響一覧': { header: '公式アンバサダー/反響一覧' },
+    '集客イベントの反響一覧': { header: '集客イベント/反響一覧' },
+    '集客サマリー': { header: '集客イベント/集客サマリー' },
+    'イベントの広告費入力': { header: '集客イベント/広告費入力' },
+    '口コミ集計': { header: 'Google口コミ/口コミ集計' },
+    '店舗編集': { header: 'システム管理/店舗編集' },
+    'スタッフ編集・追加': { header: 'システム管理/スタッフ編集・追加' },
+    '権限編集': { header: 'システム管理/権限編集' },
 };
 // GUIDE_SCREENS_END
 
@@ -129,14 +131,14 @@ const DIVISION_SUFFIX = /（(注文営業|建売営業|中古リノベ)）$/;
  * 本文に出てくる言葉 → 開ける画面の名前（v2.2.196・2026-10-16 の指示「画面の名前が出るところには開くボタン」）。
  * ⚠️ GuideMarkdown.tsx の expandMentions が `「〜」` と `[[記事]]` に使う。⚠️ 当てはまらなければ null。
  *   `顧客DB` / `反響一覧（建売営業）` … そのまま（⚠️ 末尾の事業は外す）
- *   `反響管理 → 重複反響サマリー` … ヘッダーのメニューの道順。⚠️ **menu が `反響管理/重複反響サマリー` の画面だけ**
+ *   `反響管理 → 重複反響サマリー` … ヘッダーのメニューの道順。⚠️ **header が `反響管理/重複反響サマリー` の画面だけ**
  *     （⚠️ 最後の言葉だけで探さない。`紹介キャンペーン → 反響一覧` が左のメニューの反響一覧にならないように）
  */
 export const screenNameOf = (text: string): string | null => {
     const trimmed = text.trim();
     if (/[→>＞]/.test(trimmed)) {
         const menu = trimmed.split(/\s*[→>＞]\s*/).join('/');
-        return Object.keys(GUIDE_SCREENS).find((name) => GUIDE_SCREENS[name].menu === menu) ?? null;
+        return Object.keys(GUIDE_SCREENS).find((name) => GUIDE_SCREENS[name].header === menu) ?? null;
     }
     const name = trimmed.replace(DIVISION_SUFFIX, '');
     return GUIDE_SCREENS[name] === undefined ? null : name;
@@ -149,8 +151,8 @@ const divisionsOf = (screen: GuideScreen): GuideDivision[] => {
     return [];
 };
 
-/** PC だけの画面か。⚠️ ヘッダーのメニューと Claude はスマホに出していない（Header.tsx は PC だけ描く） */
-const isPcOnly = (screen: GuideScreen): boolean => screen.pcOnly === true || screen.menu !== undefined || screen.claude === true;
+/** PC だけの画面か。⚠️ ヘッダーの画面はスマホに出していない（Header.tsx は PC だけ描く） */
+const isPcOnly = (screen: GuideScreen): boolean => screen.pcOnly === true || screen.header !== undefined;
 
 /**
  * ガイドの窓でボタンを押せるか（⚠️ 見た目だけ。権限は各画面と ② が守る）。
@@ -193,7 +195,8 @@ export const planScreen = (name: string, articleDivision: string | null, categor
         return { ok: false, message: `「${name}」は${DIVISION_LABEL[division as GuideDivision]}の画面です。担当の事業ではないため開けません。` };
     }
     let path: string | null = null;
-    if (typeof screen.route === 'string') path = screen.route;
+    if (screen.header !== undefined) path = headerScreenOf(screen.header)?.path ?? null;
+    else if (typeof screen.route === 'string') path = screen.route;
     else if (screen.route !== undefined && division !== null) path = screen.route[division] ?? null;
     return { ok: true, division, switchLabel: switching ? DIVISION_LABEL[division as GuideDivision] : null, path };
 };
@@ -266,10 +269,15 @@ export const openDashboardWithScreen = (name: string, articleDivision: string | 
  * ダッシュボードの窓で開いている画面の名前（⚠️ 確認の文に使う）。⚠️ 何も開いていなければ null。
  * ⚠️ react-bootstrap のモーダルは `.modal.show` で出ている。
  * ⚠️⚠️ **要確認（DailyAction.tsx の `.da_head`）は数えない**（⚠️ 画面を移るたびに出るもので、閉じても困らない）。
+ * ⚠️ v2.2.241: ヘッダーの画面はページになったので、モーダルが無ければページの見出し（HeaderPage.tsx の `.hp_title`）を読む。
+ *   ⚠️ 入力の途中でほかのページへ移ると、保存していない内容が消えるため。
  */
 export const openScreenLabel = (): string | null => {
     const shown = Array.from(document.querySelectorAll('.modal.show')).filter((m) => m.querySelector('.da_head') === null);
-    if (shown.length === 0) return null;
+    if (shown.length === 0) {
+        const page = (document.querySelector('.hp_title')?.textContent ?? '').trim();
+        return page === '' ? null : page.slice(0, 30);
+    }
     const top = shown[shown.length - 1];
     const title = (top.querySelector('.modal-header')?.textContent ?? '').replace(/\s+/g, ' ').replace(/閉じる/g, '').trim();
     return title === '' ? '画面' : title.slice(0, 30);

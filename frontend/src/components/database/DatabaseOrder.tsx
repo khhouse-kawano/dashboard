@@ -5,7 +5,7 @@ import AuthContext from '../../context/AuthContext';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import SurveyList from '../Survey';
 import CancelList from '../CancelList';
-import CallStatusList from '../header/CallStatusList';
+import CallStatusList from '../header/callStatus/CallStatusList';
 import LostStatusList from '../LostStatusList';
 import InformationEdit from '../information/InformationEdit';
 import { useIsSp } from '../../utils/isSp';
@@ -16,7 +16,7 @@ import { GiftDot, GiftLegend } from './GiftMark';
 import { thisYear } from '../../utils/thisYear';
 import { missingLostFields } from '../../utils/informationUtils';
 // ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
-import { sortStaff } from '../header/useAmbassadorMaster';
+import { sortStaff } from '../header/ambassador/useAmbassadorMaster';
 import NexusBadge from '../NexusBadge';
 import { isNexusRow } from '../../utils/nexusUtils';
 import { CustomerNameCell, cleanCustomerName } from './customerName2';

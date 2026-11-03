@@ -69,10 +69,15 @@ type Props = {
     customerList: Customer[],
     monthArray: string[],
     staffList: Staff[],
-    achievement: Achievement[]
+    achievement: Achievement[],
+    /**
+     * ページの中に描く（v2.2.241。ヘッダーの「活動サマリー → 契約数ランキング」のページ。header/activity/RankingLoader.tsx）。
+     * ⚠️ 無ければ従来どおりモーダル（全社報告用フォーマットの「契約棟数ランキング」）。⚠️ 中身は同じ
+     */
+    asPage?: boolean
 };
 
-const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffList, achievement }: Props) => {
+const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffList, achievement, asPage }: Props) => {
     const { category, authority } = useContext(AuthContext);
     const [targetCustomer, setTargetCustomer] = useState<RankedRow[]>([]);
 
@@ -320,15 +325,14 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
             : <i className="fa-solid fa-sort-up ms-1 text-primary"></i>;
     };
 
-    return (
-        <Modal show={showRanking} onHide={() => setShowRanking(false)} centered size='lg'>
-            <Modal.Header closeButton className="bg-light border-bottom-0 py-2">
-                <Modal.Title className="fw-bold" style={{ fontSize: '14px' }}>
-                    <i className="fa-solid fa-ranking-star me-2 text-primary"></i>
-                    {DIVISION_LABEL[targetDivision]} 契約ランキング
-                </Modal.Title>
-            </Modal.Header>
-            <Modal.Body className="p-0">
+    const title = (
+        <>
+            <i className="fa-solid fa-ranking-star me-2 text-primary"></i>
+            {DIVISION_LABEL[targetDivision]} 契約ランキング
+        </>
+    );
+    const body = (
+        <>
 
                 {/* 集計単位の切り替え。既定は個人別（従来の表示） */}
                 <Nav
@@ -489,7 +493,24 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
                         )}
                     </tbody>
                 </Table>
-            </Modal.Body>
+        </>
+    );
+
+    if (asPage) {
+        return (
+            <div className="border rounded bg-white overflow-hidden" style={{ maxWidth: '900px' }}>
+                <div className="bg-light fw-bold px-3 py-2" style={{ fontSize: '14px' }}>{title}</div>
+                {body}
+            </div>
+        );
+    }
+
+    return (
+        <Modal show={showRanking} onHide={() => setShowRanking(false)} centered size='lg'>
+            <Modal.Header closeButton className="bg-light border-bottom-0 py-2">
+                <Modal.Title className="fw-bold" style={{ fontSize: '14px' }}>{title}</Modal.Title>
+            </Modal.Header>
+            <Modal.Body className="p-0">{body}</Modal.Body>
         </Modal>
     );
 };

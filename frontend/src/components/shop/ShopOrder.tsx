@@ -7,7 +7,7 @@ import UnitPriceGraphModal from './UnitPriceGraphModal';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { toLocalDate } from '../../utils/toLocalDate';
 import apiClient from '../../utils/apiClient';
-import { sortShops } from '../header/useAmbassadorMaster';
+import { sortShops } from '../header/ambassador/useAmbassadorMaster';
 import { UNIT_PRICE_SERIES } from './unitPriceSeries';
 // ⚠️ 見た目は customer/ と shop/ の4画面で共通（components/rankingUi.tsx）
 import { RankingStyle, SortIcon } from '../rankingUi';
