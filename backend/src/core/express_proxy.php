@@ -166,6 +166,9 @@ function expressProxyRequests(): array
         'planner:call_logs',
         'planner:call_logs_import',
         'planner:practice_logs_import',
+        // ⚠️ v2.2.239。中古リノベの今日の架電キュー（② だけ）。expressProxyExclusive() にも入れてある
+        'callq_used:list',
+        'callq_used:mark',
         // ⚠️ v2.2.227。個人情報削除（元に戻せない・② だけ）。expressProxyExclusive() にも入れてある
         'privacy_erase:master:order',
         'privacy_erase:master:spec',
@@ -845,6 +848,9 @@ function expressProxyExclusive(): array
         'planner:call_logs',
         'planner:call_logs_import',
         'planner:practice_logs_import',
+        // v2.2.239 新規。中古リノベの今日の架電キュー（mark は書き込み）。⚠️ ① に PHP ハンドラは無い（② だけ）
+        'callq_used:list',
+        'callq_used:mark',
         // v2.2.227 新規。個人情報削除（元に戻せない）。⚠️ ① に PHP ハンドラは無い（② だけ）
         'privacy_erase:master:order',
         'privacy_erase:master:spec',

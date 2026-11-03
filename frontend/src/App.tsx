@@ -50,6 +50,7 @@ import LostAnalysis from "./components/realty/lost/LostAnalysis";
 import RealtyPending from "./components/realty/RealtyPending";
 import CallQueue from "./components/realty/callq/CallQueue";
 import CallNavi from "./components/realty/navi/CallNavi";
+import UsedCallQueue from "./components/callq/UsedCallQueue";
 import Guide from "./components/guide/Guide";
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
@@ -182,6 +183,8 @@ function AppInner() {
             <Route path="/photo" element={<Photo />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
             <Route path="/insideSales" element={<InsideSales/>} />
+            {/* ⚠️ v2.2.239: 中古リノベの今日の架電キュー */}
+            <Route path="/usedCallQueue" element={<UsedCallQueue />} />
             {/* ⚠️ v2.2.221: 不動産企画係の画面。⚠️ 担当事業が realty / all の人だけ（RealtyRoute）
                 ⚠️⚠️ v2.2.223: URL は**1段**に戻した（v2.2.220 までと同じ）。⚠️ `/realty/summary` のような2段にしないこと。
                   index.html が画面の部品を相対パス（./static/...）で読むため、2段の URL で再読み込みすると

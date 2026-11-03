@@ -178,6 +178,7 @@ import type { Result as RealtyResult } from '../features/realty';
 import { runPlannerCompliance, runPlannerSettings, runPlannerState, runPlannerWeekly } from '../features/realty/state';
 import { runImportCheck, runImportFinish, runImportRecords } from '../features/realty/importer';
 import { runCallLogs, runCallLogsImport, runCallMark, runCallUndo, runNaviSave, runPracticeLogsImport } from '../features/realty/calls';
+import { runUsedQueueList, runUsedQueueMark } from '../features/callq/usedQueue';
 import { INQUIRY_CATEGORIES, MASTER_CATEGORIES, runPrivacyEraseInquiry, runPrivacyEraseMaster } from '../features/privacy';
 import type { AuthenticatedStaff } from '../types/staff';
 import type { GatewayContext, GatewayEntry, GatewayKey } from './types';
@@ -1258,6 +1259,12 @@ register({ request: 'planner', roll: 'navi_save', summary: '【書き込み】�
 register({ request: 'planner', roll: 'call_logs', summary: '不動産企画係: 架電ナビの通話記録（期間を指定）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runCallLogs(body)) });
 register({ request: 'planner', roll: 'call_logs_import', summary: '【書き込み】不動産企画係: 以前のアプリの通話記録（CSV）を取り込む（300件まで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runCallLogsImport) });
 register({ request: 'planner', roll: 'practice_logs_import', summary: '【書き込み】不動産企画係: 以前のアプリの練習記録（CSV）を取り込む（300件まで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runPracticeLogsImport) });
+
+// ⚠️ v2.2.239 新規（② だけ）。中古リノベの今日の架電キュー。features/callq/usedQueue.ts
+//   ⚠️ 担当事業が used / all の人だけ（USED_SHOPS）。⚠️ mark は書き込み（express_proxy.php の expressProxyExclusive() にも入れてある）
+const USED_SHOPS = ['used', 'all'];
+register({ request: 'callq_used', roll: 'list', summary: '中古リノベ: 今日の架電キュー（次回架電日が今日以前の顧客と、今日・今週・今月の架電数）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(USED_SHOPS, (s) => runUsedQueueList(s)) });
+register({ request: 'callq_used', roll: 'mark', summary: '【書き込み】中古リノベ: 架電キューのカードの記録（架電記録に1件足す・次回架電日）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(USED_SHOPS, (s, body) => runUsedQueueMark(s, body)) });
 
 // ---------------------------------------------------------------------------
 // Claudeによる分析（v2.2.217。Dashboard からの自由分析）— ② のみ（① に PHP 版は無い）
