@@ -143,6 +143,7 @@ import { runSuumoPropertyInsert } from '../features/suumoProperty';
 import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
 import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
+import { listLoanPlanRates, uploadLoanPlanRates } from '../features/loanPlanRate';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
 import { runMemberEntry } from '../features/memberEntry/entry';
 import { runHousingBazarEntry } from '../features/housingBazar/entry';
@@ -2995,6 +2996,33 @@ register({
   auth: 'master',
   handler: async (ctx) => uploadLoanRates(
     { base_date: ctx.body.base_date, rows: ctx.body.rows },
+    String(ctx.staff?.name ?? '')
+  ),
+});
+
+/**
+ * 商圏内の金融機関のプラン別金利（v2.2.240）。features/loanPlanRate.ts 参照。
+ *
+ * ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある。**
+ *   ⚠️ ① の express_proxy.php の ⚠️ **転送リストと転送専用リストの両方**に入れてある。
+ * ⚠️ 読むのは全員（ヘッダーの「金利データ」）、⚠️ 登録は Master だけ。
+ * ⚠️ 月の分析レポート（HTML）は既存の analysis_report_upload / analysis_report_get（reportCategory = 'loan_rate'）。
+ */
+register({
+  request: 'loan_plan_rate_list',
+  summary: '金利データ（プラン別金利の月の一覧・指定月の行・分析レポートの一覧）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => listLoanPlanRates({ month: ctx.body.month }),
+});
+
+register({
+  request: 'loan_plan_rate_upload',
+  summary: '【書き込み】金利データ: plan_rates の CSV でその月を丸ごと入れ替える',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) => uploadLoanPlanRates(
+    { month: ctx.body.month, rows: ctx.body.rows },
     String(ctx.staff?.name ?? '')
   ),
 });

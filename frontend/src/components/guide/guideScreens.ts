@@ -65,6 +65,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     'キャンペーン管理': { route: '/campaign', divisions: ['order'], authority: ADMIN, pcOnly: true },
     '予算詳細': { route: '/budget', divisions: ['order', 'spec', 'used'], authority: ADMIN, pcOnly: true },
     'マーケット情報': { route: '/market' },
+    // ⚠️ v2.2.240。ヘッダーの「金利データ」（マーケット情報の右）
+    '金利データ': { route: '/loanRates' },
     // ── ヘッダーのメニュー（Header.tsx の menuMapping と同じ条件）
     // ⚠️ v2.2.217 から Master・BrandAdmin・Manager だけ（Header.tsx の AI_ANALYSIS_AUTHORITY と同じ）
     'Claudeによる分析': { claude: true, authority: ['Master', 'BrandAdmin', 'Manager'] },

@@ -462,6 +462,16 @@ const Header = ({ }) => {
                 >
                     マーケット情報
                 </div>
+                {/* ⚠️ v2.2.240: 金利データ（⚠️ マーケット情報の右・指示）。⚠️ 色は濃いシアン（bg-info は白い文字が読みにくいため。2026-11-03 の決定）。header/LoanRates.tsx */}
+                <div className='rounded-pill text-white me-1 shadow-sm'
+                    role="button" tabIndex={0}
+                    style={{ padding: '2px 10px', fontSize: '10px', cursor: 'pointer', background: '#0891b2' }}
+                    onClick={() => navigate('/loanRates')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') navigate('/loanRates'); }}
+                    title="商圏内の金融機関の住宅ローン金利"
+                >
+                    金利データ
+                </div>
                 {/* ⚠️ v2.2.194: 業務ガイド（⚠️ マーケット情報の右・指示）。⚠️ 別ウインドウで開く。⚠️ 注文営業・建売営業・中古リノベ */}
                 {isGuideCategory(category) && (
                     <div className='rounded-pill text-white me-1 shadow-sm'

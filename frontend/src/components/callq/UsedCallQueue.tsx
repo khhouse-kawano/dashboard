@@ -97,7 +97,8 @@ const UsedCallQueue: React.FC = () => {
     const [cards, setCards] = useState<QueueCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
-    const [mine, setMine] = useState(true);
+    // ⚠️ v2.2.240: 初期値はチーム全体（2026-11-03 の指示で true → false）
+    const [mine, setMine] = useState(false);
     const [drafts, setDrafts] = useState<Record<string, Draft>>({});
     const [openId, setOpenId] = useState('');
     const [toast, setToast] = useState('');
