@@ -1,5 +1,8 @@
 <?php
 
+// ⚠️ v2.2.242: 401・403 をセキュリティログに残す
+require_once __DIR__ . '/security_log.php';
+
 /**
  * 認証（誰か）と認可（何をしてよいか）。
  *
@@ -32,6 +35,8 @@ function requireStaff(PDO $pdo, array $headers): array
     $staff = ($token === '') ? false : getUserByToken($pdo, $token);
 
     if (!$staff) {
+        // ⚠️ v2.2.242: セキュリティログ（⚠️ トークンそのものは残さない）
+        securityLog(['event' => 'auth_failed', 'status' => 401, 'message' => $token === '' ? 'トークンなし' : 'トークンが無効'], $pdo);
         http_response_code(401);
         echo json_encode(
             ['status' => 'error', 'message' => '認証が必要です。'],
@@ -63,6 +68,7 @@ function requireAuthority(array $staff, array $allowed): void
             $authority === '' ? '(空)' : $authority,
             implode('/', $allowed)
         ));
+        securityLog(['event' => 'forbidden', 'status' => 403, 'staff' => $staff, 'message' => '権限が足りない（必要: ' . implode('/', $allowed) . '）']);
 
         http_response_code(403);
         echo json_encode(
@@ -107,6 +113,7 @@ function requireShop(PDO $pdo, array $headers, array $allowedShops): array
     $shop = (string)($staff['shop'] ?? '');
     if (!in_array($shop, $allowedShops, true)) {
         error_log(sprintf('authz denied: staff_id=%s shop=%s required=%s', $staff['id'] ?? '?', $shop === '' ? '(空)' : $shop, implode('/', $allowedShops)));
+        securityLog(['event' => 'forbidden', 'status' => 403, 'staff' => $staff, 'message' => '担当事業が対象外（必要: ' . implode('/', $allowedShops) . '）'], $pdo);
         http_response_code(403);
         echo json_encode(['status' => 'error', 'message' => 'この操作を行う権限がありません。'], JSON_UNESCAPED_UNICODE);
         exit;

@@ -4,6 +4,7 @@ import { env, isProduction } from '../config/env';
 import { publicFormRateLimit } from '../middlewares/publicFormRateLimit';
 import { logger } from '../utils/logger';
 import { checkGatewayAuth } from './auth';
+import { recordSecurityEvent } from '../features/securityLog';
 import { forwardToPhp } from './phpFallback';
 import { entryCount, findEntry, listEntries } from './registry';
 import type { GatewayBody, GatewayContext } from './types';
@@ -81,6 +82,8 @@ export const createGatewayRouter = (): Router => {
       const request = asString(body.request);
 
       if (request === '' || !REQUEST_PATTERN.test(request)) {
+        // ⚠️ v2.2.242: セキュリティログ（⚠️ ① の index.php と同じく bad_request）
+        recordSecurityEvent(req, { event: 'bad_request', status: 400, request });
         // ⚠️ PHP と同じメッセージ・同じ 400 を返す。
         //   フロントがこの文言で分岐している可能性があるため変えない。
         res
@@ -116,6 +119,7 @@ export const createGatewayRouter = (): Router => {
             `ループ検知: ① から転送された "${request}" が ② に未登録です。` +
               '① の expressProxyRequests() から外すか、② を再デプロイしてください。'
           );
+          recordSecurityEvent(req, { event: 'proxy_error', status: 502, request, roll, message: 'ループ検知（② に未登録）' });
           // 500番台を返すと ① 側が自動でフォールバックし、
           // ① 自身のPHPで処理される（画面は止まらない）
           res.status(502).json({
@@ -139,6 +143,14 @@ export const createGatewayRouter = (): Router => {
       // -------------------------------------------------------------
       const authResult = await checkGatewayAuth(req, entry.auth, env.gatewayRequireAuth);
       if (!authResult.ok) {
+        recordSecurityEvent(req, {
+          event: authResult.status === 401 ? 'auth_failed' : 'forbidden',
+          status: authResult.status,
+          request,
+          roll,
+          staff: authResult.staff,
+          message: authResult.status === 401 ? (req.header('Token') ? 'トークンが無効' : 'トークンなし') : '権限が足りない',
+        });
         // ⚠️ PHP と同じステータス・同じ文言で返す。
         //   フロントは response.data.message を画面に出す。
         res.status(authResult.status).json(authResult.body);
@@ -158,6 +170,18 @@ export const createGatewayRouter = (): Router => {
       };
 
       const result = await entry.handler(ctx);
+
+      // ⚠️ v2.2.242: 業務処理の中で 401・403 を返したもの（担当事業の確認など）もセキュリティログに残す
+      if (res.statusCode === 401 || res.statusCode === 403) {
+        recordSecurityEvent(req, {
+          event: res.statusCode === 401 ? 'auth_failed' : 'forbidden',
+          status: res.statusCode,
+          request,
+          roll,
+          staff: authResult.staff,
+          message: '処理の中で拒否',
+        });
+      }
 
       // ハンドラが自分でレスポンスを送った場合（ファイル出力など）は何もしない
       if (res.headersSent) return;

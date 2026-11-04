@@ -33,7 +33,7 @@ interface StaffRow extends RowDataPacket, AuthenticatedStaff {}
 /** 認証結果。失敗時は返すべきステータスとJSONを持つ */
 export type GatewayAuthResult =
   | { ok: true; staff: AuthenticatedStaff | null }
-  | { ok: false; status: number; body: { status: 'error'; message: string } };
+  | { ok: false; status: number; body: { status: 'error'; message: string }; staff?: AuthenticatedStaff };
 
 /**
  * トークンを取り出す。
@@ -114,6 +114,8 @@ export const checkGatewayAuth = async (
       ok: false,
       status: 403,
       body: { status: 'error', message: 'この操作を行う権限がありません。' },
+      // ⚠️ v2.2.242: だれが拒否されたかをセキュリティログに残すため（gateway/index.ts）
+      staff,
     };
   }
 

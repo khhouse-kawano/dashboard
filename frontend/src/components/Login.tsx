@@ -7,6 +7,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import Logo from "../assets/images/logo.png";
 import { GoogleLogin } from '@react-oauth/google';
 import apiClient from '../utils/apiClient';
+import { JUST_LOGGED_OUT } from '../utils/logout';
 
 type Value = { mail: string, password: string, error: string };
 
@@ -20,6 +21,17 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation(); // 💡 現在のURL情報を取得
   const { setAuthority, setToken, setUserName } = useContext(AuthContext);
+  /**
+   * ⚠️ v2.2.242: ログアウトした直後か（utils/logout.ts が付ける目印）。
+   *   ⚠️ 直後は One Tap を出さない（⚠️ 出すと、そのまま入り直してしまうことがある）。⚠️ ボタンからは入れる。
+   */
+  const [justLoggedOut] = useState(() => {
+    try {
+      return sessionStorage.getItem(JUST_LOGGED_OUT) === '1';
+    } catch {
+      return false;
+    }
+  });
 
   const handleGoogleSuccess = (credentialResponse: any) => {
     const newValidationMessage: Value = { mail: "", password: "", error: "" };
@@ -34,6 +46,11 @@ const Login = () => {
         const response = await apiClient.post("", { request: 'login', credential: token });
         console.log("API Response:", response);
         if (response.data.message === "success") {
+          try {
+            sessionStorage.removeItem(JUST_LOGGED_OUT);
+          } catch {
+            // ⚠️ 消せなくてもログインは続ける
+          }
           setAuthority(response.data.authority);
           setToken(response.data.token);
           setUserName(response.data.userName);
@@ -90,6 +107,12 @@ const Login = () => {
           国分ハウジンググループの<br />
           Workspaceアカウントでログインしてください。
         </p>
+        {/* ⚠️ v2.2.242: ログアウトした直後 */}
+        {justLoggedOut && !validationMessage.error && (
+          <div className="alert alert-secondary p-2 mb-md-4 mb-3 small" role="status">
+            ログアウトしました。
+          </div>
+        )}
         {/* エラーアラート */}
         {validationMessage.error && (
           <div className="alert alert-danger p-2 mb-md-4 mb-3 small" role="alert">
@@ -106,7 +129,7 @@ const Login = () => {
                 error: "認証がキャンセルされたか、エラーが発生しました",
               }));
             }}
-            useOneTap
+            useOneTap={!justLoggedOut}
           />
         </div>
         {/* フッター */}

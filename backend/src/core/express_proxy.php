@@ -402,6 +402,8 @@ function expressProxyRequests(): array
         // ⚠️ v2.2.240。金利データ（プラン別金利）。⚠️ ② だけ（① に PHP は無い）。upload は書き込み（Master だけ）
         'loan_plan_rate_list',
         'loan_plan_rate_upload',
+        // ⚠️ v2.2.242: セキュリティログの一覧（Master。features/securityLog.ts）
+        'security_log_list',
 
         // -----------------------------------------------------------------
         // 2026-09-22 新規。SatBaseサマリー（物件台帳）。
@@ -887,6 +889,8 @@ function expressProxyExclusive(): array
         // ⚠️ v2.2.240。金利データ（プラン別金利）。⚠️ ② だけ（① に PHP は無い）。upload は書き込み（Master だけ）
         'loan_plan_rate_list',
         'loan_plan_rate_upload',
+        // ⚠️ v2.2.242: セキュリティログの一覧（Master。features/securityLog.ts）
+        'security_log_list',
 
         // -----------------------------------------------------------------
         // 2026-09-22 新規。SatBaseサマリー（物件台帳）。
@@ -1242,6 +1246,20 @@ function forwardToExpress(array $data): bool
 
     // ② 側でループ検知に使う。これが付いていると ② は ① へ転送し返さない
     $headers[] = 'X-Forwarded-By: xserver-php';
+
+    // ⚠️ v2.2.242: 接続元を ② のセキュリティログに渡す（② から見ると接続元は ① になるため）。
+    //   ⚠️ ② は X-Forwarded-By が付いているときだけ使い、直接の相手（① の IP）も via_ip に残す。
+    //   ⚠️ 改行などの制御文字は落とす（ヘッダーを壊さないため）
+    foreach ([
+        'X-Client-IP' => $_SERVER['REMOTE_ADDR'] ?? '',
+        'X-Client-UA' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+        'X-Client-Referer' => $_SERVER['HTTP_REFERER'] ?? '',
+    ] as $name => $value) {
+        $value = substr(preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string)$value) ?? '', 0, 500);
+        if ($value !== '') {
+            $headers[] = $name . ': ' . $value;
+        }
+    }
 
     $body = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if ($body === false) {
