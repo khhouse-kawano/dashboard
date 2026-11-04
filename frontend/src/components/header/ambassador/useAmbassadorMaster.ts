@@ -220,7 +220,9 @@ const khgIdOrderOf = (khgId: string | null): number => {
  * ⚠️ ②まで同じ場合はサーバー側（staff_list の sort, id）の順が残る。
  *   Array.prototype.sort は安定ソートのため。
  */
-export const sortStaff = (rows: MasterStaff[]): MasterStaff[] =>
+// ⚠️ v2.2.245: 読むのは position と khg_id だけなので、その2つを持つ行なら何でも並べられるようにした
+//   （顧客DB の担当の型を渡すと、tsconfig の指定ずれで見逃されていた型エラーになっていた）
+export const sortStaff = <T extends Pick<MasterStaff, 'position' | 'khg_id'>>(rows: T[]): T[] =>
     [...rows].sort((a, b) => {
         const pa = positions.indexOf((a.position ?? '').trim());
         const pb = positions.indexOf((b.position ?? '').trim());

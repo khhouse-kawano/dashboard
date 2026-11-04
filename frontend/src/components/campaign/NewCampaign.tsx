@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from "react-router-dom";
 import { fetchDetail, fetchMaster, insertCampaign, updateCampaign } from './campaignApi';
+import type { CampaignApiResult } from './campaignApi';
 import { PLACEHOLDERS, unknownPlaceholders } from './mailTemplateFields';
 import FormPreview from './formPreview';
 import { brandLogo } from './brands';
@@ -114,7 +115,8 @@ export type FormState = {
     }
 };
 
-type Response = { status: string; message: string }
+// ⚠️ v2.2.245: 登録・修正の応答は CampaignApiResult（以前は独自の型で、tsconfig の指定ずれで型の不一致が見逃されていた）
+type Response = CampaignApiResult;
 
 /** ⚠️ DB の列の既定値（2026-10-12_line_id_columns.sql）と同じにすること */
 const LINE_ID_DEFAULT: FormState['line_id'] = {
@@ -540,7 +542,7 @@ const NewCampaign = () => {
     return (
         <div className="nc">
             <header className="nc-header">
-                <img className="nc-header-logo" src={brandLogo(brandValue)} alt="" />
+                <img className="nc-header-logo" src={brandLogo(brandValue ?? '')} alt="" />
                 <div>
                     <p className="nc-crumb">キャンペーン一覧 ／ {isEdit ? '修正' : '新規作成'}</p>
                     <h1 className="nc-title">{isEdit ? 'キャンペーン修正' : 'キャンペーン作成'}</h1>
