@@ -153,7 +153,7 @@ export const leadCost = (rows: Row[], mk: string, costs: Record<string, number> 
 export const CONFIRMED = ['契約済', '契約予定', '決済完了'];
 
 /** 標準の仲介手数料（stdFee）。800万円以下は30万円、それ超は 3%＋6万円 */
-const stdFee = (price: number): number => (!price || price <= 0 ? 0 : price <= 8_000_000 ? 300_000 : Math.round(price * 0.03 + 60_000));
+export const stdFee = (price: number): number => (!price || price <= 0 ? 0 : price <= 8_000_000 ? 300_000 : Math.round(price * 0.03 + 60_000));
 
 /** 仲介手数料（dealFee）。手入力のときはその値 */
 export const dealFee = (d: Row): number => (num(d.feeManual) ? num(d.fee) : stdFee(num(d.price)));

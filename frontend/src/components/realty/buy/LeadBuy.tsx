@@ -7,7 +7,8 @@ import type { Period } from '../common/leadFunnel';
 import type { Row, Settings } from '../summary/kpi';
 import LeadHeader from '../common/LeadHeader';
 import AuthContext from '../../../context/AuthContext';
-import { removeSpaces, safeParse, BUY_END_REASONS, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
+import { removeSpaces, safeParse, BUY_END_REASONS, BUY_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
+import { buyToDeal } from '../common/leadLinks';
 import LeadEdit from '../common/LeadEdit';
 import LeadCall, { CallLog } from '../common/LeadCall';
 import DocumentViewer from '../documents/DocumentViewer';
@@ -22,6 +23,12 @@ type BuyLead = {
     name: string;
     staff: string | null;
     phase: string;
+    /** 追客終了の理由 */
+    endReason?: string | null;
+    /** 商談案件へ転記したときの案件 id（v2.2.244 から一覧で作る） */
+    dealId?: string | null;
+    ledgerId?: string | null;
+    ledgerNo?: string | number | null;
     callDates: string | null;
     contactDate: string | null;
     phone: string;
@@ -273,7 +280,7 @@ const LeadBuy = () => {
      * brokerage_listings の1行を部分更新する。
      * 画面を先に更新し（楽観的更新）、保存に失敗したら元の値へ戻す。
      */
-    const handleApiPatch = async (id: string, fields: Record<string, unknown>) => {
+    const handleApiPatch = async (id: string, fields: Record<string, unknown>): Promise<boolean> => {
         // 失敗時に戻すための退避と、履歴の差分を取るための変更前の値。
         // setState の更新関数の中で拾うと React 18 では次のレンダリングまで
         // 実行されず、この直後の行では空のままになるためクロージャから取る。
@@ -295,10 +302,28 @@ const LeadBuy = () => {
                     by: userName || '不明',
                 });
             }
+            return true;
         } catch (e) {
             console.error('[LeadBuy] 保存に失敗しました', { id, fields }, e);
             setLeads(snapshot);
             alert('保存に失敗しました。通信状況を確認して、もう一度お試しください。');
+            return false;
+        }
+    };
+
+    /**
+     * 購入申込 → 商談案件（買）へ転記（以前のアプリの buyToDeal。common/leadLinks.ts）。
+     * ⚠️ 案件に紐づいている（dealId がある）反響では作らない（二重に作らない）。
+     */
+    const linkToDeal = async (lead: BuyLead) => {
+        if (lead.dealId) { alert('既に商談案件に紐づいています。'); return; }
+        try {
+            const { no, leadFields } = await buyToDeal(lead as unknown as Record<string, unknown>);
+            setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, ...leadFields } as BuyLead : l)));
+            alert(`商談案件 No.${no} として転記しました。\n商談案件管理で物件名・価格を確認してください。`);
+        } catch (e) {
+            console.error('[LeadBuy] 商談案件への転記に失敗しました', lead.id, e);
+            alert('商談案件への転記に失敗しました。時間をおいて、もう一度お試しください。');
         }
     };
 
@@ -406,17 +431,29 @@ const LeadBuy = () => {
         handleApiUpdate(lead.id, 'staff', e.target.value);
     };
 
-    // 💡 追加: フェーズを「追客終了」にした際の理由入力（source.html の ieGuard 相当）
-    const handlePhaseBlur = (lead: BuyLead, e: React.FocusEvent<HTMLSelectElement>) => {
-        const val = e.target.value;
-        if (val === '追客終了') {
-            const reason = window.prompt(`追客終了の理由を入力してください（${BUY_END_REASONS.join('／')}）`, BUY_END_REASONS[0]);
-            if (reason == null) {
-                e.target.value = lead.phase || '';
-                return;
-            }
+    /**
+     * フェーズの変更（以前のアプリの ieGuard と同じ）。
+     * ⚠️ v2.2.244: 値が変わったときだけ動く（以前は onBlur で、触れるたびに保存し・追客終了の理由を聞き直していた）。
+     *   追客終了 … 理由を聞いて endReason も保存する（⚠️ 以前は聞いた理由を捨てていた）。追客終了から戻すと理由を消す
+     *   購入申込 … 保存したあと、確認して商談案件（買）へ転記する（⚠️ 案件に紐づいていない反響だけ）
+     */
+    const handlePhaseChange = async (lead: BuyLead, e: React.ChangeEvent<HTMLSelectElement>) => {
+        const select = e.target;
+        const prev = lead.phase || '';
+        const next = select.value;
+        if (next === prev) return;
+        const fields: Record<string, unknown> = { phase: next };
+        if (next === '追客終了') {
+            const reason = askEndReason(BUY_END_REASONS, lead.endReason);
+            if (reason == null) { select.value = prev; return; }
+            fields.endReason = reason;
+        } else if (lead.endReason) {
+            fields.endReason = '';
         }
-        handleApiUpdate(lead.id, 'phase', val);
+        if (!(await handleApiPatch(lead.id, fields))) { select.value = prev; return; }
+        if (next === '購入申込' && !lead.dealId && window.confirm('商談案件管理へ「買」案件として転記しますか？')) {
+            await linkToDeal({ ...lead, ...fields } as BuyLead);
+        }
     };
 
     // 💡 追加: 次回連絡日セルの視覚強化（source.html の nextCell() 相当）
@@ -548,9 +585,9 @@ const LeadBuy = () => {
                                         </select>
                                     </td>
                                     <td style={getTdStyle(false)}>
+                                        {/* ⚠️ v2.2.244: 以前のアプリの値。購入申込・追客終了は転記・理由が要るので、追加した後に一覧で変える */}
                                         <select style={compactInputStyle} defaultValue="反響受信" ref={newPhaseRef}>
-                                            <option value="">フェーズ</option>
-                                            {['反響受信', '追客中', '通電済み', '内見予約', '内見済み', '購入申込', '成約', '追客終了'].map(p => <option key={p} value={p}>{p}</option>)}
+                                            {BUY_PHASES.filter(p => p !== '購入申込' && p !== '追客終了').map(p => <option key={p} value={p}>{p}</option>)}
                                         </select>
                                     </td>
                                     <td colSpan={9} style={{ ...getTdStyle(false), color: '#6c757d', textAlign: 'left', fontSize: '10px' }}>
@@ -614,11 +651,25 @@ const LeadBuy = () => {
                                                 <select
                                                     style={{ ...compactInputStyle, backgroundColor: isUnassigned ? '#fff' : '#f8f9fa', borderRadius: '4px', fontWeight: 'bold' }}
                                                     defaultValue={lead.phase || ''}
-                                                    onBlur={(e) => handlePhaseBlur(lead, e)}
+                                                    onChange={(e) => void handlePhaseChange(lead, e)}
                                                 >
                                                     <option value="">フェーズ</option>
-                                                    {['反響受信', '追客中', '通電済み', '内見予約', '内見済み', '購入申込', '成約', '追客終了'].map(p => <option key={p} value={p}>{p}</option>)}
+                                                    {BUY_PHASES.map(p => <option key={p} value={p}>{p}</option>)}
+                                                    {/* ⚠️ 選択肢に無い値（以前のアプリで手入力されたもの）も消さずに出す */}
+                                                    {lead.phase && !BUY_PHASES.includes(lead.phase) && <option value={lead.phase}>{lead.phase}</option>}
                                                 </select>
+                                                {/* ⚠️ v2.2.244: 以前のアプリの「案件へ転記」。購入申込・成約で、まだ案件に紐づいていない反響だけ */}
+                                                {(lead.phase === '購入申込' || lead.phase === '成約') && !lead.dealId && (
+                                                    <button
+                                                        type="button"
+                                                        style={{ fontSize: '9px', padding: '0 6px', height: '18px', marginTop: '2px', backgroundColor: '#fff', border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: '10px', cursor: 'pointer' }}
+                                                        onClick={() => { if (window.confirm('商談案件管理へ「買」案件として転記しますか？')) void linkToDeal(lead); }}
+                                                        title="商談案件管理に「買」案件を作る"
+                                                    >
+                                                        案件へ転記
+                                                    </button>
+                                                )}
+                                                {lead.dealId && <div style={{ fontSize: '9px', color: '#198754', marginTop: '2px' }}>案件に連携済み</div>}
                                             </td>
                                             <td style={getTdStyle(isUnassigned)}>
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>

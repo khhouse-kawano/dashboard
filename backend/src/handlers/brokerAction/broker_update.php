@@ -28,6 +28,8 @@ $allowedColumns = [
     'subStaff', 'subRatio', 'coBroker', 'delivery',
     // ⚠️ v2.2.222: 本番アプリで増えた商談のリフォーム受注と登録日（② の ALLOWED_COLUMNS と同じ）
     'reformPrice', 'reformGp', 'reformNote', 'createdAt',
+    // ⚠️ v2.2.244: 商談の失注理由（2026-11-04_realty_deal_lost.sql。② の ALLOWED_COLUMNS と同じ）
+    'lostReason', 'lostDate', 'lostNote',
     // リード（追客）
     'reason', 'timing', 'endReason', 'callDates', 'nextDate', 'nextNote',
     'receivedDate', 'connectDate', 'visitDate', 'viewDate', 'baikaiDate',
