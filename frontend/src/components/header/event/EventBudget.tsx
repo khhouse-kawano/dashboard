@@ -57,6 +57,8 @@ type Entry = {
     cost: number;
     title: string;
     company: string;
+    /** 詳細（budget.remarks。v2.2.243）。⚠️ 未入力（NULL）は空文字で届く */
+    remarks: string;
     section: string;
     orderSection: string;
 };
@@ -74,6 +76,7 @@ type Draft = {
     title: string;
     cost: string;
     company: string;
+    remarks: string;
     shops: string[];
 };
 
@@ -168,7 +171,8 @@ const styles = {
         borderCollapse: 'separate' as const,
         borderSpacing: 0,
         width: '100%',
-        minWidth: '860px'
+        // ⚠️ v2.2.243 で「詳細」の列を足したので 860 → 1020
+        minWidth: '1020px'
     } as React.CSSProperties
 };
 
@@ -182,6 +186,7 @@ const emptyDraft = (): Draft => ({
     title: '',
     cost: '',
     company: '',
+    remarks: '',
     shops: []
 });
 
@@ -300,6 +305,7 @@ const EventBudget = () => {
                 title: next.title,
                 cost: next.cost,
                 company: next.company,
+                remarks: next.remarks,
                 shop: next.shop
             });
             // ⚠️ サーバが実際に保存した内容を返すので、それで置き換える。
@@ -370,7 +376,7 @@ const EventBudget = () => {
     };
 
     const draftHasInput = (d: Draft): boolean =>
-        d.month !== '' || d.title !== '' || d.cost !== '' || d.company !== '' || d.shops.length > 0;
+        d.month !== '' || d.title !== '' || d.cost !== '' || d.company !== '' || d.remarks !== '' || d.shops.length > 0;
 
     /**
      * 新規入力の1行を登録する。
@@ -398,6 +404,7 @@ const EventBudget = () => {
                         title: draft.title,
                         cost: draft.cost,
                         company: draft.company,
+                        remarks: draft.remarks,
                         shops: draft.shops
                     }
                 ]
@@ -546,6 +553,8 @@ const EventBudget = () => {
                                             <th style={{ ...styles.th, width: '120px' }}>費用（円）</th>
                                             <th style={{ ...styles.th, minWidth: '170px' }}>該当店舗</th>
                                             <th style={{ ...styles.th, minWidth: '130px' }}>請求先</th>
+                                            {/* ⚠️ v2.2.243: budget.remarks（以前は請求先の括弧書きに入れていた内容） */}
+                                            <th style={{ ...styles.th, minWidth: '160px' }}>詳細</th>
                                             {/* ⚠️ 右端に固定。見出しは top も固定しているため zIndex を高くする */}
                                             <th style={{ ...styles.th, ...styles.stickyRight, width: '66px', zIndex: 3 }}></th>
                                         </tr>
@@ -620,6 +629,15 @@ const EventBudget = () => {
                                                     placeholder="請求先"
                                                     value={draft.company}
                                                     onChange={(e) => patchDraft({ company: e.target.value })}
+                                                />
+                                            </td>
+                                            <td style={styles.td}>
+                                                <input
+                                                    type="text"
+                                                    style={styles.cellInput}
+                                                    placeholder="例：派遣スタッフ"
+                                                    value={draft.remarks}
+                                                    onChange={(e) => patchDraft({ remarks: e.target.value })}
                                                 />
                                             </td>
                                             <td style={{ ...styles.td, ...styles.stickyRight, textAlign: 'center' }}>
@@ -704,6 +722,16 @@ const EventBudget = () => {
                                                             placeholder="請求先"
                                                             value={v.company}
                                                             onChange={(e) => patchEntry(entry.id, { company: e.target.value })}
+                                                        />
+                                                    </td>
+                                                    <td style={styles.td}>
+                                                        <input
+                                                            type="text"
+                                                            style={styles.cellInput}
+                                                            placeholder="詳細"
+                                                            value={v.remarks}
+                                                            title={v.remarks}
+                                                            onChange={(e) => patchEntry(entry.id, { remarks: e.target.value })}
                                                         />
                                                     </td>
                                                     <td style={{ ...styles.td, ...styles.stickyRight, textAlign: 'center' }}>
