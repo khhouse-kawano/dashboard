@@ -7,7 +7,8 @@ import type { Period } from '../common/leadFunnel';
 import type { Row, Settings } from '../summary/kpi';
 import LeadHeader from '../common/LeadHeader';
 import AuthContext from '../../../context/AuthContext';
-import { removeSpaces, safeParse, LEAD_END_REASONS, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
+import { removeSpaces, safeParse, LEAD_END_REASONS, LEAD_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
+import { askBaikaiDate, linkLedgerAfterEdit, linkLedgerWithNotice } from '../common/leadLinks';
 import LeadEdit from '../common/LeadEdit';
 import LeadCall, { CallLog } from '../common/LeadCall';
 import DocumentViewer from '../documents/DocumentViewer';
@@ -48,6 +49,8 @@ export type SellLead = {
   targetProperty: string | null;
   endReason: string | null;
   ledgerNo: string | null;
+  /** 媒介契約日（媒介受託にしたとき。v2.2.244 から一覧でも入れる） */
+  baikaiDate?: string | null;
   extId: string | null;
   dealId: string | null;
   reinsDate: string | null;
@@ -135,6 +138,16 @@ const getLastAction = (callDatesJson: string | null) => {
   } catch (e) {
     return '―';
   }
+};
+
+/**
+ * 架電の記録の日時（'YYYY-MM-DDTHH:mm'。端末の時刻）。LeadBuy.tsx と同じ。
+ * ⚠️ v2.2.244: 定義が無く、一覧の「📞 架電」を押すとエラーで止まっていた
+ */
+const getCurrentDateTime = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 16);
 };
 
 const compactThStyle: React.CSSProperties = {
@@ -284,7 +297,7 @@ const LeadSell = () => {
    * 戻さないと「画面には反映されたのに DB には入っていない」状態になり、
    * 次のリロードで消えた理由が分からなくなるため。
    */
-  const handleApiPatch = async (id: string, fields: Record<string, unknown>) => {
+  const handleApiPatch = async (id: string, fields: Record<string, unknown>): Promise<boolean> => {
     // 失敗時に戻すための退避と、履歴の差分を取るための変更前の値。
     // setState の更新関数の中で拾うと React 18 では次のレンダリングまで
     // 実行されず、この直後の行では空のままになるためクロージャから取る。
@@ -306,11 +319,23 @@ const LeadSell = () => {
           by: userName || '不明',
         });
       }
+      return true;
     } catch (e) {
       console.error('[LeadSell] 保存に失敗しました', { id, fields }, e);
       setLeads(snapshot);
       alert('保存に失敗しました。通信状況を確認して、もう一度お試しください。');
+      return false;
     }
+  };
+
+  /**
+   * 媒介受託 → 媒介獲得台帳へ1行作る（以前のアプリの leadToLedger。common/leadLinks.ts）。
+   * ⚠️ 台帳に紐づいている（ledgerNo がある）反響では作らない（二重に作らない）。
+   */
+  const linkToLedger = async (lead: SellLead, baikaiDate: string) => {
+    if (lead.ledgerNo) return;
+    const linked = await linkLedgerWithNotice(lead as unknown as Record<string, unknown>, baikaiDate, settings.staff);
+    if (linked) setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, ...linked.leadFields } as SellLead : l)));
   };
 
   const handleApiUpdate = (id: string, field: string, value: string | number) => {
@@ -358,7 +383,7 @@ const LeadSell = () => {
       propStatus: null,
       currentStatus: null,
       type: null,
-      phase: newPhaseRef.current?.value || '反響受信',
+      phase: newPhaseRef.current?.value || 'リード受信',
       priority: null,
       property: null,
       targetProperty: null,
@@ -482,17 +507,33 @@ const LeadSell = () => {
     handleApiUpdate(lead.id, 'staff', e.target.value);
   };
 
-  // 💡 追加: フェーズを「追客終了」にした際の理由入力（source.html の ieGuard 相当）
-  const handlePhaseBlur = (lead: SellLead, e: React.FocusEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    if (val === '追客終了') {
-      const reason = window.prompt(`追客終了の理由を入力してください（${LEAD_END_REASONS.join('／')}）`, LEAD_END_REASONS[0]);
-      if (reason == null) {
-        e.target.value = lead.phase || '';
-        return;
-      }
+  /**
+   * フェーズの変更（以前のアプリの ieGuard と同じ）。
+   * ⚠️ v2.2.244: 値が変わったときだけ動く（以前は onBlur で、触れるたびに保存し・追客終了の理由を聞き直していた）。
+   *   追客終了 … 理由を聞いて endReason も保存する（⚠️ 以前は聞いた理由を捨てていた）。追客終了から戻すと理由を消す
+   *   媒介受託 … 媒介契約日を聞き、媒介獲得台帳へ1行作る
+   */
+  const handlePhaseChange = async (lead: SellLead, e: React.ChangeEvent<HTMLSelectElement>) => {
+    const select = e.target;
+    const prev = lead.phase || 'リード受信';
+    const next = select.value;
+    if (next === prev) return;
+    const fields: Record<string, unknown> = { phase: next };
+    let baikaiDate: string | null = null;
+    if (next === '追客終了') {
+      const reason = askEndReason(LEAD_END_REASONS, lead.endReason);
+      if (reason == null) { select.value = prev; return; }
+      fields.endReason = reason;
+    } else if (lead.endReason) {
+      fields.endReason = '';
     }
-    handleApiUpdate(lead.id, 'phase', val);
+    if (next === '媒介受託') {
+      baikaiDate = askBaikaiDate(lead.baikaiDate);
+      if (baikaiDate == null) { select.value = prev; return; }
+      fields.baikaiDate = baikaiDate;
+    }
+    if (!(await handleApiPatch(lead.id, fields))) { select.value = prev; return; }
+    if (baikaiDate != null) await linkToLedger(lead, baikaiDate);
   };
 
   // 💡 追加: 次回連絡日セルの視覚強化（source.html の nextCell() 相当）
@@ -517,7 +558,12 @@ const LeadSell = () => {
       // id / internal_id / created_at / updated_at は DB 側が管理するので送らない。
       // 残りのうちサーバーの許可カラムに無いキーは broker_update.php 側で捨てられる。
       const { id, internal_id, created_at, updated_at, ...fields } = customerInfo as SellLead;
-      void handleApiPatch(id, fields);
+      const saved = customerInfo as SellLead;
+      void handleApiPatch(id, fields).then(async ok => {
+        // ⚠️ v2.2.244: 媒介受託で保存したら媒介獲得台帳へ（以前のアプリの saveLead。媒介契約日は LeadEdit が必須にしている）
+        const linked = ok ? await linkLedgerAfterEdit(saved as unknown as Record<string, unknown>, settings.staff) : null;
+        if (linked) setLeads(prev => prev.map(l => (l.id === id ? { ...l, ...linked.leadFields } as SellLead : l)));
+      });
     }
     setIsEditModalOpen(false);
   };
@@ -628,9 +674,9 @@ const LeadSell = () => {
                     </select>
                   </td>
                   <td style={getTdStyle(false)}>
-                    <select style={compactInputStyle} defaultValue="反響受信" ref={newPhaseRef}>
-                      <option value="">フェーズ</option>
-                      {['反響受信', '追客中', '通電済み', '机上査定', '訪問査定', '査定書提出', '媒介受託', '売却済', '追客終了'].map(p => <option key={p} value={p}>{p}</option>)}
+                    {/* ⚠️ v2.2.244: 以前のアプリの値。媒介受託・追客終了は日付・理由が要るので、追加した後に一覧で変える */}
+                    <select style={compactInputStyle} defaultValue="リード受信" ref={newPhaseRef}>
+                      {LEAD_PHASES.filter(p => p !== '媒介受託' && p !== '追客終了').map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </td>
                   <td colSpan={9} style={{ ...getTdStyle(false), color: '#6c757d', textAlign: 'left', fontSize: '10px' }}>
@@ -700,11 +746,12 @@ const LeadSell = () => {
                       <td style={getTdStyle(isUnassigned)}>
                         <select
                           style={{ ...compactInputStyle, backgroundColor: isUnassigned ? '#fff' : '#f8f9fa', borderRadius: '4px', fontWeight: 'bold' }}
-                          defaultValue={lead.phase || ''}
-                          onBlur={(e) => handlePhaseBlur(lead, e)}
+                          defaultValue={lead.phase || 'リード受信'}
+                          onChange={(e) => void handlePhaseChange(lead, e)}
                         >
-                          <option value="">リード受信</option>
-                          {['架電中', '通電済', '訪問査定予定', '訪問査定済', '査定書提出', '媒介受託', '追客終了'].map(p => <option key={p} value={p}>{p}</option>)}
+                          {LEAD_PHASES.map(p => <option key={p} value={p}>{p}</option>)}
+                          {/* ⚠️ 選択肢に無い値（以前のアプリで手入力されたもの）も消さずに出す */}
+                          {lead.phase && !LEAD_PHASES.includes(lead.phase) && <option value={lead.phase}>{lead.phase}</option>}
                         </select>
                       </td>
                       <td style={getTdStyle(isUnassigned)}>

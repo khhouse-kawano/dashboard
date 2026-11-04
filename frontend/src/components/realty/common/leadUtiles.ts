@@ -364,5 +364,29 @@ export const addDaysISO = (base: string | null | undefined, days: number): strin
     return `${y}-${m}-${day}`;
 };
 
-export const LEAD_END_REASONS = ['成約', '辞退・売側中止', '連絡不通', '対象外', 'その他'];
-export const BUY_END_REASONS = ['成約', '購入見送り', '連絡不能', '対象外', 'その他'];
+/**
+ * フェーズ・終了理由の選択肢（⚠️ v2.2.244 で以前のアプリ v14.29 の LEAD_PHASES / BUY_PHASES / PHASES / LEAD_ENDS / BUY_ENDS にそろえた）。
+ * ⚠️⚠️ **値を言い換えないこと。** 歩留まり（leadFunnel.ts・kpi.ts）と失注分析（LostAnalysis.tsx）はこの値で数える。
+ *   以前は「通電済み」「訪問査定」「内見済み」「成約（終了理由）」など別の値が入り、数から漏れていた。
+ */
+export const LEAD_PHASES = ['リード受信', '架電中', '通電済', '訪問査定予定', '訪問査定済', '査定書提出', '媒介受託', '追客終了'];
+export const BUY_PHASES = ['反響受信', '追客中', '通電済', '内見予約', '内見済', '購入申込', '成約', '追客終了'];
+/** 商談案件（kind = deals）のフェーズ */
+export const DEAL_PHASES = ['初回接触', '資料送付', '内見済', '交渉中', '購入申込', '契約予定', '契約済', '決済完了', '失注'];
+export const LEAD_END_REASONS = ['他決', '辞退・売却中止', '連絡不能', '対象外', 'その他'];
+export const BUY_END_REASONS = ['他決', '購入見送り', '連絡不能', '対象外', 'その他'];
+/** 商談案件の失注理由（以前のアプリの DEAL_LOST_REASONS。失注・他決の分析も同じ値で数える） */
+export const DEAL_LOST_REASONS = ['価格・条件が合わない', '他社で成約（他決）', 'ローン否決・資金計画', '物件の問題（調査・瑕疵など）', 'お客様都合で見送り', '売主都合（売止・価格変更）', '連絡不能', 'その他'];
+/** 次回アクションを必須にしない（終わった）フェーズ。以前のアプリの V12 の CLOSED（summary/CommandCenter.tsx の CLOSED と同じ） */
+export const NEXT_EXEMPT = ['追客終了', '媒介受託', '成約', '失注', '決済完了'];
+
+/**
+ * 一覧で「追客終了」にしたときの理由（以前のアプリの ieGuard と同じ）。
+ * ⚠️ 選択肢に無い言葉も受け付ける（以前のアプリも自由入力。実データに「売却辞退」などがある）。空なら先頭（他決）。
+ * @returns null は取り消し
+ */
+export const askEndReason = (ends: string[], current: string | null | undefined): string | null => {
+    const v = window.prompt(`追客終了の理由を入力してください（${ends.join('／')}）`, current || ends[0]);
+    if (v == null) return null;
+    return v.trim() || ends[0];
+};

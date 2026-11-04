@@ -4,21 +4,22 @@ import { fyStartOf, periodGroups, periodHas, periodShort, recvMonthKey } from '.
 import type { Period } from '../common/leadFunnel';
 import { fiscalMonths, pct } from '../summary/kpi';
 import type { Row } from '../summary/kpi';
+// ⚠️ v2.2.244: 商談案件管理と同じ値を使う（以前はこの画面に同じ配列を持っていた）
+import { DEAL_LOST_REASONS } from '../common/leadUtiles';
 
 /**
  * 失注・他決の分析（不動産企画係。v2.2.225）。
  *
  * ⚠️ 移植元は本番アプリ（V18）の「🧩 失注・他決の分析」（renderLost）。計算・表・見出し・注記は同じ（括弧の中は移植元の名前）。
  *   売り反響・買い反響は受信月、商談案件は失注日（未入力は登録日）で数える。
- * ⚠️ 他決の詳細（lostWhy・lostTo・lostPrice・lostNote）や商談の失注理由（lostReason・lostDate）は DB の列に無いので、
- *   以前のアプリの原本（raw_data）から読む（rowOf）。
+ * ⚠️ 他決の詳細（lostWhy・lostTo・lostPrice・lostNote）は DB の列に無いので、以前のアプリの原本（raw_data）から読む（rowOf）。
+ * ⚠️ 商談の失注理由（lostReason・lostDate・lostNote）は v2.2.244 で列にした（商談案件管理で入れる）。
+ *   ⚠️ rowOf は列を優先する。取り込み済みの値は 2026-11-04_realty_deal_lost.sql で原本から列へ写してある。
  * ⚠️ 以前のアプリでは表の行を押すと編集画面が開いた。編集は売り反響・商談案件の画面で行う（この画面からは開かない）。
  */
 
 /** 終了理由（LEAD_ENDS） */
 const LEAD_ENDS = ['他決', '辞退・売却中止', '連絡不能', '対象外', 'その他'];
-/** 商談の失注理由（DEAL_LOST_REASONS） */
-const DEAL_LOST_REASONS = ['価格・条件が合わない', '他社で成約（他決）', 'ローン否決・資金計画', '物件の問題（調査・瑕疵など）', 'お客様都合で見送り', '売主都合（売止・価格変更）', '連絡不能', 'その他'];
 /** 他決の決め手（LEAD_LOST_WHY） */
 const LEAD_LOST_WHY = ['査定額が高かった', '大手の安心感', '知人・紹介・付き合い', '対応が早かった', '手数料・条件', '買取を選んだ', '地元での実績', '不明', 'その他'];
 /** 買い反響の終了理由（BUY_ENDS） */
