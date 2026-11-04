@@ -46,6 +46,10 @@ const buildForwardHeaders = (req: Request): Record<string, string> => {
   // 転送されたものだと分かるようにしておく。① 側のログで区別できる
   headers['x-forwarded-by'] = 'express-gateway';
 
+  // ⚠️ v2.2.242: 接続元を ① のセキュリティログに渡す（① から見ると接続元は ② になるため）。
+  //   ⚠️ 利用者が送ってきた同じ名前のヘッダーは上で写っているので、必ず上書きする（req.ip は Caddy の後ろの実際の相手）
+  headers['x-client-ip'] = req.ip ?? '';
+
   return headers;
 };
 
