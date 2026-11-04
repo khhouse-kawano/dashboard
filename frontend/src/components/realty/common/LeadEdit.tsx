@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useContext, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
 import AuthContext from '../../../context/AuthContext';
-import { removeSpaces, NEXT_QUICK, addDaysISO, LEAD_END_REASONS, BUY_END_REASONS } from './leadUtiles';
+import { removeSpaces, NEXT_QUICK, addDaysISO, LEAD_END_REASONS, BUY_END_REASONS, LEAD_PHASES, BUY_PHASES, NEXT_EXEMPT } from './leadUtiles';
 // 💡 追加: DocumentViewerをインポート
 import DocumentViewer from '../documents/DocumentViewer';
 // 💡 追加: サーバー保存済みの変更履歴
@@ -164,9 +164,9 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     const nameLabel = isSellType ? '売主名' : '顧客名';
     const sourceLabel = isSellType ? '反響元' : 'ポータル';
 
-    const phaseList = isSellType
-        ? ['反響受信', '追客中', '通電済み', '机上査定', '訪問査定', '査定書提出', '媒介受託', '売却済', '追客終了']
-        : ['反響受信', '追客中', '通電済み', '内見予約', '内見済み', '購入申込', '成約', '追客終了'];
+    // ⚠️ v2.2.244: 以前のアプリの値（leadUtiles.ts）。⚠️ 選択肢に無い今の値（手入力されたもの）は消さずに足す
+    const basePhases = isSellType ? LEAD_PHASES : BUY_PHASES;
+    const phaseList = customerInfo.phase && !basePhases.includes(customerInfo.phase) ? [...basePhases, customerInfo.phase] : basePhases;
 
     let titleLabel = '';
     switch (leadCategory) {
@@ -293,8 +293,14 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                 alert('追客終了の理由を選択してください。');
                 return;
             }
-        } else if (!customerInfo.nextDate || !String(customerInfo.nextNote || '').trim()) {
+        } else if (!NEXT_EXEMPT.includes(customerInfo.phase) && (!customerInfo.nextDate || !String(customerInfo.nextNote || '').trim())) {
+            // ⚠️ v2.2.244: 媒介受託・成約は免除（以前のアプリの V12.requireNext の CLOSED。以前は追客終了だけを免除していた）
             alert('次回アクション（次回連絡日・次回アクション内容）は必須です。');
+            return;
+        }
+        // ⚠️ v2.2.244: 媒介受託は媒介契約日を必須にする（以前のアプリの saveLead。保存後に媒介獲得台帳へ反映するため）
+        if (leadCategory === 'sell' && customerInfo.phase === '媒介受託' && !customerInfo.baikaiDate) {
+            alert('媒介受託にするには「媒介契約日」の入力が必要です。');
             return;
         }
         onSave();

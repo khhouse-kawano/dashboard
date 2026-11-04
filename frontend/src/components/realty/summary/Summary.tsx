@@ -7,6 +7,7 @@ import AuthContext from '../../../context/AuthContext';
 // 💡 追加: タスク一覧の「開く」から顧客情報を編集する
 import LeadEdit, { LeadCategory } from '../common/LeadEdit';
 import { saveBrokerageRecord, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
+import { linkLedgerAfterEdit } from '../common/leadLinks';
 // ⚠️ v2.2.222: 年間予算進捗・月次KPI・架電実績・朝礼用アラートは本番アプリの集計をそのまま写した kpi.ts で出す
 import {
     ALERT_DAYS, CONFIRMED, alertWindow, callStats, daysAgoLabel, dealCountByStaffMonth, dealRegDate,
@@ -260,6 +261,11 @@ const Summary = () => {
 
         try {
             await saveBrokerageRecord(id, fields);
+            // ⚠️ v2.2.244: 売り反響を媒介受託で保存したら媒介獲得台帳へ（以前のアプリの saveLead）
+            if (!isBuy) {
+                const linked = await linkLedgerAfterEdit({ ...(before ?? {}), ...fields, id }, settings.staff);
+                if (linked) setTarget(prev => prev.map(l => (l.id === id ? { ...l, ...linked.leadFields } as SummaryLead : l)));
+            }
             // 保存が成功してから履歴を残す（失敗した変更を履歴に残さないため）
             if (before) {
                 await recordFieldChanges({

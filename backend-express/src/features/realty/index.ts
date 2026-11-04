@@ -161,6 +161,8 @@ const ALLOWED_COLUMNS = [
   'subStaff', 'subRatio', 'coBroker', 'delivery',
   // ⚠️ v2.2.222: 本番アプリ（V14.11〜）で増えた商談のリフォーム受注と、商談リストの登録日
   'reformPrice', 'reformGp', 'reformNote', 'createdAt',
+  // ⚠️ v2.2.244: 商談の失注理由（2026-11-04_realty_deal_lost.sql。importer.ts の IMPORT_COLUMNS にもある）
+  'lostReason', 'lostDate', 'lostNote',
   'reason', 'timing', 'endReason', 'callDates', 'nextDate', 'nextNote',
   'receivedDate', 'connectDate', 'visitDate', 'viewDate', 'baikaiDate',
   'contactDate', 'contractDate', 'settleDate', 'followDate',

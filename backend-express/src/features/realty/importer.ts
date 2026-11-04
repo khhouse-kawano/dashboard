@@ -67,6 +67,8 @@ const IMPORT_COLUMNS = new Set([
   'endReason', 'ledgerNo', 'ledgerId', 'extId', 'dealId', 'dealNo',
   'subStaff', 'subRatio', 'coBroker', 'delivery',
   'reformPrice', 'reformGp', 'reformNote', 'createdAt',
+  // ⚠️ v2.2.244: 商談の失注理由（以前のアプリ v14.25〜。2026-11-04_realty_deal_lost.sql）
+  'lostReason', 'lostDate', 'lostNote',
   'receivedDate', 'connectDate', 'contactDate', 'visitDate', 'viewDate', 'baikaiDate',
   'contractDate', 'settleDate', 'followDate', 'inputDate', 'renewDate',
   'applicationDate', 'nextDate', 'nextNote',
@@ -87,7 +89,7 @@ const DATE_COLUMNS = new Set([
   'settleDate', 'contactDate', 'visitDate', 'connectDate', 'receivedDate',
   'viewDate', 'inputDate', 'renewDate', 'baikaiDate', 'nextDate', 'expiry',
   'taxCheckDate', 'buyContractDate', 'buySettleDate', 'listDate',
-  'sellContractDate', 'sellSettleDate',
+  'sellContractDate', 'sellSettleDate', 'lostDate',
 ]);
 /** DATETIME の列 */
 const DATETIME_COLUMNS = new Set(['docDraftAt']);
