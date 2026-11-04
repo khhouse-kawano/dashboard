@@ -12,6 +12,8 @@
  */
 
 require_once __DIR__ . '/../core/google_auth.php';
+// ⚠️ v2.2.242: ログインの成功・失敗をセキュリティログに残す
+require_once __DIR__ . '/../core/security_log.php';
 
 // ---------------------------------------------------------------------------
 // 1. 本人確認
@@ -24,6 +26,7 @@ $mail = $credential !== '' ? verifyGoogleIdToken($credential) : null;
 
 if ($mail === null) {
     // ⚠️ 理由は返さない。error_log にだけ残る（core/google_auth.php を参照）
+    securityLog(['event' => 'login_failed', 'status' => 401, 'message' => $credential === '' ? 'Google の認証情報なし' : 'Google の確認に失敗'], $pdo);
     http_response_code(401);
     echo json_encode([
         'message' => 'error',
@@ -43,6 +46,9 @@ $stmt->execute([$mail]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$user) {
+    // ⚠️ メールアドレスは残さない（ドメインだけ。社外のアカウントからの試しかを見分けるため）
+    $domain = strrchr($mail, '@');
+    securityLog(['event' => 'login_failed', 'status' => 200, 'message' => 'スタッフの名簿にない（' . ($domain === false ? '?' : '*' . $domain) . '）'], $pdo);
     echo json_encode([
         'message' => 'error',
         'details' => 'メールまたはパスワードが違います',
@@ -62,6 +68,14 @@ $stmt->execute([$timestamp, $user['name']]);
 //   docs/auth-redesign-proposal.md を参照。
 $token = generateToken();
 storeToken($pdo, $user['mail'], $token);
+
+// ⚠️ v2.2.242: 最後のログイン日時（staff.last_login_at）とセキュリティログ。⚠️ 失敗してもログインは止めない
+try {
+    $pdo->prepare("UPDATE staff SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
+} catch (PDOException $e) {
+    error_log('login: last_login_at の更新に失敗しました（' . $e->getMessage() . '）');
+}
+securityLog(['event' => 'login', 'status' => 200, 'staff' => $user], $pdo);
 
 echo json_encode([
     "message" => "success",

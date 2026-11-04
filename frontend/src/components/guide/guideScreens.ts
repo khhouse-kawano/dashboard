@@ -102,6 +102,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '店舗編集': { header: 'システム管理/店舗編集' },
     'スタッフ編集・追加': { header: 'システム管理/スタッフ編集・追加' },
     '権限編集': { header: 'システム管理/権限編集' },
+    // ⚠️ v2.2.242。headerScreens.tsx と同じく Master だけ
+    'セキュリティログ': { header: 'システム管理/セキュリティログ', authority: ['Master'] },
 };
 // GUIDE_SCREENS_END
 

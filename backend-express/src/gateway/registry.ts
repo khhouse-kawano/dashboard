@@ -144,6 +144,7 @@ import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
 import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import { listLoanPlanRates, uploadLoanPlanRates } from '../features/loanPlanRate';
+import { listSecurityLog } from '../features/securityLog';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
 import { runMemberEntry } from '../features/memberEntry/entry';
 import { runHousingBazarEntry } from '../features/housingBazar/entry';
@@ -3025,6 +3026,21 @@ register({
     { month: ctx.body.month, rows: ctx.body.rows },
     String(ctx.staff?.name ?? '')
   ),
+});
+
+/**
+ * セキュリティログの一覧（v2.2.242）。features/securityLog.ts 参照。
+ *
+ * ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある。**
+ *   ⚠️ ① の express_proxy.php の ⚠️ **転送リストと転送専用リストの両方**に入れてある。
+ * ⚠️ 読むのは Master だけ（ヘッダーの「システム管理 → セキュリティログ」）。⚠️ 書くのは ①（core/security_log.php）と ②（recordSecurityEvent）。
+ */
+register({
+  request: 'security_log_list',
+  summary: 'セキュリティログ（期間の行・種類ごとの件数・要注意の IP）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) => listSecurityLog(ctx.body),
 });
 
 // ---------------------------------------------------------------------------

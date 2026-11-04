@@ -7,6 +7,9 @@ require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/token.php';
 require_once __DIR__ . '/core/helpers.php';
 require_once __DIR__ . '/core/express_proxy.php';
+// ⚠️ v2.2.242: セキュリティログ（core/security_log.php）。⚠️ 致命的エラーも server_error として残す
+require_once __DIR__ . '/core/security_log.php';
+securityLogRegisterFatalHandler();
 
 header("Content-Type: application/json; charset=utf-8");
 
@@ -16,6 +19,7 @@ header("Content-Type: application/json; charset=utf-8");
 // portal/xxx のようなサブディレクトリ指定だけを例外的に通す。
 // ドットを許可しないことで ".." による親ディレクトリ参照を封じている。
 if ($request === '' || !preg_match('#^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$#', $request)) {
+    securityLog(['event' => 'bad_request', 'status' => 400, 'request' => is_scalar($request) ? $request : '']);
     http_response_code(400);
     echo json_encode(
         ['status' => 'error', 'message' => '不正なリクエストです。'],
@@ -56,6 +60,7 @@ if (shouldProxyToExpress($request, $proxyData)) {
     //   消せば ① 自身の PHP が処理する（PHPハンドラは残してある）。
     if (isExclusiveToExpress($request, $proxyData)) {
         error_log("express_proxy: {$request} は転送専用のため ① では処理しません（502）");
+        securityLog(['event' => 'proxy_error', 'status' => 502, 'message' => '② に届かない（転送専用）']);
         http_response_code(502);
         echo json_encode(
             [
@@ -73,6 +78,7 @@ $handler = __DIR__ . "/handlers/" . $request . ".php";
 // 存在しない場合に PHP の Fatal error をそのまま返すと、
 // サーバーの絶対パスが外部に漏れる。JSON で 404 を返す。
 if (!is_file($handler)) {
+    securityLog(['event' => 'unknown_request', 'status' => 404]);
     http_response_code(404);
     echo json_encode(
         ['status' => 'error', 'message' => '該当する処理がありません。'],

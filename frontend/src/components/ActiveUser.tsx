@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import apiClient from '../utils/apiClient';
 import { openDailyAction, DAILY_CATEGORIES, NO_DAILY_ACTION } from './DailyAction';
 import { isGuideCategory, openGuide } from './guide/openGuide';
+import { logout } from '../utils/logout';
 
 type User = { id?: string | number, name: string, heartbeat: string };
 
@@ -360,6 +361,24 @@ const ActiveUser: React.FC = () => {
                         </div>
 
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {/* ⚠️ v2.2.242: ログアウト（⚠️ 名前の行・指示「右上に固定」。utils/logout.ts）。⚠️ 押し間違いを防ぐため確かめる */}
+                            <button
+                                type="button"
+                                onClick={() => { if (window.confirm('ログアウトしますか？')) void logout(); }}
+                                aria-label="ログアウト"
+                                title="ログアウト"
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 4,
+                                    fontSize: 13,
+                                    lineHeight: 1,
+                                    color: '#6c757d'
+                                }}
+                            >
+                                <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
+                            </button>
                             <button
                                 onClick={() => setCollapsed(prev => !prev)}
                                 aria-label={collapsed ? "Show active users" : "Hide active users"}

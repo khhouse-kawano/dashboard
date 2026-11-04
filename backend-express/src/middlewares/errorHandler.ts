@@ -3,6 +3,7 @@ import { isProduction } from '../config/env';
 import { AppError } from '../errors/AppError';
 import type { ErrorCode } from '../errors/AppError';
 import { logger } from '../utils/logger';
+import { recordSecurityEvent } from '../features/securityLog';
 
 /**
  * エラーレスポンスの形は全エンドポイントで統一する。
@@ -72,6 +73,8 @@ const normalize = (err: unknown): Normalized => {
 
 /** どのルートにも一致しなかったリクエスト。errorHandler の直前に置く */
 export const notFoundHandler: RequestHandler = (req, res) => {
+  // ⚠️ v2.2.242: 存在しないパスを探る動き（ロボットなど）をセキュリティログに残す（⚠️ クエリ文字列は残さない）
+  recordSecurityEvent(req, { event: 'unknown_request', status: 404, request: `${req.method} ${req.path}` });
   res.status(404).json({
     error: {
       code: 'NOT_FOUND',
@@ -97,6 +100,15 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     logger.error(label, err);
   } else {
     logger.warn(`${label} ${message}`);
+  }
+
+  // ⚠️ v2.2.242: セキュリティログ（500・401・403）。⚠️ 中身の詳しい内容（SQL の値など）は残さない（種類と先頭だけ）
+  const request = typeof req.body?.request === 'string' ? req.body.request : `${req.method} ${req.path}`;
+  if (unexpected) {
+    const detail = err instanceof Error ? `${err.name}: ${err.message.split(/\r?\n/)[0].slice(0, 200)}` : 'unknown';
+    recordSecurityEvent(req, { event: 'server_error', status: statusCode, request, message: `${detail} [${req.requestId}]` });
+  } else if (statusCode === 401 || statusCode === 403) {
+    recordSecurityEvent(req, { event: statusCode === 401 ? 'auth_failed' : 'forbidden', status: statusCode, request, message });
   }
 
   res.status(statusCode).json({
