@@ -145,6 +145,7 @@ import { runUpdateLog } from '../features/updateLog';
 import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import { listLoanPlanRates, uploadLoanPlanRates } from '../features/loanPlanRate';
 import { listSecurityLog } from '../features/securityLog';
+import { BUDGET_TABLE_AUTHORITY, listBudgetTable, uploadBudgetTable } from '../features/budgetTable';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
 import { runMemberEntry } from '../features/memberEntry/entry';
 import { runHousingBazarEntry } from '../features/housingBazar/entry';
@@ -3041,6 +3042,36 @@ register({
   phpSource: '（新規。PHP版なし）',
   auth: 'master',
   handler: async (ctx) => listSecurityLog(ctx.body),
+});
+
+/**
+ * 予算テーブル（v2.2.243）。features/budgetTable.ts 参照。
+ *
+ * ⚠️⚠️ **① に PHP ハンドラは無い。最初から Express だけにある。**
+ *   ⚠️ ① の express_proxy.php の ⚠️ **転送リストと転送専用リストの両方**に入れてある。
+ * ⚠️⚠️ **Master と BrandAdmin だけ。** `auth: 'master'` は Master しか通さないので、
+ *   `auth: 'staff'` のうえで BUDGET_TABLE_AUTHORITY を確かめる（staff_contract と同じ形）。
+ */
+register({
+  request: 'budget_table_list',
+  summary: '予算テーブル（budget の期間などで絞った行・件数と金額の合計。Master / BrandAdmin のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    if (!BUDGET_TABLE_AUTHORITY.includes(ctx.staff?.brand ?? '')) return forbidden(ctx);
+    return listBudgetTable(ctx.body);
+  },
+});
+
+register({
+  request: 'budget_table_upload',
+  summary: '【書き込み】予算テーブル: CSV の行を budget へ INSERT（mode = check は確かめるだけ。Master / BrandAdmin のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    if (!BUDGET_TABLE_AUTHORITY.includes(ctx.staff?.brand ?? '')) return forbidden(ctx);
+    return uploadBudgetTable(ctx.body);
+  },
 });
 
 // ---------------------------------------------------------------------------

@@ -96,7 +96,7 @@ const EVENT_SQL = `
  *   件数が増えたらページングに変えること。
  */
 const ENTRY_SQL = `
-  SELECT id, budget_period, shop, budget_value, note, company, section, order_section
+  SELECT id, budget_period, shop, budget_value, note, company, remarks, section, order_section
     FROM budget
    WHERE medium = ?
    ORDER BY id DESC
@@ -124,6 +124,15 @@ const asDate = (value: unknown): string => {
     return `${y}-${m}-${d}`;
   }
   return asString(value).slice(0, 10);
+};
+
+/**
+ * 詳細（budget.remarks。v2.2.243）。⚠️ 空は NULL で保存する（列の既定値と同じ。空文字と NULL を混ぜない）
+ * ⚠️ 2026-11-04 の SQL で、請求先の括弧書き（'フルキャスト(派遣スタッフ)' の '派遣スタッフ'）をここへ移した。
+ */
+const toRemarks = (value: unknown): string | null => {
+  const s = asString(value).trim();
+  return s === '' ? null : s;
 };
 
 export const runEventBudgetOptions = async (): Promise<EventBudgetResult> => {
@@ -184,6 +193,7 @@ export const runEventBudgetOptions = async (): Promise<EventBudgetResult> => {
         cost: Number(r.budget_value),
         title: asString(r.note),
         company: asString(r.company),
+        remarks: asString(r.remarks),
         section: asString(r.section),
         orderSection: asString(r.order_section),
       })),
@@ -206,13 +216,15 @@ interface InputRow {
   title?: unknown;
   /** 請求先（自由入力） */
   company?: unknown;
+  /** 詳細（自由入力。v2.2.243） */
+  remarks?: unknown;
 }
 
 const INSERT_SQL = `
   INSERT INTO budget
-    (budget_period, shop, medium, budget_value, note, company,
+    (budget_period, shop, medium, budget_value, note, company, remarks,
      response_medium, category, section, order_section)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 /**
@@ -233,13 +245,13 @@ const toBudgetPeriod = (month: unknown): string | null => {
 // ---------------------------------------------------------------------------
 
 const CURRENT_SQL = `
-  SELECT budget_period, shop, section, order_section
+  SELECT budget_period, shop, remarks, section, order_section
     FROM budget WHERE id = ? AND medium = ?
 `;
 
 const UPDATE_SQL = `
   UPDATE budget
-     SET budget_period = ?, shop = ?, budget_value = ?, note = ?, company = ?,
+     SET budget_period = ?, shop = ?, budget_value = ?, note = ?, company = ?, remarks = ?,
          section = ?, order_section = ?
    WHERE id = ? AND medium = ?
 `;
@@ -369,6 +381,15 @@ export const runEventBudgetUpdate = async (body: unknown): Promise<EventBudgetRe
     orderSection = asString(info.section);
   }
 
+  /**
+   * ⚠️⚠️ **remarks が送られてこなければ今の値を残す。**
+   *   v2.2.242 までの画面は remarks を送らない。② を先にデプロイしたあと、古い画面のまま「修正」を押すと、
+   *   詳細（請求先の括弧書きから移した値）が NULL で消えてしまうため。
+   */
+  const remarks = data.remarks === undefined
+    ? (current.remarks === null || current.remarks === undefined ? null : asString(current.remarks))
+    : toRemarks(data.remarks);
+
   try {
     await execute(UPDATE_SQL, [
       period,
@@ -377,6 +398,7 @@ export const runEventBudgetUpdate = async (body: unknown): Promise<EventBudgetRe
       Math.round(cost),
       title,
       asString(data.company).trim(),
+      remarks,
       section,
       orderSection,
       id,
@@ -397,6 +419,7 @@ export const runEventBudgetUpdate = async (body: unknown): Promise<EventBudgetRe
           cost: Math.round(cost),
           title,
           company: asString(data.company).trim(),
+          remarks: remarks ?? '',
           section,
           orderSection,
         },
@@ -489,6 +512,7 @@ export const runEventBudgetSave = async (body: unknown): Promise<EventBudgetResu
     const perShop = Math.ceil(cost / shops.length);
 
     const company = asString(row.company).trim();
+    const remarks = toRemarks(row.remarks);
 
     for (const shop of shops) {
       const info = shopMap.get(shop);
@@ -516,6 +540,7 @@ export const runEventBudgetSave = async (body: unknown): Promise<EventBudgetResu
           perShop,
           title,
           company,
+          remarks,
           FIXED.responseMedium,
           FIXED.category,
           section,
@@ -530,6 +555,7 @@ export const runEventBudgetSave = async (body: unknown): Promise<EventBudgetResu
           cost: perShop,
           title,
           company,
+          remarks: remarks ?? '',
           section,
           orderSection: info.section,
         },
