@@ -8,7 +8,7 @@ import type { Row, Settings } from '../summary/kpi';
 import LeadHeader from '../common/LeadHeader';
 import AuthContext from '../../../context/AuthContext';
 import { removeSpaces, safeParse, LEAD_END_REASONS, LEAD_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
-import { askBaikaiDate, linkLedgerAfterEdit, linkLedgerWithNotice } from '../common/leadLinks';
+import { askBaikaiDate, leadToResale, linkLedgerAfterEdit, linkLedgerWithNotice } from '../common/leadLinks';
 import LeadEdit from '../common/LeadEdit';
 import LeadFilterBar, { EMPTY_FILTER, matchesFilter } from '../common/LeadFilterBar';
 import type { LeadFilter } from '../common/LeadFilterBar';
@@ -351,6 +351,23 @@ const LeadSell = () => {
     if (lead.ledgerNo) return;
     const linked = await linkLedgerWithNotice(lead as unknown as Record<string, unknown>, baikaiDate, settings.staff);
     if (linked) setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, ...linked.leadFields } as SellLead : l)));
+  };
+
+  /**
+   * ⚠️ v2.2.246: 自社買取 → 買取案件へ（制作者の流れ「①売り反響と物件が紐づく ②自社買取の場合に買取案件へ移行」）。
+   *   台帳（媒介受託で作ったもの）の媒介種別を「買取」にし、買取再販案件を1件作って台帳 No. でつなぐ（common/leadLinks.ts の leadToResale）。
+   */
+  const moveToResale = async (lead: SellLead) => {
+    if (!window.confirm(`「${lead.seller || lead.name || ''}」を自社で買い取る案件として、買取再販案件を作ります。\n台帳 No.${lead.ledgerNo} の媒介種別は「買取」になります。よろしいですか？`)) return;
+    try {
+      const r = await leadToResale(lead as unknown as Record<string, unknown>, userName || '不明');
+      if (r === null) alert(`台帳 No.${lead.ledgerNo} が見つかりません。媒介獲得台帳を確かめてください。`);
+      else if ('exists' in r) alert(`台帳 No.${lead.ledgerNo} には、既に買取再販案件 No.${r.exists} がつながっています。`);
+      else alert(`買取再販案件 No.${r.no} を作りました（台帳 No.${r.ledgerNo}）。\n買取再販案件の画面で、買取価格・建物価格・費目を入れてください。`);
+    } catch (e) {
+      console.error('[LeadSell] 買取案件の作成に失敗しました', lead.id, e);
+      alert('買取案件を作れませんでした。時間をおいて、もう一度お試しください。');
+    }
   };
 
   const handleApiUpdate = (id: string, field: string, value: string | number) => {
@@ -780,6 +797,17 @@ const LeadSell = () => {
                           {/* ⚠️ 選択肢に無い値（以前のアプリで手入力されたもの）も消さずに出す */}
                           {lead.phase && !LEAD_PHASES.includes(lead.phase) && <option value={lead.phase}>{lead.phase}</option>}
                         </select>
+                        {/* ⚠️ v2.2.246: 台帳ができた反響（媒介受託）だけ。自社買取なら買取再販案件へ */}
+                        {lead.ledgerNo && (
+                          <button
+                            type="button"
+                            style={{ fontSize: '9px', padding: '0 6px', height: '18px', marginTop: '2px', backgroundColor: '#fff', border: '1px solid #fd7e14', color: '#fd7e14', borderRadius: '10px', cursor: 'pointer' }}
+                            onClick={() => void moveToResale(lead)}
+                            title="自社で買い取るときに、買取再販案件を作る"
+                          >
+                            買取案件へ
+                          </button>
+                        )}
                       </td>
                       <td style={getTdStyle(isUnassigned)}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>

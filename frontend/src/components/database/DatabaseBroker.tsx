@@ -1,10 +1,15 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useContext, useCallback } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
 import { dateFormate, parseTextWithUrl, thStyle, getReinsStatus, getPropertyStatus, getContractExpirationDate, getRemainingDays, getContractStatusInfo } from './databaseUtils';
 import PropertyRegister from './PropertyRegister';
 import InformationEditResale from '../information/InformationEditResale';
 import PropertySummary from './PropertySummary';
+import BuyOfferModal from '../realty/common/BuyOfferModal';
+import { OFFER_STATUS } from '../realty/common/leadLinks';
+import { loadRecords } from '../realty/common/realtyState';
+import AuthContext from '../../context/AuthContext';
+import type { Row, StaffSetting } from '../realty/summary/kpi';
 
 export interface BrokerData {
     internal_id: number;
@@ -33,6 +38,10 @@ export interface BrokerData {
     baikaiType?: string | null;
     propStatus?: string | null;
     currentStatus?: string | null;
+    /** つないだ商談案件（売側）の id（v2.2.246 の買付登録。以前のアプリの l.dealId） */
+    dealId?: string | null;
+    /** 他社客付けの内容（JSON） */
+    coBroker?: unknown;
     type?: string | null;
     phase?: string | null;
     priority?: string | null;
@@ -77,6 +86,30 @@ const DatabaseBroker = () => {
     const [isSaving, setIsSaving] = useState(false);
 
     const [targetId, setTargetId] = useState('');
+
+    /**
+     * ⚠️ v2.2.246: 買付登録（realty/common/BuyOfferModal.tsx）。
+     *   担当者の設定（略称→氏名）と、つないだ商談案件の No. を出すために商談案件も読む。
+     */
+    const { userName } = useContext(AuthContext);
+    const [offerLedger, setOfferLedger] = useState<BrokerData | null>(null);
+    const [staffSettings, setStaffSettings] = useState<StaffSetting[]>([]);
+    const [dealNoById, setDealNoById] = useState<Record<string, string>>({});
+    const loadDeals = useCallback(() => {
+        loadRecords(['deals'])
+            .then(({ records, settings }) => {
+                setStaffSettings(settings.staff ?? []);
+                setDealNoById(Object.fromEntries(records.deals.map(d => [String(d.id), String(d.no ?? '―')])));
+            })
+            .catch(e => console.error('[DatabaseBroker] 商談案件の読み込みに失敗しました', e));
+    }, []);
+    useEffect(() => { loadDeals(); }, [loadDeals]);
+    const closeOffer = useCallback(() => setOfferLedger(null), []);
+    /** 買付登録・解除のあと、一覧の台帳を直し、案件の No. を読み直す */
+    const onOfferSaved = (ledgerId: string, fields: Row) => {
+        setOriginalData(prev => prev.map(d => (d.id === ledgerId ? { ...d, ...fields } as BrokerData : d)));
+        loadDeals();
+    };
 
 
     // データ取得
@@ -197,6 +230,9 @@ const DatabaseBroker = () => {
     const handleUpdate = async () => {
         if (!targetPropertyId) return;
         setIsSaving(true);
+        // ⚠️ v2.2.246: 現況を「買付有」にして保存したら買付登録へ案内する（以前のアプリの cbPromptOnStatus）
+        const before = originalData.find(d => d.id === targetPropertyId);
+        const toOffer = editData.currentStatus === OFFER_STATUS && before?.currentStatus !== OFFER_STATUS && !(before?.dealId && dealNoById[before.dealId]);
         try {
             const payload = {
                 request: 'broker',
@@ -208,6 +244,11 @@ const DatabaseBroker = () => {
             if (response.data.status === 'error') alert('更新に失敗しました');
             const filtered = response.data.brokerage.filter(b => b.kind === 'ledger' && b.show_dashboard === 1);
             setOriginalData(filtered);
+            const saved = filtered.find((b: BrokerData) => b.id === targetPropertyId);
+            if (toOffer && saved && response.data.status !== 'error'
+                && window.confirm('台帳の現況を「買付有」にしました。\n商談案件管理へつなぐには、買付の内容（買主・買付金額・契約希望日）が要ります。\n買付登録の画面を開きますか？')) {
+                setOfferLedger(saved);
+            }
         } catch (e) {
             console.error(e);
             alert('更新に失敗しました。');
@@ -367,6 +408,8 @@ const DatabaseBroker = () => {
                                     <th className="py-2 text-start" style={thStyle} onClick={() => requestSort('displayAddress')}>物件 / 住所 {getSortIcon('displayAddress')}</th>
                                     <th className="py-2 text-end" style={thStyle} onClick={() => requestSort('displayPrice')}>金額 / 予算 {getSortIcon('displayPrice')}</th>
                                     <th className="py-2" style={thStyle} onClick={() => requestSort('phase')}>フェーズ {getSortIcon('phase')}</th>
+                                    {/* ⚠️ v2.2.246: 買付登録（他社・自社の客付け）→ 商談案件 */}
+                                    <th className="py-2">客付・案件</th>
                                     <th className="py-2">REINZ</th>
                                     <th className="py-2">物件状態</th>
                                     <th className="py-2">MAP</th>
@@ -446,6 +489,21 @@ const DatabaseBroker = () => {
                                                     <span className="badge bg-light text-dark border">{item.currentStatus || '-'}</span>
                                                 </td>
                                                 <td>
+                                                    {item.dealId && dealNoById[item.dealId] ? (
+                                                        <button className="btn btn-sm btn-success bg-opacity-75 rounded-pill px-2 py-0" style={{ fontSize: '11px' }}
+                                                            title="商談案件につながっています（押すと解除の画面）" onClick={() => setOfferLedger(item)}>
+                                                            案件No.{dealNoById[item.dealId]}
+                                                        </button>
+                                                    ) : item.propStatus === '媒介終了' ? (
+                                                        <span className="text-muted" style={{ fontSize: '11px' }}>-</span>
+                                                    ) : (
+                                                        <button className="btn btn-sm btn-outline-secondary bg-white rounded-pill px-2 py-0" style={{ fontSize: '11px' }}
+                                                            title="他社・自社の客付けの買付を登録して、商談案件管理へつなぐ" onClick={() => setOfferLedger(item)}>
+                                                            🤝買付登録{item.dealId ? '（連携切れ）' : ''}
+                                                        </button>
+                                                    )}
+                                                </td>
+                                                <td>
                                                     <span className={`badge ${getReinsStatus(item.reinsDate, item.baikaiType).color}`}>
                                                         {getReinsStatus(item.reinsDate, item.baikaiType).label}
                                                     </span>
@@ -497,7 +555,7 @@ const DatabaseBroker = () => {
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={19} className="text-center py-4 text-muted">
+                                        <td colSpan={20} className="text-center py-4 text-muted">
                                             該当するデータが見つかりません。
                                         </td>
                                     </tr>
@@ -516,6 +574,13 @@ const DatabaseBroker = () => {
                 staffList={staffList}
                 isSaving={isSaving}
                 handleUpdate={handleUpdate} />
+            <BuyOfferModal
+                ledger={offerLedger as Row | null}
+                staffSettings={staffSettings}
+                userName={userName || ''}
+                onClose={closeOffer}
+                onSaved={onOfferSaved}
+            />
             <PropertySummary
                 targetId={targetId}
                 setTargetId={setTargetId}

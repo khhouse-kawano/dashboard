@@ -1,5 +1,5 @@
 import { loadRecords } from './realtyState';
-import { newRecordId, saveBrokerageRecord } from './leadUtiles';
+import { logChange, newRecordId, saveBrokerageRecord } from './leadUtiles';
 import type { StaffSetting } from '../summary/kpi';
 
 /**
@@ -8,6 +8,9 @@ import type { StaffSetting } from '../summary/kpi';
  * ─────────────────────────────────────────────
  *   売り反響を「媒介受託」にする → 媒介獲得台帳（kind = ledger）へ1行作り、反響に ledgerNo を持たせる
  *   買い反響を「購入申込」にする → 商談案件（kind = deals）へ「買」案件を1件作り、反響に dealId を持たせる
+ *   ⚠️ v2.2.246:
+ *   媒介台帳の「買付登録」     → 他社客付けは商談案件「売」を1件、自社客付けは「売」「買」の2件（registerBuyOffer）
+ *   売り反響の「買取案件へ」   → 台帳の媒介種別を「買取」にし、買取再販案件（kind = resales）を1件作る（leadToResale）
  *
  * ⚠️ No. は「その種類の最大 + 1」（以前のアプリと同じ）。⚠️ 作る直前に読み直して数える（画面を開いた後に増えた分を拾う）。
  * ⚠️ 二重連携は呼び出し側で防ぐ（ledgerNo / dealId が入っていれば呼ばない）。
@@ -127,4 +130,185 @@ export const buyToDeal = async (lead: Rec): Promise<{ no: number; dealId: string
     const leadFields: Rec = { dealId, ...(str(lead.phase) === '成約' ? {} : { phase: '購入申込' }) };
     await saveBrokerageRecord(str(lead.id), leadFields);
     return { no, dealId, leadFields };
+};
+
+// ---------------------------------------------------------------------------
+// 媒介台帳の買付登録（v2.2.246。以前のアプリ v14.29 の openCoBroker / saveCoBroker / ledgerToDeal / ledgerToDealOwn / cbUnlink）
+// ---------------------------------------------------------------------------
+
+/** 自社の売主名（以前のアプリの RS_OWNER）。買取再販の物件は「(株)国分ハウジング（物件名）」で台帳に入る */
+export const OWN_SELLER = '(株)国分ハウジング';
+/** 台帳の現況。商談中の意味（以前のアプリの CB_LED_STATUS） */
+export const OFFER_STATUS = '買付有';
+/** 買主属性（以前のアプリの CB_ATTRS） */
+export const BUYER_ATTRS = ['個人（実需）', '個人（住み替え）', '個人（投資）', '法人', '買取業者', 'その他'];
+
+/** 他社客付けのときに台帳へ残す客付けの内容（coBroker 列。JSON） */
+export type CoBroker = {
+    company: string; person: string; contact: string; buyerName: string; buyerAttr: string;
+    price: number; contractDate: string; deliveryDate: string; note: string; registeredAt: string; registeredBy: string;
+};
+
+export type BuyOfferInput = {
+    /** out = 他社客付け（片手）／own = 自社客付け（両手。買い反響のお客様） */
+    kind: 'out' | 'own';
+    company: string; person: string; contact: string;
+    price: number; contractDate: string; deliveryDate: string;
+    buyerName: string; buyerAttr: string; property: string;
+    /** 自社担当（氏名） */
+    staff: string;
+    /** 仲介手数料を計上しない（自社売主＝買取再販物件） */
+    noFee: boolean;
+    note: string;
+};
+
+/** 自社が売主（買取再販）の物件か。⚠️ 他社客付けでも自社の仲介手数料は出ない（以前のアプリの cbIsOwnStock） */
+export const isOwnStock = (ledger: Rec): boolean =>
+    str(ledger.baikaiType) === '買取' || str(ledger.seller).startsWith(OWN_SELLER);
+
+/** 商談案件の物件名の候補（以前のアプリの cbGuessProperty）。自社名義なら括弧の中、無ければ所在地、無ければ「売主名邸」 */
+export const guessProperty = (ledger: Rec): string => {
+    const m = str(ledger.seller).match(/^\(株\)国分ハウジング（(.+)）$/);
+    if (m) return m[1];
+    // ⚠️ 売り反響から作った台帳は、所在地1に市、所在地2に住所全体が入る（leadToLedger）。重ねない
+    const a1 = str(ledger.addr1).trim();
+    const a2 = str(ledger.addr2).split('http')[0].trim();
+    const base = (a1 && a2.startsWith(a1) ? a2 : `${a1}${a2}`).trim();
+    if (base) return base.slice(0, 32);
+    return ledger.seller ? `${str(ledger.seller)}邸` : '';
+};
+
+const addDays = (ds: string, n: number): string => {
+    const d = new Date(`${ds}T00:00:00`);
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/**
+ * 買付を登録して商談案件を作る。
+ *   他社客付け … 「売」案件を1件。台帳に客付けの内容（coBroker）を残す
+ *   自社客付け … 「売」「買」の2件。買い反響に「買」案件をつなぎ、台帳にも未設定ならつなぐ
+ * 台帳は dealId（売側の案件）を持ち、現況を「買付有」にする（契約済のときは変えない）。
+ * ⚠️ 二重の登録は呼び出し側で防ぐ（台帳の dealId が生きていれば呼ばない）。
+ * @returns 作った売側の案件の No.（自社客付けのときは買側も）
+ */
+export const registerBuyOffer = async (
+    ledger: Rec,
+    inp: BuyOfferInput,
+    buyLead: Rec | null,
+    by: string
+): Promise<{ sellNo: number; buyNo: number | null; ledgerFields: Rec; buyLeadFields: Rec | null }> => {
+    const { records } = await loadRecords(['deals']);
+    let no = nextNo(records.deals) - 1;
+    const today = todayStr();
+    const ledNo = ledger.no == null || ledger.no === '' ? null : Number(ledger.no);
+    const ledLbl = `📝台帳No.${ledNo ?? '―'}`;
+    const base = (): Rec => ({
+        kind: 'deals', createdAt: today, price: inp.price, feeManual: inp.noFee, fee: inp.noFee ? 0 : null,
+        contactDate: today, subStaff: '', subRatio: 0, phase: '購入申込',
+        contractDate: inp.contractDate, settleDate: inp.deliveryDate, priority: '', followDate: '',
+        nextDate: inp.contractDate || addDays(today, 3),
+        reformPrice: 0, reformGp: 0, reformNote: '',
+        ledgerId: str(ledger.id), ledgerNo: ledNo, property: inp.property,
+    });
+    const buyerNote = `${inp.buyerName || '―'}${inp.buyerAttr ? `・${inp.buyerAttr}` : ''}${inp.note ? `／${inp.note}` : ''}`;
+
+    if (inp.kind === 'out') {
+        const cb: CoBroker = {
+            company: inp.company, person: inp.person, contact: inp.contact, buyerName: inp.buyerName, buyerAttr: inp.buyerAttr,
+            price: inp.price, contractDate: inp.contractDate, deliveryDate: inp.deliveryDate, note: inp.note,
+            registeredAt: new Date().toISOString(), registeredBy: by,
+        };
+        const sellNo = ++no;
+        const sellId = newRecordId();
+        await saveBrokerageRecord(sellId, {
+            ...base(), no: sellNo, type: '売', staff: inp.staff, customer: str(ledger.seller),
+            nextNote: `客付け（${inp.company}）と契約日程・必要書類の確定`,
+            note: `${ledLbl}より客付け買付／客付：${inp.company}${inp.person ? `（${inp.person}）` : ''}／買主：${buyerNote}`,
+            coBroker: cb,
+        });
+        const ledgerFields: Rec = { dealId: sellId, coBroker: cb, ...(str(ledger.currentStatus) === '契約済' ? {} : { currentStatus: OFFER_STATUS }) };
+        await saveBrokerageRecord(str(ledger.id), ledgerFields);
+        await logChange({ entity: 'ledger', entityId: str(ledger.id), entityNo: ledNo, label: str(ledger.seller), field: '客付け連携', from: '', to: `商談案件 No.${sellNo}`, by, note: `買付金額 ${inp.price.toLocaleString()}円（${inp.company}）` });
+        return { sellNo, buyNo: null, ledgerFields, buyLeadFields: null };
+    }
+
+    // 自社客付け（両手）
+    const sellNo = ++no;
+    const buyNo = ++no;
+    const sellId = newRecordId();
+    const buyId = newRecordId();
+    await saveBrokerageRecord(sellId, {
+        ...base(), no: sellNo, type: '売', staff: inp.staff, customer: str(ledger.seller),
+        nextNote: '売主へ買付内容の報告・契約日程の確定',
+        note: `${ledLbl}より自社客付け（両手）／買主：${buyerNote}`,
+    });
+    await saveBrokerageRecord(buyId, {
+        ...base(), no: buyNo, type: '買', staff: str(buyLead?.staff) || inp.staff, customer: inp.buyerName,
+        nextNote: '買主の住宅ローン事前審査・契約書類の準備',
+        note: `🏠買い反響（${str(buyLead?.portal) || '反響元未設定'}）からの自社客付け／${ledLbl}${inp.note ? `／${inp.note}` : ''}`,
+    });
+    const ledgerFields: Rec = { dealId: sellId, coBroker: null, ...(str(ledger.currentStatus) === '契約済' ? {} : { currentStatus: OFFER_STATUS }) };
+    await saveBrokerageRecord(str(ledger.id), ledgerFields);
+    let buyLeadFields: Rec | null = null;
+    if (buyLead) {
+        buyLeadFields = {
+            dealId: buyId,
+            ...(str(buyLead.ledgerId) === '' ? { ledgerId: str(ledger.id), ledgerNo: ledNo } : {}),
+            ...(str(buyLead.targetProperty) === '' ? { targetProperty: inp.property } : {}),
+            ...(str(buyLead.phase) === '成約' ? {} : { phase: '購入申込' }),
+        };
+        await saveBrokerageRecord(str(buyLead.id), buyLeadFields);
+        await logChange({ entity: 'buy', entityId: str(buyLead.id), label: str(buyLead.name), field: '案件連携', from: '', to: `商談案件 No.${buyNo}`, by, note: `${ledLbl}へ買付（自社客付け）` });
+    }
+    await logChange({ entity: 'ledger', entityId: str(ledger.id), entityNo: ledNo, label: str(ledger.seller), field: '客付け連携', from: '', to: `商談案件 No.${sellNo}（売）・No.${buyNo}（買）`, by, note: `買付金額 ${inp.price.toLocaleString()}円（自社客付け）` });
+    return { sellNo, buyNo, ledgerFields, buyLeadFields };
+};
+
+/** 連携を外す（買付が白紙・入力の誤り）。⚠️ 商談案件そのものは消さない（以前のアプリの cbUnlink） */
+export const unlinkBuyOffer = async (ledger: Rec, by: string): Promise<Rec> => {
+    const fields: Rec = { dealId: null };
+    await saveBrokerageRecord(str(ledger.id), fields);
+    await logChange({ entity: 'ledger', entityId: str(ledger.id), entityNo: ledger.no == null ? null : Number(ledger.no), label: str(ledger.seller), field: '客付け連携', from: `案件ID ${str(ledger.dealId)}`, to: '解除', by });
+    return fields;
+};
+
+// ---------------------------------------------------------------------------
+// 売り反響 → 買取案件（v2.2.246）
+// ---------------------------------------------------------------------------
+
+/** 売り反響の区分 → 買取再販の種別（土地・戸建・マンション・その他） */
+const resaleCategoryOf = (c: string): string =>
+    c.includes('マンション') ? 'マンション' : c.includes('土地') ? '土地' : c.includes('戸建') || c.includes('一戸建') ? '戸建' : 'その他';
+
+/**
+ * 売り反響を自社買取にする。
+ * 媒介獲得台帳（反響の ledgerNo）の媒介種別を「買取」にし、買取再販案件を1件作って台帳 No. でつなぐ。
+ * ⚠️ 台帳の無い反響は先に「媒介受託」で台帳を作ってから（呼び出し側で止める）。
+ * ⚠️ その台帳につながる買取再販案件が既にあれば作らない（null を返す）。
+ * ⚠️ 費目（costs）は空で作る。買取再販の画面が開いたときに、種別ごとの標準の費目で埋める（normalizeResaleDeal）。
+ */
+export const leadToResale = async (
+    lead: Rec,
+    by: string
+): Promise<{ no: number; ledgerNo: number } | { exists: number } | null> => {
+    const ledgerNo = Number(lead.ledgerNo);
+    if (!Number.isFinite(ledgerNo) || ledgerNo <= 0) return null;
+    const { records } = await loadRecords(['ledger', 'resales']);
+    const ledger = records.ledger.find((l) => Number(l.no) === ledgerNo);
+    if (!ledger) return null;
+    const existing = records.resales.find((r) => Number(r.ledgerNo) === ledgerNo);
+    if (existing) return { exists: Number(existing.no) };
+    const no = nextNo(records.resales);
+    const addr = str(lead.addr);
+    await saveBrokerageRecord(newRecordId(), {
+        kind: 'resales', no, property: guessProperty({ ...ledger, seller: '' }) || addr.slice(0, 32) || `${str(lead.name)}邸`,
+        category: resaleCategoryOf(str(lead.category)), addr, staff: str(lead.staff), sellStaff: '',
+        status: '仕入検討', ledgerNo, seller: str(lead.name || lead.seller), buyer: '',
+        buyPrice: Number(lead.price) || 0, buyBuilding: 0, buySellerReg: '未確認', buyStockAsset: 1,
+        costs: '[]', note: `売り反響より買取（${str(lead.source) || '反響元未設定'}）`, show_dashboard: 1,
+    });
+    if (str(ledger.baikaiType) !== '買取') await saveBrokerageRecord(str(ledger.id), { baikaiType: '買取' });
+    await logChange({ entity: 'lead', entityId: str(lead.id), label: str(lead.name || lead.seller), field: '買取案件', from: '', to: `買取再販案件 No.${no}`, by, note: `台帳No.${ledgerNo} の媒介種別を買取に` });
+    return { no, ledgerNo };
 };
