@@ -29,7 +29,8 @@ UPDATE form_table
                          CONCAT(CHAR(92), 'n※佐賀店は特典進呈額が異なります'), ''),
                        CONCAT(CHAR(92), 'n※八代店', CHAR(92), '/佐賀店は特典進呈額が異なります'), ''),
                      CONCAT(CHAR(92), 'n※八代店/佐賀店は特典進呈額が異なります'), '')
- WHERE brand = 'kh'
+ WHERE id > 0   -- ⚠️ 主キーを条件に入れる（安全更新モード＝ERROR 1175 で止まらないように。2026-11-05 本番で止まったため）
+   AND brand = 'kh'
    AND attention LIKE '%佐賀店は特典進呈額が異なります%';
 
 -- 確認（後）: 佐賀店の注記が 0 件、JSON として正しい行が全件ならよい
