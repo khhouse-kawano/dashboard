@@ -111,7 +111,7 @@ const transferFee = (rel: string, ch: string, amt: number) => {
     return rows[rows.length - 1][1];
 };
 
-const brokerageBase = (price: number, low: boolean) => {
+export const brokerageBase = (price: number, low: boolean) => {
     let net = 0, formula = '';
     if (price > 4000000) {
         net = price * 0.03 + 60000;
@@ -197,6 +197,35 @@ const s = {
     infoBox: { background: '#e8eef7', borderLeft: '3px solid #1b3a6b', padding: '8px 11px', fontSize: '11.5px', color: '#1b3a6b', marginTop: '8px', lineHeight: 1.6, borderRadius: '0 3px 3px 0' } as React.CSSProperties,
 };
 
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * 精算書の初期値（以前のアプリの defaultData と同じ）。案件ごとの値は空欄、日付は今日と月末。
+ * ⚠️ v2.2.252: 以前は見本のデータ（売主「田原 嘉昭」・固都税など）が初期値で、案件に無い項目に見本が残っていた。
+ *   精算書を開くたびに、この値から作り直す
+ */
+const plannerDefaults = (): PlannerInputState => {
+    const now = new Date();
+    const today = ymd(now);
+    const monthEnd = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    return {
+        propName: '', propZip: '', propAddr: '',
+        seller: '', sellerZip: '', sellerAddr: '',
+        buyer: '', contractDate: today, delivery: monthEnd,
+        place: '', placeAddr: '', startTime: '10:00',
+        price: 0, deposit: 0, interim: 0,
+        taxBase: '01-01', taxDay: 'buyer', t1: 0, t2: 0, t3: 0, t4: 0,
+        mode: 'both', lowPrice: '0', sDisc: 0, sPaid: 0, bDisc: 0, bPaid: 0,
+        loanPrin: 0, loanInt: 0, loanFee: 0, sJudi: 27900, sStamp: 0,
+        rel: 'other_bank', ch: 'counter', tfCount: 0,
+        bJudi: 237600, bArr: 550000, bGuar: 266600, bIns: 60600, bStamp: 0, bLoan: 0,
+        billTo: 'both', invNoS: '', invNoB: '', invDate: today, invDue: monthEnd, invReg: 'T', payAcct: 'brokerage',
+        rcOn: '1', rcTarget: 'both', rcCustom: 0, rcSign: 'blank', rcStamp: 'free',
+        sellerTaxable: '0', sellerInvReg: '', sellerVat: 0,
+        sBank: '', sBranch: '', sAcctType: '普通', sAcctNo: '', sAcctName: '', sAcctKana: ''
+    };
+};
+
 // ==========================================
 // 💡 4. メインコンポーネント
 // ==========================================
@@ -206,35 +235,20 @@ export const PlannerGenerator = ({ plannerShow, setPlannerShow, initialData }: {
     // 💡 追加: 呼び出し元の案件データで初期値を上書きする（未指定ならサンプルデータのまま）
     initialData?: Partial<PlannerInputState>
 }) => {
-    const today = new Date().toISOString().slice(0, 10);
-
-    const [form, setForm] = useState<PlannerInputState>({
-        propName: '鹿児島市上福元町5866番6 土地建物', propZip: '', propAddr: '鹿児島市上福元町5866番6',
-        seller: '田原 嘉昭', sellerZip: '', sellerAddr: '',
-        buyer: '中元 昭司', contractDate: today, delivery: today,
-        place: '鹿児島銀行 谷山支店', placeAddr: '鹿児島市谷山中央二丁目4番3号', startTime: '10:00',
-        price: 32800000, deposit: 1000000, interim: 0,
-        taxBase: '01-01', taxDay: 'buyer', t1: 14487, t2: 6209, t3: 92740, t4: 19873,
-        mode: 'both', lowPrice: '0', sDisc: 0, sPaid: 0, bDisc: 0, bPaid: 0,
-        loanPrin: 0, loanInt: 0, loanFee: 0, sJudi: 27900, sStamp: 0,
-        rel: 'other_bank', ch: 'counter', tfCount: 1,
-        bJudi: 237600, bArr: 550000, bGuar: 266600, bIns: 60600, bStamp: 0, bLoan: 25000000,
-        billTo: 'both', invNoS: 'KHF-2026-0087-S', invNoB: 'KHF-2026-0087-B', invDate: today, invDue: today, invReg: 'T', payAcct: 'brokerage',
-        rcOn: '1', rcTarget: 'both', rcCustom: 0, rcSign: 'blank', rcStamp: 'free',
-        sellerTaxable: '0', sellerInvReg: '', sellerVat: 0,
-        sBank: '', sBranch: '', sAcctType: '普通', sAcctNo: '', sAcctName: '', sAcctKana: ''
-    });
+    const [form, setForm] = useState<PlannerInputState>(plannerDefaults);
 
     const [stampAuto, setStampAuto] = useState({ s: true, b: true });
     const [extras, setExtras] = useState<ExtraState>({ s: [], b: [] });
 
     const [previewOpen, setPreviewOpen] = useState(false);
 
-    // 💡 追加: モーダルを開くたびに呼び出し元の案件データを反映する（source.html の SETL.open(dealId) 相当）
+    // 💡 モーダルを開くたびに、初期値から作り直して案件のデータを入れる（以前のアプリの SETL.open → apply(fromDeal(d))）
+    // ⚠️ v2.2.252: 前の値に重ねていたため、見本のデータや、直前に開いた案件の値が残っていた
     useEffect(() => {
-        if (plannerShow && initialData) {
-            setForm(prev => ({ ...prev, ...initialData }));
-        }
+        if (!plannerShow) return;
+        setForm({ ...plannerDefaults(), ...(initialData ?? {}) });
+        setStampAuto({ s: true, b: true });
+        setExtras({ s: [], b: [] });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [plannerShow]);
 

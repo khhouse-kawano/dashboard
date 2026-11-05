@@ -1207,7 +1207,8 @@ function renderLeadBar(){
  const el=$('#leadBar'),l=leadOf();
  if(!l){el.innerHTML='<span class="lbk">反響を選ばずに開始</span><span>結果は通話記録にのみ保存されます</span>';return}
  const t=todayStr(),cs=(l.callDates||[]).filter(c=>callType(c)==='call'),lc=cs.length?cs[cs.length-1]:null,oc=lc?callOutcome(lc):'';
- const m=String(l.contact||'').replace(/[０-９]/g,d=>String.fromCharCode(d.charCodeAt(0)-65248)).replace(/[－―ー−]/g,'-').match(/0\d[\d\-]{7,}/);
+ // ⚠️ v2.2.252: 電話番号の欄（phone）を先に読み、無ければ連絡先（contact）から拾う（callqLogic.ts の telOf と同じ順）
+ const m=[l.phone,l.contact].map(v=>String(v||'').replace(/[０-９]/g,d=>String.fromCharCode(d.charCodeAt(0)-65248)).replace(/[－―ー−]/g,'-').match(/0\d[\d\-]{7,}/)).find(Boolean);
  const b=['<span class="lbk">📨 売り反響</span>','受信 '+fmtD(l.receivedDate)+(l.receivedDate?'（'+diffDays(t,String(l.receivedDate).slice(0,10))+'日前）':''),
   m?'<a href="tel:'+esc(m[0])+'">☎ '+esc(m[0])+'</a>':'☎ 電話番号なし','フェーズ：'+esc(l.phase||'―'),
   '架電 '+cs.length+'回'+(lc?'（前回 '+fmtDT(lc)+(oc?'・'+esc(CQ_OUT[oc].label):'')+'）':'')];

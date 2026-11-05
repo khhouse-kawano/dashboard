@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { REALTY_CSS, loadRecords } from '../common/realtyState';
-import { fiscalMonths, fmtYen, monthLabel, pct, sumRow, todayStr } from '../summary/kpi';
+import { findStaff, fiscalMonths, fmtYen, monthLabel, pct, staffNameOf, sumRow, todayStr } from '../summary/kpi';
 import type { Row, Settings } from '../summary/kpi';
 
 /**
@@ -207,8 +207,8 @@ const BaikaiMonthly: React.FC = () => {
         const staff = (settings.staff ?? []).filter(s => s.name);
         const baikaiTypes = settings.baikaiTypes ?? [];
         const sources = settings.sources ?? [];
-        /** 略称 → 名前（abbrToName） */
-        const abbrToName = (ab: string) => (settings.staff ?? []).find(x => x.abbr === ab)?.name ?? ab;
+        /** 略称 → 名前（abbrToName）。⚠️ v2.2.252: 台帳の担当は氏名にそろえた。略称・空白入りの氏名でも同じ人にする */
+        const abbrToName = (ab: string) => staffNameOf(settings.staff, ab);
         const byStaff = ledgerCountBy(ledger, l => abbrToName(str(l.staff)) || '（担当未設定）');
         const byType = ledgerCountBy(ledger, l => (baikaiTypes.includes(str(l.baikaiType)) ? str(l.baikaiType) : '未分類'));
         const bySrc = ledgerCountBy(ledger, l => (sources.includes(str(l.source)) ? str(l.source) : '未分類'));
@@ -223,7 +223,7 @@ const BaikaiMonthly: React.FC = () => {
         const teamRow = mks.map(mk => staff.reduce((a, s) => a + (byStaff[String(s.name)]?.[mk] ?? 0), 0));
         const teamTot = teamRow.reduce((a, b) => a + b, 0);
         const teamTgt = staff.reduce((a, s) => a + (Number(s.baikaiTarget) || 0), 0);
-        const unset = ledger.filter(l => str(l.contractDate) && mks.includes(str(l.contractDate).slice(0, 7)) && !(settings.staff ?? []).some(s => s.abbr === str(l.staff))).length;
+        const unset = ledger.filter(l => str(l.contractDate) && mks.includes(str(l.contractDate).slice(0, 7)) && !findStaff(settings.staff, str(l.staff))).length;
         return { mks, staff, baikaiTypes, sources, abbrToName, byStaff, byType, bySrc, byStaffKaitori, dealKaitori, teamRow, teamTot, teamTgt, unset };
     }, [ledger, deals, settings]);
 
@@ -378,7 +378,7 @@ const BaikaiMonthly: React.FC = () => {
                     </tr>
                 </tbody></table></div>
                 <div className="rlt-body small" style={{ paddingTop: 8 }}>
-                    {unset ? `⚠ 期間内で担当略称が設定と一致しない件数：${unset}件（担当未設定・枠外担当）。設定の略称を見直してください。` : '✅ 期間内の全件が設定済み担当に紐づいています。'}
+                    {unset ? `⚠ 期間内で担当が設定の担当者（名前・略称）と一致しない件数：${unset}件（担当未設定・枠外担当）。台帳の担当か、設定の担当者を見直してください。` : '✅ 期間内の全件が設定済み担当に紐づいています。'}
                 </div>
             </div>
 

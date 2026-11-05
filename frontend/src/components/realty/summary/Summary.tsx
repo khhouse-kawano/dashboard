@@ -11,7 +11,7 @@ import { saveBrokerageRecord, recordFieldChanges, isSoftDeleted } from '../commo
 import {
     ALERT_DAYS, CONFIRMED, alertWindow, callStats, daysAgoLabel, dealCountByStaffMonth, dealRegDate,
     emptyCallCell, feeByStaffMonth, fiscalMonths, fmtCnt, fmtYen, fmtYen0, inWindow, ledgerCountByStaffMonth,
-    monthLabel, pct, reformByStaffMonth, reformGpByStaffMonth, salesByStaffMonth, sumRow, todayStr,
+    monthLabel, pct, reformByStaffMonth, reformGpByStaffMonth, salesByStaffMonth, staffNameOf, sumRow, todayStr,
 } from './kpi';
 import type { Row, Settings } from './kpi';
 // ⚠️ v2.2.225: 以前のダッシュボードと同じ並び（営業司令塔は最下段）・買取再販の期限アラート
@@ -371,8 +371,8 @@ const Summary = () => {
         const rfAll = reformByStaffMonth(deals);
         const rgAll = reformGpByStaffMonth(deals);
         const cntAll = dealCountByStaffMonth(deals);
-        // ⚠️ 媒介台帳の担当は略称で入っている
-        const abbrToName = (ab: string) => staffSettings.find(st => st.abbr === ab)?.name ?? ab;
+        // ⚠️ 媒介台帳の担当は氏名（v2.2.252〜）か略称（以前のアプリから来たもの）
+        const abbrToName = (ab: string) => staffNameOf(staffSettings, ab);
         const bCnt = ledgerCountByStaffMonth(ledger, abbrToName);
 
         const totalBudget = staffSettings.reduce((a, st) => a + (Number(st.budget) || 0), 0);
@@ -443,7 +443,7 @@ const Summary = () => {
     const alerts = useMemo(() => {
         const w = alertWindow();
         const staffSettings = settings.staff ?? [];
-        const abbrToName = (ab: string) => staffSettings.find(st => st.abbr === ab)?.name ?? ab;
+        const abbrToName = (ab: string) => staffNameOf(staffSettings, ab);
         const newDeals = deals.filter(d => inWindow(dealRegDate(d), w))
             .sort((a, b) => dealRegDate(b).localeCompare(dealRegDate(a)));
         const newLedger = ledger.filter(l => inWindow(String(l.contractDate ?? ''), w))

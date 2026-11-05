@@ -82,6 +82,13 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
     const [searchPropertyQuery, setSearchPropertyQuery] = useState('');
     const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
 
+    /** 担当営業の選択肢（v2.2.252）。値は空白なしの氏名、表示はスタッフ表の名前。今の値が無ければ足す */
+    const staffOptions = useMemo(() => {
+        const opts = staffList.map(s => ({ value: removeAllSpaces(s), label: s }));
+        const cur = editData.staff || '';
+        return cur && !opts.some(o => o.value === cur) ? [...opts, { value: cur, label: cur }] : opts;
+    }, [staffList, editData.staff]);
+
     useEffect(() => {
         if (!targetPropertyId) return;
         const fetchData = async () => {
@@ -322,9 +329,14 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                         </div>
                         <div className="col-md-4">
                             <label style={styles.label}>担当営業</label>
+                            {/*
+                              ⚠️ v2.2.252: 値は空白なしの氏名（反響・商談・媒介紐付と同じ）。スタッフ表の名前は「時任 聡一朗」のように空白入りで、
+                                以前はそのまま保存して台帳の担当が「時任」「時任聡一朗」「時任 聡一朗」と混ざっていた。
+                                今の値が選択肢に無い（略称・退職者など）ときも、その値を出す（触っただけで消えないように）
+                            */}
                             <select style={styles.input} value={editData.staff || ''} onChange={e => handleInputChange('staff', e.target.value)}>
                                 <option value="">選択してください</option>
-                                {staffList.map(staff => <option key={staff} value={staff}>{staff}</option>)}
+                                {staffOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                         </div>
 

@@ -15,7 +15,8 @@ import { logChange, newRecordId, saveBrokerageRecord } from './leadUtiles';
  *
  * ⚠️ No. は「その種類の最大 + 1」（以前のアプリと同じ）。⚠️ 作る直前に読み直して数える（画面を開いた後に増えた分を拾う）。
  * ⚠️ 二重連携は呼び出し側で防ぐ（ledgerNo / dealId が入っていれば呼ばない）。
- * ⚠️ 媒介台帳の担当は略称（設定の staff.abbr）、反響の担当は氏名。以前のアプリと同じく読み替える。
+ * ⚠️ 担当は氏名（設定の staff.name）。⚠️ v2.2.252 から媒介台帳も氏名（以前は略称 staff.abbr で、以前のアプリから来た台帳は略称のまま）。
+ *   台帳の担当を読むときは summary/kpi.ts の findStaff・staffNameOf で、氏名・略称のどちらでも同じ人にする。
  * ─────────────────────────────────────────────
  */
 
@@ -62,7 +63,7 @@ export const maxExpiryOf = (contractDate: string): string => {
 
 /**
  * 売り反響 → 媒介獲得台帳の「媒介紐付」の画面（common/LedgerLinkModal.tsx）で確かめる値。
- * staff は氏名（台帳には略称で入る）。otherBrokers は一般媒介の他の依頼先（任意。台帳の備考に書き足す）
+ * staff は氏名（v2.2.252 から台帳にも氏名で入る）。otherBrokers は一般媒介の他の依頼先（任意。台帳の備考に書き足す）
  */
 export type LedgerForm = {
     baikaiDate: string; baikaiType: string; expiry: string; seller: string; contact: string; category: string;
