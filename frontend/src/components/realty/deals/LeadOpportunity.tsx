@@ -5,7 +5,7 @@ import DocumentViewer from '../documents/DocumentViewer';
 import PlannerGenerator, { PlannerInputState } from '../documents/PlannerGenerator';
 import LeadNotifications from '../common/LeadNotifications';
 import {
-    saveBrokerageRecord, recordFieldChanges, softDeleteRecord, newRecordId,
+    saveBrokerageRecord, recordFieldChanges, softDeleteRecord,
     DEAL_PHASES, DEAL_LOST_REASONS, NEXT_EXEMPT,
 } from '../common/leadUtiles';
 import { loadRecords } from '../common/realtyState';
@@ -20,10 +20,10 @@ import type { Row } from '../summary/kpi';
  *   v2.2.243 までは媒介台帳と買い反響をフェーズで絞って出しており、商談案件そのもの（67件）が1件も出ていなかった。
  *   月次売上・失注分析は商談案件で数えるので、ここで直した値がそのまま集計に出る。
  *
- * ⚠️ 案件は次の3つでできる。
- *   ・この画面の「＋ 商談案件を追加」
+ * ⚠️⚠️ **案件は必ず反響からできる。この画面では作れない**（v2.2.245 で「＋ 商談案件を追加」を消した。制作者の要望）。
+ *   ここで作ると、売主・買主がどの反響から来たのか分からない案件ができてしまうため。
  *   ・買い反響を「購入申込」にしたときの転記（common/leadLinks.ts の buyToDeal）
- *   ・媒介台帳の買付登録（⚠️ まだ移していない。v2.2.245 以降）
+ *   ・媒介台帳の買付登録（⚠️ まだ移していない。v2.2.246 の予定）
  * ⚠️ 失注にするときは失注理由が必須（lostReason・lostDate・lostNote。2026-11-04_realty_deal_lost.sql で列にした）。
  * ⚠️ 仲介手数料は成約価格から自動計算（800万円以下＝30万円／超＝3%＋6万円・税抜。kpi.ts の stdFee）。手入力した額があればそちら（feeManual）。
  * ⚠️ 削除は論理削除（show_dashboard = 0）。以前のアプリは消していた。
@@ -94,7 +94,7 @@ const LeadOpportunity = () => {
     const [hideSettled, setHideSettled] = useState(true);
     const [showReform, setShowReform] = useState(true);
 
-    /** 編集中（null は閉じている）。editingId が空なら新規 */
+    /** 編集中（null は閉じている） */
     const [form, setForm] = useState<Form | null>(null);
     const [editingId, setEditingId] = useState('');
 
@@ -168,15 +168,9 @@ const LeadOpportunity = () => {
         void patchDeal(str(d.id), { phase: next });
     };
 
-    const openEdit = (d: Row | null, preset: Partial<Form> = {}) => {
-        if (d) {
-            setEditingId(str(d.id));
-            setForm({ ...formOf(d), ...preset });
-        } else {
-            const no = Math.max(0, ...deals.map(x => num(x.no))) + 1;
-            setEditingId('');
-            setForm({ ...formOf({ no, type: '売', phase: '初回接触' }), ...preset });
-        }
+    const openEdit = (d: Row, preset: Partial<Form> = {}) => {
+        setEditingId(str(d.id));
+        setForm({ ...formOf(d), ...preset });
     };
 
     const patchForm = (p: Partial<Form>) => setForm(prev => (prev ? { ...prev, ...p } : prev));
@@ -213,20 +207,7 @@ const LeadOpportunity = () => {
         // ⚠️ 手入力の額が規定の計算と同じなら自動計算に戻す（以前のアプリと同じ）
         if (fields.feeManual && stdFee(price) === fields.fee) { fields.feeManual = false; fields.fee = null; }
 
-        if (editingId) {
-            if (await patchDeal(editingId, fields)) setForm(null);
-            return;
-        }
-        const id = newRecordId();
-        const row: Row = { id, kind: 'deals', priority: '', createdAt: today, ...fields };
-        try {
-            await saveBrokerageRecord(id, row);
-            setDeals(prev => [...prev, row]);
-            setForm(null);
-        } catch (e) {
-            console.error('[LeadOpportunity] 商談案件の追加に失敗しました', row, e);
-            alert('商談案件を追加できませんでした。もう一度お試しください。');
-        }
+        if (await patchDeal(editingId, fields)) setForm(null);
     };
 
     const deleteDeal = async () => {
@@ -345,9 +326,8 @@ const LeadOpportunity = () => {
                 </div>
                 <div className="d-flex align-items-center gap-2 mt-3 mt-md-0">
                     <LeadNotifications />
-                    <button className="btn btn-primary btn-sm fw-bold" style={{ fontSize: '12px' }} onClick={() => openEdit(null)}>
-                        ＋ 商談案件を追加
-                    </button>
+                    {/* ⚠️ v2.2.245: 「＋ 商談案件を追加」は消した（案件は反響から作る。上の注記） */}
+                    <span className="text-muted" style={{ fontSize: '11px' }}>案件は買い反響を「購入申込」にすると作られます</span>
                 </div>
             </div>
 
@@ -498,7 +478,7 @@ const LeadOpportunity = () => {
 
             <Modal show={form !== null} onHide={() => setForm(null)} size="lg" centered>
                 <Modal.Header closeButton>
-                    <Modal.Title style={{ fontSize: '15px', fontWeight: 700 }}>{editingId ? '商談案件を編集' : '商談案件を追加'}</Modal.Title>
+                    <Modal.Title style={{ fontSize: '15px', fontWeight: 700 }}>商談案件を編集</Modal.Title>
                 </Modal.Header>
                 {form && (
                     <Modal.Body style={{ fontSize: '12px' }}>
@@ -579,7 +559,7 @@ const LeadOpportunity = () => {
                     </Modal.Body>
                 )}
                 <Modal.Footer>
-                    {editingId && <button className="btn btn-outline-danger btn-sm me-auto" onClick={() => void deleteDeal()}>削除</button>}
+                    <button className="btn btn-outline-danger btn-sm me-auto" onClick={() => void deleteDeal()}>削除</button>
                     <button className="btn btn-light border btn-sm" onClick={() => setForm(null)}>キャンセル</button>
                     <button className="btn btn-primary btn-sm fw-bold" onClick={() => void saveForm()}>保存</button>
                 </Modal.Footer>

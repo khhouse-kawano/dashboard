@@ -10,6 +10,8 @@ import AuthContext from '../../../context/AuthContext';
 import { removeSpaces, safeParse, LEAD_END_REASONS, LEAD_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
 import { askBaikaiDate, linkLedgerAfterEdit, linkLedgerWithNotice } from '../common/leadLinks';
 import LeadEdit from '../common/LeadEdit';
+import LeadFilterBar, { EMPTY_FILTER, matchesFilter } from '../common/LeadFilterBar';
+import type { LeadFilter } from '../common/LeadFilterBar';
 import LeadCall, { CallLog } from '../common/LeadCall';
 import DocumentViewer from '../documents/DocumentViewer';
 import { openNavi } from '../navi/naviHost';
@@ -269,26 +271,39 @@ const LeadSell = () => {
   /** ⚠️ v2.2.225: 期間の選択肢（以前のアプリと同じ: 月別（今期）／通期／全期間） */
   const periodOptions = useMemo(() => periodGroups(settings.fiscalStart, leads as unknown as Row[]), [settings.fiscalStart, leads]);
 
-  /** 一覧は選んだ期間に受信した反響（受信日の新しい順） */
-  const filteredLeads = useMemo(() => {
+  /** 選んだ期間に受信した反響（受信日の新しい順） */
+  const periodLeads = useMemo(() => {
     const result = period ? leads.filter(l => periodHas(period, recvMonthKey(l as unknown as Row), settings.fiscalStart)) : leads;
     return result.sort((a, b) => (b.receivedDate || '').localeCompare(a.receivedDate || ''));
   }, [leads, period, settings.fiscalStart]);
 
+  /** ⚠️ v2.2.245: 一覧の絞り込み（担当者・反響元・フェーズ・売主名か所在地）。common/LeadFilterBar.tsx */
+  const [filter, setFilter] = useState<LeadFilter>(EMPTY_FILTER);
+  const filteredLeads = useMemo(() => periodLeads.filter(l => matchesFilter(filter, {
+    staff: l.staff, source: l.source || l.portal || '', phase: l.phase,
+    text: [l.seller, l.name, l.addr, l.addr1, l.addr2],
+  }, 'リード受信')), [periodLeads, filter]);
+
+  /** 反響元の選択肢（決まった5つ＋実データにある値） */
+  const sourceOptions = useMemo(() => {
+    const extra = Array.from(new Set(leads.map(l => l.source || l.portal || '').filter(s => s !== '' && !SELL_SOURCES.includes(s)))).sort();
+    return [...SELL_SOURCES, ...extra];
+  }, [leads]);
+
   useEffect(() => {
     setDisplayLimit(15);
-  }, [period]);
+  }, [period, filter]);
 
   // 💡 追加: 次回アクション未設定・期限超過件数（LeadHeaderへ渡すアラート用）
   const nextActionAlert = useMemo(() => {
     let overdue = 0, missing = 0;
-    for (const l of filteredLeads) {
+    for (const l of periodLeads) {
       if (l.phase === '追客終了') continue;
       if (!l.nextDate) { missing++; continue; }
       if (l.nextDate.replace(/\//g, '-') < today) overdue++;
     }
     return { overdue, missing };
-  }, [filteredLeads, today]);
+  }, [periodLeads, today]);
 
 
   /**
@@ -629,6 +644,18 @@ const LeadSell = () => {
           <h6 style={{ fontSize: '14px', fontWeight: 'bold', color: '#343a40', margin: 0 }}>反響一覧</h6>
           <span style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#e9ecef', borderRadius: '12px', color: '#6c757d' }}>{filteredLeads.length} 件</span>
         </div>
+
+        <LeadFilterBar
+          value={filter}
+          onChange={setFilter}
+          staffOptions={staffList}
+          sourceOptions={sourceOptions}
+          phaseOptions={LEAD_PHASES}
+          sourceLabel="反響元"
+          searchPlaceholder="売主名・物件所在地"
+          shown={filteredLeads.length}
+          total={periodLeads.length}
+        />
 
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '11px', whiteSpace: 'nowrap' }}>

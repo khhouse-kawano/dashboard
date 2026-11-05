@@ -8,7 +8,7 @@
  * 期間（P）: 'm:YYYY-MM'（単月）・'fy:YYYY-MM'（通期。期首月）・'all'（全期間）
  * 受信月コホート基準（その期間に受信した反響が、どこまで進んだか）。架電だけは「その期間にした架電」（📞のみ）。
  */
-import { callStats, callsOf, fiscalMonths, monthLabel, todayStr } from '../summary/kpi';
+import { callStats, callsOf, fiscalMonths, monthLabel } from '../summary/kpi';
 import type { Row } from '../summary/kpi';
 
 export type Period = string;
@@ -75,12 +75,11 @@ export const periodGroups = (fiscalStart: string | undefined, rows: Row[]): Peri
     ];
 };
 
-/** 既定の期間: 今月（今期に無ければ期首月） */
-export const defaultPeriod = (fiscalStart: string | undefined): Period => {
-    const months = fiscalMonths(fiscalStart);
-    const cur = todayStr().slice(0, 7);
-    return `m:${months.includes(cur) ? cur : months[0]}`;
-};
+/**
+ * 既定の期間: 今期の通期（期首月からの12か月）。
+ * ⚠️ v2.2.245: 以前は今月だった。制作者の要望「基本は通期を表示し、月は絞り込みのプルダウンで」で通期にした。
+ */
+export const defaultPeriod = (fiscalStart: string | undefined): Period => `fy:${fiscalMonths(fiscalStart)[0]}`;
 
 /** 架電の種類（callType）。⚠️ type が無い・知らない値は「架電」 */
 const callType = (c: unknown): 'call' | 'line' | 'mail' => {
