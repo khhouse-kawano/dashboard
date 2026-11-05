@@ -340,7 +340,7 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                             <label style={styles.label}>媒介種別 (baikaiType)</label>
                             <select style={styles.input} value={editData.baikaiType || ''} onChange={e => handleInputChange('baikaiType', e.target.value)}>
                                 <option value="">選択してください</option>
-                                {['専任媒介', '一般媒介', '買取'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                {['専属専任媒介', '専任媒介', '一般媒介', '買取'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         </div>
                         <div className="col-md-4">

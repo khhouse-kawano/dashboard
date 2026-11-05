@@ -55,7 +55,7 @@ const parseJsonText = (v: unknown): unknown => (typeof v === 'string' ? parseJso
 const p2 = (n: number) => String(n).padStart(2, '0');
 
 /** 日本時間の今。date = 'YYYY-MM-DD'、stamp = 'YYYY-MM-DDTHH:MM'（以前のアプリの nowStamp）、sql = 'YYYY-MM-DD HH:MM:SS' */
-const jstNow = (now = new Date()) => {
+export const jstNow = (now = new Date()) => {
   const d = new Date(now.getTime() + 9 * 3600_000);
   const date = `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
   const hm = `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
@@ -84,14 +84,14 @@ const jstIso = (v: unknown): string | null => {
 };
 
 /** 以前のアプリの uid()（変更履歴の id） */
-const uid = (): string => randomBytes(6).toString('hex') + Date.now().toString(36).slice(-4);
+export const uid = (): string => randomBytes(6).toString('hex') + Date.now().toString(36).slice(-4);
 
 // ---------------------------------------------------------------------------
 // 共通
 // ---------------------------------------------------------------------------
 
 /** 架電の記録の「実施者」。設定の担当者と空白を除いて一致すれば設定の名前、無ければログイン名 */
-const resolveMe = async (tx: Tx, staff: AuthenticatedStaff): Promise<string> => {
+export const resolveMe = async (tx: Tx, staff: AuthenticatedStaff): Promise<string> => {
   const [row] = await tx.query<DynamicRow>("SELECT JSON_EXTRACT(`data`, '$.staff') AS staff FROM app_state WHERE `key` = 'settings'");
   const list = parseJson(row?.staff);
   const me = norm(staff.name);
