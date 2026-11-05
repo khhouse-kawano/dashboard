@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { executeLarge, query, withTransaction } from '../../db/pool';
 import type { Result } from './index';
+import { mailFromContact, phoneFromContact } from './contactSplit';
 
 /**
  * 以前の不動産企画係アプリ（khf-eigyokanri.netlify.app）のバックアップを取り込む（v2.2.224。② だけ。マスターだけ）。
@@ -25,6 +26,8 @@ import type { Result } from './index';
  *     ⚠️ v2.2.225: 全面差し替え（hideScope = all）では、Dashboard で入った行もファイルに無ければ非表示（HideScope の注記）
  * ⚠️ Dashboard だけの列（show_dashboard・deleted_*・master_data_id・property_db_*）は取り込みで上書きしない。
  *   ⚠️ ただし、この取り込みで非表示にした行がファイルに戻ってきたら、表示に戻す。
+ * ⚠️ v2.2.251: 売り反響・買い反響は、連絡先（contact「電話 / メール」）から電話番号（phone）・メールアドレス（mail）も入れる
+ *   （contactSplit.ts）。⚠️ ただし、すでに phone・mail が入っている行（Dashboard で直した・sync が入れた）は上書きしない
  * ─────────────────────────────────────────────
  */
 
@@ -358,8 +361,19 @@ export const runImportRecords = async (body: Record<string, unknown>): Promise<R
         row.extId = null;
         warn('ファイルの中で反響番号が重複しているため、反響番号の列は空にしました（原本には残っています）');
       }
+      // ⚠️ v2.2.251: 反響の電話・メールは、ファイルに無ければ連絡先から取り出す。入っている値は上書きしない（下の updates）
+      const fillOnly = new Set<string>();
+      if ((rec.kind === 'leads' || rec.kind === 'buyLeads') && row.contact != null) {
+        for (const [col, value] of [['phone', phoneFromContact(row.contact)], ['mail', mailFromContact(row.contact)]] as const) {
+          if ((row[col] == null || row[col] === '') && value !== '') {
+            row[col] = value;
+            fillOnly.add(col);
+          }
+        }
+      }
       const cols = Object.keys(row);
-      const updates = cols.filter((c) => c !== 'id').map((c) => `\`${c}\` = VALUES(\`${c}\`)`);
+      const updates = cols.filter((c) => c !== 'id').map((c) =>
+        fillOnly.has(c) ? `\`${c}\` = IF(IFNULL(\`${c}\`, '') = '', VALUES(\`${c}\`), \`${c}\`)` : `\`${c}\` = VALUES(\`${c}\`)`);
       // ⚠️ この取り込みで非表示にした行が戻ってきたら表示に戻す。⚠️ deleted_by は最後に（左から順に評価される）
       updates.push(
         'show_dashboard = IF(deleted_by IN (?, ?), 1, show_dashboard)',
