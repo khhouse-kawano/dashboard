@@ -627,10 +627,11 @@ const LeadSell = () => {
             <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
               <tr>
                 <th style={compactThStyle}>受信日</th>
-                <th style={compactThStyle}>反響元</th>
+                {/* ⚠️ v2.2.252: 選択欄の列は最小幅を付ける（幅100%の選択欄は、表の幅の決まり方しだいで縮んで読めなくなっていた） */}
+                <th style={{ ...compactThStyle, minWidth: '100px' }}>反響元</th>
                 <th style={compactThStyle}>売主候補</th>
-                <th style={compactThStyle}>担当</th>
-                <th style={compactThStyle}>フェーズ</th>
+                <th style={{ ...compactThStyle, minWidth: '110px' }}>担当</th>
+                <th style={{ ...compactThStyle, minWidth: '110px' }}>フェーズ</th>
                 <th style={compactThStyle}>架電</th>
                 <th style={compactThStyle}>架電メモ</th>
                 <th style={compactThStyle}>最終アクション</th>

@@ -216,7 +216,20 @@ export const dealCountByStaffMonth = (deals: Row[]): StaffMonth => {
     return out;
 };
 
-/** 媒介獲得数（ledgerCountBy。契約日の月で数える）。⚠️ 台帳の担当は略称なので名前に直す */
+/**
+ * 設定の担当者を、氏名か略称で探す（findStaff。v2.2.252）。空白は除いて比べる
+ * ⚠️ 台帳の担当は v2.2.252 から氏名（以前のアプリから来たものは略称）。どちらでも同じ人になるようにする
+ */
+export const findStaff = (list: StaffSetting[] | undefined, v: string): StaffSetting | undefined => {
+    const k = v.replace(/[\s　]/g, '');
+    if (!k) return undefined;
+    return (list ?? []).find(s => str(s.name).replace(/[\s　]/g, '') === k || (!!s.abbr && s.abbr === k));
+};
+
+/** 台帳の担当（氏名か略称）→ 設定の氏名（abbrToName）。設定に居なければその値のまま */
+export const staffNameOf = (list: StaffSetting[] | undefined, v: string): string => findStaff(list, v)?.name ?? v;
+
+/** 媒介獲得数（ledgerCountBy。契約日の月で数える）。⚠️ 台帳の担当は氏名か略称なので、設定の氏名に直す */
 export const ledgerCountByStaffMonth = (ledger: Row[], abbrToName: (ab: string) => string): StaffMonth => {
     const out: StaffMonth = {};
     for (const l of ledger) {

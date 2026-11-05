@@ -1,7 +1,34 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { executeLarge, query, withTransaction } from '../../db/pool';
+import { norm } from './index';
 import type { Result } from './index';
 import { mailFromContact, phoneFromContact } from './contactSplit';
+
+/** 担当の列（v2.2.252） */
+const STAFF_COLUMNS = ['staff', 'subStaff', 'sellStaff'] as const;
+
+/**
+ * ⚠️ v2.2.252: 担当を「空白なしの氏名」にそろえるための対応表（空白なしの氏名・略称 → 空白なしの氏名）。設定（app_state）の担当者から作る。
+ * 以前のアプリは媒介台帳の担当を略称（「時任」）で持つ。Dashboard は台帳も氏名（反響・商談と同じ）
+ */
+const staffNameMap = async (): Promise<Map<string, string>> => {
+  const map = new Map<string, string>();
+  const rows = await query<DynamicRow>("SELECT JSON_EXTRACT(`data`, '$.staff') AS staff FROM app_state WHERE `key` = 'settings' LIMIT 1");
+  let list: unknown = rows[0]?.staff;
+  if (typeof list === 'string') {
+    try { list = JSON.parse(list); } catch { list = []; }
+  }
+  if (!Array.isArray(list)) return map;
+  for (const s of list) {
+    if (s === null || typeof s !== 'object') continue;
+    const name = norm((s as Record<string, unknown>).name);
+    const abbr = norm((s as Record<string, unknown>).abbr);
+    if (!name) continue;
+    map.set(name, name);
+    if (abbr && !map.has(abbr)) map.set(abbr, name);
+  }
+  return map;
+};
 
 /**
  * 以前の不動産企画係アプリ（khf-eigyokanri.netlify.app）のバックアップを取り込む（v2.2.224。② だけ。マスターだけ）。
@@ -331,6 +358,7 @@ export const runImportRecords = async (body: Record<string, unknown>): Promise<R
   const result = { inserted: 0, updated: 0, unchanged: 0, merged: 0, retired: 0, failed: 0 };
   const warnings: string[] = [];
   const errors: string[] = [];
+  const staffNames = await staffNameMap();
 
   for (const rec of records) {
     const warn = (m: string) => { if (warnings.length < 200) warnings.push(`${rec.kind} ${rec.id} ${m}`); };
@@ -360,6 +388,12 @@ export const runImportRecords = async (body: Record<string, unknown>): Promise<R
       if (ext === null && 'extId' in row && row.extId !== null) {
         row.extId = null;
         warn('ファイルの中で反響番号が重複しているため、反響番号の列は空にしました（原本には残っています）');
+      }
+      // ⚠️ v2.2.252: 担当は空白なしの氏名にそろえる（台帳の略称は設定の氏名へ）。設定に居ない人（退職者など）は空白だけ除く。原本（raw_data）はそのまま
+      for (const col of STAFF_COLUMNS) {
+        const v = row[col];
+        if (typeof v !== 'string' || v.trim() === '') continue;
+        row[col] = staffNames.get(norm(v)) ?? norm(v);
       }
       // ⚠️ v2.2.251: 反響の電話・メールは、ファイルに無ければ連絡先から取り出す。入っている値は上書きしない（下の updates）
       const fillOnly = new Set<string>();
