@@ -20,15 +20,48 @@
 4. ① SQL（更新履歴・業務ガイド）   ← ⚠️ 1回だけ
 ```
 
-### 手順1　【② VPS】いつもの手順で backend-express を更新
-更新したら、② のログの登録一覧に `planner/ledger_link` があることを確かめます。
-⚠️ 登録一覧は約190行あり、五十音順です。末尾だけを見ず、全体から探してください。
+### 手順1　【② VPS】backend-express を更新
+```bash
+cd ~/dashboard
+git fetch --depth 1 origin production
+git checkout FETCH_HEAD
+```
+```bash
+dcp build express-api
+```
+```bash
+dcp up -d express-api
+```
+**確認A（起動ログの登録一覧）**：
+```bash
+dcp logs express-api | grep "planner:ledger_link" | tail -1
+```
+- 次のような1行が出て、先頭の時刻が今 `up -d` した時刻（UTC。日本時間 −9時間）ならよいです。
+  ```
+  [2026-11-xxTxx:xx:xx.xxxZ] [INFO]   🔒 planner:ledger_link:  — 【書き込み】不動産企画係: 売り反響の媒介紐付（…）
+  ```
+- ⚠️ ログの表記は `planner/ledger_link` ではなく **`planner:ledger_link`**（コロン区切り）です。
+- ⚠️ `--tail` を付けないでください。登録一覧は約190行あり五十音順なので、`--tail 200` などでは届かないことがあります。
+- 何も出ない、または時刻が古いときは、更新が入っていません（手順0のマージと、上の `git checkout` を確かめる）。
 
-### 手順2　【① PHP】`backend/src/core/express_proxy.php` をアップロード
-確かめ方：トークンを付けずに ① へ送って、**401（認証が必要です）** が返れば ② まで届いています。404 なら許可リストが漏れています。
+**確認B（トークンなし。② に直接）**：
+```bash
+curl -s -X POST https://api.khg-marketing.info/api/gateway -H 'Content-Type: application/json' -d '{"request":"planner","roll":"ledger_link"}'
 ```
-POST https://（① の API）/  本文 {"request":"planner","roll":"ledger_link"}
+- `認証が必要です。`（401）ならよいです。
+- ⚠️ 404 なら、② に v2.2.248 が入っていません。
+
+### 手順2　【① FTP】PHP 1ファイル
+| ① の場所 | 元のファイル |
+|---|---|
+| `/dashboard/api/gateway/core/express_proxy.php` | `backend/src/core/express_proxy.php` |
+
+確認（トークンなし。① を通す）:
+```bash
+curl -s -X POST https://khg-marketing.info/dashboard/api/gateway/ -H 'Content-Type: application/json' -d '{"request":"planner","roll":"ledger_link"}'
 ```
+- `認証が必要です。`（401）なら、① から ② まで届いています。
+- ⚠️ 404（該当する処理がありません）なら、① の許可リストが古いままです。PHP のアップロードを確かめてください。
 
 ### 手順3　【① フロント】いつもの手順
 ⚠️ `frontend/build/` に v2.2.247 のビルドが残っているときは、v2.2.248 のブランチで `npm run build` をやり直してから上げてください。
