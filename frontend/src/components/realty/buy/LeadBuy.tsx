@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef, useContext } from 'react';
+import React, { useEffect, useState, useMemo, useContext } from 'react';
 import apiClient from '../../../utils/apiClient';
 import { thisYear } from '../../../utils/thisYear';
 import LeadFunnelPanel from '../common/LeadFunnelPanel';
@@ -7,7 +7,7 @@ import type { Period } from '../common/leadFunnel';
 import type { Row, Settings } from '../summary/kpi';
 import LeadHeader from '../common/LeadHeader';
 import AuthContext from '../../../context/AuthContext';
-import { removeSpaces, safeParse, BUY_END_REASONS, BUY_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
+import { removeSpaces, safeParse, BUY_END_REASONS, BUY_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted, findDuplicateLead } from '../common/leadUtiles';
 import { buyToDeal } from '../common/leadLinks';
 import LeadEdit from '../common/LeadEdit';
 import LeadFilterBar, { EMPTY_FILTER, matchesFilter } from '../common/LeadFilterBar';
@@ -98,6 +98,9 @@ const formatDate = (dateStr: string | null | Date) => {
     return dateStr.replace(/-/g, '/');
 };
 
+/** 今日（'YYYY-MM-DD'）。登録のモーダルの受信日の初期値 */
+const todayIso = () => formatDate(new Date()).replace(/\//g, '-');
+
 const getCurrentDateTime = () => {
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -187,7 +190,6 @@ const LeadBuy = () => {
     const [leads, setLeads] = useState<BuyLead[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [staffList, setStaffList] = useState<string[]>([]);
-    const [isAdding, setIsAdding] = useState(false);
 
     const [displayLimit, setDisplayLimit] = useState<number>(15);
     // ⚠️ v2.2.225: 期間（'m:YYYY-MM'・'fy:YYYY-MM'・'all'）と設定。歩留まりは以前のアプリと同じ計算（common/leadFunnel.ts）
@@ -203,11 +205,6 @@ const LeadBuy = () => {
     const [documentShow, setDocumentShow] = useState(false);
     const [currentInitialData, setCurrentInitialData] = useState<initialData | undefined>(undefined);
 
-    const newReceivedDateRef = useRef<HTMLInputElement>(null);
-    const newPortalRef = useRef<HTMLSelectElement>(null);
-    const newNameRef = useRef<HTMLInputElement>(null);
-    const newStaffRef = useRef<HTMLSelectElement>(null);
-    const newPhaseRef = useRef<HTMLSelectElement>(null);
 
     const now = new Date();
     const year = now.getFullYear();
@@ -349,62 +346,33 @@ const LeadBuy = () => {
         void handleApiPatch(id, { [field]: value });
     };
 
+    /**
+     * ⚠️ v2.2.247: 「反響を追加」は登録のモーダル（LeadEdit。id が空なら登録）で入れる（以前のアプリの買い反響の追加）。
+     *   v2.2.246 までは一覧に入力の行を足し、受信日・ポータル・顧客名・担当・段階だけを入れていた
+     */
     const handleAddClick = () => {
-        setIsAdding(true);
+        setCustomerInfo({ id: '', receivedDate: todayIso(), phase: '反響受信', callDates: '[]' });
+        setIsEditModalOpen(true);
     };
 
-    const handleSaveNewLead = async () => {
-        const name = newNameRef.current?.value;
-        if (!name) {
-            alert('顧客名を入力してください');
-            return;
-        }
-
-        const newRecord: BuyLead = {
-            id: newRecordId(),
-            receivedDate: newReceivedDateRef.current?.value || formatDate(new Date()),
-            portal: newPortalRef.current?.value || '',
-            name: name,
-            staff: newStaffRef.current?.value || '',
-            phase: newPhaseRef.current?.value || '反響受信',
-            callDates: '[]',
-            contactDate: null,
-            phone: '',
-            mail: '',
-            targetProperty: '',
-            budget: 0,
-            viewDate: null,
-            reinsDate: null,
-            priceRevDate: null,
-            lastReportDate: null,
-            followDate: null,
-            connectDate: null,
-            applicationDate: null,
-            contractDate: null,
-            nextDate: null,
-            nextNote: null,
-            addr: null,
-            note: null
+    /** 登録のモーダルの「登録する」。必須は LeadEdit が確かめる。⚠️ 同じ人の反響が既にあれば、確かめてから登録する */
+    const createLead = async (info: Partial<BuyLead>) => {
+        const dup = findDuplicateLead(leads, info);
+        if (dup && !window.confirm(`同じ連絡先、または同名・同日の反響が既に登録されています（${dup.name || '名称なし'}／${formatDate(dup.receivedDate)}）。\nそれでも登録しますか？`)) return;
+        // ⚠️ LeadEdit は名前を seller にも入れる。買い反響は name だけを持つ
+        const { id: _id, seller: _s, ...rest } = info as Partial<BuyLead> & { seller?: string };
+        const id = newRecordId();
+        const fields: Record<string, unknown> = {
+            ...rest, kind: 'buyLeads', name: String(info.name || '').trim(),
+            receivedDate: String(info.receivedDate || '').replace(/\//g, '-'), callDates: info.callDates || '[]', show_dashboard: 1,
         };
-
-        setLeads(prev => [newRecord, ...prev]);
-        setIsAdding(false);
-
+        setIsEditModalOpen(false);
         try {
-            await saveBrokerageRecord(newRecord.id, {
-                kind: 'buyLeads',
-                name: newRecord.name,
-                staff: newRecord.staff,
-                portal: newRecord.portal,
-                phase: newRecord.phase,
-                receivedDate: newRecord.receivedDate,
-                callDates: '[]',
-                show_dashboard: 1,
-            });
+            const row = await saveBrokerageRecord(id, fields);
+            setLeads(prev => [{ ...fields, ...(row ?? {}), id } as BuyLead, ...prev]);
         } catch (e) {
-            console.error('[LeadBuy] 新規リードの登録に失敗しました', newRecord, e);
-            setLeads(prev => prev.filter(l => l.id !== newRecord.id));
-            alert('新規リードの登録に失敗しました。もう一度お試しください。');
+            console.error('[LeadBuy] 反響の登録に失敗しました', id, e);
+            alert('反響を登録できませんでした。通信状況を確認して、もう一度お試しください。');
         }
     };
 
@@ -492,12 +460,12 @@ const LeadBuy = () => {
     };
 
     const handleSaveCustomerInfo = () => {
-        if (customerInfo.id) {
-            // id は DB 側の突合キーなので更新値としては送らない。
-            // 許可カラムに無いキーは broker_update.php 側で捨てられる。
-            const { id, ...fields } = customerInfo as BuyLead;
-            void handleApiPatch(id, fields);
-        }
+        // ⚠️ v2.2.247: id が無ければ登録（「反響を追加」）
+        if (!customerInfo.id) { void createLead(customerInfo); return; }
+        // id は DB 側の突合キーなので更新値としては送らない。
+        // 許可カラムに無いキーは broker_update.php 側で捨てられる。
+        const { id, ...fields } = customerInfo as BuyLead;
+        void handleApiPatch(id, fields);
         setIsEditModalOpen(false);
     };
 
@@ -538,7 +506,7 @@ const LeadBuy = () => {
                 availableMonths={[]}
                 periodGroups={periodOptions}
                 handleAddClick={handleAddClick}
-                isAdding={isAdding}
+                isAdding={isEditModalOpen && !customerInfo.id}
                 headerLabel={headerLabel}
                 nextActionAlert={nextActionAlert}
             />
@@ -593,45 +561,6 @@ const LeadBuy = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {/* 新規追加用インプット行 */}
-                            {isAdding && (
-                                <tr>
-                                    <td style={getTdStyle(false, { borderLeft: '4px solid #3182ce' })}>
-                                        <input type="date" style={compactInputStyle} defaultValue={formatDate(new Date()).replace(/\//g, '-')} ref={newReceivedDateRef} />
-                                    </td>
-                                    <td style={getTdStyle(false)}>
-                                        <select style={compactInputStyle} defaultValue="" ref={newPortalRef}>
-                                            <option value="">ポータル</option>
-                                            {BUY_PORTALS.map(p => <option key={p} value={p}>{p}</option>)}
-                                        </select>
-                                    </td>
-                                    <td style={getTdStyle(false)}>
-                                        <input type="text" style={{ ...compactInputStyle, border: '1px solid #dee2e6' }} placeholder="顧客名" defaultValue="" ref={newNameRef} />
-                                    </td>
-                                    <td style={getTdStyle(false)}>
-                                        <select style={compactInputStyle} defaultValue="" ref={newStaffRef}>
-                                            <option value="">担当を選択</option>
-                                            {staffList.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </td>
-                                    <td style={getTdStyle(false)}>
-                                        {/* ⚠️ v2.2.244: 以前のアプリの値。購入申込・追客終了は転記・理由が要るので、追加した後に一覧で変える */}
-                                        <select style={compactInputStyle} defaultValue="反響受信" ref={newPhaseRef}>
-                                            {BUY_PHASES.filter(p => p !== '購入申込' && p !== '追客終了').map(p => <option key={p} value={p}>{p}</option>)}
-                                        </select>
-                                    </td>
-                                    <td colSpan={9} style={{ ...getTdStyle(false), color: '#6c757d', textAlign: 'left', fontSize: '10px' }}>
-                                        ※その他の詳細は追加後に設定できます。
-                                    </td>
-                                    <td style={getTdStyle(false)}>
-                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                                            <button style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: '#0d6efd', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }} onClick={handleSaveNewLead}>追加</button>
-                                            <button style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: '#fff', color: '#6c757d', border: '1px solid #ced4da', borderRadius: '4px' }} onClick={() => setIsAdding(false)}>取消</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-
                             {isLoading ? (
                                 <tr>
                                     <td colSpan={15} style={{ padding: '40px', textAlign: 'center' }}>
@@ -783,6 +712,7 @@ const LeadBuy = () => {
                 customerInfo={customerInfo}
                 setCustomerInfo={setCustomerInfo}
                 leadCategory="buy"
+                sourceOptions={BUY_PORTALS}
                 staffList={staffList}
             />
 
