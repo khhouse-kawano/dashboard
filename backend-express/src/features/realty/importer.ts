@@ -392,6 +392,22 @@ export const runImportRecords = async (body: Record<string, unknown>): Promise<R
 // ---------------------------------------------------------------------------
 
 /**
+ * Dashboard にしか無い設定の項目（v2.2.249〜）。以前のアプリの設定で置き換えるときも、今の値を残す。
+ *   holidays … 休業日（連動トリガー仕様書 ②。features/realty/state.ts の SETTINGS_FIELDS）
+ */
+const DASHBOARD_ONLY_SETTINGS = ['holidays'] as const;
+
+const dashboardOnlySettings = async (): Promise<Record<string, unknown>> => {
+  const rows = await query<DynamicRow>("SELECT `data` FROM app_state WHERE `key` = 'settings' LIMIT 1");
+  // ⚠️ JSON の列は、文字列でもオブジェクトでも返ることがある（index.ts の readSettings と同じく両方を受ける）
+  const raw = rows[0]?.data;
+  const cur = typeof raw === 'string' ? parseJsonText(raw) : raw;
+  const out: Record<string, unknown> = {};
+  if (isObject(cur)) for (const k of DASHBOARD_ONLY_SETTINGS) if (cur[k] !== undefined) out[k] = cur[k];
+  return out;
+};
+
+/**
  * body = { ids: ファイルの全行の id, hide: true/false, hideScope: 'all' | 'imported', settingsJson, weeklyJson, complianceJson（それぞれ文字列にした JSON。parseJsonText の注記） }
  * ⚠️ 行の書き込みが全部終わってから呼ぶ（途中で呼ぶと、まだ書いていない行を「消えた」と判断しないよう ids はファイル全体）
  */
@@ -423,8 +439,10 @@ export const runImportFinish = async (body: Record<string, unknown>): Promise<Re
   const states: string[] = [];
   for (const [key, check] of [['settings', isObject], ['weekly', isObject], ['compliance', Array.isArray]] as const) {
     if (body[`${key}Json`] === undefined) continue;
-    const value = parseJsonText(body[`${key}Json`]);
+    let value = parseJsonText(body[`${key}Json`]);
     if (!check(value)) return fail(400, `${key} の形が正しくありません`);
+    // ⚠️ v2.2.249: Dashboard にしか無い設定の項目（以前のアプリのファイルには無い）は、今の値を残す
+    if (key === 'settings') value = { ...(value as Record<string, unknown>), ...(await dashboardOnlySettings()) };
     await executeLarge(
       'INSERT INTO app_state (`key`, `data`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `data` = VALUES(`data`)',
       [key, JSON.stringify(value)]
