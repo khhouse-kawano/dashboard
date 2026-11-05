@@ -8,8 +8,8 @@ import type { Row, Settings } from '../summary/kpi';
 import LeadHeader from '../common/LeadHeader';
 import AuthContext from '../../../context/AuthContext';
 import { removeSpaces, safeParse, LEAD_END_REASONS, LEAD_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted, findDuplicateLead } from '../common/leadUtiles';
-import { leadToResale, linkLedgerWithNotice } from '../common/leadLinks';
-import type { LedgerForm } from '../common/leadLinks';
+import { leadToResale, linkLedger } from '../common/leadLinks';
+import type { LedgerForm, LedgerLinkResult } from '../common/leadLinks';
 import LedgerLinkModal from '../common/LedgerLinkModal';
 import LeadEdit from '../common/LeadEdit';
 import LeadFilterBar, { EMPTY_FILTER, matchesFilter } from '../common/LeadFilterBar';
@@ -347,23 +347,25 @@ const LeadSell = () => {
   };
 
   /**
-   * ⚠️ v2.2.247: 媒介紐付の画面（common/LedgerLinkModal.tsx）の「登録」。売り反響 → 媒介獲得台帳。
-   *   1. 段階を媒介受託・媒介契約日を保存（handleApiPatch。一覧で段階を変えたときと同じく、変更履歴に残す）
-   *   2. 画面で確かめた値で台帳へ1行作り、反響に台帳 No. を持たせる（common/leadLinks.ts の leadToLedger）
-   * ⚠️ 台帳に紐づいている（ledgerNo がある）反響では作らない（二重に作らない）。
-   * @returns 作れたら true（画面を閉じる）
+   * 媒介紐付の画面（common/LedgerLinkModal.tsx）の「登録」。売り反響 → 媒介獲得台帳。
+   * ⚠️ v2.2.248: 連動トリガー仕様書の ①。台帳の作成・反響の媒介受託・変更履歴は、② の planner:ledger_link が
+   *   1つのトランザクションで行う（common/leadLinks.ts の linkLedger）。v2.2.247 は画面から段階 → 台帳 → 台帳 No. と別々に保存していた。
+   * ⚠️ 台帳に紐づいている反響では、② が作らずに既存の台帳 No. を返す（二重作成の防止）。
+   * @returns 作れた（すでにあった）ら結果。作れなければ null（画面は開いたまま）
    */
-  const submitLedger = async (row: Row, form: LedgerForm): Promise<boolean> => {
-    const lead = leads.find(l => l.id === String(row.id));
-    if (!lead || lead.ledgerNo) return true;
-    if (lead.phase !== '媒介受託' || lead.baikaiDate !== form.baikaiDate || lead.endReason) {
-      const ok = await handleApiPatch(lead.id, { phase: '媒介受託', baikaiDate: form.baikaiDate, ...(lead.endReason ? { endReason: '' } : {}) });
-      if (!ok) return false;
+  const submitLedger = async (row: Row, form: LedgerForm): Promise<LedgerLinkResult | null> => {
+    const id = String(row.id);
+    try {
+      const r = await linkLedger(id, form);
+      const no = String(r.no);
+      const fields = { phase: '媒介受託', baikaiDate: form.baikaiDate, ledgerNo: no, ledgerId: r.ledgerId, endReason: null };
+      setLeads(prev => prev.map(l => (l.id === id ? { ...l, ...(r.status === 'exists' ? { ledgerNo: no } : fields) } as SellLead : l)));
+      return r;
+    } catch (e) {
+      console.error('[LeadSell] 媒介紐付に失敗しました', id, e);
+      alert(`媒介獲得台帳を作れませんでした。\n${e instanceof Error ? e.message : ''}`);
+      return null;
     }
-    const linked = await linkLedgerWithNotice(lead as unknown as Record<string, unknown>, form, settings.staff);
-    if (!linked) return false;
-    setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, ...linked.leadFields } as SellLead : l)));
-    return true;
   };
 
   /**
@@ -535,9 +537,13 @@ const LeadSell = () => {
     // 残りのうちサーバーの許可カラムに無いキーは broker_update.php 側で捨てられる。
     const { id, internal_id, created_at, updated_at, ...fields } = customerInfo as SellLead;
     const saved = customerInfo as SellLead;
+    // ⚠️ v2.2.248: 媒介受託にして保存したとき、台帳がまだ無ければ、段階は変えずに（ほかの項目だけ保存して）媒介紐付の画面を開く。
+    //   段階は「登録」で台帳と一緒に媒介受託になる（仕様書 共通ルール 2: 段階だけが先に変わって台帳が無い状態を作らない）
+    const before = leads.find(l => l.id === id);
+    const toLedger = saved.phase === '媒介受託' && !saved.ledgerNo;
+    if (toLedger && before && before.phase !== '媒介受託') fields.phase = before.phase;
     void handleApiPatch(id, fields).then(ok => {
-      // ⚠️ v2.2.247: 媒介受託で保存して台帳がまだ無ければ、媒介紐付の画面を開く（v2.2.244〜246 はすぐに台帳を作っていた）
-      if (ok && saved.phase === '媒介受託' && !saved.ledgerNo) setLedgerTarget(saved);
+      if (ok && toLedger) setLedgerTarget(saved);
     });
     setIsEditModalOpen(false);
   };

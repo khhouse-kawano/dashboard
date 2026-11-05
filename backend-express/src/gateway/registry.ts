@@ -181,6 +181,7 @@ import type { Result as RealtyResult } from '../features/realty';
 import { runPlannerCompliance, runPlannerSettings, runPlannerState, runPlannerWeekly } from '../features/realty/state';
 import { runImportCheck, runImportFinish, runImportRecords } from '../features/realty/importer';
 import { runCallLogs, runCallLogsImport, runCallMark, runCallUndo, runNaviSave, runPracticeLogsImport } from '../features/realty/calls';
+import { runLedgerLink } from '../features/realty/ledgerLink';
 import { runUsedQueueList, runUsedQueueMark } from '../features/callq/usedQueue';
 import { INQUIRY_CATEGORIES, MASTER_CATEGORIES, runPrivacyEraseInquiry, runPrivacyEraseMaster } from '../features/privacy';
 import type { AuthenticatedStaff } from '../types/staff';
@@ -1261,6 +1262,8 @@ register({ request: 'planner', roll: 'call_undo', summary: '【書き込み】�
 register({ request: 'planner', roll: 'navi_save', summary: '【書き込み】不動産企画係: 架電ナビの記録（反響の更新と通話記録）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runNaviSave(s, body)) });
 register({ request: 'planner', roll: 'call_logs', summary: '不動産企画係: 架電ナビの通話記録（期間を指定）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runCallLogs(body)) });
 register({ request: 'planner', roll: 'call_logs_import', summary: '【書き込み】不動産企画係: 以前のアプリの通話記録（CSV）を取り込む（300件まで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runCallLogsImport) });
+// ⚠️ v2.2.248 新規（② だけ）。連動トリガー仕様書の ① 媒介獲得（売り反響 → 台帳を1つのトランザクションで）。features/realty/ledgerLink.ts
+register({ request: 'planner', roll: 'ledger_link', summary: '【書き込み】不動産企画係: 売り反響の媒介紐付（前提条件を確かめ、台帳の作成・反響の媒介受託・変更履歴を1つのトランザクションで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runLedgerLink(s, body)) });
 register({ request: 'planner', roll: 'practice_logs_import', summary: '【書き込み】不動産企画係: 以前のアプリの練習記録（CSV）を取り込む（300件まで）', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'master', handler: realtyMaster(runPracticeLogsImport) });
 
 // ⚠️ v2.2.239 新規（② だけ）。中古リノベの今日の架電キュー。features/callq/usedQueue.ts

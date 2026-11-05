@@ -9,6 +9,7 @@ import BuyOfferModal from '../realty/common/BuyOfferModal';
 import { OFFER_STATUS } from '../realty/common/leadLinks';
 import { loadRecords } from '../realty/common/realtyState';
 import AuthContext from '../../context/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import type { Row, StaffSetting } from '../realty/summary/kpi';
 
 export interface BrokerData {
@@ -105,6 +106,13 @@ const DatabaseBroker = () => {
     }, []);
     useEffect(() => { loadDeals(); }, [loadDeals]);
     const closeOffer = useCallback(() => setOfferLedger(null), []);
+
+    /**
+     * ⚠️ v2.2.248: 売り反響の「媒介紐付」で台帳を作ったあとの「媒介獲得台帳で開く」（/broker?ledgerNo=…）。
+     *   その台帳の行を黄色にし、見えるところまで動かす（連動トリガー仕様書 共通ルール 4）
+     */
+    const [searchParams] = useSearchParams();
+    const focusNo = searchParams.get('ledgerNo') ?? '';
     /** 買付登録・解除のあと、一覧の台帳を直し、案件の No. を読み直す */
     const onOfferSaved = (ledgerId: string, fields: Row) => {
         setOriginalData(prev => prev.map(d => (d.id === ledgerId ? { ...d, ...fields } as BrokerData : d)));
@@ -207,6 +215,16 @@ const DatabaseBroker = () => {
 
         return filtered;
     }, [originalData, sortConfig, searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus]);
+
+    // ⚠️ v2.2.248: ?ledgerNo= の行が一覧に出たら、見えるところまで動かす（1回だけ）
+    const [focusedNo, setFocusedNo] = useState('');
+    useEffect(() => {
+        if (focusNo === '' || focusedNo === focusNo) return;
+        const el = document.getElementById(`ledger-row-${focusNo}`);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center' });
+        setFocusedNo(focusNo);
+    }, [focusNo, focusedNo, processedData]);
 
     /*
      * ⚠️ v2.2.245: ページ割りをやめ、媒介契約日の新しい順に全件を1枚で出す（制作者の要望。以前は20件ごと）。
@@ -381,7 +399,7 @@ const DatabaseBroker = () => {
                         該当 {processedData.length} 件
                     </div>
                     {/*
-                      ⚠️ v2.2.245: 「媒介追加」を消した。媒介は必ず売り反響の「媒介受託」から作る（realty/common/leadLinks.ts の leadToLedger）。
+                      ⚠️ v2.2.245: 「媒介追加」を消した。媒介は必ず売り反響の「媒介受託」から作る（v2.2.248 からは売り反響の「媒介紐付」→ ② の planner:ledger_link）。
                         ここで作ると、売主がどの反響から来たのか分からない物件ができてしまう（制作者の要望）。
                     */}
                     <span className="text-muted" style={{ fontSize: '11px' }}>媒介は売り反響を「媒介受託」にすると作られます</span>
@@ -437,7 +455,7 @@ const DatabaseBroker = () => {
                                         const contractStatusInfo = getContractStatusInfo(remainingDays);
 
                                         return (
-                                            <tr key={item.id}>
+                                            <tr key={item.id} id={`ledger-row-${String(item.no ?? '')}`} style={focusNo !== '' && String(item.no ?? '') === focusNo ? { outline: '2px solid #fd7e14', background: '#fff3cd' } : undefined}>
                                                 <td className="text-muted">{index + 1}</td>
                                                 <td>
                                                     <button
