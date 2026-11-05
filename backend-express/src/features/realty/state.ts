@@ -219,6 +219,22 @@ const SETTINGS_FIELDS: Record<string, (v: unknown) => unknown> = {
       includeBuy: v.includeBuy !== false,
     };
   },
+  // ⚠️ v2.2.249: 休業日（連動トリガー仕様書 ②。レインズ登録の期限を営業日で数える）。
+  //   weekdays = 定休の曜日（0=日〜6=土）、dates = 個別の休業日（'YYYY-MM-DD'。年末年始・夏季・休む祝日など）
+  holidays: (v) => {
+    if (!isObject(v)) throw new InvalidInput('休業日の形が正しくありません');
+    const wd = (Array.isArray(v.weekdays) ? v.weekdays : []).map(Number);
+    if (wd.some((n) => !Number.isInteger(n) || n < 0 || n > 6)) throw new InvalidInput('定休の曜日の形が正しくありません');
+    const weekdays = [...new Set(wd)].sort((a, b) => a - b);
+    if (weekdays.length === 7) throw new InvalidInput('すべての曜日を定休にはできません');
+    const ds = Array.isArray(v.dates) ? v.dates : [];
+    if (ds.length > 400) throw new InvalidInput('個別の休業日は400日までです');
+    const dates = [...new Set(ds.map((d) => String(d)))].sort();
+    for (const d of dates) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(new Date(`${d}T00:00:00Z`).getTime())) throw new InvalidInput(`休業日の日付が正しくありません: ${d}`);
+    }
+    return { weekdays, dates };
+  },
   // ⚠️ v2.2.226: 今日の架電キューの一言目（要件タグごと。以前のアプリの CQ_SCRIPTS のキー）
   callqScripts: (v) => {
     if (!isObject(v)) throw new InvalidInput('一言目の形が正しくありません');

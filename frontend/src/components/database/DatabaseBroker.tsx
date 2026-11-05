@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect, useContext, useCallback } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
-import { dateFormate, parseTextWithUrl, thStyle, getReinsStatus, getPropertyStatus, getContractExpirationDate, getRemainingDays, getContractStatusInfo } from './databaseUtils';
+import { dateFormate, parseTextWithUrl, thStyle, getReinsStatus, getPropertyStatus } from './databaseUtils';
+import { deadlineClass, deadlineText, expiryDeadline, holidaysOf, reinsDeadline, reportDeadline } from '../realty/common/deadlines';
+import type { Holidays } from '../realty/common/deadlines';
 import PropertyRegister from './PropertyRegister';
 import InformationEditResale from '../information/InformationEditResale';
 import PropertySummary from './PropertySummary';
@@ -38,6 +40,9 @@ export interface BrokerData {
     keyStatus?: string | null;
     baikaiType?: string | null;
     propStatus?: string | null;
+    /** 有効期間の満了日（v2.2.248 の媒介紐付から入る）。直近の販売報告日（v2.2.249 から期限の計算に使う） */
+    expiry?: string | null;
+    lastReportDate?: string | null;
     currentStatus?: string | null;
     /** つないだ商談案件（売側）の id（v2.2.246 の買付登録。以前のアプリの l.dealId） */
     dealId?: string | null;
@@ -96,10 +101,15 @@ const DatabaseBroker = () => {
     const [offerLedger, setOfferLedger] = useState<BrokerData | null>(null);
     const [staffSettings, setStaffSettings] = useState<StaffSetting[]>([]);
     const [dealNoById, setDealNoById] = useState<Record<string, string>>({});
+    // ⚠️ v2.2.249: レインズ登録の期限を営業日で数えるための休業日（設定画面の「休業日」。common/deadlines.ts）
+    const [holidays, setHolidays] = useState<Holidays>(holidaysOf(undefined));
+    /** 今日（期限の残り日数の基準。利用者の PC の日付） */
+    const today = useMemo(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }, []);
     const loadDeals = useCallback(() => {
         loadRecords(['deals'])
             .then(({ records, settings }) => {
                 setStaffSettings(settings.staff ?? []);
+                setHolidays(holidaysOf(settings.holidays));
                 setDealNoById(Object.fromEntries(records.deals.map(d => [String(d.id), String(d.no ?? '―')])));
             })
             .catch(e => console.error('[DatabaseBroker] 商談案件の読み込みに失敗しました', e));
@@ -429,6 +439,7 @@ const DatabaseBroker = () => {
                                     {/* ⚠️ v2.2.246: 買付登録（他社・自社の客付け）→ 商談案件 */}
                                     <th className="py-2">客付・案件</th>
                                     <th className="py-2">REINZ</th>
+                                    <th className="py-2">販売報告</th>
                                     <th className="py-2">物件状態</th>
                                     <th className="py-2">MAP</th>
                                     <th className="py-2">ポータル連携</th>
@@ -450,9 +461,11 @@ const DatabaseBroker = () => {
                                         const noteParsed = parseTextWithUrl(item.note);
                                         const mapUrl = addressParsed.mapUrl || noteParsed.mapUrl;
 
-                                        const expirationDateStr = getContractExpirationDate(item.contractDate, item.baikaiType);
-                                        const remainingDays = getRemainingDays(expirationDateStr);
-                                        const contractStatusInfo = getContractStatusInfo(remainingDays);
+                                        // ⚠️ v2.2.249: 期限は連動トリガー仕様書 ②（common/deadlines.ts）。満了日は expiry（無ければ契約日の3か月後の前日）。
+                                        //   以前は専任・専属専任だけ、30日前から「期限間近」だった。今は一般も出し、14日前から（仕様書）。媒介終了・成約完了は出さない
+                                        const expiry = expiryDeadline(item, today);
+                                        const reins = reinsDeadline(item, today, holidays);
+                                        const report = reportDeadline(item, today);
 
                                         return (
                                             <tr key={item.id} id={`ledger-row-${String(item.no ?? '')}`} style={focusNo !== '' && String(item.no ?? '') === focusNo ? { outline: '2px solid #fd7e14', background: '#fff3cd' } : undefined}>
@@ -470,18 +483,14 @@ const DatabaseBroker = () => {
                                                 <td>{item.staff || '-'}</td>
                                                 <td className="text-muted">{dateFormate(item.contractDate || '')}</td>
                                                 <td className="text-muted">{dateFormate(item.updated_at || '')}</td>
-                                                <td className="text-muted">{expirationDateStr}</td>
+                                                <td className="text-muted">{expiry ? expiry.date.replace(/-/g, '/') : '-'}</td>
                                                 <td className="text-end fw-bold">
-                                                    {remainingDays !== null ? (
-                                                        <span className={remainingDays < 0 ? 'text-danger' : ''}>
-                                                            {remainingDays}日
-                                                        </span>
-                                                    ) : '-'}
+                                                    {expiry ? <span className={expiry.days < 0 ? 'text-danger' : ''}>{expiry.days}日</span> : '-'}
                                                 </td>
                                                 <td>
-                                                    {remainingDays !== null ? (
-                                                        <span className={`badge ${contractStatusInfo.color}`}>
-                                                            {contractStatusInfo.label}
+                                                    {expiry ? (
+                                                        <span className={`badge ${deadlineClass(expiry.state)}`} title="満了日の14日前から「期限間近」">
+                                                            {expiry.state === 'over' ? '★ 期限切れ' : expiry.state === 'soon' ? '⚠ 期限間近' : '有効'}
                                                         </span>
                                                     ) : <span className="text-muted">-</span>}
                                                 </td>
@@ -522,9 +531,24 @@ const DatabaseBroker = () => {
                                                     )}
                                                 </td>
                                                 <td>
-                                                    <span className={`badge ${getReinsStatus(item.reinsDate, item.baikaiType).color}`}>
-                                                        {getReinsStatus(item.reinsDate, item.baikaiType).label}
-                                                    </span>
+                                                    {/* ⚠️ v2.2.249: 専属専任・専任で未登録なら、期限（契約日の翌日から5・7営業日目）と残りの日数 */}
+                                                    {reins && reins.state !== 'done' ? (
+                                                        <span className={`badge ${deadlineClass(reins.state)}`} title="レインズ登録の期限（休業日を数えない）">
+                                                            要登録 {deadlineText(reins)}
+                                                        </span>
+                                                    ) : (
+                                                        <span className={`badge ${getReinsStatus(item.reinsDate, item.baikaiType).color}`}>
+                                                            {getReinsStatus(item.reinsDate, item.baikaiType).label}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {/* ⚠️ v2.2.249: 次の販売報告の期限（初回は契約日から、2回目からは直近の報告日から。専属専任7日・専任14日） */}
+                                                    {report ? (
+                                                        <span className={`badge ${deadlineClass(report.state)}`} title={item.lastReportDate ? `直近の報告 ${dateFormate(item.lastReportDate)}` : '初回の販売報告'}>
+                                                            {deadlineText(report)}
+                                                        </span>
+                                                    ) : <span className="text-muted">-</span>}
                                                 </td>
                                                 <td>
                                                     <span className={`badge ${getPropertyStatus(item.propStatus ?? '').color}`}>
@@ -573,7 +597,7 @@ const DatabaseBroker = () => {
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={20} className="text-center py-4 text-muted">
+                                        <td colSpan={21} className="text-center py-4 text-muted">
                                             該当するデータが見つかりません。
                                         </td>
                                     </tr>
