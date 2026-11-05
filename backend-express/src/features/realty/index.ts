@@ -195,6 +195,32 @@ const toSqlValue = (value: unknown): SqlValue => {
   return String(value);
 };
 
+/** 連絡先（contact）を「電話 / メール」で作り直す反響の種類（v2.2.252） */
+const LEAD_KINDS_WITH_CONTACT = ['leads', 'buyLeads'];
+
+const has = (o: Record<string, unknown>, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+const trimStr = (v: unknown): string => (v === null || v === undefined ? '' : String(v).trim());
+
+/**
+ * ⚠️ v2.2.252: 売り反響・買い反響で電話・メールが**変わったとき**、連絡先（contact）を「電話 / メール」に作り直す。
+ * - 画面に連絡先の欄が無く、登録・編集で contact が空のまま・古いままになっていた（架電キュー・架電ナビ・重複判定が読む）
+ * - ⚠️ 編集画面はフェーズだけ変えても phone・mail を送ってくる。値が前と同じなら作り直さない
+ *   （以前のアプリから来た連絡先には、2つ目の電話番号などの書き込みがあるため残す）
+ * - 画面が contact を送ってきたときは、その値を使う
+ * - 形は sync（handlers/portal/*.php）・HOME'S 査定メール（homesAssessment.ts）と同じ「電話 / メール」
+ */
+const withLeadContact = async (id: string, data: Record<string, unknown>): Promise<Record<string, unknown>> => {
+  if (has(data, 'contact') || (!has(data, 'phone') && !has(data, 'mail'))) return data;
+  const prev = (await query<DynamicRow>('SELECT kind, phone, mail FROM brokerage_listings WHERE `id` = ?', [id]))[0];
+  const kind = trimStr(has(data, 'kind') ? data.kind : prev?.kind);
+  if (!LEAD_KINDS_WITH_CONTACT.includes(kind)) return data;
+
+  const phone = trimStr(has(data, 'phone') ? data.phone : prev?.phone);
+  const mail = trimStr(has(data, 'mail') ? data.mail : prev?.mail);
+  if (prev && phone === trimStr(prev.phone) && mail === trimStr(prev.mail)) return data;
+  return { ...data, contact: [phone, mail].filter(Boolean).join(' / ') };
+};
+
 /**
  * 移植元: brokerAction/broker_update.php（UPSERT）。
  * ⚠️ 本文が 64KB を超えることがある（raw_data・docDraft）ため executeLarge で書く（db/pool.ts の注記）。
@@ -203,9 +229,9 @@ export const runBrokerUpdate = async (body: Record<string, unknown>): Promise<Re
   const id = typeof body.id === 'string' || typeof body.id === 'number' ? String(body.id).trim() : '';
   if (id === '') return fail(400, 'IDがありません');
 
-  const data = body.data !== null && typeof body.data === 'object' && !Array.isArray(body.data)
+  const data = await withLeadContact(id, body.data !== null && typeof body.data === 'object' && !Array.isArray(body.data)
     ? (body.data as Record<string, unknown>)
-    : {};
+    : {});
 
   const columns = ['`id`'];
   const updates: string[] = [];
