@@ -9,6 +9,7 @@ import {
 } from '../common/realtyState';
 import type { Company, RealtySettings as Settings, Template } from '../common/realtyState';
 import type { StaffSetting } from '../summary/kpi';
+import { holidaysOf } from '../common/deadlines';
 
 /**
  * 設定（不動産企画係。v2.2.223）。
@@ -18,10 +19,13 @@ import type { StaffSetting } from '../summary/kpi';
  * ⚠️ 本番アプリの次のカードはまだ移していない（それを使う画面と一緒に移す）:
  *   買取再販の粗利の計算方式・経費科目マスタ／売主への販売報告／データ管理（バックアップ・CSV）
  * ⚠️ v2.2.226: 「架電キュー（抽出ルールと一言目）」（V16.settingsCard）と、以前のアプリの通話記録・練習記録の取り込み（マスター）を足した
+ * ⚠️ v2.2.249: 「休業日」（連動トリガー仕様書 ②。媒介獲得台帳のレインズ登録の期限を営業日で数える。common/deadlines.ts）を足した。
+ *   以前のアプリには無い項目。⚠️ 以前のアプリの設定を取り込んでも消えない（② の importer.ts の DASHBOARD_ONLY_SETTINGS）
  */
 
 const MAX_STAFF = 10;
 const MAX_TEMPLATES = 30;
+const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
 /** 宅建業者情報の欄（本番アプリの DEFAULT_COMPANY と同じ並び） */
 const COMPANY_FIELDS: { key: keyof Company; label: string; wide?: boolean; placeholder?: string }[] = [
@@ -114,6 +118,21 @@ const RealtySettings: React.FC = () => {
     const buyPortals = settings.buyPortals ?? [];
     const templates = settings.templates ?? [];
     const company = settings.company ?? {};
+    // ⚠️ v2.2.249: 未設定のときは初期値（定休は火・水）。曜日・日付を変えたらすぐ保存する
+    const holidays = holidaysOf(settings.holidays);
+    const [newHoliday, setNewHoliday] = useState('');
+    const toggleWeekday = (d: number) => {
+        const weekdays = holidays.weekdays.includes(d) ? holidays.weekdays.filter(x => x !== d) : [...holidays.weekdays, d].sort((a, b) => a - b);
+        if (weekdays.length === 7) { alert('すべての曜日を定休にはできません'); return; }
+        editAndSave('holidays', { ...holidays, weekdays });
+    };
+    const addHoliday = () => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(newHoliday)) return;
+        if (holidays.dates.includes(newHoliday)) { alert('既に登録されています'); return; }
+        editAndSave('holidays', { ...holidays, dates: [...holidays.dates, newHoliday].sort() });
+        setNewHoliday('');
+    };
+    const removeHoliday = (d: string) => editAndSave('holidays', { ...holidays, dates: holidays.dates.filter(x => x !== d) });
 
     const setStaff = (i: number, field: keyof StaffSetting, value: string | number) =>
         edit('staff', staff.map((s, j) => (j === i ? { ...s, [field]: value } : s)));
@@ -306,6 +325,35 @@ const RealtySettings: React.FC = () => {
                                 onChange={e => edit('company', { ...company, [f.key]: e.target.value })} onBlur={() => persist('company')} />
                         </div>
                     ))}
+                </div>
+            </div>
+
+            <div className="rlt-card">
+                <div className="rlt-card-head">
+                    <h3>🗓 休業日</h3>
+                    <span className="rlt-note">媒介獲得台帳のレインズ登録の期限（専属専任は契約日の翌日から5営業日、専任は7営業日）を数えるときに、この日を数えません。チーム全員で共有されます</span>
+                </div>
+                <div className="rlt-body">
+                    <div style={{ marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, color: '#6c757d', marginRight: 8 }}>定休の曜日</span>
+                        {WEEKDAY_LABELS.map((w, d) => (
+                            <label key={w} style={{ marginRight: 10, cursor: 'pointer' }}>
+                                <input type="checkbox" checked={holidays.weekdays.includes(d)} onChange={() => toggleWeekday(d)} aria-label={`定休 ${w}曜日`} /> {w}
+                            </label>
+                        ))}
+                        {settings.holidays === undefined && <span className="rlt-note" style={{ marginLeft: 8 }}>（未設定のため、初期値の火・水で数えています）</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+                        <span style={{ fontSize: 11, color: '#6c757d' }}>個別の休業日（年末年始・夏季休業・休む祝日など）</span>
+                        <input type="date" className="rlt-input" value={newHoliday} onChange={e => setNewHoliday(e.target.value)} aria-label="追加する休業日" />
+                        <button className="rlt-btn sec" disabled={!newHoliday} onClick={addHoliday}>追加</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {holidays.dates.length === 0 && <span className="rlt-note">登録されていません</span>}
+                        {holidays.dates.map(d => (
+                            <span key={d} className="rlt-chip">{d.replace(/-/g, '/')}<button className="rlt-icon" title="削除" onClick={() => removeHoliday(d)}>×</button></span>
+                        ))}
+                    </div>
                 </div>
             </div>
 

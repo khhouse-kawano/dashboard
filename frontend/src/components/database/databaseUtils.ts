@@ -75,51 +75,8 @@ export const getPropertyStatus = (status?: string) => {
 };
 
 
-export const getContractExpirationDate = (contractDate?: string | null, baikaiType?: string | null): string => {
-    if (!contractDate || !baikaiType) return '-';
-    if (baikaiType !== '専任媒介' && baikaiType !== '専属専任媒介') return '-';
-
-    const date = new Date(contractDate);
-
-    date.setMonth(date.getMonth() + 3);
-    date.setDate(date.getDate() - 1);
-
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-
-    return `${y}/${m}/${d}`;
-};
-
-export const getRemainingDays = (expirationDateStr: string): number | null => {
-    if (expirationDateStr === '-') return null;
-
-    // 今日の日付を取得（時間は00:00:00にリセットして純粋な日付比較にするのがTS/JSの鉄則）
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const expDate = new Date(expirationDateStr);
-    expDate.setHours(0, 0, 0, 0);
-
-    // 差分（ミリ秒）を日数に変換
-    const diffTime = expDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    return diffDays;
-};
-
-export const getContractStatusInfo = (remainingDays: number | null) => {
-    if (remainingDays === null) return { label: '-', color: 'bg-light text-secondary' };
-
-    if (remainingDays >= 30) {
-        return { label: '有効', color: 'bg-success' }; // OKの代わりの表現
-    } else if (remainingDays >= 0) {
-        return { label: '⚠ 期限間近', color: 'bg-warning text-dark' };
-    } else {
-        return { label: '★ 期限切れ', color: 'bg-danger' };
-    }
-};
-
+// ⚠️ v2.2.249: 満了日・残り日数・更新状態の計算（getContractExpirationDate・getRemainingDays・getContractStatusInfo）は
+//   realty/common/deadlines.ts へ移した（連動トリガー仕様書 ②。満了日は expiry を使い、14日前から警告）
 
 export const kataToHira = (str: string | null | undefined): string => {
     if (!str) return '';

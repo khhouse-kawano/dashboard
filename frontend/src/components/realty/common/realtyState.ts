@@ -8,6 +8,7 @@
 import apiClient from '../../../utils/apiClient';
 import { callsOf, prevMonth } from '../summary/kpi';
 import type { Row, Settings, StaffSetting } from '../summary/kpi';
+import type { Holidays } from './deadlines';
 
 export type Template = { id: string; title: string; body: string };
 
@@ -30,6 +31,8 @@ export type RealtySettings = {
     callq?: Record<string, unknown>;
     /** 今日の架電キューの一言目（v2.2.226。要件タグ → 文面） */
     callqScripts?: Record<string, string>;
+    /** 休業日（v2.2.249。定休の曜日と個別の日付。媒介獲得台帳のレインズ登録の期限を営業日で数える。common/deadlines.ts） */
+    holidays?: Holidays;
 };
 
 /** 週次行動計画の1行（担当者 × 週）。g = 目標・a = 実績。c 架電・t 追客・n 内見・s 商談 */
