@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef, useContext } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useContext } from 'react';
 import apiClient from '../../../utils/apiClient';
 import { thisYear } from '../../../utils/thisYear';
 import LeadFunnelPanel from '../common/LeadFunnelPanel';
@@ -7,8 +7,10 @@ import type { Period } from '../common/leadFunnel';
 import type { Row, Settings } from '../summary/kpi';
 import LeadHeader from '../common/LeadHeader';
 import AuthContext from '../../../context/AuthContext';
-import { removeSpaces, safeParse, LEAD_END_REASONS, LEAD_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
-import { askBaikaiDate, leadToResale, linkLedgerAfterEdit, linkLedgerWithNotice } from '../common/leadLinks';
+import { removeSpaces, safeParse, LEAD_END_REASONS, LEAD_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted, findDuplicateLead } from '../common/leadUtiles';
+import { leadToResale, linkLedgerWithNotice } from '../common/leadLinks';
+import type { LedgerForm } from '../common/leadLinks';
+import LedgerLinkModal from '../common/LedgerLinkModal';
 import LeadEdit from '../common/LeadEdit';
 import LeadFilterBar, { EMPTY_FILTER, matchesFilter } from '../common/LeadFilterBar';
 import type { LeadFilter } from '../common/LeadFilterBar';
@@ -120,6 +122,9 @@ const formatDate = (dateStr: string | null | Date) => {
   return dateStr.replace(/-/g, '/');
 };
 
+/** 今日（'YYYY-MM-DD'）。登録のモーダルの受信日の初期値 */
+const todayIso = () => formatDate(new Date()).replace(/\//g, '-');
+
 const getLastAction = (callDatesJson: string | null) => {
   if (!callDatesJson) return '―';
   try {
@@ -195,7 +200,6 @@ const LeadSell = () => {
   const [leads, setLeads] = useState<SellLead[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [staffList, setStaffList] = useState<string[]>([]);
-  const [isAdding, setIsAdding] = useState(false);
 
   const [displayLimit, setDisplayLimit] = useState<number>(15);
   // ⚠️ v2.2.225: 期間（'m:YYYY-MM'・'fy:YYYY-MM'・'all'）と設定。歩留まりは以前のアプリと同じ計算（common/leadFunnel.ts）
@@ -207,15 +211,14 @@ const LeadSell = () => {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<Partial<SellLead>>({});
+  /** ⚠️ v2.2.247: 媒介紐付の画面で開いている売り反響（null は閉じている） */
+  const [ledgerTarget, setLedgerTarget] = useState<SellLead | null>(null);
+  const ledgerStaffNames = useMemo(() => (settings.staff ?? []).map(s => s.name ?? '').filter(Boolean), [settings.staff]);
+  const closeLedgerModal = useCallback(() => setLedgerTarget(null), []);
 
   const [documentShow, setDocumentShow] = useState(false);
   const [currentInitialData, setCurrentInitialData] = useState<initialData | undefined>(undefined);
 
-  const newReceivedDateRef = useRef<HTMLInputElement>(null);
-  const newSourceRef = useRef<HTMLSelectElement>(null);
-  const newSellerRef = useRef<HTMLInputElement>(null);
-  const newStaffRef = useRef<HTMLSelectElement>(null);
-  const newPhaseRef = useRef<HTMLSelectElement>(null);
 
   const dateFormate = (date: string | null) => {
     return (date === '0000-00-00' || !date) ? '' : date;
@@ -344,13 +347,23 @@ const LeadSell = () => {
   };
 
   /**
-   * 媒介受託 → 媒介獲得台帳へ1行作る（以前のアプリの leadToLedger。common/leadLinks.ts）。
+   * ⚠️ v2.2.247: 媒介紐付の画面（common/LedgerLinkModal.tsx）の「登録」。売り反響 → 媒介獲得台帳。
+   *   1. 段階を媒介受託・媒介契約日を保存（handleApiPatch。一覧で段階を変えたときと同じく、変更履歴に残す）
+   *   2. 画面で確かめた値で台帳へ1行作り、反響に台帳 No. を持たせる（common/leadLinks.ts の leadToLedger）
    * ⚠️ 台帳に紐づいている（ledgerNo がある）反響では作らない（二重に作らない）。
+   * @returns 作れたら true（画面を閉じる）
    */
-  const linkToLedger = async (lead: SellLead, baikaiDate: string) => {
-    if (lead.ledgerNo) return;
-    const linked = await linkLedgerWithNotice(lead as unknown as Record<string, unknown>, baikaiDate, settings.staff);
-    if (linked) setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, ...linked.leadFields } as SellLead : l)));
+  const submitLedger = async (row: Row, form: LedgerForm): Promise<boolean> => {
+    const lead = leads.find(l => l.id === String(row.id));
+    if (!lead || lead.ledgerNo) return true;
+    if (lead.phase !== '媒介受託' || lead.baikaiDate !== form.baikaiDate || lead.endReason) {
+      const ok = await handleApiPatch(lead.id, { phase: '媒介受託', baikaiDate: form.baikaiDate, ...(lead.endReason ? { endReason: '' } : {}) });
+      if (!ok) return false;
+    }
+    const linked = await linkLedgerWithNotice(lead as unknown as Record<string, unknown>, form, settings.staff);
+    if (!linked) return false;
+    setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, ...linked.leadFields } as SellLead : l)));
+    return true;
   };
 
   /**
@@ -374,102 +387,34 @@ const LeadSell = () => {
     void handleApiPatch(id, { [field]: value });
   };
 
+  /**
+   * ⚠️ v2.2.247: 「反響を追加」は登録のモーダル（LeadEdit。id が空なら登録）で入れる（以前のアプリの editLead()）。
+   *   v2.2.246 までは一覧に入力の行を足し、受信日・反響元・売主名・担当・段階だけを入れていた
+   */
   const handleAddClick = () => {
-    setIsAdding(true);
+    setCustomerInfo({ kind: 'leads', id: '', receivedDate: todayIso(), phase: 'リード受信', callDates: '[]' });
+    setIsEditModalOpen(true);
   };
 
-  const handleSaveNewLead = async () => {
-    const seller = newSellerRef.current?.value;
-    if (!seller) {
-      alert('売主名を入力してください');
-      return;
-    }
-
-    const newRecord: SellLead = {
-      internal_id: '',
-      // 'sellLeads' ではなく 'leads'。brokerage_listings.kind および
-      // 一覧の絞り込み条件（kind === 'leads'）と一致させる必要がある。
-      kind: 'leads',
-      id: newRecordId(),
-      no: '',
-      freq: '',
-      note: null,
-      addr1: null,
-      addr2: null,
-      addr: null,
-      price: null,
-      budget: null,
-      fee: null,
-      feeManual: '',
-      staff: newStaffRef.current?.value || '',
-      portal: null,
-      seller: seller,
-      customer: seller,
-      name: seller,
-      source: newSourceRef.current?.value || '',
-      contact: null,
-      keyInfo: null,
-      category: null,
-      keyStatus: null,
-      baikaiType: null,
-      propStatus: null,
-      currentStatus: null,
-      type: null,
-      phase: newPhaseRef.current?.value || 'リード受信',
-      priority: null,
-      property: null,
-      targetProperty: null,
-      endReason: null,
-      ledgerNo: null,
-      extId: null,
-      dealId: null,
-      reinsDate: null,
-      contractDate: null,
-      priceRevDate: null,
-      lastReportDate: null,
-      followDate: null,
-      settleDate: null,
-      contactDate: null,
-      visitDate: null,
-      connectDate: null,
-      receivedDate: newReceivedDateRef.current?.value || formatDate(new Date()),
-      viewDate: null,
-      inputDate: null,
-      renewDate: null,
-      callDates: '[]',
-      nextDate: null,
-      nextNote: null,
-      created_at: '',
-      updated_at: '',
-      master_data_id: null,
-      property_db_id: null,
-      property_db_name: null,
-      show_dashboard: '1',
-      phone: '',
-      mail: '',
-      applicationDate: null
+  /** 登録のモーダルの「登録する」。必須は LeadEdit が確かめる。⚠️ 同じ人の反響が既にあれば、確かめてから登録する */
+  const createLead = async (info: Partial<SellLead>) => {
+    const dup = findDuplicateLead(leads, info);
+    if (dup && !window.confirm(`同じ連絡先、または同名・同日の反響が既に登録されています（${dup.seller || dup.name || '名称なし'}／${formatDate(dup.receivedDate)}）。\nそれでも登録しますか？`)) return;
+    const { id: _id, internal_id: _i, created_at: _c, updated_at: _u, ...rest } = info;
+    const seller = String(info.seller || info.name || '').trim();
+    const id = newRecordId();
+    // 'sellLeads' ではなく 'leads'。brokerage_listings.kind と一覧の絞り込み条件（kind === 'leads'）に合わせる
+    const fields: Record<string, unknown> = {
+      ...rest, kind: 'leads', seller, customer: seller, name: seller,
+      receivedDate: String(info.receivedDate || '').replace(/\//g, '-'), callDates: info.callDates || '[]', show_dashboard: 1,
     };
-
-    setLeads(prev => [newRecord, ...prev]);
-    setIsAdding(false);
-
+    setIsEditModalOpen(false);
     try {
-      await saveBrokerageRecord(newRecord.id, {
-        kind: 'leads',
-        seller: newRecord.seller,
-        customer: newRecord.customer,
-        name: newRecord.name,
-        staff: newRecord.staff,
-        source: newRecord.source,
-        phase: newRecord.phase,
-        receivedDate: newRecord.receivedDate,
-        callDates: '[]',
-        show_dashboard: 1,
-      });
+      const row = await saveBrokerageRecord(id, fields);
+      setLeads(prev => [{ ...fields, ...(row ?? {}), id } as SellLead, ...prev]);
     } catch (e) {
-      console.error('[LeadSell] 新規リードの登録に失敗しました', newRecord, e);
-      setLeads(prev => prev.filter(l => l.id !== newRecord.id));
-      alert('新規リードの登録に失敗しました。もう一度お試しください。');
+      console.error('[LeadSell] 反響の登録に失敗しました', id, e);
+      alert('反響を登録できませんでした。通信状況を確認して、もう一度お試しください。');
     }
   };
 
@@ -543,15 +488,19 @@ const LeadSell = () => {
    * フェーズの変更（以前のアプリの ieGuard と同じ）。
    * ⚠️ v2.2.244: 値が変わったときだけ動く（以前は onBlur で、触れるたびに保存し・追客終了の理由を聞き直していた）。
    *   追客終了 … 理由を聞いて endReason も保存する（⚠️ 以前は聞いた理由を捨てていた）。追客終了から戻すと理由を消す
-   *   媒介受託 … 媒介契約日を聞き、媒介獲得台帳へ1行作る
+   *   媒介受託 … ⚠️ v2.2.247: 台帳が無ければ、ここでは保存せずに媒介紐付の画面を開く（登録したときに段階も媒介受託になる）
    */
   const handlePhaseChange = async (lead: SellLead, e: React.ChangeEvent<HTMLSelectElement>) => {
     const select = e.target;
     const prev = lead.phase || 'リード受信';
     const next = select.value;
     if (next === prev) return;
+    if (next === '媒介受託' && !lead.ledgerNo) {
+      select.value = prev;
+      setLedgerTarget(lead);
+      return;
+    }
     const fields: Record<string, unknown> = { phase: next };
-    let baikaiDate: string | null = null;
     if (next === '追客終了') {
       const reason = askEndReason(LEAD_END_REASONS, lead.endReason);
       if (reason == null) { select.value = prev; return; }
@@ -559,13 +508,7 @@ const LeadSell = () => {
     } else if (lead.endReason) {
       fields.endReason = '';
     }
-    if (next === '媒介受託') {
-      baikaiDate = askBaikaiDate(lead.baikaiDate);
-      if (baikaiDate == null) { select.value = prev; return; }
-      fields.baikaiDate = baikaiDate;
-    }
-    if (!(await handleApiPatch(lead.id, fields))) { select.value = prev; return; }
-    if (baikaiDate != null) await linkToLedger(lead, baikaiDate);
+    if (!(await handleApiPatch(lead.id, fields))) select.value = prev;
   };
 
   // 💡 追加: 次回連絡日セルの視覚強化（source.html の nextCell() 相当）
@@ -586,17 +529,16 @@ const LeadSell = () => {
   };
 
   const handleSaveCustomerInfo = () => {
-    if (customerInfo.id) {
-      // id / internal_id / created_at / updated_at は DB 側が管理するので送らない。
-      // 残りのうちサーバーの許可カラムに無いキーは broker_update.php 側で捨てられる。
-      const { id, internal_id, created_at, updated_at, ...fields } = customerInfo as SellLead;
-      const saved = customerInfo as SellLead;
-      void handleApiPatch(id, fields).then(async ok => {
-        // ⚠️ v2.2.244: 媒介受託で保存したら媒介獲得台帳へ（以前のアプリの saveLead。媒介契約日は LeadEdit が必須にしている）
-        const linked = ok ? await linkLedgerAfterEdit(saved as unknown as Record<string, unknown>, settings.staff) : null;
-        if (linked) setLeads(prev => prev.map(l => (l.id === id ? { ...l, ...linked.leadFields } as SellLead : l)));
-      });
-    }
+    // ⚠️ v2.2.247: id が無ければ登録（「反響を追加」）
+    if (!customerInfo.id) { void createLead(customerInfo); return; }
+    // id / internal_id / created_at / updated_at は DB 側が管理するので送らない。
+    // 残りのうちサーバーの許可カラムに無いキーは broker_update.php 側で捨てられる。
+    const { id, internal_id, created_at, updated_at, ...fields } = customerInfo as SellLead;
+    const saved = customerInfo as SellLead;
+    void handleApiPatch(id, fields).then(ok => {
+      // ⚠️ v2.2.247: 媒介受託で保存して台帳がまだ無ければ、媒介紐付の画面を開く（v2.2.244〜246 はすぐに台帳を作っていた）
+      if (ok && saved.phase === '媒介受託' && !saved.ledgerNo) setLedgerTarget(saved);
+    });
     setIsEditModalOpen(false);
   };
 
@@ -641,7 +583,7 @@ const LeadSell = () => {
         availableMonths={[]}
         periodGroups={periodOptions}
         handleAddClick={handleAddClick}
-        isAdding={isAdding}
+        isAdding={isEditModalOpen && !customerInfo.id}
         headerLabel={headerLabel}
         nextActionAlert={nextActionAlert}
       />
@@ -692,52 +634,14 @@ const LeadSell = () => {
                 <th style={compactThStyle}>区分</th>
                 <th style={compactThStyle}>通電日</th>
                 <th style={compactThStyle}>訪問査定日</th>
+                <th style={compactThStyle}>媒介紐付</th>
                 <th style={compactThStyle}>書類</th>
               </tr>
             </thead>
             <tbody>
-              {/* 新規追加用インプット行 */}
-              {isAdding && (
-                <tr>
-                  <td style={getTdStyle(false, { borderLeft: '4px solid #3182ce' })}>
-                    <input type="date" style={compactInputStyle} defaultValue={formatDate(new Date()).replace(/\//g, '-')} ref={newReceivedDateRef} />
-                  </td>
-                  <td style={getTdStyle(false)}>
-                    <select style={compactInputStyle} defaultValue="" ref={newSourceRef}>
-                      <option value="">反響元</option>
-                      {SELL_SOURCES.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </td>
-                  <td style={getTdStyle(false)}>
-                    <input type="text" style={{ ...compactInputStyle, border: '1px solid #dee2e6' }} placeholder="売主名" defaultValue="" ref={newSellerRef} />
-                  </td>
-                  <td style={getTdStyle(false)}>
-                    <select style={compactInputStyle} defaultValue="" ref={newStaffRef}>
-                      <option value="">担当を選択</option>
-                      {staffList.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </td>
-                  <td style={getTdStyle(false)}>
-                    {/* ⚠️ v2.2.244: 以前のアプリの値。媒介受託・追客終了は日付・理由が要るので、追加した後に一覧で変える */}
-                    <select style={compactInputStyle} defaultValue="リード受信" ref={newPhaseRef}>
-                      {LEAD_PHASES.filter(p => p !== '媒介受託' && p !== '追客終了').map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </td>
-                  <td colSpan={9} style={{ ...getTdStyle(false), color: '#6c757d', textAlign: 'left', fontSize: '10px' }}>
-                    ※その他の詳細は追加後に設定できます。
-                  </td>
-                  <td style={getTdStyle(false)}>
-                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                      <button style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: '#0d6efd', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }} onClick={handleSaveNewLead}>追加</button>
-                      <button style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: '#fff', color: '#6c757d', border: '1px solid #ced4da', borderRadius: '4px' }} onClick={() => setIsAdding(false)}>取消</button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-
               {isLoading ? (
                 <tr>
-                  <td colSpan={15} style={{ padding: '40px', textAlign: 'center' }}>
+                  <td colSpan={16} style={{ padding: '40px', textAlign: 'center' }}>
                     <div className="spinner-border text-primary" role="status"></div>
                   </td>
                 </tr>
@@ -788,7 +692,9 @@ const LeadSell = () => {
                         </select>
                       </td>
                       <td style={getTdStyle(isUnassigned)}>
+                        {/* ⚠️ v2.2.247: key に段階を入れる（「媒介紐付」のボタンで段階が変わったときに、表示を描き直す） */}
                         <select
+                          key={`${lead.id}:${lead.phase || ''}`}
                           style={{ ...compactInputStyle, backgroundColor: isUnassigned ? '#fff' : '#f8f9fa', borderRadius: '4px', fontWeight: 'bold' }}
                           defaultValue={lead.phase || 'リード受信'}
                           onChange={(e) => void handlePhaseChange(lead, e)}
@@ -868,11 +774,28 @@ const LeadSell = () => {
                       {/* 💡 売り特有の日付 */}
                       <td style={{ ...getTdStyle(isUnassigned), color: '#8898aa' }}>{formatDate(lead.connectDate)}</td>
                       <td style={{ ...getTdStyle(isUnassigned), color: '#8898aa' }}>{formatDate(lead.visitDate)}</td>
+                      {/*
+                        ⚠️ v2.2.247: 媒介紐付（以前のアプリの一覧と同じ）。台帳へつなぐのは、この画面だけ（架電キュー・チームサマリーでは作らない）
+                          台帳あり → 台帳No. ／ 追客終了 → ― ／ 媒介受託で台帳なし → 未転記→台帳へ ／ それ以外 → 媒介紐付。押すと LedgerLinkModal
+                      */}
+                      <td style={getTdStyle(isUnassigned)}>
+                        {lead.ledgerNo ? (
+                          <span className="badge bg-success bg-opacity-10 text-success border border-success" style={{ fontSize: '10px' }}>台帳No.{lead.ledgerNo}</span>
+                        ) : lead.phase === '追客終了' ? (
+                          <span style={{ color: '#adb5bd' }}>―</span>
+                        ) : (
+                          <button
+                            type="button"
+                            style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: '#fff', borderRadius: '4px', cursor: 'pointer', ...(lead.phase === '媒介受託' ? { border: '1px solid #fd7e14', color: '#fd7e14', fontWeight: 'bold' } : { border: '1px solid #ced4da', color: '#6c757d' }) }}
+                            onClick={() => setLedgerTarget(lead)}
+                            title="媒介獲得台帳へ登録する画面を開く（登録すると段階は媒介受託になる）"
+                          >
+                            {lead.phase === '媒介受託' ? '未転記→台帳へ' : '🔗 媒介紐付'}
+                          </button>
+                        )}
+                      </td>
                       <td style={getTdStyle(isUnassigned)}>
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                          <button style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', color: '#6c757d' }}>
-                            🔗 媒介紐付
-                          </button>
                           <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px', backgroundColor: '#fff', color: '#6c757d' }}
                               onClick={() => handleOpenDocument(lead)}>
                               <i className="fa-solid fa-file-contract me-1 text-secondary"></i>契約書
@@ -884,7 +807,7 @@ const LeadSell = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={15} style={{ padding: '40px', textAlign: 'center', color: '#6c757d' }}>
+                  <td colSpan={16} style={{ padding: '40px', textAlign: 'center', color: '#6c757d' }}>
                     データが見つかりません。
                   </td>
                 </tr>
@@ -908,6 +831,14 @@ const LeadSell = () => {
       {/* ==========================================
                 💡 顧客情報編集モーダル (売却仕様)
             ========================================== */}
+      {/* ⚠️ v2.2.247: 媒介紐付（売り反響 → 媒介獲得台帳。台帳へつなぐのは、この画面だけ） */}
+      <LedgerLinkModal
+        lead={ledgerTarget as unknown as Row | null}
+        staffNames={ledgerStaffNames}
+        onClose={closeLedgerModal}
+        onSubmit={submitLedger}
+      />
+
       <LeadEdit
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
@@ -915,6 +846,7 @@ const LeadSell = () => {
         customerInfo={customerInfo}
         setCustomerInfo={setCustomerInfo}
         leadCategory="sell"
+        sourceOptions={SELL_SOURCES}
         staffList={staffList}
         onNavi={() => {
           const lead = leads.find(l => l.id === customerInfo.id);

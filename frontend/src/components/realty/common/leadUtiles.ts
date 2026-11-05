@@ -390,3 +390,26 @@ export const askEndReason = (ends: string[], current: string | null | undefined)
     if (v == null) return null;
     return v.trim() || ends[0];
 };
+
+type LeadLike = { name?: unknown; seller?: unknown; receivedDate?: unknown; phone?: unknown; mail?: unknown; contact?: unknown };
+
+/** 連絡先の比べ方（以前のアプリの saveLead の norm）。数字・英字・@・. だけを残す */
+const normContact = (v: unknown): string => String(v ?? '').replace(/[^0-9A-Za-z@.]/g, '');
+
+const contactsOf = (l: LeadLike): string[] =>
+    [l.phone, l.mail, l.contact].map(normContact).filter(s => s !== '');
+
+/**
+ * ⚠️ v2.2.247: 反響の登録のときの重複（以前のアプリの saveLead）。
+ * 同じ連絡先（電話・メール・連絡先のどれか）、または同じ名前で同じ受信日の反響を返す。無ければ undefined
+ */
+export const findDuplicateLead = <T extends LeadLike>(rows: T[], rec: LeadLike): T | undefined => {
+    const keys = contactsOf(rec);
+    const name = String(rec.seller || rec.name || '').trim();
+    const day = String(rec.receivedDate ?? '').replace(/\//g, '-').slice(0, 10);
+    return rows.find(x =>
+        (keys.length > 0 && contactsOf(x).some(k => keys.includes(k)))
+        || (name !== '' && String(x.seller || x.name || '').trim() === name
+            && String(x.receivedDate ?? '').replace(/\//g, '-').slice(0, 10) === day)
+    );
+};

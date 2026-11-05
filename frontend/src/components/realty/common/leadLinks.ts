@@ -7,6 +7,7 @@ import type { StaffSetting } from '../summary/kpi';
  *
  * ─────────────────────────────────────────────
  *   売り反響を「媒介受託」にする → 媒介獲得台帳（kind = ledger）へ1行作り、反響に ledgerNo を持たせる
+ *     ⚠️ v2.2.247: 売り反響の画面の「媒介紐付」の画面（LedgerLinkModal）で台帳の値を確かめてから作る。売り反響の画面だけで作る
  *   買い反響を「購入申込」にする → 商談案件（kind = deals）へ「買」案件を1件作り、反響に dealId を持たせる
  *   ⚠️ v2.2.246:
  *   媒介台帳の「買付登録」     → 他社客付けは商談案件「売」を1件、自社客付けは「売」「買」の2件（registerBuyOffer）
@@ -36,75 +37,93 @@ const guessCity = (addr: string): string => addr.match(/^(.+?[市郡町村])/)?.
 /** 'YYYY-MM-DD' か。⚠️ 以前のアプリと同じ形だけを受け付ける */
 export const isIsoDate = (v: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
+/** 媒介獲得台帳の選択肢（database/PropertyRegister.tsx の台帳の編集画面と同じ） */
+export const LEDGER_BAIKAI_TYPES = ['専任媒介', '一般媒介', '買取'];
+export const LEDGER_CATEGORIES = ['戸建', 'マンション', '住宅用地', '賃収マンション', '賃収・事業用', 'その他'];
+export const LEDGER_FREQS = ['1週間', '2週間', '1か月'];
+
 /**
- * 媒介契約日を聞く（以前のアプリの ieGuard と同じ）。
- * @returns null は取り消し・形の誤り
+ * ⚠️ v2.2.247: 売り反響 → 媒介獲得台帳の「媒介紐付」の画面（common/LedgerLinkModal.tsx）で確かめる値。
+ *   staff は氏名（台帳には略称で入れる）
  */
-export const askBaikaiDate = (current: string | null | undefined): string | null => {
-    if (current && isIsoDate(current)) return current;
-    const v = window.prompt(`媒介受託にします。媒介契約日を入力してください（例：${todayStr()}）`, todayStr());
-    if (v == null) return null;
-    const d = v.trim();
-    if (!isIsoDate(d)) {
-        alert('日付の形式が正しくありません（例：2026-08-10）');
-        return null;
-    }
-    return d;
+export type LedgerForm = {
+    baikaiDate: string; baikaiType: string; seller: string; contact: string; category: string;
+    addr1: string; addr2: string; price: number | null; staff: string; freq: string; note: string;
+};
+
+/** 売り反響の値を台帳の項目に写す（以前のアプリの leadToLedger と同じ写し方。媒介契約日が無ければ今日） */
+export const ledgerFormOf = (lead: Rec): LedgerForm => {
+    const addr = str(lead.addr || lead.addr1);
+    const baikaiDate = str(lead.baikaiDate).replace(/\//g, '-');
+    return {
+        baikaiDate: isIsoDate(baikaiDate) ? baikaiDate : todayStr(),
+        baikaiType: '専任媒介',
+        seller: str(lead.seller || lead.name),
+        contact: str(lead.contact) || [lead.phone, lead.mail].map(str).filter(Boolean).join(' / '),
+        category: str(lead.category),
+        addr1: guessCity(addr), addr2: addr,
+        price: Number(lead.price) || null,
+        staff: str(lead.staff),
+        freq: '1か月',
+        note: `反響リードより転記（${str(lead.source) || '反響元未設定'}）`,
+    };
+};
+
+/** 登録の前に確かめる（必須：媒介契約日・媒介種別・売主）。問題が無ければ null */
+export const ledgerFormError = (f: LedgerForm): string | null => {
+    if (!isIsoDate(f.baikaiDate)) return '媒介契約日を入力してください。';
+    if (!f.baikaiType) return '媒介種別を選んでください。';
+    if (!f.seller.trim()) return '売主を入力してください。';
+    return null;
 };
 
 /**
- * 売り反響 → 媒介獲得台帳。
+ * 売り反響 → 媒介獲得台帳。⚠️ v2.2.247: 台帳の値は「媒介紐付」の画面で確かめたもの（form）
  * @returns 作った台帳の No. と、反響に保存した値
  */
 export const leadToLedger = async (
     lead: Rec,
-    baikaiDate: string,
+    form: LedgerForm,
     staffSettings: StaffSetting[] = []
 ): Promise<{ no: number; leadFields: Rec }> => {
     const { records } = await loadRecords(['ledger']);
     const no = nextNo(records.ledger);
-    const abbr = staffSettings.find((s) => s.name === str(lead.staff))?.abbr ?? '';
-    const addr = str(lead.addr);
-    await saveBrokerageRecord(newRecordId(), {
+    const abbr = staffSettings.find((s) => s.name === form.staff)?.abbr ?? '';
+    const ledgerId = newRecordId();
+    await saveBrokerageRecord(ledgerId, {
         kind: 'ledger', no, staff: abbr, portal: abbr, source: str(lead.source),
-        contractDate: baikaiDate, baikaiType: '専任媒介', seller: str(lead.name || lead.seller), contact: str(lead.contact),
-        category: str(lead.category), currentStatus: '情報整理中', addr1: guessCity(addr), addr2: addr,
-        price: lead.price || null, freq: '1か月', lastReportDate: '', reinsDate: '', priceRevDate: '',
-        propStatus: 'アクティブ', keyStatus: '', keyInfo: '',
-        note: `反響リードより転記（${str(lead.source) || '反響元未設定'}）`,
+        contractDate: form.baikaiDate, baikaiType: form.baikaiType, seller: form.seller.trim(), contact: form.contact.trim(),
+        category: form.category, currentStatus: '情報整理中', addr1: form.addr1.trim(), addr2: form.addr2.trim(),
+        price: form.price || null, freq: form.freq, lastReportDate: '', reinsDate: '', priceRevDate: '',
+        propStatus: 'アクティブ', keyStatus: '', keyInfo: '', note: form.note,
     });
-    const leadFields = { ledgerNo: no, phase: '媒介受託', baikaiDate };
+    const leadFields = { ledgerNo: no, ledgerId, phase: '媒介受託', baikaiDate: form.baikaiDate };
     await saveBrokerageRecord(str(lead.id), leadFields);
     return { no, leadFields };
 };
 
 /**
- * 編集画面（LeadEdit）で売り反響を保存したあと、媒介獲得台帳へ反映する（以前のアプリの saveLead の最後）。
- * ⚠️ 媒介受託・媒介契約日あり・まだ台帳に紐づいていないときだけ作る。作らなければ null。
- * ⚠️ 失敗は知らせて null を返す（反響の保存は済んでいるので、選び直せば作り直せる）。
+ * ⚠️ v2.2.247: 媒介獲得台帳へつなぐのは売り反響の画面だけ（利用者の指示）。
+ *   架電キュー・チームサマリーの編集画面で媒介受託にして保存したときは、台帳を作らずに、売り反響の画面で転記するよう知らせる
  */
-export const linkLedgerAfterEdit = async (
-    saved: Rec,
-    staffSettings: StaffSetting[] = []
-): Promise<{ no: number; leadFields: Rec } | null> => {
-    const baikaiDate = str(saved.baikaiDate).replace(/\//g, '-');
-    if (str(saved.phase) !== '媒介受託' || str(saved.ledgerNo) !== '' || !isIsoDate(baikaiDate)) return null;
-    return linkLedgerWithNotice(saved, baikaiDate, staffSettings);
+export const noticeLedgerOnSellScreen = (saved: Rec): void => {
+    if (str(saved.phase) !== '媒介受託' || str(saved.ledgerNo) !== '') return;
+    alert('媒介受託で保存しました。\n媒介獲得台帳への転記は、売り反響の画面の「媒介紐付」の列で行ってください。');
 };
 
-/** leadToLedger を呼び、結果を知らせる。⚠️ 失敗は知らせて null（反響の保存は済んでいるので、選び直せば作り直せる） */
+/** leadToLedger を呼び、結果を知らせる。⚠️ 失敗は知らせて null */
 export const linkLedgerWithNotice = async (
     lead: Rec,
-    baikaiDate: string,
+    form: LedgerForm,
     staffSettings: StaffSetting[] = []
 ): Promise<{ no: number; leadFields: Rec } | null> => {
     try {
-        const result = await leadToLedger(lead, baikaiDate, staffSettings);
-        alert(`媒介獲得台帳 No.${result.no} へ反映しました（媒介契約日 ${baikaiDate}）。\n媒介獲得台帳で媒介種別・販売価格を確認してください。`);
+        const result = await leadToLedger(lead, form, staffSettings);
+        alert(`媒介獲得台帳 No.${result.no} を作りました（媒介契約日 ${form.baikaiDate}）。`);
         return result;
     } catch (e) {
         console.error('[leadLinks] 媒介獲得台帳への反映に失敗しました', lead.id, e);
-        alert('媒介獲得台帳への反映に失敗しました。時間をおいて、もう一度「媒介受託」を選び直すか、保存し直してください。');
+        alert('媒介獲得台帳を作れませんでした。時間をおいて、もう一度「媒介紐付」から登録してください。');
         return null;
     }
 };
