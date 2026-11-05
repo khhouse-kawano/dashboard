@@ -95,6 +95,14 @@ const LedgerLinkModal = ({ lead, staffNames, onClose, onSubmit }: Props) => {
                                 ? <>この売り反響は、すでに <b>媒介獲得台帳 No.{done.no}</b> につながっています（新しくは作っていません）。</>
                                 : <><b>媒介獲得台帳 No.{done.no}</b> を作り、売り反響を「媒介受託」にしました。</>}
                         </p>
+                        {/* ⚠️ v2.2.250: 媒介物件（同じ物件の以前の台帳があれば、その No.） */}
+                        {done.property && (
+                            <p className="mb-2">
+                                {done.property.isNew
+                                    ? '媒介物件：新しい物件として登録しました。'
+                                    : <>媒介物件：<b>以前の台帳と同じ物件</b>に紐づけました（{done.property.pastLedgers.length > 0 ? done.property.pastLedgers.map(n => `台帳 No.${n}`).join('・') : '以前の台帳なし'}）。</>}
+                            </p>
+                        )}
                         <p className="text-muted mb-0" style={{ fontSize: '11px' }}>媒介獲得台帳で、レインズ登録日・鍵の預かりなどを続けて入れてください。</p>
                     </Modal.Body>
                     <Modal.Footer>
@@ -156,6 +164,24 @@ const LedgerLinkModal = ({ lead, staffNames, onClose, onSubmit }: Props) => {
                                     <option value="">選択してください</option>
                                     {withCurrent(LEDGER_CATEGORIES, form.category).map(o => <option key={o} value={o}>{o}</option>)}
                                 </select></div>
+                            {/* ⚠️ v2.2.250: 媒介物件（仕様書 ②）。一括査定の詳細にあれば入れてある。マンションは建物名が必須（同じ物件の突き合わせに使う） */}
+                            <div className="col-12" style={{ ...label, fontSize: '11px', borderTop: '1px solid #e9ecef', paddingTop: '6px', marginTop: '4px' }}>
+                                媒介物件（同じ物件を以前に媒介・買取していれば、その物件に紐づきます）
+                            </div>
+                            <div className="col-md-4"><div style={label}>地番（任意。あれば優先して突き合わせ）</div>
+                                <input className="form-control form-control-sm" value={form.chiban} onChange={e => set({ chiban: e.target.value })} /></div>
+                            <div className="col-md-5"><div style={label}>建物名 {form.category === 'マンション' ? req : '（マンション）'}</div>
+                                <input className="form-control form-control-sm" value={form.buildingName} onChange={e => set({ buildingName: e.target.value })} /></div>
+                            <div className="col-md-3"><div style={label}>部屋番号</div>
+                                <input className="form-control form-control-sm" value={form.roomNo} onChange={e => set({ roomNo: e.target.value })} /></div>
+                            <div className="col-md-3"><div style={label}>土地面積（㎡）</div>
+                                <input className="form-control form-control-sm" inputMode="decimal" value={form.landArea} onChange={e => set({ landArea: e.target.value })} /></div>
+                            <div className="col-md-3"><div style={label}>建物面積（㎡）</div>
+                                <input className="form-control form-control-sm" inputMode="decimal" value={form.buildingArea} onChange={e => set({ buildingArea: e.target.value })} /></div>
+                            <div className="col-md-3"><div style={label}>築年</div>
+                                <input className="form-control form-control-sm" placeholder="1998・平成10年" value={form.builtYear} onChange={e => set({ builtYear: e.target.value })} /></div>
+                            <div className="col-md-3"><div style={label}>間取り</div>
+                                <input className="form-control form-control-sm" placeholder="4LDK" value={form.layout} onChange={e => set({ layout: e.target.value })} /></div>
                             <div className="col-md-8"><div style={label}>備考</div>
                                 <input className="form-control form-control-sm" value={form.note} onChange={e => set({ note: e.target.value })} /></div>
                             <div className="col-12 text-muted mt-2">

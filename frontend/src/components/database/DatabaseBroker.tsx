@@ -43,6 +43,8 @@ export interface BrokerData {
     /** 有効期間の満了日（v2.2.248 の媒介紐付から入る）。直近の販売報告日（v2.2.249 から期限の計算に使う） */
     expiry?: string | null;
     lastReportDate?: string | null;
+    /** 媒介物件（v2.2.250。realty_properties.id。同じ物件の台帳は同じ値） */
+    propertyId?: string | null;
     currentStatus?: string | null;
     /** つないだ商談案件（売側）の id（v2.2.246 の買付登録。以前のアプリの l.dealId） */
     dealId?: string | null;
@@ -225,6 +227,16 @@ const DatabaseBroker = () => {
 
         return filtered;
     }, [originalData, sortConfig, searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus]);
+
+    // ⚠️ v2.2.250: 媒介物件ごとの台帳 No.（同じ物件に台帳が2件以上あるとき、一覧に「同じ物件の台帳 N件」を出す）
+    const ledgerNosByProperty = useMemo(() => {
+        const m: Record<string, string[]> = {};
+        for (const d of originalData) {
+            if (!d.propertyId) continue;
+            (m[d.propertyId] = m[d.propertyId] ?? []).push(String(d.no ?? '―'));
+        }
+        return m;
+    }, [originalData]);
 
     // ⚠️ v2.2.248: ?ledgerNo= の行が一覧に出たら、見えるところまで動かす（1回だけ）
     const [focusedNo, setFocusedNo] = useState('');
@@ -508,6 +520,17 @@ const DatabaseBroker = () => {
                                                 </td>
                                                 <td className="text-start text-truncate" style={{ maxWidth: '200px' }} title={addressParsed.cleanText}>
                                                     {addressParsed.cleanText || '-'}
+                                                    {(() => {
+                                                        const nos = item.propertyId ? ledgerNosByProperty[item.propertyId] ?? [] : [];
+                                                        if (nos.length < 2) return null;
+                                                        const list = nos.map(n => `No.${n}`).join('・');
+                                                        return (
+                                                            <button type="button" className="badge bg-info text-dark border-0 ms-1" style={{ fontSize: '9px', cursor: 'pointer' }}
+                                                                title={`同じ物件の台帳：${list}`} onClick={() => alert(`同じ物件（媒介物件）の台帳：${list}`)}>
+                                                                同じ物件の台帳 {nos.length}件
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="text-end fw-bold text-danger">
                                                     {displayPrice > 0 ? displayPrice.toLocaleString() : '-'}
