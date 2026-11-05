@@ -67,6 +67,22 @@ export const maxExpiryOf = (contractDate: string): string => {
 export type LedgerForm = {
     baikaiDate: string; baikaiType: string; expiry: string; seller: string; contact: string; category: string;
     addr1: string; addr2: string; price: number | null; staff: string; freq: string; note: string; otherBrokers: string;
+    /** v2.2.250: 媒介物件の項目（仕様書 ②）。すべて任意。⚠️ 種別がマンションのときは建物名が必須（同じ物件の突き合わせに使う） */
+    chiban: string; buildingName: string; roomNo: string; landArea: string; buildingArea: string; builtYear: string; layout: string;
+};
+
+/**
+ * 売り反響の一括査定の詳細（以前のアプリの lead.detail。取り込みで raw_data に入っている）の1項目。無ければ ''。
+ * 例: msName（マンション名）・room（部屋）・land（土地面積）・area（建物面積）・built（築年）・layout（間取り）
+ */
+const detailOf = (lead: Rec, key: string): string => {
+    const raw = lead.raw_data;
+    let o: unknown = raw;
+    if (typeof raw === 'string') {
+        try { o = JSON.parse(raw); } catch { return ''; }
+    }
+    const d = o && typeof o === 'object' ? (o as Rec).detail : null;
+    return d && typeof d === 'object' ? str((d as Rec)[key]).trim() : '';
 };
 
 /** 売り反響の値を台帳の項目に写す（媒介契約日が無ければ今日。満了日は3か月後の前日） */
@@ -87,6 +103,14 @@ export const ledgerFormOf = (lead: Rec): LedgerForm => {
         freq: '1か月',
         note: `反響リードより転記（${str(lead.source) || '反響元未設定'}）`,
         otherBrokers: '',
+        // ⚠️ v2.2.250: 一括査定の詳細（以前のアプリの lead.detail。raw_data に入っている）にあれば入れておく
+        chiban: '',
+        buildingName: detailOf(lead, 'msName'),
+        roomNo: detailOf(lead, 'room'),
+        landArea: detailOf(lead, 'land'),
+        buildingArea: detailOf(lead, 'area'),
+        builtYear: detailOf(lead, 'built'),
+        layout: detailOf(lead, 'layout'),
     };
 };
 
@@ -111,6 +135,7 @@ export const ledgerFormProblems = (f: LedgerForm, today: string = todayStr()): s
     if (!f.seller.trim()) p.push('売主');
     if (!f.addr2.trim()) p.push('物件の所在地');
     if (!f.category) p.push('物件の種別');
+    if (f.category === 'マンション' && !f.buildingName.trim()) p.push('建物名（マンションのとき）');
     return p;
 };
 
@@ -120,7 +145,9 @@ export const ledgerFormWarning = (f: LedgerForm): string | null =>
         ? `有効期間が3か月（${maxExpiryOf(f.baikaiDate)}まで）を超えています。このまま登録しますか？`
         : null;
 
-export type LedgerLinkResult = { status: 'success' | 'exists'; no: number; ledgerId: string | null; lead: Rec | null };
+/** v2.2.250: 紐づけた媒介物件。isNew = 新しく作った、pastLedgers = 同じ物件の以前の台帳 No. */
+export type LinkedProperty = { id: string; isNew: boolean; pastLedgers: number[] };
+export type LedgerLinkResult = { status: 'success' | 'exists'; no: number; ledgerId: string | null; lead: Rec | null; property: LinkedProperty | null };
 
 /**
  * 売り反響 → 媒介獲得台帳（② の planner:ledger_link）。
@@ -135,6 +162,7 @@ export const linkLedger = async (leadId: string, form: LedgerForm): Promise<Ledg
         no: Number(d.no),
         ledgerId: typeof d.ledgerId === 'string' ? d.ledgerId : null,
         lead: d.lead && typeof d.lead === 'object' ? (d.lead as Rec) : null,
+        property: d.property && typeof d.property === 'object' ? (d.property as LinkedProperty) : null,
     };
 };
 
