@@ -42,6 +42,11 @@ export type LeadEditProps = {
     onNavi?: () => void;
     /** 反響元・ポータルの選択肢（v2.2.247。一覧と同じ値。渡さなければ以前からの固定の選択肢） */
     sourceOptions?: string[];
+    /**
+     * ⚠️ v2.2.248: 売り反響の画面以外（架電キュー・チームサマリー）で開くとき true。
+     *   台帳の無い売り反響では「媒介受託」を選ばせない（台帳は売り反響の画面の「媒介紐付」でだけ作る。利用者の指示・仕様書 共通ルール 2）
+     */
+    ledgerOnSellScreen?: boolean;
 };
 
 /** 渡されないときの反響元・ポータルの選択肢（v2.2.246 まで全画面で使っていたもの） */
@@ -141,7 +146,8 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     leadCategory,
     staffList,
     onNavi,
-    sourceOptions
+    sourceOptions,
+    ledgerOnSellScreen
 }) => {
     const { userName } = useContext(AuthContext);
 
@@ -179,7 +185,11 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     // ⚠️ v2.2.244: 以前のアプリの値（leadUtiles.ts）。⚠️ 選択肢に無い今の値（手入力されたもの）は消さずに足す
     // ⚠️ v2.2.247: id が無ければ反響の登録（売り・買い反響の「反響を追加」）
     const isNew = !customerInfo?.id;
-    const basePhases = (isSellType ? LEAD_PHASES : BUY_PHASES).filter(p => !isNew || !NOT_ON_CREATE.includes(p));
+    // ⚠️ v2.2.248: 開いたときに媒介受託でなく台帳も無ければ、売り反響の画面以外では媒介受託を選べない
+    const blockLedgerPhase = !!ledgerOnSellScreen && leadCategory === 'sell' && !customerInfo.ledgerNo && snapshot?.phase !== '媒介受託';
+    const basePhases = (isSellType ? LEAD_PHASES : BUY_PHASES)
+        .filter(p => !isNew || !NOT_ON_CREATE.includes(p))
+        .filter(p => !blockLedgerPhase || p !== '媒介受託');
     const phaseList = customerInfo.phase && !basePhases.includes(customerInfo.phase) ? [...basePhases, customerInfo.phase] : basePhases;
     const currentSource = customerInfo.source || customerInfo.portal || '';
     const sourceList = sourceOptions ?? DEFAULT_SOURCES;
@@ -418,6 +428,9 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                     <option value="">フェーズを選択</option>
                                     {phaseList.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
+                                {blockLedgerPhase && (
+                                    <div className="text-muted" style={{ fontSize: '9px', marginTop: '2px' }}>媒介受託は、売り反響の画面の「媒介紐付」から登録します</div>
+                                )}
                             </div>
 
                             {/* ▼ 追客終了の場合は理由を必須入力 ▼ */}

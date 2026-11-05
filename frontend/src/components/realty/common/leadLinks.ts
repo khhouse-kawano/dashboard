@@ -1,6 +1,5 @@
-import { loadRecords } from './realtyState';
+import { loadRecords, post } from './realtyState';
 import { logChange, newRecordId, saveBrokerageRecord } from './leadUtiles';
-import type { StaffSetting } from '../summary/kpi';
 
 /**
  * 反響から次の台帳・案件への連携（v2.2.244 新規）。以前のアプリ v14.29 の leadToLedger / buyToDeal と同じ動き。
@@ -8,6 +7,7 @@ import type { StaffSetting } from '../summary/kpi';
  * ─────────────────────────────────────────────
  *   売り反響を「媒介受託」にする → 媒介獲得台帳（kind = ledger）へ1行作り、反響に ledgerNo を持たせる
  *     ⚠️ v2.2.247: 売り反響の画面の「媒介紐付」の画面（LedgerLinkModal）で台帳の値を確かめてから作る。売り反響の画面だけで作る
+ *     ⚠️ v2.2.248: 連動トリガー仕様書の ①。前提条件を確かめ、台帳の作成・反響の媒介受託・変更履歴を ② の planner:ledger_link が1つのトランザクションで行う（linkLedger）
  *   買い反響を「購入申込」にする → 商談案件（kind = deals）へ「買」案件を1件作り、反響に dealId を持たせる
  *   ⚠️ v2.2.246:
  *   媒介台帳の「買付登録」     → 他社客付けは商談案件「売」を1件、自社客付けは「売」「買」の2件（registerBuyOffer）
@@ -37,27 +37,47 @@ const guessCity = (addr: string): string => addr.match(/^(.+?[市郡町村])/)?.
 /** 'YYYY-MM-DD' か。⚠️ 以前のアプリと同じ形だけを受け付ける */
 export const isIsoDate = (v: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-/** 媒介獲得台帳の選択肢（database/PropertyRegister.tsx の台帳の編集画面と同じ） */
-export const LEDGER_BAIKAI_TYPES = ['専任媒介', '一般媒介', '買取'];
+/**
+ * ⚠️ v2.2.248: 連動トリガー仕様書の ① 媒介獲得（docs/realty-trigger-spec.md）。
+ *   媒介の種類は専属専任・専任・一般（「買取」は ④ で扱うので、ここでは選ばせない）
+ */
+export const LEDGER_BAIKAI_TYPES = ['専属専任媒介', '専任媒介', '一般媒介'];
+/** 有効期間3か月の上限がある種類（宅建業法） */
+const LIMITED_BAIKAI_TYPES = ['専属専任媒介', '専任媒介'];
+/** 媒介獲得台帳の選択肢（database/PropertyRegister.tsx の台帳の編集画面と同じ。仕様書の「土地」は「住宅用地」など） */
 export const LEDGER_CATEGORIES = ['戸建', 'マンション', '住宅用地', '賃収マンション', '賃収・事業用', 'その他'];
 export const LEDGER_FREQS = ['1週間', '2週間', '1か月'];
 
 /**
- * ⚠️ v2.2.247: 売り反響 → 媒介獲得台帳の「媒介紐付」の画面（common/LedgerLinkModal.tsx）で確かめる値。
- *   staff は氏名（台帳には略称で入れる）
+ * 有効期間の満了日の上限＝契約日の3か月後の前日（仕様書の初期値）。
+ * ⚠️ 3か月後に同じ日が無いとき（11/30 → 2/30 など）は、その月の末日。
+ * ⚠️ ② の features/realty/ledgerLink.ts の maxExpiryOf と同じ計算
  */
-export type LedgerForm = {
-    baikaiDate: string; baikaiType: string; seller: string; contact: string; category: string;
-    addr1: string; addr2: string; price: number | null; staff: string; freq: string; note: string;
+export const maxExpiryOf = (contractDate: string): string => {
+    const [y, m, d] = contractDate.split('-').map(Number);
+    const lastDay = new Date(Date.UTC(y, m - 1 + 3 + 1, 0)).getUTCDate();
+    if (d > lastDay) return new Date(Date.UTC(y, m - 1 + 3, lastDay)).toISOString().slice(0, 10);
+    return new Date(Date.UTC(y, m - 1 + 3, d - 1)).toISOString().slice(0, 10);
 };
 
-/** 売り反響の値を台帳の項目に写す（以前のアプリの leadToLedger と同じ写し方。媒介契約日が無ければ今日） */
+/**
+ * 売り反響 → 媒介獲得台帳の「媒介紐付」の画面（common/LedgerLinkModal.tsx）で確かめる値。
+ * staff は氏名（台帳には略称で入る）。otherBrokers は一般媒介の他の依頼先（任意。台帳の備考に書き足す）
+ */
+export type LedgerForm = {
+    baikaiDate: string; baikaiType: string; expiry: string; seller: string; contact: string; category: string;
+    addr1: string; addr2: string; price: number | null; staff: string; freq: string; note: string; otherBrokers: string;
+};
+
+/** 売り反響の値を台帳の項目に写す（媒介契約日が無ければ今日。満了日は3か月後の前日） */
 export const ledgerFormOf = (lead: Rec): LedgerForm => {
     const addr = str(lead.addr || lead.addr1);
-    const baikaiDate = str(lead.baikaiDate).replace(/\//g, '-');
+    const d = str(lead.baikaiDate).replace(/\//g, '-');
+    const baikaiDate = isIsoDate(d) ? d : todayStr();
     return {
-        baikaiDate: isIsoDate(baikaiDate) ? baikaiDate : todayStr(),
+        baikaiDate,
         baikaiType: '専任媒介',
+        expiry: maxExpiryOf(baikaiDate),
         seller: str(lead.seller || lead.name),
         contact: str(lead.contact) || [lead.phone, lead.mail].map(str).filter(Boolean).join(' / '),
         category: str(lead.category),
@@ -66,66 +86,56 @@ export const ledgerFormOf = (lead: Rec): LedgerForm => {
         staff: str(lead.staff),
         freq: '1か月',
         note: `反響リードより転記（${str(lead.source) || '反響元未設定'}）`,
+        otherBrokers: '',
     };
 };
 
-/** 登録の前に確かめる（必須：媒介契約日・媒介種別・売主）。問題が無ければ null */
-export const ledgerFormError = (f: LedgerForm): string | null => {
-    if (!isIsoDate(f.baikaiDate)) return '媒介契約日を入力してください。';
-    if (!f.baikaiType) return '媒介種別を選んでください。';
-    if (!f.seller.trim()) return '売主を入力してください。';
-    return null;
-};
-
 /**
- * 売り反響 → 媒介獲得台帳。⚠️ v2.2.247: 台帳の値は「媒介紐付」の画面で確かめたもの（form）
- * @returns 作った台帳の No. と、反響に保存した値
+ * 前提条件（仕様書 ①。満たさなければ保存しない）。満たさない項目の説明を返す（空なら満たしている）。
+ * ⚠️ ② の features/realty/ledgerLink.ts の problemsOf と同じ。⚠️ どちらかを変えたら両方を変える
  */
-export const leadToLedger = async (
-    lead: Rec,
-    form: LedgerForm,
-    staffSettings: StaffSetting[] = []
-): Promise<{ no: number; leadFields: Rec }> => {
-    const { records } = await loadRecords(['ledger']);
-    const no = nextNo(records.ledger);
-    const abbr = staffSettings.find((s) => s.name === form.staff)?.abbr ?? '';
-    const ledgerId = newRecordId();
-    await saveBrokerageRecord(ledgerId, {
-        kind: 'ledger', no, staff: abbr, portal: abbr, source: str(lead.source),
-        contractDate: form.baikaiDate, baikaiType: form.baikaiType, seller: form.seller.trim(), contact: form.contact.trim(),
-        category: form.category, currentStatus: '情報整理中', addr1: form.addr1.trim(), addr2: form.addr2.trim(),
-        price: form.price || null, freq: form.freq, lastReportDate: '', reinsDate: '', priceRevDate: '',
-        propStatus: 'アクティブ', keyStatus: '', keyInfo: '', note: form.note,
-    });
-    const leadFields = { ledgerNo: no, ledgerId, phase: '媒介受託', baikaiDate: form.baikaiDate };
-    await saveBrokerageRecord(str(lead.id), leadFields);
-    return { no, leadFields };
-};
-
-/**
- * ⚠️ v2.2.247: 媒介獲得台帳へつなぐのは売り反響の画面だけ（利用者の指示）。
- *   架電キュー・チームサマリーの編集画面で媒介受託にして保存したときは、台帳を作らずに、売り反響の画面で転記するよう知らせる
- */
-export const noticeLedgerOnSellScreen = (saved: Rec): void => {
-    if (str(saved.phase) !== '媒介受託' || str(saved.ledgerNo) !== '') return;
-    alert('媒介受託で保存しました。\n媒介獲得台帳への転記は、売り反響の画面の「媒介紐付」の列で行ってください。');
-};
-
-/** leadToLedger を呼び、結果を知らせる。⚠️ 失敗は知らせて null */
-export const linkLedgerWithNotice = async (
-    lead: Rec,
-    form: LedgerForm,
-    staffSettings: StaffSetting[] = []
-): Promise<{ no: number; leadFields: Rec } | null> => {
-    try {
-        const result = await leadToLedger(lead, form, staffSettings);
-        alert(`媒介獲得台帳 No.${result.no} を作りました（媒介契約日 ${form.baikaiDate}）。`);
-        return result;
-    } catch (e) {
-        console.error('[leadLinks] 媒介獲得台帳への反映に失敗しました', lead.id, e);
-        alert('媒介獲得台帳を作れませんでした。時間をおいて、もう一度「媒介紐付」から登録してください。');
-        return null;
+export const ledgerFormProblems = (f: LedgerForm, today: string = todayStr()): string[] => {
+    const p: string[] = [];
+    if (!LEDGER_BAIKAI_TYPES.includes(f.baikaiType)) p.push('媒介の種類');
+    if (!isIsoDate(f.baikaiDate)) p.push('媒介契約日');
+    else if (f.baikaiDate > today) p.push('媒介契約日（未来の日付は入れられません）');
+    if (!isIsoDate(f.expiry)) p.push('有効期間の満了日');
+    else if (isIsoDate(f.baikaiDate)) {
+        if (f.expiry < f.baikaiDate) p.push('有効期間の満了日（媒介契約日より前です）');
+        else if (LIMITED_BAIKAI_TYPES.includes(f.baikaiType) && f.expiry > maxExpiryOf(f.baikaiDate)) {
+            p.push(`有効期間の満了日（${f.baikaiType}は契約日から3か月以内＝${maxExpiryOf(f.baikaiDate)}まで）`);
+        }
     }
+    if (!Number.isInteger(f.price) || (f.price ?? 0) < 1) p.push('売出価格（1円以上の整数）');
+    if (!f.staff.trim()) p.push('担当者');
+    if (!f.seller.trim()) p.push('売主');
+    if (!f.addr2.trim()) p.push('物件の所在地');
+    if (!f.category) p.push('物件の種別');
+    return p;
+};
+
+/** 一般媒介で3か月を超える満了日（仕様書：警告。保存はできる）。問題が無ければ null */
+export const ledgerFormWarning = (f: LedgerForm): string | null =>
+    f.baikaiType === '一般媒介' && isIsoDate(f.baikaiDate) && isIsoDate(f.expiry) && f.expiry > maxExpiryOf(f.baikaiDate)
+        ? `有効期間が3か月（${maxExpiryOf(f.baikaiDate)}まで）を超えています。このまま登録しますか？`
+        : null;
+
+export type LedgerLinkResult = { status: 'success' | 'exists'; no: number; ledgerId: string | null; lead: Rec | null };
+
+/**
+ * 売り反響 → 媒介獲得台帳（② の planner:ledger_link）。
+ * ⚠️ 台帳の作成・売り反響の媒介受託・変更履歴は、② が1つのトランザクションで行う（仕様書 共通ルール 3。v2.2.247 までは画面から別々に保存していた）。
+ * ⚠️ すでに台帳に紐づいていれば、② は作らずに status = 'exists' と、その台帳 No. を返す。
+ * ⚠️ form は JSON の文字列で送る（① を通ると {} が [] になるため）。前提条件を満たさなければ ② のメッセージで例外になる
+ */
+export const linkLedger = async (leadId: string, form: LedgerForm): Promise<LedgerLinkResult> => {
+    const d = await post('ledger_link', { leadId, form: JSON.stringify(form) });
+    return {
+        status: d.status === 'exists' ? 'exists' : 'success',
+        no: Number(d.no),
+        ledgerId: typeof d.ledgerId === 'string' ? d.ledgerId : null,
+        lead: d.lead && typeof d.lead === 'object' ? (d.lead as Rec) : null,
+    };
 };
 
 /**
@@ -189,7 +199,7 @@ export const isOwnStock = (ledger: Rec): boolean =>
 export const guessProperty = (ledger: Rec): string => {
     const m = str(ledger.seller).match(/^\(株\)国分ハウジング（(.+)）$/);
     if (m) return m[1];
-    // ⚠️ 売り反響から作った台帳は、所在地1に市、所在地2に住所全体が入る（leadToLedger）。重ねない
+    // ⚠️ 売り反響から作った台帳は、所在地1に市、所在地2に住所全体が入る（leadLinks の ledgerFormOf / ② の planner:ledger_link）。重ねない
     const a1 = str(ledger.addr1).trim();
     const a2 = str(ledger.addr2).split('http')[0].trim();
     const base = (a1 && a2.startsWith(a1) ? a2 : `${a1}${a2}`).trim();
