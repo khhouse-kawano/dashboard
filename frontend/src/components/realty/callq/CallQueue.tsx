@@ -5,8 +5,8 @@ import type { WeeklyRow } from '../common/realtyState';
 import { recordFieldChanges, saveBrokerageRecord } from '../common/leadUtiles';
 import LeadEdit from '../common/LeadEdit';
 import { todayStr } from '../summary/kpi';
-import type { Row, StaffSetting } from '../summary/kpi';
-import { linkLedgerAfterEdit } from '../common/leadLinks';
+import type { Row } from '../summary/kpi';
+import { noticeLedgerOnSellScreen } from '../common/leadLinks';
 import { openNavi } from '../navi/naviHost';
 import {
     CQ_OUT, ST, TAGL, build, callOutcome, callqConf, callqScripts, callsOnly, contactKpi, diffDays, keyOf, newListings,
@@ -240,11 +240,8 @@ const CallQueue: React.FC = () => {
         try {
             const row = await saveBrokerageRecord(str(cur.id), fields);
             replaceRow(kind, (row as Row | null) ?? { ...before, ...fields });
-            // ⚠️ v2.2.244: 売り反響を媒介受託で保存したら媒介獲得台帳へ（以前のアプリの saveLead）
-            if (kind === 'leads') {
-                const linked = await linkLedgerAfterEdit({ ...before, ...fields, id: cur.id }, settings.staff as StaffSetting[] | undefined);
-                if (linked) replaceRow(kind, { ...before, ...fields, ...((row as Row | null) ?? {}), ...linked.leadFields });
-            }
+            // ⚠️ v2.2.247: 媒介獲得台帳は売り反響の画面でだけ作る（v2.2.244〜246 はここでも作っていた）
+            if (kind === 'leads') noticeLedgerOnSellScreen({ ...before, ...fields });
             if (before) {
                 await recordFieldChanges({
                     entity: kind === 'buyLeads' ? 'buy' : 'lead', entityId: str(cur.id),

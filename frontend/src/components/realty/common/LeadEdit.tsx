@@ -40,7 +40,18 @@ export type LeadEditProps = {
     staffList: string[];
     /** 架電ナビで架電する（v2.2.226。売り反響の画面だけが渡す） */
     onNavi?: () => void;
+    /** 反響元・ポータルの選択肢（v2.2.247。一覧と同じ値。渡さなければ以前からの固定の選択肢） */
+    sourceOptions?: string[];
 };
+
+/** 渡されないときの反響元・ポータルの選択肢（v2.2.246 まで全画面で使っていたもの） */
+const DEFAULT_SOURCES = ['SUUMO', 'アットホーム', "HOME'S", '一括査定サイト', '自社HP', '紹介', 'チラシ', 'その他'];
+
+/**
+ * ⚠️ v2.2.247: 登録（id が無い）のときに選べない段階。
+ *   媒介受託は台帳、購入申込・成約は商談案件、追客終了は理由が要るので、登録した後に一覧で変える（v2.2.244 の一覧の追加行と同じ）
+ */
+const NOT_ON_CREATE = ['媒介受託', '追客終了', '購入申込', '成約'];
 
 // 💡 追加: DocumentViewerへ渡すデータの型定義
 export type initialData = {
@@ -129,7 +140,8 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     setCustomerInfo,
     leadCategory,
     staffList,
-    onNavi
+    onNavi,
+    sourceOptions
 }) => {
     const { userName } = useContext(AuthContext);
 
@@ -165,8 +177,13 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     const sourceLabel = isSellType ? '反響元' : 'ポータル';
 
     // ⚠️ v2.2.244: 以前のアプリの値（leadUtiles.ts）。⚠️ 選択肢に無い今の値（手入力されたもの）は消さずに足す
-    const basePhases = isSellType ? LEAD_PHASES : BUY_PHASES;
+    // ⚠️ v2.2.247: id が無ければ反響の登録（売り・買い反響の「反響を追加」）
+    const isNew = !customerInfo?.id;
+    const basePhases = (isSellType ? LEAD_PHASES : BUY_PHASES).filter(p => !isNew || !NOT_ON_CREATE.includes(p));
     const phaseList = customerInfo.phase && !basePhases.includes(customerInfo.phase) ? [...basePhases, customerInfo.phase] : basePhases;
+    const currentSource = customerInfo.source || customerInfo.portal || '';
+    const sourceList = sourceOptions ?? DEFAULT_SOURCES;
+    const sources = currentSource && !sourceList.includes(currentSource) ? [...sourceList, currentSource] : sourceList;
 
     let titleLabel = '';
     switch (leadCategory) {
@@ -288,6 +305,20 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     // 💡 次回アクション必須化・追客終了理由の必須化（source.html の V12.requireNext() 相当）
     // ==========================================
     const handleSaveClick = () => {
+        // ⚠️ v2.2.247: 登録のときの必須（以前のアプリの saveLead。受信日と、氏名か所在地のどちらか）
+        if (isNew) {
+            const received = String(customerInfo.receivedDate || '').replace(/\//g, '-');
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(received)) {
+                alert('受信日を入力してください。');
+                return;
+            }
+            const name = String(customerInfo.seller || customerInfo.name || '').trim();
+            const addr = String(customerInfo.addr1 || customerInfo.addr || '').trim();
+            if (!name && !(isSellType && addr)) {
+                alert(isSellType ? '売主名または物件所在地を入力してください。' : '顧客名を入力してください。');
+                return;
+            }
+        }
         if (customerInfo.phase === '追客終了') {
             if (!customerInfo.endReason) {
                 alert('追客終了の理由を選択してください。');
@@ -328,7 +359,7 @@ const LeadEdit: React.FC<LeadEditProps> = ({
             <Modal show={isOpen} onHide={onClose} centered size="lg">
                 <Modal.Header closeButton className="border-bottom-0 pb-0 bg-light pt-2 px-3">
                     <Modal.Title className="fw-bold text-secondary" style={{ fontSize: '15px' }}>
-                        <i className="bi bi-person-lines-fill me-2 text-primary"></i>顧客情報編集 ({titleLabel})
+                        <i className="bi bi-person-lines-fill me-2 text-primary"></i>{isNew ? '反響を登録' : '顧客情報編集'} ({titleLabel})
                     </Modal.Title>
                 </Modal.Header>
                 
@@ -350,9 +381,9 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                             </div>
                             <div className="col-md-4">
                                 <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>{sourceLabel}</label>
-                                <select style={compactInputStyle} value={customerInfo.source || customerInfo.portal || ''} onChange={e => setCustomerInfo({ ...customerInfo, source: e.target.value, portal: e.target.value })}>
+                                <select style={compactInputStyle} value={currentSource} onChange={e => setCustomerInfo({ ...customerInfo, source: e.target.value, portal: e.target.value })}>
                                     <option value="">選択してください</option>
-                                    {['SUUMO', 'アットホーム', "HOME'S", '一括査定サイト', '自社HP', '紹介', 'チラシ', 'その他'].map(p => <option key={p} value={p}>{p}</option>)}
+                                    {sources.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
                             </div>
                             <div className="col-md-4">
@@ -626,7 +657,7 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                         )}
 
                         {/* 💡 追加: 変更内容プレビュー（保存前の今回セッションの差分。サーバー側の永続履歴ではない） */}
-                        {changedFields.length > 0 && (
+                        {!isNew && changedFields.length > 0 && (
                             <div className="mt-3 border-top pt-3">
                                 <h6 className="fw-bold text-secondary mb-2" style={{ fontSize: '12px' }}>
                                     <i className="bi bi-clock-history me-1"></i>変更内容
@@ -656,20 +687,23 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                         )}
 
                         {/* 💡 追加: サーバーに保存済みの変更履歴（上の「変更内容」は保存前のプレビュー） */}
-                        <LeadHistory entityId={customerInfo?.id} enabled={isOpen} />
+                        {!isNew && <LeadHistory entityId={customerInfo?.id} enabled={isOpen} />}
                     </div>
                 </Modal.Body>
 
                 {/* 💡 修正: justify-content-between に変更し、左側に契約書ボタンを配置 */}
                 <Modal.Footer className="bg-light border-top-0 pt-0 pb-3 d-flex justify-content-between align-items-center">
                     <div>
-                        <button
-                            className="btn btn-outline-primary btn-sm px-3 fw-bold"
-                            style={{ fontSize: '11px' }}
-                            onClick={() => setDocumentShow(true)}
-                        >
-                            <i className="fa-solid fa-file-contract me-1 text-secondary"></i> 契約書
-                        </button>
+                        {/* ⚠️ v2.2.247: 登録のときは出さない（下書きの保存先の反響がまだ無い） */}
+                        {!isNew && (
+                            <button
+                                className="btn btn-outline-primary btn-sm px-3 fw-bold"
+                                style={{ fontSize: '11px' }}
+                                onClick={() => setDocumentShow(true)}
+                            >
+                                <i className="fa-solid fa-file-contract me-1 text-secondary"></i> 契約書
+                            </button>
+                        )}
                     </div>
                     <div className="d-flex gap-2">
                         {/* ⚠️ v2.2.226: 売り反響の画面から開いたときだけ（以前のアプリの編集画面の「🧭 ナビで架電」）。⚠️ 入力中の内容は保存せずに閉じる */}
@@ -677,7 +711,7 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                             <button className="btn btn-outline-primary btn-sm px-3 fw-bold" style={{ fontSize: '11px' }} onClick={onNavi}>🧭 ナビで架電</button>
                         )}
                         <button className="btn btn-outline-secondary btn-sm px-3 fw-bold" style={{ fontSize: '11px' }} onClick={onClose}>キャンセル</button>
-                        <button className="btn btn-primary btn-sm px-4 fw-bold shadow-sm" style={{ fontSize: '11px' }} onClick={handleSaveClick}>保存する</button>
+                        <button className="btn btn-primary btn-sm px-4 fw-bold shadow-sm" style={{ fontSize: '11px' }} onClick={handleSaveClick}>{isNew ? '登録する' : '保存する'}</button>
                     </div>
                 </Modal.Footer>
             </Modal>
