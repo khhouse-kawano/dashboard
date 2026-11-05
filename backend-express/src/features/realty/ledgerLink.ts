@@ -110,19 +110,26 @@ export const problemsOf = (f: LedgerLinkForm, today: string): string[] => {
   return p;
 };
 
-/** 設定の担当者の略称（台帳の担当は略称。以前のアプリと同じ）。⚠️ 名前は空白を除いて突き合わせる */
-const abbrOf = async (tx: Tx, name: string): Promise<string> => {
+/**
+ * 設定の担当者（氏名と略称）。⚠️ 名前は空白を除いて突き合わせる
+ * ⚠️ v2.2.252: 台帳の担当は**氏名**（設定の名前。反響・商談と同じ）。以前は略称で書いていたが、台帳の編集画面が氏名で保存するため混ざっていた。
+ *   portal（以前のアプリで作成時に担当と同じ略称を入れていた列。Dashboard の画面は読まない）は略称のまま
+ */
+const staffOf = async (tx: Tx, name: string): Promise<{ name: string; abbr: string }> => {
   const [row] = await tx.query<DynamicRow>("SELECT JSON_EXTRACT(`data`, '$.staff') AS staff FROM app_state WHERE `key` = 'settings'");
   let list: unknown = row?.staff;
   if (typeof list === 'string') {
     try { list = JSON.parse(list); } catch { list = []; }
   }
-  if (!Array.isArray(list)) return '';
   const me = norm(name);
-  for (const s of list) {
-    if (s !== null && typeof s === 'object' && norm((s as Record<string, unknown>).name) === me) return str((s as Record<string, unknown>).abbr);
+  if (Array.isArray(list)) {
+    for (const s of list) {
+      if (s === null || typeof s !== 'object') continue;
+      const r = s as Record<string, unknown>;
+      if (norm(r.name) === me || (str(r.abbr) !== '' && norm(r.abbr) === me)) return { name: norm(r.name) || me, abbr: str(r.abbr) };
+    }
   }
-  return '';
+  return { name: me, abbr: '' };
 };
 
 /** 変更履歴を1件積む（frontend common/leadUtiles.ts の logChange と同じ形） */
@@ -168,7 +175,7 @@ export const runLedgerLink = async (staff: AuthenticatedStaff, body: Record<stri
     );
     const no = Number(max?.m ?? 0) + 1;
     const ledgerId = uid();
-    const abbr = await abbrOf(tx, form.staff);
+    const st = await staffOf(tx, form.staff);
     const by = await resolveMe(tx, staff);
     const note = form.otherBrokers && form.baikaiType === '一般媒介'
       ? `${form.note}${form.note ? '／' : ''}他の依頼先：${form.otherBrokers}`
@@ -207,7 +214,7 @@ export const runLedgerLink = async (staff: AuthenticatedStaff, body: Record<stri
           currentStatus, addr1, addr2, price, freq, lastReportDate, reinsDate, priceRevDate, propStatus, keyStatus, keyInfo,
           note, createdAt, propertyId, show_dashboard)
        VALUES ('ledger', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '情報整理中', ?, ?, ?, ?, NULL, NULL, NULL, 'アクティブ', NULL, NULL, ?, ?, ?, 1)`,
-      [ledgerId, no, abbr || null, abbr || null, str(lead.source) || null, form.baikaiDate, form.baikaiType, form.expiry,
+      [ledgerId, no, st.name || null, st.abbr || null, str(lead.source) || null, form.baikaiDate, form.baikaiType, form.expiry,
         form.seller, form.contact || null, form.category, form.addr1 || null, form.addr2, form.price, form.freq || null,
         note || null, now.date, propertyId]
     );

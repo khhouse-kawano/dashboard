@@ -4,7 +4,7 @@ import { loadRecords } from './realtyState';
 import { safeParse } from './leadUtiles';
 import { BUYER_ATTRS, guessProperty, isOwnStock, registerBuyOffer, unlinkBuyOffer } from './leadLinks';
 import type { BuyOfferInput, CoBroker } from './leadLinks';
-import { fmtYen, stdFee } from '../summary/kpi';
+import { findStaff, fmtYen, stdFee } from '../summary/kpi';
 import type { Row, StaffSetting } from '../summary/kpi';
 
 /**
@@ -53,12 +53,12 @@ const BuyOfferModal = ({ ledger, staffSettings, userName, onClose, onSaved }: Pr
     useEffect(() => {
         if (!ledger) return;
         const cb = coBrokerOf(ledger.coBroker) ?? {};
-        const abbr = str(ledger.staff);
         setForm({
             kind: 'out', company: str(cb.company), person: str(cb.person), contact: str(cb.contact),
             price: Number(cb.price) || Number(ledger.price) || 0, contractDate: str(cb.contractDate), deliveryDate: str(cb.deliveryDate),
             buyerName: str(cb.buyerName), buyerAttr: str(cb.buyerAttr) || BUYER_ATTRS[0], property: guessProperty(ledger),
-            staff: staffSettings.find(s => s.abbr === abbr)?.name ?? '', noFee: isOwnStock(ledger), note: str(cb.note),
+            // ⚠️ v2.2.252: 台帳の担当は氏名にそろえた。以前のアプリから来た略称でも同じ人にする（findStaff）
+            staff: findStaff(staffSettings, str(ledger.staff))?.name ?? '', noFee: isOwnStock(ledger), note: str(cb.note),
         });
         setLeadId(''); setLeadQ(''); setShowLost(false);
         setLoading(true);

@@ -2,7 +2,7 @@ import React, { useCallback, useContext, useEffect, useMemo, useState } from 're
 import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../../../context/AuthContext';
 import DocumentViewer from '../documents/DocumentViewer';
-import PlannerGenerator, { PlannerInputState } from '../documents/PlannerGenerator';
+import PlannerGenerator, { PlannerInputState, brokerageBase } from '../documents/PlannerGenerator';
 import LeadNotifications from '../common/LeadNotifications';
 import {
     saveBrokerageRecord, recordFieldChanges, softDeleteRecord,
@@ -236,16 +236,22 @@ const LeadOpportunity = () => {
         setDocumentShow(true);
     };
 
-    /** 以前のアプリの fromDeal(d) → SETL.open(dealId) */
+    /**
+     * 以前のアプリの fromDeal(d) → SETL.open(dealId)。⚠️ 入れない項目は精算書の初期値（空欄）のまま
+     * ⚠️ v2.2.252: 種別で請求先を分け（「買」は買主側・それ以外は売主側）、案件の仲介手数料に合うよう値引き欄で調整する（以前のアプリと同じ）
+     */
     const openPlanner = (d: Row) => {
-        const data: Partial<PlannerInputState> = {};
-        if (str(d.property)) data.propName = str(d.property);
-        if (num(d.price)) data.price = num(d.price);
+        const isBuy = str(d.type) === '買';
+        const price = num(d.price);
+        const disc = Math.max(0, brokerageBase(price, false).net - dealFee(d));
+        const data: Partial<PlannerInputState> = {
+            propName: str(d.property), price,
+            ...(isBuy
+                ? { buyer: str(d.customer), mode: 'buyer', billTo: 'buyer', bDisc: disc }
+                : { seller: str(d.customer), mode: 'seller', billTo: 'seller', sDisc: disc }),
+        };
         if (day(d.contractDate)) data.contractDate = day(d.contractDate);
-        if (day(d.settleDate)) data.delivery = day(d.settleDate);
-        if (str(d.customer)) {
-            if (str(d.type) === '買') data.buyer = str(d.customer); else data.seller = str(d.customer);
-        }
+        if (day(d.settleDate)) { data.delivery = day(d.settleDate); data.invDue = day(d.settleDate); }
         setPlannerData(data);
         setPlannerShow(true);
     };
@@ -394,7 +400,8 @@ const LeadOpportunity = () => {
                             <table className="table table-sm table-hover align-middle mb-0 text-nowrap" style={{ fontSize: '11px' }}>
                                 <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                                     <tr>
-                                        <th style={th}>No.</th><th style={th}>物件名</th><th style={th} className="text-center">種別</th>
+                                        {/* ⚠️ v2.2.252: 「編集」は左端に置く（表は最小幅1500px。右端だと、狭い画面では横に動かさないと見えなかった） */}
+                                        <th style={th}></th><th style={th}>No.</th><th style={th}>物件名</th><th style={th} className="text-center">種別</th>
                                         <th style={th} className="text-end">成約価格(円)</th><th style={th} className="text-end">仲介手数料(円)</th>
                                         {showReform && <><th style={th} className="text-end">リフォーム受注額</th><th style={th} className="text-end">リフォーム粗利</th><th style={th} className="text-end">粗利率</th></>}
                                         <th style={th}>担当者</th><th style={th}>顧客名</th><th style={th}>進捗フェーズ</th>
@@ -404,7 +411,7 @@ const LeadOpportunity = () => {
                                 </thead>
                                 <tbody>
                                     {list.length === 0 && (
-                                        <tr><td colSpan={showReform ? 16 : 13} className="text-center text-muted py-5">該当する案件がありません</td></tr>
+                                        <tr><td colSpan={showReform ? 17 : 14} className="text-center text-muted py-5">該当する案件がありません</td></tr>
                                     )}
                                     {list.map(d => {
                                         const id = str(d.id);
@@ -415,8 +422,16 @@ const LeadOpportunity = () => {
                                         const phase = str(d.phase);
                                         return (
                                             <tr key={id}>
+                                                <td>
+                                                    <button className="btn btn-outline-primary btn-sm py-0 px-2" style={{ fontSize: '10px' }} onClick={() => openEdit(d)}>編集</button>
+                                                </td>
                                                 <td className="text-muted">{str(d.no)}</td>
-                                                <td style={{ maxWidth: '220px', whiteSpace: 'normal' }}>{str(d.property)}</td>
+                                                <td style={{ maxWidth: '220px', whiteSpace: 'normal' }}>
+                                                    {/* ⚠️ v2.2.252: 物件名を押しても編集画面を開く */}
+                                                    <span role="button" className="text-primary" style={{ textDecoration: 'underline dotted' }} title="編集画面を開く" onClick={() => openEdit(d)}>
+                                                        {str(d.property) || '（物件名なし）'}
+                                                    </span>
+                                                </td>
                                                 <td className="text-center">{str(d.type)}</td>
                                                 <td className="text-end">{numInput(d, 'price')}</td>
                                                 <td className={`text-end ${num(d.feeManual) ? 'bg-warning bg-opacity-25' : ''}`}>
@@ -457,7 +472,6 @@ const LeadOpportunity = () => {
                                                     <div className="d-flex gap-1">
                                                         <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px' }} onClick={() => openDocument(d)} title="媒介契約書・事前説明書を作成">契約書</button>
                                                         <button className="btn btn-light border btn-sm py-0 px-2" style={{ fontSize: '10px' }} onClick={() => openPlanner(d)} title="決済精算書・請求書・領収証を作成">精算書</button>
-                                                        <button className="btn btn-outline-primary btn-sm py-0 px-2" style={{ fontSize: '10px' }} onClick={() => openEdit(d)}>編集</button>
                                                     </div>
                                                 </td>
                                             </tr>

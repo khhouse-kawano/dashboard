@@ -122,15 +122,22 @@ const absStreak = (l: Row): number => {
 export const newListings = (ledger: Row[], t = todayStr()): Row[] =>
     ledger.filter(l => str(l.propStatus) === 'アクティブ' && l.contractDate && diffDays(t, str(l.contractDate).slice(0, 10)) <= 14);
 
-/** 電話番号（telOf）。⚠️ 全角の数字・ハイフンも読む */
-export const telOf = (l: Row): string => {
-    const z = str(l.contact).replace(/[０-９－―ー−]/g, c => {
+/** 文字列の中の電話番号。⚠️ 全角の数字・ハイフンも読む */
+const telIn = (s: string): string => {
+    const z = s.replace(/[０-９－―ー−]/g, c => {
         const i = '０１２３４５６７８９'.indexOf(c);
         return i >= 0 ? String(i) : '-';
     });
     const m = z.match(/0\d[\d-]{7,}/);
     return m ? m[0] : '';
 };
+
+/**
+ * 電話番号（telOf）。
+ * ⚠️ v2.2.252: 電話番号の欄（phone）を先に読み、無ければ連絡先（contact）から拾う。
+ *   画面で直した番号は phone に入る。contact は以前のアプリの古い番号のままのことがある
+ */
+export const telOf = (l: Row): string => telIn(str(l.phone)) || telIn(str(l.contact));
 
 const isOff = (kind: LeadKind, l: Row): boolean => OFF[kind].includes(str(l.phase));
 
