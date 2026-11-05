@@ -515,12 +515,11 @@ const LeadResale = () => {
     // ==========================================
     // 💡 案件の登録・編集
     // ==========================================
-    const openNewDeal = () => {
-        const no = Math.max(0, ...deals.map(d => d.no)) + 1;
-        setEditingDeal(newDeal(no));
-        setEditingId(null);
-        setIsEditOpen(true);
-    };
+    /*
+     * ⚠️ v2.2.246: 「＋ 案件を登録」（openNewDeal）を消した。買取再販案件は、売り反響の「買取案件へ」から作る
+     *   （realty/common/leadLinks.ts の leadToResale。台帳の媒介種別を「買取」にして台帳 No. でつなぐ）。
+     *   どの売主から仕入れたかを辿れるようにするため（制作者の要望。媒介台帳・商談案件と同じ）。
+     */
 
     const openEditDeal = (d: ResaleDeal) => {
         setEditingDeal({ ...d, costs: d.costs.map(c => ({ ...c })) });
@@ -712,13 +711,7 @@ const LeadResale = () => {
                         <option value="credit">建物の仕入税額控除を反映</option>
                         <option value="net">ネット（税抜換算）</option>
                     </select>
-                    <button
-                        className="shadow-sm"
-                        style={{ backgroundColor: '#0d6efd', color: '#fff', border: 'none', borderRadius: '4px', padding: '0 16px', fontSize: '11px', fontWeight: 'bold', height: '26px' }}
-                        onClick={openNewDeal}
-                    >
-                        <i className="bi bi-plus-lg"></i> 案件を登録
-                    </button>
+                    <span className="text-muted" style={{ fontSize: '11px' }}>案件は売り反響の「買取案件へ」で作られます</span>
                 </div>
             </div>
 
@@ -889,7 +882,7 @@ const LeadResale = () => {
                                     }) : (
                                         <tr>
                                             <td colSpan={13} style={{ padding: '40px', textAlign: 'center', color: '#6c757d' }}>
-                                                {isLoading ? '読み込み中...' : '該当する買取再販案件が見つかりません。「＋ 案件を登録」から追加してください。'}
+                                                {isLoading ? '読み込み中...' : '該当する買取再販案件が見つかりません。案件は売り反響の「買取案件へ」で作られます。'}
                                             </td>
                                         </tr>
                                     )}
