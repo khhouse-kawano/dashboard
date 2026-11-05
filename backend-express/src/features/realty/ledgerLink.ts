@@ -4,6 +4,7 @@ import type { Tx } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
 import { jstNow, resolveMe, uid } from './calls';
 import { norm } from './index';
+import { fullAddress, isUniqueKey, propertyKeyOf } from './propertyKey';
 import type { Result } from './index';
 
 /**
@@ -19,6 +20,8 @@ import type { Result } from './index';
  *      ・台帳を作る（現況は「情報整理中」＝仕様書の「販売準備中」。docs/realty-trigger-spec.md の対応表）
  *      ・売り反響を「媒介受託」（＝仕様書の「媒介獲得」）にし、媒介契約日・台帳 No.・台帳 ID を入れる
  *      ・変更履歴（kind = logs）を積む（仕様書の監査ログ）
+ *      ・⚠️ v2.2.250: 媒介物件（realty_properties）を、種別＋住所（地番・マンションは建物名＋部屋番号）で探し、無ければ作る。
+ *        台帳と売り反響に propertyId を入れる（仕様書 ②「三者を紐づける」。突き合わせは propertyKey.ts）
  * ─────────────────────────────────────────────
  *
  * ⚠️ 段階・現況の名前は今のまま（2026-11-05 の利用者の決定）。仕様書の名前とは docs/realty-trigger-spec.md の「8」で読み替える。
@@ -56,6 +59,15 @@ export const maxExpiryOf = (contractDate: string): string => {
 type LedgerLinkForm = {
   baikaiDate: string; baikaiType: string; expiry: string; seller: string; contact: string; category: string;
   addr1: string; addr2: string; price: number; staff: string; freq: string; note: string; otherBrokers: string;
+  /** v2.2.250: 媒介物件の項目（すべて任意。マンションは建物名が必須） */
+  chiban: string; buildingName: string; roomNo: string; landArea: number | null; buildingArea: number | null; builtYear: string; layout: string;
+};
+
+/** 面積（㎡）。空・読めない・0 以下は null */
+const areaOf = (v: unknown): number | null => {
+  if (v === null || v === undefined || String(v).trim() === '') return null;
+  const n = Number(String(v).replace(/[,㎡\s]|m²/g, ''));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
 };
 
 /** 画面から来た値を読む。⚠️ ① を通すと {} が [] になるので、画面は JSON の文字列で送る */
@@ -71,6 +83,8 @@ const formOf = (raw: unknown): LedgerLinkForm | null => {
     seller: str(r.seller).trim(), contact: str(r.contact).trim(), category: str(r.category).trim(),
     addr1: str(r.addr1).trim(), addr2: str(r.addr2).trim(), price: Number(r.price),
     staff: str(r.staff).trim(), freq: str(r.freq).trim(), note: str(r.note).trim(), otherBrokers: str(r.otherBrokers).trim(),
+    chiban: str(r.chiban).trim(), buildingName: str(r.buildingName).trim(), roomNo: str(r.roomNo).trim(),
+    landArea: areaOf(r.landArea), buildingArea: areaOf(r.buildingArea), builtYear: str(r.builtYear).trim(), layout: str(r.layout).trim(),
   };
 };
 
@@ -92,6 +106,7 @@ export const problemsOf = (f: LedgerLinkForm, today: string): string[] => {
   if (!f.seller) p.push('売主');
   if (!f.addr2) p.push('物件の所在地');
   if (!f.category) p.push('物件の種別');
+  if (f.category === 'マンション' && !f.buildingName) p.push('建物名（マンションのとき）');
   return p;
 };
 
@@ -159,23 +174,50 @@ export const runLedgerLink = async (staff: AuthenticatedStaff, body: Record<stri
       ? `${form.note}${form.note ? '／' : ''}他の依頼先：${form.otherBrokers}`
       : form.note;
 
+    // ⚠️ v2.2.250: 媒介物件を探し、無ければ作る（同じ物件なら、以前の媒介・買取の台帳と同じ物件に紐づく）。
+    //   突き合わせ用の文字列の行を押さえて、同時に登録されても二重に作らない。場所が見分けられない住所（番地なし）は、この台帳だけの物件
+    const addr = fullAddress(form.addr1, form.addr2);
+    const key = propertyKeyOf({ category: form.category, addr, chiban: form.chiban, buildingName: form.buildingName, roomNo: form.roomNo }, ledgerId);
+    const [found] = isUniqueKey(key)
+      ? []
+      : await tx.query<DynamicRow>('SELECT id FROM realty_properties WHERE match_key = ? FOR UPDATE', [key]);
+    const propertyId = found ? str(found.id) : uid();
+    if (!found) {
+      await tx.execute(
+        `INSERT INTO realty_properties
+           (id, match_key, category, addr, chiban, building_name, room_no, land_area, building_area, built_year, layout, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [propertyId, key, form.category, addr, form.chiban || null, form.buildingName || null, form.roomNo || null,
+          form.landArea, form.buildingArea, form.builtYear || null, form.layout || null, by]
+      );
+    }
+    // 同じ物件の以前の台帳（この台帳はまだ作っていないので、すべてが「以前」）
+    const pastLedgers = found
+      ? (await tx.query<DynamicRow>(
+          `SELECT \`no\` FROM brokerage_listings
+            WHERE kind = 'ledger' AND propertyId = ? AND (show_dashboard IS NULL OR show_dashboard <> 0)
+            ORDER BY CAST(\`no\` AS UNSIGNED)`,
+          [propertyId]
+        )).map((r) => Number(r.no))
+      : [];
+
     await tx.execute(
       `INSERT INTO brokerage_listings
          (kind, \`id\`, \`no\`, staff, portal, source, contractDate, baikaiType, expiry, seller, contact, category,
           currentStatus, addr1, addr2, price, freq, lastReportDate, reinsDate, priceRevDate, propStatus, keyStatus, keyInfo,
-          note, createdAt, show_dashboard)
-       VALUES ('ledger', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '情報整理中', ?, ?, ?, ?, NULL, NULL, NULL, 'アクティブ', NULL, NULL, ?, ?, 1)`,
+          note, createdAt, propertyId, show_dashboard)
+       VALUES ('ledger', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '情報整理中', ?, ?, ?, ?, NULL, NULL, NULL, 'アクティブ', NULL, NULL, ?, ?, ?, 1)`,
       [ledgerId, no, abbr || null, abbr || null, str(lead.source) || null, form.baikaiDate, form.baikaiType, form.expiry,
         form.seller, form.contact || null, form.category, form.addr1 || null, form.addr2, form.price, form.freq || null,
-        note || null, now.date]
+        note || null, now.date, propertyId]
     );
 
     const fromPhase = str(lead.phase);
     await tx.execute(
       `UPDATE brokerage_listings
-          SET phase = '媒介受託', baikaiDate = ?, ledgerNo = ?, ledgerId = ?, endReason = NULL
+          SET phase = '媒介受託', baikaiDate = ?, ledgerNo = ?, ledgerId = ?, propertyId = ?, endReason = NULL
         WHERE \`id\` = ?`,
-      [form.baikaiDate, no, ledgerId, leadId]
+      [form.baikaiDate, no, ledgerId, propertyId, leadId]
     );
 
     const label = str(lead.seller) || str(lead.name) || str(lead.addr) || leadId;
@@ -189,6 +231,6 @@ export const runLedgerLink = async (staff: AuthenticatedStaff, body: Record<stri
     });
 
     const [saved] = await tx.query<DynamicRow>('SELECT * FROM brokerage_listings WHERE `id` = ?', [leadId]);
-    return ok({ status: 'success', no, ledgerId, lead: saved ?? null });
+    return ok({ status: 'success', no, ledgerId, lead: saved ?? null, property: { id: propertyId, isNew: !found, pastLedgers } });
   });
 };
