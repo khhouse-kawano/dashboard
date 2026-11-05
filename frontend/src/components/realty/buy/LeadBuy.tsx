@@ -10,12 +10,17 @@ import AuthContext from '../../../context/AuthContext';
 import { removeSpaces, safeParse, BUY_END_REASONS, BUY_PHASES, askEndReason, saveBrokerageRecord, newRecordId, recordFieldChanges, isSoftDeleted } from '../common/leadUtiles';
 import { buyToDeal } from '../common/leadLinks';
 import LeadEdit from '../common/LeadEdit';
+import LeadFilterBar, { EMPTY_FILTER, matchesFilter } from '../common/LeadFilterBar';
+import type { LeadFilter } from '../common/LeadFilterBar';
 import LeadCall, { CallLog } from '../common/LeadCall';
 import DocumentViewer from '../documents/DocumentViewer';
 
 // ==========================================
 // 💡 型定義
 // ==========================================
+/** ポータルの決まった選択肢（⚠️ v2.2.245 で一覧の2か所と絞り込みに共通にした） */
+const BUY_PORTALS = ['SUUMO', 'アットホーム', "HOME'S", '自社HP', 'その他', '楽待'];
+
 type BuyLead = {
     id: string;
     receivedDate: string | null;
@@ -255,26 +260,39 @@ const LeadBuy = () => {
     /** ⚠️ v2.2.225: 期間の選択肢（以前のアプリと同じ: 月別（今期）／通期／全期間） */
     const periodOptions = useMemo(() => periodGroups(settings.fiscalStart, leads as unknown as Row[]), [settings.fiscalStart, leads]);
 
-    /** 一覧は選んだ期間に受信した反響（受信日の新しい順） */
-    const filteredLeads = useMemo(() => {
+    /** 選んだ期間に受信した反響（受信日の新しい順） */
+    const periodLeads = useMemo(() => {
         const result = period ? leads.filter(l => periodHas(period, recvMonthKey(l as unknown as Row), settings.fiscalStart)) : leads;
         return result.sort((a, b) => (b.receivedDate || '').localeCompare(a.receivedDate || ''));
     }, [leads, period, settings.fiscalStart]);
 
+    /** ⚠️ v2.2.245: 一覧の絞り込み（担当者・ポータル・フェーズ・顧客名か物件・所在地）。common/LeadFilterBar.tsx */
+    const [filter, setFilter] = useState<LeadFilter>(EMPTY_FILTER);
+    const filteredLeads = useMemo(() => periodLeads.filter(l => matchesFilter(filter, {
+        staff: l.staff, source: l.portal || '', phase: l.phase,
+        text: [l.name, l.targetProperty, l.addr],
+    })), [periodLeads, filter]);
+
+    /** ポータルの選択肢（決まった6つ＋実データにある値） */
+    const portalOptions = useMemo(() => {
+        const extra = Array.from(new Set(leads.map(l => l.portal || '').filter(p => p !== '' && !BUY_PORTALS.includes(p)))).sort();
+        return [...BUY_PORTALS, ...extra];
+    }, [leads]);
+
     useEffect(() => {
         setDisplayLimit(15);
-    }, [period]);
+    }, [period, filter]);
 
-    // 💡 追加: 次回アクション未設定・期限超過件数（LeadHeaderへ渡すアラート用）
+    // 💡 追加: 次回アクション未設定・期限超過件数（LeadHeaderへ渡すアラート用）。⚠️ v2.2.245: 絞り込みに関係なく期間の全件で数える
     const nextActionAlert = useMemo(() => {
         let overdue = 0, missing = 0;
-        for (const l of filteredLeads) {
+        for (const l of periodLeads) {
             if (l.phase === '追客終了') continue;
             if (!l.nextDate) { missing++; continue; }
             if (l.nextDate.replace(/\//g, '-') < today) overdue++;
         }
         return { overdue, missing };
-    }, [filteredLeads, today]);
+    }, [periodLeads, today]);
 
     /**
      * brokerage_listings の1行を部分更新する。
@@ -541,6 +559,18 @@ const LeadBuy = () => {
                     <span style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#e9ecef', borderRadius: '12px', color: '#6c757d' }}>{filteredLeads.length} 件</span>
                 </div>
 
+                <LeadFilterBar
+                    value={filter}
+                    onChange={setFilter}
+                    staffOptions={staffList}
+                    sourceOptions={portalOptions}
+                    phaseOptions={BUY_PHASES}
+                    sourceLabel="ポータル"
+                    searchPlaceholder="顧客名・物件・所在地"
+                    shown={filteredLeads.length}
+                    total={periodLeads.length}
+                />
+
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '11px', whiteSpace: 'nowrap' }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
@@ -572,7 +602,7 @@ const LeadBuy = () => {
                                     <td style={getTdStyle(false)}>
                                         <select style={compactInputStyle} defaultValue="" ref={newPortalRef}>
                                             <option value="">ポータル</option>
-                                            {['SUUMO', 'アットホーム', "HOME'S", '自社HP', 'その他', '楽待'].map(p => <option key={p} value={p}>{p}</option>)}
+                                            {BUY_PORTALS.map(p => <option key={p} value={p}>{p}</option>)}
                                         </select>
                                     </td>
                                     <td style={getTdStyle(false)}>
@@ -624,7 +654,7 @@ const LeadBuy = () => {
                                                     onBlur={(e) => handleApiUpdate(lead.id, 'portal', e.target.value)}
                                                 >
                                                     <option value="">ポータル</option>
-                                                    {['SUUMO', 'アットホーム', "HOME'S", '自社HP', 'その他', '楽待'].map(p => <option key={p} value={p}>{p}</option>)}
+                                                    {BUY_PORTALS.map(p => <option key={p} value={p}>{p}</option>)}
                                                 </select>
                                             </td>
                                             <td style={getTdStyle(isUnassigned)} className="fw-bold">

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
-import { dateFormate, generateNewId, parseTextWithUrl, thStyle, getReinsStatus, getPropertyStatus, getContractExpirationDate, getRemainingDays, getContractStatusInfo } from './databaseUtils';
+import { dateFormate, parseTextWithUrl, thStyle, getReinsStatus, getPropertyStatus, getContractExpirationDate, getRemainingDays, getContractStatusInfo } from './databaseUtils';
 import PropertyRegister from './PropertyRegister';
 import InformationEditResale from '../information/InformationEditResale';
 import PropertySummary from './PropertySummary';
@@ -66,8 +66,6 @@ const DatabaseBroker = () => {
 
     // === テーブル制御用のState ===
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
-    const [activePage, setActivePage] = useState<number>(1);
-    const [basicLength, setBasicLength] = useState<number>(20);
 
     // === モーダル制御用のState ===
     const [targetPropertyId, setTargetPropertyId] = useState<string>('');
@@ -100,11 +98,6 @@ const DatabaseBroker = () => {
         };
         fetchData();
     }, []);
-
-    // 💡 検索条件が変更されたら、ページネーションを1ページ目に戻す
-    useEffect(() => {
-        setActivePage(1);
-    }, [searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus]);
 
     // 💡 編集ボタンを押した時に、選択された行のデータをフォームの初期値としてセットする
     useEffect(() => {
@@ -155,7 +148,12 @@ const DatabaseBroker = () => {
                 case 'displayName': return item.seller || item.name || item.customer || '';
                 case 'displayAddress': return `${item.addr1 || ''} ${item.addr2 || ''} ${item.addr || ''}`.trim() || item.property || item.targetProperty || '';
                 case 'displayPrice': return item.price || item.budget || 0;
-                case 'date': return item.receivedDate || item.contractDate || item.created_at || '';
+                /*
+                 * ⚠️ v2.2.245: 媒介契約日（contractDate）だけで並べる。列の見出しも「媒介契約日」。
+                 *   以前は受信日・登録日を先に／代わりに見ていたため、媒介契約日が空の行（6件）が登録日の位置に混ざっていた。
+                 *   空の行は新しい順のとき最後に来る（台帳の行に受信日が入っているものは無い）。
+                 */
+                case 'date': return item.contractDate || '';
                 case 'phase': return item.phase || item.currentStatus || '';
                 case 'staff': return item.staff || '';
                 default: return '';
@@ -177,13 +175,10 @@ const DatabaseBroker = () => {
         return filtered;
     }, [originalData, sortConfig, searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus]);
 
-    // === ページネーション制御 ===
-    const totalPages = Math.ceil(processedData.length / basicLength) || 1;
-    const sliceStart = (activePage - 1) * basicLength;
-    const paginatedData = processedData.slice(sliceStart, sliceStart + basicLength);
-
-    const handlePrevPage = () => setActivePage(prev => Math.max(prev - 1, 1));
-    const handleNextPage = () => setActivePage(prev => Math.min(prev + 1, totalPages));
+    /*
+     * ⚠️ v2.2.245: ページ割りをやめ、媒介契約日の新しい順に全件を1枚で出す（制作者の要望。以前は20件ごと）。
+     *   件数が増えて重くなったら、100件ごとのページ割りに戻す（要望の第二案）。
+     */
 
     // === UIヘルパー ===
     const requestSort = (key: SortKey) => {
@@ -223,12 +218,6 @@ const DatabaseBroker = () => {
         }
     };
 
-
-    const handleAddNew = () => {
-        const newId = generateNewId();
-        setTargetPropertyId(newId);
-        setEditData({ id: newId, kind: 'ledger' });
-    };
 
     useEffect(() => {
         if (targetPropertyId) {
@@ -348,28 +337,14 @@ const DatabaseBroker = () => {
             <div className="d-flex justify-content-between align-items-center mb-2">
                 <div className="d-flex align-items-center gap-3">
                     <div className="fw-bold text-secondary">
-                        該当 {processedData.length} 件 <span className="fw-normal" style={{ fontSize: '12px' }}>({processedData.length > 0 ? sliceStart + 1 : 0} ~ {Math.min(activePage * basicLength, processedData.length)}件)</span>
+                        該当 {processedData.length} 件
                     </div>
-                    {/* 💡 新規追加ボタン */}
-                    <button className="btn btn-sm btn-primary rounded-pill px-3 shadow-sm fw-bold" onClick={handleAddNew}>
-                        <i className="bi bi-plus-circle me-1"></i> 媒介追加
-                    </button>
+                    {/*
+                      ⚠️ v2.2.245: 「媒介追加」を消した。媒介は必ず売り反響の「媒介受託」から作る（realty/common/leadLinks.ts の leadToLedger）。
+                        ここで作ると、売主がどの反響から来たのか分からない物件ができてしまう（制作者の要望）。
+                    */}
+                    <span className="text-muted" style={{ fontSize: '11px' }}>媒介は売り反響を「媒介受託」にすると作られます</span>
                 </div>
-
-                {/* 💡 ページネーション UI */}
-                {totalPages > 1 && (
-                    <div className="btn-group shadow-sm">
-                        <button className="btn btn-sm btn-outline-secondary bg-white" onClick={handlePrevPage} disabled={activePage === 1}>
-                            <i className="bi bi-chevron-left"></i> 前へ
-                        </button>
-                        <span className="btn btn-sm btn-light border-secondary text-dark pe-none">
-                            {activePage} / {totalPages}
-                        </span>
-                        <button className="btn btn-sm btn-outline-secondary bg-white" onClick={handleNextPage} disabled={activePage === totalPages}>
-                            次へ <i className="bi bi-chevron-right"></i>
-                        </button>
-                    </div>
-                )}
             </div>
 
             {/* === テーブルUI === */}
@@ -402,8 +377,8 @@ const DatabaseBroker = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginatedData.length > 0 ? (
-                                    paginatedData.map((item, index) => {
+                                {processedData.length > 0 ? (
+                                    processedData.map((item, index) => {
                                         const displayPrice = item.price || 0;
 
                                         const rawAddress = [item.addr1, item.addr2, item.addr, item.property, item.targetProperty]
@@ -420,7 +395,7 @@ const DatabaseBroker = () => {
 
                                         return (
                                             <tr key={item.id}>
-                                                <td className="text-muted">{sliceStart + index + 1}</td>
+                                                <td className="text-muted">{index + 1}</td>
                                                 <td>
                                                     <button
                                                         className="btn btn-sm btn-outline-danger rounded-pill px-3 py-0"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useContext } from 'react';
+import React, { useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import apiClient from '../../../utils/apiClient';
 import LeadHeader from '../common/LeadHeader'; // パスは環境に合わせて調整してください
 import { thisYear } from '../../../utils/thisYear';
@@ -94,6 +94,9 @@ const parseCallDates = (raw: string | null | undefined): CallEntry[] => {
  * また「対象月に受信したリード」ではなく「対象月に行われた架電」を数えるため、
  * 全リードを走査して架電日の年月で絞り込む。
  */
+/** 期間の選択で「今期の通期」を表す値（v2.2.245） */
+const FY = 'fy';
+
 const countCalls = (leads: { callDates: string | null }[], month: string) =>
     leads.reduce((total, lead) => total + parseCallDates(lead.callDates).filter(c => {
         const type = c?.type ? String(c.type) : 'call';
@@ -172,7 +175,11 @@ const Summary = () => {
     const [staffList, setStaffList] = useState<string[]>([]);
     const [settings, setSettings] = useState<AppSettings>({});
     // ⚠️ v2.2.222: 既定は今月（以前は 2026-07 で固定だった）
-    const [selectedMonth, setSelectedMonth] = useState<string>(() => todayStr().slice(0, 7));
+    /**
+     * 選んだ期間。⚠️ v2.2.245: 'fy'（今期の通期＝期首月からの12か月）か 'YYYY-MM'（今期の月）。既定は通期
+     *   （制作者の要望「基本は通期を表示し、月は絞り込みのプルダウンで」）。以前は今月だけだった。
+     */
+    const [selectedMonth, setSelectedMonth] = useState<string>(FY);
 
     // 💡 顧客情報編集モーダル（LeadSell / LeadBuy と同じ LeadEdit を共用する）
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -284,6 +291,20 @@ const Summary = () => {
         }
     };
 
+    /**
+     * 今期の12か月（設定の期首月から）。⚠️ v2.2.222: 本番アプリと同じく、月は今期の中だけを選ばせる
+     *   （年間予算の進捗は期首から対象月までの累計なので、期をまたぐ月は選ばせない）。
+     */
+    const fyMonths = useMemo(() => fiscalMonths(settings.fiscalStart), [settings.fiscalStart]);
+    const isFy = selectedMonth === FY;
+    /** 選んだ期間の月（通期は今期の12か月） */
+    const selMonths = useMemo(() => (isFy ? fyMonths : [selectedMonth]), [isFy, fyMonths, selectedMonth]);
+    /** その日付（受信日など）が選んだ期間に入るか。⚠️ 'YYYY/MM/DD' もある */
+    const inSel = useCallback((d: string | null | undefined) => selMonths.includes(String(d ?? '').replace(/\//g, '-').slice(0, 7)), [selMonths]);
+    /** 今期の範囲（'2026年6月〜2027年5月'） */
+    const fyRange = `${monthLabel(fyMonths[0])}〜${monthLabel(fyMonths[11])}`;
+    const selLabel = isFy ? `${fyRange}の通期` : monthLabel(selectedMonth);
+
     // ==========================================
     // 💡 3. 歩留まりファネル集計
     // ==========================================
@@ -294,7 +315,7 @@ const Summary = () => {
         };
 
         // 売りファネル
-        const targetSell = leads.filter(l => l.receivedDate?.startsWith(selectedMonth));
+        const targetSell = leads.filter(l => inSel(l.receivedDate));
         result.sell.leads = targetSell.length;
         targetSell.forEach(l => {
             if (l.connectDate || ['通電済', '訪問査定予定', '訪問査定済', '査定書提出', '媒介受託'].includes(l.phase || '')) result.sell.connects++;
@@ -304,7 +325,7 @@ const Summary = () => {
         });
 
         // 買いファネル
-        const targetBuy = buyLeads.filter(l => l.receivedDate?.startsWith(selectedMonth));
+        const targetBuy = buyLeads.filter(l => inSel(l.receivedDate));
         result.buy.leads = targetBuy.length;
         targetBuy.forEach(l => {
             if (l.connectDate || ['通電済', '内見予約', '内見済', '購入申込', '成約'].includes(l.phase || '')) result.buy.connects++;
@@ -314,7 +335,7 @@ const Summary = () => {
         });
 
         return result;
-    }, [leads, buyLeads, selectedMonth]);
+    }, [leads, buyLeads, inSel]);
 
 
     // ==========================================
@@ -324,12 +345,15 @@ const Summary = () => {
      * 対象月の選択肢。⚠️ v2.2.222: 本番アプリと同じく「今期の12か月」（設定の期首月から）。
      *   年間予算の進捗は期首から対象月までの累計なので、期をまたぐ月は選ばせない。
      */
-    const fyMonths = useMemo(() => fiscalMonths(settings.fiscalStart), [settings.fiscalStart]);
-    const availableMonths = useMemo(() => [...fyMonths].reverse(), [fyMonths]);
-    // 期首月が届いたら、今期に無い月（初期値の今月が期外のときなど）を期首月へ寄せる
+    /** ⚠️ v2.2.245: 通期を先頭にした選択肢（LeadHeader の periodGroups の形） */
+    const periodOptions = useMemo(() => [
+        { label: '通期', options: [{ value: FY, label: `通期（${fyRange}）` }] },
+        { label: '月別（今期）', options: [...fyMonths].reverse().map(mk => ({ value: mk, label: monthLabel(mk) })) },
+    ], [fyMonths, fyRange]);
+    // 期首月が届いたら、今期に無い月を通期へ戻す
     useEffect(() => {
-        if (settings.fiscalStart && !fyMonths.includes(selectedMonth)) setSelectedMonth(fyMonths[0]);
-    }, [fyMonths, settings.fiscalStart, selectedMonth]);
+        if (settings.fiscalStart && !isFy && !fyMonths.includes(selectedMonth)) setSelectedMonth(FY);
+    }, [fyMonths, settings.fiscalStart, selectedMonth, isFy]);
 
     const headerLabel = { title: 'チームサマリー', describe: '本日のタスク、追客予定、月次KPI、架電実績' };
 
@@ -339,10 +363,14 @@ const Summary = () => {
      *   担当者と目標・予算は設定（app_state.settings.staff）。
      */
     const kpi = useMemo(() => {
-        const tm = selectedMonth;
         const staffSettings = (settings.staff ?? []).filter(st => st.name);
         const names = staffSettings.map(st => String(st.name));
-        const cumMks = fyMonths.includes(tm) ? fyMonths.slice(0, fyMonths.indexOf(tm) + 1) : [tm];
+        /**
+         * 累計の月。月を選んだときは期首〜その月。⚠️ v2.2.245: 通期は今期の12か月（先の月の契約予定＝見込も入る）。
+         *   経過月数（遅れ・先行の判定）は、通期では今月までで数える。
+         */
+        const cumMks = isFy ? fyMonths : fyMonths.includes(selectedMonth) ? fyMonths.slice(0, fyMonths.indexOf(selectedMonth) + 1) : [selectedMonth];
+        const nowMk = todayStr().slice(0, 7);
 
         const salesAll = salesByStaffMonth(deals);
         const feeAll = feeByStaffMonth(deals);
@@ -357,7 +385,7 @@ const Summary = () => {
         const sumCum = (all: Record<string, Record<string, number>>) => names.reduce((a, n) => a + sumRow(all[n], cumMks), 0);
         const cum = sumCum(salesAll);
         const prog = totalBudget ? cum / totalBudget : 0;
-        const elapsed = cumMks.length;
+        const elapsed = isFy ? Math.max(1, fyMonths.filter(mk => mk <= nowMk).length) : cumMks.length;
 
         const rows = staffSettings.map(st => {
             const n = String(st.name);
@@ -365,16 +393,17 @@ const Summary = () => {
             const dCon = dAll.filter(d => CONFIRMED.includes(String(d.phase ?? '')));
             return {
                 name: n,
-                goal: Number(st.monthlyGoal) || 0,
+                // ⚠️ 通期の目標は年間予算
+                goal: isFy ? Number(st.budget) || 0 : Number(st.monthlyGoal) || 0,
                 budget: Number(st.budget) || 0,
-                sales: salesAll[n]?.[tm] ?? 0,
-                fee: feeAll[n]?.[tm] ?? 0,
-                reformGp: rgAll[n]?.[tm] ?? 0,
-                reform: rfAll[n]?.[tm] ?? 0,
+                sales: sumRow(salesAll[n], selMonths),
+                fee: sumRow(feeAll[n], selMonths),
+                reformGp: sumRow(rgAll[n], selMonths),
+                reform: sumRow(rfAll[n], selMonths),
                 deals: dAll.length,
                 confirmed: dCon.length,
-                contracts: cntAll[n]?.[tm] ?? 0,
-                baikai: bCnt[n]?.[tm] ?? 0,
+                contracts: sumRow(cntAll[n], selMonths),
+                baikai: sumRow(bCnt[n], selMonths),
                 pending: dAll.length - dCon.length,
                 cumSales: sumRow(salesAll[n], cumMks),
             };
@@ -388,9 +417,9 @@ const Summary = () => {
         return {
             rows, total, totalBudget, cum, prog, elapsed, paceGap: prog - elapsed / 12,
             cumFee: sumCum(feeAll), cumRf: sumCum(rfAll), cumRg: sumCum(rgAll),
-            fromMonth: cumMks[0], hasStaff: staffSettings.length > 0,
+            fromMonth: cumMks[0], toMonth: cumMks[cumMks.length - 1], hasStaff: staffSettings.length > 0,
         };
-    }, [deals, ledger, settings.staff, selectedMonth, fyMonths]);
+    }, [deals, ledger, settings.staff, selectedMonth, fyMonths, isFy, selMonths]);
 
     /** 📞 架電実績（v2.2.222。本番アプリの callStats と同じ。実日付で本日・今週・今月） */
     const calls = useMemo(() => {
@@ -435,7 +464,7 @@ const Summary = () => {
     // ==========================================
     const sellKpiSummary = useMemo(() => {
         const target = funnelData.sell;                       // リード数・通電・査定・受託は歩留まりファネルと同じ集計
-        const monthLeads = leads.filter(l => l.receivedDate?.startsWith(selectedMonth));
+        const monthLeads = leads.filter(l => inSel(l.receivedDate));
 
         // 反響費用 = 対象月に受信したリードの反響単価の合計
         const srcCosts = settings.srcCosts || {};
@@ -444,54 +473,56 @@ const Summary = () => {
         // 月次の媒介受託目標 = 担当者ごとの年間目標の合計 ÷ 12
         const annualTarget = (settings.staff || []).reduce((sum, st) => sum + (Number(st.baikaiTarget) || 0), 0);
 
-        // 前月比受託数
+        // 前月比受託数（⚠️ 通期では出さない）
         const prev = prevMonth(selectedMonth);
-        const prevWins = leads.filter(l => l.receivedDate?.startsWith(prev) && l.phase === '媒介受託').length;
+        const prevWins = isFy ? 0 : leads.filter(l => l.receivedDate?.startsWith(prev) && l.phase === '媒介受託').length;
 
         return {
             leads: target.leads,
-            calls: countCalls(leads, selectedMonth),
+            calls: selMonths.reduce((t, mk) => t + countCalls(leads, mk), 0),
             connects: target.connects,
             visits: target.visits,
             wins: target.wins,
-            target: Math.round(annualTarget / 12),
-            lastMonthDiff: target.wins - prevWins,
+            // ⚠️ 通期は年間の目標そのもの
+            target: Math.round(annualTarget / 12 * selMonths.length),
+            lastMonthDiff: isFy ? null : target.wins - prevWins,
             cost,
         };
-    }, [leads, funnelData, selectedMonth, settings]);
+    }, [leads, funnelData, selectedMonth, settings, inSel, isFy, selMonths]);
 
     const buyKpiSummary = useMemo(() => {
         const target = funnelData.buy;
-        const monthLeads = buyLeads.filter(l => l.receivedDate?.startsWith(selectedMonth));
+        const monthLeads = buyLeads.filter(l => inSel(l.receivedDate));
 
         // 買いリードの反響元は source ではなく portal に入っている
         const portalCosts = settings.portalCosts || {};
         const cost = monthLeads.reduce((sum, l) => sum + (Number(portalCosts[l.portal]) || 0), 0);
 
-        // 前月比申込数
+        // 前月比申込数（⚠️ 通期では出さない）
         const prev = prevMonth(selectedMonth);
-        const prevOffers = buyLeads.filter(l =>
+        const prevOffers = isFy ? 0 : buyLeads.filter(l =>
             l.receivedDate?.startsWith(prev) && ['購入申込', '成約'].includes(l.phase || '')
         ).length;
 
         return {
             leads: target.leads,
-            calls: countCalls(buyLeads, selectedMonth),
+            calls: selMonths.reduce((t, mk) => t + countCalls(buyLeads, mk), 0),
             connects: target.connects,
             views: target.views,
             offers: target.offers,
             wins: target.wins,
-            lastMonthDiff: target.offers - prevOffers,
+            lastMonthDiff: isFy ? null : target.offers - prevOffers,
             cost,
         };
-    }, [buyLeads, funnelData, selectedMonth, settings]);
+    }, [buyLeads, funnelData, selectedMonth, settings, inSel, isFy, selMonths]);
 
     return (
         <div style={{ padding: '20px', backgroundColor: '#fafbfe', minHeight: '100vh', width: '100%', overflowX: 'auto' }}>
             <LeadHeader
                 selectedMonth={selectedMonth}
                 setSelectedMonth={setSelectedMonth}
-                availableMonths={availableMonths}
+                availableMonths={[]}
+                periodGroups={periodOptions}
                 handleAddClick={() => { }}
                 isAdding={false}
                 headerLabel={headerLabel}
@@ -506,7 +537,7 @@ const Summary = () => {
                     ========================================== */}
                     <div style={s.card}>
                         <div style={s.cardTitle}>
-                            🔻 歩留まりファネル（{selectedMonth.replace('-', '年')}月受信分）
+                            🔻 歩留まりファネル（{selLabel}受信分）
                             <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal', marginLeft: '8px' }}>
                                 カッコ内は直前の段からの移行率
                             </span>
@@ -594,7 +625,7 @@ const Summary = () => {
                             <div style={{ width: `${Math.min(100, kpi.prog * 100)}%`, height: '100%', backgroundColor: kpi.paceGap < 0 ? '#dc3545' : '#198754' }}></div>
                         </div>
                         <div style={{ fontSize: '11px', color: '#495057', marginTop: '8px' }}>
-                            内訳（{monthLabel(kpi.fromMonth)}〜{monthLabel(selectedMonth)}累計）：仲介手数料 <b>{fmtYen(kpi.cumFee)}</b> ＋ リフォーム粗利 <b>{fmtYen(kpi.cumRg)}</b> ＝ 売上計上額 <b>{fmtYen(kpi.cum)}</b>
+                            内訳（{monthLabel(kpi.fromMonth)}〜{monthLabel(kpi.toMonth)}累計{isFy ? '・先の月の契約予定を含む' : ''}）：仲介手数料 <b>{fmtYen(kpi.cumFee)}</b> ＋ リフォーム粗利 <b>{fmtYen(kpi.cumRg)}</b> ＝ 売上計上額 <b>{fmtYen(kpi.cum)}</b>
                             <span style={{ color: '#6c757d', marginLeft: '6px' }}>
                                 ※リフォームは受注額ではなく粗利を売上に計上します（受注額 {fmtYen0(kpi.cumRf)}・粗利率 {kpi.cumRf ? pct(kpi.cumRg / kpi.cumRf) : '―'} は参考値）
                             </span>
@@ -609,7 +640,7 @@ const Summary = () => {
                     ========================================== */}
                     <div style={s.card}>
                         <div style={s.cardTitle}>
-                            月次KPIサマリー（{monthLabel(selectedMonth)}）
+                            {isFy ? '通期' : '月次'}KPIサマリー（{selLabel}）
                             <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal', marginLeft: '8px' }}>
                                 灰色＝自動集計。<b>売上計上額＝仲介手数料＋リフォーム粗利</b>（リフォーム受注額は参考値）。商談案件の契約日ベース・共同担当は按分。
                             </span>
@@ -619,16 +650,16 @@ const Summary = () => {
                                 <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                                     <tr>
                                         <th style={{ ...s.th, textAlign: 'left' }}>担当者</th>
-                                        <th style={s.th}>今月目標<br/>売上(円)</th>
-                                        <th style={s.th}>今月見込<br/>売上(円)</th>
+                                        <th style={s.th}>{isFy ? '年間予算' : '今月目標'}<br/>売上(円)</th>
+                                        <th style={s.th}>{isFy ? '通期' : '今月'}見込<br/>売上(円)</th>
                                         <th style={s.th}>達成率</th>
                                         <th style={s.th}>うち仲介<br/>手数料(円)</th>
                                         <th style={s.th}>うちリフォーム<br/>粗利(円)</th>
                                         <th style={s.th}>リフォーム<br/>受注額(円)<br/><span style={{ fontWeight: 'normal' }}>※参考</span></th>
                                         <th style={s.th}>案件数<br/>(累計)</th>
-                                        <th style={s.th}>今月<br/>契約件数</th>
+                                        <th style={s.th}>{isFy ? '通期' : '今月'}<br/>契約件数</th>
                                         <th style={s.th}>契約率</th>
-                                        <th style={s.th}>今月<br/>媒介獲得</th>
+                                        <th style={s.th}>{isFy ? '通期' : '今月'}<br/>媒介獲得</th>
                                         <th style={s.th}>未決<br/>案件数</th>
                                         <th style={s.th}>年間予算<br/>進捗率</th>
                                     </tr>
@@ -735,7 +766,7 @@ const Summary = () => {
                     ========================================== */}
                     <div style={s.card}>
                         <div style={s.cardTitle}>
-                            一括査定KPIサマリー（{monthLabel(selectedMonth)}受信リード・チーム合計）
+                            一括査定KPIサマリー（{selLabel}受信リード・チーム合計）
                             <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal' }}>売り反響から自動集計</span>
                         </div>
                         <div style={{ overflowX: 'auto', border: '1px solid #dee2e6', borderRadius: '4px' }}>
@@ -748,7 +779,7 @@ const Summary = () => {
                                 </thead>
                                 <tbody>
                                     {sellKpiSummary.leads === 0 && sellKpiSummary.calls === 0 ? (
-                                        <tr><td colSpan={14} style={{ ...s.td, textAlign: 'center', color: '#6c757d' }}>{monthLabel(selectedMonth)}受信のリードはまだ登録されていません</td></tr>
+                                        <tr><td colSpan={14} style={{ ...s.td, textAlign: 'center', color: '#6c757d' }}>{selLabel}受信のリードはまだ登録されていません</td></tr>
                                     ) : (
                                         <tr>
                                             <td style={s.td}>{sellKpiSummary.leads}</td>
@@ -762,7 +793,7 @@ const Summary = () => {
                                             <td style={s.td}>{calcRate(sellKpiSummary.wins, sellKpiSummary.visits)}</td>
                                             <td style={{ ...s.td, backgroundColor: '#fff8e1' }}>{sellKpiSummary.target}</td>
                                             <td style={s.td}>{calcRate(sellKpiSummary.wins, sellKpiSummary.target)}</td>
-                                            <td style={s.td}>{sellKpiSummary.lastMonthDiff >= 0 ? '+' : ''}{sellKpiSummary.lastMonthDiff}</td>
+                                            <td style={s.td}>{sellKpiSummary.lastMonthDiff === null ? '―' : `${sellKpiSummary.lastMonthDiff >= 0 ? '+' : ''}${sellKpiSummary.lastMonthDiff}`}</td>
                                             <td style={s.td}>{fmtYen0(sellKpiSummary.cost)}</td>
                                             <td style={s.td}>{sellKpiSummary.wins && sellKpiSummary.cost ? fmtYen(Math.round(sellKpiSummary.cost / sellKpiSummary.wins)) : '―'}</td>
                                         </tr>
@@ -774,7 +805,7 @@ const Summary = () => {
 
                     <div style={s.card}>
                         <div style={s.cardTitle}>
-                            買い反響KPIサマリー（{monthLabel(selectedMonth)}受信・チーム合計）
+                            買い反響KPIサマリー（{selLabel}受信・チーム合計）
                             <span style={{ fontSize: '10px', color: '#6c757d', fontWeight: 'normal' }}>買い反響から自動集計</span>
                         </div>
                         <div style={{ overflowX: 'auto', border: '1px solid #dee2e6', borderRadius: '4px' }}>
@@ -787,7 +818,7 @@ const Summary = () => {
                                 </thead>
                                 <tbody>
                                     {buyKpiSummary.leads === 0 && buyKpiSummary.calls === 0 ? (
-                                        <tr><td colSpan={12} style={{ ...s.td, textAlign: 'center', color: '#6c757d' }}>{monthLabel(selectedMonth)}受信の買い反響はまだ登録されていません</td></tr>
+                                        <tr><td colSpan={12} style={{ ...s.td, textAlign: 'center', color: '#6c757d' }}>{selLabel}受信の買い反響はまだ登録されていません</td></tr>
                                     ) : (
                                         <tr>
                                             <td style={s.td}>{buyKpiSummary.leads}</td>
@@ -799,7 +830,7 @@ const Summary = () => {
                                             <td style={s.td}>{buyKpiSummary.offers}</td>
                                             <td style={s.td}>{calcRate(buyKpiSummary.offers, buyKpiSummary.leads)}</td>
                                             <td style={s.td}>{buyKpiSummary.wins}</td>
-                                            <td style={s.td}>{buyKpiSummary.lastMonthDiff >= 0 ? '+' : ''}{buyKpiSummary.lastMonthDiff}</td>
+                                            <td style={s.td}>{buyKpiSummary.lastMonthDiff === null ? '―' : `${buyKpiSummary.lastMonthDiff >= 0 ? '+' : ''}${buyKpiSummary.lastMonthDiff}`}</td>
                                             <td style={s.td}>{fmtYen0(buyKpiSummary.cost)}</td>
                                             <td style={s.td}>{buyKpiSummary.offers && buyKpiSummary.cost ? fmtYen(Math.round(buyKpiSummary.cost / buyKpiSummary.offers)) : '―'}</td>
                                         </tr>
