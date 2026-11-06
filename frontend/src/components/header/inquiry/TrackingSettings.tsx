@@ -271,7 +271,8 @@ const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; r
                     <button key={key} type="button" role="tab" aria-selected={tab === key}
                         className={`tk_tab${tab === key ? ' is_active' : ''}`} onClick={() => setTab(key)}>{label}</button>
                 ))}
-                <span className="tk_sub">CV は、問い合わせの日までの最後の訪問の{tab === 'landing' ? '着地ページ' : '流入元'}で数えます</span>
+                {/* ⚠️ v2.2.253: CV は一度でも来た着地ページ・流入元すべてに1件ずつ（② conversions.ts）。⚠️ 業者別の帯は今までどおり最後の訪問 */}
+                <span className="tk_sub">CV は、問い合わせの日までに一度でも来た{tab === 'landing' ? '着地ページ' : '流入元'}すべてに1件ずつ付けます（行を足すと、上の CV の合計より多くなります）{showVendor ? '。業者別は最後の訪問で数えます' : ''}</span>
             </div>
             <div className="tk_band_wrap">
                 <div className="tk_band_switch" role="group" aria-label="帯グラフの切り替え">

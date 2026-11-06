@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
-import { attributeConversions, DAYS } from './conversions';
+import { attributeConversions, DAYS, touchedKeys } from './conversions';
 import { AD_TOUCH_SQL } from './params';
 import { canManageTracking, type TrackingResult } from './sites';
 import { GOOGLE_LISTING_SQL, isGoogleListing, TRACKING_VENDORS, VENDOR_CASE_SQL, vendorOf } from './vendors';
@@ -12,8 +12,8 @@ import { GOOGLE_LISTING_SQL, isGoogleListing, TRACKING_VENDORS, VENDOR_CASE_SQL,
  * ─────────────────────────────────────────────
  * ⚠️ 期間は直近30日（訪問は created_at、反響は inquiry_date）。
  * ⚠️ 訪問数は広告・広告以外の両方（tracking_touches の行数）。⚠️ 一覧の「直近30日の着地」は広告の分だけ（sites.ts）。
- * ⚠️ CV の数え方は conversions.ts。着地ページ別・流入元別は、その CV の「最後の訪問」の着地ページ・流入元に1件を付ける。
- *   ⚠️ その訪問が30日より前なら、訪問数 0 の行として出る。
+ * ⚠️ CV の数え方は conversions.ts。着地ページ別・流入元別は、問い合わせの日までに**一度でも来た**着地ページ・流入元すべてに1件ずつ付ける（v2.2.253。以前は最後の訪問だけ）。
+ *   ⚠️ 行の CV を足すと、合計（kpi.cv＝反響の数）より多くなる。⚠️ 訪問が30日より前なら、訪問数 0 の行として出る。
  * ⚠️ v2.2.232 業者別（vendors）。⚠️ v2.2.238 から、2026-10-22 以降の Google リスティング広告の訪問だけを数える（判定は vendors.ts）。
  *   ⚠️ CV は「最後の訪問」が Google リスティング広告のものだけ、その訪問の utm_campaign・utm_medium で分ける。
  * ─────────────────────────────────────────────
@@ -63,8 +63,8 @@ export const trackingSiteSummary = async (staff: AuthenticatedStaff | null, site
     group('t.landing_url'), group('t.source'), group(VENDOR_CASE_SQL, GOOGLE_LISTING_SQL), attributeConversions(siteId),
   ]);
   const cv = conversions.get(siteId) ?? [];
-  const landing = mergeRows(landingRows, cv.map((c) => c.landingUrl), false);
-  const source = mergeRows(sourceRows, cv.map((c) => c.source), true);
+  const landing = mergeRows(landingRows, cv.flatMap((c) => touchedKeys(c, (t) => t.landingUrl)), false);
+  const source = mergeRows(sourceRows, cv.flatMap((c) => touchedKeys(c, (t) => t.source, true)), true);
   // v2.2.232 業者別。⚠️ 業者が0件でも行を出す（帯グラフの凡例をそろえる）
   // ⚠️ v2.2.238 割合の分母は 2026-10-22 以降の Google リスティング広告の分だけ（2026-11-02 の指示）
   const listingCv = cv.filter((c) => isGoogleListing(c.utmSource, c.utmMedium, c.touchedAt));
