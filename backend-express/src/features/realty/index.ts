@@ -158,6 +158,8 @@ const ALLOWED_COLUMNS = [
   'freq', 'keyInfo', 'keyStatus', 'baikaiType', 'propStatus', 'currentStatus',
   'expiry', 'expiryFix', 'reinsDate', 'priceRevDate', 'lastReportDate',
   'type', 'priority', 'dealId', 'dealNo', 'ledgerId', 'ledgerNo', 'extId',
+  // ⚠️ v2.2.256: 買い反響を媒介獲得台帳に紐づけたときの媒介物件（realty_properties.id。台帳と同じ値。v2.2.250 の列）
+  'propertyId',
   'subStaff', 'subRatio', 'coBroker', 'delivery',
   // ⚠️ v2.2.222: 本番アプリ（V14.11〜）で増えた商談のリフォーム受注と、商談リストの登録日
   'reformPrice', 'reformGp', 'reformNote', 'createdAt',

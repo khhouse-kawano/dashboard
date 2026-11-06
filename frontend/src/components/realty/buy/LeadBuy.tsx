@@ -667,7 +667,9 @@ const LeadBuy = () => {
                                             <td style={{ ...getTdStyle(isUnassigned), whiteSpace: 'normal', lineHeight: '1.4', textAlign: 'left' }}>
                                                 {lead.phone} <br /> <span style={{ fontSize: '9px', color: '#8898aa' }}>{lead.mail}</span>
                                             </td>
-                                            <td style={{ ...getTdStyle(isUnassigned), maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }} title={lead.targetProperty || ''}>
+                                            <td style={{ ...getTdStyle(isUnassigned), maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }} title={`${lead.targetProperty || ''}${lead.ledgerId ? `（媒介獲得台帳 No.${lead.ledgerNo ?? '―'}）` : ''}`}>
+                                                {/* ⚠️ v2.2.256: 媒介獲得台帳に紐づく反響は台帳 No. の札（以前のアプリの買い反響の一覧と同じ） */}
+                                                {lead.ledgerId && <span className="badge bg-primary bg-opacity-10 text-primary border border-primary me-1" style={{ fontSize: '9px' }}>📝No.{lead.ledgerNo ?? '―'}</span>}
                                                 {lead.targetProperty}
                                             </td>
                                             <td style={{ ...getTdStyle(isUnassigned), fontWeight: 'bold', textAlign: 'right' }}>{formatYen(lead.budget)}</td>
