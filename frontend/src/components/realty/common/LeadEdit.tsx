@@ -348,8 +348,9 @@ const LeadEdit: React.FC<LeadEditProps> = ({
     };
 
     // 💡 次回連絡日クイック設定ボタン（source.html の nextBar() 相当）
+    // ⚠️ v2.2.255: 次回連絡日の列の中（入力欄の下）に置く。以前は col-12 の行で、買い反響では左端（通電日の下）に出ていた
     const nextQuickButtons = (
-        <div className="col-12" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '-4px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
             {NEXT_QUICK.map(q => (
                 <button
                     key={q.label}
@@ -469,8 +470,8 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                     <div className="col-md-4">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回連絡日 <span className="text-danger">*必須</span></label>
                                         <input type="date" style={compactInputStyle} value={customerInfo.nextDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextDate: e.target.value })} />
+                                        {nextQuickButtons}
                                     </div>
-                                    {nextQuickButtons}
                                     <div className="col-12">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション(メモ)</label>
                                         <input type="text" style={compactInputStyle} value={customerInfo.nextNote || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextNote: e.target.value })} />
@@ -507,8 +508,8 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                     <div className="col-md-4">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回連絡日 <span className="text-danger">*必須</span></label>
                                         <input type="date" style={compactInputStyle} value={customerInfo.nextDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextDate: e.target.value })} />
+                                        {nextQuickButtons}
                                     </div>
-                                    {nextQuickButtons}
                                     <div className="col-12">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション(メモ)</label>
                                         <input type="text" style={compactInputStyle} value={customerInfo.nextNote || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextNote: e.target.value })} />
@@ -563,8 +564,8 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                     <div className="col-md-4">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション予定日 <span className="text-danger">*必須</span></label>
                                         <input type="date" style={compactInputStyle} value={customerInfo.nextDate?.replace(/\//g, '-') || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextDate: e.target.value })} />
+                                        {nextQuickButtons}
                                     </div>
-                                    {nextQuickButtons}
                                     <div className="col-12">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション内容</label>
                                         <input type="text" style={compactInputStyle} value={customerInfo.nextNote || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextNote: e.target.value })} />
