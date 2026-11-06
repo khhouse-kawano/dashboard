@@ -19,6 +19,8 @@ import { useNavigate } from 'react-router-dom';
 import CommandCenter from './CommandCenter';
 import { resaleDashAlerts } from './resaleAlerts';
 import { loadRecords } from '../common/realtyState';
+// ⚠️ v2.2.254: 売りKPI・買いKPI（以前のアプリ v14.30 の媒体別KPI）
+import MediaKpiCard from './MediaKpiCard';
 
 // ==========================================
 // 💡 型定義 (推論ベース)
@@ -351,6 +353,19 @@ const Summary = () => {
 
     const headerLabel = { title: 'チームサマリー', describe: '本日のタスク、追客予定、月次KPI、架電実績' };
 
+    /** ⚠️ v2.2.254: 売りKPI・買いKPI の並び（設定の反響元・買いポータル）・担当者（設定の氏名）・対象月 */
+    const mediaKpi = useMemo(() => {
+        const st = settings as Settings & { sources?: unknown; buyPortals?: unknown };
+        const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
+        return {
+            sources: list(st.sources),
+            buyPortals: list(st.buyPortals),
+            staffNames: (settings.staff ?? []).map(x => String(x.name ?? '')).filter(Boolean),
+            // 対象月（累計の終わり）。通期のときは今月
+            month: isFy ? todayStr().slice(0, 7) : selectedMonth,
+        };
+    }, [settings, isFy, selectedMonth]);
+
     /**
      * 📊 年間予算進捗・月次KPIサマリー（v2.2.222。本番アプリの renderDash と同じ集計）。
      *   売上計上額＝仲介手数料＋リフォーム粗利。商談案件の契約日ベース・共同担当は按分。
@@ -526,6 +541,15 @@ const Summary = () => {
 
             {!isLoading && (
                 <div>
+                    {/* ==========================================
+                        📊 1. 売りKPI・買いKPI（v2.2.254。以前のアプリと同じく見出しのすぐ下。summary/MediaKpiCard.tsx）
+                        ⚠️ 対象月は上で選んだ月。通期のときは今月
+                    ========================================== */}
+                    <MediaKpiCard kind="sell" rows={leads as unknown as Row[]} targetMonth={mediaKpi.month}
+                        fiscalStart={settings.fiscalStart} order={mediaKpi.sources} staffNames={mediaKpi.staffNames} />
+                    <MediaKpiCard kind="buy" rows={buyLeads as unknown as Row[]} targetMonth={mediaKpi.month}
+                        fiscalStart={settings.fiscalStart} order={mediaKpi.buyPortals} staffNames={mediaKpi.staffNames} />
+
                     {/* ==========================================
                         🔻 2. 歩留まりファネル
                     ========================================== */}
