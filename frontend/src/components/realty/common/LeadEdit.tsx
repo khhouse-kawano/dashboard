@@ -7,6 +7,9 @@ import { removeSpaces, NEXT_QUICK, addDaysISO, LEAD_END_REASONS, BUY_END_REASONS
 import DocumentViewer from '../documents/DocumentViewer';
 // 💡 追加: サーバー保存済みの変更履歴
 import LeadHistory from './LeadHistory';
+// ⚠️ v2.2.256: 買い反響の問合せ物件（媒介獲得台帳から検索して紐づける）
+import LedgerPicker from './LedgerPicker';
+import { guessProperty } from './leadLinks';
 
 // 💡 追加: 変更内容プレビューで表示するフィールド名の日本語ラベル
 const FIELD_LABELS: Record<string, string> = {
@@ -16,6 +19,7 @@ const FIELD_LABELS: Record<string, string> = {
     connectDate: '通電日', viewDate: '内見日', visitDate: '訪問査定日', baikaiDate: '媒介契約日',
     contactDate: '接触日', contractDate: '契約日', followDate: 'フォロー日', fee: '仲介手数料',
     nextDate: '次回連絡日', nextNote: '次回アクション', note: '備考',
+    targetProperty: '問合せ物件名', ledgerNo: '問合せ物件（台帳No.）',
 };
 
 // ==========================================
@@ -166,6 +170,7 @@ const LeadEdit: React.FC<LeadEditProps> = ({
         const keys = new Set([...Object.keys(snapshot || {}), ...Object.keys(customerInfo || {})]);
         keys.forEach(k => {
             if (k === 'callDates' || k === 'id') return; // 架電履歴・IDは別UIで扱うため対象外
+            if (k === 'ledgerId' || k === 'propertyId') return; // ⚠️ v2.2.256: 台帳・媒介物件の id は「問合せ物件（台帳No.）」で見せる
             const from = (snapshot as any)?.[k];
             const to = (customerInfo as any)?.[k];
             if (String(from ?? '') !== String(to ?? '')) {
@@ -302,6 +307,29 @@ const LeadEdit: React.FC<LeadEditProps> = ({
             if (!window.confirm(`担当を「${customerInfo.staff}」から「${newStaff}」に変更します。よろしいですか？`)) return;
         }
         setCustomerInfo({ ...customerInfo, staff: newStaff });
+    };
+
+    /**
+     * ⚠️ v2.2.256: 買い反響の問合せ物件を媒介獲得台帳に紐づける（以前のアプリの saveBuyLead・blLedPick）。
+     *   台帳の id・No. と、台帳の媒介物件（propertyId）を入れる。null は解除（問合せ物件名は残す）。
+     *   問合せ物件名が空なら台帳から作った名前を入れ、入っていて違うときは置き換えるか聞く。
+     */
+    const handleLedgerPick = (ledger: Record<string, unknown> | null) => {
+        if (!ledger) {
+            setCustomerInfo((prev: any) => ({ ...prev, ledgerId: null, ledgerNo: null, propertyId: null }));
+            return;
+        }
+        const name = guessProperty(ledger);
+        const curName = String(customerInfo.targetProperty ?? '').trim();
+        const replace = name !== '' && name !== curName
+            && (curName === '' || window.confirm(`問合せ物件名を「${name}」に置き換えますか？\n（今の入力：${curName}）`));
+        setCustomerInfo((prev: any) => ({
+            ...prev,
+            ledgerId: String(ledger.id ?? ''),
+            ledgerNo: ledger.no === null || ledger.no === undefined ? null : String(ledger.no),
+            propertyId: ledger.propertyId ? String(ledger.propertyId) : null,
+            ...(replace ? { targetProperty: name } : {}),
+        }));
     };
 
     // ==========================================
@@ -475,6 +503,15 @@ const LeadEdit: React.FC<LeadEditProps> = ({
                                     <div className="col-12">
                                         <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>次回アクション(メモ)</label>
                                         <input type="text" style={compactInputStyle} value={customerInfo.nextNote || ''} onChange={e => setCustomerInfo({ ...customerInfo, nextNote: e.target.value })} />
+                                    </div>
+                                    {/* ⚠️ v2.2.256: 問合せ物件（媒介獲得台帳から探して紐づける。ポータルに載せる前の物件・電話・来店の反響用） */}
+                                    <div className="col-md-7">
+                                        <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>問合せ物件（媒介獲得台帳）</label>
+                                        <LedgerPicker ledgerId={String(customerInfo.ledgerId ?? '')} ledgerNo={String(customerInfo.ledgerNo ?? '')} onPick={handleLedgerPick} />
+                                    </div>
+                                    <div className="col-md-5">
+                                        <label className="form-label text-muted fw-bold mb-0" style={{ fontSize: '10px' }}>問合せ物件名（表示用・自由入力可）</label>
+                                        <input type="text" style={compactInputStyle} value={customerInfo.targetProperty || ''} placeholder="他社物件・未定ならここに入力" onChange={e => setCustomerInfo({ ...customerInfo, targetProperty: e.target.value })} />
                                     </div>
                                 </>
                             )}
