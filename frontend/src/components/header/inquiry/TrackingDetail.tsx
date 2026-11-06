@@ -235,7 +235,7 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
                                 </div>
                             )}
                         </section>
-                        <div className="td_note">※ PV は1回の訪問（30分以内のページの移動はまとめて1件）を1件と数えます。閲覧回数は、ページが開かれた回数です。CV は、問い合わせの日までの最後の訪問で数えます。</div>
+                        <div className="td_note">※ PV は1回の訪問（30分以内のページの移動はまとめて1件）を1件と数えます。閲覧回数は、ページが開かれた回数です。CV は、問い合わせの日までにこのページ（流入元）に一度でも来た反響です。内訳・広告別の CV は、そのとき来た流入元・着地ページ・広告すべてに1件ずつ付けます。</div>
                     </>
                 )}
             </Modal.Body>

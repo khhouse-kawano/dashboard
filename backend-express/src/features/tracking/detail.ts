@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
 import { isMetaConfigured } from '../metaAds/importer';
-import { attributeConversions, CV_TABLES, DAYS, type Conversion } from './conversions';
+import { attributeConversions, CV_TABLES, DAYS, touchedKeys, type Conversion, type ConversionTouch } from './conversions';
 import { AD_TOUCH_SQL } from './params';
 import { canManageTracking, type TrackingResult } from './sites';
 
@@ -12,7 +12,9 @@ import { canManageTracking, type TrackingResult } from './sites';
  * ─────────────────────────────────────────────
  * ⚠️ 期間は直近30日（DAYS）。⚠️ 対象はサイト1つの、着地ページ1つ（axis=landing）か流入元1つ（axis=source）。
  * ⚠️ PV は tracking_touches の行数（30分以内のページの移動はまとめて1件。ページの閲覧回数そのものではない）。
- * ⚠️ CV の数え方は conversions.ts（問い合わせの日までの最後の訪問の着地ページ・流入元・広告に1件）。
+ * ⚠️ CV の数え方は conversions.ts。⚠️ v2.2.253: 問い合わせの日までに、この着地ページ（流入元）に**一度でも来た**反響を CV にする（以前は最後の訪問だけ）。
+ *   内訳（流入元別・着地ページ別）と広告別は、その反響の訪問のうち、この着地ページ（流入元）に来た訪問の流入元・着地ページ・広告すべてに1件ずつ。
+ *   CV の一覧の流入元・着地ページ・広告は、この着地ページ（流入元）に来た最後の訪問のもの。
  * ⚠️ CV の一覧は個人情報を出さない（日付・反響媒体・キャンペーン・店舗だけ。2026-10-21 の決定）。
  * ⚠️ Meta 広告の数字（表示回数・クリック・費用）は meta_ad_items / meta_ad_daily（features/metaAds/ が取り込む）。
  *   ⚠️ 広告ID は着地の utm_content（Meta の URL パラメータ {{ad.id}}）でつなぐ。
@@ -162,11 +164,10 @@ export const trackingDetail = async (
     key === '' ? [siteId] : [siteId, key]
   );
 
-  const match = (c: Conversion): boolean => {
-    const value = axis === 'landing' ? c.landingUrl : c.source;
-    return axis === 'landing' ? value === key : value.toLowerCase() === key.toLowerCase();
-  };
-  const cv = ((await attributeConversions(siteId)).get(siteId) ?? []).filter(match);
+  /** この着地ページ（流入元）に来た訪問か。⚠️ 流入元は大文字・小文字を区別しない */
+  const hit = (t: ConversionTouch): boolean =>
+    axis === 'landing' ? t.landingUrl === key : t.source.toLowerCase() === key.toLowerCase();
+  const cv = ((await attributeConversions(siteId)).get(siteId) ?? []).filter((c: Conversion) => c.touches.some(hit));
 
   // 上の数字
   const perVisitor = new Map<string, number>();
@@ -184,8 +185,8 @@ export const trackingDetail = async (
   for (const r of rows) hours[Number(r.hour)].visits += 1;
 
   const breakdown = axis === 'landing'
-    ? bucketize(rows.map((r) => r.source ?? ''), adFlags, cv.map((c) => c.source), true)
-    : bucketize(rows.map((r) => r.landing_url ?? ''), adFlags, cv.map((c) => c.landingUrl), false);
+    ? bucketize(rows.map((r) => r.source ?? ''), adFlags, cv.flatMap((c) => touchedKeys(c, (t) => t.source, true, hit)), true)
+    : bucketize(rows.map((r) => r.landing_url ?? ''), adFlags, cv.flatMap((c) => touchedKeys(c, (t) => t.landingUrl, false, hit)), false);
   const devices = bucketize(rows.map((r) => deviceOf(r.user_agent)), adFlags, [], false);
 
   // 広告別（utm_content。⚠️ キャンペーン名は一番多く出た utm_campaign）
@@ -199,11 +200,14 @@ export const trackingDetail = async (
     a.campaigns.set(c, (a.campaigns.get(c) ?? 0) + 1);
     adMap.set(id, a);
   }
+  // ⚠️ v2.2.253: この着地ページ（流入元）に来た訪問の広告すべてに1件ずつ（同じ広告は1件）
   for (const c of cv) {
-    if (c.adId === '') continue;
-    const a = adMap.get(c.adId) ?? { adId: c.adId, campaign: c.campaign, visits: 0, cv: 0, campaigns: new Map<string, number>() };
-    a.cv += 1;
-    adMap.set(c.adId, a);
+    for (const adId of touchedKeys(c, (t) => t.adId, false, (t) => hit(t) && t.adId !== '')) {
+      const campaign = c.touches.find((t) => hit(t) && t.adId === adId)?.campaign ?? '';
+      const a = adMap.get(adId) ?? { adId, campaign, visits: 0, cv: 0, campaigns: new Map<string, number>() };
+      a.cv += 1;
+      adMap.set(adId, a);
+    }
   }
   for (const a of adMap.values()) a.campaign = [...a.campaigns.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] ?? a.campaign;
 
@@ -247,14 +251,16 @@ export const trackingDetail = async (
   }
   const cvList = cv.map((c) => {
     const r = inquiryById.get(`${c.inquiryTable}:${c.inquiryId}`);
+    // ⚠️ v2.2.253: この着地ページ（流入元）に来た最後の訪問
+    const t = [...c.touches].reverse().find(hit) ?? c.touches[c.touches.length - 1];
     return {
       day: c.inquiryDay,
       medium: r?.response_medium || r?.medium || '',
       campaign: r?.hp_campaign ?? '',
       shop: r?.shop ?? '',
-      source: c.source,
-      landingUrl: c.landingUrl,
-      adId: c.adId,
+      source: t?.source ?? c.source,
+      landingUrl: t?.landingUrl ?? c.landingUrl,
+      adId: t?.adId ?? c.adId,
     };
   }).sort((x, y) => y.day.localeCompare(x.day));
 
