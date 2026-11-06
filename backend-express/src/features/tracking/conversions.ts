@@ -9,6 +9,9 @@ import { UUID_PATTERN } from './params';
  * ⚠️ CV ＝ 直近30日の反響（削除を除く）のうち、landing_params の khg_vid が、問い合わせの日までにそのサイトを訪問していたもの。
  *   ⚠️ 1件の反響が複数のサイトを訪問していれば、それぞれのサイトで1件（サイトごとに見る数字のため）。
  *   ⚠️ どの訪問の手柄にするかは、問い合わせの日までの「そのサイトへの最後の訪問」（ラストクリック）。
+ *   ⚠️ v2.2.253: あわせて、問い合わせの日までの「そのサイトへのすべての訪問」（touches）も持たせる。
+ *     着地ページ別・流入元別・広告別（summary.ts・detail.ts）は、一度でも来たところすべてに1件ずつ付ける（2026-11-05 の利用者の決定「訪れたすべてに付ける」）。
+ *     ⚠️ 業者別（vendors.ts）と合計（反響の数）は、今までどおり最後の訪問・1件で数える。
  * ⚠️ 反響の日付（inquiry_date）は 'YYYY/MM/DD' の文字列で時刻が無い。⚠️ その日の 23:59:59 までの訪問を「問い合わせ前」とみなす。
  * ⚠️ v2.2.205 かえるホームの反響（inquiry_customer_kaeru。landing_params は cvMatch.ts が書く）も数える。
  *   ⚠️ id は表ごとの番号なので、どちらの表の反響か（inquiryTable）と組で見ること。
@@ -42,6 +45,14 @@ interface TouchRow extends RowDataPacket {
   utm_medium: string | null;
 }
 
+/** v2.2.253 問い合わせの日までの、そのサイトへの訪問1件（着地ページ・流入元・広告） */
+export interface ConversionTouch {
+  landingUrl: string;
+  source: string;
+  adId: string;
+  campaign: string;
+}
+
 export interface Conversion {
   /** ⚠️ v2.2.205 どちらの表の反響か（inquiryId は表ごとの番号） */
   inquiryTable: CvTable;
@@ -57,9 +68,31 @@ export interface Conversion {
   utmSource: string;
   utmMedium: string;
   touchedAt: string;
+  /** v2.2.253 問い合わせの日までの、そのサイトへのすべての訪問（古い順。最後の1件は上の値と同じ訪問） */
+  touches: ConversionTouch[];
 }
 
-/** サイトID → そのサイトの CV（反響1件につき、最後の訪問1つ） */
+/**
+ * v2.2.253 CV の訪問のうち、条件に合うものから取り出した値（重複なし）。
+ * ⚠️ 1件の CV が同じ着地ページに何回来ても、そのページには1件（「訪れたすべてに1件ずつ」）。fold は大文字・小文字を区別しない（流入元）
+ */
+export const touchedKeys = (
+  c: Conversion,
+  pick: (t: ConversionTouch) => string,
+  fold = false,
+  where: (t: ConversionTouch) => boolean = () => true
+): string[] => {
+  const seen = new Map<string, string>();
+  for (const t of c.touches) {
+    if (!where(t)) continue;
+    const v = pick(t);
+    const k = fold ? v.toLowerCase() : v;
+    if (!seen.has(k)) seen.set(k, v);
+  }
+  return [...seen.values()];
+};
+
+/** サイトID → そのサイトの CV（反響1件につき1つ。最後の訪問と、すべての訪問） */
 export const attributeConversions = async (siteId?: number): Promise<Map<number, Conversion[]>> => {
   const result = new Map<number, Conversion[]>();
   const inquiries = (await query<InquiryRow>(
@@ -92,17 +125,22 @@ export const attributeConversions = async (siteId?: number): Promise<Map<number,
 
   for (const inquiry of inquiries) {
     const limit = `${inquiry.inquiry_day} 23:59:59`;
-    // ⚠️ サイトごとに、問い合わせの日までの最後の訪問（⚠️ touches は古い順）
-    const lastBySite = new Map<number, TouchRow>();
+    // ⚠️ サイトごとに、問い合わせの日までの訪問（⚠️ touches は古い順。最後の1件がラストクリック）
+    const bySite = new Map<number, TouchRow[]>();
     for (const touch of touchesByVisitor.get(inquiry.vid) ?? []) {
-      if (touch.created_at <= limit) lastBySite.set(Number(touch.site_id), touch);
+      if (touch.created_at > limit) continue;
+      const list = bySite.get(Number(touch.site_id)) ?? [];
+      list.push(touch);
+      bySite.set(Number(touch.site_id), list);
     }
-    for (const [site, touch] of lastBySite) {
+    for (const [site, touches] of bySite) {
+      const touch = touches[touches.length - 1];
       const list = result.get(site) ?? [];
       list.push({
         inquiryTable: inquiry.inquiry_table, inquiryId: Number(inquiry.id), inquiryDay: inquiry.inquiry_day ?? '', landingUrl: touch.landing_url ?? '', source: touch.source ?? '',
         adId: touch.utm_content ?? '', campaign: touch.utm_campaign ?? '',
         utmSource: touch.utm_source ?? '', utmMedium: touch.utm_medium ?? '', touchedAt: touch.created_at,
+        touches: touches.map((t) => ({ landingUrl: t.landing_url ?? '', source: t.source ?? '', adId: t.utm_content ?? '', campaign: t.utm_campaign ?? '' })),
       });
       result.set(site, list);
     }
