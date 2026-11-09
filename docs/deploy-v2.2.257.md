@@ -53,10 +53,10 @@ curl -s -o /dev/null -w '%{http_code}\n' -X OPTIONS https://api.khg-marketing.in
 - 204 か 200 ならよいです（survey のお客様の画面から ② へ送れる）。
 
 ### 手順2　【① PHP】express_proxy.php
-`backend/src/core/express_proxy.php` を、サーバーの `dashboard/api/core/express_proxy.php` に上げます（上書き）。
+`backend/src/core/express_proxy.php` を、サーバーの `dashboard/api/gateway/core/express_proxy.php` に上げます（上書き）。
 確認（トークンなし。① 経由）:
 ```bash
-curl -s -X POST https://khg-marketing.info/dashboard/api/ -H 'Content-Type: application/json' -d '{"request":"interview_survey","roll":"customers"}'
+curl -s -X POST https://khg-marketing.info/dashboard/api/gateway/ -H 'Content-Type: application/json' -d '{"request":"interview_survey","roll":"customers"}'
 ```
 - `認証が必要です。`（401）ならよいです。404（該当する処理がありません）なら、express_proxy.php が古いままです。
 
@@ -64,7 +64,7 @@ curl -s -X POST https://khg-marketing.info/dashboard/api/ -H 'Content-Type: appl
 ⚠️ v2.2.257 のブランチで `npm run build` をし直してから上げてください（ログイン画面の変更）。
 
 ### 手順4　【① survey】
-`C:\Users\shinji-kawano\react\survey\dist` は、2026-11-09 18:33 にビルド済みです（見直しの修正を含む）。
+`C:\Users\shinji-kawano\react\survey\dist` は、2026-11-09 にビルド済みです（見直しの修正と、① の入口を `/dashboard/api/gateway/` に直したものを含む）。
 - 中身（`index.html`・`assets/`・`vite.svg`）を、サーバーの `survey/` に上げます。
 - ⚠️ サーバーの `survey/api/` と `survey/.htaccess` は**消さない・上書きしない**でください。
 - 古い `survey/assets/` の中のファイルは、残っていても害はありません。
