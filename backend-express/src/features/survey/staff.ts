@@ -1,8 +1,8 @@
-import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import { issueSurveyLink } from './link';
 import type { SurveyKind } from './link';
 import { cleanLine } from './clean';
+import type { DynamicRow } from './clean';
 
 /**
  * 面談アンケート（survey。khg-marketing.info/survey/）のスタッフの画面（v2.2.257。`interview_survey:<roll>`。auth: 'staff'）。
@@ -15,10 +15,6 @@ import { cleanLine } from './clean';
  * ⚠️ 返す項目は survey が使うものだけ（旧 API は staff_list の全列だった）。
  * ─────────────────────────────────────────────
  */
-
-interface DynamicRow extends RowDataPacket {
-  [key: string]: unknown;
-}
 
 /** 検索の一覧（旧 survey_list と同じ列・同じ並び） */
 export const runSurveyCustomers = async (): Promise<Record<string, unknown>[]> =>
@@ -37,6 +33,6 @@ export const runSurveyLink = (body: Record<string, unknown>): Record<string, unk
   const id = cleanLine(body.id, 64);
   const shop = cleanLine(body.shop, 100);
   if (!kind || id === '' || shop === '') return { status: 'error', message: 'アンケートの種類・お客様・店舗を指定してください。' };
-  const { token, exp } = issueSurveyLink({ k: kind, id, shop });
+  const { token, exp } = issueSurveyLink({ k: kind, id });
   return { status: 'success', token, exp };
 };
