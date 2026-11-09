@@ -1255,3 +1255,970 @@ index 7f3e8818f..917008452 100644
  
                  const postData = {
 ```
+
+---
+
+## 見直し（2026-11-09。利用者「大きな改修だったので、ログイン機能・バックエンド・画面の崩れを再度リファクタリング、評価、必要であれば修正」）
+別のエージェントに先入観なしでコードを読んでもらい（読むだけ）、私は3つの幅（390・820・1280px）で全画面を撮って確かめた。
+
+### 直したこと
+| 重要度 | 指摘 | 直し方 |
+|---|---|---|
+| 高 | 既存のお客様の面談前アンケートを送るたびに、担当（in_charge_user）が空で上書きされる（既存のお客様の QR には担当が付かない。旧 PHP から引き継いだ不具合） | ② の master_data の更新で、担当・連絡先・勤務先などの任意の列は「空なら今の値を残す」（`COALESCE(NULLIF(?, ''), 列)`。public.ts の `keep`） |
+| 高 | 「きっかけ」と「注文住宅に興味を持った理由」が、送るたびに入れ替わる（初期値の読み込みだけが逆。以前からの不具合） | SurveyBefore.tsx の読み込みを、表示・保存と同じ対応に（きっかけ＝house_hunting_motivation、理由＝customer_desired_order） |
+| 中 | ② が保存したのに応答が届かないと、予備の旧 /survey/api/ にも送られて二重になる | ② で「同じ回答が30分以内にあれば2行目を入れない」（duplicate: true を返す）。survey は応答が無ければまず ② へもう一度送り、それでもだめなときだけ旧へ |
+| 中 | 送りすぎ（429）のときだけ、お客様が送れない（お知らせも2回） | 429 でも旧へ回す（利用者の「送れない事態を避けたい」を優先）。お知らせは呼び出し側の1回だけ |
+| 中 | 初期値を読めなかったとき、空欄のまま送ると連絡先が消える | 上の「空なら今の値を残す」で防ぐ |
+| 中 | 新規のお客様の名前の前後の空白を消していた（あとで sync が name・shop で探す） | 名前は制御文字だけ落とし、空白は残す（clean.ts の `cleanRaw`） |
+| 低 | 情報確認の画面を開き直すと、署名を失うことがある（sessionStorage が使えない端末） | 画面の受け渡し（navigate の state）にも署名を入れる（`linkToken`・`rememberLinkToken`） |
+| 低 | 署名が使えないとき名前が空 | 以前の QR の URL にある name を使う |
+| 低 | 情報確認の画面を直接開くと真っ白（以前から） | 「QR コードからもう一度開いてください」と出す |
+| 低 | ボタンの連打で二重送信（以前から） | useRef で同じ描画の2回目を止める（② の重複の判定もある） |
+| 低 | `/survey`（末尾の / 無し）からはログイン後に戻れない | `isSurveyReturn` を `/survey`・`/survey/…`・`/survey?…` に |
+| 低 | 鍵（SURVEY_LINK_SECRET）が未設定でも気づけない | ② の起動時に1回だけ警告（値は出さない） |
+| 低 | コメントと実装の食い違い（予備へ回す条件） | コメントを実装に合わせた |
+| 画面 | QR の URL が 286 文字で、QR が細かい（スマホの面談後では 180px） | 署名の中身を種類・id・期限だけにし、署名は HMAC の先頭16バイトに。面談前の URL から使っていない name を外した → 183 文字（署名 86 文字） |
+| 整理 | 署名の確かめを2回していた・日時を2回取っていた・選択肢を2回整えていた・型の重複 | `trustedLink` が理由も返す、`now` を1回、`cleanItems` を1回、`DynamicRow` を clean.ts に1つ |
+
+### 直さずに残したこと（割り切り）
+- ⚠️ 予備の送り先（旧 /survey/api/）は、画面に書いた合い言葉だけで書き込める（旧からそのまま。sync も使うので残す）。利用者の「お客様が送れない事態を避ける」を優先して、② に保存できないときの予備にしている。予備の経路では「署名が無ければ記録を上書きしない」が効かない
+  - 将来の案：旧 /survey/api/ の before_interview で master_data の更新をやめる（サーバーの PHP の変更）
+- スタッフの画面は、② がトークンの期限を見ていない（Dashboard 全体の方針と同じ。別の作業）
+- after_interview の phone は '' を入れる（ローカルの表は既定値なしの NOT NULL。旧は列に書いていない）
+
+### 確かめたこと（見直しのあと）
+- API（`scratchpad/api_257.cjs`）：38項目すべて OK。足した確認は次のとおり
+  - 同じ回答の2回目は duplicate で行が増えない（面談前・面談後）
+  - 担当・電話が空でも今の値を残す
+  - 名前の前後の空白を残す
+  - 署名は100文字未満
+- 画面（`scratchpad/pw_257.cjs`）：20項目すべて OK。足した確認は次のとおり
+  - きっかけの初期値のチェックが house_hunting_motivation から付く
+  - 送る値が入れ替わらない
+  - 情報確認の画面を直接開くと案内が出る
+  - 署名が短い
+- 崩れ（`scratchpad/pw_257_layout.cjs`）：390・820・1280px で入口・面談前／面談後の検索・QR・お客様の面談前・面談後・お礼を撮った。横はみ出しなし・画面のエラー 0
+- ⚠️ テストを続けて流すと、保存の流量の上限（30件/10分/IP）に掛かった。その状態でも、お客様の画面は予備へ回ってお礼の画面まで進んだ（429 でも送れることの確認になった）。数え直しのため ② を再起動して流し直した
+- テストの行・一時スタッフは消した（0件）。survey のテスト用の一時設定は消した。開発サーバーは止めた
+- survey をビルドし直した（`react/survey/dist`。2026-11-09 18:33）
+
+### 見直しで変えたファイルの全文
+
+#### backend-express/src/features/survey/public.ts
+```ts
+import { query, withTransaction } from '../../db/pool';
+import { logger } from '../../utils/logger';
+import { verifySurveyLink } from './link';
+import type { SurveyKind, SurveyLink } from './link';
+import { cleanItems, cleanLine, cleanObject, cleanRaw, cleanText, jstStamp } from './clean';
+import type { DynamicRow } from './clean';
+
+/**
+ * 面談アンケート（survey）のお客様の画面（v2.2.257。`interview_survey_public:<roll>`。⚠️ auth: 'none'）。
+ *
+ * ─────────────────────────────────────────────
+ * お客様は、スタッフが出した QR から自分のスマホで開く。Dashboard にはログインしていない。
+ * 代わりに、QR の URL の `t`（interview_survey:link が作る署名。7日間有効。link.ts）で、そのお客様1人分だけを読み書きできる。
+ *
+ * ⚠️⚠️ **お客様がアンケートを開けない・送れない事態を避ける**（利用者の指示）。
+ *   - 署名が無い・合わない・期限切れでも、アンケートは開け、回答は保存する。
+ *   - ただしその場合は「お客様情報の読み込み」と「お客様の記録（master_data・customers）の更新」をしない。
+ *     回答の行（before_interview・after_interview）だけを、URL の id で残す（スタッフが Dashboard で見られる）。
+ *   - survey は ② に届かないとき、もう一度 ② へ送り、それでも届かなければ旧 /survey/api/ へ送る（survey の api.ts）。
+ *     ⚠️ ② が保存したのに応答が届かなかった場合に備え、同じ回答が30分以内にあれば2行目は入れない。
+ * ⚠️ 書き込みの中身は旧 `/survey/api/`（サーバーに残っている index.php）の before_interview・after_interview と同じ。
+ *   ⚠️ `/survey/api/` は projects/sync（before_interview_register）が使うので、サーバーに残したまま。
+ * ⚠️ 流量の上限は middlewares/publicFormRateLimit.ts（保存だけ。店舗の Wi-Fi で同じ IP になるので、フォームより緩い）。
+ * ─────────────────────────────────────────────
+ */
+
+/** お客様の画面が使う master_data の列（旧 API は全列を返していた）。⚠️ 列名を SQL に埋め込むので、ここ以外の値を入れない */
+const MASTER_COLUMNS = [
+  'customer_contacts_name', 'customer_contacts_name_kana', 'customer_contacts_phone_number',
+  'customer_contacts_mobile_phone_number', 'customer_contacts_email', 'customer_contacts_birth_date',
+  'customer_contacts_employment_type', 'customer_contacts_employer_name', 'customer_contacts_employer_address',
+  'customer_contacts_years_of_service', 'customer_contacts_annual_income',
+  'postal_code', 'full_address', 'current_contract_type', 'current_rent', 'budget',
+  'house_hunting_motivation', 'inquiry_reason', 'planned_construction_site',
+  'customer_desired_floor', 'customer_desired_period', 'customer_desired_estate', 'customer_desired_order',
+] as const;
+
+const FAMILY_KEYS = ['name', 'kana', 'attribute', 'birth'] as const;
+const EMPLOYMENT_KEYS = ['name', 'type', 'address', 'years', 'income'] as const;
+
+/** 同じ回答の二重保存とみなす時間（survey の再送・予備への送信・ボタンの連打） */
+const DUPLICATE_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * そのアンケートの署名として正しいか。⚠️ 種類が違う署名（面談後の QR で面談前を送る など）は使わない。
+ * 使えないときの理由も返す（ログ用。⚠️ お客様の名前などはログに出さない）
+ */
+const trustedLink = (t: unknown, kind: SurveyKind): { link: SurveyLink | null; reason: string } => {
+  const v = verifySurveyLink(t);
+  if (!v.ok) return { link: null, reason: v.reason };
+  return v.link.k === kind ? { link: v.link, reason: '' } : { link: null, reason: `kind:${v.link.k}` };
+};
+
+/**
+ * お客様情報の読み込み（面談前アンケート・情報確認の初期値）。
+ * 応答: { status: 'ok', name, master } ／ 新規のお客様は master: null ／
+ *   署名が使えないときは { status: 'missing' | 'invalid' | 'expired' }（⚠️ 画面は止めずに空欄で進む）
+ */
+export const runSurveyPublicMaster = async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+  const v = verifySurveyLink(body.t);
+  if (!v.ok) return { status: v.reason };
+  if (v.link.k !== 'before') return { status: 'invalid' };
+  if (v.link.id === 'new') return { status: 'ok', name: '', master: null };
+  const [customer] = await query<DynamicRow>('SELECT name FROM customers WHERE id = ? LIMIT 1', [v.link.id]);
+  const [master] = await query<DynamicRow>(`SELECT ${MASTER_COLUMNS.join(', ')} FROM master_data WHERE id = ? LIMIT 1`, [v.link.id]);
+  return { status: 'ok', name: customer ? String(customer.name ?? '') : '', master: master ?? null };
+};
+
+/**
+ * 担当の一覧（面談前の新規の担当の pg_id・面談後の担当の選択肢）。⚠️ その店舗の名前だけ（署名は要らない）
+ */
+export const runSurveyPublicStaff = async (body: Record<string, unknown>): Promise<Record<string, unknown>[]> => {
+  const shop = cleanLine(body.shop, 100);
+  if (shop === '') return [];
+  return query<DynamicRow>('SELECT name, pg_id, shop, category, period FROM staff_list WHERE shop = ?', [shop]);
+};
+
+/** 空なら今の値を残す（master_data の任意の列。⚠️ 列名は下の SQL に書いた決まった名前だけ） */
+const keep = (column: string): string => `${column} = COALESCE(NULLIF(?, ''), ${column})`;
+
+/**
+ * 面談前アンケートの保存（旧 `/survey/api/` の before_interview）。
+ *   1. before_interview に1行（⚠️ いつも残す。⚠️ 同じ回答が30分以内にあれば2行目は入れない）
+ *   2. 署名が正しく、新規でなければ: customers の before_interview = 1、master_data の連絡先・希望を更新（旧と同じ25列）
+ *      ⚠️ 担当・連絡先・勤務先などの任意の列は、空なら今の値を残す
+ *        （旧は空で上書きしていた。既存のお客様の QR には担当が付かず、初期値を読めなかったときは連絡先も空になるため）
+ */
+export const runSurveyPublicBefore = async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+  const { link, reason } = trustedLink(body.t, 'before');
+  const id = link ? link.id : cleanLine(body.id, 64) || 'new';
+  const shop = cleanLine(body.shop, 100);
+  // ⚠️ 名前は前後の空白も旧と同じに残す（新規のお客様を、あとで sync が name・shop で探すため）
+  const name = cleanRaw(body.name, 100);
+  const now = new Date();
+  const employment = cleanObject(body.employment, EMPLOYMENT_KEYS);
+  const family = [1, 2, 3, 4].map((n) => JSON.stringify(cleanObject(body[`family_member_${n}`], FAMILY_KEYS)));
+  const medium = cleanItems(body.medium);
+  const interest = cleanItems(body.interest);
+  const opportunity = cleanItems(body.opportunity);
+  const f = {
+    plan: cleanLine(body.plan, 200), period: cleanLine(body.period, 200), estate: cleanLine(body.estate, 200),
+    area: cleanLine(body.area, 300), importance: cleanItems(body.importance).join(', '), budget: cleanLine(body.budget, 100),
+    support: cleanItems(body.support).join(', '), demand: cleanText(body.demand, 2000), kana: cleanLine(body.kana, 100),
+    phone: cleanLine(body.phone, 30), mail: cleanLine(body.mail, 200), mobile: cleanLine(body.mobile, 30),
+    zip: cleanLine(body.zip, 10), address: cleanLine(body.address, 300), rent: cleanLine(body.rent, 50),
+    birth: cleanLine(body.birth, 20), situation: cleanLine(body.situation, 100), staff: cleanLine(body.staff, 64),
+  };
+
+  const result = await withTransaction(async (tx) => {
+    const [dup] = await tx.query<DynamicRow>(
+      'SELECT no FROM before_interview WHERE id = ? AND shop = ? AND name = ? AND medium = ? AND demand = ? AND created_at >= ? LIMIT 1',
+      [id, shop, name, medium.join(', '), f.demand, jstStamp(new Date(now.getTime() - DUPLICATE_WINDOW_MS))]
+    );
+    if (dup) return { linked: !!link && id !== 'new', duplicate: true };
+    await tx.execute(
+      `INSERT INTO before_interview (id, name, shop, medium, interest, opportunity, plan, period, estate, area, importance, budget, support, demand,
+         kana, phone, mail, mobile, zip, address, rent, birth, situation, family_member_1, family_member_2, family_member_3, family_member_4,
+         employment, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, name, shop, medium.join(', '), interest.join(', '), opportunity.join(', '), f.plan, f.period, f.estate, f.area, f.importance,
+        f.budget, f.support, f.demand, f.kana, f.phone, f.mail, f.mobile, f.zip, f.address, f.rent, f.birth, f.situation, ...family,
+        JSON.stringify(employment), jstStamp(now)]
+    );
+    if (!link || id === 'new') return { linked: false, duplicate: false };
+    await tx.execute('UPDATE customers SET before_interview = 1 WHERE id = ?', [id]);
+    // ⚠️ 旧と同じく、master_data は区切りに ','（before_interview は ', '）。
+    // ⚠️ きっかけ（opportunity）→ house_hunting_motivation、興味を持った理由（interest）→ customer_desired_order（旧と同じ。画面の初期値もこの対応）
+    await tx.execute(
+      `UPDATE master_data SET customer_contacts_name = ?, ${keep('in_charge_user')}, first_interviewed_date = ?, ${keep('full_address')},
+         ${keep('customer_contacts_name_kana')}, ${keep('customer_contacts_phone_number')}, ${keep('customer_contacts_mobile_phone_number')},
+         ${keep('customer_contacts_email')}, ${keep('customer_contacts_birth_date')}, ${keep('customer_contacts_employment_type')},
+         ${keep('customer_contacts_employer_name')}, ${keep('customer_contacts_employer_address')}, ${keep('customer_contacts_years_of_service')},
+         ${keep('customer_contacts_annual_income')}, ${keep('postal_code')}, ${keep('current_contract_type')}, ${keep('current_rent')}, budget = ?,
+         house_hunting_motivation = ?, inquiry_reason = ?, planned_construction_site = ?, customer_desired_floor = ?,
+         customer_desired_period = ?, customer_desired_estate = ?, customer_desired_order = ?
+       WHERE id = ?`,
+      [name, f.staff, jstStamp(now).slice(0, 10), f.address, f.kana, f.phone, f.mobile, f.mail, f.birth,
+        employment.type, employment.name, employment.address, employment.years, employment.income,
+        f.zip, f.situation, f.rent, f.budget,
+        opportunity.join(','), medium.join(','), f.area, f.plan, f.period, f.estate, interest.join(','),
+        id]
+    );
+    return { linked: true, duplicate: false };
+  });
+  if (!result.linked && id !== 'new') logger.warn('[survey] 面談前アンケート: リンクの署名が使えないため、回答だけを保存しました', { id, shop, reason });
+  return { status: 'success', ...result };
+};
+
+/**
+ * 面談後アンケートの保存（旧 `/survey/api/` の after_interview）。
+ *   1. after_interview に1行（⚠️ いつも残す。⚠️ 同じ回答が30分以内にあれば2行目は入れない）
+ *   2. 署名が正しく、新規でなければ: customers の after_interview = 1
+ */
+export const runSurveyPublicAfter = async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+  const { link, reason } = trustedLink(body.t, 'after');
+  const id = link ? link.id : cleanLine(body.id, 64) || 'new';
+  const shop = cleanLine(body.shop, 100);
+  const name = cleanRaw(body.name, 100);
+  const now = new Date();
+  const told = cleanItems(body.toldInformation).join(', ');
+  const demand = cleanText(body.demand, 2000);
+
+  const result = await withTransaction(async (tx) => {
+    // ⚠️ dateStr は 'YYYY/MM/DD HH:mm:ss' の文字（旧と同じ）なので、文字のまま比べられる
+    const [dup] = await tx.query<DynamicRow>(
+      'SELECT no FROM after_interview WHERE id = ? AND shop = ? AND name = ? AND interviewFeedback = ? AND nextConsultationRequests = ? AND dateStr >= ? LIMIT 1',
+      [id, shop, name, told, demand, jstStamp(new Date(now.getTime() - DUPLICATE_WINDOW_MS))]
+    );
+    if (dup) return { linked: !!link && id !== 'new', duplicate: true };
+    // ⚠️ phone は旧では書いていない列（ローカルの表は既定値なしの NOT NULL なので '' を入れる）
+    await tx.execute(
+      `INSERT INTO after_interview (id, dateStr, shop, name, phone, interviewFeedback, confirmedAllItems, desireOwnership, priorityCondition,
+         ourCompanyFirstChoice, otherCompaniesInterested, staffName, staffHospitality, proposalFeedback, moreInfoOrImprovements,
+         nextConsultationRequests, changeStaffRequested)
+       VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, jstStamp(now), shop, name, told, cleanLine(body.desired, 200), cleanLine(body.condition, 200),
+        cleanLine(body.importance, 200), cleanLine(body.priority, 200), cleanText(body.rival, 1000), cleanLine(body.staff, 100),
+        cleanLine(body.staffSatisfied, 200), cleanLine(body.interviewSatisfied, 200), cleanText(body.improvement, 2000),
+        demand, cleanLine(body.staffChange, 200)]
+    );
+    if (!link || id === 'new') return { linked: false, duplicate: false };
+    await tx.execute('UPDATE customers SET after_interview = 1 WHERE id = ?', [id]);
+    return { linked: true, duplicate: false };
+  });
+  if (!result.linked && id !== 'new') logger.warn('[survey] 面談後アンケート: リンクの署名が使えないため、回答だけを保存しました', { id, shop, reason });
+  return { status: 'success', ...result };
+};
+```
+
+#### backend-express/src/features/survey/clean.ts
+```ts
+import type { RowDataPacket } from 'mysql2/promise';
+
+/**
+ * 面談アンケート（survey）の値の整え方（v2.2.257）。
+ * ⚠️ お客様の端末から届く値は信用しない（features/beforeSurvey/entry.ts と同じ考え方）。長さで切り、制御文字を落とす。
+ */
+
+/** SELECT の1行（staff.ts・public.ts） */
+export interface DynamicRow extends RowDataPacket {
+  [key: string]: unknown;
+}
+
+/** 制御文字（改行を含む） */
+const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
+/** 制御文字（改行は残す） */
+const CONTROL_CHARS_KEEP_NEWLINE = /[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g;
+
+const asText = (value: unknown): string =>
+  typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+
+/** 1行の文字 */
+export const cleanLine = (value: unknown, max: number): string =>
+  asText(value).replace(CONTROL_CHARS, '').trim().slice(0, max);
+
+/**
+ * 1行の文字（⚠️ 前後の空白を残す）。お客様の名前用。
+ *   ⚠️ 新規のお客様は、あとで projects/sync が before_interview を name・shop で探す。heroku へは加工しない名前が届くので、そろえる
+ */
+export const cleanRaw = (value: unknown, max: number): string =>
+  asText(value).replace(CONTROL_CHARS, '').slice(0, max);
+
+/** 複数行の文字（自由記入） */
+export const cleanText = (value: unknown, max: number): string =>
+  asText(value).replace(/\r\n?/g, '\n').replace(CONTROL_CHARS_KEEP_NEWLINE, '').trim().slice(0, max);
+
+/** 選択肢の配列（空を除く）。配列でなければ1つの文字として扱う。区切り（', ' か ','）は呼び出し側で join する（旧 PHP の implode） */
+export const cleanItems = (value: unknown): string[] =>
+  (Array.isArray(value) ? value : [value]).map((v) => cleanLine(v, 200)).filter((v) => v !== '').slice(0, 30);
+
+/** 決まった項目だけを持つオブジェクト（家族・勤務先）。⚠️ 知らない項目は捨てる */
+export const cleanObject = (value: unknown, keys: readonly string[], max = 200): Record<string, string> => {
+  const src = value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  return Object.fromEntries(keys.map((k) => [k, cleanLine(src[k], max)]));
+};
+
+/** 日本時間の 'YYYY/MM/DD HH:mm:ss'（旧 PHP の date('Y/m/d H:i:s')） */
+export const jstStamp = (now = new Date()): string => {
+  const d = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString();
+  return `${d.slice(0, 10).replace(/-/g, '/')} ${d.slice(11, 19)}`;
+};
+```
+
+#### backend-express/src/features/survey/link.ts
+```ts
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { env } from '../../config/env';
+import { logger } from '../../utils/logger';
+
+/**
+ * 面談アンケート（survey）のお客様用リンクの署名（v2.2.257）。
+ *
+ * ─────────────────────────────────────────────
+ * スタッフが QR を出すとき（interview_survey:link。スタッフのトークンが要る）に、② が「どのお客様の・どちらのアンケートか・いつまで有効か」を
+ * 署名して渡す。お客様の端末は Dashboard にログインしていないので、この署名だけで、そのお客様1人分を読み書きできる。
+ *   ⚠️ 以前は id を書き換えるだけで、誰の個人情報でも読めた（旧 API の master_data_for_survey）。
+ * 形: base64url(JSON の中身) + '.' + base64url(HMAC-SHA256)
+ * ⚠️ 中身は種類・id・期限だけ。署名は HMAC の先頭 16 バイト（128 ビット）。
+ *   QR が細かくなりすぎて読み取りにくくならないよう、短くしている（店舗・名前は URL に別にある。どちらも秘密ではない）
+ * ⚠️ 期限は7日（利用者の決定。後日、自宅で回答する場合があるため）。
+ * ⚠️ 署名が無い・合わない・期限切れでも、お客様の画面は止めない（呼び出し側。public.ts）。
+ * ─────────────────────────────────────────────
+ */
+
+export type SurveyKind = 'before' | 'after';
+
+export interface SurveyLink {
+  /** before = 面談前アンケート／after = 面談後アンケート */
+  k: SurveyKind;
+  /** customers.id・master_data.id。新規のお客様は 'new' */
+  id: string;
+  /** 期限（UNIX 秒） */
+  exp: number;
+}
+
+export const LINK_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+const b64 = (buf: Buffer): string => buf.toString('base64url');
+
+/**
+ * 署名の鍵。⚠️ SURVEY_LINK_SECRET が無ければ DB の接続情報から作る（.env の設定忘れでお客様が開けなくならないように）。
+ * ⚠️ 鍵そのものはログにも応答にも出さない。
+ */
+const secret = (): Buffer =>
+  env.surveyLinkSecret !== ''
+    ? Buffer.from(env.surveyLinkSecret, 'utf8')
+    : createHash('sha256').update(`survey-link|${env.db.user}|${env.db.password}|${env.db.database}`).digest();
+
+// ⚠️ 鍵の設定忘れに気づけるよう、起動時に1回だけ知らせる（⚠️ 値は出さない）
+if (env.surveyLinkSecret === '') logger.warn('[survey] SURVEY_LINK_SECRET が未設定のため、DB の接続情報から作った鍵で QR に署名します');
+
+const sign = (body: string): string => b64(createHmac('sha256', secret()).update(body).digest().subarray(0, 16));
+
+/** リンクの署名を作る */
+export const issueSurveyLink = (link: Omit<SurveyLink, 'exp'>, now = Date.now()): { token: string; exp: number } => {
+  const exp = Math.floor(now / 1000) + LINK_TTL_SECONDS;
+  const body = b64(Buffer.from(JSON.stringify({ ...link, exp }), 'utf8'));
+  return { token: `${body}.${sign(body)}`, exp };
+};
+
+export type VerifyResult =
+  | { ok: true; link: SurveyLink }
+  | { ok: false; reason: 'missing' | 'invalid' | 'expired' };
+
+/** リンクの署名を確かめる。⚠️ 比べるのは timingSafeEqual（長さが違うと例外なので先に比べる） */
+export const verifySurveyLink = (token: unknown, now = Date.now()): VerifyResult => {
+  if (typeof token !== 'string' || token === '') return { ok: false, reason: 'missing' };
+  const [body, mac, extra] = token.split('.');
+  if (!body || !mac || extra !== undefined) return { ok: false, reason: 'invalid' };
+  const a = Buffer.from(mac, 'utf8');
+  const b = Buffer.from(sign(body), 'utf8');
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return { ok: false, reason: 'invalid' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+  } catch {
+    return { ok: false, reason: 'invalid' };
+  }
+  const p = parsed as Partial<SurveyLink>;
+  if ((p.k !== 'before' && p.k !== 'after') || typeof p.id !== 'string' || typeof p.exp !== 'number') {
+    return { ok: false, reason: 'invalid' };
+  }
+  if (p.exp * 1000 < now) return { ok: false, reason: 'expired' };
+  return { ok: true, link: { k: p.k, id: p.id, exp: p.exp } };
+};
+```
+
+#### react/survey/src/api.ts
+```ts
+import axios from 'axios';
+
+/**
+ * 面談アンケートの通信（2026-11-09。Dashboard v2.2.257 と組み）。
+ *
+ * ─────────────────────────────────────────────
+ * スタッフの画面（入口・面談前／面談後の検索・QR）
+ *   - Dashboard（同じ khg-marketing.info）にログインしたときのトークン（localStorage の token）で、① /dashboard/api/ を通して ② へ。
+ *   - トークンが無い・期限切れ（401）なら、Dashboard のログイン画面へ。Google でログインすると、元の画面へ戻る。
+ * お客様の画面（QR から開く。ログインしていない）
+ *   - QR の URL の t（② が作る署名。7日間有効）を付けて、② へ直接送る（api.khg-marketing.info）。
+ *   - ⚠️⚠️ お客様が開けない・送れない事態を避ける（利用者の指示）:
+ *     ・署名が無い・期限切れでも、アンケートは開ける（お客様情報の初期値が入らないだけ）。② は回答を保存する。
+ *     ・保存は ② へ送り、応答が無ければもう一度送る。それでも保存できなければ（送りすぎで断られたときも）、
+ *       サーバーに残っている旧 /survey/api/ へ、以前と同じ形で送り直す（saveAnswer）。
+ * ─────────────────────────────────────────────
+ */
+
+const DASHBOARD_API = import.meta.env.VITE_DASHBOARD_API ?? '/dashboard/api/';
+const DASHBOARD_LOGIN = import.meta.env.VITE_DASHBOARD_LOGIN ?? '/dashboard/login';
+const GATEWAY = import.meta.env.VITE_GATEWAY ?? 'https://api.khg-marketing.info/api/gateway';
+/** ⚠️ 予備の送り先（旧）。② に届かないときだけ使う。⚠️ projects/sync も使っているのでサーバーに残っている */
+const OLD_SURVEY_API = 'https://khg-marketing.info/survey/api/';
+const OLD_SURVEY_KEY = '<共有キー>';
+const TIMEOUT_MS = 20000;
+
+// ---------------------------------------------------------------------------
+// スタッフの画面
+// ---------------------------------------------------------------------------
+
+const readToken = (): string => {
+    try {
+        return localStorage.getItem('token') ?? '';
+    } catch {
+        return '';
+    }
+};
+
+export const hasStaffToken = (): boolean => readToken() !== '';
+
+/** Dashboard のログイン画面へ（ログイン後、今の画面に戻る） */
+export const goDashboardLogin = (): void => {
+    window.location.assign(`${DASHBOARD_LOGIN}?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+};
+
+const isStatus = (e: unknown, code: number): boolean => axios.isAxiosError(e) && e.response?.status === code;
+
+/** ① /dashboard/api/ へ（Dashboard のトークン付き）。⚠️ 401 ならログイン画面へ移り、例外を投げる */
+const dashboardPost = async <T>(body: Record<string, unknown>): Promise<T> => {
+    const token = readToken();
+    if (token === '') {
+        goDashboardLogin();
+        throw new Error('Dashboard にログインしていません');
+    }
+    try {
+        const res = await axios.post(DASHBOARD_API, body, { headers: { 'Content-Type': 'application/json', Token: token }, timeout: TIMEOUT_MS });
+        return res.data as T;
+    } catch (e) {
+        if (isStatus(e, 401)) goDashboardLogin();
+        throw e;
+    }
+};
+
+export type SurveyCustomer = { id: string; name: string; register: string; shop: string; staff: string };
+export type SurveyStaff = { id?: number; name: string; pg_id: string; shop: string; category: number; period?: string | number };
+export type SurveyShop = { brand: string; shop: string; section: string; area: string; division?: string };
+
+export const fetchCustomers = () => dashboardPost<SurveyCustomer[]>({ request: 'interview_survey', roll: 'customers' });
+export const fetchStaff = () => dashboardPost<SurveyStaff[]>({ request: 'interview_survey', roll: 'staff' });
+export const fetchShops = () => dashboardPost<SurveyShop[]>({ request: 'shop_list' });
+
+/**
+ * お客様用 QR の URL。⚠️ 署名（t）を足す。署名を作れなくても、t の無い URL を返す（お客様は開ける。回答は保存される）。
+ * kind: before＝面談前／after＝面談後。params は以前の URL と同じ値（id・shop・staff・name）
+ */
+export const surveyUrl = async (kind: 'before' | 'after', params: { id: string; shop: string; staff?: string; name?: string }): Promise<string> => {
+    const q = new URLSearchParams({ id: params.id, shop: params.shop });
+    if (params.staff) q.set('staff', params.staff);
+    // ⚠️ name は面談後だけ（面談前の画面は URL の name を使わない。QR が細かくなりすぎないよう、要らない値は入れない）
+    if (kind === 'after' && params.name !== undefined) q.set('name', params.name);
+    try {
+        const r = await dashboardPost<{ status: string; token?: string }>({ request: 'interview_survey', roll: 'link', kind, id: params.id, shop: params.shop });
+        if (r.status === 'success' && r.token) q.set('t', r.token);
+        else console.error('[survey] QR の署名を作れませんでした（署名なしの URL を出します）', r);
+    } catch (e) {
+        console.error('[survey] QR の署名を作れませんでした（署名なしの URL を出します）', e);
+    }
+    return `https://khg-marketing.info/survey/survey_${kind}?${q.toString()}`;
+};
+
+// ---------------------------------------------------------------------------
+// お客様の画面
+// ---------------------------------------------------------------------------
+
+const LINK_KEY = 'survey_link_t';
+let memoryLink = '';
+
+/**
+ * 署名（t）を覚える（面談前 → 情報確認は画面を移ると URL から消えるので、ここで持つ）。⚠️ 保存できない端末でもメモリに持つ。
+ * ⚠️ 情報確認の画面へは、画面の受け渡し（navigate の state）にも linkToken() を入れて渡す（開き直したときのため）
+ */
+export const rememberLinkToken = (t: string): void => {
+    memoryLink = t;
+    try {
+        sessionStorage.setItem(LINK_KEY, t);
+    } catch {
+        // 保存できなくても続ける
+    }
+};
+
+/** URL の t を覚える（お客様の画面を開いたとき） */
+export const rememberLink = (search: string): void => rememberLinkToken(new URLSearchParams(search).get('t') ?? '');
+
+/** 今の署名 */
+export const linkToken = (): string => {
+    if (memoryLink) return memoryLink;
+    try {
+        return sessionStorage.getItem(LINK_KEY) ?? '';
+    } catch {
+        return '';
+    }
+};
+
+const publicPost = async <T>(roll: string, body: Record<string, unknown>): Promise<T> => {
+    const res = await axios.post(GATEWAY, { ...body, request: 'interview_survey_public', roll, t: linkToken() },
+        { headers: { 'Content-Type': 'application/json' }, timeout: TIMEOUT_MS });
+    return res.data as T;
+};
+
+/**
+ * お客様情報の初期値。⚠️ 失敗・署名なし・期限切れでも null を返すだけ（画面は空欄で進む）
+ */
+export const fetchCustomerMaster = async (): Promise<{ name: string; master: Record<string, string> | null } | null> => {
+    try {
+        const r = await publicPost<{ status: string; name?: string; master?: Record<string, string> | null }>('master', {});
+        if (r.status !== 'ok') {
+            console.warn('[survey] お客様情報を読めませんでした（空欄で進みます）', r.status);
+            return null;
+        }
+        return { name: r.name ?? '', master: r.master ?? null };
+    } catch (e) {
+        console.error('[survey] お客様情報を読めませんでした（空欄で進みます）', e);
+        return null;
+    }
+};
+
+/** その店舗の担当。⚠️ 失敗しても空の配列（画面は止めない） */
+export const fetchShopStaff = async (shop: string): Promise<SurveyStaff[]> => {
+    try {
+        const r = await publicPost<SurveyStaff[]>('staff', { shop });
+        return Array.isArray(r) ? r : [];
+    } catch (e) {
+        console.error('[survey] 担当の一覧を読めませんでした', e);
+        return [];
+    }
+};
+
+/** ② から応答が無かったか（通信の失敗・時間切れ・500 番台）。⚠️ 保存できていて応答だけが届かなかった場合もある */
+const noAnswer = (e: unknown): boolean =>
+    !axios.isAxiosError(e) || !e.response || e.response.status >= 500;
+
+/** ② へ送る。保存できたら true。⚠️ 応答が無ければもう一度だけ送る（② は同じ回答が30分以内にあれば2行目を入れないので、二重にならない） */
+const saveToGateway = async (roll: 'before' | 'after', form: Record<string, unknown>): Promise<boolean> => {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+            const r = await publicPost<{ status?: string }>(roll, form);
+            if (r.status === 'success') return true;
+            console.error('[survey] 回答を保存できませんでした', r);
+            return false;
+        } catch (e) {
+            console.error(`[survey] 回答を保存できませんでした（${attempt}回目）`, e);
+            if (!noAnswer(e)) return false;
+        }
+    }
+    return false;
+};
+
+/**
+ * 回答の保存。② へ送り（応答が無ければもう一度）、それでも保存できなければ旧 /survey/api/ へ同じ内容で送り直す。
+ * ⚠️⚠️ お客様が送れない事態を避けるため、送りすぎ（429）など ② が断ったときも旧へ送る（利用者の指示）。
+ * 戻り値: true＝保存できた／false＝どちらにも保存できなかった（呼び出し側でお知らせする。⚠️ ここではお知らせを出さない）
+ */
+const saveAnswer = async (roll: 'before' | 'after', oldRequest: string, form: Record<string, unknown>): Promise<boolean> => {
+    if (await saveToGateway(roll, form)) return true;
+    console.error('[survey] 新しい送り先に保存できないため、以前の送り先へ送ります');
+    try {
+        await axios.post(OLD_SURVEY_API, { ...form, request: oldRequest },
+            { headers: { Authorization: OLD_SURVEY_KEY, 'Content-Type': 'application/json' }, timeout: TIMEOUT_MS });
+        return true;
+    } catch (e) {
+        console.error('[survey] 以前の送り先にも保存できませんでした', e);
+        return false;
+    }
+};
+
+export const saveBeforeAnswer = (form: Record<string, unknown>) => saveAnswer('before', 'before_interview', form);
+export const saveAfterAnswer = (form: Record<string, unknown>) => saveAnswer('after', 'after_interview', form);
+```
+
+### 見直しの git diff（Dashboard。push 済みの 0522685b9 との差）
+```diff
+diff --git a/backend-express/src/features/survey/staff.ts b/backend-express/src/features/survey/staff.ts
+index 4279c781b..a1b9ff42b 100644
+--- a/backend-express/src/features/survey/staff.ts
++++ b/backend-express/src/features/survey/staff.ts
+@@ -1,8 +1,8 @@
+-import type { RowDataPacket } from 'mysql2/promise';
+ import { query } from '../../db/pool';
+ import { issueSurveyLink } from './link';
+ import type { SurveyKind } from './link';
+ import { cleanLine } from './clean';
++import type { DynamicRow } from './clean';
+ 
+ /**
+  * 面談アンケート（survey。khg-marketing.info/survey/）のスタッフの画面（v2.2.257。`interview_survey:<roll>`。auth: 'staff'）。
+@@ -16,10 +16,6 @@ import { cleanLine } from './clean';
+  * ─────────────────────────────────────────────
+  */
+ 
+-interface DynamicRow extends RowDataPacket {
+-  [key: string]: unknown;
+-}
+-
+ /** 検索の一覧（旧 survey_list と同じ列・同じ並び） */
+ export const runSurveyCustomers = async (): Promise<Record<string, unknown>[]> =>
+   query<DynamicRow>('SELECT name, id, shop, register, staff FROM customers ORDER BY register DESC');
+@@ -37,6 +33,6 @@ export const runSurveyLink = (body: Record<string, unknown>): Record<string, unk
+   const id = cleanLine(body.id, 64);
+   const shop = cleanLine(body.shop, 100);
+   if (!kind || id === '' || shop === '') return { status: 'error', message: 'アンケートの種類・お客様・店舗を指定してください。' };
+-  const { token, exp } = issueSurveyLink({ k: kind, id, shop });
++  const { token, exp } = issueSurveyLink({ k: kind, id });
+   return { status: 'success', token, exp };
+ };
+diff --git a/frontend/src/components/Login.tsx b/frontend/src/components/Login.tsx
+index 56eea7c76..b73d5de02 100644
+--- a/frontend/src/components/Login.tsx
++++ b/frontend/src/components/Login.tsx
+@@ -13,10 +13,10 @@ type Value = { mail: string, password: string, error: string };
+ 
+ /**
+  * ⚠️ v2.2.257: ログイン後に戻ってよい面談アンケート（survey）の道か。
+- *   '/survey/' で始まり、'//'・'\'・制御文字を含まないものだけ（ほかのサイトへ飛ばす罠のリンクを防ぐ）
++ *   '/survey'・'/survey/…'・'/survey?…' で、'//'・'\'・制御文字を含まないものだけ（ほかのサイトへ飛ばす罠のリンクを防ぐ）
+  */
+ export const isSurveyReturn = (path: string): boolean =>
+-  path.startsWith('/survey/') && !path.includes('//') && !path.includes('\\') && !/[\u0000-\u001F]/.test(path);
++  /^\/survey(\/|\?|$)/.test(path) && !path.includes('//') && !path.includes('\\') && !/[\u0000-\u001F]/.test(path);
+ 
+ const Login = () => {
+   const [validationMessage, setValidationMessage] = useState<Value>({
+@@ -67,7 +67,7 @@ const Login = () => {
+           const redirectUrl = searchParams.get('redirect');
+ 
+           // ⚠️ v2.2.257: 面談アンケート（survey。同じ khg-marketing.info の別アプリ）から来たときは、ログイン後に元の画面へ戻す。
+-          //   ⚠️ '/survey/' で始まる同じサイトの道だけ（'//' や 'http' で始まる値でほかのサイトへ飛ばされないように）
++          //   ⚠️ '/survey' で始まる同じサイトの道だけ（'//' や 'http' で始まる値でほかのサイトへ飛ばされないように。isSurveyReturn）
+           if (redirectUrl && isSurveyReturn(redirectUrl)) {
+             // ⚠️ AuthProvider の保存（useEffect）より先にページを離れるので、ここで保存してから移る
+             try {
+```
+
+### 見直しの survey の差分（直す前の控えとの比較。画面のファイル）
+```diff
+--- (控え) survey/src/components/SurveyBefore.tsx	2025-09-24 17:39:14.000000000 +0900
++++ /c/Users/shinji-kawano/react/survey/src/components/SurveyBefore.tsx	2026-11-09 18:20:59.126562800 +0900
+@@ -1,6 +1,6 @@
+ import { useState, useEffect } from "react";
+ import { useLocation, useNavigate } from "react-router-dom";
+-import axios from "axios";
++import { fetchCustomerMaster, fetchShopStaff, linkToken, rememberLink } from "../api";
+ import khLogo from '../assets/images/khLogo.png';
+ import djhLogo from '../assets/images/djhLogo.png';
+ import nieruLogo from '../assets/images/2lLogo.png';
+@@ -11,7 +11,6 @@
+ import type { MasterData } from "./MasterData";
+ 
+ type Form = { id: string | undefined; name: string; kana: string; shop: string; staff: string; medium: string[]; interest: string[]; opportunity: string[]; plan: string; period: string; estate: string; area: string; importance: string[]; budget: string; support: string[]; demand: string }
+-type Original = { name: string; id: string; shop: string; register: string; staff: string };
+ type Staff = { id: number; name: string; pg_id: string; shop: string; mail: string; status: string; category: number };
+ 
+ const Input = () => {
+@@ -21,7 +20,8 @@
+     const shopValue = params.get('shop');
+     const staffValue = params.get('staff');
+     const [staffList, setStaffList] = useState<Staff[]>([]);
+-    const [originalList, setOriginalList] = useState<Original[]>([]);
++    // ⚠️ 2026-11-09: お客様の名前（以前はお客様全員の一覧を読んで探していた）
++    const [customerName, setCustomerName] = useState<string>('');
+     const [form, setForm] = useState<Form>({
+         name: '',
+         kana: '',
+@@ -51,30 +51,17 @@
+     const [masterData, setMasterData] = useState<MasterData>(createEmptyMasterData());
+ 
+     useEffect(() => {
+-        const fetchData = async () => {
+-            try {
+-                const headers = { Authorization: '<共有キー>', 'Content-Type': 'application/json' };
+-                const customerRes = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "survey_list" }, { headers });
+-                const staffRes = await axios.post("https://khg-marketing.info//dashboard/api/", { demand: "staff_list" }, { headers });
+-                await setOriginalList(customerRes.data);
+-                await setStaffList(staffRes.data);
+-            } catch (error) {
+-                console.error("データ取得エラー:", error);
+-            }
+-        };
+-        fetchData();
++        // ⚠️ 2026-11-09: QR の URL の署名（t）を覚えてから読む（api.ts）。⚠️ 読めなくても空欄でアンケートは進められる
++        rememberLink(location.search);
++        fetchShopStaff(shopValue ?? '').then(list => setStaffList(list as unknown as Staff[]));
+ 
+         if (idValue !== 'new') {
+-            const fetchMasterData = async () => {
+-                try {
+-                    const headers = { Authorization: '<共有キー>', 'Content-Type': 'application/json' };
+-                    const customerRes = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "master_data_for_survey", id: idValue }, { headers });
+-                    await setMasterData(customerRes.data);
+-                } catch (error) {
+-                    console.error("データ取得エラー:", error);
+-                }
+-            };
+-            fetchMasterData();
++            fetchCustomerMaster().then(r => {
++                // ⚠️ 読めないとき（署名なし・期限切れ）は、以前の QR の URL にある name を使う（無ければ情報確認の画面で入力する）
++                if (!r) { setCustomerName(params.get('name') ?? ''); return; }
++                setCustomerName(r.name);
++                if (r.master) setMasterData(r.master as unknown as MasterData);
++            });
+         }
+ 
+         setForm(prev => ({
+@@ -88,18 +75,20 @@
+         const staffId = staffList.find(item => item.name === staffValue)?.pg_id;
+         setForm(prev => ({
+             ...prev,
+-            name: originalList.find(item => item.id === form.id)?.name ?? '',
+-            kana: originalList.find(item => item.id === form.id)?.name ?? '',
++            name: customerName,
++            kana: customerName,
+             staff: staffId ?? ''
+         }));
+-    }, [originalList]);
++    }, [customerName, staffList]);
+ 
+     useEffect(()=>{
+         setForm(prev=>({
+             ...prev,
+             medium: masterData.inquiry_reason ? masterData.inquiry_reason.split(',') : [], 
+-            opportunity: masterData.customer_desired_order ? masterData.customer_desired_order.split(',') : [], 
+-            interest: masterData.house_hunting_motivation ? masterData.house_hunting_motivation.split(',') : [],
++            // ⚠️ 2026-11-09: きっかけ（opportunity）は house_hunting_motivation、興味を持った理由（interest）は customer_desired_order。
++            //   チェックの表示と保存（② の public.ts・旧 /survey/api/）はこの対応。以前は読み込みだけが逆で、送るたびに2つが入れ替わっていた
++            opportunity: masterData.house_hunting_motivation ? masterData.house_hunting_motivation.split(',') : [], 
++            interest: masterData.customer_desired_order ? masterData.customer_desired_order.split(',') : [],
+             plan: masterData.customer_desired_floor ? masterData.customer_desired_floor : '',
+             period: masterData.customer_desired_period ? masterData.customer_desired_period : '',
+             estate: masterData.customer_desired_estate ? masterData.customer_desired_estate : '',
+@@ -130,7 +119,8 @@
+             await alert(`必須項目のうち${emptyKeys.length}項目が未回答です`);
+             return;
+         }
+-        navigate('/survey_before_info', { state: form });
++        // ⚠️ 2026-11-09: 署名も渡す（情報確認の画面を開き直したときに、署名を失わないように）
++        navigate('/survey_before_info', { state: { ...form, t: linkToken() } });
+     };
+ 
+     return (
+--- (控え) survey/src/components/SurveyBeforeInfo.tsx	2026-02-04 20:04:35.000000000 +0900
++++ /c/Users/shinji-kawano/react/survey/src/components/SurveyBeforeInfo.tsx	2026-11-09 18:23:47.028070800 +0900
+@@ -1,6 +1,6 @@
+ import { useLocation, useNavigate } from "react-router-dom";
+-import { useState, useEffect } from "react";
+-import axios from "axios";
++import { useState, useEffect, useRef } from "react";
++import { fetchCustomerMaster, rememberLinkToken, saveBeforeAnswer } from "../api";
+ import khLogo from '../assets/images/khLogo.png';
+ import djhLogo from '../assets/images/djhLogo.png';
+ import nieruLogo from '../assets/images/2lLogo.png';
+@@ -71,7 +71,8 @@
+ 
+ const SurveyBeforeInfo = () => {
+     const location = useLocation();
+-    const data: Form = location.state;
++    // ⚠️ 2026-11-09: 直接開いたとき（面談前アンケートから来ていない）は state が無い。以前は data.id で真っ白になっていた
++    const data: (Form & { t?: string }) | null = location.state ?? null;
+     const createEmptyMasterData = (): MasterData => {
+         const keys = Object.keys({} as MasterData) as (keyof MasterData)[];
+         return keys.reduce((acc, key) => {
+@@ -139,17 +140,18 @@
+     });
+     const navigate = useNavigate();
+     const [isSubmitting, setIsSubmitting] = useState<Boolean>(false);
++    // ⚠️ 2026-11-09: 連打の二重送信を防ぐ（state は次の描画まで変わらないので、同じ描画のうちの2回目を止められない）
++    const submitting = useRef(false);
+ 
+     useEffect(() => {
++        // ⚠️ 2026-11-09: QR の署名で読む（api.ts）。⚠️ 読めなくても空欄で進められる
+         const fetchData = async () => {
+-            try {
+-                const headers = { Authorization: '<共有キー>', 'Content-Type': 'application/json' };
+-                const customerRes = await axios.post("https://khg-marketing.info/dashboard/api/", { demand: "master_data_for_survey", id: data.id }, { headers });
+-                await setMasterData(customerRes.data);
+-            } catch (error) {
+-                console.error("データ取得エラー:", error);
+-            }
++            const r = await fetchCustomerMaster();
++            if (r?.master) setMasterData(r.master as unknown as MasterData);
+         };
++        if (!data) return;
++        // ⚠️ 面談前アンケートから渡された署名を使う（この画面を開き直したときも失わない）
++        if (data.t) rememberLinkToken(data.t);
+         if (data.id !== 'new') {
+             fetchData();
+             setForm(prev => ({
+@@ -207,24 +209,20 @@
+     }, [masterData]);
+ 
+     const update = async () => {
+-        if (isSubmitting) return;
++        if (isSubmitting || submitting.current) return;
++        submitting.current = true;
+         setIsSubmitting(true);
+         if (form.name === '') {
+             alert('お名前を入力してください');
+-            setIsSubmitting(false);
++            setIsSubmitting(false); submitting.current = false;
+             return;
+         }
+         if (form.id === 'new') {
+-            const data = {
+-                ...form,
+-                request: 'before_interview'
+-            };
+-
+-            try {
+-                const headers = { Authorization: '<共有キー>', 'Content-Type': 'application/json' };
+-                await axios.post("https://khg-marketing.info/survey/api/", data, { headers });
+-            } catch (error) {
+-                console.error("データ取得エラー:", error);
++            // ⚠️ 2026-11-09: ② へ保存（届かなければ以前の /survey/api/ へ。api.ts）
++            if (!(await saveBeforeAnswer({ ...form }))) {
++                alert('送信できませんでした。通信状況をご確認のうえ、もう一度「送信」を押してください。');
++                setIsSubmitting(false); submitting.current = false;
++                return;
+             }
+ 
+             const postData = {
+@@ -258,16 +256,11 @@
+             }
+             await navigate('/thanks');
+         } else {
+-            const data = {
+-                ...form,
+-                request: 'before_interview'
+-            };
+-
+-            try {
+-                const headers = { Authorization: '<共有キー>', 'Content-Type': 'application/json' };
+-                await axios.post("https://khg-marketing.info/survey/api/", data, { headers });
+-            } catch (error) {
+-                console.error("データ取得エラー:", error);
++            // ⚠️ 2026-11-09: ② へ保存（届かなければ以前の /survey/api/ へ。api.ts）
++            if (!(await saveBeforeAnswer({ ...form }))) {
++                alert('送信できませんでした。通信状況をご確認のうえ、もう一度「送信」を押してください。');
++                setIsSubmitting(false); submitting.current = false;
++                return;
+             }
+ 
+             const postData = {
+@@ -324,6 +317,17 @@
+         }
+     };
+ 
++    // ⚠️ 2026-11-09: 面談前アンケートから来ていない（この画面を直接開いた）ときは案内だけを出す
++    if (!data) {
++        return (
++            <div className="w-100" style={{ backgroundColor: '#D3D3D3', padding: '2vw 0', minHeight: '100vh' }}>
++                <div className="bg-white rounded text-center" style={{ width: '93%', maxWidth: '768px', margin: '0 auto', padding: '60px 20px' }}>
++                    お手数ですが、お渡しした QR コードからもう一度開いてください。
++                </div>
++            </div>
++        );
++    }
++
+     return (
+         <div className="w-100" style={{ backgroundColor: '#D3D3D3', padding: '2vw 0', height: 'auto', minHeight: '100vh' }}>
+             <div className="bg-white rounded" style={{ width: '93%', maxWidth: '768px', margin: '0 auto', paddingBottom: '150px' }}>
+--- (控え) survey/src/components/SurveyAfter.tsx	2026-07-17 10:07:46.000000000 +0900
++++ /c/Users/shinji-kawano/react/survey/src/components/SurveyAfter.tsx	2026-11-09 18:20:59.131561500 +0900
+@@ -1,6 +1,6 @@
+-import { useState, useEffect } from "react";
++import { useState, useEffect, useRef } from "react";
+ import { useLocation, useNavigate } from "react-router-dom";
+-import axios from "axios";
++import { fetchShopStaff, rememberLink, saveAfterAnswer } from "../api";
+ import khLogo from '../assets/images/khLogo.png';
+ import djhLogo from '../assets/images/djhLogo.png';
+ import nieruLogo from '../assets/images/2lLogo.png';
+@@ -41,21 +41,13 @@
+     const [staffList, setStaffList] = useState<Staff[]>([]);
+     const navigate = useNavigate();
+     const [isSubmitting, setIsSubmitting] = useState<Boolean>(false);
++    // ⚠️ 2026-11-09: 連打の二重送信を防ぐ（state は次の描画まで変わらないので、同じ描画のうちの2回目を止められない）
++    const submitting = useRef(false);
+ 
+     useEffect(() => {
+-        const fetchData = async () => {
+-            try {
+-                const headers = { Authorization: '<共有キー>', 'Content-Type': 'application/json' };
+-                const [staffRes] = await Promise.all([
+-                    axios.post("/dashboard/api/", { demand: "staff_list" }, { headers }),
+-                ]);
+-                await setStaffList(staffRes.data);
+-            } catch (error) {
+-                console.error("データ取得エラー:", error);
+-            }
+-        };
+-
+-        fetchData();
++        // ⚠️ 2026-11-09: QR の URL の署名（t）を覚え、その店舗の担当を読む（api.ts）。⚠️ 読めなくてもアンケートは進められる
++        rememberLink(location.search);
++        fetchShopStaff(shopValue ?? '').then(list => setStaffList(list as unknown as Staff[]));
+         setForm(prev => ({
+             ...prev,
+             id: idValue as string,
+@@ -64,7 +56,8 @@
+     }, [])
+ 
+     const update = async () => {
+-        if (isSubmitting) return;
++        if (isSubmitting || submitting.current) return;
++        submitting.current = true;
+         setIsSubmitting(true);
+         const excludeKeys = ['rival', 'staff', 'improvement', 'demand'];
+         const emptyKeys = Object.entries(form)
+@@ -83,20 +76,14 @@
+             const target = document.getElementById(emptyKeys[0]);
+             await target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+             await alert(`必須項目のうち${emptyKeys.length}項目が未回答です`);
+-            setIsSubmitting(false);
++            setIsSubmitting(false); submitting.current = false;
+         } else {
+             if (idValue === 'new') {
+-                const data = {
+-                    ...form,
+-                    name: nameValue,
+-                    request: 'after_interview'
+-                };
+-
+-                try {
+-                    const headers = { Authorization: '<共有キー>', 'Content-Type': 'application/json' };
+-                    await axios.post("https://khg-marketing.info/survey/api/", data, { headers });
+-                } catch (error) {
+-                    console.error("データ取得エラー:", error);
++                // ⚠️ 2026-11-09: ② へ保存（届かなければ以前の /survey/api/ へ。api.ts）
++                if (!(await saveAfterAnswer({ ...form, name: nameValue }))) {
++                    alert('送信できませんでした。通信状況をご確認のうえ、もう一度「送信」を押してください。');
++                    setIsSubmitting(false); submitting.current = false;
++                    return;
+                 }
+ 
+                 // const postData = {
+@@ -122,17 +109,11 @@
+                 // }
+                 await navigate('/thanks');
+             } else {
+-                const data = {
+-                    ...form,
+-                    name: nameValue,
+-                    request: 'after_interview'
+-                };
+-
+-                try {
+-                    const headers = { Authorization: '<共有キー>', 'Content-Type': 'application/json' };
+-                    await axios.post("https://khg-marketing.info/survey/api/", data, { headers });
+-                } catch (error) {
+-                    console.error("データ取得エラー:", error);
++                // ⚠️ 2026-11-09: ② へ保存（届かなければ以前の /survey/api/ へ。api.ts）
++                if (!(await saveAfterAnswer({ ...form, name: nameValue }))) {
++                    alert('送信できませんでした。通信状況をご確認のうえ、もう一度「送信」を押してください。');
++                    setIsSubmitting(false); submitting.current = false;
++                    return;
+                 }
+ 
+                 const postData = {
+```

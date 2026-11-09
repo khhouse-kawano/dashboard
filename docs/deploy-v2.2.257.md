@@ -64,7 +64,7 @@ curl -s -X POST https://khg-marketing.info/dashboard/api/ -H 'Content-Type: appl
 ⚠️ v2.2.257 のブランチで `npm run build` をし直してから上げてください（ログイン画面の変更）。
 
 ### 手順4　【① survey】
-`C:\Users\shinji-kawano\react\survey\dist` は、2026-11-09 にビルド済みです。
+`C:\Users\shinji-kawano\react\survey\dist` は、2026-11-09 18:33 にビルド済みです（見直しの修正を含む）。
 - 中身（`index.html`・`assets/`・`vite.svg`）を、サーバーの `survey/` に上げます。
 - ⚠️ サーバーの `survey/api/` と `survey/.htaccess` は**消さない・上書きしない**でください。
 - 古い `survey/assets/` の中のファイルは、残っていても害はありません。
@@ -85,6 +85,13 @@ SELECT no, version, date FROM update_log ORDER BY no DESC LIMIT 2;
    - 試すときは、テスト用のお客様で行ってください。お客様の記録が上書きされます
 4. シークレットウィンドウ（未ログイン）で https://khg-marketing.info/survey/search_before を開く → Dashboard のログイン画面に移る → Google でログイン → 面談前アンケートの検索に戻る
 5. Dashboard の版の表示が ver2.2.257
+
+## 知っておくこと（見直しのあと）
+- お客様が送れない事態を避けるため、② に保存できないときは、旧 `/survey/api/` へ送り直します。② が送りすぎで断ったとき（10分に30件/IP）も同じです。
+  - ⚠️ 旧 `/survey/api/` は、画面に書いた合い言葉だけで書き込めます（以前からそのまま）。この予備の経路では「QR の期限切れなら、お客様の記録を上書きしない」が効きません。割り切りとして残しています。
+- 同じ回答が30分以内にもう一度届いても（再送・連打）、行は1つだけです。
+- 既存のお客様の面談前アンケートでは、担当・連絡先などが空なら、今の値を残します。以前は空で上書きしていました。
+- 「きっかけ」と「注文住宅に興味を持った理由」が、送るたびに入れ替わっていた以前からの不具合を直しました。すでに入れ替わっている記録は、元に戻していません。
 
 ## 切り戻し
 - survey の画面だけを戻すときは、以前のビルド `C:\Users\shinji-kawano\react\survey_dist_before_20261109` の中身を上げ直してください。

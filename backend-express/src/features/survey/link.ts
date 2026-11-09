@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '../../config/env';
+import { logger } from '../../utils/logger';
 
 /**
  * 面談アンケート（survey）のお客様用リンクの署名（v2.2.257）。
@@ -9,7 +10,8 @@ import { env } from '../../config/env';
  * 署名して渡す。お客様の端末は Dashboard にログインしていないので、この署名だけで、そのお客様1人分を読み書きできる。
  *   ⚠️ 以前は id を書き換えるだけで、誰の個人情報でも読めた（旧 API の master_data_for_survey）。
  * 形: base64url(JSON の中身) + '.' + base64url(HMAC-SHA256)
- * ⚠️ 中身は種類・id・店舗・期限だけ（QR が細かくなりすぎて読み取りにくくならないよう、名前などは入れない。名前は URL に別にある）
+ * ⚠️ 中身は種類・id・期限だけ。署名は HMAC の先頭 16 バイト（128 ビット）。
+ *   QR が細かくなりすぎて読み取りにくくならないよう、短くしている（店舗・名前は URL に別にある。どちらも秘密ではない）
  * ⚠️ 期限は7日（利用者の決定。後日、自宅で回答する場合があるため）。
  * ⚠️ 署名が無い・合わない・期限切れでも、お客様の画面は止めない（呼び出し側。public.ts）。
  * ─────────────────────────────────────────────
@@ -22,7 +24,6 @@ export interface SurveyLink {
   k: SurveyKind;
   /** customers.id・master_data.id。新規のお客様は 'new' */
   id: string;
-  shop: string;
   /** 期限（UNIX 秒） */
   exp: number;
 }
@@ -40,7 +41,10 @@ const secret = (): Buffer =>
     ? Buffer.from(env.surveyLinkSecret, 'utf8')
     : createHash('sha256').update(`survey-link|${env.db.user}|${env.db.password}|${env.db.database}`).digest();
 
-const sign = (body: string): string => b64(createHmac('sha256', secret()).update(body).digest());
+// ⚠️ 鍵の設定忘れに気づけるよう、起動時に1回だけ知らせる（⚠️ 値は出さない）
+if (env.surveyLinkSecret === '') logger.warn('[survey] SURVEY_LINK_SECRET が未設定のため、DB の接続情報から作った鍵で QR に署名します');
+
+const sign = (body: string): string => b64(createHmac('sha256', secret()).update(body).digest().subarray(0, 16));
 
 /** リンクの署名を作る */
 export const issueSurveyLink = (link: Omit<SurveyLink, 'exp'>, now = Date.now()): { token: string; exp: number } => {
@@ -68,9 +72,9 @@ export const verifySurveyLink = (token: unknown, now = Date.now()): VerifyResult
     return { ok: false, reason: 'invalid' };
   }
   const p = parsed as Partial<SurveyLink>;
-  if ((p.k !== 'before' && p.k !== 'after') || typeof p.id !== 'string' || typeof p.shop !== 'string' || typeof p.exp !== 'number') {
+  if ((p.k !== 'before' && p.k !== 'after') || typeof p.id !== 'string' || typeof p.exp !== 'number') {
     return { ok: false, reason: 'invalid' };
   }
   if (p.exp * 1000 < now) return { ok: false, reason: 'expired' };
-  return { ok: true, link: { k: p.k, id: p.id, shop: p.shop, exp: p.exp } };
+  return { ok: true, link: { k: p.k, id: p.id, exp: p.exp } };
 };
