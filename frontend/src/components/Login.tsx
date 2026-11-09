@@ -13,10 +13,10 @@ type Value = { mail: string, password: string, error: string };
 
 /**
  * ⚠️ v2.2.257: ログイン後に戻ってよい面談アンケート（survey）の道か。
- *   '/survey/' で始まり、'//'・'\'・制御文字を含まないものだけ（ほかのサイトへ飛ばす罠のリンクを防ぐ）
+ *   '/survey'・'/survey/…'・'/survey?…' で、'//'・'\'・制御文字を含まないものだけ（ほかのサイトへ飛ばす罠のリンクを防ぐ）
  */
 export const isSurveyReturn = (path: string): boolean =>
-  path.startsWith('/survey/') && !path.includes('//') && !path.includes('\\') && !/[\u0000-\u001F]/.test(path);
+  /^\/survey(\/|\?|$)/.test(path) && !path.includes('//') && !path.includes('\\') && !/[\u0000-\u001F]/.test(path);
 
 const Login = () => {
   const [validationMessage, setValidationMessage] = useState<Value>({
@@ -67,7 +67,7 @@ const Login = () => {
           const redirectUrl = searchParams.get('redirect');
 
           // ⚠️ v2.2.257: 面談アンケート（survey。同じ khg-marketing.info の別アプリ）から来たときは、ログイン後に元の画面へ戻す。
-          //   ⚠️ '/survey/' で始まる同じサイトの道だけ（'//' や 'http' で始まる値でほかのサイトへ飛ばされないように）
+          //   ⚠️ '/survey' で始まる同じサイトの道だけ（'//' や 'http' で始まる値でほかのサイトへ飛ばされないように。isSurveyReturn）
           if (redirectUrl && isSurveyReturn(redirectUrl)) {
             // ⚠️ AuthProvider の保存（useEffect）より先にページを離れるので、ここで保存してから移る
             try {
