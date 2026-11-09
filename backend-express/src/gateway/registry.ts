@@ -147,6 +147,8 @@ import { listLoanPlanRates, uploadLoanPlanRates } from '../features/loanPlanRate
 import { listSecurityLog } from '../features/securityLog';
 import { BUDGET_TABLE_AUTHORITY, listBudgetTable, uploadBudgetTable } from '../features/budgetTable';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
+import { runSurveyCustomers, runSurveyLink, runSurveyStaff } from '../features/survey/staff';
+import { runSurveyPublicAfter, runSurveyPublicBefore, runSurveyPublicMaster, runSurveyPublicStaff } from '../features/survey/public';
 import { runMemberEntry } from '../features/memberEntry/entry';
 import { runHousingBazarEntry } from '../features/housingBazar/entry';
 import { runKagosumaEntry } from '../features/kagosuma/entry';
@@ -2485,6 +2487,71 @@ register({
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
+});
+
+/**
+ * 面談アンケート（survey。khg-marketing.info/survey/）のスタッフの画面（v2.2.257。features/survey/staff.ts）。
+ *   ⚠️ 移植元は旧 API（`/dashboard/api/` の demand: survey_list・staff_list）。旧 API は固定の合い言葉だけで通していた。
+ *   ⚠️ auth: 'staff'。survey は Dashboard と同じ khg-marketing.info にあり、Dashboard のトークンで ① を通して届く
+ *     （⚠️ express_proxy.php の expressProxyRequests() と expressProxyExclusive() の両方に入れてある）。
+ *   ⚠️ 店舗の一覧は今ある `shop_list` を使う。
+ */
+register({
+  request: 'interview_survey', roll: 'customers',
+  summary: '面談アンケート：検索の一覧（customers の name・id・shop・register・staff）',
+  phpSource: '(Express のみ。旧 API demand: survey_list。現行 backend/ に PHP ハンドラは無い)',
+  auth: 'staff',
+  handler: async () => runSurveyCustomers(),
+});
+register({
+  request: 'interview_survey', roll: 'staff',
+  summary: '面談アンケート：担当の一覧（staff_list の id・name・pg_id・shop・category・period）',
+  phpSource: '(Express のみ。旧 API demand: staff_list。現行 backend/ に PHP ハンドラは無い)',
+  auth: 'staff',
+  handler: async () => runSurveyStaff(),
+});
+register({
+  request: 'interview_survey', roll: 'link',
+  summary: '面談アンケート：お客様用 QR のリンクの署名（7日間有効）',
+  phpSource: '(Express のみ。v2.2.257 新規)',
+  auth: 'staff',
+  handler: async (ctx) => runSurveyLink(ctx.body as Record<string, unknown>),
+});
+
+/**
+ * ⚠️⚠️ **面談アンケートのお客様の画面（QR から開く）。認証なしの読み書き口である。**（v2.2.257。features/survey/public.ts）
+ *   ⚠️ お客様の情報の読み込みと、お客様の記録の上書きは、QR の URL の署名（interview_survey:link が作る。7日間）があるときだけ。
+ *   ⚠️ 署名が使えなくても回答の行は保存する（お客様が送れない事態を避ける。利用者の指示）。
+ *   ⚠️ ブラウザから ② へ直接送る（before_survey_entry と同じ。本番の CORS_ORIGINS に https://khg-marketing.info が要る。許可済み）。
+ *   ⚠️ 保存（before・after）の流量の上限は publicFormRateLimit.ts。⚠️ 本文に `category` を入れないこと（ゲートウェイの鍵に入る）。
+ */
+register({
+  request: 'interview_survey_public', roll: 'master',
+  summary: '【認証なし・署名で絞る】面談アンケート：お客様情報の初期値（master_data の23列）',
+  phpSource: '(Express のみ。旧 API demand: master_data_for_survey は全列・誰でも読めた)',
+  auth: 'none',
+  handler: async (ctx) => runSurveyPublicMaster(ctx.body as Record<string, unknown>),
+});
+register({
+  request: 'interview_survey_public', roll: 'staff',
+  summary: '【認証なし】面談アンケート：その店舗の担当の名前',
+  phpSource: '(Express のみ。旧 API demand: staff_list)',
+  auth: 'none',
+  handler: async (ctx) => runSurveyPublicStaff(ctx.body as Record<string, unknown>),
+});
+register({
+  request: 'interview_survey_public', roll: 'before',
+  summary: '【書き込み・認証なし】面談前アンケートの保存（before_interview。署名があれば customers・master_data も）',
+  phpSource: '(Express のみ。旧: survey/api/ の before_interview。⚠️ survey/api/ は sync が使うので残す)',
+  auth: 'none',
+  handler: async (ctx) => runSurveyPublicBefore(ctx.body as Record<string, unknown>),
+});
+register({
+  request: 'interview_survey_public', roll: 'after',
+  summary: '【書き込み・認証なし】面談後アンケートの保存（after_interview。署名があれば customers も）',
+  phpSource: '(Express のみ。旧: survey/api/ の after_interview)',
+  auth: 'none',
+  handler: async (ctx) => runSurveyPublicAfter(ctx.body as Record<string, unknown>),
 });
 
 /**
