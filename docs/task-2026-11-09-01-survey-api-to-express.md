@@ -40,7 +40,7 @@
 
 ### survey（react/survey。git 管理外。直す前の控え：`react/survey_backup_20261109.tgz`、以前のビルド：`react/survey_dist_before_20261109`）
 - 新規 `src/api.ts`：通信をまとめた
-  - スタッフ：localStorage の token で `/dashboard/api/`。無い・401 なら `/dashboard/login?redirect=<今の画面>`
+  - スタッフ：localStorage の token で `/dashboard/api/gateway/`（① の入口）。無い・401 なら `/dashboard/login?redirect=<今の画面>`
   - QR の URL：以前と同じ値（id・shop・staff・name）に `t`（署名）を足す。署名を作れなくても URL は出す
   - お客様：URL の t を覚え（sessionStorage とメモリ）、② へ直接。読めなくても空欄で進む
   - 保存：② に届かない（通信の失敗・500 番台）ときは、旧 /survey/api/ へ以前と同じ形で送り直す。どちらも失敗したらお知らせして、入力はそのまま残す
@@ -444,7 +444,7 @@ import axios from 'axios';
  *
  * ─────────────────────────────────────────────
  * スタッフの画面（入口・面談前／面談後の検索・QR）
- *   - Dashboard（同じ khg-marketing.info）にログインしたときのトークン（localStorage の token）で、① /dashboard/api/ を通して ② へ。
+ *   - Dashboard（同じ khg-marketing.info）にログインしたときのトークン（localStorage の token）で、① /dashboard/api/gateway/ を通して ② へ。
  *   - トークンが無い・期限切れ（401）なら、Dashboard のログイン画面へ。Google でログインすると、元の画面へ戻る。
  * お客様の画面（QR から開く。ログインしていない）
  *   - QR の URL の t（② が作る署名。7日間有効）を付けて、② へ直接送る（api.khg-marketing.info）。
@@ -454,7 +454,7 @@ import axios from 'axios';
  * ─────────────────────────────────────────────
  */
 
-const DASHBOARD_API = import.meta.env.VITE_DASHBOARD_API ?? '/dashboard/api/';
+const DASHBOARD_API = import.meta.env.VITE_DASHBOARD_API ?? '/dashboard/api/gateway/';
 const DASHBOARD_LOGIN = import.meta.env.VITE_DASHBOARD_LOGIN ?? '/dashboard/login';
 const GATEWAY = import.meta.env.VITE_GATEWAY ?? 'https://api.khg-marketing.info/api/gateway';
 /** ⚠️ 予備の送り先（旧）。② に届かないときだけ使う。⚠️ projects/sync も使っているのでサーバーに残っている */
@@ -483,7 +483,7 @@ export const goDashboardLogin = (): void => {
 
 const isStatus = (e: unknown, code: number): boolean => axios.isAxiosError(e) && e.response?.status === code;
 
-/** ① /dashboard/api/ へ（Dashboard のトークン付き）。⚠️ 401 ならログイン画面へ移り、例外を投げる */
+/** ① /dashboard/api/gateway/ へ（Dashboard のトークン付き）。⚠️ 401 ならログイン画面へ移り、例外を投げる */
 const dashboardPost = async <T>(body: Record<string, unknown>): Promise<T> => {
     const token = readToken();
     if (token === '') {
@@ -1642,7 +1642,7 @@ import axios from 'axios';
  *
  * ─────────────────────────────────────────────
  * スタッフの画面（入口・面談前／面談後の検索・QR）
- *   - Dashboard（同じ khg-marketing.info）にログインしたときのトークン（localStorage の token）で、① /dashboard/api/ を通して ② へ。
+ *   - Dashboard（同じ khg-marketing.info）にログインしたときのトークン（localStorage の token）で、① /dashboard/api/gateway/ を通して ② へ。
  *   - トークンが無い・期限切れ（401）なら、Dashboard のログイン画面へ。Google でログインすると、元の画面へ戻る。
  * お客様の画面（QR から開く。ログインしていない）
  *   - QR の URL の t（② が作る署名。7日間有効）を付けて、② へ直接送る（api.khg-marketing.info）。
@@ -1653,7 +1653,7 @@ import axios from 'axios';
  * ─────────────────────────────────────────────
  */
 
-const DASHBOARD_API = import.meta.env.VITE_DASHBOARD_API ?? '/dashboard/api/';
+const DASHBOARD_API = import.meta.env.VITE_DASHBOARD_API ?? '/dashboard/api/gateway/';
 const DASHBOARD_LOGIN = import.meta.env.VITE_DASHBOARD_LOGIN ?? '/dashboard/login';
 const GATEWAY = import.meta.env.VITE_GATEWAY ?? 'https://api.khg-marketing.info/api/gateway';
 /** ⚠️ 予備の送り先（旧）。② に届かないときだけ使う。⚠️ projects/sync も使っているのでサーバーに残っている */
@@ -1682,7 +1682,7 @@ export const goDashboardLogin = (): void => {
 
 const isStatus = (e: unknown, code: number): boolean => axios.isAxiosError(e) && e.response?.status === code;
 
-/** ① /dashboard/api/ へ（Dashboard のトークン付き）。⚠️ 401 ならログイン画面へ移り、例外を投げる */
+/** ① /dashboard/api/gateway/ へ（Dashboard のトークン付き）。⚠️ 401 ならログイン画面へ移り、例外を投げる */
 const dashboardPost = async <T>(body: Record<string, unknown>): Promise<T> => {
     const token = readToken();
     if (token === '') {
@@ -2222,3 +2222,10 @@ index 56eea7c76..b73d5de02 100644
  
                  const postData = {
 ```
+
+---
+
+## 訂正（2026-11-09）
+- 利用者の本番の確認で、`https://khg-marketing.info/dashboard/api/` が 404（XServer のページ）になった。⚠️ **今の ① の入口は `/dashboard/api/gateway/`**（`/dashboard/api/` は旧 API の場所で、今はファイルが無い）。`express_proxy.php` の置き場所は `dashboard/api/gateway/core/`
+- survey の `api.ts` の送り先（`DASHBOARD_API`）を `/dashboard/api/gateway/` に直してビルドし直した。手順書の確認コマンドと置き場所も直した
+- ローカルのテストは中継で `localhost:8080` へ送っていたので、この誤りに気づけなかった
