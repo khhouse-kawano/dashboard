@@ -188,6 +188,17 @@ export const env = {
   memberEntryKey: (process.env.MEMBER_ENTRY_KEY ?? '').trim(),
 
   /**
+   * 面談アンケート（survey）のお客様用リンクの署名の鍵。（v2.2.257。features/survey/link.ts）
+   *
+   * ⚠️ **未設定でも止めない**（お客様がアンケートを開けない事態を避けるため。利用者の指示）。
+   *   未設定なら link.ts が DB の接続情報から鍵を作る（DB のパスワードを変えると、それまでのリンクは
+   *   「期限切れ」と同じ扱いになり、回答は保存されるがお客様情報の読み込みと上書きはされない）。
+   * ⚠️ 設定するなら ② VPS の .env.prod のみ。⚠️ **リポジトリに書かないこと。**
+   *   ⚠️ 値を変えると、発行済みのリンクは同じく「期限切れ」の扱いになる。
+   */
+  surveyLinkSecret: (process.env.SURVEY_LINK_SECRET ?? '').trim(),
+
+  /**
    * 他社広告の取り込み（meta_scrape。拡張機能 extensions/meta が送る）の合い言葉。（v2.2.230）
    *
    * ⚠️ **未設定なら全件断る**（素通しにしない）。⚠️ 画像を ① の meta_scrape_image へ渡すときにも付ける。

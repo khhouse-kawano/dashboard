@@ -105,6 +105,22 @@ const checkinLimiter = rateLimit({
 });
 
 /**
+ * 面談アンケートの保存（interview_survey_public:before・after）の制限（v2.2.257）。
+ *   ⚠️ 店舗でお客様が同じ Wi-Fi から次々に送るので、フォームの 5件/10分 では止まる。30件/10分にする。
+ */
+const surveyLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: 30,
+  keyGenerator: (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown'),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    message: '送信が続けて行われました。お手数ですが時間をおいて再度お試しください。',
+  },
+});
+
+/**
  * ゲートウェイに挟むミドルウェア。
  *
  * ⚠️ ゲートウェイは全ての通信が同じURLへの POST であるため、
@@ -128,6 +144,18 @@ export const publicFormRateLimit = (
   // ⚠️ 受付は別の制限を使う。フォームと同じ 5件/10分 にすると当日の受付が止まる
   if (request === 'event_checkin') {
     void checkinLimiter(req, res, next);
+    return;
+  }
+
+  // ⚠️ v2.2.257 面談アンケートの保存（認証なしの書き込み口）。店舗の Wi-Fi で同じ IP になるので、フォームより緩い別の制限。
+  //   ⚠️ 読み込み（master・staff）は制限しない（お客様が開けない事態を避ける。master は署名で1人分に絞っている）
+  if (request === 'interview_survey_public') {
+    const roll = (req.body as { roll?: unknown } | undefined)?.roll;
+    if (roll === 'before' || roll === 'after') {
+      void surveyLimiter(req, res, next);
+      return;
+    }
+    next();
     return;
   }
 

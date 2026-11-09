@@ -178,6 +178,12 @@ function expressProxyRequests(): array
         'privacy_erase:inquiry:order',
         'privacy_erase:inquiry:spec',
         'privacy_erase:inquiry:used',
+        // ⚠️ v2.2.257。面談アンケート（survey）のスタッフの画面（② だけ。旧 API の demand: survey_list・staff_list の置き換え）。
+        //   expressProxyExclusive() にも入れてある。⚠️ ① の handlers/survey.php（request: 'survey'）とは別物
+        //   ⚠️ お客様の画面（interview_survey_public）は ① を通らず ② へ直接送る（before_survey_entry と同じ）
+        'interview_survey:customers',
+        'interview_survey:staff',
+        'interview_survey:link',
 
         // 2026-09-03 移植。旧API（dashboard/api/ の demand 形式）から
         // request 形式へ移したもの。
@@ -830,6 +836,11 @@ function expressProxyExclusive(): array
         'analysis_report_get',
         'analysis_report_upload',
         'analysis_report_delete',
+
+        // v2.2.257 新規。面談アンケート（survey）のスタッフの画面。⚠️ ① に PHP ハンドラが無い
+        'interview_survey:customers',
+        'interview_survey:staff',
+        'interview_survey:link',
 
         // v2.2.217 新規。Claudeによる分析。⚠️ 分析は ② の中で数分かけて続くため、① では代われない
         'ai_analysis_start',
