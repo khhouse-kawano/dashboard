@@ -168,6 +168,9 @@ function expressProxyRequests(): array
         'planner:practice_logs_import',
         // ⚠️ v2.2.248: 売り反響の媒介紐付（台帳の作成を1つのトランザクションで。② だけ）
         'planner:ledger_link',
+        // ⚠️ v2.2.258: 媒介獲得台帳といえらぶの物件の候補・今すぐ突き合わせ（② だけ）
+        'broker:ielove_candidates',
+        'broker:ielove_match',
         // ⚠️ v2.2.239。中古リノベの今日の架電キュー（② だけ）。expressProxyExclusive() にも入れてある
         'callq_used:list',
         'callq_used:mark',
@@ -871,6 +874,9 @@ function expressProxyExclusive(): array
         'planner:practice_logs_import',
         // ⚠️ v2.2.248: 売り反響の媒介紐付（台帳の作成を1つのトランザクションで。② だけ）
         'planner:ledger_link',
+        // ⚠️ v2.2.258: 媒介獲得台帳といえらぶの物件の候補・今すぐ突き合わせ（② だけ）
+        'broker:ielove_candidates',
+        'broker:ielove_match',
         // v2.2.239 新規。中古リノベの今日の架電キュー（mark は書き込み）。⚠️ ① に PHP ハンドラは無い（② だけ）
         'callq_used:list',
         'callq_used:mark',
