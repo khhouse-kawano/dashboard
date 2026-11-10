@@ -104,6 +104,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '権限編集': { header: 'システム管理/権限編集' },
     // ⚠️ v2.2.242。headerScreens.tsx と同じく Master だけ
     'セキュリティログ': { header: 'システム管理/セキュリティログ', authority: ['Master'] },
+    // ⚠️ v2.2.259。headerScreens.tsx と同じく Master だけ
+    '同期の実行結果': { header: 'システム管理/同期の実行結果', authority: ['Master'] },
     // ⚠️ v2.2.243。headerScreens.tsx と同じく Master / BrandAdmin
     '予算テーブル': { header: 'システム管理/予算テーブル', authority: ADMIN },
 };
