@@ -44,6 +44,8 @@ export const REALTY_MENU: Group[] = [
         label: '点検・管理', items: [
             { id: 'quality', path: '/realtyPending?view=quality', icon: 'fa-magnifying-glass', label: 'データ品質チェック', pending: true },
             { id: 'comp', path: '/realtyCompliance', icon: 'fa-triangle-exclamation', label: 'コンプライアンス' },
+            // ⚠️ v2.2.262: 営業向けの手順書（媒介紐付 → いえらぶ連携）。中身は manual/RealtyManual.tsx
+            { id: 'manual', path: '/realtyManual', icon: 'fa-book-open', label: '媒介・いえらぶ手順書' },
             { id: 'settings', path: '/realtySettings', icon: 'fa-gear', label: '設定・データ管理' },
         ],
     },
