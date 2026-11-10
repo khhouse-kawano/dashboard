@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Calendar from "./components/calendar/Calendar";
@@ -55,6 +55,9 @@ import CallQueue from "./components/realty/callq/CallQueue";
 import CallNavi from "./components/realty/navi/CallNavi";
 import UsedCallQueue from "./components/callq/UsedCallQueue";
 import Guide from "./components/guide/Guide";
+
+// ⚠️ v2.2.262: 不動産企画係の営業手順書は画像が多いので、開いたときだけ読み込む
+const RealtyManual = lazy(() => import("./components/realty/manual/RealtyManual"));
 
 const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ['marker'];
 
@@ -209,6 +212,7 @@ function AppInner() {
             {/* ⚠️ v2.2.223: 週次行動計画・コンプライアンス・設定（本番アプリから移植） */}
             <Route path="/realtyWeekly" element={<RealtyRoute><WeeklyPlan /></RealtyRoute>} />
             <Route path="/realtyCompliance" element={<RealtyRoute><Compliance /></RealtyRoute>} />
+            <Route path="/realtyManual" element={<RealtyRoute><Suspense fallback={<div className="p-3 text-secondary small">読み込み中…</div>}><RealtyManual /></Suspense></RealtyRoute>} />
             <Route path="/realtySettings" element={<RealtyRoute><RealtySettings /></RealtyRoute>} />
             {/* ⚠️ v2.2.225: 以前のアプリのメニューから移した画面・まだ移していない画面の案内（realty/RealtyMenu.tsx） */}
             <Route path="/realtySales" element={<RealtyRoute><MonthlySales /></RealtyRoute>} />

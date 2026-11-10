@@ -1,7 +1,7 @@
 # 引き継ぎ書：不動産企画係アプリの移植（realty）
 
 > この文書は、**新しく入る開発者（人またはエージェント）が `git clone` から開発を再開できる**ように書いています。
-> 最終更新：2026-11-10（**v2.2.259 まで production にマージ済み**。v2.2.259 は sync の実行結果（realty 外）。**v2.2.260 はいえらぶの物件一覧（CSV）の取り込み（push 済み・マージ待ち）**。realty の次は v2.2.261（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）。版を進めたら、冒頭の版・「4. 進捗」・「5. 次にやること」を必ず書き直してください（別のエージェントが常にこの文書を読んでいます）。
+> 最終更新：2026-11-10（**v2.2.261 まで production にマージ済み**。v2.2.259・v2.2.261 は realty 外。**v2.2.262 で「点検・管理」に「媒介・いえらぶ手順書」（営業向けの手順書の画面）を追加（push 済み・マージ待ち）**。realty の次は v2.2.263（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）。版を進めたら、冒頭の版・「4. 進捗」・「5. 次にやること」を必ず書き直してください（別のエージェントが常にこの文書を読んでいます）。
 >
 > ⚠️ **2026-11-05 から、改修の正は「連動トリガー仕様書」です** → [docs/realty-trigger-spec.md](realty-trigger-spec.md)
 > 以前のアプリ（v14）を最優先にしていた今までの方針とぶつかるところは、仕様書に合わせます。ただし、**段階・現況の名前は今のまま**にし、仕様書の名前とは対応表で読み替えます（利用者の決定）。
@@ -148,6 +148,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 | 媒介獲得台帳 | /broker | ⚠️ `components/database/DatabaseBroker.tsx`（realty の外にある） |
 | 週次行動計画 | /realtyWeekly | `weekly/WeeklyPlan.tsx` |
 | コンプライアンス | /realtyCompliance | `compliance/Compliance.tsx` |
+| 媒介・いえらぶ手順書 | /realtyManual | `manual/RealtyManual.tsx`（v2.2.262。読むだけの画面。画像は `manual/img/`。配る用の1ファイル版 `docs/manual/realty-media-ielove-manual.html` と中身をそろえる。媒介紐付・台帳・いえらぶの画面を変えたら、ここの文と画像も直す） |
 | 設定・データ管理 | /realtySettings | `settings/RealtySettings.tsx`, `settings/RealtyImport.tsx`, `settings/RealtyLogImport.tsx`, `settings/RealtyIeloveImport.tsx`（v2.2.260） |
 | 移行中の案内 | /realtyPending?view=… | `RealtyPending.tsx` |
 
@@ -221,6 +222,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 | screen-247 | 反響から商談案件へのつながり |
 | screen-250 | 週次行動計画 |
 | screen-260 | コンプライアンス |
+| screen-265 | 媒介・いえらぶ手順書（v2.2.262） |
 | screen-270 | 設定 |
 
 手順は `CLAUDE.md` の「業務ガイドの記事」のとおりです（`build-guide-sql.cjs` で SQL を作り、その版の update_log の SQL の末尾に足します）。
@@ -232,7 +234,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 
 ---
 
-## 4. 進捗（v2.2.260 まで push 済み）
+## 4. 進捗（v2.2.262 まで push 済み）
 
 ### 終わったもの
 | 版 | 内容 |
@@ -257,6 +259,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 | v2.2.256 | 買い反響の編集に「問合せ物件（媒介獲得台帳）」の検索欄（`common/LedgerPicker.tsx`。以前のアプリ v14.14 の選択欄を検索の形に）と「問合せ物件名」。押すと `ledgerId`・`ledgerNo`・`propertyId`（台帳の媒介物件）を入れる。一覧に「📝No.〇」。② の `broker:update` の書き込める列に `propertyId` を追加。DB の列の追加なし |
 | v2.2.258 | **媒介獲得台帳 ⇔ いえらぶの物件 ⇔ 買い反響**（`features/realty/ieloveMatch.ts`）。台帳は中古住宅専門店のいえらぶの物件と所在地（`propertyKeyRules.json`）・種別（マンションは建物名・部屋）で突き合わせ、1件だけなら自動でつなぐ（`property_db_match='auto'`）、複数・番地の粗さ・種別違いは「要確認」、無ければ「いえらぶ未採番」。ポータルの買い反響は `extId` → 取り込み元の自社の物件番号（＝いえらぶの番号）→ 台帳で自動でつなぐ。台帳の一覧に札・⑥ の絞り込み・「いえらぶと突き合わせ」、編集画面（`PropertyRegister.tsx`）に候補・外す・該当なし・所在地/建物名のコピー。買い反響の検索欄でいえらぶの番号も探せる。新しい列 `brokerage_listings.property_db_match`。ローカルでは台帳100件・買い反響67件が自動でつながった |
 | v2.2.260 | **いえらぶの物件一覧（CSV）の取り込み**（設定・データ管理。`settings/RealtyIeloveImport.tsx`・② `features/realty/ieloveImport.ts`）。いえらぶの2段階認証（メール）の義務化と、Heroku からのログインの 403 で、sync の自動の取り込み（runIeloveProperty.ts）ができなくなったための代わり。Shift_JIS の CSV（sale_日付.csv）を店舗ごとに複数まとめて選べる。下見（新規・更新・価格の変更）→ 取り込み → v2.2.258 の突き合わせ。書き方は ① の property_db_update.php と同じ（価格の履歴）だが、**CSV に無い列は上書きしない**。DB の変更なし |
+| v2.2.262 | **媒介・いえらぶ手順書**（「点検・管理」。`/realtyManual`・`manual/RealtyManual.tsx`）。営業向けに、媒介紐付 → 台帳の確認 → いえらぶ登録の決まり（所在地・建物名は台帳からコピー、担当店舗、種別の対応）→ CSV の取り込み → 要確認の直し方 → 買い反響のつながり → FAQ を、見本データで撮った画面の写真13枚付きで。`React.lazy` で開いたときだけ読む。印刷は手順書だけ。② と DB の変更なし（記事 screen-265 と update_log だけ） |
 
 ### 未着手のもの
 **次の版の予定**（1版に1つ。v2.2.257 のテーマは利用者に確かめる）
@@ -295,8 +298,8 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 
 ---
 
-## 5. 次にやること：v2.2.261（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）
-v2.2.260 までが production にマージされていなければ、最新の版から枝を切ります。以下は ③ を選んだときの要点です。仕様書の要約の「4. ③」と、食い違いの一覧（6〜10）に合わせます。**③は大きいので、どこまでを1版にするかを利用者と決め、計画の了承を取ってから着手します。**
+## 5. 次にやること：v2.2.263（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）
+v2.2.262 までが production にマージされていなければ、最新の版から枝を切ります。以下は ③ を選んだときの要点です。仕様書の要約の「4. ③」と、食い違いの一覧（6〜10）に合わせます。**③は大きいので、どこまでを1版にするかを利用者と決め、計画の了承を取ってから着手します。**
 
 主な食い違い（今の作り → 仕様書）
 - 自社客付け（売・買の2件）：今は台帳の「買付登録」から作る → 仕様書では買い反響を「申込獲得」（＝購入申込）にして保存したときに作る
