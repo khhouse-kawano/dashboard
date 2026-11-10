@@ -415,6 +415,8 @@ function expressProxyRequests(): array
         'loan_plan_rate_upload',
         // ⚠️ v2.2.242: セキュリティログの一覧（Master。features/securityLog.ts）
         'security_log_list',
+        // ⚠️ v2.2.259: sync の実行結果（② だけ。Master）。⚠️ 書き込み（sync_log:write）は sync が ② へ直接送るので入れない
+        'sync_log_list',
         // ⚠️ v2.2.243: 予算テーブル（Master / BrandAdmin。features/budgetTable.ts）。upload は書き込み（budget へ INSERT）
         'budget_table_list',
         'budget_table_upload',
@@ -915,6 +917,8 @@ function expressProxyExclusive(): array
         'loan_plan_rate_upload',
         // ⚠️ v2.2.242: セキュリティログの一覧（Master。features/securityLog.ts）
         'security_log_list',
+        // ⚠️ v2.2.259: sync の実行結果（② だけ。Master）。⚠️ 書き込み（sync_log:write）は sync が ② へ直接送るので入れない
+        'sync_log_list',
         // ⚠️ v2.2.243: 予算テーブル（Master / BrandAdmin。features/budgetTable.ts）。upload は書き込み（budget へ INSERT）
         'budget_table_list',
         'budget_table_upload',
