@@ -74,7 +74,19 @@ const KPI_COLUMNS: { key: KpiKey; label: string }[] = [
  * ⚠️ 'id' は画面上の「No」列に対応する。No は表示上の連番だが、
  *   並べ替えの基準は event_calendar.id（イベントの登録順）である。
  */
-type SortKey = 'id' | 'title' | 'startDate' | KpiKey;
+type SortKey = 'id' | 'title' | 'startDate' | KpiKey | 'budget';
+
+/** 総予算の明細の1行（v2.2.261）。⚠️ サーバの EventBudgetRow と揃えること */
+interface EventBudget {
+    id: number;
+    period: string;
+    shop: string;
+    medium: string;
+    company: string;
+    remarks: string;
+    category: string;
+    value: number;
+}
 
 /**
  * KPI 1件あたりの広告費。
@@ -149,6 +161,11 @@ const styles = {
         zIndex: 1,
     },
     td: { fontSize: '12px', color: '#303030', verticalAlign: 'middle' as const },
+    /** v2.2.261: 総予算（押すと明細） */
+    budgetLink: {
+        border: 'none', background: 'none', padding: 0, font: 'inherit', fontWeight: 600,
+        textDecoration: 'underline dotted', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' as const,
+    },
 };
 
 /** モーダルの見出しに出すKPI名 */
@@ -180,6 +197,11 @@ const EventSummary: React.FC = () => {
 
     /** 顧客詳細（一覧のお客様名クリックで開く） */
     const [editId, setEditId] = useState('');
+
+    /** ⚠️ v2.2.261: 総予算の明細のモーダル（金額をクリック） */
+    const [budgetOf, setBudgetOf] = useState<{ title: string } | null>(null);
+    const [budgets, setBudgets] = useState<EventBudget[] | null>(null);
+    const [budgetError, setBudgetError] = useState('');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -262,6 +284,21 @@ const EventSummary: React.FC = () => {
         }
     };
 
+    /** 総予算の明細を開く。⚠️ 前の明細を消してから取りに行く（別イベントの行が一瞬出ないように） */
+    const openBudget = async (title: string) => {
+        setBudgetOf({ title });
+        setBudgets(null);
+        setBudgetError('');
+        try {
+            const response = await apiClient.post('', { request: 'event_summary', roll: 'budget', title });
+            setBudgets(Array.isArray(response.data?.budgets) ? response.data.budgets : []);
+        } catch (e) {
+            console.error('総予算の明細の取得に失敗しました', e);
+            setBudgetError('総予算の明細の取得に失敗しました。');
+            setBudgets([]);
+        }
+    };
+
     const closeDrill = () => {
         setDrill(null);
         setCustomers(null);
@@ -312,9 +349,17 @@ const EventSummary: React.FC = () => {
                             <th style={styles.th} onClick={() => toggleSort('title')}>イベント名{arrow('title')}</th>
                             <th style={styles.th} onClick={() => toggleSort('startDate')}>開催期間{arrow('startDate')}</th>
                             {KPI_COLUMNS.map(({ key, label }) => (
-                                <th key={key} style={{ ...styles.th, textAlign: 'right' }} onClick={() => toggleSort(key)}>
-                                    {label}{arrow(key)}
-                                </th>
+                                <React.Fragment key={key}>
+                                    <th style={{ ...styles.th, textAlign: 'right' }} onClick={() => toggleSort(key)}>
+                                        {label}{arrow(key)}
+                                    </th>
+                                    {/* ⚠️ v2.2.261: 反響数の右に総予算（要件） */}
+                                    {key === 'inquiry' && (
+                                        <th style={{ ...styles.th, textAlign: 'right' }} onClick={() => toggleSort('budget')}>
+                                            総予算{arrow('budget')}
+                                        </th>
+                                    )}
+                                </React.Fragment>
                             ))}
                         </tr>
                     </thead>
@@ -338,7 +383,8 @@ const EventSummary: React.FC = () => {
                                     // ⚠️ 0件のときはクリックできない。空の一覧を開くだけになる
                                     const canDrill = isDrillable(key) && kpi >= 1;
                                     return (
-                                        <td key={key} style={{ ...styles.td, textAlign: 'right', padding: '4px 6px' }}>
+                                        <React.Fragment key={key}>
+                                        <td style={{ ...styles.td, textAlign: 'right', padding: '4px 6px' }}>
                                             {canDrill ? (
                                                 <div
                                                     style={{
@@ -370,6 +416,24 @@ const EventSummary: React.FC = () => {
                                                 {cost === null ? '-' : yen(cost)}
                                             </div>
                                         </td>
+                                        {key === 'inquiry' && (
+                                            <td style={{ ...styles.td, textAlign: 'right', padding: '4px 6px', whiteSpace: 'nowrap' }}>
+                                                {/* ⚠️ 0円（未登録）は「-」。押せない（明細が無い）。負（返金の伝票）は赤 */}
+                                                {row.budget === 0 ? (
+                                                    <span style={{ color: '#6c757d' }}>-</span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        style={{ ...styles.budgetLink, color: row.budget < 0 ? '#dc3545' : '#0d6efd' }}
+                                                        onClick={() => openBudget(row.title)}
+                                                        title={`${row.title} の予算の明細を表示`}
+                                                    >
+                                                        {yen(row.budget)}
+                                                    </button>
+                                                )}
+                                            </td>
+                                        )}
+                                        </React.Fragment>
                                     );
                                 })}
                             </tr>
@@ -460,6 +524,70 @@ const EventSummary: React.FC = () => {
                                     </div>
                                 </div>
                             )}
+                        </>
+                    )}
+                </Modal.Body>
+            </Modal>
+
+            {/* ⚠️ v2.2.261: 総予算の明細（md。予算の表で、詳細がイベント名と完全に一致する行） */}
+            <Modal show={budgetOf !== null} onHide={() => { setBudgetOf(null); setBudgets(null); setBudgetError(''); }} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title style={{ fontSize: '15px' }}>
+                        {budgetOf?.title}
+                        <span className="text-muted ms-2" style={{ fontSize: '12px' }}>総予算の明細</span>
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {budgets === null ? (
+                        <div className="text-muted text-center py-3" style={{ fontSize: '13px' }}>読み込み中…</div>
+                    ) : budgetError !== '' ? (
+                        <div className="text-danger text-center py-3" style={{ fontSize: '13px' }}>{budgetError}</div>
+                    ) : budgets.length === 0 ? (
+                        <div className="text-muted text-center py-3" style={{ fontSize: '13px' }}>明細がありません。</div>
+                    ) : (
+                        <>
+                            <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
+                                <Table bordered hover size="sm" className="mb-2">
+                                    <thead>
+                                        <tr>
+                                            <th style={{ ...styles.th, cursor: 'default' }}>期間</th>
+                                            <th style={{ ...styles.th, cursor: 'default' }}>店舗</th>
+                                            <th style={{ ...styles.th, cursor: 'default' }}>媒体・請求先</th>
+                                            <th style={{ ...styles.th, cursor: 'default', textAlign: 'right' }}>金額</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {budgets.map((b) => (
+                                            <tr key={b.id}>
+                                                <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>{b.period}</td>
+                                                <td style={styles.td}>{b.shop}</td>
+                                                <td style={styles.td}>
+                                                    {b.medium}
+                                                    {(b.company || b.remarks) && (
+                                                        <div className="text-muted" style={{ fontSize: '11px' }}>
+                                                            {[b.company, b.remarks].filter(Boolean).join('／')}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td style={{ ...styles.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: b.value < 0 ? '#dc3545' : undefined }}>
+                                                    {yen(b.value)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colSpan={3} style={{ ...styles.td, fontWeight: 700 }}>合計（{budgets.length}件）</td>
+                                            <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                                                {yen(budgets.reduce((s, b) => s + b.value, 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </Table>
+                            </div>
+                            <div className="text-muted" style={{ fontSize: '11px' }}>
+                                予算の表で、詳細（備考）がイベント名と完全に一致する行の合計です。マイナスは返金・修正の伝票です。
+                            </div>
                         </>
                     )}
                 </Modal.Body>

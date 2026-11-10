@@ -350,3 +350,47 @@ export const runEventSummaryDetail = async (
 
   return { httpStatus: 200, body: { status: 'ok', customers } };
 };
+
+/**
+ * 総予算の明細（v2.2.261。表の「総予算」をクリックしたときのモーダル）。
+ *
+ * ⚠️ 突き合わせは BUDGET_SQL と同じ **TRIM(note) と event_calendar.title の完全一致**。
+ *   ⚠️ 表の総予算（rows[].budget）と明細の合計が必ず一致するように、条件を変えないこと（部分一致を足さない。BUDGET_SQL の注記）。
+ * ⚠️ title は event_calendar.title（接頭辞なし）で受ける。
+ */
+export interface EventBudgetRow {
+  id: number;
+  period: string;
+  shop: string;
+  medium: string;
+  company: string;
+  remarks: string;
+  category: string;
+  value: number;
+}
+
+export const runEventSummaryBudget = async (body: unknown): Promise<EventSummaryDetailResult> => {
+  const data = (body ?? {}) as Record<string, unknown>;
+  const title = asString(data.title).trim();
+  if (title === '') {
+    return { httpStatus: 400, body: { status: 'error', message: 'イベント名が指定されていません。' } };
+  }
+  const rows = await query<DynamicRow>(
+    `SELECT id, budget_period, shop, medium, company, COALESCE(remarks, '') AS remarks, category, budget_value
+       FROM budget
+      WHERE TRIM(note) = ?
+      ORDER BY budget_period, id`,
+    [title]
+  );
+  const budgets: EventBudgetRow[] = rows.map((r) => ({
+    id: asNumber(r.id),
+    period: asString(r.budget_period),
+    shop: asString(r.shop),
+    medium: asString(r.medium),
+    company: asString(r.company),
+    remarks: asString(r.remarks),
+    category: asString(r.category),
+    value: asNumber(r.budget_value),
+  }));
+  return { httpStatus: 200, body: { status: 'ok', budgets, total: budgets.reduce((s, b) => s + b.value, 0) } };
+};

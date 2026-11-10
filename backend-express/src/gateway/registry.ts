@@ -40,7 +40,7 @@ import { runEventCheckin } from '../features/event/checkin';
 import type { CallStatusCategory } from '../features/callStatusList';
 import { runCallStatusList } from '../features/callStatusList';
 import { runFamilyInfoShow, runFamilyInfoUpdate } from '../features/familyInfo';
-import { runEventSummary, runEventSummaryDetail } from '../features/eventSummary';
+import { runEventSummary, runEventSummaryBudget, runEventSummaryDetail } from '../features/eventSummary';
 import {
   runEventBudgetOptions,
   runEventBudgetSave,
@@ -1609,6 +1609,23 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await runEventSummaryDetail(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * 総予算をクリックしたときの予算の明細（v2.2.261）。⚠️ 表の総予算と同じ完全一致（features/eventSummary.ts の runEventSummaryBudget）
+ * ⚠️ ① の express_proxy.php は request 'event_summary' の単位で転送しているので、足さなくてよい
+ */
+register({
+  request: 'event_summary',
+  roll: 'budget',
+  summary: 'イベントの総予算の明細（budget の行）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runEventSummaryBudget(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
