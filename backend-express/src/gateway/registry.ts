@@ -145,6 +145,7 @@ import { runUpdateLog } from '../features/updateLog';
 import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import { listLoanPlanRates, uploadLoanPlanRates } from '../features/loanPlanRate';
 import { listSecurityLog } from '../features/securityLog';
+import { listSyncLog, writeSyncLog } from '../features/syncLog';
 import { BUDGET_TABLE_AUTHORITY, listBudgetTable, uploadBudgetTable } from '../features/budgetTable';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
 import { runSurveyCustomers, runSurveyLink, runSurveyStaff } from '../features/survey/staff';
@@ -3117,6 +3118,33 @@ register({
   phpSource: '（新規。PHP版なし）',
   auth: 'master',
   handler: async (ctx) => listSecurityLog(ctx.body),
+});
+
+/**
+ * sync（Heroku の自動取り込み）の実行結果（v2.2.259）。features/syncLog.ts 参照。
+ *
+ * ⚠️ write は sync が ② へ直接送る（① を通さない。① の express_proxy.php にも入れない）。ログイン無し・合い言葉（SYNC_LOG_SECRET）。
+ *   ⚠️ 合い言葉の総当たりは publicFormRateLimit.ts の syncLogLimiter（失敗だけを数える）。
+ * ⚠️ sync_log_list は Master だけ（システム管理 →「同期の実行結果」）。① の express_proxy.php の両方のリストに入れてある。
+ */
+register({
+  request: 'sync_log',
+  roll: 'write',
+  summary: '【書き込み】sync の実行結果（合い言葉で確かめる）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await writeSyncLog(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+register({
+  request: 'sync_log_list',
+  summary: 'sync の実行結果（期間の行・タスクごとの最新と最後の成功）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) => (await listSyncLog(ctx.body)).body,
 });
 
 /**

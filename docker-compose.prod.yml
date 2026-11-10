@@ -132,6 +132,13 @@ services:
       # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
       - META_SCRAPER_KEY=${META_SCRAPER_KEY:-}
 
+      # sync（Heroku の自動取り込み）が実行結果を書くときの合い言葉（v2.2.259。sync_log:write）。
+      #
+      # ⚠️ 未設定だと全件 401（素通しにしない）。sync の実行結果が残らなくなる（sync の処理そのものは止まらない）。
+      # ⚠️ Heroku の Config Vars SYNC_LOG_SECRET と**同じ値**にすること。
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
+      - SYNC_LOG_SECRET=${SYNC_LOG_SECRET:-}
+
       # 「Claudeによる分析」（v2.2.217）が使う Anthropic の API キー（Claude Console で発行したもの）。
       #
       # ⚠️ 未設定だと分析の開始が 503 になる（他の機能は動く）。

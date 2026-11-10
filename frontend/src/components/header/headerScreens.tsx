@@ -5,6 +5,7 @@ import EditAuth from './system/EditAuth';
 import EditShop from './system/EditShop';
 import UploadLoan from './system/UploadLoan';
 import SecurityLog from './system/SecurityLog';
+import SyncLog from './system/SyncLog';
 import BudgetTable from './system/BudgetTable';
 import EditBlackList from './inquiry/EditBlackList';
 import BudgetSimulator from './inquiry/BudgetSimulator';
@@ -125,6 +126,8 @@ export const HEADER_SCREENS: HeaderScreen[] = [
     { menu: 'システム管理', item: 'ローン情報更新', path: '/uploadLoan', allow: isMaster, padded: true, render: () => <UploadLoan /> },
     // ⚠️ v2.2.242: セキュリティログは ⚠️⚠️ **Master だけ**（IP・ログインの記録が並ぶため。② の security_log_list も auth: 'master'）
     { menu: 'システム管理', item: 'セキュリティログ', path: '/securityLog', allow: isMaster, render: () => <SecurityLog /> },
+    // ⚠️ v2.2.259: 同期の実行結果は ⚠️⚠️ **Master だけ**（② の sync_log_list も auth: 'master'）
+    { menu: 'システム管理', item: '同期の実行結果', path: '/syncLog', allow: isMaster, render: () => <SyncLog /> },
     // ⚠️ v2.2.243: 予算テーブルは ⚠️⚠️ **Master と BrandAdmin**（budget へ CSV で追加できるため。② の budget_table_* も同じ2つ）
     { menu: 'システム管理', item: '予算テーブル', path: '/budgetTable', allow: isAdmin, render: () => <BudgetTable /> },
 

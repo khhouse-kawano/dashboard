@@ -121,6 +121,20 @@ const surveyLimiter = rateLimit({
 });
 
 /**
+ * sync の実行結果の書き込み（sync_log:write。v2.2.259）の制限。
+ *   ⚠️ Heroku から1回の実行で何十件も届くので、**数えるのは失敗（合い言葉の違い＝401）だけ**（受付と同じ形）。
+ */
+const syncLogLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: 20,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown'),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { status: 'error', message: '合い言葉の誤りが続いたため、しばらく受け付けません。' },
+});
+
+/**
  * ゲートウェイに挟むミドルウェア。
  *
  * ⚠️ ゲートウェイは全ての通信が同じURLへの POST であるため、
@@ -144,6 +158,12 @@ export const publicFormRateLimit = (
   // ⚠️ 受付は別の制限を使う。フォームと同じ 5件/10分 にすると当日の受付が止まる
   if (request === 'event_checkin') {
     void checkinLimiter(req, res, next);
+    return;
+  }
+
+  // ⚠️ v2.2.259 sync の実行結果（認証なしの書き込み口。合い言葉の総当たりだけを止める）
+  if (request === 'sync_log') {
+    void syncLogLimiter(req, res, next);
     return;
   }
 

@@ -199,6 +199,14 @@ export const env = {
   surveyLinkSecret: (process.env.SURVEY_LINK_SECRET ?? '').trim(),
 
   /**
+   * sync（Heroku の自動取り込み）が実行結果を書くときの合い言葉。（v2.2.259。features/syncLog.ts）
+   *
+   * ⚠️ **未設定なら全件断る**（素通しにしない）。⚠️ 同じ値を Heroku の Config Vars `SYNC_LOG_SECRET` にも入れる。
+   * ⚠️ 設定先は ② VPS の .env.prod のみ。⚠️ **リポジトリに書かないこと。**
+   */
+  syncLogSecret: (process.env.SYNC_LOG_SECRET ?? '').trim(),
+
+  /**
    * 他社広告の取り込み（meta_scrape。拡張機能 extensions/meta が送る）の合い言葉。（v2.2.230）
    *
    * ⚠️ **未設定なら全件断る**（素通しにしない）。⚠️ 画像を ① の meta_scrape_image へ渡すときにも付ける。
