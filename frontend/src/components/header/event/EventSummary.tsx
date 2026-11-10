@@ -143,6 +143,17 @@ const costStyle = (ratio: number | null): React.CSSProperties => {
 
 const yen = (value: number): string => `¥${value.toLocaleString('ja-JP')}`;
 
+/** 総予算の明細の、請求先ごとの合計と件数（v2.2.262。金額の多い順。請求先が空は「（請求先なし）」） */
+const companyTotals = (rows: { company: string; value: number }[]): [string, number, number][] => {
+    const m = new Map<string, [number, number]>();
+    for (const r of rows) {
+        const k = r.company.trim() || '（請求先なし）';
+        const cur = m.get(k) ?? [0, 0];
+        m.set(k, [cur[0] + r.value, cur[1] + 1]);
+    }
+    return [...m.entries()].map(([k, [t, c]]): [string, number, number] => [k, t, c]).sort((a, b) => b[1] - a[1]);
+};
+
 /** 'YYYY-MM-DD' → 'YYYY/MM/DD'。⚠️ 空文字はそのまま返す（'-' は呼び出し側で） */
 const dateFormate = (date: string): string => (date ? date.replace(/-/g, '/') : '');
 
@@ -161,6 +172,10 @@ const styles = {
         zIndex: 1,
     },
     td: { fontSize: '12px', color: '#303030', verticalAlign: 'middle' as const },
+    /** v2.2.262: 明細の上の請求先ごとの合計 */
+    companyChip: {
+        fontSize: '11px', border: '1px solid #dee2e6', background: '#f8f9fa', borderRadius: '999px', padding: '2px 10px', whiteSpace: 'nowrap' as const,
+    },
     /** v2.2.261: 総予算（押すと明細） */
     budgetLink: {
         border: 'none', background: 'none', padding: 0, font: 'inherit', fontWeight: 600,
@@ -546,13 +561,25 @@ const EventSummary: React.FC = () => {
                         <div className="text-muted text-center py-3" style={{ fontSize: '13px' }}>明細がありません。</div>
                     ) : (
                         <>
+                            {/* ⚠️ v2.2.262: 請求先ごとの合計（どこにいくら払ったかを先に見せる。金額の多い順） */}
+                            <div className="mb-2" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {companyTotals(budgets).map(([company, total, count]) => (
+                                    <span key={company} style={styles.companyChip}>
+                                        {company}
+                                        <b style={{ marginLeft: '6px', fontVariantNumeric: 'tabular-nums', color: total < 0 ? '#dc3545' : undefined }}>{yen(total)}</b>
+                                        <span className="text-muted" style={{ marginLeft: '4px' }}>（{count}件）</span>
+                                    </span>
+                                ))}
+                            </div>
                             <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
                                 <Table bordered hover size="sm" className="mb-2">
                                     <thead>
                                         <tr>
+                                            {/* ⚠️ v2.2.262: 媒体（medium）は出さない。このモーダルはほぼイベントの広告費だけで、全行「イベント」になるため（利用者の指示） */}
                                             <th style={{ ...styles.th, cursor: 'default' }}>期間</th>
                                             <th style={{ ...styles.th, cursor: 'default' }}>店舗</th>
-                                            <th style={{ ...styles.th, cursor: 'default' }}>媒体・請求先</th>
+                                            <th style={{ ...styles.th, cursor: 'default' }}>請求先</th>
+                                            <th style={{ ...styles.th, cursor: 'default' }}>詳細</th>
                                             <th style={{ ...styles.th, cursor: 'default', textAlign: 'right' }}>金額</th>
                                         </tr>
                                     </thead>
@@ -560,15 +587,9 @@ const EventSummary: React.FC = () => {
                                         {budgets.map((b) => (
                                             <tr key={b.id}>
                                                 <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>{b.period}</td>
-                                                <td style={styles.td}>{b.shop}</td>
-                                                <td style={styles.td}>
-                                                    {b.medium}
-                                                    {(b.company || b.remarks) && (
-                                                        <div className="text-muted" style={{ fontSize: '11px' }}>
-                                                            {[b.company, b.remarks].filter(Boolean).join('／')}
-                                                        </div>
-                                                    )}
-                                                </td>
+                                                <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>{b.shop}</td>
+                                                <td style={styles.td}>{b.company || <span className="text-muted">-</span>}</td>
+                                                <td style={{ ...styles.td, fontSize: '11px' }}>{b.remarks || <span className="text-muted">-</span>}</td>
                                                 <td style={{ ...styles.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: b.value < 0 ? '#dc3545' : undefined }}>
                                                     {yen(b.value)}
                                                 </td>
@@ -577,7 +598,7 @@ const EventSummary: React.FC = () => {
                                     </tbody>
                                     <tfoot>
                                         <tr>
-                                            <td colSpan={3} style={{ ...styles.td, fontWeight: 700 }}>合計（{budgets.length}件）</td>
+                                            <td colSpan={4} style={{ ...styles.td, fontWeight: 700 }}>合計（{budgets.length}件）</td>
                                             <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                                                 {yen(budgets.reduce((s, b) => s + b.value, 0))}
                                             </td>
@@ -586,7 +607,7 @@ const EventSummary: React.FC = () => {
                                 </Table>
                             </div>
                             <div className="text-muted" style={{ fontSize: '11px' }}>
-                                予算の表で、詳細（備考）がイベント名と完全に一致する行の合計です。マイナスは返金・修正の伝票です。
+                                広告費入力の「イベント名」が、このイベント名と完全に一致する行の合計です。「詳細」は広告費入力の詳細の欄です。マイナスは返金・修正の伝票です。
                             </div>
                         </>
                     )}
