@@ -67,6 +67,9 @@ const EVENT_KEYS = Object.keys(EVENTS) as EventKey[];
 
 type SortKey = 'occurredAt' | 'event' | 'count' | 'staffName' | 'ip' | 'request';
 
+/** 要注意の IP の札を、はじめに出す数（v2.2.261。残りは「残り N件を表示」で開く） */
+const FLAG_LIMIT = 10;
+
 const sum = (totals: ListResponse['totals'], keys: EventKey[]): number => keys.reduce((n, k) => n + (totals[k] ?? 0), 0);
 
 const SecurityLog = () => {
@@ -121,7 +124,18 @@ const SecurityLog = () => {
     }, [data, flaggedOnly, flags, sortKey, sortOrder]);
 
     const totals = data?.totals ?? {};
-    const flaggedIps = Object.keys(flags);
+    /**
+     * ⚠️ v2.2.261: 要注意の IP は大事なものから並べる（失敗・探り・ログイン失敗の連打 → User-Agent だけの順。同じなら理由の多い順）。
+     *   はじめは FLAG_LIMIT 件だけ出し、残りはボタンで開く（クローラーの User-Agent だけで 50件を超え、画面の上が埋まっていた）
+     */
+    const flaggedIps = useMemo(() => {
+        const weight = (k: string) => (flags[k].some((r) => !r.includes('User-Agent')) ? 100 : 0) + flags[k].length;
+        return Object.keys(flags).sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
+    }, [flags]);
+    const [showAllFlags, setShowAllFlags] = useState(false);
+    // 期間などを変えて読み直したら閉じる
+    useEffect(() => { setShowAllFlags(false); }, [data]);
+    const shownIps = showAllFlags ? flaggedIps : flaggedIps.slice(0, FLAG_LIMIT);
 
     const th = (label: string, key: SortKey, width?: number) => {
         const active = sortKey === key;
@@ -169,6 +183,9 @@ const SecurityLog = () => {
                 .sl_alert { border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 999px; font-size: 11px;
                             padding: 2px 10px; cursor: pointer; }
                 .sl_alert:hover { background: #fee2e2; }
+                .sl_more { border: 1px solid #d1d5db; background: #fff; color: #374151; border-radius: 999px; font-size: 11px;
+                           font-weight: 700; padding: 2px 12px; cursor: pointer; }
+                .sl_more:hover { background: #f3f4f6; }
                 .sl_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto; background: #fff;
                                  flex: 1 1 auto; min-height: 240px; }
                 .sl_table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
@@ -261,12 +278,18 @@ const SecurityLog = () => {
                         {flaggedIps.length > 0 && (
                             <div className="sl_alerts">
                                 <span className="sl_note">要注意の IP（押すとその IP だけ）:</span>
-                                {flaggedIps.map((k) => (
+                                {shownIps.map((k) => (
                                     <button type="button" key={k} className="sl_alert" title={flags[k].join(' / ')}
                                         onClick={() => { setIp(k); apply({ ip: k }); }}>
                                         {k}（{flags[k].join('・')}）
                                     </button>
                                 ))}
+                                {flaggedIps.length > FLAG_LIMIT && (
+                                    <button type="button" className="sl_more" aria-expanded={showAllFlags}
+                                        onClick={() => setShowAllFlags((v) => !v)}>
+                                        {showAllFlags ? '閉じる ▲' : `残り ${flaggedIps.length - FLAG_LIMIT}件を表示 ▼`}
+                                    </button>
+                                )}
                             </div>
                         )}
 
