@@ -11,8 +11,8 @@ import type { Result } from './index';
  *   ⚠️ 以前は sync（Heroku）の runIeloveProperty.ts が毎日 CSV を取り、① の property_db_update.php へ送っていた。
  *     2026-11 に、いえらぶの2段階認証（メール）が義務になり、Heroku からのログインも 403 で拒否されるようになったので、
  *     担当者が いえらぶの画面から CSV を落として、Dashboard に上げる形にした。
- *   ⚠️ 書き方は property_db_update.php と同じ（⚠️ どちらかだけを変えないこと）
- *     ・34列だけ。⚠️ CSV に無い列は NULL で上書きする（PHP の filterAllowed と同じ）
+ *   ⚠️ 書き方は property_db_update.php とほぼ同じ（⚠️ 下の1点のほかは、どちらかだけを変えないこと）
+ *     ・34列だけ。⚠️ ただし、**CSV に無い列は上書きしない**（v2.2.260 の利用者の決定。PHP は NULL で上書きする）
  *     ・空文字は NULL、前後の空白は落とす（normalizeRow）
  *     ・物件番号（property_id。一意の鍵）で INSERT … ON DUPLICATE KEY UPDATE
  *     ・price_raw は価格の履歴（[{date, value}] の JSON）。前回と違う価格のときだけ1件足す
@@ -40,6 +40,8 @@ const ALLOWED_COLUMNS = [
 ] as const;
 type Column = (typeof ALLOWED_COLUMNS)[number];
 type PropertyRow = Record<Column, string | null>;
+/** 1行と、その行で書く列（⚠️ v2.2.260: CSV にある列だけ。property_id・registered は必ず） */
+type Incoming = { row: PropertyRow; cols: Column[] };
 
 /** 1回に受ける行の上限（画面は 200 ずつ送る） */
 const MAX_ROWS = 500;
@@ -52,8 +54,12 @@ const str = (v: unknown): string => (v === null || v === undefined ? '' : String
 /** 今日（日本時間）の YYYY/MM/DD（sync と同じ形） */
 const todaySlash = (): string => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, '/');
 
-/** 1行を確かめて、34列の形にする。⚠️ 物件番号が6桁の数字でない行は null（取り込まない） */
-const toRow = (raw: unknown, registered: string): PropertyRow | null => {
+/**
+ * 1行を確かめて、34列の形と、書く列にする。⚠️ 物件番号が6桁の数字でない行は null（取り込まない）
+ * ⚠️ 書く列は、送られてきた行にある列だけ（CSV にある列。空の値は NULL で書く）。
+ *   いえらぶの CSV の出力項目を絞っても、絞った列の値が DB から消えないように（利用者の決定。PHP の property_db_update.php とはここが違う）
+ */
+const toRow = (raw: unknown, registered: string): Incoming | null => {
   let obj: unknown = raw;
   if (typeof raw === 'string') {
     try { obj = JSON.parse(raw); } catch { return null; }
@@ -61,13 +67,15 @@ const toRow = (raw: unknown, registered: string): PropertyRow | null => {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return null;
   const o = obj as Record<string, unknown>;
   const row = {} as PropertyRow;
+  const cols: Column[] = [];
   for (const c of ALLOWED_COLUMNS) {
     const v = str(o[c]).trim().slice(0, MAX_VALUE);
     row[c] = v === '' ? null : v;
+    if (c === 'property_id' || c === 'registered' || Object.prototype.hasOwnProperty.call(o, c)) cols.push(c);
   }
   if (!/^\d{6}$/.test(row.property_id ?? '')) return null;
   row.registered = registered;
-  return row;
+  return { row, cols };
 };
 
 type PriceEntry = { date: string; value: string | null };
@@ -107,14 +115,15 @@ export const runIeloveImport = async (body: Record<string, unknown>): Promise<Re
   const finish = body.finish === true || body.finish === 'true' || body.finish === 1;
 
   const registered = todaySlash();
-  const byId = new Map<string, PropertyRow>();
+  const byId = new Map<string, Incoming>();
   let invalid = 0;
   for (const raw of list) {
-    const row = toRow(raw, registered);
-    if (row === null) { invalid += 1; continue; }
-    byId.set(row.property_id as string, row);
+    const inc = toRow(raw, registered);
+    if (inc === null) { invalid += 1; continue; }
+    byId.set(inc.row.property_id as string, inc);
   }
-  const rows = [...byId.values()];
+  const incoming = [...byId.values()];
+  const rows = incoming.map((i) => i.row);
   const stores: Record<string, number> = {};
   for (const r of rows) stores[r.store_name ?? '（店舗なし）'] = (stores[r.store_name ?? '（店舗なし）'] ?? 0) + 1;
   if (rows.length === 0) return { httpStatus: 200, body: { status: 'success', total: list.length, invalid, inserted: 0, updated: 0, priceChanged: 0, stores } };
@@ -128,19 +137,30 @@ export const runIeloveImport = async (body: Record<string, unknown>): Promise<Re
     );
     const prev = new Map(existing.map((e) => [str(e.property_id), e.price_raw]));
     let priceChanged = 0;
-    for (const r of rows) {
+    for (const { row: r, cols } of incoming) {
+      // ⚠️ 価格の履歴は、CSV に「価格(単位なし)」の列があるときだけ（無いときは履歴を変えない）
+      if (!cols.includes('price_raw')) continue;
       const h = withHistory(r, prev.get(r.property_id as string), prev.has(r.property_id as string));
       if (h.changed) priceChanged += 1;
       r.price_raw = h.json;
     }
     if (!dryRun) {
-      const cols = ALLOWED_COLUMNS.map((c) => `\`${c}\``).join(', ');
-      const updates = ALLOWED_COLUMNS.filter((c) => c !== 'property_id').map((c) => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
-      await tx.execute(
-        `INSERT INTO property_db (${cols}) VALUES ${rows.map(() => `(${ALLOWED_COLUMNS.map(() => '?').join(', ')})`).join(', ')}
-         ON DUPLICATE KEY UPDATE ${updates}`,
-        rows.flatMap((r) => ALLOWED_COLUMNS.map((c) => r[c]))
-      );
+      // ⚠️ 書く列が同じ行ごとにまとめて書く（ふつうは1つのファイル＝1つの組）
+      const groups = new Map<string, Incoming[]>();
+      for (const inc of incoming) {
+        const key = inc.cols.join(',');
+        groups.set(key, [...(groups.get(key) ?? []), inc]);
+      }
+      for (const group of groups.values()) {
+        const cols = group[0].cols;
+        const updates = cols.filter((c) => c !== 'property_id').map((c) => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
+        await tx.execute(
+          `INSERT INTO property_db (${cols.map((c) => `\`${c}\``).join(', ')})
+           VALUES ${group.map(() => `(${cols.map(() => '?').join(', ')})`).join(', ')}
+           ON DUPLICATE KEY UPDATE ${updates}`,
+          group.flatMap((g) => cols.map((c) => g.row[c]))
+        );
+      }
     }
     return { inserted: rows.length - prev.size, updated: prev.size, priceChanged };
   });

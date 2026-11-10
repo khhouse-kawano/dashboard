@@ -23,11 +23,11 @@
        dryRun …… 書かずに 新規・更新・価格の変更・店舗ごとの件数
        取り込む … 書く。最後の束（finish）のあと、v2.2.258 の突き合わせ（runIeloveMatch）
 ```
-- 書き方は、① の `property_db_update.php` と同じにした（⚠️ どちらかだけを変えない）。
-  - 34列だけを書く。CSV に無い列は NULL で上書きする。
+- 書き方は、① の `property_db_update.php` とほぼ同じにした（⚠️ 下の「CSV に無い列」のほかは、どちらかだけを変えない）。
+  - 34列だけを書く。**CSV に無い列は上書きしない**（利用者の決定。下の「追加の決定」）。CSV にあって空の値は NULL で書く。
   - 空文字は NULL にし、前後の空白は落とす。
   - 物件番号で `INSERT … ON DUPLICATE KEY UPDATE`。
-  - `price_raw` は価格の履歴（`[{date, value}]`）で、前回と違う価格のときだけ1件足す。
+  - `price_raw` は価格の履歴（`[{date, value}]`）で、前回と違う価格のときだけ1件足す。CSV に「価格(単位なし)」が無いときは、履歴を変えない。
   - `registered` は今日（YYYY/MM/DD）。
 - 足したこと
   - 物件番号が6桁の数字でない行は取り込まない（件数を見せる）。
@@ -58,7 +58,7 @@
 
 ## テスト
 - 型チェック：② とフロントの `npx tsc --noEmit` が通過。
-- API（① 経由。`scratchpad/api_260.cjs`）：**13項目 OK**
+- API（① 経由。`scratchpad/api_260.cjs`）：**14項目 OK**（下の追加の決定のあとに流し直した）
   - 権限
     - トークン無しは、取り込み・件数とも 401。
     - 担当事業が注文の人は 403。
@@ -72,7 +72,8 @@
   - 2回目の取り込み
     - 新規1・更新2・価格の変更1。
     - 価格が変わった物件は履歴2件、変わらない物件は1件。
-    - CSV に無い列は NULL で上書き（PHP と同じ）。
+    - CSV に無い列は上書きしない（値が残る）。
+    - 価格の列が無いファイル：物件名は更新、価格と履歴はそのまま、CSV にある空の列は NULL。
   - 件数と最後に取り込んだ日が返る。
 - 画面（Playwright・3100。`scratchpad/pw_260.cjs`。**実物の CSV**）：**10項目 OK**
   - 件数の案内が出る。いえらぶの CSV でないファイルは断る。
@@ -82,12 +83,22 @@
   - ⚠️ 影響する property_db の30件は、テストの前に控え、テストのあとに元へ戻した（30件）。
 - 後片付け：テストの行（9999xx）・仮スタッフ 999999・999998 を削除。開発サーバー 3100 を停止。
 
+## 追加の決定（2026-11-10。利用者「1で」）
+- 比べた結果（`scratchpad/cmp_260.cjs`）：CSV の30件は、すべて property_db にあった。
+  - 33列のうち31列は全件一致した。
+  - `price_raw` は比べ方の誤りで、最新の値は一致していた。
+  - `expiry_date`（掲載期限）だけが違い、CSV のほうが新しかった（ローカルの最後の取り込みは 2026/11/02）。
+- CSV の132列のうち、取り込むのは33列。画面で使っている列は、さらにその一部（物件番号・物件名・担当店舗名・所在地・価格・物件種別・間取り・面積など）。
+- いえらぶで出力の項目を絞ったときに、ほかの列の値が消えないよう、**CSV にある列だけを上書きする**ように変えた（案 1）。
+  - 案 2（必ず要る列を増やす）・案 3（売主・所有者を取り込まない）は入れていない。
+- 実装：`toRow` が書く列（`cols`）を返し、書く列が同じ行ごとにまとめて INSERT する。画面は、CSV にある見出しの列だけを行に入れて送る（以前から）。
+- 画面の案内文と、業務ガイドの記事（screen-270）にも書いた。
+
 ## 残したこと・注意
 - sync の `runIeloveProperty.ts`（property タスク）は、毎回 403 で失敗し、「同期の実行結果」に失敗として残る。sync を呼ぶ側（定期の実行）の targetTasks から `property` を外すことを勧めた。
 - ① の `property_db_update.php` は、ログイン無しで property_db を書ける口のまま（以前から）。sync が使わなくなったら、閉じることを検討する（別の版）。
 
 ## 新規ファイルの全文と git diff
-（下に続く）
 
 ### backend-express/src/features/realty/ieloveImport.ts
 ```ts
@@ -104,8 +115,8 @@ import type { Result } from './index';
  *   ⚠️ 以前は sync（Heroku）の runIeloveProperty.ts が毎日 CSV を取り、① の property_db_update.php へ送っていた。
  *     2026-11 に、いえらぶの2段階認証（メール）が義務になり、Heroku からのログインも 403 で拒否されるようになったので、
  *     担当者が いえらぶの画面から CSV を落として、Dashboard に上げる形にした。
- *   ⚠️ 書き方は property_db_update.php と同じ（⚠️ どちらかだけを変えないこと）
- *     ・34列だけ。⚠️ CSV に無い列は NULL で上書きする（PHP の filterAllowed と同じ）
+ *   ⚠️ 書き方は property_db_update.php とほぼ同じ（⚠️ 下の1点のほかは、どちらかだけを変えないこと）
+ *     ・34列だけ。⚠️ ただし、**CSV に無い列は上書きしない**（v2.2.260 の利用者の決定。PHP は NULL で上書きする）
  *     ・空文字は NULL、前後の空白は落とす（normalizeRow）
  *     ・物件番号（property_id。一意の鍵）で INSERT … ON DUPLICATE KEY UPDATE
  *     ・price_raw は価格の履歴（[{date, value}] の JSON）。前回と違う価格のときだけ1件足す
@@ -133,6 +144,8 @@ const ALLOWED_COLUMNS = [
 ] as const;
 type Column = (typeof ALLOWED_COLUMNS)[number];
 type PropertyRow = Record<Column, string | null>;
+/** 1行と、その行で書く列（⚠️ v2.2.260: CSV にある列だけ。property_id・registered は必ず） */
+type Incoming = { row: PropertyRow; cols: Column[] };
 
 /** 1回に受ける行の上限（画面は 200 ずつ送る） */
 const MAX_ROWS = 500;
@@ -145,8 +158,12 @@ const str = (v: unknown): string => (v === null || v === undefined ? '' : String
 /** 今日（日本時間）の YYYY/MM/DD（sync と同じ形） */
 const todaySlash = (): string => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, '/');
 
-/** 1行を確かめて、34列の形にする。⚠️ 物件番号が6桁の数字でない行は null（取り込まない） */
-const toRow = (raw: unknown, registered: string): PropertyRow | null => {
+/**
+ * 1行を確かめて、34列の形と、書く列にする。⚠️ 物件番号が6桁の数字でない行は null（取り込まない）
+ * ⚠️ 書く列は、送られてきた行にある列だけ（CSV にある列。空の値は NULL で書く）。
+ *   いえらぶの CSV の出力項目を絞っても、絞った列の値が DB から消えないように（利用者の決定。PHP の property_db_update.php とはここが違う）
+ */
+const toRow = (raw: unknown, registered: string): Incoming | null => {
   let obj: unknown = raw;
   if (typeof raw === 'string') {
     try { obj = JSON.parse(raw); } catch { return null; }
@@ -154,13 +171,15 @@ const toRow = (raw: unknown, registered: string): PropertyRow | null => {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return null;
   const o = obj as Record<string, unknown>;
   const row = {} as PropertyRow;
+  const cols: Column[] = [];
   for (const c of ALLOWED_COLUMNS) {
     const v = str(o[c]).trim().slice(0, MAX_VALUE);
     row[c] = v === '' ? null : v;
+    if (c === 'property_id' || c === 'registered' || Object.prototype.hasOwnProperty.call(o, c)) cols.push(c);
   }
   if (!/^\d{6}$/.test(row.property_id ?? '')) return null;
   row.registered = registered;
-  return row;
+  return { row, cols };
 };
 
 type PriceEntry = { date: string; value: string | null };
@@ -200,14 +219,15 @@ export const runIeloveImport = async (body: Record<string, unknown>): Promise<Re
   const finish = body.finish === true || body.finish === 'true' || body.finish === 1;
 
   const registered = todaySlash();
-  const byId = new Map<string, PropertyRow>();
+  const byId = new Map<string, Incoming>();
   let invalid = 0;
   for (const raw of list) {
-    const row = toRow(raw, registered);
-    if (row === null) { invalid += 1; continue; }
-    byId.set(row.property_id as string, row);
+    const inc = toRow(raw, registered);
+    if (inc === null) { invalid += 1; continue; }
+    byId.set(inc.row.property_id as string, inc);
   }
-  const rows = [...byId.values()];
+  const incoming = [...byId.values()];
+  const rows = incoming.map((i) => i.row);
   const stores: Record<string, number> = {};
   for (const r of rows) stores[r.store_name ?? '（店舗なし）'] = (stores[r.store_name ?? '（店舗なし）'] ?? 0) + 1;
   if (rows.length === 0) return { httpStatus: 200, body: { status: 'success', total: list.length, invalid, inserted: 0, updated: 0, priceChanged: 0, stores } };
@@ -221,19 +241,30 @@ export const runIeloveImport = async (body: Record<string, unknown>): Promise<Re
     );
     const prev = new Map(existing.map((e) => [str(e.property_id), e.price_raw]));
     let priceChanged = 0;
-    for (const r of rows) {
+    for (const { row: r, cols } of incoming) {
+      // ⚠️ 価格の履歴は、CSV に「価格(単位なし)」の列があるときだけ（無いときは履歴を変えない）
+      if (!cols.includes('price_raw')) continue;
       const h = withHistory(r, prev.get(r.property_id as string), prev.has(r.property_id as string));
       if (h.changed) priceChanged += 1;
       r.price_raw = h.json;
     }
     if (!dryRun) {
-      const cols = ALLOWED_COLUMNS.map((c) => `\`${c}\``).join(', ');
-      const updates = ALLOWED_COLUMNS.filter((c) => c !== 'property_id').map((c) => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
-      await tx.execute(
-        `INSERT INTO property_db (${cols}) VALUES ${rows.map(() => `(${ALLOWED_COLUMNS.map(() => '?').join(', ')})`).join(', ')}
-         ON DUPLICATE KEY UPDATE ${updates}`,
-        rows.flatMap((r) => ALLOWED_COLUMNS.map((c) => r[c]))
-      );
+      // ⚠️ 書く列が同じ行ごとにまとめて書く（ふつうは1つのファイル＝1つの組）
+      const groups = new Map<string, Incoming[]>();
+      for (const inc of incoming) {
+        const key = inc.cols.join(',');
+        groups.set(key, [...(groups.get(key) ?? []), inc]);
+      }
+      for (const group of groups.values()) {
+        const cols = group[0].cols;
+        const updates = cols.filter((c) => c !== 'property_id').map((c) => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
+        await tx.execute(
+          `INSERT INTO property_db (${cols.map((c) => `\`${c}\``).join(', ')})
+           VALUES ${group.map(() => `(${cols.map(() => '?').join(', ')})`).join(', ')}
+           ON DUPLICATE KEY UPDATE ${updates}`,
+          group.flatMap((g) => cols.map((c) => g.row[c]))
+        );
+      }
     }
     return { inserted: rows.length - prev.size, updated: prev.size, priceChanged };
   });
@@ -278,6 +309,7 @@ import { parseCsv } from './RealtyLogImport';
  *   ⚠️ 見出し → 列名の対応は、sync の runIeloveProperty.ts の propertyHeaderMap と同じ（⚠️ 片方だけ変えない）。
  *     「オリジナル項目1〜99」は取り込まない。
  *   ⚠️ 複数のファイル（店舗ごとに落としたもの）をまとめて選べる。同じ物件番号は後のファイルを使う。
+ *   ⚠️ 行には CSV にある見出しの列だけを入れて送る。② は送られた列だけを上書きする（出力の項目を絞った CSV でも、ほかの列が消えない）。
  *   ② の planner:ielove_import（features/realty/ieloveImport.ts）。先に dryRun で件数を見せ、「取り込む」で書く。
  *   取り込み終えると、② が媒介獲得台帳・買い反響との突き合わせ（v2.2.258）を動かす。
  * ─────────────────────────────────────────────
@@ -466,7 +498,7 @@ const RealtyIeloveImport: React.FC = () => {
                     </div>
                 )}
                 <p className="rlt-sub">
-                    同じ物件番号の物件は上書きします（価格が変わったときは、価格の履歴に残ります）。いえらぶに無くなった物件は消しません。
+                    同じ物件番号の物件は、CSV にある項目だけを上書きします（CSV に無い項目は、今の値のまま）。価格が変わったときは、価格の履歴に残ります。いえらぶに無くなった物件は消しません。
                 </p>
             </div>
         </div>
@@ -476,7 +508,7 @@ const RealtyIeloveImport: React.FC = () => {
 export default RealtyIeloveImport;
 ```
 
-### git diff（既存ファイル）
+### git diff（既存ファイル。main からの差）
 ```diff
 diff --git a/backend-express/src/gateway/registry.ts b/backend-express/src/gateway/registry.ts
 index 1ab0a4b7d..a651eccdd 100644
@@ -502,7 +534,7 @@ index 1ab0a4b7d..a651eccdd 100644
  register({ request: 'activity', roll: 'notice', summary: '不動産企画係: 本人宛の通知', phpSource: 'activityAction/activity_notice.php', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runActivityNotice(s, body)) });
  register({ request: 'activity', roll: 'read', summary: '【書き込み】不動産企画係: 本人宛の通知を既読にする', phpSource: 'activityAction/activity_read.php', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runActivityRead(s, body)) });
 diff --git a/backend/scripts/guide/articles/common/screen-270.md b/backend/scripts/guide/articles/common/screen-270.md
-index fb21775de..245e3e100 100644
+index fb21775de..a3c16a07c 100644
 --- a/backend/scripts/guide/articles/common/screen-270.md
 +++ b/backend/scripts/guide/articles/common/screen-270.md
 @@ -2,7 +2,7 @@
@@ -514,7 +546,7 @@ index fb21775de..245e3e100 100644
  ---
  不動産企画係の左のメニュー「設定」で開きます。ここで直した値は、[[チームサマリー（不動産企画係）]]や[[週次行動計画（不動産企画係）]]など、不動産企画係のすべての画面に反映されます。
  
-@@ -54,6 +54,25 @@ summary: 不動産企画係の期首年月・担当者と目標・反響元・
+@@ -54,6 +54,26 @@ summary: 不動産企画係の期首年月・担当者と目標・反響元・
  
  一言目には次の言葉を入れておくと、反響に合わせて置き換わります：{{name}}（顧客名）・{{staff}}（担当者）・{{company}}（会社名）・{{addr}}（物件所在地）・{{property}}（問合せ物件）・{{next}}（前回の次回アクション）。「一言目を初期値に戻す」で以前のアプリの文面に戻せます。
  
@@ -528,7 +560,8 @@ index fb21775de..245e3e100 100644
 +3. この画面の「いえらぶの物件一覧を取り込む（CSV）」でファイルを選ぶ。店舗ごとの複数のファイルを、まとめて選べます
 +4. 件数（新しい物件・更新・価格の変更）を確かめて「**取り込む**」を押す
 +
-+- 同じ物件番号の物件は上書きします。価格が変わったときは、価格の履歴に残ります
++- 同じ物件番号の物件は、CSV にある項目だけを上書きします。CSV に無い項目（いえらぶで出力の項目を減らしたときなど）は、今の値のまま残ります
++- 価格が変わったときは、価格の履歴に残ります
 +- いえらぶに無くなった物件は消しません
 +- 取り込み終わると、媒介獲得台帳とのつながりの確かめも、すぐ動きます。新しくつながった台帳・買い反響の件数が出ます
 +- カードの上に、今の物件の数と、最後に取り込んだ日が出ます
