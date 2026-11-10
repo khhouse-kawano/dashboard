@@ -5,6 +5,7 @@ import { failInterruptedJobs } from './features/aiAnalysis/job';
 import { startMetaAdsScheduler } from './features/metaAds/scheduler';
 import { startCvMatch } from './features/tracking/cvMatch';
 import { startTrackingMaintenance } from './features/tracking/maintenance';
+import { startIeloveMatch } from './features/realty/ieloveMatch';
 import { gatewaySummary, logGatewayRoutes } from './gateway';
 import { logger } from './utils/logger';
 
@@ -38,6 +39,8 @@ const bootstrap = async (): Promise<void> => {
     startTrackingMaintenance();
     // 自社のフォームでないサイトの CV と反響の突き合わせ（v2.2.205。5分ごと）
     startCvMatch();
+    // 媒介獲得台帳といえらぶの物件・買い反響の突き合わせ（v2.2.258。30分ごと）
+    startIeloveMatch();
     // Claudeによる分析（v2.2.217）。再起動で消えた実行中の分析を失敗にする（画面が待ち続けないように）
     failInterruptedJobs()
       .then((count) => { if (count > 0) logger.warn(`ai_analysis: 再起動で中断された分析 ${count} 件を失敗にしました`); })

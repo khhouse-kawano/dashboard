@@ -13,8 +13,29 @@ const styles = {
     suggestItem: { cursor: 'pointer', fontSize: '12px', minHeight: '36px', padding: '8px 12px', borderBottom: '1px solid #f0f0f0', color: '#303030', letterSpacing: '.6px', display: 'flex', alignItems: 'center' },
     // 💡 連携バッジ用のスタイル
     badgeLinked: { fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#e6fffa', color: '#38a169', border: '1px solid #9ae6b4', marginLeft: '8px', fontWeight: 'bold' },
-    badgeUnlinked: { fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#f8f9fa', color: '#a0aec0', border: '1px solid #e2e8f0', marginLeft: '8px', fontWeight: 'bold' }
+    badgeUnlinked: { fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#f8f9fa', color: '#a0aec0', border: '1px solid #e2e8f0', marginLeft: '8px', fontWeight: 'bold' },
+    // v2.2.258: いえらぶの物件の候補・小さいボタン
+    miniButton: { fontSize: '10px', padding: '2px 8px', border: '1px solid #ced4da', borderRadius: '4px', background: '#fff', color: '#495057', cursor: 'pointer', whiteSpace: 'nowrap' as const },
+    candidateBox: { marginTop: '6px', padding: '8px 10px', border: '1px solid #fbd38d', background: '#fffaf0', borderRadius: '4px', fontSize: '11px' },
+    candidateItem: { display: 'block', width: '100%', textAlign: 'left' as const, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '5px 8px', marginTop: '4px', fontSize: '11px', color: '#303030', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
 };
+
+/** いえらぶの物件の候補（② の broker:ielove_candidates。features/realty/ieloveMatch.ts の Candidate） */
+type IeloveCandidate = {
+    property_id: string;
+    property_name: string;
+    property_type: string;
+    address: string;
+    room_number: string;
+    price: string;
+    level: 'strong' | 'weak';
+    reason: string;
+    takenNo: string;
+};
+
+/** 探すための形（空白を除き、全角英数を半角に、「丁目」「番」「－」の揺れを「-」に、小文字に） */
+const normSearch = (v: string): string => v.normalize('NFKC').replace(/\s/g, '').replace(/鹿児島県|宮崎県/g, '')
+    .replace(/丁目|番地|番|[ー‐−–—―]/g, '-').replace(/号/g, '').toLowerCase();
 
 export interface BrokerData {
     internal_id: number;
@@ -128,9 +149,47 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
             name: p.property_name ?? '',
             type: p.property_type ?? '',
             address: p.address ?? '',
-            price: p.price ?? ''
+            price: p.price ?? '',
+            // ⚠️ v2.2.258: 番号・物件名・所在地のどれでも探せるように（空白・全角半角・「鹿児島県」を無視）
+            key: normSearch(`${p.property_id} ${p.property_name ?? ''} ${p.address ?? ''}`),
         }))
     }, [propertyList]);
+
+    /**
+     * ⚠️ v2.2.258: この台帳の、いえらぶの物件の候補（② の broker:ielove_candidates。所在地・種別で探したもの）。
+     *   まだ保存していない台帳（中古の画面の新規）は候補なし
+     */
+    const [candidates, setCandidates] = useState<IeloveCandidate[] | null>(null);
+    useEffect(() => {
+        if (!targetPropertyId) { setCandidates(null); return; }
+        let alive = true;
+        setCandidates(null);
+        apiClient.post('', { request: 'broker', roll: 'ielove_candidates', ledgerId: targetPropertyId })
+            .then(res => { if (alive) setCandidates(res.data?.ledgers?.[targetPropertyId]?.candidates ?? []); })
+            .catch(e => { console.error('[PropertyRegister] いえらぶの物件の候補を読めませんでした', e); if (alive) setCandidates([]); });
+        return () => { alive = false; };
+    }, [targetPropertyId]);
+
+    /** コピーした項目（「コピーしました」の表示） */
+    const [copied, setCopied] = useState('');
+    const copy = async (label: string, text: string) => {
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(label);
+            setTimeout(() => setCopied(c => (c === label ? '' : c)), 1500);
+        } catch (e) {
+            // ⚠️ navigator.clipboard は HTTPS か localhost でしか使えない
+            console.error(e);
+            window.prompt('コピーできませんでした。下の文字を選んでコピーしてください', text);
+        }
+    };
+    /** いえらぶに貼り付ける所在地（市区町村＋番地。地図の URL は除く） */
+    const copyAddress = useMemo(() => {
+        const a1 = (editData.addr1 || '').trim();
+        const a2 = (editData.addr2 || '').replace(/https?:\/\/\S+/g, '').trim();
+        return a1 && a2.startsWith(a1) ? a2 : `${a1}${a2}`;
+    }, [editData.addr1, editData.addr2]);
 
     const displayCustomers = useMemo(() => {
         if (!searchQuery) return [];
@@ -140,11 +199,10 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
     }, [searchQuery, filteredCustomer]);
 
     const displayProperties = useMemo(() => {
-        if (!searchPropertyQuery) return [];
-        return filteredProperty.filter(p =>
-            p.name.toLowerCase().includes(searchPropertyQuery.toLowerCase())
-        );
-    }, [searchPropertyQuery, filteredProperty]);
+        const words = searchPropertyQuery.split(/[\s　]+/).map(normSearch).filter(Boolean);
+        if (!words.length || searchPropertyQuery === (editData.property_db_name || '')) return [];
+        return filteredProperty.filter(p => words.every(w => p.key.includes(w))).slice(0, 30);
+    }, [searchPropertyQuery, filteredProperty, editData.property_db_name]);
 
     const handleInputChange = (field: keyof BrokerData, value: string | number | null) => {
         setEditData(prev => ({ ...prev, [field]: value }));
@@ -173,14 +231,33 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
         setShowDropdown(false);
     };
 
-    const handlePropertySelect = (property: { id: string, name: string, type: string, address: string, price: string | number }) => {
-        handleInputChange('property_db_id', property.id);
-        handleInputChange('property_db_name', property.name);
+    /** ⚠️ v2.2.258: 人が選んだ・外した・該当なしは property_db_match に残す（② の自動の突き合わせが上書きしない） */
+    const handlePropertySelect = (property: { id: string, name: string }) => {
+        setEditData(prev => ({ ...prev, property_db_id: property.id, property_db_name: property.name, property_db_match: 'staff' }));
         setSearchPropertyQuery(property.name);
         setShowPropertyDropdown(false);
     };
+    const handlePropertyClear = (match: 'staff' | 'none') => {
+        if (match === 'none' && !window.confirm('この物件は、いえらぶに載せない（該当なし）にしますか？\n自動の突き合わせでもつながらなくなります。')) return;
+        setEditData(prev => ({ ...prev, property_db_id: null, property_db_name: null, property_db_match: match }));
+        setSearchPropertyQuery('');
+    };
 
-    const renderLinkBadge = (id?: string | null) => {
+    const renderLinkBadge = (id?: string | null, match?: string | null) => {
+        if (id && match === 'auto') {
+            return (
+                <span style={styles.badgeLinked} title="所在地・種別が一致したので自動でつなぎました">
+                    <i className="bi bi-check-circle-fill me-1"></i>自動で連携
+                </span>
+            );
+        }
+        if (!id && match === 'none') {
+            return (
+                <span style={styles.badgeUnlinked} title="いえらぶに載せない物件（自動でもつながりません）">
+                    <i className="bi bi-slash-circle me-1"></i>該当なし
+                </span>
+            );
+        }
         if (id) {
             return (
                 <span style={styles.badgeLinked}>
@@ -249,16 +326,22 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                             )}
                         </div>
 
-                        {/* 掲載物件連携 */}
+                        {/* 掲載物件連携（いえらぶの物件）。⚠️ v2.2.258: 番号・物件名・所在地で探す、候補、外す・該当なし */}
                         <div className="col-12 position-relative mt-2">
                             <label style={styles.label}>
-                                <i className="bi bi-building me-1 text-success"></i>掲載物件連携
-                                {renderLinkBadge(editData.property_db_id)}
+                                <i className="bi bi-building me-1 text-success"></i>掲載物件連携（いえらぶの物件）
+                                {renderLinkBadge(editData.property_db_id, editData.property_db_match)}
+                                {editData.property_db_id && <span style={{ marginLeft: '8px', color: '#718096' }}>No.{editData.property_db_id}</span>}
+                                <span style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+                                    {editData.property_db_id
+                                        ? <button type="button" style={styles.miniButton} onClick={() => handlePropertyClear('staff')}>外す</button>
+                                        : editData.property_db_match !== 'none' && <button type="button" style={styles.miniButton} onClick={() => handlePropertyClear('none')}>該当なし（いえらぶに載せない）</button>}
+                                </span>
                             </label>
                             <input
                                 type="text"
                                 style={styles.input}
-                                placeholder="物件名を入力して検索..."
+                                placeholder="いえらぶの物件番号・物件名・所在地で探す（例：274111、西伊敷 50-3）"
                                 value={searchPropertyQuery}
                                 onChange={(e) => {
                                     setSearchPropertyQuery(e.target.value);
@@ -267,6 +350,11 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                                 onFocus={() => setShowPropertyDropdown(true)}
                                 onBlur={() => setShowPropertyDropdown(false)}
                             />
+                            {showPropertyDropdown && searchPropertyQuery.trim() !== '' && propertyList.length === 0 && (
+                                <ul style={{ ...styles.suggestList, zIndex: 9998 }}>
+                                    <li style={{ ...styles.suggestItem, color: '#a0aec0' }}>いえらぶの物件を読み込み中…</li>
+                                </ul>
+                            )}
                             {showPropertyDropdown && displayProperties.length > 0 && (
                                 <ul style={{ ...styles.suggestList, zIndex: 9998 }}>
                                     {displayProperties.map(p => (
@@ -281,11 +369,35 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                         >
                                             <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#4a5568' }}>{p.name}</span> <span style={{ color: '#a0aec0' }}>({p.type}_{p.address}) : {p.price}</span>
+                                                <span style={{ color: '#718096' }}>No.{p.id}</span> <span style={{ fontWeight: 'bold', color: '#4a5568' }}>{p.name}</span> <span style={{ color: '#a0aec0' }}>({p.type}_{p.address}) : {p.price}</span>
                                             </div>
                                         </li>
                                     ))}
                                 </ul>
+                            )}
+                            {/* 所在地・種別から探した候補（まだつながっていないとき） */}
+                            {!editData.property_db_id && editData.property_db_match !== 'none' && candidates !== null && (
+                                <div style={styles.candidateBox}>
+                                    {candidates.length === 0 ? (
+                                        <div style={{ color: '#718096' }}>所在地が同じいえらぶの物件はまだありません（いえらぶ未採番）。いえらぶに登録すると、自動でつながります。</div>
+                                    ) : (
+                                        <>
+                                            <div style={{ color: '#975a16', fontWeight: 'bold', marginBottom: '4px' }}>
+                                                <i className="bi bi-exclamation-triangle me-1"></i>要確認：所在地が近いいえらぶの物件 {candidates.length}件（押すとつなぎます）
+                                            </div>
+                                            {candidates.map(c => (
+                                                <button type="button" key={c.property_id} style={styles.candidateItem}
+                                                    onClick={() => handlePropertySelect({ id: c.property_id, name: c.property_name })}>
+                                                    <span style={{ color: '#718096' }}>No.{c.property_id}</span>{' '}
+                                                    <b>{c.property_name}</b>{c.room_number ? ` ${c.room_number}` : ''}
+                                                    <span style={{ color: '#a0aec0' }}>（{c.property_type}_{c.address}）</span>
+                                                    <span style={{ color: c.level === 'strong' ? '#2f855a' : '#c05621', marginLeft: '6px' }}>{c.reason}</span>
+                                                    {c.takenNo && <span style={{ color: '#e53e3e', marginLeft: '6px' }}>台帳 No.{c.takenNo} につながっています</span>}
+                                                </button>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
                             )}
                         </div>
 
@@ -303,6 +415,17 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                         <div className="col-md-4">
                             <label style={styles.label}>建物名 (addr)</label>
                             <input type="text" style={styles.input} value={editData.addr || ''} onChange={e => handleInputChange('addr', e.target.value)} />
+                        </div>
+                        {/* ⚠️ v2.2.258: いえらぶに登録するときは、ここからコピーして貼り付ける（表記がそろい、自動でつながる） */}
+                        <div className="col-12" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', fontSize: '11px', color: '#718096' }}>
+                            <span>いえらぶに登録するときは、コピーして貼り付けてください：</span>
+                            <button type="button" style={styles.miniButton} disabled={!copyAddress} onClick={() => copy('所在地', copyAddress)}>
+                                <i className="bi bi-clipboard me-1"></i>所在地をコピー
+                            </button>
+                            <button type="button" style={styles.miniButton} disabled={!editData.addr} onClick={() => copy('建物名', editData.addr || '')}>
+                                <i className="bi bi-clipboard me-1"></i>建物名をコピー
+                            </button>
+                            {copied && <span style={{ color: '#38a169' }}><i className="bi bi-check2 me-1"></i>{copied}をコピーしました</span>}
                         </div>
 
                         {/* 💡 価格・手数料・担当 */}

@@ -1,6 +1,8 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { executeLarge, query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
+import { logger } from '../../utils/logger';
+import { runIeloveMatch } from './ieloveMatch';
 
 /**
  * 不動産企画係（category = realty）のデータ（v2.2.221 で ① から移植）。
@@ -179,6 +181,8 @@ const ALLOWED_COLUMNS = [
   'deleted_at', 'deleted_by',
   'docDraft', 'docDraftAt', 'docDraftBy',
   'master_data_id', 'property_db_id', 'property_db_name',
+  // ⚠️ v2.2.258: いえらぶの物件のつなぎ方（auto＝自動・staff＝人が選んだ／外した・none＝該当なし）。ieloveMatch.ts
+  'property_db_match',
   'raw_data',
 ] as const;
 
@@ -196,6 +200,9 @@ const toSqlValue = (value: unknown): SqlValue => {
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 };
+
+/** property_db_match に入れてよい値（空＝NULL） */
+const PROPERTY_DB_MATCH = ['', 'auto', 'staff', 'none'];
 
 /** 連絡先（contact）を「電話 / メール」で作り直す反響の種類（v2.2.252） */
 const LEAD_KINDS_WITH_CONTACT = ['leads', 'buyLeads'];
@@ -234,6 +241,9 @@ export const runBrokerUpdate = async (body: Record<string, unknown>): Promise<Re
   const data = await withLeadContact(id, body.data !== null && typeof body.data === 'object' && !Array.isArray(body.data)
     ? (body.data as Record<string, unknown>)
     : {});
+  if (has(data, 'property_db_match') && !PROPERTY_DB_MATCH.includes(trimStr(data.property_db_match))) {
+    return fail(400, 'いえらぶの物件のつなぎ方（property_db_match）が正しくありません');
+  }
 
   const columns = ['`id`'];
   const updates: string[] = [];
@@ -253,6 +263,12 @@ export const runBrokerUpdate = async (body: Record<string, unknown>): Promise<Re
      ON DUPLICATE KEY UPDATE ${updates.join(', ')}`,
     params
   );
+
+  // ⚠️ v2.2.258: 台帳を保存したら、その台帳といえらぶの物件・買い反響をすぐ突き合わせる（失敗しても保存は成功のまま。30分ごとにもう一度動く）
+  const saved = (await query<DynamicRow>('SELECT kind FROM brokerage_listings WHERE `id` = ?', [id]))[0];
+  if (saved?.kind === 'ledger') {
+    await runIeloveMatch([id]).catch((error: unknown) => logger.error('realty: 台帳の保存のあとの、いえらぶの突き合わせに失敗しました', error));
+  }
 
   const rows = await query<DynamicRow>('SELECT * FROM brokerage_listings WHERE `id` = ?', [id]);
   const row = rows[0] ?? null;

@@ -68,7 +68,14 @@ export interface BrokerData {
     [key: string]: any;
 }
 
-type SortKey = 'displayName' | 'displayAddress' | 'displayPrice' | 'phase' | 'staff' | 'date' | 'medium' | 'updated_at';
+/** いえらぶの物件とのつながり（v2.2.258。② の features/realty/ieloveMatch.ts の IeloveState） */
+type IeloveState = 'linked' | 'review' | 'unmatched' | 'none';
+const IELOVE_LABEL: Record<IeloveState, string> = { linked: 'つながっている', review: '要確認', unmatched: 'いえらぶ未採番', none: '該当なし' };
+const IELOVE_BADGE: Record<IeloveState, string> = {
+    linked: 'bg-success bg-opacity-75', review: 'bg-warning text-dark', unmatched: 'bg-light text-secondary border', none: 'bg-secondary bg-opacity-50',
+};
+
+type SortKey ='displayName' | 'displayAddress' | 'displayPrice' | 'phase' | 'staff' | 'date' | 'medium' | 'updated_at';
 
 const DatabaseBroker = () => {
     const [originalData, setOriginalData] = useState<BrokerData[]>([]);
@@ -117,6 +124,39 @@ const DatabaseBroker = () => {
             .catch(e => console.error('[DatabaseBroker] 商談案件の読み込みに失敗しました', e));
     }, []);
     useEffect(() => { loadDeals(); }, [loadDeals]);
+
+    /**
+     * ⚠️ v2.2.258: いえらぶの物件とのつながり（② の broker:ielove_candidates。features/realty/ieloveMatch.ts）。
+     *   台帳 id → 状態（linked つながっている・review 候補あり＝要確認・unmatched 候補なし＝いえらぶ未採番・none 該当なし）
+     */
+    const [ielove, setIelove] = useState<Record<string, { state: IeloveState; count: number }> | null>(null);
+    const loadIelove = useCallback(() => {
+        apiClient.post('', { request: 'broker', roll: 'ielove_candidates' })
+            .then(res => setIelove(res.data?.ledgers ?? {}))
+            .catch(e => console.error('[DatabaseBroker] いえらぶの物件とのつながりを読めませんでした', e));
+    }, []);
+    useEffect(() => { loadIelove(); }, [loadIelove]);
+    const ieloveStateOf = (item: BrokerData): IeloveState | '' =>
+        item.property_db_id ? 'linked' : ielove?.[item.id]?.state ?? '';
+    const [searchIelove, setSearchIelove] = useState<IeloveState | ''>('');
+    const [matching, setMatching] = useState(false);
+    /** 「いえらぶと突き合わせ」：今すぐ ② の突き合わせを動かし、一覧を読み直す */
+    const runIeloveMatch = async () => {
+        setMatching(true);
+        try {
+            const res = await apiClient.post('', { request: 'broker', roll: 'ielove_match' });
+            if (res.data?.status !== 'success') throw new Error(res.data?.message || '突き合わせに失敗しました');
+            const list = await apiClient.post('', { request: 'broker', roll: 'list' });
+            setOriginalData(list.data.brokerage.filter((b: BrokerData) => b.kind === 'ledger' && b.show_dashboard === 1));
+            loadIelove();
+            alert(`いえらぶの物件と突き合わせました。\n台帳 ${res.data.ledgers}件・買い反響 ${res.data.buyLeads}件を新しくつなぎました。`);
+        } catch (e) {
+            console.error(e);
+            alert('いえらぶの物件との突き合わせに失敗しました。');
+        } finally {
+            setMatching(false);
+        }
+    };
     const closeOffer = useCallback(() => setOfferLedger(null), []);
 
     /**
@@ -191,8 +231,9 @@ const DatabaseBroker = () => {
             const matchStaff = !searchStaff || item.staff === searchStaff;
             const matchCategory = !searchCategory || item.category === searchCategory;
             const matchStatus = !searchStatus || item.propStatus === searchStatus
+            const matchIelove = !searchIelove || ieloveStateOf(item) === searchIelove;
 
-            return matchAddress && matchCustomer && matchStaff && matchCategory && matchStatus;
+            return matchAddress && matchCustomer && matchStaff && matchCategory && matchStatus && matchIelove;
         });
 
         // 2. 絞り込んだ結果をソート
@@ -226,7 +267,16 @@ const DatabaseBroker = () => {
         });
 
         return filtered;
-    }, [originalData, sortConfig, searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- ieloveStateOf は ielove だけを読む
+    }, [originalData, sortConfig, searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus, searchIelove, ielove]);
+
+    /** いえらぶの状態ごとの件数（絞り込みの選択肢に出す） */
+    const ieloveCounts = useMemo(() => {
+        const c: Record<string, number> = {};
+        for (const d of originalData) { const s = ieloveStateOf(d); if (s) c[s] = (c[s] ?? 0) + 1; }
+        return c;
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- ieloveStateOf は ielove だけを読む
+    }, [originalData, ielove]);
 
     // ⚠️ v2.2.250: 媒介物件ごとの台帳 No.（同じ物件に台帳が2件以上あるとき、一覧に「同じ物件の台帳 N件」を出す）
     const ledgerNosByProperty = useMemo(() => {
@@ -284,6 +334,7 @@ const DatabaseBroker = () => {
             if (response.data.status === 'error') alert('更新に失敗しました');
             const filtered = response.data.brokerage.filter(b => b.kind === 'ledger' && b.show_dashboard === 1);
             setOriginalData(filtered);
+            loadIelove(); // ⚠️ v2.2.258: 保存のあと ② がいえらぶと突き合わせるので、札を読み直す
             const saved = filtered.find((b: BrokerData) => b.id === targetPropertyId);
             if (toOffer && saved && response.data.status !== 'error'
                 && window.confirm('台帳の現況を「買付有」にしました。\n商談案件管理へつなぐには、買付の内容（買主・買付金額・契約希望日）が要ります。\n買付登録の画面を開きますか？')) {
@@ -410,6 +461,20 @@ const DatabaseBroker = () => {
                                 ))}
                             </select>
                         </div>
+                        {/* ⚠️ v2.2.258: いえらぶの物件とのつながり */}
+                        <div className="col-md-2">
+                            <label className="form-label text-muted small fw-bold mb-1">⑥ いえらぶ</label>
+                            <select
+                                className="form-select form-select-sm"
+                                value={searchIelove}
+                                onChange={(e) => setSearchIelove(e.target.value as IeloveState | '')}
+                            >
+                                <option value="">すべて</option>
+                                {(Object.keys(IELOVE_LABEL) as IeloveState[]).map(s => (
+                                    <option key={s} value={s}>{IELOVE_LABEL[s]}（{ieloveCounts[s] ?? 0}件）</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -426,6 +491,13 @@ const DatabaseBroker = () => {
                     */}
                     <span className="text-muted" style={{ fontSize: '11px' }}>媒介は売り反響を「媒介受託」にすると作られます</span>
                 </div>
+                {/* ⚠️ v2.2.258: ふだんは ② が30分ごとと台帳の保存のあとに突き合わせる。いえらぶに登録した直後に、すぐつなぎたいとき用 */}
+                <button className="btn btn-sm btn-outline-success bg-white rounded-pill px-3 py-0" style={{ fontSize: '11px' }}
+                    disabled={matching} onClick={runIeloveMatch}
+                    title="所在地・種別が一致するいえらぶの物件が1件だけの台帳をつなぎ、ポータルの買い反響を台帳へつなぎます（30分ごとにも自動で動きます）">
+                    {matching ? <span className="spinner-border spinner-border-sm me-1" style={{ width: '.8rem', height: '.8rem' }}></span> : <i className="bi bi-arrow-repeat me-1"></i>}
+                    いえらぶと突き合わせ
+                </button>
             </div>
 
             {/* === テーブルUI === */}
@@ -454,7 +526,7 @@ const DatabaseBroker = () => {
                                     <th className="py-2">販売報告</th>
                                     <th className="py-2">物件状態</th>
                                     <th className="py-2">MAP</th>
-                                    <th className="py-2">ポータル連携</th>
+                                    <th className="py-2">ポータル連携（いえらぶ）</th>
                                     {/* 💡 追加: サマリー列 */}
                                     <th className="py-2">サマリー</th>
                                     <th className="py-2">非表示</th>
@@ -586,11 +658,22 @@ const DatabaseBroker = () => {
                                                     ) : <span className="text-muted" style={{ fontSize: '11px' }}>-</span>}
                                                 </td>
                                                 <td>
-                                                    {item.property_db_id ? (
-                                                        <span className="badge bg-success bg-opacity-75">連携済み</span>
-                                                    ) : (
-                                                        <span className="text-muted" style={{ fontSize: '11px' }}>-</span>
-                                                    )}
+                                                    {/* ⚠️ v2.2.258: いえらぶの番号・要確認・未採番・該当なし。押すと編集画面（候補から選べる） */}
+                                                    {(() => {
+                                                        const s = ieloveStateOf(item);
+                                                        if (!s) return <span className="text-muted" style={{ fontSize: '11px' }}>…</span>;
+                                                        const text = s === 'linked' ? `No.${item.property_db_id}`
+                                                            : s === 'review' ? `要確認 ${ielove?.[item.id]?.count ?? 0}件` : IELOVE_LABEL[s];
+                                                        const title = s === 'linked' ? `${item.property_db_name || ''}${item.property_db_match === 'auto' ? '（自動でつないだ）' : ''}`
+                                                            : s === 'review' ? '所在地が近いいえらぶの物件があります。編集画面で選んでください'
+                                                            : s === 'unmatched' ? 'いえらぶにまだ登録されていません（登録されると自動でつながります）' : 'いえらぶに載せない物件';
+                                                        return (
+                                                            <button type="button" className={`badge border-0 ${IELOVE_BADGE[s]}`} style={{ fontSize: '10px', cursor: 'pointer' }}
+                                                                title={title} onClick={() => setTargetPropertyId(item.id)}>
+                                                                {text}
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 {/* 💡 追加: サマリーセル */}
                                                 <td>
