@@ -5,7 +5,7 @@
 -- =====================================================================
 -- 1. 更新履歴（⚠️ `no` は AUTO_INCREMENT なので指定しない）
 INSERT INTO update_log (version, date, note) VALUES
-('2.2.262', '2026-11-10', '集客サマリーの総予算の明細で、媒体の表示をやめ、請求先と詳細をそれぞれの列に分けました。上に請求先ごとの合計も出します。');
+('2.2.262', '2026-11-10', '集客サマリーの総予算の明細で、媒体の表示をやめ、請求先と詳細をそれぞれの列に分けました。上に請求先ごとの合計も出します。不動産企画係のメニューの「点検・管理」に「媒介・いえらぶ手順書」を追加しました。');
 
 -- 2. 業務ガイドの記事
 -- ---------------------------------------------------------------
@@ -43,5 +43,41 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 ## 関係する記事
 - [[イベントの広告費入力]]
 ', 199, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+
+-- ---------------------------------------------------------------
+-- 業務ガイドの記事（1本）。backend/scripts/guide/build-guide-sql.cjs で作成
+-- ⚠️ 先に guide_article / guide_history の表があること（2026-10-16_guide_article.sql）
+-- ⚠️ 同じタイトルの記事は上書きする（⚠️ 手で直された記事でも開発側を優先）。⚠️ 直前の内容は guide_history に残す
+-- ---------------------------------------------------------------
+-- common/screen-265.md：媒介・いえらぶ手順書（不動産企画係）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '媒介・いえらぶ手順書（不動産企画係）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('媒介・いえらぶ手順書（不動産企画係）', 'common', '画面の使い方', '媒介を取ってから、いえらぶに登録し、ポータルの買い反響が媒介獲得台帳につながるまでの手順と気をつけることを、画面の写真付きで読む。', '不動産企画係の左のメニュー「媒介・いえらぶ手順書」で開きます。媒介を取ったときに営業がすることを、画面の写真付きで、順番にまとめた手順書です。新しく係に入った人への説明や、手順を忘れたときの確認に使ってください。
+
+## 書いてあること
+1. 全体の流れ（営業がすることと、自動で行われること）
+2. 媒介紐付（売り反響から媒介獲得台帳を作る）
+3. 媒介獲得台帳で、いえらぶとのつながりの札を確かめる
+4. いえらぶに登録するときの決まり（所在地・建物名は台帳からコピーして貼り付ける、担当店舗、種別の合わせ方）
+5. いえらぶの物件一覧（CSV）を取り込む
+6. 「要確認」のときの選び方と、違う物件につながったときの直し方
+7. 買い反響と台帳のつながり
+8. よくある質問
+
+## 使い方
+- 上の目次を押すと、その章へ移ります
+- 「印刷する」を押すと、手順書だけを印刷できます（左のメニューなどは出ません）
+
+> 注意：手順書の写真は、説明用の見本データ（「見本 一郎」など）で撮っています。実際のお客様の情報ではありません。
+
+> 要確認：CSV をだれが・いつ取り込むかは、係の中で決めてください。取り込まないと、台帳は「いえらぶ未採番」のまま、買い反響も台帳につながりません。
+
+## 関係する記事
+- [[設定（不動産企画係）]]
+- [[反響から商談案件へのつながり（不動産企画係）]]
+', 265, 1, '開発（業務ガイド更新）')
   ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
     body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
