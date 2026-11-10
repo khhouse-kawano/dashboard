@@ -6,7 +6,8 @@ import { guessProperty } from './leadLinks';
  * 買い反響の「問合せ物件（媒介獲得台帳）」（v2.2.256。以前のアプリ v14.14 の blLedOpts・blLedPick を検索の形にしたもの）。
  *   入れた文字で媒介獲得台帳を探して候補に出し、押すとその台帳に紐づける。
  *   ポータルに載せる前の物件や、電話・来店の反響を、台帳の物件とつなぐため。
- * ⚠️ 探すのは 台帳No.・売主・所在地（addr1・addr2。URL は除く）・種別。空白・全角半角・大文字小文字は無視する。
+ * ⚠️ 探すのは 台帳No.・売主・所在地（addr1・addr2。URL は除く）・種別・いえらぶの物件番号と物件名（v2.2.258）。空白・全角半角・大文字小文字は無視する。
+ * ⚠️ v2.2.258 から、ポータルの買い反響は ② が問い合わせの物件番号で自動でつなぐ（features/realty/ieloveMatch.ts）。ここは手で選ぶとき用。
  * ⚠️ 媒介終了の台帳は候補に出さない（以前のアプリの blLedList と同じ）。今つながっている台帳は、媒介終了でも札に出す。
  */
 type Row = Record<string, unknown>;
@@ -33,7 +34,8 @@ const addrOf = (l: Row): string => {
 const yen = (v: unknown): string => (Number(v) ? `${Math.round(Number(v) / 10000).toLocaleString()}万円` : '');
 /** 候補・札の1行（以前のアプリの ledPickLabel に媒介の種類・現況を足した） */
 const labelOf = (l: Row): string =>
-    [`No.${str(l.no) || '―'}`, str(l.seller) || '売主未入力', addrOf(l).slice(0, 30), yen(l.price), str(l.baikaiType), str(l.propStatus)]
+    [`No.${str(l.no) || '―'}`, str(l.seller) || '売主未入力', addrOf(l).slice(0, 30), yen(l.price), str(l.baikaiType), str(l.propStatus),
+        str(l.property_db_id) ? `いえらぶ${str(l.property_db_id)}` : '']
         .filter(Boolean).join('／');
 
 const css = `
@@ -69,7 +71,8 @@ const LedgerPicker: React.FC<Props> = ({ ledgerId, ledgerNo, onPick }) => {
     const pool = useMemo(() => (ledger ?? [])
         .filter(l => str(l.propStatus) !== '媒介終了')
         .sort((a, b) => str(b.contractDate).localeCompare(str(a.contractDate)))
-        .map(l => ({ l, key: norm([`no.${str(l.no)}`, l.seller, l.addr1, str(l.addr2).split('http')[0], l.category].join(' ')) })), [ledger]);
+        // ⚠️ v2.2.258: いえらぶの物件番号（ポータルの自社の物件番号と同じ）・物件名でも探せる
+        .map(l => ({ l, key: norm([`no.${str(l.no)}`, l.seller, l.addr1, str(l.addr2).split('http')[0], l.category, l.property_db_id, l.property_db_name].join(' ')) })), [ledger]);
 
     const hits = useMemo(() => {
         const words = q.split(/[\s　]+/).map(norm).filter(Boolean);
@@ -115,7 +118,7 @@ const LedgerPicker: React.FC<Props> = ({ ledgerId, ledgerNo, onPick }) => {
             <input
                 className="lp_input"
                 value={q}
-                placeholder={ledger === null ? '媒介獲得台帳を読み込み中…' : '台帳No.・売主・所在地で探す（例：吉野 3丁目）'}
+                placeholder={ledger === null ? '媒介獲得台帳を読み込み中…' : '台帳No.・売主・所在地・いえらぶの物件番号で探す（例：吉野 3丁目）'}
                 disabled={ledger === null}
                 onChange={e => { setQ(e.target.value); setOpen(true); setCur(0); }}
                 onFocus={() => setOpen(true)}

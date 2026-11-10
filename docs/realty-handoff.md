@@ -1,7 +1,7 @@
 # 引き継ぎ書：不動産企画係アプリの移植（realty）
 
 > この文書は、**新しく入る開発者（人またはエージェント）が `git clone` から開発を再開できる**ように書いています。
-> 最終更新：2026-11-06（**realty は v2.2.252 まで production にマージ済み**。v2.2.253 はアクセス解析の CV（realty 外。マージ済み）。**v2.2.255（顧客情報編集の日付ボタンの位置）までマージ済み。v2.2.256 は買い反響の問合せ物件を媒介獲得台帳に紐づける検索欄（push 済み・マージ待ち）**。realty の次は v2.2.257（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）。版を進めたら、冒頭の版・「4. 進捗」・「5. 次にやること」を必ず書き直してください（別のエージェントが常にこの文書を読んでいます）。
+> 最終更新：2026-11-10（**v2.2.257 まで production にマージ済み**。v2.2.253 はアクセス解析の CV、v2.2.257 は面談アンケート（survey）で、どちらも realty 外。**v2.2.258 は媒介獲得台帳 ⇔ いえらぶの物件 ⇔ 買い反響の自動のつながり（push 済み・マージ待ち）**。realty の次は v2.2.259（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）。版を進めたら、冒頭の版・「4. 進捗」・「5. 次にやること」を必ず書き直してください（別のエージェントが常にこの文書を読んでいます）。
 >
 > ⚠️ **2026-11-05 から、改修の正は「連動トリガー仕様書」です** → [docs/realty-trigger-spec.md](realty-trigger-spec.md)
 > 以前のアプリ（v14）を最優先にしていた今までの方針とぶつかるところは、仕様書に合わせます。ただし、**段階・現況の名前は今のまま**にし、仕様書の名前とは対応表で読み替えます（利用者の決定）。
@@ -14,19 +14,20 @@
 3. リポジトリ直下の `CLAUDE.md`：作業ルール。版の上げ方、テスト、docs、業務ガイド、禁止事項が書いてあり、**必ず守ります**。
 4. `ReadMeClaude.md`：その回の依頼。利用者が毎回上書きします。**書かれていないことはやりません。**
 5. 直近の作業記録
-   - `docs/task-2026-11-04-04-realty-lead-to-deal.md`
-   - `docs/task-2026-11-05-01-realty-list-usability.md`
-   - `docs/task-2026-11-05-02-realty-buy-offer-resale.md`
-   - `docs/task-2026-11-05-03-realty-ledger-link-lead-modal.md`
-   - `docs/task-2026-11-05-04-realty-spec-phase1-ledger-link.md`（v2.2.248。仕様書 ①）
-   - `docs/task-2026-11-05-05-realty-spec-phase2-deadlines.md`（v2.2.249。仕様書 ② の期限）
-   - `docs/task-2026-11-05-06-realty-spec-phase2-properties.md`（v2.2.250。仕様書 ② の媒介物件）
-   - `docs/task-2026-11-05-08-realty-lead-contacts.md`（v2.2.251。反響の電話・メール）
-   - `docs/task-2026-11-05-09-realty-lead-contact-sync.md`（v2.2.252。反響の連絡先を電話・メールに合わせる、架電キューの電話番号）
-   - `docs/task-2026-11-05-10-realty-staff-planner-deals.md`（v2.2.252。担当者の修正依頼4件：反響の表の幅・担当者の表記・精算書・商談案件の編集）
-   - `docs/task-2026-11-06-02-realty-media-kpi.md`（v2.2.254。チームサマリーの売りKPI・買いKPI）
-   - `docs/task-2026-11-06-03-realty-next-date-buttons.md`（v2.2.255。顧客情報編集の日付ボタンの位置）
-   - `docs/task-2026-11-06-04-realty-buy-lead-ledger-picker.md`（v2.2.256。買い反響の問合せ物件を媒介獲得台帳に紐づける）
+   - `docs/oldDocument/task-2026-11-04-04-realty-lead-to-deal.md`
+   - `docs/oldDocument/task-2026-11-05-01-realty-list-usability.md`
+   - `docs/oldDocument/task-2026-11-05-02-realty-buy-offer-resale.md`
+   - `docs/oldDocument/task-2026-11-05-03-realty-ledger-link-lead-modal.md`
+   - `docs/oldDocument/task-2026-11-05-04-realty-spec-phase1-ledger-link.md`（v2.2.248。仕様書 ①）
+   - `docs/oldDocument/task-2026-11-05-05-realty-spec-phase2-deadlines.md`（v2.2.249。仕様書 ② の期限）
+   - `docs/oldDocument/task-2026-11-05-06-realty-spec-phase2-properties.md`（v2.2.250。仕様書 ② の媒介物件）
+   - `docs/oldDocument/task-2026-11-05-08-realty-lead-contacts.md`（v2.2.251。反響の電話・メール）
+   - `docs/oldDocument/task-2026-11-05-09-realty-lead-contact-sync.md`（v2.2.252。反響の連絡先を電話・メールに合わせる、架電キューの電話番号）
+   - `docs/oldDocument/task-2026-11-05-10-realty-staff-planner-deals.md`（v2.2.252。担当者の修正依頼4件：反響の表の幅・担当者の表記・精算書・商談案件の編集）
+   - `docs/oldDocument/task-2026-11-06-02-realty-media-kpi.md`（v2.2.254。チームサマリーの売りKPI・買いKPI）
+   - `docs/oldDocument/task-2026-11-06-03-realty-next-date-buttons.md`（v2.2.255。顧客情報編集の日付ボタンの位置）
+   - `docs/oldDocument/task-2026-11-06-04-realty-buy-lead-ledger-picker.md`（v2.2.256。買い反響の問合せ物件を媒介獲得台帳に紐づける）
+   - `docs/task-2026-11-10-01-realty-ielove-link.md`（v2.2.258。台帳 ⇔ いえらぶの物件 ⇔ 買い反響の自動のつながり）
 6. 古い作業記録（v2.2.221〜226）は `docs/oldDocument/task-2026-10-28-0*-realty-*.md` にあります。
 
 ---
@@ -177,8 +178,9 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
   - `importer.ts`：以前のアプリのデータの取り込み
   - `calls.ts`：通話記録（`realty_call_logs`）
   - `homesAssessment.ts`：LIFULL HOME'S の査定メールを売り反響に取り込む
+  - `ieloveMatch.ts`：媒介獲得台帳 ⇔ いえらぶの物件（`property_db`）⇔ 買い反響の突き合わせ（v2.2.258。② の起動の1分後と30分ごと・台帳の保存の直後・`broker:ielove_match`）
 - ①：`backend/src/handlers/planner.php` と `broker.php`（古い処理と、② が止まったときの代わり）。
-- 使う roll：`planner:records`、`planner:state`、`planner:settings`、`planner:weekly`、`planner:compliance`、`planner:import_*`、`planner:call_*`、`planner:navi_save`、`broker:update` など（一覧は `express_proxy.php`）。
+- 使う roll：`planner:records`、`planner:state`、`planner:settings`、`planner:weekly`、`planner:compliance`、`planner:import_*`、`planner:call_*`、`planner:navi_save`、`broker:update`、`broker:ielove_candidates`・`broker:ielove_match`（v2.2.258）など（一覧は `express_proxy.php`）。
 
 ### 3-4. データの形（`brokerage_listings` 1表に全部入っている）
 - 列 `kind` で種類を分けます。
@@ -228,7 +230,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 
 ---
 
-## 4. 進捗（v2.2.256 まで push 済み）
+## 4. 進捗（v2.2.258 まで push 済み）
 
 ### 終わったもの
 | 版 | 内容 |
@@ -251,6 +253,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 | v2.2.254 | **チームサマリーの売りKPI・買いKPI**（以前のアプリ v14.30 の `DSK_KIND`・`dskAgg`・`dashKpiCard`・`dskCsv` をそのまま写した）。見出しのすぐ下・歩留まりファネルの前に2枚。媒体別・担当者別・担当者×媒体（指標を選ぶ）、期間は期首〜対象月の累計（対象月は上で選んだ月。通期なら今月）・各月・各期・全期間、絞り込み、±5pt の色分け、CSV（クロスは縦持ち）。集計は `summary/mediaKpi.ts`、画面は `summary/MediaKpiCard.tsx`。数え方は受信月コホート（`leadFunnel.ts` の関数）。通電アポのアポ日は原本の `raw_data.appt.date`（架電ナビが書く）。② と DB の変更なし |
 | v2.2.255 | 顧客情報編集（`common/LeadEdit.tsx`）の「明日」「3日後」…ボタンが、買い反響では通電日の下に出ていた → 次回連絡日の列の中（入力欄の真下）に移した（`col-12` の行で置いていたのが原因） |
 | v2.2.256 | 買い反響の編集に「問合せ物件（媒介獲得台帳）」の検索欄（`common/LedgerPicker.tsx`。以前のアプリ v14.14 の選択欄を検索の形に）と「問合せ物件名」。押すと `ledgerId`・`ledgerNo`・`propertyId`（台帳の媒介物件）を入れる。一覧に「📝No.〇」。② の `broker:update` の書き込める列に `propertyId` を追加。DB の列の追加なし |
+| v2.2.258 | **媒介獲得台帳 ⇔ いえらぶの物件 ⇔ 買い反響**（`features/realty/ieloveMatch.ts`）。台帳は中古住宅専門店のいえらぶの物件と所在地（`propertyKeyRules.json`）・種別（マンションは建物名・部屋）で突き合わせ、1件だけなら自動でつなぐ（`property_db_match='auto'`）、複数・番地の粗さ・種別違いは「要確認」、無ければ「いえらぶ未採番」。ポータルの買い反響は `extId` → 取り込み元の自社の物件番号（＝いえらぶの番号）→ 台帳で自動でつなぐ。台帳の一覧に札・⑥ の絞り込み・「いえらぶと突き合わせ」、編集画面（`PropertyRegister.tsx`）に候補・外す・該当なし・所在地/建物名のコピー。買い反響の検索欄でいえらぶの番号も探せる。新しい列 `brokerage_listings.property_db_match`。ローカルでは台帳100件・買い反響67件が自動でつながった |
 
 ### 未着手のもの
 **次の版の予定**（1版に1つ。v2.2.257 のテーマは利用者に確かめる）
@@ -289,8 +292,8 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 
 ---
 
-## 5. 次にやること：v2.2.257（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）
-v2.2.256 までが production にマージされていなければ、最新の版から枝を切ります。以下は ③ を選んだときの要点です。仕様書の要約の「4. ③」と、食い違いの一覧（6〜10）に合わせます。**③は大きいので、どこまでを1版にするかを利用者と決め、計画の了承を取ってから着手します。**
+## 5. 次にやること：v2.2.259（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）
+v2.2.258 までが production にマージされていなければ、最新の版から枝を切ります。以下は ③ を選んだときの要点です。仕様書の要約の「4. ③」と、食い違いの一覧（6〜10）に合わせます。**③は大きいので、どこまでを1版にするかを利用者と決め、計画の了承を取ってから着手します。**
 
 主な食い違い（今の作り → 仕様書）
 - 自社客付け（売・買の2件）：今は台帳の「買付登録」から作る → 仕様書では買い反響を「申込獲得」（＝購入申込）にして保存したときに作る
@@ -310,10 +313,18 @@ v2.2.256 までが production にマージされていなければ、最新の�
 - **利用者の判断待ち（資料の7章）**：「画面・項目・帳票・集計は HTML、きっかけと作成・必須・取消・権限・税の確定は仕様書」という分け方でよいか／手数料の特例と計上月／按分方法（HTML 4種・6種と仕様書3種）／レインズの期限（v2.2.249 で営業日にした）
 - ⚠️ 次の版のテーマは、利用者に確かめてから着手する（売りKPI・買いKPI は v2.2.254 で済）
 
+**v2.2.258 で決まったこと**
+- 台帳と買い反響は「国分ハウジンググループ中古住宅専門店」のいえらぶの物件でつなぐ（利用者の決定）。いえらぶの番号は SUUMO の `company_property_code`・HOME'S の `companyId`・athome の `company_property_id`（355050000＋6桁）と同じ
+- ⚠️ いえらぶの番号を空けたまま `property_db` に行を作らない（`property_db_update.php` が `property_id` の一意の鍵で上書きするため、二重になる）。台帳を「いえらぶ未採番」のまま持ち、② が突き合わせる（利用者の了承）
+- 表記の揺れは、営業がいえらぶへ登録するときに台帳から**コピーして貼り付ける**ルールで防ぐ（業務ガイド screen-247 に記載）
+- 人が選んだ・外した（`staff`）・該当なし（`none`）の台帳は自動で変えない。自動でつなぐのは空の欄だけ（台帳の `property_db_id`・買い反響の `ledgerId`）
+- 自動でつないだ記録は `logs`（by「自動（いえらぶ突き合わせ）」）
+- ポータルの買い反響でつながらないもの（ローカルで86件）：取り込み元に物件番号が無い35件、台帳が無い・未接続の物件22件分51件。メールの反響（`mail:`）は対象外のまま（`mbFindLedger` の移植は未着手）
+
 **v2.2.256 で決まったこと**
 - 買い反響と台帳のつながりは `buyLeads.ledgerId`・`ledgerNo`（物件名の一致は使わない）。編集画面の検索欄で紐づけたときは、台帳の `propertyId`（媒介物件）も入れる（利用者の了承）
   - ⚠️ 台帳の「買付登録」の自社客付け（`leadLinks.ts` の registerBuyOffer）は、今は ledgerId・ledgerNo だけで propertyId を入れていない。③ で買い反響から作るときにそろえる
-- ポータルの反響を物件名・住所で自動でつなぐ処理（以前のアプリのメール取込の `mbFindLedger`）は未移植。メール取込を移すときに一緒に移す
+- ポータルの反響を物件名・住所で自動でつなぐ処理（以前のアプリのメール取込の `mbFindLedger`）は未移植。メール取込を移すときに一緒に移す（⚠️ v2.2.258 から、ポータルの取り込み分は物件番号で自動でつながる）
 
 **v2.2.254 で決まったこと**
 - 売りKPI・買いKPI の数え方は以前のアプリ v14.30 のまま（受信月コホート。歩留まりファネルと合計が一致する）。表示の条件は保存しない（以前のアプリと同じ）
