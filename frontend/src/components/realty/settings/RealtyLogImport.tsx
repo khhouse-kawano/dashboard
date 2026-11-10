@@ -19,8 +19,8 @@ const KINDS: Record<Kind, { label: string; roll: string; need: string[] }> = {
 
 const BATCH = 200;
 
-/** CSV を読む（RFC 4180。"…" の中の , と改行と "" を扱う）。1行目は列名 */
-const parseCsv = (text: string): Record<string, string>[] => {
+/** CSV を読む（RFC 4180。"…" の中の , と改行と "" を扱う）。1行目は列名。⚠️ v2.2.260 から RealtyIeloveImport.tsx も使う */
+export const parseCsv = (text: string): Record<string, string>[] => {
     const rows: string[][] = [];
     let row: string[] = [];
     let cell = '';

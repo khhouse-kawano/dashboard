@@ -186,6 +186,7 @@ import { runImportCheck, runImportFinish, runImportRecords } from '../features/r
 import { runCallLogs, runCallLogsImport, runCallMark, runCallUndo, runNaviSave, runPracticeLogsImport } from '../features/realty/calls';
 import { runLedgerLink } from '../features/realty/ledgerLink';
 import { runIeloveCandidates, runIeloveMatchNow } from '../features/realty/ieloveMatch';
+import { runIeloveImport, runIeloveImportStatus } from '../features/realty/ieloveImport';
 import { runUsedQueueList, runUsedQueueMark } from '../features/callq/usedQueue';
 import { INQUIRY_CATEGORIES, MASTER_CATEGORIES, runPrivacyEraseInquiry, runPrivacyEraseMaster } from '../features/privacy';
 import type { AuthenticatedStaff } from '../types/staff';
@@ -1237,6 +1238,10 @@ register({ request: 'broker', roll: 'update', summary: '【書き込み】台帳
 //   台帳の編集画面（PropertyRegister.tsx）は中古の顧客DB・顧客詳細からも開くので broker と同じ担当事業
 register({ request: 'broker', roll: 'ielove_candidates', summary: '媒介獲得台帳の、いえらぶの物件の候補と状態', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(BROKER_SHOPS, (_s, body) => runIeloveCandidates(body)) });
 register({ request: 'broker', roll: 'ielove_match', summary: '【書き込み】媒介獲得台帳といえらぶの物件・買い反響を今すぐ突き合わせる', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(BROKER_SHOPS, () => runIeloveMatchNow()) });
+// ⚠️ v2.2.260 新規（② だけ）。いえらぶの物件一覧（CSV）の取り込み（設定・データ管理）。features/realty/ieloveImport.ts
+//   ⚠️ いえらぶの2段階認証の義務化で sync（runIeloveProperty.ts）の自動の取り込みが止まったための代わり
+register({ request: 'planner', roll: 'ielove_import', summary: '【書き込み】いえらぶの物件一覧（CSV）を property_db に取り込む（dryRun なら件数だけ）', phpSource: '(Express のみ。① の property_db_update.php と同じ書き方)', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runIeloveImport(body)) });
+register({ request: 'planner', roll: 'ielove_import_status', summary: 'いえらぶの物件の件数と、最後に取り込んだ日', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(REALTY_SHOPS, () => runIeloveImportStatus()) });
 register({ request: 'activity', roll: 'history', summary: '不動産企画係: 変更履歴', phpSource: 'activityAction/activity_history.php', auth: 'staff', handler: realty(REALTY_SHOPS, (_s, body) => runActivityHistory(body)) });
 register({ request: 'activity', roll: 'notice', summary: '不動産企画係: 本人宛の通知', phpSource: 'activityAction/activity_notice.php', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runActivityNotice(s, body)) });
 register({ request: 'activity', roll: 'read', summary: '【書き込み】不動産企画係: 本人宛の通知を既読にする', phpSource: 'activityAction/activity_read.php', auth: 'staff', handler: realty(REALTY_SHOPS, (s, body) => runActivityRead(s, body)) });
