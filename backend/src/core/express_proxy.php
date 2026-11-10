@@ -171,6 +171,9 @@ function expressProxyRequests(): array
         // ⚠️ v2.2.258: 媒介獲得台帳といえらぶの物件の候補・今すぐ突き合わせ（② だけ）
         'broker:ielove_candidates',
         'broker:ielove_match',
+        // ⚠️ v2.2.260: いえらぶの物件一覧（CSV）の取り込み（② だけ）
+        'planner:ielove_import',
+        'planner:ielove_import_status',
         // ⚠️ v2.2.239。中古リノベの今日の架電キュー（② だけ）。expressProxyExclusive() にも入れてある
         'callq_used:list',
         'callq_used:mark',
@@ -879,6 +882,9 @@ function expressProxyExclusive(): array
         // ⚠️ v2.2.258: 媒介獲得台帳といえらぶの物件の候補・今すぐ突き合わせ（② だけ）
         'broker:ielove_candidates',
         'broker:ielove_match',
+        // ⚠️ v2.2.260: いえらぶの物件一覧（CSV）の取り込み（② だけ）
+        'planner:ielove_import',
+        'planner:ielove_import_status',
         // v2.2.239 新規。中古リノベの今日の架電キュー（mark は書き込み）。⚠️ ① に PHP ハンドラは無い（② だけ）
         'callq_used:list',
         'callq_used:mark',

@@ -1,7 +1,7 @@
 # 引き継ぎ書：不動産企画係アプリの移植（realty）
 
 > この文書は、**新しく入る開発者（人またはエージェント）が `git clone` から開発を再開できる**ように書いています。
-> 最終更新：2026-11-10（**v2.2.257 まで production にマージ済み**。v2.2.253 はアクセス解析の CV、v2.2.257 は面談アンケート（survey）で、どちらも realty 外。**v2.2.258 は媒介獲得台帳 ⇔ いえらぶの物件 ⇔ 買い反響の自動のつながり（push 済み・マージ待ち）**。realty の次は v2.2.259（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）。版を進めたら、冒頭の版・「4. 進捗」・「5. 次にやること」を必ず書き直してください（別のエージェントが常にこの文書を読んでいます）。
+> 最終更新：2026-11-10（**v2.2.259 まで production にマージ済み**。v2.2.259 は sync の実行結果（realty 外）。**v2.2.260 はいえらぶの物件一覧（CSV）の取り込み（push 済み・マージ待ち）**。realty の次は v2.2.261（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）。版を進めたら、冒頭の版・「4. 進捗」・「5. 次にやること」を必ず書き直してください（別のエージェントが常にこの文書を読んでいます）。
 >
 > ⚠️ **2026-11-05 から、改修の正は「連動トリガー仕様書」です** → [docs/realty-trigger-spec.md](realty-trigger-spec.md)
 > 以前のアプリ（v14）を最優先にしていた今までの方針とぶつかるところは、仕様書に合わせます。ただし、**段階・現況の名前は今のまま**にし、仕様書の名前とは対応表で読み替えます（利用者の決定）。
@@ -28,6 +28,7 @@
    - `docs/oldDocument/task-2026-11-06-03-realty-next-date-buttons.md`（v2.2.255。顧客情報編集の日付ボタンの位置）
    - `docs/oldDocument/task-2026-11-06-04-realty-buy-lead-ledger-picker.md`（v2.2.256。買い反響の問合せ物件を媒介獲得台帳に紐づける）
    - `docs/task-2026-11-10-01-realty-ielove-link.md`（v2.2.258。台帳 ⇔ いえらぶの物件 ⇔ 買い反響の自動のつながり）
+   - `docs/task-2026-11-10-03-realty-ielove-csv-import.md`（v2.2.260。いえらぶの物件一覧（CSV）の取り込み）
 6. 古い作業記録（v2.2.221〜226）は `docs/oldDocument/task-2026-10-28-0*-realty-*.md` にあります。
 
 ---
@@ -147,7 +148,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 | 媒介獲得台帳 | /broker | ⚠️ `components/database/DatabaseBroker.tsx`（realty の外にある） |
 | 週次行動計画 | /realtyWeekly | `weekly/WeeklyPlan.tsx` |
 | コンプライアンス | /realtyCompliance | `compliance/Compliance.tsx` |
-| 設定・データ管理 | /realtySettings | `settings/RealtySettings.tsx`, `settings/RealtyImport.tsx`, `settings/RealtyLogImport.tsx` |
+| 設定・データ管理 | /realtySettings | `settings/RealtySettings.tsx`, `settings/RealtyImport.tsx`, `settings/RealtyLogImport.tsx`, `settings/RealtyIeloveImport.tsx`（v2.2.260） |
 | 移行中の案内 | /realtyPending?view=… | `RealtyPending.tsx` |
 
 共通の部品（`common/`）
@@ -178,6 +179,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
   - `importer.ts`：以前のアプリのデータの取り込み
   - `calls.ts`：通話記録（`realty_call_logs`）
   - `homesAssessment.ts`：LIFULL HOME'S の査定メールを売り反響に取り込む
+  - `ieloveImport.ts`：いえらぶの物件一覧（CSV）を property_db に取り込む（v2.2.260。`planner:ielove_import`）
   - `ieloveMatch.ts`：媒介獲得台帳 ⇔ いえらぶの物件（`property_db`）⇔ 買い反響の突き合わせ（v2.2.258。② の起動の1分後と30分ごと・台帳の保存の直後・`broker:ielove_match`）
 - ①：`backend/src/handlers/planner.php` と `broker.php`（古い処理と、② が止まったときの代わり）。
 - 使う roll：`planner:records`、`planner:state`、`planner:settings`、`planner:weekly`、`planner:compliance`、`planner:import_*`、`planner:call_*`、`planner:navi_save`、`broker:update`、`broker:ielove_candidates`・`broker:ielove_match`（v2.2.258）など（一覧は `express_proxy.php`）。
@@ -230,7 +232,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 
 ---
 
-## 4. 進捗（v2.2.258 まで push 済み）
+## 4. 進捗（v2.2.260 まで push 済み）
 
 ### 終わったもの
 | 版 | 内容 |
@@ -254,6 +256,7 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 | v2.2.255 | 顧客情報編集（`common/LeadEdit.tsx`）の「明日」「3日後」…ボタンが、買い反響では通電日の下に出ていた → 次回連絡日の列の中（入力欄の真下）に移した（`col-12` の行で置いていたのが原因） |
 | v2.2.256 | 買い反響の編集に「問合せ物件（媒介獲得台帳）」の検索欄（`common/LedgerPicker.tsx`。以前のアプリ v14.14 の選択欄を検索の形に）と「問合せ物件名」。押すと `ledgerId`・`ledgerNo`・`propertyId`（台帳の媒介物件）を入れる。一覧に「📝No.〇」。② の `broker:update` の書き込める列に `propertyId` を追加。DB の列の追加なし |
 | v2.2.258 | **媒介獲得台帳 ⇔ いえらぶの物件 ⇔ 買い反響**（`features/realty/ieloveMatch.ts`）。台帳は中古住宅専門店のいえらぶの物件と所在地（`propertyKeyRules.json`）・種別（マンションは建物名・部屋）で突き合わせ、1件だけなら自動でつなぐ（`property_db_match='auto'`）、複数・番地の粗さ・種別違いは「要確認」、無ければ「いえらぶ未採番」。ポータルの買い反響は `extId` → 取り込み元の自社の物件番号（＝いえらぶの番号）→ 台帳で自動でつなぐ。台帳の一覧に札・⑥ の絞り込み・「いえらぶと突き合わせ」、編集画面（`PropertyRegister.tsx`）に候補・外す・該当なし・所在地/建物名のコピー。買い反響の検索欄でいえらぶの番号も探せる。新しい列 `brokerage_listings.property_db_match`。ローカルでは台帳100件・買い反響67件が自動でつながった |
+| v2.2.260 | **いえらぶの物件一覧（CSV）の取り込み**（設定・データ管理。`settings/RealtyIeloveImport.tsx`・② `features/realty/ieloveImport.ts`）。いえらぶの2段階認証（メール）の義務化と、Heroku からのログインの 403 で、sync の自動の取り込み（runIeloveProperty.ts）ができなくなったための代わり。Shift_JIS の CSV（sale_日付.csv）を店舗ごとに複数まとめて選べる。下見（新規・更新・価格の変更）→ 取り込み → v2.2.258 の突き合わせ。書き方は ① の property_db_update.php と同じ（価格の履歴）だが、**CSV に無い列は上書きしない**。DB の変更なし |
 
 ### 未着手のもの
 **次の版の予定**（1版に1つ。v2.2.257 のテーマは利用者に確かめる）
@@ -292,8 +295,8 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 
 ---
 
-## 5. 次にやること：v2.2.259（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）
-v2.2.258 までが production にマージされていなければ、最新の版から枝を切ります。以下は ③ を選んだときの要点です。仕様書の要約の「4. ③」と、食い違いの一覧（6〜10）に合わせます。**③は大きいので、どこまでを1版にするかを利用者と決め、計画の了承を取ってから着手します。**
+## 5. 次にやること：v2.2.261（媒介更新履歴か ③ 申込獲得か。利用者に確かめる）
+v2.2.260 までが production にマージされていなければ、最新の版から枝を切ります。以下は ③ を選んだときの要点です。仕様書の要約の「4. ③」と、食い違いの一覧（6〜10）に合わせます。**③は大きいので、どこまでを1版にするかを利用者と決め、計画の了承を取ってから着手します。**
 
 主な食い違い（今の作り → 仕様書）
 - 自社客付け（売・買の2件）：今は台帳の「買付登録」から作る → 仕様書では買い反響を「申込獲得」（＝購入申込）にして保存したときに作る
@@ -312,6 +315,11 @@ v2.2.258 までが production にマージされていなければ、最新の�
 - **資料の提案する順番**：② 媒介物件・期限（済）→ 売りKPI・買いKPI（仕様書とぶつからない。早めを勧める）→ 媒介更新履歴 → 販売報告＋台帳の報告期限 → データ品質チェック → ③ 申込獲得 → ④⑤ 買取・按分（2版）→ ⑤ 一覧の期限・今期の消費税・精算書・取込・CSV → 残り
 - **利用者の判断待ち（資料の7章）**：「画面・項目・帳票・集計は HTML、きっかけと作成・必須・取消・権限・税の確定は仕様書」という分け方でよいか／手数料の特例と計上月／按分方法（HTML 4種・6種と仕様書3種）／レインズの期限（v2.2.249 で営業日にした）
 - ⚠️ 次の版のテーマは、利用者に確かめてから着手する（売りKPI・買いKPI は v2.2.254 で済）
+
+**v2.2.260 で決まったこと**
+- いえらぶ（ielove.jp）はログインに2段階認証（メール）が必要になり、管理画面で IP 制限は設定できない。sync（Heroku）からの自動の取り込みはやめ、担当者が CSV を Dashboard に上げる（利用者の決定）
+- 取り込みは「CSV にある列だけを上書き」（利用者の決定。出力の項目を絞っても値が消えないように）。いえらぶに無くなった物件は消さない
+- sync の property タスクは、呼ぶ側の targetTasks から外すよう利用者に依頼した（外すまでは「同期の実行結果」に失敗が残る）
 
 **v2.2.258 で決まったこと**
 - 台帳と買い反響は「国分ハウジンググループ中古住宅専門店」のいえらぶの物件でつなぐ（利用者の決定）。いえらぶの番号は SUUMO の `company_property_code`・HOME'S の `companyId`・athome の `company_property_id`（355050000＋6桁）と同じ

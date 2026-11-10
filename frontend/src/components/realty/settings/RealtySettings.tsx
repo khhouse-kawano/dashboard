@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useEffect, useRef, useState } from 'rea
 import AuthContext from '../../../context/AuthContext';
 import RealtyImport from './RealtyImport';
 import RealtyLogImport from './RealtyLogImport';
+import RealtyIeloveImport from './RealtyIeloveImport';
 import { CQ_SCRIPTS, TAGS, callqConf, callqScripts } from '../callq/callqLogic';
 import type { CallqConf } from '../callq/callqLogic';
 import {
@@ -413,6 +414,9 @@ const RealtySettings: React.FC = () => {
                     }}>一言目を初期値に戻す</button>
                 </div>
             </div>
+
+            {/* ⚠️ v2.2.260: いえらぶの物件一覧（CSV）の取り込み。担当者みんなが使う（いえらぶの2段階認証の義務化で、自動の取り込みが止まったため） */}
+            <RealtyIeloveImport />
 
             {/* ⚠️ v2.2.224: 以前のアプリのバックアップの取り込み。マスターだけ（② も auth: 'master' で確かめる） */}
             {authority === 'Master' && <RealtyImport onFinished={reload} />}
