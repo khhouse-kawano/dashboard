@@ -162,7 +162,8 @@ export const publicFormRateLimit = (
   }
 
   // ⚠️ v2.2.259 sync の実行結果（認証なしの書き込み口。合い言葉の総当たりだけを止める）
-  if (request === 'sync_log') {
+  // ⚠️ v2.2.263 SUUMO（建売）の反響の取り込み（suumo_kaeru）も、同じ合い言葉・同じ制限
+  if (request === 'sync_log' || request === 'suumo_kaeru') {
     void syncLogLimiter(req, res, next);
     return;
   }
