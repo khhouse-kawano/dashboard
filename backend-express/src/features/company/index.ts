@@ -5,6 +5,7 @@ import {
   CONTRACT_KAERU_SQL,
   CONTRACT_RESALE_SQL,
   CONTRACT_SQL,
+  REALTY_DEALS_SQL,
   SECTION_SQL,
   SHOP_SQL,
   STAFF_SQL,
@@ -45,7 +46,7 @@ export const runCompany = async (): Promise<CompanyResult> => {
    *   .contract / .contract_kaeru / .contract_resale / .achievement
    *   をそのまま読む。
    */
-  const [staff, shop, section, contract, contractKaeru, contractResale, achievement] =
+  const [staff, shop, section, contract, contractKaeru, contractResale, achievement, realtyDeals] =
     await Promise.all([
       query<DynamicRow>(STAFF_SQL),
       query<DynamicRow>(SHOP_SQL),
@@ -54,6 +55,8 @@ export const runCompany = async (): Promise<CompanyResult> => {
       query<DynamicRow>(CONTRACT_KAERU_SQL),
       query<DynamicRow>(CONTRACT_RESALE_SQL),
       query<DynamicRow>(ACHIEVEMENT_SQL),
+      // ⚠️ v2.2.264: 不動産企画係の商談案件（数字と担当だけ）。⚠️ ① の PHP には無いキー
+      query<DynamicRow>(REALTY_DEALS_SQL),
     ]);
 
   return {
@@ -66,6 +69,7 @@ export const runCompany = async (): Promise<CompanyResult> => {
       contract_kaeru: contractKaeru,
       contract_resale: contractResale,
       achievement,
+      realty_deals: realtyDeals,
     },
   };
 };

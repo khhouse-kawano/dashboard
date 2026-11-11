@@ -142,3 +142,16 @@ export const CONTRACT_RESALE_SQL = `
 
 /** 契約目標。⚠️ 絞り込みなしの全件（フロントが期で絞る） */
 export const ACHIEVEMENT_SQL = `SELECT category, name, period, value FROM company_achievement`;
+
+/**
+ * 不動産企画係の商談案件（v2.2.264）。会社実績の「不動産企画係」の事業部の売上に使う。
+ *
+ * ⚠️ **数字と担当だけ**を返す（お客様の名前・物件・連絡先は返さない。`company` は全スタッフが読むため）。
+ * ⚠️ 売上の数え方はフロントの realty/summary/kpi.ts（月次売上管理と同じ）。
+ *   契約日＝計上月・失注は除く・売上＝仲介手数料（手入力がなければ標準の率）＋リフォーム粗利・共同担当は割合で按分。
+ * ⚠️ 消した案件（show_dashboard = 0）は除く（realty の loadRecords と同じ条件）。
+ * ⚠️ ① の company.php には無い（② が止まって ① が代わりに返したときは、不動産企画係の売上が空になるだけ）。
+ */
+export const REALTY_DEALS_SQL = `SELECT staff, subStaff, subRatio, phase, price, fee, feeManual, reformGp, contractDate
+  FROM brokerage_listings
+  WHERE kind = 'deals' AND (show_dashboard IS NULL OR show_dashboard <> 0)`;
