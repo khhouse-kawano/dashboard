@@ -22,6 +22,7 @@ import type { Achievement, Customer, Head, InputCell, NumCell, RealtyDeal, RowMo
  *   ・併売店の子は「multi = 1 かつ parent_shop あり」。まとめ表示では子の行を隠し、親が子の分も数える
  *   ・まとめ表示の担当は氏名でまとめ、**親店舗の行を残す**（先に入ったものを残す。Map の上書きにしない）
  *   ・店舗の予算の行のランク「契約済み」は 0 になる（担当名「予算」で絞るため。以前からの表示）
+ *   ・⚠️ v2.2.264 で変えた数字は1つだけ：中古リノベの事業部の予算から、不動産企画係の予算を除いた
  *   ・中古リノベの店舗は、課に関係なく「中古住宅専門店」の店舗を並べる。合計と個人目標の列の順が注文・建売と逆
  *     （⚠️ v2.2.264 から「不動産企画係」の店舗だけは出さない。不動産企画係の事業部として別に出す）
  * ─────────────────────────────────────────────
@@ -29,7 +30,7 @@ import type { Achievement, Customer, Head, InputCell, NumCell, RealtyDeal, RowMo
 
 export const RANKS = ['契約済み', 'Sランク', 'Aランク', 'Bランク', 'Cランク'];
 
-export const DIVISION_MAPPING: Record<string, string> = {
+const DIVISION_MAPPING: Record<string, string> = {
     '注文事業': '注文',
     '建売分譲事業': '建売',
     '中古リノベ': '中専',
@@ -433,7 +434,7 @@ export const buildRows = (input: BuildInput): RowModel[] => {
                     });
 
                     rows.push({
-                        key: `${shop.shop}-${staff.name}`,
+                        key: `${division}/${section.name}/${shop.shop}/${staffIndex}:${staff.name}`,
                         id: staffIndex === 0 ? shop.shop : undefined,
                         level: 'shop', first: staffIndex === 0, gapBefore: staffIndex === 0 ? 1 : undefined,
                         kind: isAchievement ? 'budget' : isShop ? 'result' : 'staff',
@@ -483,12 +484,12 @@ export const buildRows = (input: BuildInput): RowModel[] => {
                     const periodBudget = budgetTotal(periodContracts);
                     if (isShop) {
                         const lastMonth = `${Number(month.split('-')[0] ?? 0) - 1}-${month.split('-')[1]}`;
-                        tds.push(numCell({ tone: 'contract', main: periodBudget.toLocaleString(), ly: String(budgetTotal(usedStaffs.filter(u => usedInMonth(u, lastMonth)))), lyRight: LY_TOTAL, list: periodContracts, active: periodBudget > 0 }));
+                        tds.push(numCell({ tone: 'contract', main: periodBudget.toLocaleString(), ly: String(budgetTotal(usedStaffs.filter(u => usedInMonth(u, lastMonth)))), lyRight: LY_TOTAL, list: periodBudget > 0 ? periodContracts : [], active: periodBudget > 0 }));
                     } else if (isStaff) {
-                        tds.push(numCell({ tone: 'contract', main: periodBudget > 0 ? periodBudget.toLocaleString() : '0', list: periodContracts, active: periodBudget > 0 }));
+                        tds.push(numCell({ tone: 'contract', main: periodBudget > 0 ? periodBudget.toLocaleString() : '0', list: periodBudget > 0 ? periodContracts : [], active: periodBudget > 0 }));
                     }
                 });
-                const totalCell = (col: number): NumCell => numCell({ tone: 'contract', main: totalBudget.toLocaleString(), ly: String(lastYearBudget), lyRight: LY_TOTAL, list: totalContracts, active: totalBudget > 0, colSpan: col });
+                const totalCell = (col: number): NumCell => numCell({ tone: 'contract', main: totalBudget.toLocaleString(), ly: String(lastYearBudget), lyRight: LY_TOTAL, list: totalBudget > 0 ? totalContracts : [], active: totalBudget > 0, colSpan: col });
                 if (isAchievement) tds.push(numCell({ tone: 'budgetFixed', main: shopYearBudget(s.shop).toLocaleString(), active: true, colSpan: 2 }));
                 if (isShop) tds.push(totalCell(2));
                 // ⚠️ 担当の行は「個人目標 → 合計」の順（注文・建売と逆。以前からの並び）
@@ -504,7 +505,7 @@ export const buildRows = (input: BuildInput): RowModel[] => {
                 });
 
                 rows.push({
-                    key: `${keyPrefix}${s.shop}-${staff.name}`,
+                    key: `${keyPrefix}${s.shop}/${staffIndex}:${staff.name}`,
                     level: 'shop', first: staffIndex === 0, gapBefore: staffIndex === 0 ? 1 : undefined,
                     kind: isAchievement ? 'budget' : isShop ? 'result' : 'staff',
                     heads: [
@@ -517,17 +518,31 @@ export const buildRows = (input: BuildInput): RowModel[] => {
         });
     };
 
-    /** 不動産企画係（1つの事業部として出す。v2.2.264）。⚠️ 数え方は月次売上管理（realty/sales/MonthlySales.tsx）と同じ */
+    /**
+     * 不動産企画係（1つの事業部として出す。v2.2.264）。
+     * ⚠️ 担当 × 月の金額は、月次売上管理（realty/sales/MonthlySales.tsx）と同じ（同じ sumByStaffMonth・dealSales）。
+     *   違うのは次の3つ。
+     *     ・合計に入れる人 … こちらは売上のある全員（担当の一覧に居ない人は「その他」）。月次売上管理は設定の担当者だけ
+     *     ・期 … こちらは 6月〜5月。月次売上管理は設定の期首月から12か月（⚠️ 2026-11 時点の期首は 6月で同じ）
+     *     ・丸め … こちらは万円・小数1桁。⚠️ 合計の列は「円の合計を丸めた値」なので、月のセルを足した値と 0.数万円ずれることがある
+     * ⚠️ 昨年実績は、昨年の同じ月（合計は昨年の期）の売上。
+     */
     const realtyRows = (): void => {
         const sales = sumByStaffMonth(realtyDeals, dealSales);
         const nameKey = (v: string): string => v.replace(/[\s　]/g, '');
         /** 円 → 万円（小数1桁） */
         const man = (yen: number): string => (Math.round(yen / 1000) / 10).toLocaleString();
-        const salesCell = (yen: number, col = 1): NumCell => numCell({ tone: 'sales', main: man(yen), active: yen > 0, colSpan: col });
+        const salesCell = (yen: number, lastYearYen: number, col = 1): NumCell =>
+            numCell({ tone: 'sales', main: man(yen), ly: man(lastYearYen), lyRight: col === 2 ? LY_TOTAL : LY_MONTH, active: yen > 0, colSpan: col });
+        /** 12か月（昨年の同じ月つき）＋ 合計（昨年の期つき） */
+        const salesCells = (names: string[]): NumCell[] => [
+            ...monthArray.map(m => salesCell(sumOf(names, [m]), sumOf(names, [lastYearMonthFormate(m, '-') ?? '']))),
+            salesCell(sumOf(names, monthArray), sumOf(names, lastYearMonthArray), 2),
+        ];
         const sumOf = (names: string[], months: string[]): number => names.reduce((acc, n) => acc + months.reduce((a, m) => a + (sales[n]?.[m] ?? 0), 0), 0);
 
         const allNames = Object.keys(sales);
-        const members = staffList.filter(st => st.shop === REALTY_NAME && st.report === 1).sort(sorter);
+        const members = staffList.filter(st => st.shop === REALTY_NAME).sort(sorter);
         const memberKeys = new Set(members.map(m => nameKey(m.name)));
         // ⚠️ 担当の一覧に居ない人（退職・表記ちがい）の売上は「その他」にまとめる（事業部の合計と合うように）
         const others = allNames.filter(n => !memberKeys.has(nameKey(n)));
@@ -546,17 +561,17 @@ export const buildRows = (input: BuildInput): RowModel[] => {
         rows.push({
             key: 'realty-result', level: 'division', first: false, kind: 'result', isNew: true,
             heads: [head('売上', 'result', { second: true })],
-            tds: [...monthArray.map(m => salesCell(sumOf(allNames, [m]))), salesCell(sumOf(allNames, monthArray), 2)],
+            tds: salesCells(allNames),
             ranks: null,
         });
         lines.forEach((line, index) => {
             rows.push({
-                key: `realty-staff-${line.label}`, level: 'shop', first: index === 0, gapBefore: index === 0 ? 1 : undefined, kind: 'staff', isNew: true,
+                key: `realty-staff-${index}`, level: 'shop', first: index === 0, gapBefore: index === 0 ? 1 : undefined, kind: 'staff', isNew: true,
                 heads: [
                     ...(index === 0 ? [head('担当別', 'shop', { rowSpan: lines.length, color: 0 })] : []),
                     head(line.label, 'name', { second: true }),
                 ],
-                tds: [...monthArray.map(m => salesCell(sumOf(line.names, [m]))), salesCell(sumOf(line.names, monthArray), 2)],
+                tds: salesCells(line.names),
                 ranks: null,
             });
         });
@@ -568,7 +583,9 @@ export const buildRows = (input: BuildInput): RowModel[] => {
     divisionArray.forEach(division => {
         const isUsed = division === USED_DIVISION;
         const level = agg.divisions[division];
-        const divisionShops = new Set(shopList.filter(s => s.division === division).map(s => s.shop));
+        // ⚠️ v2.2.264: 中古リノベの事業部の予算には、不動産企画係の予算を入れない（不動産企画係は別の事業部として出すため）。
+        //   shop_list では「不動産企画係」が中古リノベの店舗なので、除かないと両方の事業部に出る（実績は以前から入っていない）
+        const divisionShops = new Set(shopList.filter(s => s.division === division && !(isUsed && s.shop === REALTY_NAME)).map(s => s.shop));
         const prospectList = prospects.filter(o => o.category === DIVISION_MAPPING[division]);
 
         const ranks = RANKS.map(r => {

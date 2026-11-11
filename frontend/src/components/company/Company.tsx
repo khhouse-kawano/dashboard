@@ -126,11 +126,18 @@ const Company = () => {
 
     const informationEditClose = useCallback(() => setEditId(EMPTY_EDIT_ID), []);
 
-    /** 予算を保存する（⚠️ 欄を離れたときに呼ばれる）。画面の値を先に直してから送る */
+    /**
+     * 予算を保存する（⚠️ 欄を離れたときに呼ばれる）。画面の値を先に直してから送る。
+     * ⚠️ 保存に失敗したら、画面の値を元に戻す（戻さないと、保存できていない値が表に残り、同じ値を入れ直しても送られない）。
+     */
     const changeAchievement: CommitBudget = useCallback(async (periodValue, categoryValue, nameValue, achievementValue) => {
+        const same = (a: Achievement) => a.category === categoryValue && a.period === periodValue && a.name === nameValue;
+        /** 直す前の値（null は、行が無かった） */
+        let before: string | null = null;
         setAchievement(prev => {
-            const same = (a: Achievement) => a.category === categoryValue && a.period === periodValue && a.name === nameValue;
-            return prev.some(same)
+            const hit = prev.find(same);
+            before = hit ? hit.value : null;
+            return hit
                 ? prev.map(a => (same(a) ? { ...a, value: achievementValue } : a))
                 : [...prev, { category: categoryValue, period: periodValue, name: nameValue, value: achievementValue }];
         });
@@ -138,7 +145,9 @@ const Company = () => {
             await apiClient.post('', { request: 'change_company_achievement', category: categoryValue, name: nameValue, period: periodValue, value: achievementValue });
         } catch (error) {
             console.error('Error updating achievement:', error);
-            alert('予算を保存できませんでした。通信の状態を確かめて、もう一度入力してください。');
+            const restore = before;
+            setAchievement(prev => (restore === null ? prev.filter(a => !same(a)) : prev.map(a => (same(a) ? { ...a, value: restore } : a))));
+            alert('予算を保存できませんでした。入力前の値に戻しました。通信の状態を確かめて、もう一度入力してください。');
         }
     }, []);
 

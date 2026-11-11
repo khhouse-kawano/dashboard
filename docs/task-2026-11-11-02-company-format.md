@@ -50,6 +50,7 @@
 - ⚠️ 余白は `.co_scroll` ではなく中の `.co_pad` に付ける（`.co_scroll` に付けると、固定する行・列がその分ずれて止まる。テストで見つけて直した）。
 
 ## 不動産企画係
+- ⚠️ 下の説明のうち「昨年実績を出さない」「中古リノベの予算」は、デプロイ前の再確認で変えた（末尾の節を参照）。
 - ② の `company` の返事に `realty_deals` を足した（`brokerage_listings` の kind = 'deals'。**担当・共同担当・割合・段階・価格・手数料・手入力の印・リフォーム粗利・契約日だけ**。お客様の名前・物件は返さない）。
 - 売上は `realty/summary/kpi.ts` の `sumByStaffMonth(deals, dealSales)`（月次売上管理と同じ。契約日の月・失注は除く・仲介手数料＋リフォーム粗利・共同担当は割合で按分）。万円・小数1桁。
 - 行：事業部の「予算」（`company_achievement` の shop「不動産企画係」）と「売上」、担当別（staff_list の不動産企画係の担当。一覧に居ない人の売上があれば「その他」）。
@@ -99,6 +100,38 @@
 - リファクタリング（使わなくなったスタイルの削除）のあとに、全セルの比較と動きのテストをもう一度通した。
 - 仮スタッフ 999999 は消した（0件）。3100 は netstat → taskkill で止めた。
 - ⚠️ コンソールの `value prop should not be null` は、顧客の編集画面（InformationEdit）を開いたときの既存の警告。今回の変更とは関係ない。
+
+## デプロイ前の再確認（2026-11-11。「再度歩留まりが合うかの確認、リファクタリング、エージェント側での評価をしたうえで修正」）
+### 1. 数字の突き合わせ（`scratchpad/c264/verify.cjs`）
+- ① 経由で `company` のデータを取り、**画面の集計（companyAggregate.ts）を使わずに**単純な式で数え直して、画面の数字と比べた。注文・中古リノベの2つの事業 × 今期・前の期。**110項目すべて一致**。
+  - グループ・事業部・課・店舗の実績（月ごと・合計・昨年・仲介）、グループ・事業部・店舗の予算、中古リノベの粗利、不動産企画係の売上（月ごと・合計・担当別・昨年）・予算。
+- 積み上げ：グループ実績 = 注文 ＋ 建売／事業部 = 課の合計 ＋ 課に属さない店舗の契約（前の期の建売に 6件）／課 = 店舗の合計／グループ予算 = 注文 ＋ 建売の予算。
+- 前の期の注文で「担当の合計 < 店舗の実績」の店舗が5つ（今の担当の一覧に居ない人の契約が、店舗の実績にだけ入る。改修前と同じ）。
+
+### 2. 別のエージェントによる評価（コードの読み比べ）
+- 重大（数字が変わる・壊れる）：**なし**。数え方（`==`→`===`、Set、groupBy、まとめ表示、予算の合計、中古リノベの行、sorter の使い回し）は、元のコードと1つずつ突き合わせて同じと確認。memo の比較・useMemo/useCallback の依存にも漏れなし。`REALTY_DEALS_SQL` は名前・物件・連絡先を返していない。
+- 中・軽の指摘と対応
+
+| 指摘 | 対応 |
+|---|---|
+| 予算の保存に失敗すると、画面に保存できていない値が残り、同じ値を入れ直しても送られない | **直した**。失敗したら画面の値を入力前に戻す（Company.tsx の changeAchievement）。欄も合計も戻り、入れ直すと送る |
+| 不動産企画係の「月次売上管理と同じ」は、合計に入れる人・期・丸めが違う | 注記を実態に直した（担当 × 月の金額は同じ。合計は売上のある全員・6月〜5月・万円小数1桁）。実データでは期首は 6月で同じ、担当の一覧に居ない人の売上は無し |
+| 中古リノベの事業部の予算に、不動産企画係の予算が入ったまま（実データで確認：24,500 = 13,100 ＋ 11,400） | **直した**。中古リノベの事業部の予算から不動産企画係を除く（⚠️ 意図して変えた唯一の数字） |
+| 行の key が表全体で1つの並びになり、重複の条件が広がった | **直した**。key に事業部・課・並び順を入れた（実データに重複は無かった） |
+| スマホでも上のバーが出るようになった | **直した**。768px 以下では出さない（以前と同じ） |
+| 中古リノベの店舗・担当のセルが、金額 0 でも押せる | **直した**（金額が 0 より大きいときだけ押せる。以前と同じ） |
+| 日本語入力の確定の Enter で保存される／全角の数字で合計が NaN | **直した**（確定の Enter は無視。全角は半角にして保存） |
+| 不動産企画係に昨年実績が出ない | **足した**（昨年の同じ月・昨年の期の売上） |
+| 使っていない `lastYearStyle`・export（`SECTION_COLORS`・`DIVISION_MAPPING`）・型の `'realty'`・不要な `report === 1`・注記の食い違い | **整理した** |
+| `isNew`／`data-new`（前後を比べるテスト用の印）が本番のコードに残る | 残した（次に数え方を直すときも同じテストを使うため。注記あり） |
+| `guideScreens.ts` の「全社報告用フォーマット」に realty が無い | 変えていない（不動産企画係の画面は、業務ガイドの「画面を開く」に1つも登録されていない。v2.2.262 と同じ扱い） |
+| ② が案件ごとの価格・手数料を全スタッフに返す（担当 × 月に集計して返せば最小） | 変えていない。集計の式（kpi.ts）を ② にも持つと二重管理になるため。返すのは数字と担当だけ。将来の課題 |
+
+### 3. 修正のあとの再テスト
+- 全セルの比較：18ファイル・92,007 セルで違い 0（ほかに、意図して変えた中古リノベの事業部の予算のセル 195）。
+- 検算：110項目すべて一致（中古リノベ ＋ 不動産企画係の予算 = 以前の中古リノベの事業部の予算、も確認）。
+- 動き：38項目 OK（追加：保存に失敗 → alert・欄と合計が戻る・入れ直すと送る・DB は変わらない／全角は半角で保存／スマホではバーを出さない／不動産企画係の昨年実績）。
+- 型チェック・ESLint はエラー 0。仮スタッフ 999999 は消した。3100 は止めた。
 
 ## 残っていること
 - 「閲覧権限がありません」は、全事業を見られる人でも、事業を切り替えないとほかの事業の顧客を開けない（指示どおり）。
@@ -403,11 +436,18 @@ const Company = () => {
 
     const informationEditClose = useCallback(() => setEditId(EMPTY_EDIT_ID), []);
 
-    /** 予算を保存する（⚠️ 欄を離れたときに呼ばれる）。画面の値を先に直してから送る */
+    /**
+     * 予算を保存する（⚠️ 欄を離れたときに呼ばれる）。画面の値を先に直してから送る。
+     * ⚠️ 保存に失敗したら、画面の値を元に戻す（戻さないと、保存できていない値が表に残り、同じ値を入れ直しても送られない）。
+     */
     const changeAchievement: CommitBudget = useCallback(async (periodValue, categoryValue, nameValue, achievementValue) => {
+        const same = (a: Achievement) => a.category === categoryValue && a.period === periodValue && a.name === nameValue;
+        /** 直す前の値（null は、行が無かった） */
+        let before: string | null = null;
         setAchievement(prev => {
-            const same = (a: Achievement) => a.category === categoryValue && a.period === periodValue && a.name === nameValue;
-            return prev.some(same)
+            const hit = prev.find(same);
+            before = hit ? hit.value : null;
+            return hit
                 ? prev.map(a => (same(a) ? { ...a, value: achievementValue } : a))
                 : [...prev, { category: categoryValue, period: periodValue, name: nameValue, value: achievementValue }];
         });
@@ -415,7 +455,9 @@ const Company = () => {
             await apiClient.post('', { request: 'change_company_achievement', category: categoryValue, name: nameValue, period: periodValue, value: achievementValue });
         } catch (error) {
             console.error('Error updating achievement:', error);
-            alert('予算を保存できませんでした。通信の状態を確かめて、もう一度入力してください。');
+            const restore = before;
+            setAchievement(prev => (restore === null ? prev.filter(a => !same(a)) : prev.map(a => (same(a) ? { ...a, value: restore } : a))));
+            alert('予算を保存できませんでした。入力前の値に戻しました。通信の状態を確かめて、もう一度入力してください。');
         }
     }, []);
 
@@ -515,6 +557,7 @@ import type { Achievement, Customer, Head, InputCell, NumCell, RealtyDeal, RowMo
  *   ・併売店の子は「multi = 1 かつ parent_shop あり」。まとめ表示では子の行を隠し、親が子の分も数える
  *   ・まとめ表示の担当は氏名でまとめ、**親店舗の行を残す**（先に入ったものを残す。Map の上書きにしない）
  *   ・店舗の予算の行のランク「契約済み」は 0 になる（担当名「予算」で絞るため。以前からの表示）
+ *   ・⚠️ v2.2.264 で変えた数字は1つだけ：中古リノベの事業部の予算から、不動産企画係の予算を除いた
  *   ・中古リノベの店舗は、課に関係なく「中古住宅専門店」の店舗を並べる。合計と個人目標の列の順が注文・建売と逆
  *     （⚠️ v2.2.264 から「不動産企画係」の店舗だけは出さない。不動産企画係の事業部として別に出す）
  * ─────────────────────────────────────────────
@@ -522,7 +565,7 @@ import type { Achievement, Customer, Head, InputCell, NumCell, RealtyDeal, RowMo
 
 export const RANKS = ['契約済み', 'Sランク', 'Aランク', 'Bランク', 'Cランク'];
 
-export const DIVISION_MAPPING: Record<string, string> = {
+const DIVISION_MAPPING: Record<string, string> = {
     '注文事業': '注文',
     '建売分譲事業': '建売',
     '中古リノベ': '中専',
@@ -926,7 +969,7 @@ export const buildRows = (input: BuildInput): RowModel[] => {
                     });
 
                     rows.push({
-                        key: `${shop.shop}-${staff.name}`,
+                        key: `${division}/${section.name}/${shop.shop}/${staffIndex}:${staff.name}`,
                         id: staffIndex === 0 ? shop.shop : undefined,
                         level: 'shop', first: staffIndex === 0, gapBefore: staffIndex === 0 ? 1 : undefined,
                         kind: isAchievement ? 'budget' : isShop ? 'result' : 'staff',
@@ -976,12 +1019,12 @@ export const buildRows = (input: BuildInput): RowModel[] => {
                     const periodBudget = budgetTotal(periodContracts);
                     if (isShop) {
                         const lastMonth = `${Number(month.split('-')[0] ?? 0) - 1}-${month.split('-')[1]}`;
-                        tds.push(numCell({ tone: 'contract', main: periodBudget.toLocaleString(), ly: String(budgetTotal(usedStaffs.filter(u => usedInMonth(u, lastMonth)))), lyRight: LY_TOTAL, list: periodContracts, active: periodBudget > 0 }));
+                        tds.push(numCell({ tone: 'contract', main: periodBudget.toLocaleString(), ly: String(budgetTotal(usedStaffs.filter(u => usedInMonth(u, lastMonth)))), lyRight: LY_TOTAL, list: periodBudget > 0 ? periodContracts : [], active: periodBudget > 0 }));
                     } else if (isStaff) {
-                        tds.push(numCell({ tone: 'contract', main: periodBudget > 0 ? periodBudget.toLocaleString() : '0', list: periodContracts, active: periodBudget > 0 }));
+                        tds.push(numCell({ tone: 'contract', main: periodBudget > 0 ? periodBudget.toLocaleString() : '0', list: periodBudget > 0 ? periodContracts : [], active: periodBudget > 0 }));
                     }
                 });
-                const totalCell = (col: number): NumCell => numCell({ tone: 'contract', main: totalBudget.toLocaleString(), ly: String(lastYearBudget), lyRight: LY_TOTAL, list: totalContracts, active: totalBudget > 0, colSpan: col });
+                const totalCell = (col: number): NumCell => numCell({ tone: 'contract', main: totalBudget.toLocaleString(), ly: String(lastYearBudget), lyRight: LY_TOTAL, list: totalBudget > 0 ? totalContracts : [], active: totalBudget > 0, colSpan: col });
                 if (isAchievement) tds.push(numCell({ tone: 'budgetFixed', main: shopYearBudget(s.shop).toLocaleString(), active: true, colSpan: 2 }));
                 if (isShop) tds.push(totalCell(2));
                 // ⚠️ 担当の行は「個人目標 → 合計」の順（注文・建売と逆。以前からの並び）
@@ -997,7 +1040,7 @@ export const buildRows = (input: BuildInput): RowModel[] => {
                 });
 
                 rows.push({
-                    key: `${keyPrefix}${s.shop}-${staff.name}`,
+                    key: `${keyPrefix}${s.shop}/${staffIndex}:${staff.name}`,
                     level: 'shop', first: staffIndex === 0, gapBefore: staffIndex === 0 ? 1 : undefined,
                     kind: isAchievement ? 'budget' : isShop ? 'result' : 'staff',
                     heads: [
@@ -1010,17 +1053,31 @@ export const buildRows = (input: BuildInput): RowModel[] => {
         });
     };
 
-    /** 不動産企画係（1つの事業部として出す。v2.2.264）。⚠️ 数え方は月次売上管理（realty/sales/MonthlySales.tsx）と同じ */
+    /**
+     * 不動産企画係（1つの事業部として出す。v2.2.264）。
+     * ⚠️ 担当 × 月の金額は、月次売上管理（realty/sales/MonthlySales.tsx）と同じ（同じ sumByStaffMonth・dealSales）。
+     *   違うのは次の3つ。
+     *     ・合計に入れる人 … こちらは売上のある全員（担当の一覧に居ない人は「その他」）。月次売上管理は設定の担当者だけ
+     *     ・期 … こちらは 6月〜5月。月次売上管理は設定の期首月から12か月（⚠️ 2026-11 時点の期首は 6月で同じ）
+     *     ・丸め … こちらは万円・小数1桁。⚠️ 合計の列は「円の合計を丸めた値」なので、月のセルを足した値と 0.数万円ずれることがある
+     * ⚠️ 昨年実績は、昨年の同じ月（合計は昨年の期）の売上。
+     */
     const realtyRows = (): void => {
         const sales = sumByStaffMonth(realtyDeals, dealSales);
         const nameKey = (v: string): string => v.replace(/[\s　]/g, '');
         /** 円 → 万円（小数1桁） */
         const man = (yen: number): string => (Math.round(yen / 1000) / 10).toLocaleString();
-        const salesCell = (yen: number, col = 1): NumCell => numCell({ tone: 'sales', main: man(yen), active: yen > 0, colSpan: col });
+        const salesCell = (yen: number, lastYearYen: number, col = 1): NumCell =>
+            numCell({ tone: 'sales', main: man(yen), ly: man(lastYearYen), lyRight: col === 2 ? LY_TOTAL : LY_MONTH, active: yen > 0, colSpan: col });
+        /** 12か月（昨年の同じ月つき）＋ 合計（昨年の期つき） */
+        const salesCells = (names: string[]): NumCell[] => [
+            ...monthArray.map(m => salesCell(sumOf(names, [m]), sumOf(names, [lastYearMonthFormate(m, '-') ?? '']))),
+            salesCell(sumOf(names, monthArray), sumOf(names, lastYearMonthArray), 2),
+        ];
         const sumOf = (names: string[], months: string[]): number => names.reduce((acc, n) => acc + months.reduce((a, m) => a + (sales[n]?.[m] ?? 0), 0), 0);
 
         const allNames = Object.keys(sales);
-        const members = staffList.filter(st => st.shop === REALTY_NAME && st.report === 1).sort(sorter);
+        const members = staffList.filter(st => st.shop === REALTY_NAME).sort(sorter);
         const memberKeys = new Set(members.map(m => nameKey(m.name)));
         // ⚠️ 担当の一覧に居ない人（退職・表記ちがい）の売上は「その他」にまとめる（事業部の合計と合うように）
         const others = allNames.filter(n => !memberKeys.has(nameKey(n)));
@@ -1039,17 +1096,17 @@ export const buildRows = (input: BuildInput): RowModel[] => {
         rows.push({
             key: 'realty-result', level: 'division', first: false, kind: 'result', isNew: true,
             heads: [head('売上', 'result', { second: true })],
-            tds: [...monthArray.map(m => salesCell(sumOf(allNames, [m]))), salesCell(sumOf(allNames, monthArray), 2)],
+            tds: salesCells(allNames),
             ranks: null,
         });
         lines.forEach((line, index) => {
             rows.push({
-                key: `realty-staff-${line.label}`, level: 'shop', first: index === 0, gapBefore: index === 0 ? 1 : undefined, kind: 'staff', isNew: true,
+                key: `realty-staff-${index}`, level: 'shop', first: index === 0, gapBefore: index === 0 ? 1 : undefined, kind: 'staff', isNew: true,
                 heads: [
                     ...(index === 0 ? [head('担当別', 'shop', { rowSpan: lines.length, color: 0 })] : []),
                     head(line.label, 'name', { second: true }),
                 ],
-                tds: [...monthArray.map(m => salesCell(sumOf(line.names, [m]))), salesCell(sumOf(line.names, monthArray), 2)],
+                tds: salesCells(line.names),
                 ranks: null,
             });
         });
@@ -1061,7 +1118,9 @@ export const buildRows = (input: BuildInput): RowModel[] => {
     divisionArray.forEach(division => {
         const isUsed = division === USED_DIVISION;
         const level = agg.divisions[division];
-        const divisionShops = new Set(shopList.filter(s => s.division === division).map(s => s.shop));
+        // ⚠️ v2.2.264: 中古リノベの事業部の予算には、不動産企画係の予算を入れない（不動産企画係は別の事業部として出すため）。
+        //   shop_list では「不動産企画係」が中古リノベの店舗なので、除かないと両方の事業部に出る（実績は以前から入っていない）
+        const divisionShops = new Set(shopList.filter(s => s.division === division && !(isUsed && s.shop === REALTY_NAME)).map(s => s.shop));
         const prospectList = prospects.filter(o => o.category === DIVISION_MAPPING[division]);
 
         const ranks = RANKS.map(r => {
@@ -1192,6 +1251,7 @@ export type CommitBudget = (period: string, category: string, name: string, valu
  * ⚠️ 入力中の文字は欄（useRef）だけが持つ。**欄を離れたとき（または Enter）に保存する**（2026-11-11 の決定）。
  *   以前は1文字ごとに保存し、そのたびに表全体を描き直していた。
  * ⚠️ Esc で入力前の値に戻す。
+ * ⚠️ 保存に失敗したときは、Company.tsx が値を元に戻す（cell.value が戻り、下の useEffect が欄も戻す）。
  */
 const BudgetInput = memo(({ cell, onCommit }: { cell: InputCell; onCommit: CommitBudget }) => {
     const ref = useRef<HTMLInputElement | null>(null);
@@ -1203,7 +1263,9 @@ const BudgetInput = memo(({ cell, onCommit }: { cell: InputCell; onCommit: Commi
     }, [cell.value]);
 
     const commit = () => {
-        const value = ref.current?.value ?? '';
+        // ⚠️ 全角の数字は半角にそろえて保存する（全角のままだと合計が NaN になる）
+        const value = (ref.current?.value ?? '').normalize('NFKC').trim();
+        if (ref.current) ref.current.value = value;
         if (value === saved.current) return;
         saved.current = value;
         onCommit(cell.period, cell.category, cell.name, value);
@@ -1214,6 +1276,8 @@ const BudgetInput = memo(({ cell, onCommit }: { cell: InputCell; onCommit: Commi
                 aria-label={`${cell.name} ${cell.category === 'shop' ? `${cell.period} の予算` : '個人目標'}`}
                 onBlur={commit}
                 onKeyDown={(e) => {
+                    // ⚠️ 日本語入力の確定の Enter では保存しない
+                    if (e.nativeEvent.isComposing) return;
                     if (e.key === 'Enter') e.currentTarget.blur();
                     if (e.key === 'Escape') { e.currentTarget.value = saved.current; e.currentTarget.blur(); }
                 }} />
@@ -1377,7 +1441,7 @@ export default memo(CompanyToolbar);
  */
 
 /** 課の色（名前のセルの背景・帯）。課の並びの順に使う */
-export const SECTION_COLORS = ['#2563eb', '#059669', '#d97706', '#dc2626', '#64748b', '#0891b2'];
+const SECTION_COLORS = ['#2563eb', '#059669', '#d97706', '#dc2626', '#64748b', '#0891b2'];
 const SECTION_TINTS = ['#eff6ff', '#ecfdf5', '#fffbeb', '#fef2f2', '#f1f5f9', '#ecfeff'];
 
 const PAGE = '#f4f6f8';
@@ -1463,6 +1527,8 @@ ${SECTION_COLORS.map((c, i) => `.co_tbl td.co_h-section.co_col${i} { background:
 .co_in:focus { background: #fff; border: 1px solid #f97066; box-shadow: 0 0 0 2px rgba(249,112,102,.2); }
 
 @media screen and (max-width: 768px) {
+  /* ⚠️ スマホでは上のバーを出さない（以前と同じ） */
+  .co_toolbar { display: none; }
   .co_pad { padding: 6px 4px 30px; }
   .co_tbl { font-size: 9px; }
   .co_tbl .co_m { min-width: 40px; width: 40px; max-width: 40px; }
@@ -1542,7 +1608,7 @@ export type Head = {
     text: string;
     rowSpan: number;
     colSpan: number;
-    /** level … 事業部・課・店舗の名前のセル ／ name … 担当名 ／ budget・result … 予算・実績 */
+    /** division・section・shop … 事業部・課・店舗の名前のセル ／ name … 担当名 ／ budget・result … 予算・実績の見出し */
     variant: 'division' | 'section' | 'shop' | 'name' | 'budget' | 'result';
     /** 課の色（0〜5。課・店舗の名前のセルの左の帯） */
     color?: number;
@@ -1550,7 +1616,7 @@ export type Head = {
     second?: boolean;
 };
 
-export type RowLevel = 'group' | 'division' | 'section' | 'shop' | 'realty';
+export type RowLevel = 'group' | 'division' | 'section' | 'shop';
 
 export type RowModel = {
     key: string;
@@ -1574,6 +1640,112 @@ export type RowModel = {
     /** v2.2.264 で足した行（不動産企画係の事業部）。⚠️ 以前の表と比べるテストで見分けるための印 */
     isNew?: boolean;
 };
+```
+
+## 全文：frontend/src/components/company/CustomerDetail.tsx
+```tsx
+import React from 'react';
+import Table from "react-bootstrap/Table";
+import Modal from 'react-bootstrap/Modal';
+import { CustomerName } from '../../utils/deletedCustomer';
+import { CUSTOMER_CATEGORY } from './companyAggregate';
+
+type Customer = Record<string, string>;
+
+type Props = {
+    show: boolean,
+    setShow: React.Dispatch<React.SetStateAction<boolean>>,
+    contract: Customer[],
+    setEditId: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+    /** ログイン中の事業（order / spec / used / realty） */
+    category: string
+};
+
+const idMapping: Record<string, string> = {
+    '注文': 'order',
+    '建売': 'kaeru',
+    '中専': 'resale'
+};
+
+const CustomerDetail = ({ show, setShow, contract, setEditId, category }: Props) => {
+    const modalClose = async () => {
+        setShow(false);
+    };
+    const categoryValue = contract[0]?.category ?? '';
+    return (
+        <>
+            <Modal show={show} onHide={modalClose}>
+                <Modal.Header closeButton>
+                    <Modal.Title style={{ fontSize: '12px' }}>顧客詳細</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Table bordered striped>
+                        <tbody style={{ fontSize: '12px' }}>
+                            <tr>
+                                <td>契約日</td>
+                                <td>お客様名</td>
+                                <td>{categoryValue === '中専' ? '担当営業' : '担当店舗'}</td>
+                                <td>{categoryValue === '中専' ? '粗利額' : '担当営業'}</td>
+                            </tr>
+                            {contract.map((c, index) => {
+                                const contractDate = categoryValue === '中専' ? (c.contract_reform || c.contract_buy || c.contract_sell || '-')
+                                    : c.contract || c.contract_broker || '-';
+                                return <tr key={index}>
+                                    <td>{contractDate}</td>
+                                    {/* v2.2.229: 削除済みの顧客は「削除済み顧客」で押せない */}
+                                    <td><CustomerName row={c} onClick={() => {
+                                        // ⚠️ v2.2.264: ほかの事業の顧客は開かない（2026-11-11 の指示。ログイン中の事業と、顧客の事業が違うとき）
+                                        //   ⚠️ 見た目の入口。編集画面のデータの権限は、それぞれの画面と ② が確かめる
+                                        if (CUSTOMER_CATEGORY[c.category] !== category) {
+                                            alert('閲覧権限がありません');
+                                            return;
+                                        }
+                                        setEditId(prev => ({
+                                            ...prev,
+                                            [idMapping[c.category]]: c.id
+                                        }));
+                                    }}>{c.customer} 様</CustomerName>
+                                        {c.contract_broker && <span className='bg-success text-white rounded px-1 ms-1' style={{fontSize: '9px'}}>仲介</span>}</td>
+                                    <td>{categoryValue === '中専' ? c.staff || '-' : c.shop}</td>
+                                    <td>{categoryValue === '中専' ? `${c.contraction_contract_price || '-'}万円` : c.staff}</td>
+                                </tr>
+                            }
+                            )}
+                        </tbody>
+                    </Table>
+                </Modal.Body>
+            </Modal></>
+    )
+}
+
+export default CustomerDetail
+```
+
+## 全文：frontend/src/components/company/companyUtils.ts
+```tsx
+export const dateFormate = (date: string) => {
+    return date ? date.replace(/-/g, '/') : ''
+};
+
+export const monthFormate = (date: string) => {
+    return date ? date.replace(/\//g, '-').slice(0, 7) : ''
+};
+
+export const lastYearMonthFormate = (date: string, type: string) => {
+    if (!date) return '';
+    if (type === '-') {
+        const [year, month] = date.slice(0, 7).replace('/', '-').split('-');
+        return `${Number(year) - 1}-${month}`;
+    }
+    if (type === '/') {
+        const [year, month] = date.slice(0, 7).replace('/', '-').split('-');
+        return `${Number(year) - 1}/${month}`;
+    }
+};
+
+const today = new Date();
+
+export const formattedThisMonth = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`;
 ```
 
 ## 分ける前の Company.tsx は git の履歴を参照（`git show origin/main:frontend/src/components/company/Company.tsx`。1,249行）

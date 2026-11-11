@@ -63,7 +63,7 @@ export type Head = {
     text: string;
     rowSpan: number;
     colSpan: number;
-    /** level … 事業部・課・店舗の名前のセル ／ name … 担当名 ／ budget・result … 予算・実績 */
+    /** division・section・shop … 事業部・課・店舗の名前のセル ／ name … 担当名 ／ budget・result … 予算・実績の見出し */
     variant: 'division' | 'section' | 'shop' | 'name' | 'budget' | 'result';
     /** 課の色（0〜5。課・店舗の名前のセルの左の帯） */
     color?: number;
@@ -71,7 +71,7 @@ export type Head = {
     second?: boolean;
 };
 
-export type RowLevel = 'group' | 'division' | 'section' | 'shop' | 'realty';
+export type RowLevel = 'group' | 'division' | 'section' | 'shop';
 
 export type RowModel = {
     key: string;

@@ -50,6 +50,7 @@ export type CommitBudget = (period: string, category: string, name: string, valu
  * ⚠️ 入力中の文字は欄（useRef）だけが持つ。**欄を離れたとき（または Enter）に保存する**（2026-11-11 の決定）。
  *   以前は1文字ごとに保存し、そのたびに表全体を描き直していた。
  * ⚠️ Esc で入力前の値に戻す。
+ * ⚠️ 保存に失敗したときは、Company.tsx が値を元に戻す（cell.value が戻り、下の useEffect が欄も戻す）。
  */
 const BudgetInput = memo(({ cell, onCommit }: { cell: InputCell; onCommit: CommitBudget }) => {
     const ref = useRef<HTMLInputElement | null>(null);
@@ -61,7 +62,9 @@ const BudgetInput = memo(({ cell, onCommit }: { cell: InputCell; onCommit: Commi
     }, [cell.value]);
 
     const commit = () => {
-        const value = ref.current?.value ?? '';
+        // ⚠️ 全角の数字は半角にそろえて保存する（全角のままだと合計が NaN になる）
+        const value = (ref.current?.value ?? '').normalize('NFKC').trim();
+        if (ref.current) ref.current.value = value;
         if (value === saved.current) return;
         saved.current = value;
         onCommit(cell.period, cell.category, cell.name, value);
@@ -72,6 +75,8 @@ const BudgetInput = memo(({ cell, onCommit }: { cell: InputCell; onCommit: Commi
                 aria-label={`${cell.name} ${cell.category === 'shop' ? `${cell.period} の予算` : '個人目標'}`}
                 onBlur={commit}
                 onKeyDown={(e) => {
+                    // ⚠️ 日本語入力の確定の Enter では保存しない
+                    if (e.nativeEvent.isComposing) return;
                     if (e.key === 'Enter') e.currentTarget.blur();
                     if (e.key === 'Escape') { e.currentTarget.value = saved.current; e.currentTarget.blur(); }
                 }} />

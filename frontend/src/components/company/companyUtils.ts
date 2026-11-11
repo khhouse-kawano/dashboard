@@ -21,5 +21,3 @@ export const lastYearMonthFormate = (date: string, type: string) => {
 const today = new Date();
 
 export const formattedThisMonth = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}`;
-
-export const lastYearStyle = { top: '10px', fontSize: '8px', backgroundColor: '#f3f3f3', width: '15px', height: '15px', borderRadius: '50%', color: '#555555' };

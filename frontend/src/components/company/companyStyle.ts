@@ -11,7 +11,7 @@
  */
 
 /** 課の色（名前のセルの背景・帯）。課の並びの順に使う */
-export const SECTION_COLORS = ['#2563eb', '#059669', '#d97706', '#dc2626', '#64748b', '#0891b2'];
+const SECTION_COLORS = ['#2563eb', '#059669', '#d97706', '#dc2626', '#64748b', '#0891b2'];
 const SECTION_TINTS = ['#eff6ff', '#ecfdf5', '#fffbeb', '#fef2f2', '#f1f5f9', '#ecfeff'];
 
 const PAGE = '#f4f6f8';
@@ -97,6 +97,8 @@ ${SECTION_COLORS.map((c, i) => `.co_tbl td.co_h-section.co_col${i} { background:
 .co_in:focus { background: #fff; border: 1px solid #f97066; box-shadow: 0 0 0 2px rgba(249,112,102,.2); }
 
 @media screen and (max-width: 768px) {
+  /* ⚠️ スマホでは上のバーを出さない（以前と同じ） */
+  .co_toolbar { display: none; }
   .co_pad { padding: 6px 4px 30px; }
   .co_tbl { font-size: 9px; }
   .co_tbl .co_m { min-width: 40px; width: 40px; max-width: 40px; }
