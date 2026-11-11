@@ -40,8 +40,8 @@ const fail = (httpStatus: number, message: string): SyncLogResult => ({ httpStat
 const str = (v: unknown): string => (typeof v === 'string' ? v : v === null || v === undefined ? '' : String(v));
 const cut = (v: unknown, max: number): string => str(v).slice(0, max);
 
-/** 合い言葉。⚠️ 未設定なら必ず false。⚠️ 長さが違うと timingSafeEqual が例外を投げるので先に比べる（meta_scrape と同じ） */
-const keyMatches = (input: string): boolean => {
+/** sync からの書き込みの合い言葉（⚠️ v2.2.263 から suumoKaeru.ts も使う）。⚠️ 未設定なら必ず false。⚠️ 長さが違うと timingSafeEqual が例外を投げるので先に比べる（meta_scrape と同じ） */
+export const syncKeyMatches = (input: string): boolean => {
   const expected = env.syncLogSecret;
   if (expected === '') return false;
   const a = Buffer.from(input);
@@ -80,7 +80,7 @@ const cleanRow = (raw: unknown): CleanRow | null => {
  * 応答: { status: 'success', saved, skipped }。合い言葉が違えば 401（流量の上限は失敗だけを数える。publicFormRateLimit.ts）
  */
 export const writeSyncLog = async (body: Record<string, unknown>): Promise<SyncLogResult> => {
-  if (!keyMatches(str(body.key))) {
+  if (!syncKeyMatches(str(body.key))) {
     if (env.syncLogSecret === '') logger.warn('sync_log: SYNC_LOG_SECRET が未設定のため、sync の実行結果を断りました。');
     return fail(401, '合い言葉が正しくありません');
   }
