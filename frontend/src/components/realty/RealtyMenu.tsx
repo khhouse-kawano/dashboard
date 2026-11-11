@@ -52,6 +52,8 @@ export const REALTY_MENU: Group[] = [
     {
         // ⚠️ 2026-10-28: Dashboard にだけある画面は最後に残す
         label: 'Dashboard', items: [
+            // ⚠️ v2.2.264: 全社の実績（不動産企画係を1つの事業部として売上を出す。company/Company.tsx）。名前・アイコンは Menu.tsx の項目と同じ
+            { id: 'company', path: '/company', icon: 'fa-rainbow', label: '全社報告用フォーマット' },
             { id: 'report', path: '/report', icon: 'fa-calendar', label: '月次報告書' },
             { id: 'property', path: '/property', icon: 'fa-building', label: '掲載物件一覧', spOk: true },
         ],
