@@ -224,8 +224,11 @@ try {
     exit;
 }
 
-// Dashboard連携
-require_once __DIR__ . '/portal/suumo_kaeru.php';
+// ⚠️ v2.2.263: 反響一覧（inquiry_customer_kaeru）へは、ここからは足さない。
+//   以前は portal/suumo_kaeru.php で「1人1行（初回の反響）」を足していたが、
+//   反響ごとの取り込み（② の suumo_kaeru:actions。features/suumoKaeru.ts）が1反響1行で足すようになった。
+//   ⚠️ ここで足すのを戻すと、同じ反響が `suumo_<顧客ID>` と `suumo_act_<反響ID>` の2行になる。
+//   ⚠️ この表（suumo_db_kaeru）は、② が反響を顧客に結ぶのに使う（顧客ID・初回の反響ID）。取り込みは続ける。
 
 // 成功レスポンス
 header('Content-Type: application/json; charset=utf-8');

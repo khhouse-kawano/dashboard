@@ -146,6 +146,7 @@ import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import { listLoanPlanRates, uploadLoanPlanRates } from '../features/loanPlanRate';
 import { listSecurityLog } from '../features/securityLog';
 import { listSyncLog, writeSyncLog } from '../features/syncLog';
+import { importSuumoKaeruActions } from '../features/suumoKaeru';
 import { BUDGET_TABLE_AUTHORITY, listBudgetTable, uploadBudgetTable } from '../features/budgetTable';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
 import { runSurveyCustomers, runSurveyLink, runSurveyStaff } from '../features/survey/staff';
@@ -3167,6 +3168,26 @@ register({
   phpSource: '（新規。PHP版なし）',
   auth: 'master',
   handler: async (ctx) => (await listSyncLog(ctx.body)).body,
+});
+
+/**
+ * SUUMO（建売）の反響を、反響ごとに取り込む（v2.2.263）。features/suumoKaeru.ts 参照。
+ *
+ * ⚠️ sync が ② へ直接送る（① を通さない。① の express_proxy.php にも入れない）。ログイン無し・合い言葉（SYNC_LOG_SECRET。sync_log:write と同じ）。
+ *   ⚠️ 合い言葉の総当たりは publicFormRateLimit.ts の syncLogLimiter（失敗だけを数える）。
+ * ⚠️ 顧客ごとの CSV は今までどおり ① の suumo_db_kaeru.php が受ける（反響一覧に足すのはここだけ）。
+ */
+register({
+  request: 'suumo_kaeru',
+  roll: 'actions',
+  summary: '【書き込み】SUUMO（建売）の反響ごとの取り込み（合い言葉で確かめる）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await importSuumoKaeruActions(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
 });
 
 /**
