@@ -7,6 +7,7 @@ import UploadLoan from './system/UploadLoan';
 import SecurityLog from './system/SecurityLog';
 import SyncLog from './system/SyncLog';
 import AccessLog from './system/AccessLog';
+import SharedReports from './system/SharedReports';
 import BudgetTable from './system/BudgetTable';
 import EditBlackList from './inquiry/EditBlackList';
 import BudgetSimulator from './inquiry/BudgetSimulator';
@@ -131,6 +132,12 @@ export const HEADER_SCREENS: HeaderScreen[] = [
     { menu: 'システム管理', item: 'ポータル連携ログ', path: '/syncLog', allow: isMaster, render: () => <SyncLog /> },
     // ⚠️ v2.2.266: アクセス記録は ⚠️⚠️ **Master だけ**（② の access_log_list も auth: 'master'）
     { menu: 'システム管理', item: 'アクセス記録', path: '/accessLog', allow: isMaster, render: () => <AccessLog /> },
+    // ⚠️ v2.2.268: 共有レポートは「Claudeによる分析」と同じ3つの権限（共有ボタンがそこにあるため）。
+    //   ⚠️ 一覧は Master が全員分、ほかは自分の分。HTML の登録は Master だけ（② の shared_report_* も確かめる）
+    {
+        menu: 'システム管理', item: '共有レポート', path: '/sharedReports',
+        allow: ({ authority }) => AI_ANALYSIS_AUTHORITY.includes(authority), render: () => <SharedReports />,
+    },
     // ⚠️ v2.2.243: 予算テーブルは ⚠️⚠️ **Master と BrandAdmin**（budget へ CSV で追加できるため。② の budget_table_* も同じ2つ）
     { menu: 'システム管理', item: '予算テーブル', path: '/budgetTable', allow: isAdmin, render: () => <BudgetTable /> },
 

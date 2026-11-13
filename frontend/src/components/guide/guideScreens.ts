@@ -108,6 +108,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     // ⚠️ v2.2.266 で「同期の実行結果」から改名
     'ポータル連携ログ': { header: 'システム管理/ポータル連携ログ', authority: ['Master'] },
     'アクセス記録': { header: 'システム管理/アクセス記録', authority: ['Master'] },
+    // ⚠️ v2.2.268。headerScreens.tsx と同じく Master / BrandAdmin / Manager
+    '共有レポート': { header: 'システム管理/共有レポート', authority: ['Master', 'BrandAdmin', 'Manager'] },
     // ⚠️ v2.2.243。headerScreens.tsx と同じく Master / BrandAdmin
     '予算テーブル': { header: 'システム管理/予算テーブル', authority: ADMIN },
 };
