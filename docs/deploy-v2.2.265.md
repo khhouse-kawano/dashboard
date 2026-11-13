@@ -13,14 +13,16 @@
 ## 順序
 ```
 0. GitHub で v2.2.265 を production へマージ（PR）
-1. ② VPS：鍵を作って .env.prod に入れる → git pull → 作り直し
+1. ② VPS：鍵を作って .env.prod に入れる → git fetch・checkout → 作り直し
 2. ① Dashboard のフロント（npm run build）
 3. ① SQL：2026-11-13_update_log_2.2.265.sql      ← ⚠️ 1回だけ
 ```
 
 ### 手順1　【② VPS】
 ```bash
-cd ~/dashboard && git pull
+cd ~/dashboard
+git fetch --depth 1 origin production
+git checkout FETCH_HEAD
 
 # 鍵を作る（使う人・ツールの数だけ。1つ64文字）
 openssl rand -hex 32
@@ -34,6 +36,7 @@ dcp up -d --build express-api
 dcp ps express-api
 ```
 - `STATUS` が `Up` で、数十秒たっても `Up` のままならよいです（`Restarting` なら `dcp logs --tail 60 express-api` で理由を見る）。
+- ⚠️ コードは `git pull` ではなく `git fetch --depth 1 origin production` → `git checkout FETCH_HEAD` で取る（VPS はブランチに付いていない形。`git pull` は失敗し、古いコードのまま作り直される）。
 - ⚠️ `dcp` を使うこと（`--env-file .env.prod` を含む）。`docker compose -f docker-compose.prod.yml` だけで作り直すと DB の設定が渡らず、② が起動しません。
 
 ### 手順3　【① SQL】
