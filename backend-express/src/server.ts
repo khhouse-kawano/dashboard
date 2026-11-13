@@ -7,6 +7,7 @@ import { startCvMatch } from './features/tracking/cvMatch';
 import { startTrackingMaintenance } from './features/tracking/maintenance';
 import { startIeloveMatch } from './features/realty/ieloveMatch';
 import { startSyncLogMaintenance } from './features/syncLog';
+import { startHotleadScheduler } from './features/hotlead/importer';
 import { startAccessLogMaintenance } from './features/accessLog';
 import { gatewaySummary, logGatewayRoutes } from './gateway';
 import { logger } from './utils/logger';
@@ -45,6 +46,8 @@ const bootstrap = async (): Promise<void> => {
     startIeloveMatch();
     // sync の実行結果の、180日より古い行の削除（v2.2.259。1日ごと）
     startSyncLogMaintenance();
+    // HOTLEAD の追客情報の取り込み（v2.2.267。30分ごと。⚠️ 例外を外に出さない作り）
+    startHotleadScheduler();
     // 画面のアクセス記録の、13か月より古い行の削除（v2.2.266。1日ごと）
     startAccessLogMaintenance();
     // Claudeによる分析（v2.2.217）。再起動で消えた実行中の分析を失敗にする（画面が待ち続けないように）

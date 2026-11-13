@@ -215,6 +215,18 @@ export const env = {
   metaScraperKey: (process.env.META_SCRAPER_KEY ?? '').trim(),
 
   /**
+   * HOTLEAD の API の認証情報（v2.2.267。features/hotlead/importer.ts）。KH（HOTLEAD_ID・HOTLEAD_PASS）と DJH（…_2）。
+   * ⚠️ sync（Heroku）の Config Vars と同じ値。⚠️ 無いアカウントは取り込まない（起動は止めない）。
+   * ⚠️ 設定先は ② VPS の .env.prod のみ。⚠️ **リポジトリに書かないこと。**
+   */
+  hotlead: {
+    id: (process.env.HOTLEAD_ID ?? '').trim(),
+    pass: (process.env.HOTLEAD_PASS ?? '').trim(),
+    id2: (process.env.HOTLEAD_ID_2 ?? '').trim(),
+    pass2: (process.env.HOTLEAD_PASS_2 ?? '').trim(),
+  },
+
+  /**
    * 広告運用の担当者向けの読み出し API（GET /api/export/tracking/…）の鍵。（v2.2.265。features/trackingExport/router.ts）
    *
    * ⚠️ カンマ区切りで複数（人・ツールごとに分ける／入れ替えのときは新旧を両方入れる）。⚠️ 32文字より短いものは使わない。

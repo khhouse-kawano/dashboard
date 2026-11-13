@@ -16,7 +16,7 @@
 ```
 0. GitHub で v2.2.266 を production へマージ（PR）
 1. ① SQL：2026-11-13_staff_access_log.sql            ← ② より先（表が無いと記録が書けない）
-2. ② VPS：git pull → 作り直し
+2. ② VPS：git fetch・checkout → 作り直し
 3. ① PHP：express_proxy.php・handlers/heartbeat.php
 4. ① Dashboard のフロント（npm run build）
 5. ① SQL：2026-11-13_update_log_2.2.266.sql           ← ⚠️ 1回だけ
@@ -28,11 +28,14 @@ phpMyAdmin で `2026-11-13_staff_access_log.sql` を流します（何度流し�
 
 ### 手順2　【② VPS】
 ```bash
-cd ~/dashboard && git pull
+cd ~/dashboard
+git fetch --depth 1 origin production
+git checkout FETCH_HEAD
 dcp up -d --build express-api
 dcp ps express-api
 ```
 - `STATUS` が `Up` のまま続けばよいです（`Restarting` なら `dcp logs --tail 60 express-api`）。
+- ⚠️ コードは `git pull` ではなく `git fetch --depth 1 origin production` → `git checkout FETCH_HEAD` で取る（VPS はブランチに付いていない形。`git pull` は失敗し、古いコードのまま作り直される）。
 - ⚠️ `dcp` を使うこと（`docker compose -f docker-compose.prod.yml` だけだと `.env.prod` が渡らず ② が起動しない）。
 ```bash
 dcp logs express-api | grep -E "access_log|heartbeat"
