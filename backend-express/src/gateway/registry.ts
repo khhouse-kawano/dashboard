@@ -192,6 +192,7 @@ import { runUsedQueueList, runUsedQueueMark } from '../features/callq/usedQueue'
 import { INQUIRY_CATEGORIES, MASTER_CATEGORIES, runPrivacyEraseInquiry, runPrivacyEraseMaster } from '../features/privacy';
 import type { AuthenticatedStaff } from '../types/staff';
 import { heartbeat, listAccessLog, openAccess } from '../features/accessLog';
+import { createSharedReport, getSharedReport, listSharedReports, revokeSharedReport } from '../features/sharedReport';
 import type { GatewayContext, GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -1340,6 +1341,45 @@ register({
     if (denied !== null || ctx.staff === null) return denied;
     return withStatus(ctx, await deleteAiAnalysis({ id: ctx.staff.id, brand: ctx.staff.brand }, ctx.body));
   },
+});
+
+// ---------------------------------------------------------------------------
+// レポートの共有（v2.2.268。features/sharedReport.ts）
+// ⚠️ 共有URL（/report?k=…）は Dashboard にログインしていれば誰でも見られる（auth: 'staff' で毎回トークンを確かめる）。
+// ⚠️ 作る権限は sharedReport.ts の中で見る（分析は実行した本人か Master、HTML の登録は Master）。
+// ⚠️ express_proxy.php の expressProxyRequests() と expressProxyExclusive() の両方に入れてある。
+// ---------------------------------------------------------------------------
+
+register({
+  request: 'shared_report_create',
+  summary: 'レポートの共有URLを作る（Claudeによる分析から／HTML の登録から）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => (ctx.staff === null ? null : withStatus(ctx, await createSharedReport(ctx.staff, ctx.body))),
+});
+
+register({
+  request: 'shared_report_get',
+  summary: '共有したレポート（HTML 本文つき。ログインしていれば誰でも）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => withStatus(ctx, await getSharedReport(ctx.body)),
+});
+
+register({
+  request: 'shared_report_list',
+  summary: '共有したレポートの一覧（Master は全員分、ほかは自分の分）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => (ctx.staff === null ? null : listSharedReports(ctx.staff)),
+});
+
+register({
+  request: 'shared_report_revoke',
+  summary: 'レポートの共有を止める（共有した本人か Master）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => (ctx.staff === null ? null : withStatus(ctx, await revokeSharedReport(ctx.staff, ctx.body))),
 });
 
 // ---------------------------------------------------------------------------
