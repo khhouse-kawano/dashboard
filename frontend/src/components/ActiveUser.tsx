@@ -104,11 +104,18 @@ const ActiveUser: React.FC = () => {
         }
     }, []);
 
+    /**
+     * ⚠️ v2.2.266: 今開いている画面の記録（staff_access_log）の id。heartbeat に付けて送り、その行の最後の日時を更新する。
+     *   ⚠️ 画面を移ったら null に戻し、access_log:open の返事で入れ直す（返事より前の heartbeat は id なしで送る）。
+     */
+    const accessIdRef = useRef<number | null>(null);
+
     useEffect(() => {
         if (!token) return;
         if (location.pathname === '/login') return;
 
         let timer: ReturnType<typeof setTimeout>;
+        let alive = true;
 
         const resetTimer = () => {
             setIsInactive(false);
@@ -116,14 +123,25 @@ const ActiveUser: React.FC = () => {
             timer = setTimeout(() => setIsInactive(true), 20000);
         };
 
+        /**
+         * ⚠️ v2.2.266 から ② が受ける（① の heartbeat.php は予備）。⚠️ staff.log には書かなくなった（features/accessLog.ts）。
+         * ⚠️ 失敗しても画面は止めない。
+         */
         const sendHeartbeat = () => {
-            apiClient.post("", { request: 'heartbeat', token, url: location.pathname }).catch(() => { }); resetTimer();
+            apiClient.post("", { request: 'heartbeat', token, url: location.pathname, access_id: accessIdRef.current ?? undefined }).catch(() => { }); resetTimer();
         };
+
+        // ⚠️ v2.2.266: 画面を開いた記録。⚠️ ? 以降は送らない（pathname だけ）。⚠️ 失敗しても画面は止めない
+        accessIdRef.current = null;
+        apiClient.post("", { request: 'access_log', roll: 'open', path: location.pathname })
+            .then((res) => { if (alive && typeof res.data?.id === 'number') accessIdRef.current = res.data.id; })
+            .catch(() => { });
 
         sendHeartbeat();
         const hbInterval = setInterval(sendHeartbeat, 20000);
 
         return () => {
+            alive = false;
             clearInterval(hbInterval);
             clearTimeout(timer);
         };

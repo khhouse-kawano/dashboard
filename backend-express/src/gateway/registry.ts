@@ -191,6 +191,7 @@ import { runIeloveImport, runIeloveImportStatus } from '../features/realty/ielov
 import { runUsedQueueList, runUsedQueueMark } from '../features/callq/usedQueue';
 import { INQUIRY_CATEGORIES, MASTER_CATEGORIES, runPrivacyEraseInquiry, runPrivacyEraseMaster } from '../features/privacy';
 import type { AuthenticatedStaff } from '../types/staff';
+import { heartbeat, listAccessLog, openAccess } from '../features/accessLog';
 import type { GatewayContext, GatewayEntry, GatewayKey } from './types';
 import { gatewayKey } from './types';
 
@@ -3141,6 +3142,42 @@ register({
   phpSource: '（新規。PHP版なし）',
   auth: 'master',
   handler: async (ctx) => listSecurityLog(ctx.body),
+});
+
+/**
+ * 画面のアクセス記録（v2.2.266。表 staff_access_log）。features/accessLog.ts 参照。
+ *
+ * ⚠️ access_log:open は画面を移ったとき、heartbeat は 20秒ごと（どちらも ActiveUser.tsx）。担当者はトークンで決める。
+ * ⚠️⚠️ heartbeat は ① の heartbeat.php から移した。**staff.log には書き足さない**（① の予備も同じに直した）。
+ *   ⚠️ heartbeat は ① に PHP があるので、② に届かなければ ① が代わりに staff.heartbeat だけ更新する（express_proxy.php の許可リストだけに入れてある）。
+ *   ⚠️ access_log は ① に PHP が無い書き込み（expressProxyExclusive にも入れてある）。
+ * ⚠️ access_log_list は Master だけ（ヘッダーの「システム管理 → アクセス記録」）。
+ */
+register({
+  request: 'access_log',
+  roll: 'open',
+  summary: '【書き込み】画面を開いた記録（1行足して id を返す）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await openAccess(ctx.staff as AuthenticatedStaff, ctx.body, ctx.req);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+register({
+  request: 'heartbeat',
+  summary: '【書き込み】20秒ごとの在席（staff.heartbeat と、開いている画面の記録の最後の日時）',
+  phpSource: 'backend/src/handlers/heartbeat.php',
+  auth: 'staff',
+  handler: async (ctx) => heartbeat(ctx.staff as AuthenticatedStaff, ctx.body),
+});
+register({
+  request: 'access_log_list',
+  summary: '画面のアクセス記録（期間の行・画面ごと・担当者ごとの集計）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'master',
+  handler: async (ctx) => listAccessLog(ctx.body),
 });
 
 /**

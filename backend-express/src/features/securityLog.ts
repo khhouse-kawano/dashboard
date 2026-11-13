@@ -54,8 +54,8 @@ const pathOf = (referer: string): string => {
   }
 };
 
-/** 接続元（上の注記） */
-const clientOf = (req: Request): { ip: string; viaIp: string; userAgent: string; path: string } => {
+/** 接続元（上の注記）。⚠️ v2.2.266 から accessLog.ts でも使う */
+export const clientOf =(req: Request): { ip: string; viaIp: string; userAgent: string; path: string } => {
   const direct = ipOf(req.ip);
   const fromPhp = (req.header('X-Forwarded-By') ?? '').includes('xserver-php');
   const claimed = fromPhp ? ipOf(req.header('X-Client-IP')) : '';
