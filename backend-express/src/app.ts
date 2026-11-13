@@ -68,7 +68,7 @@ export const createApp = (): BuiltApp => {
   app.use(createTrackingPublicRouter());
 
   // ---------------------------------------------------------------
-  // 1-3. 広告運用の担当者向けの読み出し（v2.2.265。GET /api/export/tracking/touches・conversions）
+  // 1-3. 広告運用の担当者向けの読み出し（v2.2.265。GET /api/export/tracking/touches・customers。v2.2.266 で conversions をやめた）
   //
   //   ⚠️ 鍵（Authorization: Bearer）で認証する。⚠️ 全体の CORS より前に置き、ブラウザから読ませない（ACAO を付けない）。
   //   ⚠️ この2つのパス以外は素通しする（features/trackingExport/router.ts）。

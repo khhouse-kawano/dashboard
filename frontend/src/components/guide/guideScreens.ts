@@ -105,7 +105,9 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     // ⚠️ v2.2.242。headerScreens.tsx と同じく Master だけ
     'セキュリティログ': { header: 'システム管理/セキュリティログ', authority: ['Master'] },
     // ⚠️ v2.2.259。headerScreens.tsx と同じく Master だけ
-    '同期の実行結果': { header: 'システム管理/同期の実行結果', authority: ['Master'] },
+    // ⚠️ v2.2.266 で「同期の実行結果」から改名
+    'ポータル連携ログ': { header: 'システム管理/ポータル連携ログ', authority: ['Master'] },
+    'アクセス記録': { header: 'システム管理/アクセス記録', authority: ['Master'] },
     // ⚠️ v2.2.243。headerScreens.tsx と同じく Master / BrandAdmin
     '予算テーブル': { header: 'システム管理/予算テーブル', authority: ADMIN },
 };

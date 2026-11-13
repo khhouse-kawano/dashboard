@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../../../utils/apiClient';
 
 /**
- * 同期の実行結果（v2.2.259 新規）。ヘッダーの「システム管理 → 同期の実行結果」（⚠️ Master だけ。headerScreens.tsx）。
+ * ポータル連携ログ（v2.2.259 新規。v2.2.266 で「同期の実行結果」から改名）。ヘッダーの「システム管理 → ポータル連携ログ」（⚠️ Master だけ。headerScreens.tsx）。
  *
  * ─────────────────────────────────────────────
  *   ② sync_log_list（backend-express/src/features/syncLog.ts）で読む。⚠️ ② も Master だけに絞っている。
@@ -148,8 +148,8 @@ const SyncLog = () => {
             setFrom(body.from);
             setTo(body.to);
         } catch (e) {
-            console.error('同期の実行結果の取得に失敗しました:', e);
-            setError('同期の実行結果を読み込めませんでした。時間をおいて「表示」を押してください。');
+            console.error('ポータル連携ログの取得に失敗しました:', e);
+            setError('ポータル連携ログを読み込めませんでした。時間をおいて「表示」を押してください。');
         } finally {
             setLoading(false);
         }
