@@ -52,7 +52,7 @@ dcp logs express-api | grep shared_report
 
 確認（トークン無しで 401 なら ② まで届いています。404 なら許可リストの漏れ）：
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<①のドメイン>/dashboard/api/gateway/ -H 'Content-Type: application/json' -H 'Authorization: 4081Kokubu' -d '{"request":"shared_report_get"}'
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://khg-marketing.info/dashboard/api/gateway/ -H 'Content-Type: application/json' -H 'Authorization: 4081Kokubu' -d '{"request":"shared_report_get"}'
 ```
 
 ### 手順4　【① フロント】
