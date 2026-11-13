@@ -215,6 +215,18 @@ export const env = {
   metaScraperKey: (process.env.META_SCRAPER_KEY ?? '').trim(),
 
   /**
+   * 広告運用の担当者向けの読み出し API（GET /api/export/tracking/…）の鍵。（v2.2.265。features/trackingExport/router.ts）
+   *
+   * ⚠️ カンマ区切りで複数（人・ツールごとに分ける／入れ替えのときは新旧を両方入れる）。⚠️ 32文字より短いものは使わない。
+   * ⚠️ **未設定なら全部 401**（素通しにしない）。⚠️ requireEnv にはしない（他の機能まで止めないため）。
+   * ⚠️ 設定先は ② VPS の .env.prod のみ。⚠️ **リポジトリに書かないこと。**
+   */
+  trackingExportKeys: (process.env.TRACKING_EXPORT_KEYS ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => key !== ''),
+
+  /**
    * 「Claudeによる分析」（v2.2.217）が使う Anthropic の API キー。
    *
    * ⚠️ **未設定なら分析を受け付けない**（他の機能は止めないため requireEnv にはしない）。

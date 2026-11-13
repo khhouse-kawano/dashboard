@@ -36,9 +36,10 @@ SELECT COUNT(*) FROM suumo_action_kaeru;
 ### 手順2　【② VPS】
 ```bash
 cd ~/dashboard && git pull
-docker compose -f docker-compose.prod.yml up -d --build express-api
-docker compose -f docker-compose.prod.yml logs express-api | grep "suumo_kaeru"
+dcp up -d --build express-api
+dcp logs express-api | grep "suumo_kaeru"
 ```
+- ⚠️ `dcp` は `--env-file .env.prod` を含む短縮コマンド。`docker compose -f docker-compose.prod.yml` だけで作り直すと DB_NAME などが空になり、② が起動しない（2026-11-11 に発生。この手順書の書き間違い）。
 - 起動時のルートの一覧に `suumo_kaeru:actions` が出ればよいです。
 - 外から確かめる（合い言葉が違うので 401 が正しい）：
 ```bash

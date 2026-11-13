@@ -9,6 +9,7 @@ import type { RouteSummary } from './core/registry';
 import { createSystemRouter } from './core/systemRouter';
 import { features } from './features';
 import { createTrackingPublicRouter } from './features/tracking/publicRouter';
+import { createTrackingExportRouter } from './features/trackingExport/router';
 import { createGatewayRouter } from './gateway';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { requestContext } from './middlewares/requestContext';
@@ -65,6 +66,14 @@ export const createApp = (): BuiltApp => {
   //   ⚠️ この2つのパス以外は素通しする（features/tracking/publicRouter.ts）。
   // ---------------------------------------------------------------
   app.use(createTrackingPublicRouter());
+
+  // ---------------------------------------------------------------
+  // 1-3. 広告運用の担当者向けの読み出し（v2.2.265。GET /api/export/tracking/touches・conversions）
+  //
+  //   ⚠️ 鍵（Authorization: Bearer）で認証する。⚠️ 全体の CORS より前に置き、ブラウザから読ませない（ACAO を付けない）。
+  //   ⚠️ この2つのパス以外は素通しする（features/trackingExport/router.ts）。
+  // ---------------------------------------------------------------
+  app.use(createTrackingExportRouter());
 
   // ---------------------------------------------------------------
   // 2. CORS
