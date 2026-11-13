@@ -420,6 +420,11 @@ function expressProxyRequests(): array
         'security_log_list',
         // ⚠️ v2.2.259: sync の実行結果（② だけ。Master）。⚠️ 書き込み（sync_log:write）は sync が ② へ直接送るので入れない
         'sync_log_list',
+        // ⚠️ v2.2.266: 画面のアクセス記録（features/accessLog.ts）。access_log は書き込み（② だけ）、access_log_list は Master
+        'access_log',
+        'access_log_list',
+        // ⚠️ v2.2.266: heartbeat を ② へ移した。⚠️ ① に heartbeat.php があるので expressProxyExclusive には入れない（② が止まったら ① が staff.heartbeat だけ更新する）
+        'heartbeat',
         // ⚠️ v2.2.243: 予算テーブル（Master / BrandAdmin。features/budgetTable.ts）。upload は書き込み（budget へ INSERT）
         'budget_table_list',
         'budget_table_upload',
@@ -925,6 +930,9 @@ function expressProxyExclusive(): array
         'security_log_list',
         // ⚠️ v2.2.259: sync の実行結果（② だけ。Master）。⚠️ 書き込み（sync_log:write）は sync が ② へ直接送るので入れない
         'sync_log_list',
+        // ⚠️ v2.2.266: 画面のアクセス記録（② だけ）。⚠️ heartbeat は ① に PHP があるので入れない
+        'access_log',
+        'access_log_list',
         // ⚠️ v2.2.243: 予算テーブル（Master / BrandAdmin。features/budgetTable.ts）。upload は書き込み（budget へ INSERT）
         'budget_table_list',
         'budget_table_upload',
