@@ -137,6 +137,11 @@ function expressProxyRequests(): array
         'ai_analysis_list',
         'ai_analysis_get',
         'ai_analysis_delete',
+        // ⚠️ v2.2.268。レポートの共有（/report?k=…）。⚠️ ② のみ（① に PHP 版は無い）
+        'shared_report_create',
+        'shared_report_get',
+        'shared_report_list',
+        'shared_report_revoke',
         // ⚠️ v2.2.221。不動産企画係（realty）のデータ。② で本人と担当事業を確かめる
         //   ⚠️ 読み出しは ② に届かなければ ① の PHP が代わりに処理する（① でも同じ確認をする）
         'planner:lead',
@@ -860,6 +865,12 @@ function expressProxyExclusive(): array
         'ai_analysis_list',
         'ai_analysis_get',
         'ai_analysis_delete',
+
+        // v2.2.268 新規。レポートの共有。⚠️ ① に PHP 版は無い
+        'shared_report_create',
+        'shared_report_get',
+        'shared_report_list',
+        'shared_report_revoke',
 
         // v2.2.221。不動産企画係の書き込み。⚠️ ② で済んだ直後に応答が失われて ① でも動くと二重に書き込むため
         'broker:update',

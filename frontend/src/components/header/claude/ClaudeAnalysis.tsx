@@ -3,6 +3,7 @@ import AuthContext from '../../../context/AuthContext';
 import apiClient from '../../../utils/apiClient';
 import { CLAUDE_ORANGE } from './ClaudeIcon';
 import ClaudeAnalysisResult from './ClaudeAnalysisResult';
+import { copyText, createSharedReport, sharedReportUrl } from '../../report/sharedReport';
 import type { AnalysisKind, AnySnapshot, StructuredAnalysis } from './ClaudeAnalysisResult';
 
 /**
@@ -170,6 +171,9 @@ const ClaudeAnalysis: React.FC = () => {
     // 右
     const [selected, setSelected] = useState<Selected | null>(null);
     const [html, setHtml] = useState<{ id: number; html: string } | null>(null);
+    // ⚠️ v2.2.268: 共有URL（分析の id ごと。別の分析を選んだら出さない）
+    const [share, setShare] = useState<{ id: number; url: string; text: string; error: boolean } | null>(null);
+    const [sharing, setSharing] = useState(false);
     const [legacyBody, setLegacyBody] = useState<{ analysis: StructuredAnalysis; kpi: AnySnapshot } | null>(null);
 
     const [starting, setStarting] = useState(false);
@@ -257,6 +261,26 @@ const ClaudeAnalysis: React.FC = () => {
         ? '期間を選んでください。'
         : period.from > period.to ? '開始月が終了月より後になっています。' : '';
     const limitReached = usedToday >= dailyLimit;
+    /**
+     * 共有URLを作ってコピーする（v2.2.268）。⚠️ 同じ分析をすでに共有していれば、② が同じURLを返す。
+     * ⚠️ URL は Dashboard にログインしている人なら誰でも開ける（report/SharedReportView.tsx）。
+     */
+    const shareJob = async (job: Job) => {
+        setSharing(true);
+        try {
+            const { item, reused } = await createSharedReport({ source: 'ai_analysis', id: job.id });
+            const url = sharedReportUrl(item.key);
+            const copied = await copyText(url);
+            const lead = reused ? 'この分析はすでに共有しています。' : '共有URLを作りました。';
+            setShare({ id: job.id, url, error: false,
+                text: copied ? `${lead}URLをコピーしました（ログインしている人だけが開けます）。` : `${lead}下のURLをコピーして渡してください。` });
+        } catch (e) {
+            setShare({ id: job.id, url: '', error: true, text: errorMessageOf(e, '共有URLを作れませんでした。') });
+        } finally {
+            setSharing(false);
+        }
+    };
+
     const myActive = jobs.some((job) => isActive(job.status) && job.staffId === myStaffId);
     const canStart = !starting && !myActive && prompt.trim().length >= 5 && periodError === '' && !limitReached;
 
@@ -393,6 +417,12 @@ const ClaudeAnalysis: React.FC = () => {
                                 font-weight: 700; padding: 3px 10px; cursor: pointer; }
                 .cla_download:hover { background: #fdf8f6; }
                 .cla_download:focus-visible { outline: 2px solid ${CLAUDE_ORANGE}; outline-offset: 2px; }
+                .cla_download:disabled { opacity: .6; cursor: default; }
+                .cla_share { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 12px; font-size: 12px;
+                             color: #166534; background: #f0fdf4; border-bottom: 1px solid #bbf7d0; }
+                .cla_share.is_error { color: #b91c1c; background: #fef2f2; border-bottom-color: #fecaca; }
+                .cla_share_url { width: min(100%, 520px); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+                .cla_share_close { border: 0; background: none; color: #6b7280; cursor: pointer; margin-left: auto; font-size: 12px; }
                 .cla_empty { padding: 48px 24px; color: #6b7280; font-size: 12.5px; line-height: 1.9; max-width: 640px; margin: 0 auto; }
                 .cla_empty h3 { font-size: 15px; color: #1f2937; margin: 0 0 8px; font-weight: 700; }
                 .cla_running { padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px;
@@ -574,11 +604,33 @@ const ClaudeAnalysis: React.FC = () => {
                                             HTMLをダウンロード
                                         </button>
                                     )}
+                                    {/* ⚠️ v2.2.268: 共有は実行した本人か Master（② の shared_report_create も確かめる） */}
+                                    {selectedJob.status === 'done' && html?.id === selectedJob.id && (isMaster || selectedJob.staffId === myStaffId) && (
+                                        <button type="button" className="cla_download" disabled={sharing}
+                                            onClick={() => void shareJob(selectedJob)}>
+                                            <i className="fa-solid fa-share-nodes" aria-hidden="true" />
+                                            {sharing ? '共有中…' : '共有'}
+                                        </button>
+                                    )}
                                     <span className="cla_note ms-auto">
                                         {selectedJob.staffName}・{shortTime(selectedJob.createdAt)}
                                         {selectedJob.status === 'done' && selectedJob.costUsd !== null && `・約 $${selectedJob.costUsd.toFixed(2)}`}
                                     </span>
                                 </div>
+
+                                {share !== null && share.id === selectedJob.id && (
+                                    <div className={`cla_share${share.error ? ' is_error' : ''}`} role="status">
+                                        <span>{share.text}</span>
+                                        {share.url !== '' && (
+                                            <>
+                                                <input className="form-control form-control-sm cla_share_url" readOnly value={share.url}
+                                                    onFocus={(e) => e.target.select()} aria-label="共有URL" />
+                                                <a className="cla_download" href={share.url} target="_blank" rel="noopener noreferrer">開く</a>
+                                            </>
+                                        )}
+                                        <button type="button" className="cla_share_close" aria-label="閉じる" onClick={() => setShare(null)}>✕</button>
+                                    </div>
+                                )}
 
                                 {isActive(selectedJob.status) && (
                                     <div className="cla_running">

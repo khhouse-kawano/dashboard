@@ -55,6 +55,7 @@ import CallQueue from "./components/realty/callq/CallQueue";
 import CallNavi from "./components/realty/navi/CallNavi";
 import UsedCallQueue from "./components/callq/UsedCallQueue";
 import Guide from "./components/guide/Guide";
+import SharedReportView from "./components/report/SharedReportView";
 
 // ⚠️ v2.2.262: 不動産企画係の営業手順書は画像が多いので、開いたときだけ読み込む
 const RealtyManual = lazy(() => import("./components/realty/manual/RealtyManual"));
@@ -106,6 +107,16 @@ function AppInner() {
     return (
       <Routes>
         <Route path="/guide" element={<Guide />} />
+      </Routes>
+    );
+  }
+
+  // ⚠️ v2.2.268: 共有したレポート（`/report?k=…`）も業務ガイドと同じく、ヘッダー・メニューを出さない全画面。
+  //   ⚠️ ログイン確認（AuthProvider）は効く（未ログインならログイン画面へ移り、ログイン後に戻る）
+  if (currentPath === '/report') {
+    return (
+      <Routes>
+        <Route path="/report" element={<SharedReportView />} />
       </Routes>
     );
   }
