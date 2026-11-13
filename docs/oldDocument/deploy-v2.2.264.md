@@ -13,7 +13,7 @@
 ## 順序
 ```
 0. GitHub で v2.2.264 を production へマージ（PR）
-1. ② VPS：git pull → 作り直し                    ← フロントより先
+1. ② VPS：git fetch・checkout → 作り直し                    ← フロントより先
 2. ① Dashboard のフロント（npm run build）
 3. ① SQL：2026-11-11_update_log_2.2.264.sql      ← ⚠️ 1回だけ
 ```
@@ -21,7 +21,9 @@
 
 ### 手順1　【② VPS】
 ```bash
-cd ~/dashboard && git pull
+cd ~/dashboard
+git fetch --depth 1 origin production
+git checkout FETCH_HEAD
 dcp up -d --build express-api
 dcp ps express-api
 ```

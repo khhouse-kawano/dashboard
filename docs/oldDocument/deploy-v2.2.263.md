@@ -16,7 +16,7 @@
 ```
 0. GitHub で v2.2.263 を production へマージ（PR）
 1. ① SQL：2026-11-11_suumo_action_kaeru.sql      ← ⚠️ 1回だけ。② より先
-2. ② VPS：git pull → 作り直し
+2. ② VPS：git fetch・checkout → 作り直し
 3. ① PHP（backend/src）と フロント（npm run build）
 4. sync：ブランチ suumo-actions をビルドして main へ → Heroku へ push
 5. 過去の分を1回だけ入れる（SUUMO_KAERU_DAYS=all）
@@ -35,7 +35,9 @@ SELECT COUNT(*) FROM suumo_action_kaeru;
 
 ### 手順2　【② VPS】
 ```bash
-cd ~/dashboard && git pull
+cd ~/dashboard
+git fetch --depth 1 origin production
+git checkout FETCH_HEAD
 dcp up -d --build express-api
 dcp logs express-api | grep "suumo_kaeru"
 ```
