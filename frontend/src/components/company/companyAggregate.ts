@@ -13,7 +13,7 @@ import type { Achievement, Customer, Head, InputCell, NumCell, RealtyDeal, RowMo
  *   いまは次の2段で先に数えておき、表（CompanyTable.tsx）は並べるだけにしている。
  *     1. aggregateContracts … 契約をグループ → 事業部 → 課 → 店舗に分ける（顧客・期・店舗が変わったときだけ）
  *     2. buildRows          … 行とセルの文字まで作る（予算・併売店のまとめ方が変わったときも）
- *   ⚠️ 改修の前後で、全セルの文字が同じことを確かめている（docs/task-2026-11-11-02）。
+ *   ⚠️ 改修の前後で、全セルの文字が同じことを確かめている（docs/oldDocument/task-2026-11-11-02）。
  *     数え方を直すときは、同じやり方で前後を比べること。
  *
  * ⚠️ 以前からの決まり（⚠️ どれも理由があるので、そろえ直さないこと）

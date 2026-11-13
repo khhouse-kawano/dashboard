@@ -22,8 +22,11 @@
 ### 手順1　【② VPS】
 ```bash
 cd ~/dashboard && git pull
-docker compose -f docker-compose.prod.yml up -d --build express-api
+dcp up -d --build express-api
+dcp ps express-api
 ```
+- `STATUS` が `Up` ならよいです（`Restarting` なら起動に失敗している。`dcp logs --tail 60 express-api` で理由を見る）。
+- ⚠️ `dcp` は `--env-file .env.prod` を含む短縮コマンド。`docker compose -f docker-compose.prod.yml` だけで作り直すと DB_NAME などが空になり、② が起動しない（2026-11-11 に発生。この手順書の書き間違い）。
 
 ### 手順3　【① SQL】
 phpMyAdmin で `2026-11-11_update_log_2.2.264.sql` を **1回だけ**流します。

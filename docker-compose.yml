@@ -80,6 +80,8 @@ services:
       - META_SCRAPER_KEY=localtest
       # sync（Heroku の自動取り込み）が実行結果を書くときの合い言葉。⚠️ 開発用のダミー値。本番の値は ② VPS の .env.prod にのみ書く（v2.2.259）
       - SYNC_LOG_SECRET=localtest
+      # 広告運用の担当者向けの読み出し API の鍵（カンマ区切り）。⚠️ 開発用のダミー値（32文字以上）。本番の値は ② VPS の .env.prod にのみ書く（v2.2.265）
+      - TRACKING_EXPORT_KEYS=localtest-tracking-export-key-000001,localtest-tracking-export-key-000002
     env_file:
       # Meta 広告 API のトークンと対象の ID（v2.2.203。META_ACCESS_TOKEN・META_AD_ACCOUNTS）。
       #

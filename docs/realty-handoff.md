@@ -27,8 +27,8 @@
    - `docs/oldDocument/task-2026-11-06-02-realty-media-kpi.md`（v2.2.254。チームサマリーの売りKPI・買いKPI）
    - `docs/oldDocument/task-2026-11-06-03-realty-next-date-buttons.md`（v2.2.255。顧客情報編集の日付ボタンの位置）
    - `docs/oldDocument/task-2026-11-06-04-realty-buy-lead-ledger-picker.md`（v2.2.256。買い反響の問合せ物件を媒介獲得台帳に紐づける）
-   - `docs/task-2026-11-10-01-realty-ielove-link.md`（v2.2.258。台帳 ⇔ いえらぶの物件 ⇔ 買い反響の自動のつながり）
-   - `docs/task-2026-11-10-03-realty-ielove-csv-import.md`（v2.2.260。いえらぶの物件一覧（CSV）の取り込み）
+   - `docs/oldDocument/task-2026-11-10-01-realty-ielove-link.md`（v2.2.258。台帳 ⇔ いえらぶの物件 ⇔ 買い反響の自動のつながり）
+   - `docs/oldDocument/task-2026-11-10-03-realty-ielove-csv-import.md`（v2.2.260。いえらぶの物件一覧（CSV）の取り込み）
 6. 古い作業記録（v2.2.221〜226）は `docs/oldDocument/task-2026-10-28-0*-realty-*.md` にあります。
 
 ---

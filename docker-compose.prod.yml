@@ -139,6 +139,13 @@ services:
       # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。**
       - SYNC_LOG_SECRET=${SYNC_LOG_SECRET:-}
 
+      # 広告運用の担当者向けの読み出し API（GET /api/export/tracking/…）の鍵（v2.2.265）。
+      #
+      # ⚠️ カンマ区切りで複数持てる（人・ツールごとに分ける）。1つ64文字（openssl rand -hex 32 で作る）。32文字より短いものは使われない。
+      # ⚠️ 未設定だと全件 401（素通しにしない）。
+      # ⚠️ 値は .env.prod にのみ書くこと。**リポジトリには書かない。** 渡し方・入れ替え方は docs/api-tracking-export.md
+      - TRACKING_EXPORT_KEYS=${TRACKING_EXPORT_KEYS:-}
+
       # 「Claudeによる分析」（v2.2.217）が使う Anthropic の API キー（Claude Console で発行したもの）。
       #
       # ⚠️ 未設定だと分析の開始が 503 になる（他の機能は動く）。
