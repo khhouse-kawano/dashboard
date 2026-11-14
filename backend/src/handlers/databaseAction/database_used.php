@@ -17,10 +17,33 @@ $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 架電情報
-$sql_call = "SELECT * FROM call_sheet";
+// ⚠️ v2.2.269: 以前は call_sheet の全件（全事業 約19,000行・約43MB）を送っており、
+//   ⚠️ json_encode の途中で memory_limit（256M）を超えて「Allowed memory size … exhausted」で落ちていた。
+//   ⚠️ 画面（DatabaseResale.tsx）が使うのは、中古の顧客の call_log のうち「通電」「架電」「次回架電日」の day だけ。
+//   ⚠️ 中古の顧客の行だけにし、call_log もその3つの { day, action } だけに絞る（返す形 { id, call_log: JSON文字列 } は変えない）。
+$CALL_ACTIONS = ['通電', '架電', '次回架電日'];
+$sql_call = "SELECT c.id, c.call_log
+        FROM call_sheet c
+        JOIN master_data_resale m ON m.id = c.id
+        WHERE COALESCE(m.delete_dashboard, 0) = 0";
 $stmt_call = $pdo->prepare($sql_call);
 $stmt_call->execute();
-$response_call = $stmt_call->fetchAll(PDO::FETCH_ASSOC);
+$response_call = [];
+while ($row = $stmt_call->fetch(PDO::FETCH_ASSOC)) {
+    $log = json_decode((string) ($row['call_log'] ?? ''), true);
+    $kept = [];
+    if (is_array($log)) {
+        foreach ($log as $entry) {
+            if (is_array($entry) && in_array($entry['action'] ?? '', $CALL_ACTIONS, true)) {
+                $kept[] = ['day' => $entry['day'] ?? '', 'action' => $entry['action']];
+            }
+        }
+    }
+    $response_call[] = [
+        'id' => $row['id'],
+        'call_log' => json_encode($kept, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ];
+}
 
 
 // 顧客一覧
@@ -65,14 +88,17 @@ $response_customer = $stmt_customer->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 家族情報
-$sql_family = "SELECT * FROM family_info";
+// ⚠️ v2.2.269: 画面は id しか使わない（「家族情報あり」の絞り込み）。本文（family_info）は送らない
+$sql_family = "SELECT id FROM family_info";
 $stmt_family = $pdo->prepare($sql_family);
 $stmt_family->execute();
 $response_family = $stmt_family->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 媒介取得
-$sql_broker = "SELECT *  FROM brokerage_listings";
+// ⚠️ v2.2.269: 画面と同じ条件（媒介台帳・表示中・顧客IDあり）で絞る。以前は全種類（反響・ログ・通知など）を送っていた
+$sql_broker = "SELECT * FROM brokerage_listings
+        WHERE kind = 'ledger' AND show_dashboard = 1 AND COALESCE(master_data_id, '') <> ''";
 $stmt_broker = $pdo->prepare($sql_broker);
 $stmt_broker->execute();
 $response_broker = $stmt_broker->fetchAll(PDO::FETCH_ASSOC);

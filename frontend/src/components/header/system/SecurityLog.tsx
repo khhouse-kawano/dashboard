@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useIncrementalList } from '../../../utils/useIncrementalList';
 import apiClient from '../../../utils/apiClient';
 
 /**
@@ -69,6 +70,8 @@ type SortKey = 'occurredAt' | 'event' | 'count' | 'staffName' | 'ip' | 'request'
 
 /** 要注意の IP の札を、はじめに出す数（v2.2.261。残りは「残り N件を表示」で開く） */
 const FLAG_LIMIT = 10;
+/** 表を一度に描く行数（v2.2.269。下までスクロールすると同じ数ずつ足す） */
+const ROW_STEP = 100;
 
 const sum = (totals: ListResponse['totals'], keys: EventKey[]): number => keys.reduce((n, k) => n + (totals[k] ?? 0), 0);
 
@@ -122,6 +125,10 @@ const SecurityLog = () => {
             return String(av).localeCompare(String(bv), 'ja') * dir;
         });
     }, [data, flaggedOnly, flags, sortKey, sortOrder]);
+
+    // ⚠️ v2.2.269: 最大2,000行を一度に描くとブラウザが落ちるため、100行ずつ描き、表の下までスクロールしたら続きを足す
+    const tableWrapRef = useRef<HTMLDivElement>(null);
+    const { visible: visibleRows, hasMore, more, sentinelRef, shown } = useIncrementalList(rows, ROW_STEP, tableWrapRef);
 
     const totals = data?.totals ?? {};
     /**
@@ -215,6 +222,10 @@ const SecurityLog = () => {
                 .sl_ua { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #4b5563; }
                 .sl_msg { min-width: 160px; overflow-wrap: anywhere; }
                 .sl_empty { text-align: center; color: #9ca3af; padding: 32px 0; }
+                .sl_more { text-align: center; color: #6b7280; font-size: 11px; padding: 14px 0; }
+                .sl_more_btn { margin-left: 10px; border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 6px;
+                               font-size: 11px; font-weight: 700; padding: 2px 10px; cursor: pointer; }
+                .sl_more_btn:hover { background: #f1f5f9; }
                 @media (max-width: 900px) { .sl_wrap { padding: 12px 16px 16px; } }
             `}</style>
 
@@ -300,7 +311,7 @@ const SecurityLog = () => {
                             {data.truncated && <><br />⚠️ 新しい順に {data.maxRows.toLocaleString()} 行までを出しています。期間を短くするか、種類・IP で絞ってください。</>}
                         </div>
 
-                        <div className="sl_table_wrap">
+                        <div className="sl_table_wrap" ref={tableWrapRef}>
                             <table className="sl_table">
                                 <thead>
                                     <tr>
@@ -319,7 +330,7 @@ const SecurityLog = () => {
                                     {rows.length === 0 && (
                                         <tr><td className="sl_td sl_empty" colSpan={9}>{loading ? '読み込み中…' : '該当する記録はありません'}</td></tr>
                                     )}
-                                    {rows.map((r) => {
+                                    {visibleRows.map((r) => {
                                         const ev = EVENTS[r.event] ?? { label: r.event, tone: 'muted' as const };
                                         const flagged = flags[r.ip] !== undefined;
                                         return (
@@ -347,6 +358,14 @@ const SecurityLog = () => {
                                             </tr>
                                         );
                                     })}
+                                    {hasMore && (
+                                        <tr ref={sentinelRef}>
+                                            <td className="sl_td sl_more" colSpan={9}>
+                                                {shown.toLocaleString()} / {rows.length.toLocaleString()} 行を表示中（下までスクロールすると続きを表示します）
+                                                <button type="button" className="sl_more_btn" onClick={more}>続きを表示</button>
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
