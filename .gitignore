@@ -138,3 +138,6 @@ mcp-server/*.zip
 # ⚠️ v2.2.221: 不動産企画係アプリ（Supabase）の書き出し。顧客の個人情報を含むので Git にも Web 公開の場所にも置かない
 backend/src/handlers/data.json
 backend/src/handlers/app_state.json
+
+# ⚠️ ① 本番 DB のバックアップ（個人情報を含む。絶対にコミットしない）。backend/scripts/backup/db_backup.sh が書く
+/db_backup/
