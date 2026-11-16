@@ -59,7 +59,6 @@ $sql_customer = "SELECT
   ) AS register,
   COALESCE(sales_promotion_name, '') AS medium,
   COALESCE(status, '') AS status,
-  COALESCE(rank_period, '') AS rank_period,
   COALESCE(call_status, '') AS call_status,
   COALESCE(cancel_status, '') AS cancel_status,
   COALESCE(show_dashboard, 0) AS trash,
@@ -75,15 +74,13 @@ $sql_customer = "SELECT
   COALESCE(customer_contacts_email, '') AS mail,
   COALESCE(introduction_person_category, '') AS introduction_person_category,
   COALESCE(competitor_lost_contract_reason, '') AS competitor_lost_contract_reason,
-  COALESCE(competitors_text, '') AS competitors_text,
   COALESCE(competitor_name, '') AS competitor_name,
   COALESCE(customized_input_01JRCT12N9X24PCQ5QZPAYKB93, '') AS event,
   COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') AS customized_input_01JRF9CZSW65A151WR30NA4PB3,
   COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') AS customized_input_01JSE7H4MQES619NBWX6PQDFRH,
-  -- ⚠️ 2026-09-17 に追加。DatabaseOrder.tsx の「要回答」件数で使う。
-  -- ⚠️ ② の backend-express/src/features/database/queries.ts と**必ず揃えること**。
-  COALESCE(competitor_price_gap, '') AS competitor_price_gap,
-  COALESCE(competitor_countermeasure, '') AS competitor_countermeasure,
+  -- ⚠️ v2.2.272: ② の v2.2.271 と同じく、画面で使わない列を外した
+  --   （rank_period・competitors_text・competitor_price_gap・competitor_countermeasure）。
+  --   ⚠️ ② の backend-express/src/features/database/queries.ts と**必ず揃えること**。
   COALESCE(call_log, '') AS call_log,
   COALESCE(hotlead_id, '') AS hotlead_id,
   COALESCE(k_snap, '') AS k_snap
@@ -97,12 +94,39 @@ $response_customer = $stmt_customer->fetchAll(PDO::FETCH_ASSOC);
 // ギフト進呈可否を確定させる（条件③④の突き合わせ）
 giftApplyToCustomers($pdo, $response_customer);
 
+// ⚠️ v2.2.272: ② と同じく「列名1回＋値の並び」で返す（画面は databaseUtils.ts の decodeRows で戻す）。
+//   ⚠️ 以前は行ごとに列名を繰り返した約28MB の文字列を作り、memory_limit（ローカル 128M）を超えて落ちていた。
+//   ⚠️ 1行ずつ値の並びに移し、元の行はすぐ捨てる（同じ内容を2つ持たない）。
+$customerCols = [];
+foreach ($response_customer as $row) {
+    foreach (array_keys($row) as $col) $customerCols[$col] = true;
+}
+$customerCols = array_keys($customerCols);
+$customerRows = [];
+foreach (array_keys($response_customer) as $i) {
+    $row = $response_customer[$i];
+    unset($response_customer[$i]);
+    $values = [];
+    foreach ($customerCols as $col) $values[] = $row[$col] ?? null;
+    $customerRows[] = $values;
+}
+unset($response_customer);
+
 
 // 家族情報
+// ⚠️ v2.2.272: 画面は家族名の検索にしか使わないので、名前だけにする（② の features/database/index.ts の familyNamesOnly と同じ）
 $sql_family = "SELECT id, family_info FROM family_info WHERE family_info IS NOT NULL";
 $stmt_family = $pdo->prepare($sql_family);
 $stmt_family->execute();
-$response_family = $stmt_family->fetchAll(PDO::FETCH_ASSOC);
+$response_family = [];
+while ($row = $stmt_family->fetch(PDO::FETCH_ASSOC)) {
+    $parsed = json_decode((string)$row['family_info'], true);
+    $names = [];
+    if (is_array($parsed) && array_values($parsed) === $parsed) {
+        foreach ($parsed as $p) $names[] = ['name' => is_array($p) ? ($p['name'] ?? null) : null];
+    }
+    $response_family[] = ['id' => $row['id'], 'family_info' => json_encode($names, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)];
+}
 
 
 // イベント情報
@@ -112,8 +136,16 @@ $stmt_event->execute();
 $response_event = $stmt_event->fetchAll(PDO::FETCH_ASSOC);
 
 
-// イベント情報
-$sql_hotlead = "SELECT id, status, hotlead_url, action_history, ticket_stop_reason_type FROM hotlead_db";
+// HOTLEAD
+// ⚠️ v2.2.272: 行動履歴の全文は返さず、画面が出す件数だけ返す（② の features/database/queries.ts の HOTLEAD_SQL と同じ）
+$countWord = fn(string $word): string =>
+    "(CHAR_LENGTH(COALESCE(action_history, '')) - CHAR_LENGTH(REPLACE(COALESCE(action_history, ''), '{$word}', ''))) DIV CHAR_LENGTH('{$word}')";
+$sql_hotlead = "SELECT id, status, hotlead_url, ticket_stop_reason_type,
+  CASE WHEN COALESCE(action_history, '') <> '' THEN 1 ELSE 0 END AS has_action,
+  {$countWord('架電')} AS action_calls,
+  {$countWord('メール')} AS action_mails,
+  {$countWord('SMS')} AS action_sms
+  FROM hotlead_db";
 $stmt_hotlead = $pdo->prepare($sql_hotlead);
 $stmt_hotlead->execute();
 $response_hotlead = $stmt_hotlead->fetchAll(PDO::FETCH_ASSOC);
@@ -122,7 +154,7 @@ $result = [
         "staff" => $response_staff,
         "shop" => $response_shop,
         "medium" => $response_medium,
-        "customer" => $response_customer,
+        "customer" => ['cols' => $customerCols, 'rows' => $customerRows],
         "family" => $response_family,
         "introductory" => $response_introductory,
         "event" => $response_event,

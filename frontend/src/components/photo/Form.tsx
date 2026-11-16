@@ -354,7 +354,8 @@ const Form = ({ editId, setEditId, setCategory, category }: Props) => {
                 // ⚠️ multipart は apiClient を通さない。既定ヘッダの
                 //   Content-Type: application/json が boundary を壊すため。
                 //   URL は k-snap/api/ から dashboard の API へ移した。
-                const response = await axios.post(KSNAP_API, fd);
+                // ⚠️ v2.2.272: トークンを付ける（① の入口でログインを確かめるため。Content-Type は付けない）
+                const response = await axios.post(KSNAP_API, fd, { headers: { Token: localStorage.getItem('token') ?? '' } });
 
                 if (response.data.status !== 'success') {
                     throw new Error(response.data.message ?? 'サーバーがエラーを返しました');
