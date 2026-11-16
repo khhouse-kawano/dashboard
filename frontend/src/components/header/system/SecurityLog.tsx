@@ -16,7 +16,7 @@ import apiClient from '../../../utils/apiClient';
  * ─────────────────────────────────────────────
  */
 
-type EventKey = 'login' | 'login_failed' | 'logout' | 'auth_failed' | 'forbidden' | 'bad_request' | 'unknown_request' | 'server_error' | 'proxy_error';
+type EventKey = 'login' | 'login_failed' | 'logout' | 'auth_failed' | 'forbidden' | 'bad_request' | 'unknown_request' | 'server_error' | 'proxy_error' | 'auth_missing';
 
 interface LogRow {
     id: number;
@@ -63,6 +63,8 @@ const EVENTS: Record<EventKey, { label: string; tone: 'ok' | 'muted' | 'warn' | 
     unknown_request: { label: '存在しない処理', tone: 'probe' },
     server_error: { label: 'サーバーエラー', tone: 'bad' },
     proxy_error: { label: '② に届かない', tone: 'bad' },
+    // ⚠️ v2.2.272: ① がトークン無しの要求を通して記録したもの（次の版でトークン必須にする前の洗い出し用）
+    auth_missing: { label: 'トークン無し（通した）', tone: 'muted' },
 };
 const EVENT_KEYS = Object.keys(EVENTS) as EventKey[];
 

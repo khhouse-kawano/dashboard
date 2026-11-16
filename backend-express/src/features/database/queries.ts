@@ -111,7 +111,7 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
       rank_period・competitors_text・competitor_price_gap・competitor_countermeasure
       ⚠️ 価格差・今後の対策は「要回答」の判定（LOST_FIELDS）から 2026-09-18 に外れている。
       ⚠️ 判定に戻すときは、ここにも戻すこと（返さないと全件「要回答」になる）。
-      ⚠️ ① の database_order.php は予備なので外していない（画面はどちらでも動く）。
+      ⚠️ ① の database_order.php（予備）も v2.2.272 で同じ列を外した。
   */
   COALESCE(call_log, '') AS call_log,
   COALESCE(hotlead_id, '') AS hotlead_id,
@@ -175,7 +175,7 @@ const countWord = (col: string, word: string): string =>
  * HOTLEAD。⚠️ order だけ。spec の PHP には無い
  * ⚠️ v2.2.271: 行動履歴（action_history）の全文は返さず、画面が出す件数だけ返す（ローカル実測 2.8MB → 0.6MB）。
  *   has_action … 行動履歴が入っているか（画面は入っているときだけ件数を出す）
- *   ⚠️ ① の database_order.php は全文のまま。画面はどちらの形でも数える（databaseUtils.ts の hotleadActions）。
+ *   ⚠️ ① の database_order.php（予備）も v2.2.272 で同じ件数の形にした。
  */
 const HOTLEAD_SQL = `SELECT id, status, hotlead_url, ticket_stop_reason_type,
   CASE WHEN COALESCE(action_history, '') <> '' THEN 1 ELSE 0 END AS has_action,

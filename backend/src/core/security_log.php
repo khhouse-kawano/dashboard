@@ -15,7 +15,8 @@
  */
 
 /** まとめる種類（⚠️ ② の AGGREGATE_EVENTS と同じ） */
-const SECURITY_LOG_AGGREGATE = ['auth_failed', 'forbidden', 'bad_request', 'unknown_request'];
+// ⚠️ v2.2.272: auth_missing（トークン無しで通した。core/request_auth.php）も同じ分ごとにまとめる
+const SECURITY_LOG_AGGREGATE = ['auth_failed', 'forbidden', 'bad_request', 'unknown_request', 'auth_missing'];
 
 /** 古い行を消す日数と、書くときに掃除する確率（⚠️ ② と同じ） */
 const SECURITY_LOG_KEEP_DAYS = 180;
