@@ -16,9 +16,33 @@ import type { DynamicRow } from './clean';
  * ─────────────────────────────────────────────
  */
 
-/** 検索の一覧（旧 survey_list と同じ列・同じ並び） */
+/**
+ * 反響日（master_data の step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99）を日付にする。
+ * ⚠️ 文字の列で「2026/11/04」と「2026-11-04」が混ざっているため、両方を読む（文字のまま並べると新しい順にならない）
+ */
+const REGISTER_DATE = `COALESCE(
+    STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y/%m/%d'),
+    STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y-%m-%d'))`;
+
+/**
+ * 検索の一覧（旧 survey_list と同じ列名 name・id・shop・register・staff）。
+ *
+ * ⚠️⚠️ v2.2.270: `customers` 表ではなく `master_data`（注文の顧客DB）から読む。
+ *   ⚠️ `customers` は 2026-07-22 を最後に更新されておらず、7月以降の反響が検索に出ていなかった（2026-11-16 の指示）。
+ * ⚠️ 顧客DBに表示している顧客だけ（show_dashboard = 1）。個人情報を削除した顧客（delete_dashboard = 1）は出さない。
+ * ⚠️ register は 'YYYY/MM/DD' にそろえて返す（survey の画面がそのまま表に出すため。旧 customers と同じ形）。新しい順。
+ */
 export const runSurveyCustomers = async (): Promise<Record<string, unknown>[]> =>
-  query<DynamicRow>('SELECT name, id, shop, register, staff FROM customers ORDER BY register DESC');
+  query<DynamicRow>(
+    `SELECT COALESCE(customer_contacts_name, '') AS name,
+            id,
+            COALESCE(in_charge_store, '') AS shop,
+            COALESCE(DATE_FORMAT(${REGISTER_DATE}, '%Y/%m/%d'), '') AS register,
+            COALESCE(in_charge_user, '') AS staff
+       FROM master_data
+      WHERE show_dashboard = 1 AND COALESCE(delete_dashboard, 0) = 0
+      ORDER BY ${REGISTER_DATE} IS NULL, ${REGISTER_DATE} DESC, id DESC`
+  );
 
 /** 担当の一覧（旧 staff_list の、survey が使う列だけ） */
 export const runSurveyStaff = async (): Promise<Record<string, unknown>[]> =>
