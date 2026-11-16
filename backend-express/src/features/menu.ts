@@ -77,11 +77,13 @@ const SYNC_SQL = `
  *
  * ⚠️ 基準日 '2026-01-01' はフロントに直書きされていたものをそのまま移した。
  *   ⚠️ この日より前の予約は数えない、という運用上の区切りである。
+ * ⚠️ v2.2.271: 個人情報の削除依頼があった顧客（delete_dashboard = 1）は数えない（① の menu.php・cancelList.php と同じ）。
  */
 const CANCEL_SQL = `
   SELECT COUNT(*) AS c
     FROM master_data
    WHERE show_dashboard = 1
+     AND COALESCE(delete_dashboard, 0) = 0
      AND COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') = ''
      AND COALESCE(cancel_status, '') = ''
      AND COALESCE(status, '') <> '重複'

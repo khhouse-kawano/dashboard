@@ -85,7 +85,6 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
   ) AS register,
   COALESCE(sales_promotion_name, '') AS medium,
   COALESCE(status, '') AS status,
-  COALESCE(rank_period, '') AS rank_period,
   COALESCE(call_status, '') AS call_status,
   COALESCE(cancel_status, '') AS cancel_status,
   COALESCE(show_dashboard, 0) AS trash,
@@ -103,20 +102,17 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
   COALESCE(customer_contacts_email, '') AS mail,
   COALESCE(introduction_person_category, '') AS introduction_person_category,
   COALESCE(competitor_lost_contract_reason, '') AS competitor_lost_contract_reason,
-  COALESCE(competitors_text, '') AS competitors_text,
   COALESCE(competitor_name, '') AS competitor_name,
   COALESCE(customized_input_01JRCT12N9X24PCQ5QZPAYKB93, '') AS event,
   COALESCE(customized_input_01JRF9CZSW65A151WR30NA4PB3, '') AS customized_input_01JRF9CZSW65A151WR30NA4PB3,
   COALESCE(customized_input_01JSE7H4MQES619NBWX6PQDFRH, '') AS customized_input_01JSE7H4MQES619NBWX6PQDFRH,
   /*
-    ⚠️⚠️ **2026-09-17 に足した2列。** DatabaseOrder.tsx の「要回答」件数で使う。
-      ⚠️ 返さないと画面側で undefined になり、⚠️ **失注が全件「要回答」になる。**
-      ⚠️ ⚠️ **order にだけ足すこと。** 建売・中古のテーブルにはこの列が無い。
-      ⚠️ ① の database_order.php にも同じ2行を足してある。
-      ⚠️⚠️ **ここはSQLの中なのでバッククォートを書かないこと**（文字列が終わる）。
+    ⚠️ v2.2.271 で外した列（画面で使っていない。転送量を減らすため）:
+      rank_period・competitors_text・competitor_price_gap・competitor_countermeasure
+      ⚠️ 価格差・今後の対策は「要回答」の判定（LOST_FIELDS）から 2026-09-18 に外れている。
+      ⚠️ 判定に戻すときは、ここにも戻すこと（返さないと全件「要回答」になる）。
+      ⚠️ ① の database_order.php は予備なので外していない（画面はどちらでも動く）。
   */
-  COALESCE(competitor_price_gap, '') AS competitor_price_gap,
-  COALESCE(competitor_countermeasure, '') AS competitor_countermeasure,
   COALESCE(call_log, '') AS call_log,
   COALESCE(hotlead_id, '') AS hotlead_id,
   COALESCE(k_snap, '') AS k_snap
@@ -141,14 +137,11 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
   ) AS register,
   COALESCE(sales_promotion_name, '') AS medium,
   COALESCE(status, '') AS status,
-  COALESCE(rank_period, '') AS rank_period,
   COALESCE(call_status, '') AS call_status,
   COALESCE(show_dashboard, 0) AS trash,
   COALESCE(full_address, '') AS full_address,
   COALESCE(hp_campaign, '') AS hp_campaign,
-  COALESCE(property_name, '') AS property_name,
-  COALESCE(property_tour_name, '') AS property_tour_name,
-  COALESCE(introduction_person_category, '') AS introduction_person_category,
+  /* ⚠️ v2.2.271 で外した列（DatabaseKaeru.tsx で使っていない）: rank_period・property_name・property_tour_name・introduction_person_category */
   COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number_2,
   COALESCE(customer_contacts_phone_number, '') AS phone_number,
   COALESCE(customer_contacts_email, '') AS mail,
@@ -164,17 +157,32 @@ const CUSTOMER_SQL: Record<DatabaseCategory, string> = {
  * ⚠️ order は `family_info IS NOT NULL` で絞り、spec は全件（PHP のまま）。
  *   ⚠️ 揃えると件数が変わる。画面側の使い方も違う
  *   （order は中身を検索に使い、spec は id の有無しか見ていない）。
+ * ⚠️ v2.2.271: spec は id だけ返す。order の family_info は index.ts で家族の名前だけに減らす。
  */
 const FAMILY_SQL: Record<DatabaseCategory, string> = {
   order: `SELECT id, family_info FROM family_info WHERE family_info IS NOT NULL`,
-  spec: `SELECT * FROM family_info`,
+  spec: `SELECT id FROM family_info`,
 };
 
 /** イベント。⚠️ order だけ。spec の PHP には無い */
 const EVENT_SQL = `SELECT * FROM event_calendar WHERE shop = 'khg' AND flag = 1`;
 
-/** HOTLEAD。⚠️ order だけ。spec の PHP には無い */
-const HOTLEAD_SQL = `SELECT id, status, hotlead_url, action_history, ticket_stop_reason_type FROM hotlead_db`;
+/** 文字列 col の中に word が何回出るか（画面の split(word).length - 1 と同じ数え方） */
+const countWord = (col: string, word: string): string =>
+  `(CHAR_LENGTH(COALESCE(${col}, '')) - CHAR_LENGTH(REPLACE(COALESCE(${col}, ''), '${word}', ''))) DIV CHAR_LENGTH('${word}')`;
+
+/**
+ * HOTLEAD。⚠️ order だけ。spec の PHP には無い
+ * ⚠️ v2.2.271: 行動履歴（action_history）の全文は返さず、画面が出す件数だけ返す（ローカル実測 2.8MB → 0.6MB）。
+ *   has_action … 行動履歴が入っているか（画面は入っているときだけ件数を出す）
+ *   ⚠️ ① の database_order.php は全文のまま。画面はどちらの形でも数える（databaseUtils.ts の hotleadActions）。
+ */
+const HOTLEAD_SQL = `SELECT id, status, hotlead_url, ticket_stop_reason_type,
+  CASE WHEN COALESCE(action_history, '') <> '' THEN 1 ELSE 0 END AS has_action,
+  ${countWord('action_history', '架電')} AS action_calls,
+  ${countWord('action_history', 'メール')} AS action_mails,
+  ${countWord('action_history', 'SMS')} AS action_sms
+  FROM hotlead_db`;
 
 /** 紹介。⚠️ order だけ。spec の PHP には無い */
 const INTRODUCTORY_SQL = `SELECT * FROM introductory`;

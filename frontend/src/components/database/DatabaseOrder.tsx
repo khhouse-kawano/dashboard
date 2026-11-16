@@ -11,10 +11,12 @@ import InformationEdit from '../information/InformationEdit';
 import { useIsSp } from '../../utils/isSp';
 import { useDebounce } from './useDebounce';
 import apiClient from '../../utils/apiClient';
-import { safeParse, hotleadStyle, staffOptionsOf } from './databaseUtils';
+import { safeParse, hotleadStyle, staffOptionsOf, decodeRows, hotleadActions } from './databaseUtils';
+import type { HotleadActions } from './databaseUtils';
 import { GiftDot, GiftLegend } from './GiftMark';
 import { thisYear } from '../../utils/thisYear';
 import { missingLostFields } from '../../utils/informationUtils';
+import { isDelete } from '../../utils/deletedCustomer';
 // ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
 import { sortStaff } from '../header/ambassador/useAmbassadorMaster';
 import NexusBadge from '../NexusBadge';
@@ -88,6 +90,22 @@ const strIncludes = (val: any, sub: string) => sub ? String(val ?? '').includes(
 const strIncludesCI = (val: any, sub: string) =>
     sub ? String(val ?? '').toLowerCase().includes(sub.toLowerCase()) : true;
 const arrIncludes = (arr: any, v: any) => v ? (Array.isArray(arr) ? arr.includes(v) : String(arr ?? '').includes(v)) : true;
+
+/**
+ * 応答の顧客一覧を画面用にする（検索用の列を先に作っておく）。
+ * ⚠️ v2.2.271: ② は「列名1回＋値の並び」、① は配列で返す。decodeRows がどちらも配列にする。
+ * ⚠️ 非表示・元に戻す（handleGarbage）のあとも必ずここを通す（以前は通しておらず、その後の名前・住所の検索が効かなかった）。
+ */
+const prepareCustomers = (data: unknown): CustomerItem[] =>
+    decodeRows<CustomerItem>(data).map(c => ({
+        ...c,
+        search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
+        _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '')
+    }));
+
+/** 表の Hotlead 欄に出すもの（v2.2.271: 読み込み時に1回だけ作り、id で引く） */
+type HotleadInfo = { status: string; url: string; reason: string; actions: HotleadActions | null };
+const EMPTY_HOTLEAD: HotleadInfo = { status: '', url: '', reason: '', actions: null };
 
 
 const DatabaseOrder = ({ onReload }: Props) => {
@@ -180,11 +198,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
         try {
             const response = await apiClient.post("", { request: 'database', category });
 
-            const customers: CustomerItem[] = response.data.customer.map((c: any) => ({
-                ...c,
-                search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
-                _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '')
-            }));
+            const customers = prepareCustomers(response.data.customer);
 
             setOriginalDatabase(customers);
 
@@ -208,6 +222,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
 
                 customers.forEach((item) => {
                     if (Number(item.trash) !== 1) return;
+                    // ⚠️ v2.2.271: 個人情報の削除依頼があった顧客は数えない。① ② とも一覧から除いて返すが、念のため画面でも除く
+                    if (isDelete(item)) return;
 
                     const cTarget = new Date(dateFormate(item.reserved_interview)).getTime();
                     if (cTarget < nowTime && cancelBase < cTarget && !item.interview && !item.cancel_status && item.status !== '重複') {
@@ -238,6 +254,31 @@ const DatabaseOrder = ({ onReload }: Props) => {
         fetchDatabase(true);
     }, [fetchDatabase]);
 
+    /**
+     * 家族・Hotlead の索引（v2.2.271）。⚠️ 読み込み時に1回だけ作る。
+     *   以前は絞り込みのたびに全顧客 × Hotlead（約2,800件）を find で総当たりし、
+     *   家族は includes で引いていた（解除のたびに 1.7〜2.5秒止まっていた）。
+     */
+    const familyIdSet = useMemo(() => new Set(familyList.map(f => f.id)), [familyList]);
+    const familyNames = useMemo(() => familyList.flatMap(f => {
+        const parsedList = safeParse(f.family_info) || [];
+        return parsedList.map((info: any) => ({ name: info.name, id: f.id }));
+    }), [familyList]);
+    const hotleadMap = useMemo(() => {
+        const map = new Map<string, HotleadInfo>();
+        hotleadList.forEach(h => {
+            // ⚠️ 同じ id が2行あったら、以前の find と同じく最初の行を使う
+            if (map.has(h.id)) return;
+            map.set(h.id, {
+                status: h.status ?? '',
+                url: h.hotlead_url ?? '',
+                reason: h.ticket_stop_reason_type ?? '',
+                actions: hotleadActions(h)
+            });
+        });
+        return map;
+    }, [hotleadList]);
+
     // フィルタリング・ソート処理
     const filteredDatabase = useMemo(() => {
         const sName = nameSearch.debouncedValue ?? '';
@@ -246,13 +287,13 @@ const DatabaseOrder = ({ onReload }: Props) => {
         const formattedAddress = sName.includes('+') ? sName.split('+')[1] : '';
         const cleanFormattedName = formattedName.replace(/[\s\u3000]+/g, '');
 
-        const familyIds = familyList.map(f => f.id);
-        const filteredFamilyID = familyList.flatMap(f => {
-            const parsedList = safeParse(f.family_info) || [];
-            return parsedList.map(info => ({ name: info.name, id: f.id }));
-        }).filter(f => f.name.includes(familySearch.debouncedValue)).map(f => f.id);
+        const filteredFamilyID = familySearch.debouncedValue
+            ? new Set(familyNames.filter(f => f.name.includes(familySearch.debouncedValue)).map(f => f.id))
+            : null;
 
-        const hotleadIds = hotleadList.filter(h => hotleadStatus ? h.status === hotleadStatus : true).map(h => h.id);
+        const hotleadIds = hotleadStatus
+            ? new Set(hotleadList.filter(h => h.status === hotleadStatus).map(h => h.id))
+            : null;
 
         // 型安全なmapとsort
         const result = originalDatabase.filter(item => {
@@ -278,28 +319,14 @@ const DatabaseOrder = ({ onReload }: Props) => {
                 && (addressSearch.debouncedValue ? strIncludes(item.search_address, addressSearch.debouncedValue) : true)
                 // ⚠️ メールだけ大文字小文字を区別しない（strIncludesCI）
                 && (mailSearch.debouncedValue ? strIncludesCI(item.mail, mailSearch.debouncedValue) : true)
-                && (familySearch.debouncedValue ? filteredFamilyID.includes(item.id) : true)
+                && (filteredFamilyID ? filteredFamilyID.has(item.id) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
-                && (familyStatus ? familyIds.includes(item.id) : true)
+                && (familyStatus ? familyIdSet.has(item.id) : true)
                 && (searchedEvent ? (item.event === searchedEvent && item.medium === 'イベント') : true)
                 && (snapStatus ? item.k_snap : true)
-                && (hotleadStatus ? hotleadIds.includes(item.hotlead_id) : true);
-        }).map(r => {
-            const targetStatus = hotleadList.find(h => h.id === r.hotlead_id) ?? {};
-            const targetAction = targetStatus?.action_history ?
-                (<div className='d-flex align-items-center text-secondary'>
-                    <i className="fa-solid fa-phone me-1"></i>{targetStatus?.action_history.split('架電').length - 1}
-                    <i className="fa-solid fa-envelope mx-1"></i>{targetStatus?.action_history.split('メール').length - 1}
-                    <i className="fa-solid fa-comment-sms mx-1"></i>{targetStatus?.action_history.split('SMS').length - 1}</div>) : '';
-            return {
-                ...r, hotlead: {
-                    status: targetStatus?.status ?? '',
-                    url: targetStatus?.hotlead_url ?? '',
-                    action: targetAction,
-                    reason: targetStatus?.ticket_stop_reason_type ?? ''
-                }
-            };
+                && (hotleadIds ? hotleadIds.has(item.hotlead_id) : true);
         });
+        // ⚠️ v2.2.271: Hotlead 欄の中身は全行には付けない。表に出す行だけ hotlead() が hotleadMap から引く
 
         // registerの型エラー解消部分（文字列化して安全に比較）
         return result.sort((a, b) => {
@@ -313,7 +340,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
         staffSearch.debouncedValue, phoneSearch.debouncedValue, callStatus, addressSearch.debouncedValue,
         // ⚠️⚠️ **入れ忘れると、入力しても一覧が絞り込まれない**
         mailSearch.debouncedValue,
-        familySearch.debouncedValue, selectedIntroductory, trash, familyList, familyStatus,
+        familySearch.debouncedValue, selectedIntroductory, trash, familyIdSet, familyNames, familyStatus,
         snapStatus, searchedEvent, hotleadStatus, hotleadList
     ]);
 
@@ -355,7 +382,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                 show_dashboard: trash === 1 ? 0 : 1,
                 id, category, roll: 'trash'
             });
-            setOriginalDatabase(response.data.customer);
+            setOriginalDatabase(prepareCustomers(response.data.customer));
         } catch (error) {
             console.error("Error fetching data:", error);
         }
@@ -398,13 +425,18 @@ const DatabaseOrder = ({ onReload }: Props) => {
         }
     })
 
-    const hotlead = (item: any) => {
-        if (!item.hotlead) return;
-        return <div onClick={() => window.open(item.hotlead.url, '_blank', 'noopener,noreferrer')}>
-            <div style={hotleadStyle(item.hotlead.status)}
-            >{item.hotlead.status}</div>
-            {item.hotlead.status && <div className="text-secondary" style={{ fontSize: '8px' }}>{item.hotlead.reason}</div>}
-            <div style={{ cursor: 'pointer' }}>{item.hotlead.action}</div>
+    /** ⚠️ v2.2.271: 表に出す行の分だけ hotleadMap から引いて作る（以前は絞り込みのたびに全行分を作っていた） */
+    const hotlead = (item: CustomerItem) => {
+        const h = hotleadMap.get(item.hotlead_id ?? '') ?? EMPTY_HOTLEAD;
+        return <div onClick={() => window.open(h.url, '_blank', 'noopener,noreferrer')}>
+            <div style={hotleadStyle(h.status)}
+            >{h.status}</div>
+            {h.status && <div className="text-secondary" style={{ fontSize: '8px' }}>{h.reason}</div>}
+            <div style={{ cursor: 'pointer' }}>{h.actions && (
+                <div className='d-flex align-items-center text-secondary'>
+                    <i className="fa-solid fa-phone me-1"></i>{h.actions.calls}
+                    <i className="fa-solid fa-envelope mx-1"></i>{h.actions.mails}
+                    <i className="fa-solid fa-comment-sms mx-1"></i>{h.actions.sms}</div>)}</div>
         </div>
     }
 

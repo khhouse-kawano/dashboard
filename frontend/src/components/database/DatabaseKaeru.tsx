@@ -11,7 +11,7 @@ import IntegrateModal from './IntegrateModal';
 import { useIsSp } from '../../utils/isSp';
 import { PastCustomer } from './PastCustomer';
 import { useDebounce } from './useDebounce';
-import { kataToHira, staffOptionsOf } from './databaseUtils';
+import { kataToHira, staffOptionsOf, decodeRows } from './databaseUtils';
 import { thisYear } from '../../utils/thisYear';
 // ⚠️ 役職→社員番号の並びを借りている。同じ並びを2箇所に書くと片方だけ腐る
 import { sortStaff } from '../header/ambassador/useAmbassadorMaster';
@@ -28,6 +28,22 @@ type Props = {
     onReload: () => void,
     key: number
 };
+
+/** ふりがな検索用の値（空白を消して平仮名にする） */
+const kanaKey = (kana: string | undefined): string => kataToHira((kana || '').replace(/[\s\u3000]+/g, ''));
+
+/**
+ * 応答の顧客一覧を画面用にする（検索用の列を先に作っておく）。
+ * ⚠️ v2.2.271: ② は「列名1回＋値の並び」、① は配列で返す。decodeRows がどちらも配列にする。
+ * ⚠️ _kana（ふりがなの空白を消して平仮名にしたもの）も読み込み時に1回だけ作る（以前は絞り込みのたびに全行で作っていた）。
+ */
+const prepareCustomers = (data: unknown): CustomerList[] =>
+    decodeRows<CustomerList>(data).map(c => ({
+        ...c,
+        search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
+        _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, ''),
+        _kana: kanaKey(c.customer_contacts_name_kana)
+    }));
 
 const DatabaseKaeru = ({ }: Props) => {
     const { authority, category } = useContext(AuthContext);
@@ -103,16 +119,12 @@ const DatabaseKaeru = ({ }: Props) => {
             try {
                 const response = await apiClient.post("", { request: 'database', category });
 
-                const customers = response.data.customer.map((c: any) => ({
-                    ...c,
-                    search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
-                    _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '') // ★あらかじめスペースを消しておく
-                }));
+                const customers = prepareCustomers(response.data.customer);
                 setOriginalDatabase(customers);
 
                 await setShopArray(response.data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
                 await setMediumArray(response.data.medium.map(item => item.medium));
-                await setDisplayLength(response.data.customer.length);
+                await setDisplayLength(customers.length);
                 await setStaffArray(response.data.staff);
 
                 const familyId = response.data.family.map(f => f.id);
@@ -153,6 +165,9 @@ const DatabaseKaeru = ({ }: Props) => {
         return () => { ignore = true; };
     }, [pastStaffSearch.debouncedValue]);
 
+    // ⚠️ v2.2.271: 家族の有無も集合で引く（以前は familyList.includes で総当たり）
+    const familyIdSet = useMemo(() => new Set(familyList), [familyList]);
+
     // includes() だと顧客数×ID数の総当たりになるため、集合にしてから引く
     const pastCustomerIdSet = useMemo(() => new Set(pastCustomerIds), [pastCustomerIds]);
 
@@ -165,9 +180,6 @@ const DatabaseKaeru = ({ }: Props) => {
         const normalizedKanaSearch = kataToHira(kanaSearch.debouncedValue.replace(/[\s\u3000]+/g, ''));
 
         const result = originalDatabase.filter(item => {
-            // 💡 対象データの正規化: Null回避しつつ、スペース除去＆平仮名変換
-            const targetKana = kataToHira((item.customer_contacts_name_kana || '').replace(/[\s\u3000]+/g, ''));
-
             return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
                 && (trash === 0 ? (Number(item.trash) ?? 0) !== 1 : true)
                 && (selectedShop ? arrIncludes(item.shop, selectedShop) : true)
@@ -184,13 +196,14 @@ const DatabaseKaeru = ({ }: Props) => {
                 // ⚠️ v2.2.187: 氏名②（customer_2）も名前検索の対象
                 && (nameSearch.debouncedValue ? (strIncludes(item._cleanCustomer, cleanFormattedName) || strIncludes(cleanCustomerName(item.customer_2), cleanFormattedName)) : true)
                 // 💡 修正: 正規化されたデータ同士で比較する
-                && (kanaSearch.debouncedValue ? strIncludes(targetKana, normalizedKanaSearch) : true)
+                // ⚠️ v2.2.271: _kana は prepareCustomers が読み込み時に作る。⚠️ 名寄せ（IntegrateModal）のあとの行には無いので、その場で作る
+                && (kanaSearch.debouncedValue ? strIncludes(item._kana ?? kanaKey(item.customer_contacts_name_kana), normalizedKanaSearch) : true)
                 && (staffSearch.debouncedValue ? strIncludes(item.staff, staffSearch.debouncedValue.split(' ')[0]) : true)
                 && (phoneSearch.debouncedValue ? (strIncludes(item.phone_number, phoneSearch.debouncedValue) || strIncludes(item.phone_number_2, phoneSearch.debouncedValue)) : true)
                 && (mailSearch.debouncedValue ? (strIncludes(item.mail, mailSearch.debouncedValue) || strIncludes(item.mail_2, mailSearch.debouncedValue)) : true)
                 && (addressSearch.debouncedValue ? String((item.full_address ?? '').replace(/[\s ]+/g, "")).includes(addressSearch.debouncedValue) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
-                && (familyStatus ? familyList.includes(item.id) : true)
+                && (familyStatus ? familyIdSet.has(item.id) : true)
                 && (pastStaffSearch.debouncedValue ? pastCustomerIdSet.has(item.id) : true)
                 && (selectedFollow === '追客中' ? arrIncludes(['Aランク', 'Bランク', 'Cランク', 'Dランク'], item.rank) : selectedFollow === '追客終了' ? arrIncludes(['Eランク', 'Fランク', 'Gランク', 'Hランク'], item.rank) : true)
                 && (pastStaffSearch.debouncedValue ? pastCustomerIdSet.has(item.id) : true); // ※既存コードにあった重複の記述をそのまま残しています
@@ -352,12 +365,7 @@ const DatabaseKaeru = ({ }: Props) => {
                         roll: 'trash'
                     };
                     const response = await apiClient.post("", postData);
-                    const customers = response.data.customer.map((c: any) => ({
-                        ...c,
-                        search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
-                        _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '') // ★あらかじめスペースを消しておく
-                    }));
-                    setOriginalDatabase(customers);
+                    setOriginalDatabase(prepareCustomers(response.data.customer));
                 } catch (error) {
                     console.error("Error fetching data:", error);
                 }
@@ -376,14 +384,7 @@ const DatabaseKaeru = ({ }: Props) => {
 
         const fetchData = async () => {
             const response = await apiClient.post("", { request: 'database', category });
-
-            const customers = response.data.customer.map((c: any) => ({
-                ...c,
-                search_address: (c.full_address ?? '').replace(/[\s ]+/g, ""),
-                _cleanCustomer: (c.customer || '').replace(/[\s\u3000]+/g, '')
-            }));
-
-            setOriginalDatabase(customers);
+            setOriginalDatabase(prepareCustomers(response.data.customer));
         }
 
         await fetchData();
