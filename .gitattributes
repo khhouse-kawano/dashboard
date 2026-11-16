@@ -1,0 +1,2 @@
+# ⚠️ シェルスクリプトは LF のまま（core.autocrlf=true で CRLF になると WSL の bash で動かない）
+*.sh text eol=lf
