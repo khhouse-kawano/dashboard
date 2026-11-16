@@ -28,6 +28,10 @@ if ($request === '' || !preg_match('#^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$#', $requ
     exit;
 }
 
+// ⚠️ v2.2.272: ログインの確認（core/request_auth.php）。⚠️ ② への転送より前（② が落ちて ① で処理するときも同じ確認を通す）
+require_once __DIR__ . '/core/request_auth.php';
+requestAuthGate($pdo, is_array($headers) ? $headers : [], $request);
+
 // ---------------------------------------------------------------------------
 // Express へ移植済みのリクエストは ② VPS へ転送する。
 //

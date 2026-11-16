@@ -26,10 +26,12 @@ import { logger } from '../utils/logger';
 export type SecurityEvent =
   | 'login' | 'login_failed' | 'logout'
   | 'auth_failed' | 'forbidden' | 'bad_request' | 'unknown_request'
-  | 'server_error' | 'proxy_error';
+  | 'server_error' | 'proxy_error'
+  // ⚠️ v2.2.272: ① だけが書く（トークン無しで通した。backend/src/core/request_auth.php）
+  | 'auth_missing';
 
 /** まとめる種類（⚠️ ① の SECURITY_LOG_AGGREGATE と同じ） */
-const AGGREGATE_EVENTS: ReadonlySet<SecurityEvent> = new Set(['auth_failed', 'forbidden', 'bad_request', 'unknown_request']);
+const AGGREGATE_EVENTS: ReadonlySet<SecurityEvent> = new Set(['auth_failed', 'forbidden', 'bad_request', 'unknown_request', 'auth_missing']);
 
 /** 古い行を消す日数と、書くときに掃除する確率（⚠️ ① と同じ） */
 const KEEP_DAYS = 180;
@@ -140,6 +142,7 @@ const MAX_ROWS = 2000;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const EVENTS: ReadonlySet<string> = new Set([
   'login', 'login_failed', 'logout', 'auth_failed', 'forbidden', 'bad_request', 'unknown_request', 'server_error', 'proxy_error',
+  'auth_missing',
 ]);
 
 interface LogRow extends RowDataPacket {
