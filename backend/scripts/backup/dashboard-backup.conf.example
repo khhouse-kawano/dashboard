@@ -1,0 +1,24 @@
+# db_backup.sh / db_restore_local.sh の設定（⚠️ パスワードは書かない）
+# WSL の ~/.config/dashboard-backup.conf に写して使う。書かなかった項目は既定値。
+
+# ~/.ssh/config の Host（バックアップ専用の鍵を使うもの）
+SSH_HOST=dashboard-backup
+# ① の Dashboard の DB
+DB_NAME=xs200571_kawano
+# ① のホームからの場所。DB の接続情報（[client] user / password / host）を書いたファイル（chmod 600）
+MY_CNF=.my_backup.cnf
+# ① に一時的に置く場所と、残す本数
+REMOTE_DIR=db_backup
+REMOTE_KEEP=2
+
+# 手元の保存先（このプロジェクトの db_backup/。.gitignore 済み）
+BACKUP_DIR=/mnt/c/Users/shinji-kawano/react/dashboard/db_backup
+KEEP_DAILY=7
+KEEP_MONTHLY=3
+# 手元の空きがこれより少なければ取らない（GB）
+MIN_FREE_GB=5
+
+# 読み込み先（db_restore_local.sh）
+CONTAINER=dashboard-mariadb-db-1
+LOCAL_DB=local_db
+PROJECT_DIR=/mnt/c/Users/shinji-kawano/react/dashboard
