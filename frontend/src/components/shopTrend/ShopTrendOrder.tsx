@@ -98,6 +98,7 @@ const ShopTrendOrder = () => {
     const [modalList, setModalList] = useState<Customer[]>([]);
 
     const [editId, setEditId] = useState('');
+    const [isReverse, setIsReverse] = useState(true);
 
     /**
      * 併売店をまとめるか。
@@ -214,6 +215,14 @@ const ShopTrendOrder = () => {
         checkedObject['その他'] = true;
         setMediumChecked(checkedObject);
     }, [targetMedium]);
+
+    /**
+     * 表の列に並べる月。isReverse（既定）のときは新しい月を左にする。
+     * ⚠️ 表の列の並びだけに使う。集計の期間（getValue の period・前年の月）とサマリは monthArray のまま。
+     */
+    const formattedMonthArray = useMemo(() => {
+        return isReverse ? [...monthArray].reverse() : [...monthArray];
+    }, [monthArray, isReverse]);
 
     const showSummary = (title: string) => {
         setShow(true);
@@ -449,6 +458,11 @@ const ShopTrendOrder = () => {
                                 onChange={() => setShowMulti(prev => !prev)} />併売店をまとめる
                         </label>
                     </div>
+                    <div className="m-1">
+                        <label className="target checkbox d-flex align-items-center">
+                            <input type="checkbox" checked={isReverse === false} className='me-1' onChange={() => setIsReverse(!isReverse)} />期間を反転
+                        </label>
+                    </div>
                 </div>
                 {targetMedium === 'all' && <>
                     <div style={{ fontSize: '12px' }}>表示する販促媒体を選択</div>
@@ -473,12 +487,12 @@ const ShopTrendOrder = () => {
                                     <tbody style={{ fontSize: '12px', letterSpacing: '.5px' }}>
                                         <tr className='sticky-header text-center'>
                                             <td className='sticky-column text-center' style={{ width: '120px' }}>店舗名</td>
-                                            {['全期間', ...monthArray].map(month => <td>{month}</td>)}
+                                            {['全期間', ...formattedMonthArray].map(month => <td>{month}</td>)}
                                         </tr>
                                         {[{ name: targetShop, shop: targetShop, rank: 1 }, ...staff].filter(s => s.rank === 1 && shopNamesOf(targetShop).includes(s.shop)).map((item, staffIndex) =>
                                             <tr>
                                                 <td className='align-middle  sticky-column text-center'>{item.name}</td>
-                                                {['全期間', ...monthArray].map((month, monthIndex) => {
+                                                {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                                                     // ⚠️ まとめON かつ targetShop が親店舗のときだけ、子店舗の顧客も含める
                                                     const targetShops = shopNamesOf(targetShop);
                                                     const base = customerList.filter(c => (staffIndex >= 1 ? c.staff === item.name : targetShops.includes(c.shop)));
@@ -524,7 +538,7 @@ const ShopTrendOrder = () => {
                                     <tbody style={{ fontSize: '12px', letterSpacing: '.5px' }}>
                                         <tr className='sticky-header text-center'>
                                             <td className='sticky-column text-center' style={{ width: '120px' }}>店舗名</td>
-                                            {['全期間', ...monthArray].map((month, monthIndex) => {
+                                            {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                                                 const isDisplayLastYear = isLastYear(month) && monthIndex >= 1 && checked.comparison.show;
                                                 return <td>{month}{isDisplayLastYear && <span className='bg-white rounded text-dark px-2 ms-1'>昨年実績</span>}</td>
                                             })}
@@ -564,7 +578,7 @@ const ShopTrendOrder = () => {
                                                             onClick={() => showSummary(target.shop)}
                                                         >サマリ</div>
                                                     </td>
-                                                    {['全期間', ...monthArray].map((month, monthIndex) => {
+                                                    {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                                                         const sectionShops = originalShopArray.filter(o => o.section === target.shop).map(o => o.shop);
                                                         const base = isMerged
                                                             ? customerList.filter(c => mergeShops.includes(c.shop))
@@ -622,7 +636,7 @@ const ShopTrendOrder = () => {
                                                     })}
                                                 </tr>
                                                 {checked.budget.show && <tr>
-                                                    {['全期間', ...monthArray].map((month, monthIndex) => {
+                                                    {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                                                         const baseBudget = budgetList.filter(b =>
                                                             b.section === 'order'
                                                             && (monthIndex > 0 ? b.budget_period.includes(month) : monthArray.includes(b.budget_period.slice(0, 7)))
