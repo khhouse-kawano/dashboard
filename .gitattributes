@@ -1,2 +1,4 @@
 # ⚠️ シェルスクリプトは LF のまま（core.autocrlf=true で CRLF になると WSL の bash で動かない）
 *.sh text eol=lf
+# ⚠️ bash が読み込む設定の見本も LF のまま
+*.conf.example text eol=lf
