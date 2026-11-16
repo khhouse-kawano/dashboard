@@ -29,6 +29,37 @@ export interface DatabaseResult {
   body: unknown;
 }
 
+/**
+ * 行の配列を「列名1回＋値の並び」にする（v2.2.271）。
+ * ⚠️ 注文では 21MB のうち 14.6MB が列名の繰り返しだった。画面は databaseUtils.ts の decodeRows で元の形に戻す。
+ * ⚠️ 列は全行の列名を合わせたもの（SQL の行は同じ列だが、gift のように後から足す列があっても落とさない）。
+ */
+export const toColumnar = (rows: Record<string, unknown>[]): { cols: string[]; rows: unknown[][] } => {
+  const set = new Set<string>();
+  for (const r of rows) for (const k of Object.keys(r)) set.add(k);
+  const cols = [...set];
+  return { cols, rows: rows.map((r) => cols.map((c) => r[c])) };
+};
+
+/**
+ * 注文の家族情報を、画面の家族名検索に使う「名前」だけにする（v2.2.271。1.8MB → 数百KB）。
+ * ⚠️ 形は今までと同じ `{ id, family_info: JSON 文字列 }`（画面は safeParse して .name を見る）。
+ * ⚠️ 読めない値は '[]'（画面の safeParse も読めなければ [] にしていた）。
+ */
+export const familyNamesOnly = (rows: Record<string, unknown>[]): Record<string, unknown>[] =>
+  rows.map((r) => {
+    let names: { name: unknown }[] = [];
+    try {
+      const parsed: unknown = typeof r.family_info === 'string' ? JSON.parse(r.family_info) : [];
+      if (Array.isArray(parsed)) {
+        names = parsed.map((p) => ({ name: (p as { name?: unknown } | null)?.name }));
+      }
+    } catch {
+      names = [];
+    }
+    return { id: r.id, family_info: JSON.stringify(names) };
+  });
+
 export const runDatabase = async (category: DatabaseCategory): Promise<DatabaseResult> => {
   const sql = databaseSql(category);
 
@@ -59,8 +90,9 @@ export const runDatabase = async (category: DatabaseCategory): Promise<DatabaseR
     staff,
     shop,
     medium,
-    customer,
-    family,
+    // ⚠️ v2.2.271: ② だけ「列名1回＋値の並び」。① の PHP は従来の配列のまま（画面はどちらでも読む）
+    customer: toColumnar(customer as unknown as Record<string, unknown>[]),
+    family: category === 'order' ? familyNamesOnly(family as unknown as Record<string, unknown>[]) : family,
   };
 
   if (category === 'order') {

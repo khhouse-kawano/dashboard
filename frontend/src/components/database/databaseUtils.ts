@@ -96,6 +96,38 @@ export const safeParse = (data: any) => {
     }
 };
 
+/**
+ * 顧客一覧の応答を行の配列にする（v2.2.271）。
+ * ⚠️ ② は「列名1回＋値の並び」（{ cols, rows }）、① の PHP は従来の配列で返す。どちらでも同じ配列になる。
+ */
+export const decodeRows = <T = Record<string, any>>(data: unknown): T[] => {
+    if (Array.isArray(data)) return data as T[];
+    const c = data as { cols?: unknown; rows?: unknown } | null | undefined;
+    if (!c || !Array.isArray(c.cols) || !Array.isArray(c.rows)) return [];
+    const cols = c.cols as string[];
+    return (c.rows as unknown[][]).map(r => {
+        const o: Record<string, unknown> = {};
+        for (let i = 0; i < cols.length; i++) o[cols[i]] = r[i];
+        return o as T;
+    });
+};
+
+export type HotleadActions = { calls: number; mails: number; sms: number };
+
+/**
+ * ホットリードの行動の件数（架電・メール・SMS）。行動履歴が空なら null。
+ * ⚠️ v2.2.271: ② は件数（has_action・action_calls・action_mails・action_sms）だけ返す。① の PHP は全文（action_history）。
+ */
+export const hotleadActions = (h: Record<string, any>): HotleadActions | null => {
+    if (typeof h.action_history === 'string' || h.action_history === null) {
+        const a: string = h.action_history ?? '';
+        if (!a) return null;
+        return { calls: a.split('架電').length - 1, mails: a.split('メール').length - 1, sms: a.split('SMS').length - 1 };
+    }
+    if (!Number(h.has_action)) return null;
+    return { calls: Number(h.action_calls) || 0, mails: Number(h.action_mails) || 0, sms: Number(h.action_sms) || 0 };
+};
+
 export const hotleadStyle = (status: string | null) => {
   if (!status) return;
 
