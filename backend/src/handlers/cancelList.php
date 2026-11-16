@@ -17,7 +17,8 @@ $sql_customer = "SELECT
   COALESCE(cancel_status, '') AS cancel_status,
   COALESCE(status, '') AS status,
   COALESCE(sales_promotion_name, '') AS medium
- FROM master_data WHERE show_dashboard = 1;
+ FROM master_data WHERE show_dashboard = 1
+  AND COALESCE(delete_dashboard, 0) = 0; -- v2.2.271: 個人情報の削除依頼があった顧客は出さない
 ";
 $stmt_customer = $pdo->prepare($sql_customer);
 $stmt_customer->execute();

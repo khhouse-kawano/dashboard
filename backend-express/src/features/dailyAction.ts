@@ -306,6 +306,7 @@ const CANCEL_SQL = `
     FROM master_data m
     LEFT JOIN ${VISIBLE_SHOPS} s ON s.shop = TRIM(m.in_charge_store)
    WHERE m.show_dashboard = 1
+     AND COALESCE(m.delete_dashboard, 0) = 0 /* v2.2.271: 個人情報の削除依頼があった顧客は出さない（menu.ts と同じ） */
      AND COALESCE(m.step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') = ''
      AND COALESCE(m.cancel_status, '') = ''
      AND COALESCE(m.status, '') <> '重複'

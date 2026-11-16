@@ -50,9 +50,11 @@ $response_sync = $stmt_sync->fetch(PDO::FETCH_ASSOC);
 // ⚠️ reserved_interview は 'YYYY/MM/DD' と 'YYYY-MM-DD' が混在するため
 //   REPLACE してから STR_TO_DATE する。解釈できない値は NULL になり比較が偽になる。
 // ⚠️ 基準日 '2026-01-01' はフロントに直書きされていたものをそのまま移した。
+// ⚠️ v2.2.271: 個人情報の削除依頼があった顧客（delete_dashboard = 1）は数えない（② の menu.ts と同じ）。
 $sql_cancel = "SELECT COUNT(*) AS c
         FROM master_data
        WHERE show_dashboard = 1
+         AND COALESCE(delete_dashboard, 0) = 0
          AND COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') = ''
          AND COALESCE(cancel_status, '') = ''
          AND COALESCE(status, '') <> '重複'
