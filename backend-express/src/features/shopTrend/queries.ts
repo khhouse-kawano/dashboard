@@ -168,8 +168,64 @@ const MEDIUM_SQL: Record<ShopTrendCategory, string> = {
  * 販促費。
  * ⚠️ `response_medium = 0`（反響媒体ではないもの）で共通。
  *   section だけ事業で変わる（BUDGET_SECTION 参照）。
+ *
+ * ⚠️ v2.2.277: 期間を送られたとき（BUDGET_PERIOD_SQL）は、画面が使う6列だけを返す。
+ *   ⚠️ 期間が無いとき（古い画面）は今までどおり全列（BUDGET_SQL）。
  */
 const BUDGET_SQL = `SELECT * FROM budget WHERE response_medium = 0 AND section = ?`;
+const BUDGET_PERIOD_SQL = `SELECT budget_period, shop, medium, budget_value, section, order_section
+  FROM budget WHERE response_medium = 0 AND section = ?`;
+
+/**
+ * 画面が月を数えるのに使う日付の列（v2.2.277）。
+ *
+ * ⚠️⚠️ **画面のどの数字も「この列のどれか1つが表示月（昨年実績なら前年同月も）に入る行」しか数えない。**
+ *   このどれかが期間に入る行に絞れば、全件のときと数字は変わらない
+ *   （「全期間」の列も表示月の合計で、文字どおりの全期間ではない）。
+ * ⚠️ 画面（ShopTrend*.tsx）の集計で見る列を増やしたら、ここにも足すこと。足さないと数字が減る。
+ * ⚠️ ① の shopTrendAction/shopTrend_{category}.php の $shopTrendDateColumns と同じにすること。
+ */
+const DATE_COLUMNS: Record<ShopTrendCategory, readonly string[]> = {
+  // register / interview / appointment / screening / contract / キャンセル（来場予約）
+  order: [
+    'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
+    'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+    'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+    'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+    'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+    'reserved_interview',
+  ],
+  // register / contact / interview / tour / appointment / screening / obtain / application / contract / contract_broker
+  spec: [
+    'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
+    'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z',
+    'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+    'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+    'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+    'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+    'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
+    'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+    'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
+    'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0',
+  ],
+  // register / contact / appraisal / negotiation_apo / interview / valuation / tour / screening /
+  // contract_reform / contract_buy / contract_sell（= negotiation） / appointment / キャンセル（来場予約）
+  used: [
+    'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
+    'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z',
+    'step_migration_item_01J82Z5F1WE8SKEES6VNN37B22',
+    'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
+    'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+    'step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN',
+    'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+    'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+    'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+    'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
+    'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0',
+    'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+    'reserved_interview',
+  ],
+};
 
 export const shopTrendSql = (category: ShopTrendCategory) => ({
   staff: STAFF_SQL[category],
@@ -178,6 +234,8 @@ export const shopTrendSql = (category: ShopTrendCategory) => ({
   customer: CUSTOMER_SQL[category],
   medium: MEDIUM_SQL[category],
   budget: BUDGET_SQL,
+  budgetPeriod: BUDGET_PERIOD_SQL,
+  dateColumns: DATE_COLUMNS[category],
   division: DIVISION[category],
   budgetSection: BUDGET_SECTION[category],
 });

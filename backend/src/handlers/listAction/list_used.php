@@ -4,10 +4,10 @@
 // ⚠️ v2.2.274: 期間（$listMonths。list.php が作る）で絞る。null なら全件（今までどおり）
 $listMonths = $listMonths ?? null;
 // ⚠️ 上部サマリーは反響取得日・初回面談日のどちらかが期間内の顧客（画面はそれぞれの月で数える）
-[$registerCond, $registerParams] = listMonthCondition('step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99', $listMonths);
-[$interviewCond, $interviewParams] = listMonthCondition('step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7', $listMonths);
-[$inquiryCond, $inquiryParams] = listMonthCondition('inquiry_date', $listMonths);
-[$surveyCond, $surveyParams] = listMonthCondition('dateStr', $listMonths);
+[$registerCond, $registerParams] = monthCondition('step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99', $listMonths);
+[$interviewCond, $interviewParams] = monthCondition('step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7', $listMonths);
+[$inquiryCond, $inquiryParams] = monthCondition('inquiry_date', $listMonths);
+[$surveyCond, $surveyParams] = monthCondition('dateStr', $listMonths);
 
 //来場の状況
 $sql_summary = "SELECT 

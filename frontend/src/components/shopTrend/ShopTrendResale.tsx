@@ -18,11 +18,22 @@ import {
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { setSection } from '../../utils/setSection';
 import { budgetFilter } from '../../utils/budgetFilter';
-import { get11MonthsAgoString } from '../../utils/get11MonthsAgoString';
 import { isLastYear } from '../../utils/isLastYear';
 import InformationEditResale from '../information/InformationEditResale';
 import CustomerListModal from '../CustomerListModal';
-import apiClient from '../../utils/apiClient';
+import { useMonthPeriod } from '../../utils/useMonthPeriod';
+import type { MonthPeriodDefaults } from '../../utils/useMonthPeriod';
+import { useTrendData } from '../../utils/useTrendData';
+import TrendLoadingNotice from '../TrendLoadingNotice';
+
+/**
+ * 中古の期間の初期値（v2.2.277 で URL に持つようにしたとき、それまでの決め方のまま移した）。
+ * 開始月は 2026/06 で固定（選択肢に無ければ先頭）、終了月は選択肢の最後（当月）。
+ */
+const RESALE_PERIOD_DEFAULTS: MonthPeriodDefaults = {
+    start: monthArray => (monthArray.includes('2026/06') ? '2026/06' : monthArray[0]),
+    end: monthArray => monthArray[monthArray.length - 1],
+};
 
 type Shop = Record<string, string>;
 type Customer = Record<string, string>;
@@ -36,7 +47,10 @@ type CheckItem = {
 type CheckedState = {
     [key: string]: CheckItem;
 };
-type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note: string, company: string, response_medium: number, section: string, order_section: string };
+/** ⚠️ v2.2.277: 期間を送ると、サーバーは画面が使う6列だけを返す（note / company / response_medium は来ない） */
+type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note?: string, company?: string, response_medium?: number, section: string, order_section: string };
+/** shopTrend の応答（v2.2.277） */
+type ShopTrendResponse = { customer: Customer[]; staff: Staff[]; medium: Medium[]; budget: Budget[] };
 
 const originalShopArray = [{
     shop: '買い:中古リノベ', section: '中古住宅専門店'
@@ -57,10 +71,9 @@ const ShopTrendResale = () => {
     const { authority, category } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<Shop[]>(originalShopArray);
     const [originalCustomerList, setOriginalCustomerList] = useState<Customer[]>([]);
-    const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
-    const [startMonth, setStartMonth] = useState('2026/06');
-    const [endMonth, setEndMonth] = useState('');
-    const [originalMonthArray, setOriginalMonthArray] = useState<string[]>([]);
+    /** ⚠️ v2.2.277: 期間は URL のクエリで持つ（utils/useMonthPeriod.ts） */
+    const { startMonth, endMonth, setStartMonth, setEndMonth } = useMonthPeriod(RESALE_PERIOD_DEFAULTS);
+    const [originalMonthArray] = useState<string[]>(() => getYearMonthArray(2025, 1));
     const [targetMedium, setTargetMedium] = useState('');
     const [targetSection, setTargetSection] = useState('');
     const [targetBrand, setTargetBrand] = useState('');
@@ -90,22 +103,24 @@ const ShopTrendResale = () => {
 
     const [editId, setEditId] = useState('');
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post("", { request: 'shopTrend', category });
-                await setOriginalCustomerList(response.data.customer);
-                await setMediumArray(response.data.medium);
-                await setOriginalMonthArray(getYearMonthArray(2025, 1));
-                await setStaff(response.data.staff.filter(s => s.rank === 1));
-                await setBudget(response.data.budget);
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        };
+    /**
+     * ⚠️ v2.2.277: 選んだ期間の分だけ GET で読む（utils/useTrendData.ts）。
+     *   ⚠️ 昨年実績・広告費は、チェックを入れたときだけ前年の月・広告費を足して読み直す（外したときは読み直さない）。
+     *   ⚠️ 店舗・媒体などの絞り込みは画面の中だけで済むので読み直さない（選んだ値もそのまま残る）。
+     */
+    const trend = useTrendData<ShopTrendResponse>('shopTrend', category, startMonth, endMonth, {
+        lastYear: checked.comparison.show,
+        budget: checked.budget.show,
+    });
 
-        fetchData();
-    }, []);
+    useEffect(() => {
+        const data = trend.data;
+        if (!data) return;
+        setOriginalCustomerList(data.customer);
+        setMediumArray(data.medium);
+        setStaff(data.staff.filter(s => s.rank === 1));
+        setBudget(data.budget);
+    }, [trend.data]);
 
     const customerList = useMemo(() => {
         const filtered = originalCustomerList.filter(item => {
@@ -335,18 +350,10 @@ const ShopTrendResale = () => {
         setListShow({ show: true, label: labelValue });
     };
 
+    /** ⚠️ 詳細で日付を直すと数字が変わるため、閉じたらいまの期間・チェックのまま読み直す */
     const closeInformationEdit = () => {
         setEditId('');
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post("", { request: 'shopTrend', category });
-                await setOriginalCustomerList(response.data.customer);
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        };
-
-        fetchData();
+        trend.reload();
     };
 
 const formateSummary = (
@@ -578,8 +585,9 @@ const formateSummary = (
                                 const filteredBudget = budgetFilter(baseBudget, targetSection, target.shop, targetIndex);
                                 const formattedValue = filteredBudget.reduce((acc, cur) => acc + cur.budget_value, 0);
                                 let formattedLastYearValue;
+                                // ⚠️ v2.2.277: 以前は section === 'order' で絞っていたため、中古の広告費（section = 'use'）が1件も入らず昨年の広告費が常に0だった
                                 const lastYearBudget = budgetList.filter(b =>
-                                    b.section === 'order'
+                                    b.section === 'use'
                                     && (monthIndex > 0 ? b.budget_period.includes(lastYear) : lastYearMonthArray.includes(b.budget_period.slice(0, 7)))
                                     && (targetBrand ? b.shop.slice(0, 2) === targetBrand.slice(0, 2) : true)
                                     && (targetMedium ? b.medium === targetMedium : true));
@@ -690,16 +698,15 @@ const formateSummary = (
     const searchPart = () => {
         return <>                <div className="d-flex flex-wrap mb-1 search_condition">
             <div className="m-1">
-                <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                    <option value="" selected>開始月</option>
+                {/* ⚠️ v2.2.277: 期間は URL で持つので value で制御する（以前は「開始月」「終了月」の見出しが選ばれたまま、実際は 2026/06〜当月だった） */}
+                <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
                     {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                     ))}
                 </select>
             </div>
             <span className='d-flex align-items-center mx-1'>～</span>
             <div className="m-1">
-                <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                    <option value="" selected>終了月</option>
+                <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)}>
                     {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                     ))}
                 </select>
@@ -762,13 +769,13 @@ const formateSummary = (
         <>
             <div className='content bg-white p-2'>
                 {searchPart()}
-                <div className="table-wrapper">
+                {!trend.isReady ? <TrendLoadingNotice failed={trend.failed} /> : <div className="table-wrapper">
                     <div className="list_table">
                         <div style={{ width: `${(monthArray.length + 1) * 210 + 120}px` }}>
                             {targetShop ? staffSummary() : shopSummary()}
                         </div>
                     </div>
-                </div>
+                </div>}
             </div>
             <Modal show={show} onHide={modalClose} size='xl'>
                 <Modal.Header closeButton>
