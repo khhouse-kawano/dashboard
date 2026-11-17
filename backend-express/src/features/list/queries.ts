@@ -23,7 +23,7 @@
  * ─────────────────────────────────────────────
  */
 
-import { monthCondition } from './period';
+import { monthCondition } from '../../utils/period';
 
 export type ListCategory = 'order' | 'spec' | 'used';
 

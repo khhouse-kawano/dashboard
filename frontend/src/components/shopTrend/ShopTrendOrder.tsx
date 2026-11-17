@@ -18,12 +18,13 @@ import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { setSection } from '../../utils/setSection';
 import { setStaffLength } from '../../utils/setStaffLength';
 import { budgetFilter } from '../../utils/budgetFilter';
-import { get11MonthsAgoString } from '../../utils/get11MonthsAgoString';
 import { isLastYear } from '../../utils/isLastYear';
 import InformationEdit from '../information/InformationEdit';
 import CustomerListModal from '../CustomerListModal';
 import { thisYear } from '../../utils/thisYear';
-import apiClient from '../../utils/apiClient';
+import { TREND_PERIOD_DEFAULTS, useMonthPeriod } from '../../utils/useMonthPeriod';
+import { useTrendData } from '../../utils/useTrendData';
+import TrendLoadingNotice from '../TrendLoadingNotice';
 
 /**
  * 店舗。
@@ -42,17 +43,19 @@ type CheckItem = {
 type CheckedState = {
     [key: string]: CheckItem;
 };
-type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note: string, company: string, response_medium: number, section: string, order_section: string };
+/** ⚠️ v2.2.277: 期間を送ると、サーバーは画面が使う6列だけを返す（note / company / response_medium は来ない） */
+type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note?: string, company?: string, response_medium?: number, section: string, order_section: string };
+/** shopTrend の応答（v2.2.277）。⚠️ section は section_list の課名 */
+type ShopTrendResponse = { customer: Customer[]; shop: Shop[]; staff: (Staff & { period: string })[]; medium: Medium[]; section?: { name: string }[]; budget: Budget[] };
 const ShopTrendOrder = () => {
     const { authority, category } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<Shop[]>([]);
     const [originalShopArray, setOriginalShopArray] = useState<Shop[]>([]);
     const [customerList, setCustomerList] = useState<Customer[]>([]);
     const [originalCustomerList, setOriginalCustomerList] = useState<Customer[]>([]);
-    const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
-    const [startMonth, setStartMonth] = useState(startMonthValue);
-    const [endMonth, setEndMonth] = useState('');
-    const [originalMonthArray, setOriginalMonthArray] = useState<string[]>([]);
+    /** ⚠️ v2.2.277: 期間は URL のクエリで持つ（utils/useMonthPeriod.ts）。初期値は11か月前〜当月 */
+    const { startMonth, endMonth, setStartMonth, setEndMonth } = useMonthPeriod(TREND_PERIOD_DEFAULTS);
+    const [originalMonthArray] = useState<string[]>(() => getYearMonthArray(2025, 1));
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [targetMedium, setTargetMedium] = useState('');
     const [targetSection, setTargetSection] = useState('');
@@ -148,29 +151,30 @@ const ShopTrendOrder = () => {
     /** その店舗を行・選択肢として表示してよいか */
     const isVisibleShop = (shopName: string): boolean => !(showMulti && mergedChildShops.has(shopName));
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post("", { request: 'shopTrend', category });
-                await setOriginalCustomerList(response.data.customer);
-                await setOriginalShopArray(response.data.shop.filter(s => !s.shop.includes('全店舗')));
-                await setShopArray(response.data.shop);
-                await setMediumArray(response.data.medium.filter(m => m.list_medium === 1));
-                await setOriginalMonthArray(getYearMonthArray(2025, 1));
-                await setStaff(response.data.staff.filter(s => s.rank === 1 && s.period === String(thisYear)));
-                // ⚠️ サーバは section_list を division で絞って `[{name: '...'}]` で返す
-                //   （shopTrendAction/shopTrend_{category}.php:20）。
-                //   ⚠️ 追加のDBアクセスは無い。元々実行されていた結果を受け取るだけ
-                await setSectionNames((response.data.section ?? []).map((s: { name: string }) => s.name));
-                await setBudget(response.data.budget);
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        };
+    /**
+     * ⚠️ v2.2.277: 選んだ期間の分だけ GET で読む（utils/useTrendData.ts）。
+     *   ⚠️ 昨年実績・広告費は、チェックを入れたときだけ前年の月・広告費を足して読み直す（外したときは読み直さない）。
+     *   ⚠️ 課・店舗・媒体などの絞り込みは画面の中だけで済むので読み直さない（選んだ値もそのまま残る）。
+     */
+    const trend = useTrendData<ShopTrendResponse>('shopTrend', category, startMonth, endMonth, {
+        lastYear: checked.comparison.show,
+        budget: checked.budget.show,
+    });
 
-        fetchData();
-        setMonthArray(getYearMonthArray(2025, 1));
-    }, []);
+    useEffect(() => {
+        const data = trend.data;
+        if (!data) return;
+        setOriginalCustomerList(data.customer);
+        setOriginalShopArray(data.shop.filter(s => !s.shop.includes('全店舗')));
+        setShopArray(data.shop);
+        setMediumArray(data.medium.filter(m => m.list_medium === 1));
+        setStaff(data.staff.filter(s => s.rank === 1 && s.period === String(thisYear)));
+        // ⚠️ サーバは section_list を division で絞って `[{name: '...'}]` で返す
+        //   （shopTrendAction/shopTrend_{category}.php:20）。
+        //   ⚠️ 追加のDBアクセスは無い。元々実行されていた結果を受け取るだけ
+        setSectionNames((data.section ?? []).map((s: { name: string }) => s.name));
+        setBudget(data.budget);
+    }, [trend.data]);
 
     useEffect(() => {
         const filtered = originalCustomerList.filter(item => {
@@ -357,35 +361,26 @@ const ShopTrendOrder = () => {
         setListShow({ show: true, label: labelValue });
     };
 
+    /** ⚠️ 詳細で日付を直すと数字が変わるため、閉じたらいまの期間・チェックのまま読み直す */
     const closeInformationEdit = () => {
         setEditId('');
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post("", { request: 'shopTrend' });
-                await setOriginalCustomerList(response.data.customer);
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        };
-
-        fetchData();
+        trend.reload();
     };
 
     return (
         <>
             <div className='content bg-white p-2'>
                 <div className="d-flex flex-wrap mb-1 search_condition">
+                    {/* ⚠️ v2.2.277: 期間は URL で持つので value で制御する（以前は「開始月」「終了月」の見出しが選ばれたまま、実際は11か月前〜当月だった） */}
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                            <option value="" selected>開始月</option>
+                        <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
                             {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <span className='d-flex align-items-center mx-1'>～</span>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                            <option value="" selected>終了月</option>
+                        <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)}>
                             {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
@@ -479,7 +474,7 @@ const ShopTrendOrder = () => {
                         )}
                     </div></>}
                 <div className='ps-2' style={{ fontSize: '13px' }}>※来場数・契約数は"実績日"起算となります。</div>
-                <div className="table-wrapper">
+                {!trend.isReady ? <TrendLoadingNotice failed={trend.failed} /> : <div className="table-wrapper">
                     <div className="list_table">
                         <div style={{ width: `${(monthArray.length + 1) * 190 + 120}px` }}>
                             {targetShop ?
@@ -716,7 +711,7 @@ const ShopTrendOrder = () => {
                                 </Table>}
                         </div>
                     </div>
-                </div>
+                </div>}
             </div>
             <Modal show={show} onHide={modalClose} size='xl'>
                 <Modal.Header closeButton>

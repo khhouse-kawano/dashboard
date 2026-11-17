@@ -16,11 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $contentType = isset($_SERVER["CONTENT_TYPE"]) ? trim($_SERVER["CONTENT_TYPE"]) : '';
 
 /**
- * GET で受けてよい request（v2.2.274）。⚠️ 参照だけの処理を足すこと（次の版で 'shopTrend' を足す予定）。
+ * GET で受けてよい request（v2.2.274）。⚠️ 参照だけの処理を足すこと。
  * ⚠️ 書き込みを伴う request を入れない（GET はリンク1つで送れてしまう）。
  * ⚠️ roll 付きは受けない（list の roll はすべて書き込み）。
+ * v2.2.277: 'shopTrend'（店舗別反響推移）を足した。
  */
-const GET_ALLOWED_REQUESTS = ['list'];
+const GET_ALLOWED_REQUESTS = ['list', 'shopTrend'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $getRequest = is_string($_GET['request'] ?? null) ? $_GET['request'] : '';
