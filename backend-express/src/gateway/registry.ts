@@ -47,6 +47,7 @@ import {
   runEventBudgetUpdate,
 } from '../features/eventBudget';
 import { runList } from '../features/list';
+import { runInquiryDup } from '../features/inquiryDup';
 import { runShopTrend } from '../features/shopTrend';
 import { runCustomerTrend } from '../features/customerTrend';
 import { runShop } from '../features/shop';
@@ -1824,8 +1825,31 @@ for (const category of ['order', 'spec', 'used']) {
     phpSource: `backend/src/handlers/listAction/list_${category}.php`,
     auth: 'staff',
     handler: async (ctx) => {
-      // ⚠️ v2.2.274: 期間（startMonth / endMonth）と dup も渡す
+      // ⚠️ v2.2.274: 期間（startMonth / endMonth）も渡す
       const result = await runList(ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 反響一覧の重複の詳細（v2.2.276。list/DuplicateBadge.tsx）
+//
+// ⚠️⚠️ **① に PHP ハンドラが存在しない。** express_proxy.php の expressProxyRequests() と
+//   expressProxyExclusive() の両方、request_auth.php の REQUEST_AUTH_REQUIRED に入れてある。
+// ⚠️ 参照のみ（重複判定の表を作り直すことはある。features/inquiryDup/refresh.ts）。
+// ---------------------------------------------------------------------------
+
+for (const category of ['order', 'spec', 'used']) {
+  register({
+    request: 'inquiryDup',
+    category,
+    summary: `反響一覧の重複の詳細（${category}）`,
+    phpSource: '（なし。② だけ）',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runInquiryDup(ctx.body);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

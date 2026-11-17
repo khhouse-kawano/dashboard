@@ -18,6 +18,7 @@ import type { TagKey } from './listTags';
 import { useIsSp } from '../../utils/isSp';
 import OrderModal from './OrderModal';
 import TrackingTouches, { landingLabel } from './TrackingTouches';
+import DuplicateBadge from './DuplicateBadge';
 import { hiraToKata } from '../../utils/nexusUtils';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
@@ -33,12 +34,9 @@ type InquiryCustomer = {
     url_params?: string | null, landing_params?: string | null,
     // 顧客タグ。判定は listTags.ts に集約している
     duplicate_flag: number, gift_flag: number, support_flag: number, black_flag: number,
+    // ⚠️ v2.2.276: 事業をまたいだ重複の件数（サーバーが数える。DuplicateBadge.tsx）
+    dup_count?: number | string,
 };
-
-/**
- * 重複判定用の反響（v2.2.274。サーバーの dup。⚠️ 突き合わせと重複相手の表示に使う列だけ）
- */
-type DupRow = Pick<InquiryCustomer, 'inquiry_id' | 'first_name' | 'last_name' | 'mobile' | 'mail' | 'shop' | 'response_medium'>;
 
 type Customer = { register: string, shop: string, interview: string, medium: string };
 
@@ -61,68 +59,10 @@ const monthArray = getYearMonthArray(2025, 1);
 /* 追客対象外の判定は listTags.ts の isExcluded / notNeedSync を使う */
 
 /**
- * 重複判定に使う値の正規化（v2.2.165）。
- *
- * ⚠️⚠️ **`inquiry_customer.duplicate` 列は使わない。** ⚠️ 画面で全反響を突き合わせて判定する。
- *   氏名   … 前後の空白を落とし、途中のスペース（⚠️ 全角も）を取り除く
- *   携帯   … ⚠️ 全角→半角にして **数字だけ**にする（listUtils の toHalfWidth）
- *   メール … 前後の空白を落とし、途中のスペースを取り除く
- * ⚠️ 空になった値は ⚠️ **突き合わせに使わない**（⚠️ 空どうしを「一致」にしない）。
- */
-const normalizeText = (value: string | null | undefined): string => String(value ?? '').trim().replace(/[\s　]+/g, '');
-const nameKey = (item: DupRow): string => normalizeText(`${item.first_name || ''}${item.last_name || ''}`);
-const mobileKey = (item: DupRow): string => toHalfWidth(String(item.mobile ?? '').trim());
-const mailKey = (item: DupRow): string => normalizeText(item.mail);
-
-/**
  * そのタグが「立っていない」か。絞り込み条件で使う。
  * ⚠️ v2.2.165: state を使わないのでコンポーネントの外へ出した（⚠️ useMemo の依存に入れずに済む）
  */
 const isSync = (list: InquiryCustomer, tag: TagKey) => !isTagOn(list, tag);
-
-/** ⚠️ 何項目以上一致したら重複とみなすか（指示書: 氏名・携帯・メールのうち2つ以上） */
-const DUPLICATE_MIN_MATCHES = 2;
-
-/**
- * 重複顧客の一覧（inquiry_id → 重複相手の行）。
- *
- * ⚠️⚠️ **総当たり（n²）にしない。** ⚠️ 反響は数万件ある。
- *   ⚠️ 3つの値それぞれで「値 → 行番号」の索引を1回作り、
- *   ⚠️ 同じ値を持つ行だけを相手の候補として、⚠️ 一致した項目の数を数える。
- * ⚠️ 自分自身は数えない。
- */
-const buildDuplicateMap = (list: DupRow[]): Map<string, DupRow[]> => {
-    const keyFns = [nameKey, mobileKey, mailKey];
-    const keys = list.map(item => keyFns.map(fn => fn(item)));
-    const indexes = keyFns.map((_, k) => {
-        const index = new Map<string, number[]>();
-        keys.forEach((rowKeys, i) => {
-            const key = rowKeys[k];
-            if (key === '') return;
-            const rows = index.get(key);
-            if (rows) rows.push(i);
-            else index.set(key, [i]);
-        });
-        return index;
-    });
-
-    const result = new Map<string, DupRow[]>();
-    keys.forEach((rowKeys, i) => {
-        const matches = new Map<number, number>();
-        rowKeys.forEach((key, k) => {
-            if (key === '') return;
-            for (const j of indexes[k].get(key) ?? []) {
-                if (j !== i) matches.set(j, (matches.get(j) ?? 0) + 1);
-            }
-        });
-        const partners: DupRow[] = [];
-        matches.forEach((count, j) => {
-            if (count >= DUPLICATE_MIN_MATCHES) partners.push(list[j]);
-        });
-        if (partners.length > 0) result.set(list[i].inquiry_id, partners);
-    });
-    return result;
-};
 
 const ListOrder = ({ onReload }: Props) => {
     const { authority, token, category } = useContext(AuthContext);
@@ -178,12 +118,6 @@ const ListOrder = ({ onReload }: Props) => {
     );
 
     const [reloading, setReloading] = useState(false);
-    /**
-     * 重複判定用の全反響（v2.2.274。期間に関係なく、⚠️ 軽い列だけ）。
-     * ⚠️ 初回と「再読み込み」のときだけ取る（needDupRef）。⚠️ 期間を変えたときは取り直さない。
-     */
-    const [dupList, setDupList] = useState<DupRow[]>([]);
-    const needDupRef = useRef(true);
     /** ⚠️ 最後に送った読み込みの番号。⚠️ 古い応答で新しい期間の結果を上書きしない */
     const loadSeqRef = useRef(0);
 
@@ -194,11 +128,10 @@ const ListOrder = ({ onReload }: Props) => {
      */
     const loadList = useCallback(async (start: string, end: string) => {
         const seq = ++loadSeqRef.current;
-        const withDup = needDupRef.current;
         const now = new Date();
         const thisYear = now.getMonth() <= 4 ? now.getFullYear() : now.getFullYear() + 1;
         try {
-            const data = await fetchListData(category, start, end, withDup);
+            const data = await fetchListData(category, start, end);
             if (seq !== loadSeqRef.current) return;
             setCustomerList(data.summary);
             setShopArray(data.shop);
@@ -213,11 +146,6 @@ const ListOrder = ({ onReload }: Props) => {
             setOriginalBeforeList(data.survey);
             setBlackList(data.black);
             setSections(responseSection);
-            // ⚠️ 受け取れたときだけ「取得済み」にする（⚠️ 途中で期間を変えて捨てた応答では取得済みにしない）
-            if (withDup && Array.isArray(data.dup)) {
-                setDupList(data.dup);
-                needDupRef.current = false;
-            }
         } catch (error) {
             console.error("データ取得エラー:", error);
         }
@@ -225,7 +153,6 @@ const ListOrder = ({ onReload }: Props) => {
 
     const reload = async () => {
         setReloading(true);
-        needDupRef.current = true;
         await loadList(startMonth, endMonth);
         setReloading(false);
     };
@@ -236,7 +163,6 @@ const ListOrder = ({ onReload }: Props) => {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         // ⚠️ v2.2.275: 期間の初期値（開始月は1か月前）は useListPeriod が決める。⚠️ 事業を変えても期間は URL のまま
         setSelectedMonth([`${year}/${month}`]);
-        needDupRef.current = true;
     }, [category]);
 
     /**
@@ -328,12 +254,6 @@ const ListOrder = ({ onReload }: Props) => {
         setDisplayLength(20);
         setCheckedIds([]);
     }, [filterKey]);
-
-    /**
-     * 重複顧客（v2.2.165）。⚠️ 期間などの絞り込みに関係なく、⚠️ **反響すべて**から探す。
-     * ⚠️ v2.2.274: 一覧は期間の分しか持たないので、⚠️ 全反響の軽い列（dupList）から探す。
-     */
-    const duplicateMap = useMemo(() => buildDuplicateMap(dupList), [dupList]);
 
     /** ⚠️ v2.2.164 までは useEffect で state に写していた。⚠️ 写さずにそのまま使う */
     const surveyBeforeList = useMemo(
@@ -549,11 +469,6 @@ const ListOrder = ({ onReload }: Props) => {
      */
     const patchRow = (id: string, patch: Partial<InquiryCustomer>) => {
         setOriginalList(prev => prev.map(row => row.inquiry_id === id ? { ...row, ...patch } : row));
-        // ⚠️ v2.2.274: 重複相手の表示（店舗）も合わせる（⚠️ 以前は originalList から作っていたので一緒に変わっていた）
-        if (patch.shop !== undefined) {
-            const shop = patch.shop;
-            setDupList(prev => prev.map(row => row.inquiry_id === id ? { ...row, shop } : row));
-        }
         keepRow(id);
     };
 
@@ -754,7 +669,6 @@ const ListOrder = ({ onReload }: Props) => {
                                                       border-bottom: 1px solid #e5e7eb; }
                 .lo_saas .inquiry .table td { border-color: #eef0f3; }
                 .lo_saas .inquiry .lo_summary { margin-bottom: 12px; }
-                .lo_saas .lo_dup { border-radius: 6px; padding: 1px 6px; font-size: 11px; width: fit-content; }
                 .lo_saas .lo_badge { display: inline-flex; align-items: center; border-radius: 6px; padding: 3px 7px;
                                      color: #fff; cursor: pointer; }
                 .lo_saas .lo_badge_sync { background: #2563eb; }
@@ -898,7 +812,7 @@ const ListOrder = ({ onReload }: Props) => {
                                 <td style={{ width: '90px' }}>反響媒体</td>
                                 <td style={{ width: '80px' }}>お客様名</td>
                                 <td style={{ width: '200px' }}>連絡先</td>
-                                <td style={{ width: '130px' }}>詳細</td>
+                                <td style={{ width: '130px' }}>重複</td>
                                 <td style={{ width: '120px' }}>予定地</td>
                                 <td style={{ width: '400px' }}>顧客タグ</td>
                                 <td style={{ width: '110px', textAlign: 'center' }}>個人情報</td>
@@ -910,7 +824,6 @@ const ListOrder = ({ onReload }: Props) => {
                                 const styleClass = setStyleClass(item.shop || '');
                                 const blacklisted = isBlack(item);
                                 const survey = rowSurvey(item);
-                                const duplicates = duplicateMap.get(item.inquiry_id);
                                 const flow = landingLabel(item.landing_params);
 
                                 return (
@@ -981,15 +894,10 @@ const ListOrder = ({ onReload }: Props) => {
                                         <td>{item.first_name || ''}{item.last_name || ''}</td>
                                         <td>{item.pref || ''}{item.city || ''}{item.town || ''}{item.street || ''}{item.building || ''}<br />{toHalfWidth(item.mobile || '')}{(!item.mobile && item.landline) && `/${toHalfWidth(item.landline || '')}`}</td>
                                         {/*
-                                          ⚠️⚠️ v2.2.165: **重複は duplicate 列ではなく画面で判定する**（buildDuplicateMap）。
-                                            ⚠️ 氏名・携帯・メールのうち2つ以上が一致した相手を ⚠️ `{店舗}_{媒体}重複` で出す。
-                                            ⚠️ 色は相手の店舗の色。⚠️ ホットリードへのリンクは出さない（2026-10-06 の確認）。
+                                          ⚠️⚠️ v2.2.276: 重複は注文・建売・中古をまたいで、メールか携帯が同じ反響（サーバーが数えた dup_count）。
+                                            ⚠️ 画面では判定しない。⚠️ 札を押すと相手の一覧（DuplicateBadge.tsx）。
                                         */}
-                                        <td>{duplicates?.map((d) => (
-                                            <div key={d.inquiry_id} style={setStyleClass(d.shop || '')} className='mb-1 lo_dup'>
-                                                {`${d.shop || ''}_${d.response_medium || ''}重複`}
-                                            </div>
-                                        ))}</td>
+                                        <td><DuplicateBadge brand="order" id={Number(item.id)} count={Number(item.dup_count ?? 0)} name={`${item.first_name || ''}${item.last_name || ''}`} /></td>
                                         <td>{item.area || ''}</td>
                                         <td>
                                             <div className='d-flex'>

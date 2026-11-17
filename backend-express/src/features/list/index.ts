@@ -2,6 +2,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import { listPeriodMonths } from './period';
 import { listSql } from './queries';
+import { refreshDupKeysSafely } from '../inquiryDup/refresh';
 import type { ListCategory } from './queries';
 
 /**
@@ -40,7 +41,6 @@ export interface ListParams {
   category?: unknown;
   startMonth?: unknown;
   endMonth?: unknown;
-  dup?: unknown;
 }
 
 export const runList = async (params: ListParams): Promise<ListResult> => {
@@ -73,6 +73,9 @@ export const runList = async (params: ListParams): Promise<ListResult> => {
 
   const sql = listSql(category, months);
 
+  // ⚠️ v2.2.276: 反響の dup_count（事業をまたいだ重複の件数）を最新にしてから読む。⚠️ 失敗しても前の件数で返す
+  await refreshDupKeysSafely();
+
   // ⚠️ 並列で投げる。PHP は逐次だったが結果は同じで、
   //   反響一覧と master_data が数万行あるため待ち時間が縮む
   const [summary, shop, staff, medium, inquiry, survey, black] = await Promise.all([
@@ -103,15 +106,6 @@ export const runList = async (params: ListParams): Promise<ListResult> => {
    */
   if (sql.section !== null) {
     body.section = await query<DynamicRow>(sql.section);
-  }
-
-  /**
-   * ⚠️ v2.2.274: 重複判定用の全反響（order だけ・dup=1 のときだけ。⚠️ ① の list_order.php と同じ）。
-   *   ⚠️ キーは section の後（PHP と同じ順）。
-   */
-  const wantsDup = params.dup === '1' || params.dup === 1;
-  if (sql.dup !== null && wantsDup) {
-    body.dup = await query<DynamicRow>(sql.dup);
   }
 
   return { httpStatus: 200, body };

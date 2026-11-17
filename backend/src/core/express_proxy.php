@@ -795,6 +795,10 @@ function expressProxyRequests(): array
         'meta_ads_import',
         'tracking_touches',
         'customer_pageviews',
+
+        // ⚠️ 2026-11-17（v2.2.276）。反響一覧の重複の詳細（list/DuplicateBadge.tsx）。⚠️ ① に PHP ハンドラは無い（② だけ）。
+        //   ⚠️ expressProxyExclusive() にも入れてある（② に届かないときは 502。画面のモーダルに失敗と出る）。
+        'inquiryDup',
     ];
 }
 
@@ -1130,6 +1134,9 @@ function expressProxyExclusive(): array
         //   ⚠️ ① の PHP ハンドラは残っている。障害時はこの2行を消せば ① に戻る。
         'k-snap_show',
         'k-snap_customer_update',
+
+        // ⚠️ 2026-11-17（v2.2.276）。反響一覧の重複の詳細。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す）。
+        'inquiryDup',
     ];
 }
 

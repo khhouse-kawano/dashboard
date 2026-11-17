@@ -13,6 +13,7 @@ import { useIsSp } from '../../utils/isSp';
 import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, positions, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
 import { useListPeriod } from './useListPeriod';
+import DuplicateBadge from './DuplicateBadge';
 import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
@@ -25,6 +26,8 @@ type InquiryCustomer = {
     duplicate: string, property: string, note: string,
     // 顧客タグ。判定は listTags.ts に集約している
     duplicate_flag: number, gift_flag: number, support_flag: number, black_flag: number,
+    // ⚠️ v2.2.276: 事業をまたいだ重複の件数（サーバーが数える。DuplicateBadge.tsx）
+    dup_count?: number | string,
 };
 
 type Customer = {
@@ -641,7 +644,7 @@ const ListResale = ({ onReload }: Props) => {
                             </tbody>
                         </Table>}
                     {/* ⚠️ v2.2.227: PC の幅は列の幅の合計（顧客タグは ListOrder と同じ 400px・個人情報 110px）。合計より狭いと顧客タグのボタンが折れる */}
-                    <Table striped bordered hover style={{ width: isSp ? '1200px' : '1830px', fontSize: isSp ? "8px" : "12px" }}>
+                    <Table striped bordered hover style={{ width: isSp ? '1290px' : '1920px', fontSize: isSp ? "8px" : "12px" }}>
                         <thead className='sticky-header'>
                             <tr className='sticky-header align-middle'>
                                 {/* 💡 顧客取込列にチェックボックスと同期ボタンを統合 */}
@@ -653,6 +656,7 @@ const ListResale = ({ onReload }: Props) => {
                                 <td style={{ width: '160px' }}>反響媒体</td>
                                 <td style={{ width: '130px' }}>お客様名</td>
                                 <td style={{ width: '200px' }}>連絡先</td>
+                                <td style={{ width: '90px' }}>重複</td>
                                 <td style={{ width: '130px' }}>物件名</td>
                                 <td style={{ width: '120px' }}>希望エリア</td>
                                 <td style={{ width: '400px' }}>顧客タグ</td>
@@ -722,6 +726,8 @@ const ListResale = ({ onReload }: Props) => {
                                         <td>{item.response_medium || ''}{(item.medium || '') !== 'ホームページ反響' || <><br /><span style={{ fontSize: '10px', fontWeight: 'bold' }}>（{item.hp_campaign || ''}）</span></>}</td>
                                         <td>{item.first_name || ''}{item.last_name || ''}</td>
                                         <td>{item.pref || ''}{item.city || ''}{item.town || ''}{item.street || ''}{item.building || ''}<br />{toHalfWidth(item.mobile || '')}{(!item.mobile && item.landline) && `/${toHalfWidth(item.landline || '')}`}</td>
+                                        {/* ⚠️ v2.2.276: 注文・建売・中古をまたいで、メールか携帯が同じ反響（サーバーが数えた dup_count）。札を押すと相手の一覧 */}
+                                        <td><DuplicateBadge brand="used" id={Number(item.id)} count={Number(item.dup_count ?? 0)} name={`${item.first_name || ''}${item.last_name || ''}`} /></td>
                                         <td>{item.property || ''}</td>
                                         <td>{item.area || ''}</td>
                                         <td>
