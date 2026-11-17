@@ -1824,7 +1824,8 @@ for (const category of ['order', 'spec', 'used']) {
     phpSource: `backend/src/handlers/listAction/list_${category}.php`,
     auth: 'staff',
     handler: async (ctx) => {
-      const result = await runList(ctx.body.category);
+      // ⚠️ v2.2.274: 期間（startMonth / endMonth）と dup も渡す
+      const result = await runList(ctx.body);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

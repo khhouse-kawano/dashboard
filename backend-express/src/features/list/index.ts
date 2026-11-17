@@ -1,5 +1,6 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
+import { listPeriodMonths } from './period';
 import { listSql } from './queries';
 import type { ListCategory } from './queries';
 
@@ -34,8 +35,16 @@ const ALLOWED: ListCategory[] = ['order', 'spec', 'used'];
 const isListCategory = (value: string): value is ListCategory =>
   (ALLOWED as string[]).includes(value);
 
-export const runList = async (rawCategory: unknown): Promise<ListResult> => {
-  const category = typeof rawCategory === 'string' ? rawCategory : '';
+/** 画面から届く本文（⚠️ GET は ① が本文に直して POST で送ってくる） */
+export interface ListParams {
+  category?: unknown;
+  startMonth?: unknown;
+  endMonth?: unknown;
+  dup?: unknown;
+}
+
+export const runList = async (params: ListParams): Promise<ListResult> => {
+  const category = typeof params.category === 'string' ? params.category : '';
 
   /**
    * ⚠️ list.php の許可リストは ['order', 'spec', 'used', 'common'] で
@@ -50,17 +59,29 @@ export const runList = async (rawCategory: unknown): Promise<ListResult> => {
     };
   }
 
-  const sql = listSql(category);
+  /**
+   * ⚠️ v2.2.274: 期間（startMonth / endMonth、'YYYYMM'）。⚠️ 無ければ今までどおり全件。
+   *   ⚠️ 判定は ① の list.php の listPeriodMonths() と同じ（features/list/period.ts）。
+   */
+  const months = listPeriodMonths(params.startMonth, params.endMonth);
+  if (months === 'invalid') {
+    return {
+      httpStatus: 400,
+      body: { status: 'error', message: '期間の指定が正しくありません' },
+    };
+  }
+
+  const sql = listSql(category, months);
 
   // ⚠️ 並列で投げる。PHP は逐次だったが結果は同じで、
   //   反響一覧と master_data が数万行あるため待ち時間が縮む
   const [summary, shop, staff, medium, inquiry, survey, black] = await Promise.all([
-    query<DynamicRow>(sql.summary),
+    query<DynamicRow>(sql.summary.sql, sql.summary.params),
     query<DynamicRow>(sql.shop),
     query<DynamicRow>(sql.staff),
     query<DynamicRow>(sql.medium),
-    query<DynamicRow>(sql.inquiry),
-    query<DynamicRow>(sql.survey),
+    query<DynamicRow>(sql.inquiry.sql, sql.inquiry.params),
+    query<DynamicRow>(sql.survey.sql, sql.survey.params),
     query<DynamicRow>(sql.black),
   ]);
 
@@ -82,6 +103,15 @@ export const runList = async (rawCategory: unknown): Promise<ListResult> => {
    */
   if (sql.section !== null) {
     body.section = await query<DynamicRow>(sql.section);
+  }
+
+  /**
+   * ⚠️ v2.2.274: 重複判定用の全反響（order だけ・dup=1 のときだけ。⚠️ ① の list_order.php と同じ）。
+   *   ⚠️ キーは section の後（PHP と同じ順）。
+   */
+  const wantsDup = params.dup === '1' || params.dup === 1;
+  if (sql.dup !== null && wantsDup) {
+    body.dup = await query<DynamicRow>(sql.dup);
   }
 
   return { httpStatus: 200, body };

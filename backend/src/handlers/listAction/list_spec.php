@@ -1,6 +1,14 @@
 <?php
 
 
+// ⚠️ v2.2.274: 期間（$listMonths。list.php が作る）で絞る。null なら全件（今までどおり）
+$listMonths = $listMonths ?? null;
+// ⚠️ 上部サマリーは反響取得日・初回面談日のどちらかが期間内の顧客（画面はそれぞれの月で数える）
+[$registerCond, $registerParams] = listMonthCondition('step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99', $listMonths);
+[$interviewCond, $interviewParams] = listMonthCondition('step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7', $listMonths);
+[$inquiryCond, $inquiryParams] = listMonthCondition('inquiry_date', $listMonths);
+[$surveyCond, $surveyParams] = listMonthCondition('dateStr', $listMonths);
+
 //反響・来場の状況
 //
 // show_dashboard は顧客動向（customerTrendAction/customerTrend_spec.php）と
@@ -13,9 +21,10 @@ COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
 COALESCE(in_charge_store, '') as shop,
 COALESCE(sales_promotion_name, '') as medium,
 COALESCE(show_dashboard, 0) as show_dashboard
-FROM master_data_kaeru";
+FROM master_data_kaeru
+WHERE {$registerCond} OR {$interviewCond}";
 $stmt_summary = $pdo->prepare($sql_summary);
-$stmt_summary->execute();
+$stmt_summary->execute(array_merge($registerParams, $interviewParams));
 $response_summary = $stmt_summary->fetchAll(PDO::FETCH_ASSOC);
 
 // 店舗
@@ -46,16 +55,16 @@ $sql_inquiry = "SELECT id, inquiry_id, pg_id, inquiry_date, medium, response_med
         first_name_kana, last_name_kana, mobile, landline, mail, line_id, zip, pref, city, town, street, building, brand, shop, sync, staff, area, 
         reserved_date, hp_campaign, duplicate, property, note, landing_params,
         duplicate_flag, gift_flag, support_flag, black_flag
-        FROM inquiry_customer_kaeru WHERE first_name <> '' ORDER By inquiry_date DESC";
+        FROM inquiry_customer_kaeru WHERE first_name <> '' AND {$inquiryCond} ORDER By inquiry_date DESC";
 $stmt_inquiry = $pdo->prepare($sql_inquiry);
-$stmt_inquiry->execute();
+$stmt_inquiry->execute($inquiryParams);
 $response_inquiry = $stmt_inquiry->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 事前アンケート
-$sql_survey = "SELECT * FROM before_survey ORDER BY dateStr DESC";
+$sql_survey = "SELECT * FROM before_survey WHERE {$surveyCond} ORDER BY dateStr DESC";
 $stmt_survey = $pdo->prepare($sql_survey);
-$stmt_survey->execute();
+$stmt_survey->execute($surveyParams);
 $response_survey = $stmt_survey->fetchAll(PDO::FETCH_ASSOC);
 
 

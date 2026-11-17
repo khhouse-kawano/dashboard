@@ -10,7 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import { setStyleClassUsed } from '../../utils/setStyleClassUsed';
 import { thisYear } from '../../utils/thisYear';
 import { useIsSp } from '../../utils/isSp';
-import { dateFormate, monthFormate, handleBlack, toHalfWidth, matchesBlackList, positions, previousMonthValue, currentMonthValue, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
+import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, positions, previousMonthValue, currentMonthValue, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
 import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
@@ -89,16 +89,21 @@ const ListResale = ({ onReload }: Props) => {
     const isSp = useIsSp();
 
     const [reloading, setReloading] = useState(false);
+    /** ⚠️ v2.2.274: 最後に送った読み込みの番号。⚠️ 古い応答で新しい期間の結果を上書きしない */
+    const loadSeqRef = useRef(0);
     /**
      * 一覧のデータを読む（v2.2.227: 「再読み込み」ボタンからも呼ぶ）。
+     * ⚠️ v2.2.274: 期間（start〜end）の分だけ GET で読む。⚠️ 期間を変えるたびに下の useEffect が呼ぶ。
      * ⚠️ 期間・店舗などの絞り込みはここでは変えない（初回の設定は下の useEffect）。
      */
-    const loadList = useCallback(async () => {
+    const loadList = useCallback(async (start: string, end: string) => {
+        const seq = ++loadSeqRef.current;
         try {
-            const response = await apiClient.post('', { request: 'list', category });
-            setCustomerList(response.data.summary);
+            const data = await fetchListData(category, start, end);
+            if (seq !== loadSeqRef.current) return;
+            setCustomerList(data.summary);
             const targetShop = categoryMapping[shopValue] === '買い:中古リノベ' ? '中古住宅専門店' : '不動産企画係';
-            const staffResponse = response.data.staff
+            const staffResponse = data.staff
                 .sort((a, b) => {
                     const positionA = positions.indexOf(a.position) ?? 6;
                     const positionB = positions.indexOf(b.position) ?? 6;
@@ -106,10 +111,10 @@ const ListResale = ({ onReload }: Props) => {
                 })
                 .filter((s: Staff) => s.shop  === targetShop)
             setStaffList(staffResponse);
-            setMediumArray(response.data.medium.map((m: any) => m.medium));
-            setOriginalList(response.data.inquiry);
-            setOriginalBeforeList(response.data.survey || []);
-            setBlackList(response.data.black);
+            setMediumArray(data.medium.map((m: any) => m.medium));
+            setOriginalList(data.inquiry);
+            setOriginalBeforeList(data.survey || []);
+            setBlackList(data.black);
         } catch (error) {
             console.error("データ取得エラー:", error);
         }
@@ -117,7 +122,7 @@ const ListResale = ({ onReload }: Props) => {
 
     const reload = async () => {
         setReloading(true);
-        await loadList();
+        await loadList(startMonth, endMonth);
         setReloading(false);
     };
 
@@ -138,9 +143,16 @@ const ListResale = ({ onReload }: Props) => {
         setStartMonth(previousMonthValue({ monthArray: months }));
         setEndMonth(currentMonthValue());
         setSelectedMonth([`${year}/${month}`]);
+    }, [category, shopValue]);
 
-        void loadList();
-    }, [category, shopValue, loadList]);
+    /**
+     * ⚠️ v2.2.274: 期間が決まる・変わるたびに、その期間だけを読み直す。
+     * ⚠️ 区分・媒体などの絞り込みの state には触れない（そのまま残る）。
+     */
+    useEffect(() => {
+        if (!startMonth || !endMonth) return;
+        void loadList(startMonth, endMonth);
+    }, [loadList, startMonth, endMonth]);
 
     useEffect(() => {
         const startIndex = startMonth ? monthArray.indexOf(startMonth) : 0;
