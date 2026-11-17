@@ -9,7 +9,7 @@ import { mediumFormate } from '../../utils/mediumFormate';
 import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
 import { positions } from './listUtils';
-import { monthFormate, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
+import { monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
 import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
@@ -33,6 +33,11 @@ type InquiryCustomer = {
     // 顧客タグ。判定は listTags.ts に集約している
     duplicate_flag: number, gift_flag: number, support_flag: number, black_flag: number,
 };
+
+/**
+ * 重複判定用の反響（v2.2.274。サーバーの dup。⚠️ 突き合わせと重複相手の表示に使う列だけ）
+ */
+type DupRow = Pick<InquiryCustomer, 'inquiry_id' | 'first_name' | 'last_name' | 'mobile' | 'mail' | 'shop' | 'response_medium'>;
 
 type Customer = { register: string, shop: string, interview: string, medium: string };
 
@@ -64,9 +69,9 @@ const monthArray = getYearMonthArray(2025, 1);
  * ⚠️ 空になった値は ⚠️ **突き合わせに使わない**（⚠️ 空どうしを「一致」にしない）。
  */
 const normalizeText = (value: string | null | undefined): string => String(value ?? '').trim().replace(/[\s　]+/g, '');
-const nameKey = (item: InquiryCustomer): string => normalizeText(`${item.first_name || ''}${item.last_name || ''}`);
-const mobileKey = (item: InquiryCustomer): string => toHalfWidth(String(item.mobile ?? '').trim());
-const mailKey = (item: InquiryCustomer): string => normalizeText(item.mail);
+const nameKey = (item: DupRow): string => normalizeText(`${item.first_name || ''}${item.last_name || ''}`);
+const mobileKey = (item: DupRow): string => toHalfWidth(String(item.mobile ?? '').trim());
+const mailKey = (item: DupRow): string => normalizeText(item.mail);
 
 /**
  * そのタグが「立っていない」か。絞り込み条件で使う。
@@ -85,7 +90,7 @@ const DUPLICATE_MIN_MATCHES = 2;
  *   ⚠️ 同じ値を持つ行だけを相手の候補として、⚠️ 一致した項目の数を数える。
  * ⚠️ 自分自身は数えない。
  */
-const buildDuplicateMap = (list: InquiryCustomer[]): Map<string, InquiryCustomer[]> => {
+const buildDuplicateMap = (list: DupRow[]): Map<string, DupRow[]> => {
     const keyFns = [nameKey, mobileKey, mailKey];
     const keys = list.map(item => keyFns.map(fn => fn(item)));
     const indexes = keyFns.map((_, k) => {
@@ -100,7 +105,7 @@ const buildDuplicateMap = (list: InquiryCustomer[]): Map<string, InquiryCustomer
         return index;
     });
 
-    const result = new Map<string, InquiryCustomer[]>();
+    const result = new Map<string, DupRow[]>();
     keys.forEach((rowKeys, i) => {
         const matches = new Map<number, number>();
         rowKeys.forEach((key, k) => {
@@ -109,7 +114,7 @@ const buildDuplicateMap = (list: InquiryCustomer[]): Map<string, InquiryCustomer
                 if (j !== i) matches.set(j, (matches.get(j) ?? 0) + 1);
             }
         });
-        const partners: InquiryCustomer[] = [];
+        const partners: DupRow[] = [];
         matches.forEach((count, j) => {
             if (count >= DUPLICATE_MIN_MATCHES) partners.push(list[j]);
         });
@@ -173,27 +178,45 @@ const ListOrder = ({ onReload }: Props) => {
 
     const [reloading, setReloading] = useState(false);
     /**
+     * 重複判定用の全反響（v2.2.274。期間に関係なく、⚠️ 軽い列だけ）。
+     * ⚠️ 初回と「再読み込み」のときだけ取る（needDupRef）。⚠️ 期間を変えたときは取り直さない。
+     */
+    const [dupList, setDupList] = useState<DupRow[]>([]);
+    const needDupRef = useRef(true);
+    /** ⚠️ 最後に送った読み込みの番号。⚠️ 古い応答で新しい期間の結果を上書きしない */
+    const loadSeqRef = useRef(0);
+
+    /**
      * 一覧のデータを読む（v2.2.227: 「再読み込み」ボタンからも呼ぶ）。
+     * ⚠️ v2.2.274: 期間（start〜end）の分だけ GET で読む。⚠️ 期間を変えるたびに下の useEffect が呼ぶ。
      * ⚠️ 期間・店舗などの絞り込みはここでは変えない（初回の設定は下の useEffect）。
      */
-    const loadList = useCallback(async () => {
+    const loadList = useCallback(async (start: string, end: string) => {
+        const seq = ++loadSeqRef.current;
+        const withDup = needDupRef.current;
         const now = new Date();
         const thisYear = now.getMonth() <= 4 ? now.getFullYear() : now.getFullYear() + 1;
         try {
-            const response = await apiClient.post('', { request: 'list', category });
-            setCustomerList(response.data.summary);
-            setShopArray(response.data.shop);
-            const responseSection = response.data.section.filter(s => s.division === '注文事業').map(s => s.name);
-            setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && responseSection.includes(s.section))
+            const data = await fetchListData(category, start, end, withDup);
+            if (seq !== loadSeqRef.current) return;
+            setCustomerList(data.summary);
+            setShopArray(data.shop);
+            const responseSection = data.section.filter(s => s.division === '注文事業').map(s => s.name);
+            setStaffList(data.staff.filter((s: Staff) => s.period === String(thisYear) && responseSection.includes(s.section))
         .sort((a, b) => {
             const positionA = positions.indexOf(a.position) ?? 6;
             const positionB = positions.indexOf(b.position) ?? 6;
             return positionA - positionB}));
-            setMediumArray(response.data.medium.filter((m: Medium) => m.list_medium === 1));
-            setOriginalList(response.data.inquiry);
-            setOriginalBeforeList(response.data.survey);
-            setBlackList(response.data.black);
+            setMediumArray(data.medium.filter((m: Medium) => m.list_medium === 1));
+            setOriginalList(data.inquiry);
+            setOriginalBeforeList(data.survey);
+            setBlackList(data.black);
             setSections(responseSection);
+            // ⚠️ 受け取れたときだけ「取得済み」にする（⚠️ 途中で期間を変えて捨てた応答では取得済みにしない）
+            if (withDup && Array.isArray(data.dup)) {
+                setDupList(data.dup);
+                needDupRef.current = false;
+            }
         } catch (error) {
             console.error("データ取得エラー:", error);
         }
@@ -201,7 +224,8 @@ const ListOrder = ({ onReload }: Props) => {
 
     const reload = async () => {
         setReloading(true);
-        await loadList();
+        needDupRef.current = true;
+        await loadList(startMonth, endMonth);
         setReloading(false);
     };
 
@@ -221,9 +245,17 @@ const ListOrder = ({ onReload }: Props) => {
         setStartMonth(previousMonthValue({ monthArray: months }));
         setEndMonth(currentMonthValue());
         setSelectedMonth([`${year}/${month}`]);
+        needDupRef.current = true;
+    }, [category]);
 
-        void loadList();
-    }, [category, loadList]);
+    /**
+     * ⚠️ v2.2.274: 期間が決まる・変わるたびに、その期間だけを読み直す。
+     * ⚠️ 店舗・媒体などの絞り込みの state には触れない（そのまま残る）。
+     */
+    useEffect(() => {
+        if (!startMonth || !endMonth) return;
+        void loadList(startMonth, endMonth);
+    }, [loadList, startMonth, endMonth]);
 
     useEffect(() => {
         const startIndex = startMonth ? monthArray.indexOf(startMonth) : 0;
@@ -306,8 +338,11 @@ const ListOrder = ({ onReload }: Props) => {
         setCheckedIds([]);
     }, [filterKey]);
 
-    /** 重複顧客（v2.2.165）。⚠️ 期間などの絞り込みに関係なく、⚠️ **反響すべて**から探す */
-    const duplicateMap = useMemo(() => buildDuplicateMap(originalList), [originalList]);
+    /**
+     * 重複顧客（v2.2.165）。⚠️ 期間などの絞り込みに関係なく、⚠️ **反響すべて**から探す。
+     * ⚠️ v2.2.274: 一覧は期間の分しか持たないので、⚠️ 全反響の軽い列（dupList）から探す。
+     */
+    const duplicateMap = useMemo(() => buildDuplicateMap(dupList), [dupList]);
 
     /** ⚠️ v2.2.164 までは useEffect で state に写していた。⚠️ 写さずにそのまま使う */
     const surveyBeforeList = useMemo(
@@ -523,6 +558,11 @@ const ListOrder = ({ onReload }: Props) => {
      */
     const patchRow = (id: string, patch: Partial<InquiryCustomer>) => {
         setOriginalList(prev => prev.map(row => row.inquiry_id === id ? { ...row, ...patch } : row));
+        // ⚠️ v2.2.274: 重複相手の表示（店舗）も合わせる（⚠️ 以前は originalList から作っていたので一緒に変わっていた）
+        if (patch.shop !== undefined) {
+            const shop = patch.shop;
+            setDupList(prev => prev.map(row => row.inquiry_id === id ? { ...row, shop } : row));
+        }
         keepRow(id);
     };
 

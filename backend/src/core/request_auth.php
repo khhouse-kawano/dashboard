@@ -74,6 +74,9 @@ const REQUEST_AUTH_REQUIRED = [
     'past_customer',
     'rank',
     'shopTrend',
+    // ⚠️ v2.2.274: 未使用（画面からの呼び出しは無い）だが、トークン無しで顧客名を返していた
+    'shopTrend_kaeru',
+    'shopTrend_resale',
 ];
 
 /**

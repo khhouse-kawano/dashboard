@@ -15,7 +15,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // ==========================================
 $contentType = isset($_SERVER["CONTENT_TYPE"]) ? trim($_SERVER["CONTENT_TYPE"]) : '';
 
-if (strpos($contentType, "multipart/form-data") !== false) {
+/**
+ * GET で受けてよい request（v2.2.274）。⚠️ 参照だけの処理を足すこと（次の版で 'shopTrend' を足す予定）。
+ * ⚠️ 書き込みを伴う request を入れない（GET はリンク1つで送れてしまう）。
+ * ⚠️ roll 付きは受けない（list の roll はすべて書き込み）。
+ */
+const GET_ALLOWED_REQUESTS = ['list'];
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $getRequest = is_string($_GET['request'] ?? null) ? $_GET['request'] : '';
+    $getRoll = $_GET['roll'] ?? '';
+    // ⚠️ 許可していない GET は request を空にして index.php の 400（bad_request）に落とす
+    $data = (in_array($getRequest, GET_ALLOWED_REQUESTS, true) && $getRoll === '') ? $_GET : [];
+    // ⚠️ 顧客の個人情報を返すため、ブラウザや途中の機器に残させない
+    header('Cache-Control: no-store');
+} elseif (strpos($contentType, "multipart/form-data") !== false) {
     // FormData (PDFファイルアップロードなど) で送られてきた場合
     $data = $_POST;
 } else {

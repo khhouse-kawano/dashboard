@@ -14,6 +14,7 @@
  *                order              spec               used
  *   summary元    master_data        master_data_kaeru  master_data_resale
  *   summary条件  ⚠️初回面談あり     ⚠️条件なし(全件)   ⚠️条件なし(全件)
+ *     ⚠️ v2.2.274 から、期間を送られたときは期間でも絞る（listSql の注記）
  *   店舗         division='注文事業' brand='KHF'        brand='KHR'
  *   スタッフ     全件・列7つ         category=1・列4つ  全件・列5つ
  *   媒体         medium_list         medium_kaeru       medium_resale
@@ -22,13 +23,26 @@
  * ─────────────────────────────────────────────
  */
 
+import { monthCondition } from './period';
+
 export type ListCategory = 'order' | 'spec' | 'used';
+
+/** パラメータ付きの SQL */
+export interface ListQuery {
+  sql: string;
+  params: string[];
+}
+
+/** 列の名前（⚠️ 画面の上部サマリーが月で数える日付） */
+const REGISTER_COLUMN = 'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99';
+const INTERVIEW_COLUMN = 'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7';
 
 /**
  * 来場・反響の状況（画面の上部サマリー）。
  *
  * ⚠️⚠️ **order だけ「初回面談あり」で絞っている。**
- *   spec / used はテーブル全件を返す（絞り込みは画面側）。
+ *   spec / used は期間が無ければテーブル全件を返す（絞り込みは画面側）。
+ *   ⚠️ v2.2.274: {INTERVIEW} などの目印は listSql が期間の条件に置き換える（期間が無ければ 1 = 1）。
  *   ここに条件を足したり外したりすると、上部の「反響合計」「来場合計」が
  *   静かに変わる。
  *
@@ -49,7 +63,8 @@ const SUMMARY_SQL: Record<ListCategory, string> = {
       FROM master_data
      WHERE show_dashboard = 1
        AND step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7 <> ''
-       AND step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7 IS NOT NULL`,
+       AND step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7 IS NOT NULL
+       AND {INTERVIEW}`,
 
   spec: `
     SELECT
@@ -59,7 +74,8 @@ const SUMMARY_SQL: Record<ListCategory, string> = {
       COALESCE(in_charge_store, '') as shop,
       COALESCE(sales_promotion_name, '') as medium,
       COALESCE(show_dashboard, 0) as show_dashboard
-      FROM master_data_kaeru`,
+      FROM master_data_kaeru
+     WHERE {REGISTER} OR {INTERVIEW}`,
 
   used: `
     SELECT
@@ -68,7 +84,8 @@ const SUMMARY_SQL: Record<ListCategory, string> = {
       COALESCE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '') as interview,
       COALESCE(in_charge_store, '') as shop,
       COALESCE(sales_promotion_name, '') as medium
-      FROM master_data_resale`,
+      FROM master_data_resale
+     WHERE {REGISTER} OR {INTERVIEW}`,
 };
 
 /**
@@ -129,6 +146,7 @@ const INQUIRY_SQL: Record<ListCategory, string> = {
            duplicate_flag, gift_flag, support_flag, black_flag
       FROM inquiry_customer
      WHERE first_name <> ''
+       AND {INQUIRY}
      ORDER By inquiry_date DESC`,
 
   spec: `
@@ -139,6 +157,7 @@ const INQUIRY_SQL: Record<ListCategory, string> = {
            duplicate_flag, gift_flag, support_flag, black_flag
       FROM inquiry_customer_kaeru
      WHERE first_name <> ''
+       AND {INQUIRY}
      ORDER By inquiry_date DESC`,
 
   used: `
@@ -149,11 +168,12 @@ const INQUIRY_SQL: Record<ListCategory, string> = {
            duplicate_flag, gift_flag, support_flag, black_flag
       FROM inquiry_customer_resale
      WHERE first_name <> ''
+       AND {INQUIRY}
      ORDER By inquiry_date DESC`,
 };
 
 /** 事前アンケート。⚠️ 3画面共通で同じもの（SELECT *） */
-const SURVEY_SQL = `SELECT * FROM before_survey ORDER BY dateStr DESC`;
+const SURVEY_SQL = `SELECT * FROM before_survey WHERE {SURVEY} ORDER BY dateStr DESC`;
 
 /** ブラックリスト。⚠️ 3画面共通 */
 const BLACK_SQL = `SELECT mail, mobile FROM black_list WHERE show_key = 1`;
@@ -166,14 +186,55 @@ const BLACK_SQL = `SELECT mail, mobile FROM black_list WHERE show_key = 1`;
  */
 const SECTION_SQL = `SELECT * FROM section_list WHERE division = '注文事業'`;
 
-export const listSql = (category: ListCategory) => ({
-  summary: SUMMARY_SQL[category],
-  shop: SHOP_SQL[category],
-  staff: STAFF_SQL[category],
-  medium: MEDIUM_SQL[category],
-  inquiry: INQUIRY_SQL[category],
-  survey: SURVEY_SQL,
-  black: BLACK_SQL,
-  // ⚠️ order 以外は null。応答にキーを足さないための目印
-  section: category === 'order' ? SECTION_SQL : null,
-});
+/**
+ * 重複判定用の全反響（v2.2.274。order だけ。⚠️ 期間で絞らない）。
+ * ⚠️ 画面（ListOrder.tsx）が氏名・携帯・メールで突き合わせ、相手の店舗・媒体を出す。
+ * ⚠️ 並びは反響一覧と同じ（重複相手の並びを変えない）。⚠️ ① の list_order.php と同じ。
+ */
+const DUP_SQL = `
+    SELECT inquiry_id, first_name, last_name, mobile, mail, shop, response_medium
+      FROM inquiry_customer
+     WHERE first_name <> ''
+     ORDER By inquiry_date DESC`;
+
+/**
+ * {名前} の目印を、月で絞る条件に置き換える。⚠️ 目印の出てくる順に params を並べる。
+ */
+const withMonths = (template: string, conditions: Record<string, ListQuery>): ListQuery => {
+  const params: string[] = [];
+  const sql = template.replace(/\{([A-Z]+)\}/g, (_match, name: string) => {
+    const condition = conditions[name];
+    if (condition === undefined) throw new Error(`listSql: 条件 ${name} がありません`);
+    params.push(...condition.params);
+    return condition.sql;
+  });
+  return { sql, params };
+};
+
+/**
+ * ⚠️ v2.2.274: months（'YYYY/MM' の配列）で反響・事前アンケート・上部サマリーを絞る。
+ *   ⚠️ null なら今までどおり全件（⚠️ ① の list_{category}.php と同じ）。
+ *   反響 … 反響日 / 事前アンケート … 回答日 /
+ *   上部サマリー … order は初回面談日、spec / used は反響取得日か初回面談日のどちらか
+ */
+export const listSql = (category: ListCategory, months: string[] | null) => {
+  const conditions = {
+    REGISTER: monthCondition(REGISTER_COLUMN, months),
+    INTERVIEW: monthCondition(INTERVIEW_COLUMN, months),
+    INQUIRY: monthCondition('inquiry_date', months),
+    SURVEY: monthCondition('dateStr', months),
+  };
+  return {
+    summary: withMonths(SUMMARY_SQL[category], conditions),
+    shop: SHOP_SQL[category],
+    staff: STAFF_SQL[category],
+    medium: MEDIUM_SQL[category],
+    inquiry: withMonths(INQUIRY_SQL[category], conditions),
+    survey: withMonths(SURVEY_SQL, conditions),
+    black: BLACK_SQL,
+    // ⚠️ order 以外は null。応答にキーを足さないための目印
+    section: category === 'order' ? SECTION_SQL : null,
+    // ⚠️ order 以外は null（⚠️ dup=1 のときだけ index.ts が使う）
+    dup: category === 'order' ? DUP_SQL : null,
+  };
+};
