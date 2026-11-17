@@ -63,6 +63,8 @@ const REQUEST_AUTH_REQUIRED = [
     'header_staff_edit',
     'ice_world',
     'information',
+    // ⚠️ v2.2.276: 反響一覧の重複の詳細（相手の氏名・店舗を返す。② だけ）
+    'inquiryDup',
     'inside',
     'integrate',
     'interviewLog',

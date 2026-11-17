@@ -168,16 +168,15 @@ export const currentMonthValue = (): string => {
  * ⚠️ GET で送る（startMonth / endMonth は 'YYYYMM'。画面の 'YYYY/MM' から '/' を除く）。
  *   ⚠️ ① の core/db.php の GET_ALLOWED_REQUESTS に 'list' があるから通る。
  * ⚠️ サーバーは反響・事前アンケート・上部サマリーを期間で絞って返す（応答の形は今までと同じ）。
- * ⚠️ withDup … 重複判定用の全反響（dup）も返してもらう（注文だけ。初回と再読み込みのとき）。
+ * ⚠️ v2.2.276: 反響の各行に dup_count（事業をまたいだ重複の件数）が付く。⚠️ 全反響の dup はもう取らない。
  */
-export const fetchListData = async (category: string, startMonth: string, endMonth: string, withDup = false) => {
+export const fetchListData = async (category: string, startMonth: string, endMonth: string) => {
     const response = await apiClient.get('', {
         params: {
             request: 'list',
             category,
             startMonth: startMonth.replace('/', ''),
             endMonth: endMonth.replace('/', ''),
-            ...(withDup ? { dup: '1' } : {}),
         },
     });
     return response.data;
