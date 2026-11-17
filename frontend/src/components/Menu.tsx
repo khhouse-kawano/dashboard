@@ -68,6 +68,17 @@ const Menu = ({ key, onReload }: Props) => {
     const location = useLocation();
     const currentPath = location.pathname;
     const fullPath = location.pathname + location.search;
+    /**
+     * ⚠️ v2.2.275: 反響一覧の期間（startMonth / endMonth）を除いた URL。
+     *   ⚠️ 期間が URL に入るので、そのままだと `/list` の完全一致が外れて「反響一覧」が選ばれていない表示になる。
+     */
+    const menuPath = useMemo(() => {
+        const params = new URLSearchParams(location.search);
+        params.delete('startMonth');
+        params.delete('endMonth');
+        const rest = params.toString();
+        return `${location.pathname}${rest === '' ? '' : `?${rest}`}`;
+    }, [location.pathname, location.search]);
     const navigate = useNavigate();
     const isSp = useIsSp();
 
@@ -174,7 +185,8 @@ const Menu = ({ key, onReload }: Props) => {
     };
 
     // ⚠️ ページ・事業を移ったら記事を閉じる（⚠️ 記事の「画面を開く」で移ったときも）
-    useEffect(() => { setGuideId(null); }, [fullPath, category]);
+    // ⚠️ v2.2.275: 期間を変えただけでは閉じない（menuPath）
+    useEffect(() => { setGuideId(null); }, [menuPath, category]);
 
     const loadGuideList = () => {
         setGuideListFailed(false);
@@ -219,8 +231,8 @@ const Menu = ({ key, onReload }: Props) => {
     };
 
     const checkIsActive = (item: MenuItem) => {
-        if (item.activePaths) return item.activePaths.some(p => fullPath.includes(p));
-        return item.exact ? fullPath === item.path : fullPath.includes(item.path);
+        if (item.activePaths) return item.activePaths.some(p => menuPath.includes(p));
+        return item.exact ? menuPath === item.path : menuPath.includes(item.path);
     };
 
     const categoryMapping = {

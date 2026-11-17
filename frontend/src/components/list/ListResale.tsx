@@ -10,8 +10,9 @@ import Modal from 'react-bootstrap/Modal';
 import { setStyleClassUsed } from '../../utils/setStyleClassUsed';
 import { thisYear } from '../../utils/thisYear';
 import { useIsSp } from '../../utils/isSp';
-import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, positions, previousMonthValue, currentMonthValue, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
+import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, positions, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
+import { useListPeriod } from './useListPeriod';
 import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
@@ -59,8 +60,8 @@ const ListResale = ({ onReload }: Props) => {
     const { authority, category, token } = useContext(AuthContext);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [selectedMonth, setSelectedMonth] = useState<string[]>([]);
-    const [startMonth, setStartMonth] = useState('');
-    const [endMonth, setEndMonth] = useState('');
+    /** ⚠️ v2.2.275: 期間は URL のクエリで持つ（useListPeriod.ts）。⚠️ shop=renove は残る */
+    const { startMonth, endMonth, setStartMonth, setEndMonth } = useListPeriod();
     const [mediumArray, setMediumArray] = useState<string[]>([]);
     const [originalList, setOriginalList] = useState<InquiryCustomer[]>([]);
     const [inquiryList, setInquiryList] = useState<InquiryCustomer[]>([]);
@@ -130,18 +131,8 @@ const ListResale = ({ onReload }: Props) => {
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
-        // ⚠️ 開始月の初期値の判定にも使うので、一度変数に受ける
-        const months = getYearMonthArray(2025, 1);
-        setMonthArray(months);
-        /**
-         * ⚠️⚠️ **開始月は当月の1か月前**（2026-09-09 変更）。
-         *   両方を当月にしていたため、月初に開くと当月の数件しか見えなかった。
-         *
-         * ⚠️ months を渡している。1か月前が選択肢に無い場合は先頭が返る。
-         *   選択肢に無い値を入れると、select の表示と絞り込みが食い違う。
-         */
-        setStartMonth(previousMonthValue({ monthArray: months }));
-        setEndMonth(currentMonthValue());
+        setMonthArray(getYearMonthArray(2025, 1));
+        // ⚠️ v2.2.275: 期間の初期値（開始月は1か月前）は useListPeriod が決める。⚠️ 事業・区分を変えても期間は URL のまま
         setSelectedMonth([`${year}/${month}`]);
     }, [category, shopValue]);
 

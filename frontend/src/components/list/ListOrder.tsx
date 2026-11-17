@@ -9,8 +9,9 @@ import { mediumFormate } from '../../utils/mediumFormate';
 import InformationEdit from '../information/InformationEdit';
 import { generateULID } from '../../utils/createULID';
 import { positions } from './listUtils';
-import { monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
+import { monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
+import { useListPeriod } from './useListPeriod';
 import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
@@ -126,8 +127,8 @@ const buildDuplicateMap = (list: DupRow[]): Map<string, DupRow[]> => {
 const ListOrder = ({ onReload }: Props) => {
     const { authority, token, category } = useContext(AuthContext);
     const [selectedMonth, setSelectedMonth] = useState<string[]>([]);
-    const [startMonth, setStartMonth] = useState('');
-    const [endMonth, setEndMonth] = useState('');
+    /** ⚠️ v2.2.275: 期間は URL のクエリで持つ（useListPeriod.ts） */
+    const { startMonth, endMonth, setStartMonth, setEndMonth } = useListPeriod();
     const [shopArray, setShopArray] = useState<Shop[]>([]);
     const [mediumArray, setMediumArray] = useState<Medium[]>([]);
     const [originalList, setOriginalList] = useState<InquiryCustomer[]>([]);
@@ -233,17 +234,7 @@ const ListOrder = ({ onReload }: Props) => {
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
-        // ⚠️ monthArray はモジュール直下の const（この画面だけ持ち方が違う）
-        const months = monthArray;
-        /**
-         * ⚠️⚠️ **開始月は当月の1か月前**（2026-09-09 変更）。
-         *   両方を当月にしていたため、月初に開くと当月の数件しか見えなかった。
-         *
-         * ⚠️ months を渡している。1か月前が選択肢に無い場合は先頭が返る。
-         *   選択肢に無い値を入れると、select の表示と絞り込みが食い違う。
-         */
-        setStartMonth(previousMonthValue({ monthArray: months }));
-        setEndMonth(currentMonthValue());
+        // ⚠️ v2.2.275: 期間の初期値（開始月は1か月前）は useListPeriod が決める。⚠️ 事業を変えても期間は URL のまま
         setSelectedMonth([`${year}/${month}`]);
         needDupRef.current = true;
     }, [category]);
