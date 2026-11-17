@@ -2003,9 +2003,11 @@ for (const category of INQUIRY_CATEGORIES) {
 // ⚠️ 参照のみ。① に PHP ハンドラが実在するのでフォールバックしてよい。
 // ⚠️ roll では分岐しない。category だけ。
 //
-// ⚠️⚠️ category を送らない呼び出しがある（ShopTrendOrder.tsx の
+// ⚠️⚠️ category を送らない呼び出しがあった（v2.2.276 までの ShopTrendOrder.tsx の
 //   closeInformationEdit）。PHP の既定値 'order' に合わせるため
 //   category: '' も登録する。登録しないと ① へ転送される。
+//   ⚠️ v2.2.277 から画面は必ず category を送るが、古い画面が残っている間のために残す。
+// ⚠️ v2.2.277: 画面は GET で期間（startMonth / endMonth）・lastYear・budget を送る。本文ごと runShopTrend に渡す。
 // ---------------------------------------------------------------------------
 
 for (const category of ['', 'order', 'spec', 'used']) {
@@ -2016,7 +2018,7 @@ for (const category of ['', 'order', 'spec', 'used']) {
     phpSource: `backend/src/handlers/shopTrendAction/shopTrend_${category === '' ? 'order' : category}.php`,
     auth: 'staff',
     handler: async (ctx) => {
-      const result = await runShopTrend(ctx.body.category);
+      const result = await runShopTrend(ctx.body);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

@@ -1,6 +1,6 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
-import { listPeriodMonths } from './period';
+import { periodMonths } from '../../utils/period';
 import { listSql } from './queries';
 import { refreshDupKeysSafely } from '../inquiryDup/refresh';
 import type { ListCategory } from './queries';
@@ -61,9 +61,9 @@ export const runList = async (params: ListParams): Promise<ListResult> => {
 
   /**
    * ⚠️ v2.2.274: 期間（startMonth / endMonth、'YYYYMM'）。⚠️ 無ければ今までどおり全件。
-   *   ⚠️ 判定は ① の list.php の listPeriodMonths() と同じ（features/list/period.ts）。
+   *   ⚠️ 判定は ① の core/period.php の periodMonths() と同じ（utils/period.ts）。
    */
-  const months = listPeriodMonths(params.startMonth, params.endMonth);
+  const months = periodMonths(params.startMonth, params.endMonth);
   if (months === 'invalid') {
     return {
       httpStatus: 400,
