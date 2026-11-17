@@ -72,8 +72,6 @@ if ($roll) {
                 echo json_encode(['status' => 'error', 'message' => '期間の指定が正しくありません'], JSON_UNESCAPED_UNICODE);
                 exit;
         }
-        // ⚠️ 重複判定用の全反響（軽い列だけ）を返すか（注文だけ。画面が初回と再読み込みのときに dup=1 を送る）
-        $listWithDup = ($data['dup'] ?? '') === '1' || ($data['dup'] ?? null) === 1;
         require_once __DIR__ . "/listAction/list_{$category}.php";
 }
 

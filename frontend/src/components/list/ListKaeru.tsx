@@ -12,6 +12,7 @@ import { thisYear } from '../../utils/thisYear';
 import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
 import { useListPeriod } from './useListPeriod';
+import DuplicateBadge from './DuplicateBadge';
 import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
@@ -735,7 +736,7 @@ const ListKaeru = ({ onReload }: Props) => {
                         </Table>}
 
                     {/* ⚠️ v2.2.227: PC の幅は列の幅の合計（顧客タグは ListOrder と同じ 400px・個人情報 110px）。合計より狭いと顧客タグのボタンが折れる */}
-                    <Table striped bordered hover style={{ width: isSp ? '1100px' : '2090px', fontSize: isSp ? "8px" : "12px" }}>
+                    <Table striped bordered hover style={{ width: isSp ? '1190px' : '2180px', fontSize: isSp ? "8px" : "12px" }}>
                         <thead className='sticky-header'>
                             <tr className='sticky-header align-middle'>
                                 <td style={{ width: '100px', textAlign: 'center' }} className={`${isSp ? '' : 'sticky-column'}`}>顧客取込</td>
@@ -748,6 +749,7 @@ const ListKaeru = ({ onReload }: Props) => {
                                 <td style={{ width: '130px' }}>ふりがな</td>
                                 <td style={{ width: '130px' }}>電話番号</td>
                                 <td style={{ width: '200px' }}>住所</td>
+                                <td style={{ width: '90px' }}>重複</td>
                                 <td style={{ width: '130px' }}>物件名</td>
                                 <td style={{ width: '120px' }}>希望エリア</td>
                                 <td style={{ width: '400px' }}>顧客タグ</td>
@@ -827,6 +829,8 @@ const ListKaeru = ({ onReload }: Props) => {
                                         <td>{kataToHira(`${item.first_name_kana || ''}${item.last_name_kana || ''}`)}</td>
                                         <td>{extractNumbers(String(item.mobile || item.landline || ''))}</td>
                                         <td>{item.pref || ''}{item.city || ''}{item.town || ''}{item.street || ''}{item.building || ''}</td>
+                                        {/* ⚠️ v2.2.276: 注文・建売・中古をまたいで、メールか携帯が同じ反響（サーバーが数えた dup_count）。札を押すと相手の一覧 */}
+                                        <td><DuplicateBadge brand="spec" id={Number(item.id)} count={Number(item.dup_count ?? 0)} name={`${item.first_name || ''}${item.last_name || ''}`} /></td>
                                         <td>{item.property || ''}</td>
                                         <td>{item.area || ''}</td>
                                         <td>

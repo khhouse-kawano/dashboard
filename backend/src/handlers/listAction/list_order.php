@@ -41,11 +41,13 @@ $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 反響一覧（⚠️ 反響日の月で絞る）
+// ⚠️ v2.2.276: dup_count は事業をまたいだ重複の件数（inquiry_dup_key。② が作り直す。⚠️ ② が止まっているあいだは止まった時点の件数）
 [$inquiryCond, $inquiryParams] = listMonthCondition('inquiry_date', $listMonths);
 $sql_inquiry = "SELECT id, inquiry_id, pg_id, mhl_id, mhl_url, mhl_mail, inquiry_date, medium, response_medium, first_name, last_name,
         first_name_kana, last_name_kana, mobile, landline, mail, line_id, zip, pref, city, town, street, building, brand, shop, sync, staff, area, 
         reserved_date, hp_campaign, duplicate, hotlead_url, url_params, landing_params,
-        duplicate_flag, gift_flag, support_flag, black_flag
+        duplicate_flag, gift_flag, support_flag, black_flag,
+        COALESCE((SELECT k.dup_count FROM inquiry_dup_key k WHERE k.brand = 'order' AND k.src_id = inquiry_customer.id), 0) AS dup_count
         FROM inquiry_customer WHERE first_name <> '' AND {$inquiryCond} ORDER By inquiry_date DESC";
 $stmt_inquiry = $pdo->prepare($sql_inquiry);
 $stmt_inquiry->execute($inquiryParams);
@@ -83,17 +85,5 @@ $result = [
     "black" => $response_black,
     "section" => $response_section
 ];
-
-/**
- * ⚠️ v2.2.274: 重複判定用の全反響（期間に関係なく。画面が氏名・携帯・メールで突き合わせ、相手の店舗・媒体を出す）。
- * ⚠️ dup=1 のときだけ返す（画面の初回と再読み込み）。⚠️ 並びは反響一覧と同じ（重複相手の並びを変えない）。
- */
-if (!empty($listWithDup)) {
-    $sql_dup = "SELECT inquiry_id, first_name, last_name, mobile, mail, shop, response_medium
-        FROM inquiry_customer WHERE first_name <> '' ORDER By inquiry_date DESC";
-    $stmt_dup = $pdo->prepare($sql_dup);
-    $stmt_dup->execute();
-    $result["dup"] = $stmt_dup->fetchAll(PDO::FETCH_ASSOC);
-}
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

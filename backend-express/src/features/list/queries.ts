@@ -137,13 +137,21 @@ const MEDIUM_SQL: Record<ListCategory, string> = {
  *   'YYYY-MM-DD' と 'YYYY/MM/DD' が混在しているため、この並びだけでは
  *   日付順にならない。画面側（ListKaeru.tsx）で書式を揃えて並べ直している。
  */
+/**
+ * 事業をまたいだ重複の件数（v2.2.276。inquiry_dup_key。⚠️ ② の features/inquiryDup/refresh.ts が作る）。
+ * ⚠️ 表に無い行は 0。⚠️ ① の list_{category}.php と同じ式にすること。
+ */
+const dupCount = (brand: ListCategory, table: string): string =>
+  `COALESCE((SELECT k.dup_count FROM inquiry_dup_key k WHERE k.brand = '${brand}' AND k.src_id = ${table}.id), 0) AS dup_count`;
+
 const INQUIRY_SQL: Record<ListCategory, string> = {
   order: `
     SELECT id, inquiry_id, pg_id, mhl_id, mhl_url, mhl_mail, inquiry_date, medium, response_medium,
            first_name, last_name, first_name_kana, last_name_kana, mobile, landline, mail, line_id,
            zip, pref, city, town, street, building, brand, shop, sync, staff, area,
            reserved_date, hp_campaign, duplicate, hotlead_url, url_params, landing_params,
-           duplicate_flag, gift_flag, support_flag, black_flag
+           duplicate_flag, gift_flag, support_flag, black_flag,
+           ${dupCount('order', 'inquiry_customer')}
       FROM inquiry_customer
      WHERE first_name <> ''
        AND {INQUIRY}
@@ -154,7 +162,8 @@ const INQUIRY_SQL: Record<ListCategory, string> = {
            first_name, last_name, first_name_kana, last_name_kana, mobile, landline, mail, line_id,
            zip, pref, city, town, street, building, brand, shop, sync, staff, area,
            reserved_date, hp_campaign, duplicate, property, note, landing_params,
-           duplicate_flag, gift_flag, support_flag, black_flag
+           duplicate_flag, gift_flag, support_flag, black_flag,
+           ${dupCount('spec', 'inquiry_customer_kaeru')}
       FROM inquiry_customer_kaeru
      WHERE first_name <> ''
        AND {INQUIRY}
@@ -165,7 +174,8 @@ const INQUIRY_SQL: Record<ListCategory, string> = {
            first_name, last_name, category, first_name_kana, last_name_kana, mobile, landline, mail, line_id,
            zip, pref, city, town, street, building, brand, shop, sync, staff, area,
            reserved_date, hp_campaign, duplicate, property, note,
-           duplicate_flag, gift_flag, support_flag, black_flag
+           duplicate_flag, gift_flag, support_flag, black_flag,
+           ${dupCount('used', 'inquiry_customer_resale')}
       FROM inquiry_customer_resale
      WHERE first_name <> ''
        AND {INQUIRY}
@@ -185,17 +195,6 @@ const BLACK_SQL = `SELECT mail, mobile FROM black_list WHERE show_key = 1`;
  *   キーを足すと差分比較が合わなくなる。
  */
 const SECTION_SQL = `SELECT * FROM section_list WHERE division = '注文事業'`;
-
-/**
- * 重複判定用の全反響（v2.2.274。order だけ。⚠️ 期間で絞らない）。
- * ⚠️ 画面（ListOrder.tsx）が氏名・携帯・メールで突き合わせ、相手の店舗・媒体を出す。
- * ⚠️ 並びは反響一覧と同じ（重複相手の並びを変えない）。⚠️ ① の list_order.php と同じ。
- */
-const DUP_SQL = `
-    SELECT inquiry_id, first_name, last_name, mobile, mail, shop, response_medium
-      FROM inquiry_customer
-     WHERE first_name <> ''
-     ORDER By inquiry_date DESC`;
 
 /**
  * {名前} の目印を、月で絞る条件に置き換える。⚠️ 目印の出てくる順に params を並べる。
@@ -234,7 +233,5 @@ export const listSql = (category: ListCategory, months: string[] | null) => {
     black: BLACK_SQL,
     // ⚠️ order 以外は null。応答にキーを足さないための目印
     section: category === 'order' ? SECTION_SQL : null,
-    // ⚠️ order 以外は null（⚠️ dup=1 のときだけ index.ts が使う）
-    dup: category === 'order' ? DUP_SQL : null,
   };
 };

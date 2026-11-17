@@ -146,6 +146,9 @@ const NexusNotice = ({ messages }: { messages: string[] }) => (
     )
 );
 
+/** 反響媒体が SUUMO のときの注意書き（v2.2.276） */
+const SUUMO_FEE_MESSAGE = '成約時に【請負金額の5%】の課金が発生します。見積り時はご注意ください。';
+
 const steps = [
     '事前審査提出',
     'LINE等で連絡可',
@@ -989,6 +992,8 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                 idMapping={idMapping}
                                                 setShowDetail={setShowDetail}
                                                 mediumArray={mediumArray} />
+                                            {/* ⚠️ v2.2.276: SUUMO は成約時に課金がある。Nexus の注意書きと同じ見た目（保存は止めない） */}
+                                            <NexusNotice messages={category === 'order' && (information[idMapping('反響媒体')] ?? '').trim() === 'SUUMO' ? [SUUMO_FEE_MESSAGE] : []} />
                                         </td>
                                     </tr>
                                     <tr>

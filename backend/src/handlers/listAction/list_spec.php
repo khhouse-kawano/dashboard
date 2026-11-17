@@ -51,10 +51,12 @@ $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 反響一覧
+// ⚠️ v2.2.276: dup_count は事業をまたいだ重複の件数（inquiry_dup_key。② が作り直す。⚠️ ② が止まっているあいだは止まった時点の件数）
 $sql_inquiry = "SELECT id, inquiry_id, pg_id, inquiry_date, medium, response_medium, first_name, last_name,
         first_name_kana, last_name_kana, mobile, landline, mail, line_id, zip, pref, city, town, street, building, brand, shop, sync, staff, area, 
         reserved_date, hp_campaign, duplicate, property, note, landing_params,
-        duplicate_flag, gift_flag, support_flag, black_flag
+        duplicate_flag, gift_flag, support_flag, black_flag,
+        COALESCE((SELECT k.dup_count FROM inquiry_dup_key k WHERE k.brand = 'spec' AND k.src_id = inquiry_customer_kaeru.id), 0) AS dup_count
         FROM inquiry_customer_kaeru WHERE first_name <> '' AND {$inquiryCond} ORDER By inquiry_date DESC";
 $stmt_inquiry = $pdo->prepare($sql_inquiry);
 $stmt_inquiry->execute($inquiryParams);
