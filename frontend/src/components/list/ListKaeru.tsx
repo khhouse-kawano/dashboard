@@ -9,7 +9,7 @@ import { generateULID } from '../../utils/createULID';
 import Modal from 'react-bootstrap/Modal';
 import { setStyleClassSpec } from '../../utils/setStyleClassSpec';
 import { thisYear } from '../../utils/thisYear';
-import { dateFormate, monthFormate, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
+import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, previousMonthValue, currentMonthValue, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
 import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase';
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
@@ -100,20 +100,25 @@ const ListKaeru = ({ onReload }: Props) => {
     );
 
     const [reloading, setReloading] = useState(false);
+    /** ⚠️ v2.2.274: 最後に送った読み込みの番号。⚠️ 古い応答で新しい期間の結果を上書きしない */
+    const loadSeqRef = useRef(0);
     /**
      * 一覧のデータを読む（v2.2.227: 「再読み込み」ボタンからも呼ぶ）。
+     * ⚠️ v2.2.274: 期間（start〜end）の分だけ GET で読む。⚠️ 期間を変えるたびに下の useEffect が呼ぶ。
      * ⚠️ 期間・店舗などの絞り込みはここでは変えない（初回の設定は下の useEffect）。
      */
-    const loadList = useCallback(async () => {
+    const loadList = useCallback(async (start: string, end: string) => {
+        const seq = ++loadSeqRef.current;
         try {
-            const response = await apiClient.post('', { request: 'list', category });
-            setCustomerList(response.data.summary);
-            setShopArray(response.data.shop);
-            setStaffList(response.data.staff.filter((s: Staff) => s.period === String(thisYear) && targetSection.includes(s.section)));
-            setMediumArray(response.data.medium.map((m: any) => m.medium));
-            setOriginalList(response.data.inquiry);
-            setOriginalBeforeList(response.data.survey || []);
-            setBlackList(response.data.black);
+            const data = await fetchListData(category, start, end);
+            if (seq !== loadSeqRef.current) return;
+            setCustomerList(data.summary);
+            setShopArray(data.shop);
+            setStaffList(data.staff.filter((s: Staff) => s.period === String(thisYear) && targetSection.includes(s.section)));
+            setMediumArray(data.medium.map((m: any) => m.medium));
+            setOriginalList(data.inquiry);
+            setOriginalBeforeList(data.survey || []);
+            setBlackList(data.black);
         } catch (error) {
             console.error("データ取得エラー:", error);
         }
@@ -121,7 +126,7 @@ const ListKaeru = ({ onReload }: Props) => {
 
     const reload = async () => {
         setReloading(true);
-        await loadList();
+        await loadList(startMonth, endMonth);
         setReloading(false);
     };
 
@@ -142,9 +147,16 @@ const ListKaeru = ({ onReload }: Props) => {
         setStartMonth(previousMonthValue({ monthArray: months }));
         setEndMonth(currentMonthValue());
         setSelectedMonth([`${year}/${month}`]);
+    }, [category]);
 
-        void loadList();
-    }, [category, loadList]);
+    /**
+     * ⚠️ v2.2.274: 期間が決まる・変わるたびに、その期間だけを読み直す。
+     * ⚠️ 店舗・媒体などの絞り込みの state には触れない（そのまま残る）。
+     */
+    useEffect(() => {
+        if (!startMonth || !endMonth) return;
+        void loadList(startMonth, endMonth);
+    }, [loadList, startMonth, endMonth]);
 
     useEffect(() => {
         const startIndex = startMonth ? monthArray.indexOf(startMonth) : 0;
