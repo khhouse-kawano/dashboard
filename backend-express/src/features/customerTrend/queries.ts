@@ -89,6 +89,7 @@ const CUSTOMER_SQL: Record<CustomerTrendCategory, string> = {
       COALESCE(in_charge_store, '') as shop,
       COALESCE(in_charge_user, '') as staff,
       COALESCE(hp_campaign, '') as hp_campaign,
+      COALESCE(portal_flag, 0) as portal_flag,
       COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') as \`rank\`,
       COALESCE(sales_promotion_name, '') as medium,
       COALESCE(step_migration_item_01J82Z5F1RR18Z792C7KZS88QG , '')as contract,
@@ -118,6 +119,7 @@ const CUSTOMER_SQL: Record<CustomerTrendCategory, string> = {
       COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
       COALESCE(step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z, '') as contact,
       COALESCE(hp_campaign, '') as hp_campaign,
+      COALESCE(portal_flag, 0) as portal_flag,
       COALESCE(show_dashboard, 0) as show_dashboard,
       COALESCE(status , '') as status,
       COALESCE(delete_dashboard, 0) AS delete_dashboard
