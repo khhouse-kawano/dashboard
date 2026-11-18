@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Table from "react-bootstrap/Table";
 import apiClient from '../../utils/apiClient';
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
+import { descending } from '../../utils/descending';
 
 interface CampaignSummaryProps {
     activeTab: string | null;
@@ -113,14 +114,14 @@ const CampaignSummary: React.FC<CampaignSummaryProps> = ({ activeTab }) => {
                 <div className="d-flex  mb-3 align-items-center">
                     <div className="m-1">
                         <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
-                            {monthArray.map((item, index) =>
+                            {descending(monthArray).map((item, index) =>
                                 <option value={item} key={index} selected={item === startMonth}>{item}</option>)}
                         </select>
                     </div>
                     <div>~</div>
                     <div className="m-1">
                         <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} >
-                            {monthArray.map((item, index) =>
+                            {descending(monthArray).map((item, index) =>
                                 <option value={item} key={index} selected={item === endMonth}>{item}</option>)}
                         </select>
                     </div>

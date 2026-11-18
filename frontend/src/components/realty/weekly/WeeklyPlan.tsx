@@ -6,6 +6,7 @@ import {
 import type { RealtyState, WeeklyCell, WeeklyKey, WeeklyRow } from '../common/realtyState';
 import { fiscalMonths, monthLabel, pct, prevMonth } from '../summary/kpi';
 import ContactQualityPanel from '../callq/ContactQualityPanel';
+import { descending } from '../../../utils/descending';
 
 /**
  * 週次行動計画・実績（不動産企画係。v2.2.223）。
@@ -151,7 +152,7 @@ const WeeklyPlan: React.FC = () => {
             <div className="rlt-head">
                 <h1><i className="fa-solid fa-calendar-week me-2" style={{ color: '#0d6efd' }}></i>週次行動計画・実績</h1>
                 <select className="rlt-input" value={month} onChange={e => setMonth(e.target.value)} disabled={busy}>
-                    {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+                    {descending(months).map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
                 </select>
                 <button className="rlt-btn sec" onClick={recount} disabled={busy} title="売り反響の架電記録を読み直して架電実績を再集計">🔄 架電実績を再集計</button>
                 {!open && (

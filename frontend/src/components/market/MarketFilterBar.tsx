@@ -1,5 +1,6 @@
 import React from 'react';
 import type { MarketFilter, MarketMaster, PeriodType } from './types';
+import { descending } from '../../utils/descending';
 
 /**
  * 市況分析の絞り込みバー。
@@ -115,7 +116,7 @@ const MarketFilterBar: React.FC<Props> = ({ master, filter, onChange }) => {
           aria-label="期間（開始）"
         >
           <option value="">期間を選択</option>
-          {periodOptions.map((period) => (
+          {descending(periodOptions).map((period) => (
             <option key={period} value={period}>{formatPeriod(period)}</option>
           ))}
         </select>
@@ -129,7 +130,7 @@ const MarketFilterBar: React.FC<Props> = ({ master, filter, onChange }) => {
           aria-label="期間（終了）"
         >
           <option value="">期間を選択</option>
-          {periodOptions.map((period) => (
+          {descending(periodOptions).map((period) => (
             <option key={period} value={period}>{formatPeriod(period)}</option>
           ))}
         </select>

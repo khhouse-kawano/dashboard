@@ -10,6 +10,7 @@
  */
 import { callStats, callsOf, fiscalMonths, monthLabel } from '../summary/kpi';
 import type { Row } from '../summary/kpi';
+import { descending } from '../../../utils/descending';
 
 export type Period = string;
 
@@ -69,7 +70,7 @@ export const periodGroups = (fiscalStart: string | undefined, rows: Row[]): Peri
         if (mk) fys.add(fyStartOf(mk, fiscalStart));
     }
     return [
-        { label: '月別（今期）', options: months.map(mk => ({ value: `m:${mk}`, label: monthLabel(mk) })) },
+        { label: '月別（今期）', options: descending(months).map(mk => ({ value: `m:${mk}`, label: monthLabel(mk) })) },
         { label: '通期（期ごと）', options: [...fys].sort().reverse().map(f => ({ value: `fy:${f}`, label: `${fyLabel(f)}通期` })) },
         { label: '全期間', options: [{ value: 'all', label: '過去すべて（全通期合計）' }] },
     ];
