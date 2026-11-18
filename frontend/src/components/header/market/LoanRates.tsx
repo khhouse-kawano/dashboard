@@ -201,7 +201,7 @@ const LoanRates: React.FC = () => {
                             <span className="lr_label mb-0">対象月</span>
                             <Form.Select size="sm" value={month} style={{ width: 190, fontSize: '12px' }} disabled={loading || (data?.months.length ?? 0) === 0}
                                 onChange={(e) => void load(e.target.value)} aria-label="対象月">
-                                {(data?.months ?? []).map((m) => <option key={m.month} value={m.month}>{monthLabel(m.month)}（{m.rows}件）</option>)}
+                                {[...(data?.months ?? [])].sort((a, b) => b.month.localeCompare(a.month)).map((m) => <option key={m.month} value={m.month}>{monthLabel(m.month)}（{m.rows}件）</option>)}
                             </Form.Select>
                         </div>
                     </div>

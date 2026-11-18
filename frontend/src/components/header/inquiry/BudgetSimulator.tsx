@@ -10,6 +10,7 @@ import {
     requiredBudget, sumAchievement, sumBudget, toNumber, unitPrice,
 } from './budgetSimulatorUtils';
 import type { Division, KpiKey, SimAxis, SimBudget, SimCustomer, SimMedium, SimRow, SimShop } from './budgetSimulatorUtils';
+import { descending } from '../../../utils/descending';
 
 /**
  * 広告費シミュレーター。
@@ -620,7 +621,7 @@ const BudgetSimulator = () => {
                         size="sm" value={startMonth} style={{ width: '120px', fontSize: '12px' }}
                         onChange={(e) => setStartMonth(e.target.value)}
                     >
-                        {monthArray.map(m => <option key={m} value={m}>{m}</option>)}
+                        {descending(monthArray).map(m => <option key={m} value={m}>{m}</option>)}
                     </Form.Select>
                 </div>
                 <span className="pb-1">～</span>
@@ -630,7 +631,7 @@ const BudgetSimulator = () => {
                         size="sm" value={endMonth} style={{ width: '120px', fontSize: '12px' }}
                         onChange={(e) => setEndMonth(e.target.value)}
                     >
-                        {monthArray.map(m => <option key={m} value={m}>{m}</option>)}
+                        {descending(monthArray).map(m => <option key={m} value={m}>{m}</option>)}
                     </Form.Select>
                 </div>
                 {Object.keys(edited).length > 0 && (

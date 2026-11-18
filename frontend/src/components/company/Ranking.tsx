@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { Modal, Table, Badge, Nav } from 'react-bootstrap';
 import AuthContext from "../../context/AuthContext";
 import { thisYear } from "../../utils/thisYear";
+import { descending } from '../../utils/descending';
 type Staff = { name: string, shop: string, section: string, report: number, sort: number, multi: number, status: string, period: string, position: string, khg_id: string };
 
 type Customer = Record<string, string>;
@@ -374,7 +375,7 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
                             onChange={e => setStartMonth(e.target.value)}
                         >
                             <option value="">未選択</option>
-                            {monthArray.map(m => <option key={m} value={m}>{m.replace('-', '年')}月</option>)}
+                            {descending(monthArray).map(m => <option key={m} value={m}>{m.replace('-', '年')}月</option>)}
                         </select>
                     </div>
                     <span className="text-muted" style={{ fontSize: '11px' }}>〜</span>
@@ -387,7 +388,7 @@ const Ranking = ({ showRanking, setShowRanking, customerList, monthArray, staffL
                             onChange={e => setEndMonth(e.target.value)}
                         >
                             <option value="">未選択</option>
-                            {monthArray.map(m => <option key={m} value={m}>{m.replace('-', '年')}月</option>)}
+                            {descending(monthArray).map(m => <option key={m} value={m}>{m.replace('-', '年')}月</option>)}
                         </select>
                     </div>
                 </div>
