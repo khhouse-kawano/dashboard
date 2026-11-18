@@ -160,6 +160,7 @@ import { runMyhomesEntry } from '../features/myhomes/entry';
 import { importOwnersHouseApplication, listOwnersHouseApplications } from '../features/ownersHouse/application';
 import { importHomesAssessment } from '../features/realty/homesAssessment';
 import { runOwnersHouseReservation } from '../features/ownersHouse/reservation';
+import { getOwnersHouse, listOwnersHouses } from '../features/ownersHouse/houses';
 import { runEstimateEntry } from '../features/estimate/entry';
 import {
   AI_ANALYSIS_AUTHORITY,
@@ -2820,6 +2821,35 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runOwnersHouseReservation(ctx.body as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * オーナーズハウス・モデルハウスの物件（ownershouse）。読み取りだけ・認証なし（公開の物件情報）。（v2.2.283）
+ *   ⚠️ 読むのは react/owners_house（ブラウザから直接）。① に PHP ハンドラは無い（予備なし。利用者の判断）。
+ *   ⚠️ features/ownersHouse/houses.ts
+ */
+register({
+  request: 'owners_house_list',
+  summary: 'オーナーズハウス・モデルハウスの物件一覧（ownershouse。flag = 1）',
+  phpSource: 'kh-house.jp/owners_house/api/（request: owners_house）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await listOwnersHouses();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'owners_house_detail',
+  summary: 'オーナーズハウス・モデルハウスの物件1件（ownershouse。本文の id）',
+  phpSource: 'kh-house.jp/owners_house/api/（request: owners_id）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await getOwnersHouse((ctx.body ?? {}) as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
