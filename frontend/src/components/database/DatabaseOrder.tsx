@@ -44,6 +44,8 @@ interface CustomerItem extends Record<string, any> {
     reserved_interview?: string;
     rank?: string;
     medium?: string;
+    /** ポータルサイト名（SUUMO など）。v2.2.281。反響一覧から取り込んだときに付く。ポータル以外は空 */
+    portal_site?: string;
     status?: string;
     customer?: string;
     /** 氏名②（customer_contacts_name_2）。⚠️ v2.2.187 追加。⚠️ 値があるときだけ顧客名の2行目に出す・名前検索の対象 */
@@ -309,7 +311,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                     ? ((item.reserved_interview ?? '') !== '' && (item.interview ?? '') === '')
                     : (selectedReserve ? strIncludes(item.interview, dateFormate(selectedReserve)) : true))
                 && (selectedRank ? arrIncludes(item.rank, selectedRank) : true)
-                && (selectedMedium === 'SUUMO(ポータル反響)' ? (item.medium === 'SUUMO' && !item.reserved_interview) : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
+                && (selectedMedium === 'SUUMO(ポータル反響)' ? item.portal_site === 'SUUMO' : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
                 && (selectedIntroductory ? arrIncludes(item.introduction_person_category, selectedIntroductory) : true)
                 && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
                 // ⚠️ v2.2.187: 氏名②（customer_2）も名前検索の対象

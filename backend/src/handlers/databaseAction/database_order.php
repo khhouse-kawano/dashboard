@@ -65,6 +65,7 @@ $sql_customer = "SELECT
   COALESCE(REPLACE(reserved_interview, '/', '-'), '') AS reserved_interview,
   COALESCE(full_address, '') AS full_address,
   COALESCE(hp_campaign, '') AS hp_campaign,
+  COALESCE(portal_site, '') AS portal_site,
   COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number,
   /*
     ⚠️ 2026-09-30 に追加（v2.2.154）。DatabaseOrder.tsx のメールアドレス検索で使う。

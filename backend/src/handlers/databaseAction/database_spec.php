@@ -64,6 +64,7 @@ $sql_customer = "SELECT
   COALESCE(show_dashboard, 0) AS trash,
   COALESCE(full_address, '') AS full_address,
   COALESCE(hp_campaign, '') AS hp_campaign,
+  COALESCE(portal_site, '') AS portal_site,
   COALESCE(property_name, '') AS property_name,
   COALESCE(property_tour_name, '') AS property_tour_name,
   COALESCE(introduction_person_category, '') AS introduction_person_category,
