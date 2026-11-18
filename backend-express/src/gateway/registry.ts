@@ -2037,6 +2037,7 @@ for (const category of ['', 'order', 'spec', 'used']) {
 //   「動いているように見せる」ことになる。
 //
 // ⚠️ category を送らない呼び出しに備えて '' も登録する（PHP の既定値 'order'）。
+// ⚠️ v2.2.278: 画面は GET で期間（startMonth / endMonth）・lastYear・budget・duplicate を送る。本文ごと runCustomerTrend に渡す。
 // ---------------------------------------------------------------------------
 
 for (const category of ['', 'order', 'spec']) {
@@ -2047,7 +2048,7 @@ for (const category of ['', 'order', 'spec']) {
     phpSource: `backend/src/handlers/customerTrendAction/customerTrend_${category === '' ? 'order' : category}.php`,
     auth: 'staff',
     handler: async (ctx) => {
-      const result = await runCustomerTrend(ctx.body.category);
+      const result = await runCustomerTrend(ctx.body);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

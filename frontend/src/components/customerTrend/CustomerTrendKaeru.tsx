@@ -5,8 +5,9 @@ import Table from "react-bootstrap/Table";
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { isLastYear } from '../../utils/isLastYear';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { get11MonthsAgoString } from "../../utils/get11MonthsAgoString";
-import apiClient from "../../utils/apiClient";
+import { TREND_PERIOD_DEFAULTS, useMonthPeriod } from '../../utils/useMonthPeriod';
+import { useTrendData } from '../../utils/useTrendData';
+import TrendLoadingNotice from '../TrendLoadingNotice';
 import { chartColors } from "./utils";
 import CustomerListModal from "../CustomerListModal";
 // ⚠️ ホームページ反響に丸める媒体。⚠️ **顧客分析（CustomerKaeru.tsx）と同じものを使う**
@@ -29,17 +30,22 @@ type CheckItem = {
 type CheckedState = {
   [key: string]: CheckItem;
 };
-type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note: string, company: string, response_medium: number, section: string, order_section: string };
+/** ⚠️ v2.2.278: 期間を付けて読むときは、画面で使う6列だけが返る（note / company / response_medium は無い） */
+type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note?: string, company?: string, response_medium?: number, section: string, order_section: string };
+/** ⚠️ v2.2.278: request: 'customerTrend'（category: 'spec'）の応答。⚠️ medium はこの画面では使わない */
+type CustomerTrendKaeruResponse = { shop: Shop[]; customer: CustomerList[]; budget: Budget[] };
+
+/** 媒体が空の顧客は「その他」にまとめる（表の行に合わせる） */
+const withMedium = (rows: CustomerList[]): CustomerList[] => rows.map(r => !r.medium ? ({ ...r, medium: 'その他' }) : r);
 
 const CustomerTrendKaeru: React.FC = () => {
   // ⚠️ token / authority は顧客詳細（InformationEditKaeru）に渡すために取る
   const { category, token, authority } = useContext(AuthContext);
   const [originalUserData, setOriginalUserData] = useState<CustomerList[]>([]);
   const [graphCategory, setGraphCategory] = useState('register');
-  const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
-  const [startMonth, setStartMonth] = useState(startMonthValue);
-  const [endMonth, setEndMonth] = useState('');
-  const [originalMonthArray, setOriginalMonthArray] = useState<string[]>([]);
+  /** ⚠️ v2.2.278: 期間は URL のクエリで持つ（utils/useMonthPeriod.ts）。初期値は11か月前〜当月 */
+  const { startMonth, endMonth, setStartMonth, setEndMonth } = useMonthPeriod(TREND_PERIOD_DEFAULTS);
+  const [originalMonthArray] = useState<string[]>(() => getYearMonthArray(2025, 1));
   const [targetShop, setTargetShop] = useState('');
   const [targetSection, setTargetSection] = useState('');
   const [targetBrand, setTargetBrand] = useState('');
@@ -76,26 +82,26 @@ const CustomerTrendKaeru: React.FC = () => {
     return date ? date.replace(/-/g, '/') : '';
   };
 
+  /**
+   * ⚠️ v2.2.278: 選んだ期間の分だけ GET で読む（utils/useTrendData.ts。店舗別反響推移と同じ）。
+   *   ⚠️ 広告費・名寄せした顧客は、チェックを入れたときだけ足して読み直す（外したときは読み直さない）。
+   *   ⚠️ 昨年実績はこの画面では出していない（チェックがコメントアウトされている）ので、前年の月は読まない。
+   *   ⚠️ 課・ブランド・店舗の絞り込みは画面の中だけで済むので読み直さない（選んだ値もそのまま残る）。
+   */
+  const trend = useTrendData<CustomerTrendKaeruResponse>('customerTrend', category, startMonth, endMonth, {
+    budget: checked.budget.show,
+    duplicate: isDuplicate,
+  });
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await apiClient.post("/", { request: 'customerTrend', category });
-        const responseCustomer = response.data.customer.map(r => !r.medium ? ({
-          ...r,
-          medium: 'その他'
-        }) : r);
-        setOriginalUserData(responseCustomer);
-        // ⚠️ 応答には medium（medium_kaeru）も入っているが、⚠️ **この画面では使わない。**
-        //   ⚠️ 2026-09-22 に表の行を直書きへ戻したため（下の displayMediums）。
-        setOriginalShopArray(response.data.shop);
-        setBudget(response.data.budget);
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-      }
-    };
-    setOriginalMonthArray(getYearMonthArray(2025, 1));
-    fetchData();
-  }, []);
+    const data = trend.data;
+    if (!data) return;
+    setOriginalUserData(withMedium(data.customer));
+    // ⚠️ 応答には medium（medium_kaeru）も入っているが、⚠️ **この画面では使わない。**
+    //   ⚠️ 2026-09-22 に表の行を直書きへ戻したため（下の displayMediums）。
+    setOriginalShopArray(data.shop);
+    setBudget(data.budget);
+  }, [trend.data]);
 
   /**
    * ⚠️⚠️ **ここから下の派生値は useState + useEffect をやめて useMemo にした（2026-09-11）。**
@@ -443,21 +449,10 @@ const CustomerTrendKaeru: React.FC = () => {
     setListShow({ show: true, label: labelValue, list });
   };
 
-  /**
-   * 顧客詳細を閉じたあとの再取得。
-   * ⚠️ 詳細で日付を直すと歩留まりが変わるため、閉じたら読み直す。
-   */
+  /** ⚠️ 詳細で日付を直すと歩留まりが変わるため、閉じたらいまの期間・チェックのまま読み直す */
   const closeInformationEdit = () => {
     setEditId('');
-    const fetchData = async () => {
-      try {
-        const response = await apiClient.post("/", { request: 'customerTrend', category });
-        setOriginalUserData(response.data.customer.map(r => !r.medium ? ({ ...r, medium: 'その他' }) : r));
-      } catch (error) {
-        console.error("データ取得エラー:", error);
-      }
-    };
-    fetchData();
+    trend.reload();
   };
 
   const checkedChange = (e) => {
@@ -485,17 +480,16 @@ const CustomerTrendKaeru: React.FC = () => {
   const searchParts = () => {
     return <>
       <div className="d-flex flex-wrap mb-1 search_condition">
+        {/* ⚠️ v2.2.278: 期間は URL で持つので value で制御する（以前は「開始月」「終了月」の見出しが選ばれたまま、実際は11か月前〜当月だった） */}
         <div className="m-1">
-          <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-            <option value="" selected>開始月</option>
+          <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
             {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
             ))}
           </select>
         </div>
         <span className='d-flex align-items-center mx-1'>～</span>
         <div className="m-1">
-          <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-            <option value="" selected>終了月</option>
+          <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)}>
             {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
             ))}
           </select>
@@ -773,14 +767,14 @@ const CustomerTrendKaeru: React.FC = () => {
     <>
       <div className='content bg-white p-2'>
         {searchParts()}
-        <div className="table-wrapper">
+        {!trend.isReady ? <TrendLoadingNotice failed={trend.failed} /> : <div className="table-wrapper">
           <div className="list_table">
             {graphParts()}
             <div style={{ width: `${(monthArray.length + 1) * 175 + 120}px` }}>
               {summary()}
             </div>
           </div>
-        </div>
+        </div>}
       </div>
       <CustomerListModal
         show={listShow.show}
