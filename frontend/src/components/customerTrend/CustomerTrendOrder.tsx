@@ -11,6 +11,7 @@ import TrendLoadingNotice from '../TrendLoadingNotice';
 import { chartColors } from "./utils";
 import CustomerListModal from "../CustomerListModal";
 import InformationEdit from "../information/InformationEdit";
+import { descending } from '../../utils/descending';
 
 /**
  * 店舗。
@@ -76,6 +77,8 @@ const CustomerTrendOrder: React.FC = () => {
      *   1件も設定されていなければ、ONにしても表示・集計は一切変わらない。
      */
     const [showMulti, setShowMulti] = useState<boolean>(false);
+    /** ⚠️ v2.2.279: 表の月の列を新しい順（今月が左）にするか。店舗別反響推移（ShopTrendOrder.tsx）と同じ初期値 */
+    const [isReverse, setIsReverse] = useState(true);
 
     /** 顧客一覧モーダル。label は「実来場者」などの見出し */
     const [listShow, setListShow] = useState<{ show: boolean, label: string, list: CustomerList[] }>({
@@ -164,6 +167,12 @@ const CustomerTrendOrder: React.FC = () => {
         const endIndex = endMonth ? originalMonthArray.indexOf(endMonth) + 1 : originalMonthArray.length;
         return originalMonthArray.slice(startIndex, endIndex);
     }, [originalMonthArray, startMonth, endMonth]);
+
+    /**
+     * 表の列に並べる月（v2.2.279）。isReverse（既定）のときは新しい月を左にする。
+     * ⚠️ 表の列の並びだけに使う。集計の期間（getValue の period・前年の月）とグラフは monthArray のまま。
+     */
+    const formattedMonthArray = useMemo(() => (isReverse ? descending(monthArray) : [...monthArray]), [monthArray, isReverse]);
 
     /** 課の一覧。⚠️ 「第2営業課」のような数字で並べる */
     const sectionArray = useMemo(() => {
@@ -369,14 +378,14 @@ const CustomerTrendOrder: React.FC = () => {
                     {/* ⚠️ v2.2.278: 期間は URL で持つので value で制御する（以前は「開始月」「終了月」の見出しが選ばれたまま、実際は11か月前〜当月だった） */}
                     <div className="m-1">
                         <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
-                            {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(originalMonthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <span className='d-flex align-items-center mx-1'>～</span>
                     <div className="m-1">
                         <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)}>
-                            {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(originalMonthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
@@ -446,6 +455,11 @@ const CustomerTrendOrder: React.FC = () => {
                             }} />併売店をまとめる
                         </label>
                     </div>
+                    <div className="m-1">
+                        <label className="target checkbox d-flex align-items-center">
+                            <input type="checkbox" checked={isReverse === false} className='me-1' onChange={() => setIsReverse(!isReverse)} />期間を反転
+                        </label>
+                    </div>
                 </div>
                 {!trend.isReady ? <TrendLoadingNotice failed={trend.failed} /> : <div className="table-wrapper">
                     <div className="list_table">
@@ -480,7 +494,7 @@ const CustomerTrendOrder: React.FC = () => {
                                 <tbody style={{ fontSize: "12px" }}>
                                     <tr className="sticky-header">
                                         <td className="text-center sticky-column" style={{ width: '300px' }}>販促媒体名</td>
-                                        {['全期間', ...monthArray].map((month, index) => (
+                                        {['全期間', ...formattedMonthArray].map((month, index) => (
                                             <td key={index} className="">
                                                 {month}
                                             </td>
@@ -522,7 +536,7 @@ const CustomerTrendOrder: React.FC = () => {
                                                         rowSpan={isBudget ? 2 : 1}>
                                                         {medium}
                                                     </td>
-                                                    {['全期間', ...monthArray].map((month, monthIndex) => {
+                                                    {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                                                         const total = getValue(base, monthIndex, month, 'register');
                                                         const interview = getValue(base, monthIndex, month, 'interview');
                                                         const contract = getValue(base, monthIndex, month, 'contract');
@@ -564,7 +578,7 @@ const CustomerTrendOrder: React.FC = () => {
                                                     })}
                                                 </tr>)}
                                                     {isBudget && <tr>
-                                                        {['全期間', ...monthArray].map((month, monthIndex) => {
+                                                        {['全期間', ...formattedMonthArray].map((month, monthIndex) => {
                                                             const filteredBudget = baseBudget.filter(b =>
                                                                 monthIndex > 0 ? b.budget_period.includes(month) : monthArray.includes(b.budget_period.slice(0, 7)));
                                                             const formattedValue = filteredBudget.reduce((acc, cur) => acc + cur.budget_value, 0);

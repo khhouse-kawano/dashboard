@@ -13,6 +13,7 @@ import CustomerListModal from "../CustomerListModal";
 // ⚠️ ホームページ反響に丸める媒体。⚠️ **顧客分析（CustomerKaeru.tsx）と同じものを使う**
 import { HOMEPAGE_MEDIUMS, normalizeMedium } from '../customer/customerKaeruUtils';
 import InformationEditKaeru from "../information/InformationEditKaeru";
+import { descending } from '../../utils/descending';
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
 /**
@@ -483,14 +484,14 @@ const CustomerTrendKaeru: React.FC = () => {
         {/* ⚠️ v2.2.278: 期間は URL で持つので value で制御する（以前は「開始月」「終了月」の見出しが選ばれたまま、実際は11か月前〜当月だった） */}
         <div className="m-1">
           <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
-            {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+            {descending(originalMonthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
             ))}
           </select>
         </div>
         <span className='d-flex align-items-center mx-1'>～</span>
         <div className="m-1">
           <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)}>
-            {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+            {descending(originalMonthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
             ))}
           </select>
         </div>

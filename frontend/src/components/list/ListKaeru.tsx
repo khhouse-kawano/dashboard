@@ -20,6 +20,7 @@ import { kataToHira } from '../../utils/kataToHira';
 import { hiraToKata } from '../../utils/nexusUtils';
 import { extractNumbers } from '../../utils/extraNumbers';
 import { useIsSp } from '../../utils/isSp';
+import { descending } from '../../utils/descending';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -628,7 +629,7 @@ const ListKaeru = ({ onReload }: Props) => {
                           ⚠️ React は <option selected> に警告を出す作法違反でもある。
                         */}
                         <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
@@ -636,7 +637,7 @@ const ListKaeru = ({ onReload }: Props) => {
                     <div className="m-1">
                         {/* ⚠️ 開始月と同じ理由で value 制御にする */}
                         <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>

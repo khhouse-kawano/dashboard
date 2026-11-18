@@ -20,6 +20,7 @@ import OrderModal from './OrderModal';
 import TrackingTouches, { landingLabel } from './TrackingTouches';
 import DuplicateBadge from './DuplicateBadge';
 import { hiraToKata } from '../../utils/nexusUtils';
+import { descending } from '../../utils/descending';
 
 type Shop = { brand: string, shop: string, section: string, area: string };
 
@@ -691,7 +692,7 @@ const ListOrder = ({ onReload }: Props) => {
                           ⚠️ React は <option selected> に警告を出す作法違反でもある。
                         */}
                         <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month) => (<option key={month} value={month}>{month}</option>
+                            {descending(monthArray).map((month) => (<option key={month} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
@@ -699,7 +700,7 @@ const ListOrder = ({ onReload }: Props) => {
                     <div className="m-1">
                         {/* ⚠️ 開始月と同じ理由で value 制御にする */}
                         <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month) => (<option key={month} value={month}>{month}</option>
+                            {descending(monthArray).map((month) => (<option key={month} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>

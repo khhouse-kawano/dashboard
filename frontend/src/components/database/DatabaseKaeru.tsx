@@ -17,6 +17,7 @@ import { thisYear } from '../../utils/thisYear';
 import { sortStaff } from '../header/ambassador/useAmbassadorMaster';
 import { GiftDot, GiftLegend } from './GiftMark';
 import { CustomerNameCell, cleanCustomerName } from './customerName2';
+import { descending } from '../../utils/descending';
 
 type shopList = { brand: string, shop: string, section: string };
 // ⚠️ position / khg_id は担当営業セレクトの並べ替えに使う（2026-09-14 追加）。
@@ -457,7 +458,7 @@ const DatabaseKaeru = ({ }: Props) => {
                     <div className="m-1">
                         <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>
                             <option value="">反響月を選択</option>
-                            {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            {descending(monthArray).map((item, index) => <option key={index} value={item}>{item}</option>)}
                         </select>
                     </div>
                     {!isSp && <>
@@ -465,7 +466,7 @@ const DatabaseKaeru = ({ }: Props) => {
                             <select className="target" onChange={(e) => setSelectedReserve(e.target.value)}>
                                 <option value="">初回来場月を選択</option>
                                 <option value="notVisited">未来場・来場キャンセル</option>
-                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                                {descending(monthArray).map((item, index) => <option key={index} value={item}>{item}</option>)}
                             </select>
                         </div></>}
                     <div className="m-1">
