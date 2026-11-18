@@ -5,8 +5,9 @@ import Table from "react-bootstrap/Table";
 import { getYearMonthArray } from '../../utils/getYearMonthArray';
 import { isLastYear } from '../../utils/isLastYear';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { get11MonthsAgoString } from "../../utils/get11MonthsAgoString";
-import apiClient from "../../utils/apiClient";
+import { TREND_PERIOD_DEFAULTS, useMonthPeriod } from '../../utils/useMonthPeriod';
+import { useTrendData } from '../../utils/useTrendData';
+import TrendLoadingNotice from '../TrendLoadingNotice';
 import { chartColors } from "./utils";
 import CustomerListModal from "../CustomerListModal";
 import InformationEdit from "../information/InformationEdit";
@@ -31,7 +32,15 @@ type CheckItem = {
 type CheckedState = {
     [key: string]: CheckItem;
 };
-type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note: string, company: string, response_medium: number, section: string, order_section: string };
+/** ⚠️ v2.2.278: 期間を付けて読むときは、画面で使う6列だけが返る（note / company / response_medium は無い） */
+type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note?: string, company?: string, response_medium?: number, section: string, order_section: string };
+/** ⚠️ v2.2.278: request: 'customerTrend'（category: 'order'）の応答 */
+type CustomerTrendOrderResponse = {
+    shop: Shop[];
+    customer: CustomerList[];
+    medium: (MediumType & { list_medium: number })[];
+    budget: Budget[];
+};
 
 const CustomerTrendOrder: React.FC = () => {
     // ⚠️ token / authority は顧客詳細（InformationEdit）に渡すために取る
@@ -39,10 +48,9 @@ const CustomerTrendOrder: React.FC = () => {
     const [originalUserData, setOriginalUserData] = useState<CustomerList[]>([]);
     const [mediumList, setMediumList] = useState<MediumType[]>([]);
     const [graphCategory, setGraphCategory] = useState('register');
-    const startMonthValue = get11MonthsAgoString().replace(/-/g, '/');
-    const [startMonth, setStartMonth] = useState(startMonthValue);
-    const [endMonth, setEndMonth] = useState('');
-    const [originalMonthArray, setOriginalMonthArray] = useState<string[]>([]);
+    /** ⚠️ v2.2.278: 期間は URL のクエリで持つ（utils/useMonthPeriod.ts）。初期値は11か月前〜当月 */
+    const { startMonth, endMonth, setStartMonth, setEndMonth } = useMonthPeriod(TREND_PERIOD_DEFAULTS);
+    const [originalMonthArray] = useState<string[]>(() => getYearMonthArray(2025, 1));
     const [targetShop, setTargetShop] = useState('');
     const [targetSection, setTargetSection] = useState('');
     const [targetBrand, setTargetBrand] = useState('');
@@ -103,40 +111,29 @@ const CustomerTrendOrder: React.FC = () => {
     };
 
     /**
-     * 顧客詳細を閉じたあとの再取得。
-     * ⚠️ 詳細で日付を直すと歩留まりが変わるため、閉じたら読み直す。
+     * ⚠️ v2.2.278: 選んだ期間の分だけ GET で読む（utils/useTrendData.ts。店舗別反響推移と同じ）。
+     *   ⚠️ 昨年実績・広告費は、チェックを入れたときだけ前年の月・広告費を足して読み直す（外したときは読み直さない）。
+     *   ⚠️ 課・ブランド・店舗・ポータル・併売店のまとめは画面の中だけで済むので読み直さない（選んだ値もそのまま残る）。
      */
-    const closeInformationEdit = () => {
-        setEditId('');
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post("", { request: 'customerTrend', category });
-                setOriginalUserData(response.data.customer);
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-            }
-        };
-        fetchData();
-    };
+    const trend = useTrendData<CustomerTrendOrderResponse>('customerTrend', category, startMonth, endMonth, {
+        lastYear: checked.comparison.show,
+        budget: checked.budget.show,
+    });
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // ⚠️⚠️ 2026-09-11 まで axios で**本番URLを直書き**していた。
-                //   ローカル開発からでも本番DBを読んでいた。apiClient を通すこと。
-                const response = await apiClient.post("", { request: 'customerTrend', category });
-                setOriginalUserData(response.data.customer);
-                const filteredMedium = response.data.medium.filter(item => item.list_medium === 1);
-                setMediumList(filteredMedium);
-                setOriginalShopArray(response.data.shop);
-                setBudget(response.data.budget);
-            } catch (error) {
-                console.error("Error fetching user data:", error);
-            }
-        };
-        setOriginalMonthArray(getYearMonthArray(2025, 1));
-        fetchData();
-    }, []);
+        const data = trend.data;
+        if (!data) return;
+        setOriginalUserData(data.customer);
+        setMediumList(data.medium.filter(item => item.list_medium === 1));
+        setOriginalShopArray(data.shop);
+        setBudget(data.budget);
+    }, [trend.data]);
+
+    /** ⚠️ 詳細で日付を直すと歩留まりが変わるため、閉じたらいまの期間・チェックのまま読み直す */
+    const closeInformationEdit = () => {
+        setEditId('');
+        trend.reload();
+    };
 
     /**
      * ⚠️⚠️ **ここから下の派生値は useState + useEffect をやめて useMemo にした（2026-09-11）。**
@@ -369,17 +366,16 @@ const CustomerTrendOrder: React.FC = () => {
         <>
             <div className='content bg-white p-2'>
                 <div className="d-flex flex-wrap mb-1 search_condition">
+                    {/* ⚠️ v2.2.278: 期間は URL で持つので value で制御する（以前は「開始月」「終了月」の見出しが選ばれたまま、実際は11か月前〜当月だった） */}
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
-                            <option value="" selected>開始月</option>
+                        <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
                             {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <span className='d-flex align-items-center mx-1'>～</span>
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
-                            <option value="" selected>終了月</option>
+                        <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)}>
                             {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
@@ -451,7 +447,7 @@ const CustomerTrendOrder: React.FC = () => {
                         </label>
                     </div>
                 </div>
-                <div className="table-wrapper">
+                {!trend.isReady ? <TrendLoadingNotice failed={trend.failed} /> : <div className="table-wrapper">
                     <div className="list_table">
                         <div className="mt-3">
                             {checked.graph.show && <><div className="d-flex justify-content-center">
@@ -615,7 +611,7 @@ const CustomerTrendOrder: React.FC = () => {
                             </Table>
                         </div>
                     </div>
-                </div>
+                </div>}
             </div>
             <CustomerListModal
                 show={listShow.show}

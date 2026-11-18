@@ -121,7 +121,52 @@ const CUSTOMER_SQL: Record<CustomerTrendCategory, string> = {
       COALESCE(show_dashboard, 0) as show_dashboard,
       COALESCE(status , '') as status,
       COALESCE(delete_dashboard, 0) AS delete_dashboard
-      FROM master_data_kaeru`,
+      FROM master_data_kaeru WHERE 1 = 1`,
+};
+
+/**
+ * 画面が月を数えるのに使う日付の列（v2.2.278。店舗別反響推移の DATE_COLUMNS と同じ考え方）。
+ *
+ * ⚠️⚠️ **画面のどの数字も「この列のどれか1つが表示月（昨年実績なら前年同月も）に入る行」しか数えない。**
+ *   このどれかが期間に入る行に絞れば、全件のときと数字は変わらない（「全期間」の列も表示月の合計）。
+ * ⚠️ 画面（CustomerTrend*.tsx）の集計で見る列を増やしたら、ここにも足すこと。足さないと数字が減る。
+ * ⚠️ ① の customerTrendAction/customerTrend_{category}.php の $customerTrendDateColumns と同じにすること。
+ */
+const DATE_COLUMNS: Record<CustomerTrendCategory, readonly string[]> = {
+  // register / interview / appointment / screening / contract / 来場予約（⚠️ 集計には使っていないが、応答に入っているので残す）
+  order: [
+    'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
+    'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+    'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+    'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+    'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+    'reserved_interview',
+  ],
+  // register / contact / interview / tour / appointment / screening / obtain / application / contract / contract_broker
+  spec: [
+    'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
+    'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z',
+    'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+    'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+    'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+    'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+    'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
+    'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+    'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
+    'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0',
+  ],
+};
+
+/**
+ * 期間を送られたときの販促費（v2.2.278）。⚠️ 画面が使う6列だけ・その事業の section だけ。
+ * ⚠️ order の画面は section === 'order' の行しか数えていない（CustomerTrendOrder.tsx）ので、section で絞っても数字は同じ。
+ * ⚠️ 期間が無いとき（古い画面）は今までどおり BUDGET_SQL（order は section で絞らない）。
+ */
+const BUDGET_PERIOD_SQL = `SELECT budget_period, shop, medium, budget_value, section, order_section
+  FROM budget WHERE response_medium = 0 AND section = ?`;
+const BUDGET_SECTION: Record<CustomerTrendCategory, string> = {
+  order: 'order',
+  spec: 'spec',
 };
 
 /**
@@ -151,5 +196,8 @@ export const customerTrendSql = (category: CustomerTrendCategory) => ({
   customer: CUSTOMER_SQL[category],
   medium: MEDIUM_SQL[category],
   budget: BUDGET_SQL[category],
+  budgetPeriod: BUDGET_PERIOD_SQL,
+  budgetSection: BUDGET_SECTION[category],
+  dateColumns: DATE_COLUMNS[category],
   division: DIVISION[category],
 });

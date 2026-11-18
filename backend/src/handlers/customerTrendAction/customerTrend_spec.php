@@ -25,6 +25,26 @@ $stmt_section->execute();
 $response_section = $stmt_section->fetchAll(PDO::FETCH_ASSOC);
 
 
+// ⚠️ v2.2.278: 画面が月を数えるのに使う日付の列
+//   （register / contact / interview / tour / appointment / screening / obtain / application / contract / contract_broker）。
+//   ⚠️ このどれかが期間に入る行に絞る（数字は全件のときと変わらない）。
+//   ⚠️⚠️ ② の features/customerTrend/queries.ts の DATE_COLUMNS と同じにすること
+$customerTrendDateColumns = [
+        'step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99',
+        'step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z',
+        'step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7',
+        'step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG',
+        'step_migration_item_01JSENACS2FC422ZHEZWNSXNYA',
+        'step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR',
+        'step_migration_item_01J95TGVT725CV1Z4HTWB22DAV',
+        'step_migration_item_01J82Z5F1RR18Z792C7KZS88QG',
+        'step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW',
+        'step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0',
+];
+[$customerTrendCond, $customerTrendParams] = anyMonthCondition($customerTrendDateColumns, $customerTrendMonths);
+// ⚠️ 名寄せした顧客は「名寄せした顧客も表示」にチェックがあるときだけ（期間なしは今までどおり全件）
+$customerTrendShownCond = $customerTrendOnlyShown ? ' AND COALESCE(show_dashboard, 0) = 1' : '';
+
 // 契約者一覧
 $sql_contract = "SELECT id,
 COALESCE(customer_contacts_name, '') as customer,
@@ -45,9 +65,9 @@ COALESCE(step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z, '') as contact,
 COALESCE(hp_campaign, '') as hp_campaign,
 COALESCE(show_dashboard, 0) as show_dashboard,
 COALESCE(status , '') as status
-FROM master_data_kaeru";
+FROM master_data_kaeru WHERE {$customerTrendCond}{$customerTrendShownCond}";
 $stmt_contract = $pdo->prepare($sql_contract);
-$stmt_contract->execute();
+$stmt_contract->execute($customerTrendParams);
 $response_contract = $stmt_contract->fetchAll(PDO::FETCH_ASSOC);
 
 
@@ -60,10 +80,8 @@ $response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
 
 
 // 販促費
-$sql_budget = "SELECT * FROM budget WHERE response_medium = 0 AND section ='spec'";
-$stmt_budget = $pdo->prepare($sql_budget);
-$stmt_budget->execute();
-$response_budget = $stmt_budget->fetchAll(PDO::FETCH_ASSOC);
+// ⚠️ v2.2.278: 期間なし（古い画面）… 今までどおり全列。期間あり … 広告費にチェックがあるときだけ、6列を期間で。無ければ空
+$response_budget = customerTrendBudget($pdo, "SELECT * FROM budget WHERE response_medium = 0 AND section ='spec'", 'spec', $customerTrendBudgetMode, $customerTrendMonths);
 
 
 $result = [
