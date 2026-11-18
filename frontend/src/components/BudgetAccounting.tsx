@@ -2,6 +2,7 @@ import React, { useEffect, useState, useContext } from "react";
 import Table from "react-bootstrap/Table";
 import apiClient from '../utils/apiClient';
 import { getYearMonthArray } from '../utils/getYearMonthArray';
+import { descending } from '../utils/descending';
 
 type Medium = { medium: string, category: string, sort_key: number, response_medium: number, list_medium: number, ma_medium: number, ma_category: string };
 type Budget = { budget_period: string, shop: string, medium: string, budget_value: number, note: string, company: string, response_medium: number, section: string, order_section: string };
@@ -115,7 +116,7 @@ const BudgetAccounting = () => {
                 <div className="m-1">
                   <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
                     <option value="" selected>開始月</option>
-                    {originalMonthArray.map((month, index) => (<option key={index} value={month} selected={month === startMonth}>{month}</option>
+                    {descending(originalMonthArray).map((month, index) => (<option key={index} value={month} selected={month === startMonth}>{month}</option>
                     ))}
                   </select>
                 </div>
@@ -123,7 +124,7 @@ const BudgetAccounting = () => {
                 <div className="m-1">
                   <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
                     <option value="" selected>終了月</option>
-                    {originalMonthArray.map((month, index) => (<option key={index} value={month} selected={month === endMonth}>{month}</option>
+                    {descending(originalMonthArray).map((month, index) => (<option key={index} value={month} selected={month === endMonth}>{month}</option>
                     ))}
                   </select>
                 </div>

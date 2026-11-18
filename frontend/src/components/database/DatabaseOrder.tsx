@@ -22,6 +22,7 @@ import { sortStaff } from '../header/ambassador/useAmbassadorMaster';
 import NexusBadge from '../NexusBadge';
 import { isNexusRow } from '../../utils/nexusUtils';
 import { CustomerNameCell, cleanCustomerName } from './customerName2';
+import { descending } from '../../utils/descending';
 
 // --- 型定義 ---
 type ShopList = { brand: string; shop: string; section: string };
@@ -485,14 +486,14 @@ const DatabaseOrder = ({ onReload }: Props) => {
                         <div className="m-1">
                             <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>
                                 <option value="">反響月を選択</option>
-                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                                {descending(monthArray).map((item, index) => <option key={index} value={item}>{item}</option>)}
                             </select>
                         </div>
                         <div className="m-1">
                             <select className="target" onChange={(e) => setSelectedReserve(e.target.value)}>
                                 <option value="">初回来場月を選択</option>
                                 <option value="notVisited">未来場・来場キャンセル</option>
-                                {monthArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                                {descending(monthArray).map((item, index) => <option key={index} value={item}>{item}</option>)}
                             </select>
                         </div></>}
                     <div className="m-1">

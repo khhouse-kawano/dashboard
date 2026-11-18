@@ -11,6 +11,7 @@ import { sortShops } from '../header/ambassador/useAmbassadorMaster';
 import { UNIT_PRICE_SERIES } from './unitPriceSeries';
 // ⚠️ 見た目は customer/ と shop/ の4画面で共通（components/rankingUi.tsx）
 import { RankingStyle, SortIcon } from '../rankingUi';
+import { descending } from '../../utils/descending';
 
 type Customer = Record<string, string>;
 type Budget = { id: number; medium: string; budget_period: string; shop: string; budget_value: number; note: string; company: string; response_medium: number; category: string; section: string; order_section: string }
@@ -461,7 +462,7 @@ const ShopOrder = () => {
                         <select className="rk_select" value={startMonth}
                             onChange={(event) => handleSort(event.target.value, endMonth, selectedMedium, selectedShop, selectedSection, selectedArea)}>
                             <option value="">指定なし</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <span className="rk_tilde">～</span>
@@ -470,7 +471,7 @@ const ShopOrder = () => {
                         <select className="rk_select" value={endMonth}
                             onChange={(event) => handleSort(startMonth, event.target.value, selectedMedium, selectedShop, selectedSection, selectedArea)}>
                             <option value="">指定なし</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <div className="rk_field">

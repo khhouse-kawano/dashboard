@@ -11,6 +11,7 @@ import AuthContext from "../../context/AuthContext";
 import { GoogleMapContext } from "../../context/GoogleMapContext";
 import { getYearMonthArray } from "../../utils/getYearMonthArray";
 import { useIsSp } from '../../utils/isSp';
+import { descending } from '../../utils/descending';
 
 type CustomerItem = Record<string, string>;
 
@@ -295,7 +296,7 @@ const MapOrder: React.FC = () => {
                         <Col xs={12} sm={6} md={2}>
                             <Form.Select size="sm" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '12px' }}>
                                 <option value="">開始月</option>
-                                {monthArray.map((month, index) => (
+                                {descending(monthArray).map((month, index) => (
                                     <option key={`start-${index}`} value={month}>{month}</option>
                                 ))}
                             </Form.Select>
@@ -304,7 +305,7 @@ const MapOrder: React.FC = () => {
                         <Col xs={12} sm={6} md={2}>
                             <Form.Select size="sm" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '12px' }}>
                                 <option value="">終了月</option>
-                                {monthArray.map((month, index) => (
+                                {descending(monthArray).map((month, index) => (
                                     <option key={`end-${index}`} value={month}>{month}</option>
                                 ))}
                             </Form.Select>

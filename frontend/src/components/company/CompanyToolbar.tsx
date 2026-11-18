@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { getYears } from '../../utils/getYears';
 import { REALTY_NAME } from './companyAggregate';
 import type { Section, Shop } from './companyTypes';
+import { descending } from '../../utils/descending';
 
 /**
  * 全社報告用フォーマットの上のバー（v2.2.264 で Company.tsx から分けた）。見た目は反響一覧（list）のバーに寄せている。
@@ -38,7 +39,7 @@ const CompanyToolbar = ({ category, targetYear, divisionArray, sectionList, shop
         <div className="co_toolbar">
             <div className="m-1">
                 <select className="target" aria-label="期" onChange={(e) => onYear(Number(e.target.value))} value={String(targetYear)}>
-                    {getYears().map(year => <option key={year} value={year}>{year}年5月期</option>)}
+                    {descending(getYears()).map(year => <option key={year} value={year}>{year}年5月期</option>)}
                 </select>
             </div>
             <div className="m-1">
