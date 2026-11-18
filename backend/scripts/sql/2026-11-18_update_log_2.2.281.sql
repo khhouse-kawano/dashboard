@@ -21,6 +21,8 @@ ALTER TABLE master_data_kaeru
   ADD COLUMN portal_site VARCHAR(32) NULL DEFAULT NULL COMMENT 'ポータルサイト名（SUUMO など。v2.2.281）';
 
 -- 2) これまでに取り込んだ分を埋める（反響の pg_id = 顧客台帳の id）
+-- ⚠️ ① の mysql は safe update モードなので、キーで絞らない UPDATE の前に切る（切らないと ERROR 1175）
+SET SESSION sql_safe_updates = 0;
 UPDATE master_data m
   JOIN inquiry_customer i ON i.pg_id = m.id
    SET m.portal_flag = 1, m.portal_site = i.medium
