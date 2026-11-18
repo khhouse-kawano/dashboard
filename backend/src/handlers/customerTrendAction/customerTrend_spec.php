@@ -63,6 +63,7 @@ COALESCE(step_migration_item_01J95TGVT725CV1Z4HTWB22DAV, '') as obtain,
 COALESCE(step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG, '') as tour,
 COALESCE(step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z, '') as contact,
 COALESCE(hp_campaign, '') as hp_campaign,
+COALESCE(portal_flag, 0) as portal_flag,
 COALESCE(show_dashboard, 0) as show_dashboard,
 COALESCE(status , '') as status
 FROM master_data_kaeru WHERE {$customerTrendCond}{$customerTrendShownCond}";

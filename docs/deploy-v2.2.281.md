@@ -49,6 +49,7 @@ dcp ps express-api
 - `STATUS` が `Up` のまま続けばよいです（`Restarting` なら `dcp logs --tail 60 express-api`）。
 - ⚠️ `git pull` は使わない。⚠️ `dcp` を使う（`docker compose -f` だけだと `.env.prod` が渡らず ② が起動しない）。
 
+
 ### 手順4　【① PHP】
 次の4ファイルを ① の同じ場所へアップロードします（1 は新しいファイル、ほかは上書き）。
 1. `backend/src/core/portal.php`

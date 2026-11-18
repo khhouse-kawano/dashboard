@@ -12,6 +12,7 @@ import { chartColors } from "./utils";
 import CustomerListModal from "../CustomerListModal";
 import InformationEdit from "../information/InformationEdit";
 import { descending } from '../../utils/descending';
+import PortalOnlyCheck, { isPortalCustomer } from './PortalOnlyCheck';
 
 /**
  * 店舗。
@@ -24,7 +25,7 @@ type MediumType = { medium: string, category: string, sort_key: number, response
  * ⚠️ `customer` / `staff` / `rank` は**以前から API が返していた**が、
  *   この型に書かれていなかったため使えなかった。顧客一覧モーダルで使う。
  */
-type CustomerList = { id: string, customer: string, staff: string, rank: string, shop: string, status: string, medium: string, interview: string, register: string, contract: string, hp_campaign: string, section: string, appointment: string, screening: string };
+type CustomerList = { id: string, customer: string, staff: string, rank: string, shop: string, status: string, medium: string, interview: string, register: string, contract: string, hp_campaign: string, section: string, appointment: string, screening: string, portal_flag?: number | string };
 type GraphData = { month: string, [key: string]: number | string };
 type CheckItem = {
     name: string;
@@ -235,7 +236,8 @@ const CustomerTrendOrder: React.FC = () => {
             (targetSection ? sectionShops.includes(o.shop) : true) &&
             (targetShop ? targetShops.includes(o.shop) : true) &&
             (targetBrand ? o.shop.slice(0, 2) === targetBrand : true) &&
-            (portalChecked ? !o.hp_campaign : true)
+            // v2.2.282: 反響経路が空の顧客 → ポータル反響の印（portal_flag）がある顧客
+            (portalChecked ? isPortalCustomer(o) : true)
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [originalUserData, originalShopArray, targetSection, targetShop, targetBrand, portalChecked, showMulti, multiChildren]);
@@ -438,13 +440,7 @@ const CustomerTrendOrder: React.FC = () => {
                             </label>
                         </div>
                     })}
-                    <div className="m-1">
-                        <label className="target checkbox d-flex align-items-center">
-                            <input type="checkbox" checked={portalChecked} className='me-1' onChange={() =>
-                                setPortalChecked(!portalChecked)
-                            } />ポータル反響のみ表示
-                        </label>
-                    </div>
+                    <PortalOnlyCheck checked={portalChecked} onChange={setPortalChecked} />
                     <div className="m-1">
                         <label className="target checkbox d-flex align-items-center">
                             {/* ⚠️ 表の行は販促媒体なので、効くのは店舗の選択肢と集計だけ。行数は変わらない */}
