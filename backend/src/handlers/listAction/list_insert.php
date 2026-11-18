@@ -110,6 +110,13 @@ try {
         if (!$updateStmt->execute([$id, $inquiry_id])) {
             throw new Exception("{$tableNameInquiry} の連携更新に失敗しました。");
         }
+
+        // v2.2.281: ポータルからの反響なら顧客台帳に印を付ける（core/portal.php）
+        require_once __DIR__ . '/../../core/portal.php';
+        $portal = portalMarkSql($category, (string) $inquiry_id);
+        if ($portal !== null) {
+            $dbConn->prepare($portal['sql'])->execute($portal['params']);
+        }
     }
 
     // 3. トランザクションのコミット
