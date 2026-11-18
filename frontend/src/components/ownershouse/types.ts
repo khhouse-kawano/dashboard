@@ -70,6 +70,35 @@ export const parseLatLng = (value: string): { lat: number; lng: number } | null 
 /** { lat, lng } → 「31.360309, 130.818042」（⚠️ owners_house は ', ' で区切って読む） */
 export const formatLatLng = (p: { lat: number; lng: number }): string => `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`;
 
+/**
+ * 店舗名のブランド部分：略称（shop_list の店舗名の頭）⇔ 正式名称（ownershouse.shop・サイトの表示）。
+ * ⚠️ 管理画面は shop_list（注文事業）の略称で選び、保存するときに正式名称に直す（サイトの「管理店舗」は正式名称で出す。2026-11-18 の指示）。
+ * ⚠️ 見学予約（② ownersHouse/reservation.ts の SHOP_PREFIX）は正式名称を略称に戻して使う。ブランドを足すときは両方に足す。
+ * ⚠️ 長い略称から先に比べる（DJH を先に見ないと、将来 'D' などが増えたときに取り違える）。
+ */
+const SHOP_BRAND_NAMES: ReadonlyArray<readonly [short: string, formal: string]> = [
+    ['DJH', 'デイジャストハウス'],
+    ['なごみ', 'なごみ工務店'],
+    ['PGH', 'PG HOUSE'],
+    ['KH', '国分ハウジング'],
+    ['2L', 'ニーエルホーム'],
+    ['FH', 'フルコミホーム'],
+    ['JH', 'ジャスフィーホーム'],
+];
+
+/** 略称の店舗名 → 正式名称（例 KH霧島店 → 国分ハウジング霧島店）。当てはまらなければそのまま */
+export const toFormalShopName = (shop: string): string => {
+    if (SHOP_BRAND_NAMES.some(([, formal]) => shop.startsWith(formal))) return shop;
+    const hit = SHOP_BRAND_NAMES.find(([short]) => shop.startsWith(short));
+    return hit ? hit[1] + shop.slice(hit[0].length) : shop;
+};
+
+/** 正式名称の店舗名 → shop_list の略称（例 国分ハウジング霧島店 → KH霧島店）。当てはまらなければそのまま */
+export const toShortShopName = (shop: string): string => {
+    const hit = SHOP_BRAND_NAMES.find(([, formal]) => shop.startsWith(formal));
+    return hit ? hit[0] + shop.slice(hit[1].length) : shop;
+};
+
 /** 店舗名の頭 → ブランド略称（⚠️ ② ownersHouse/reservation.ts の BRANDS のキー） */
 export const brandOfShop = (shop: string): string => {
     if (shop.startsWith('JH') || shop.startsWith('ジャスフィー')) return 'JH';

@@ -1869,6 +1869,26 @@ UPDATE ownershouse o
 SELECT COUNT(*) AS lg_code_rows FROM lg_code;
 SELECT SUM(lg_code IS NOT NULL) AS matched, SUM(lg_code IS NULL) AS unmatched FROM ownershouse WHERE no > 1;
 
+-- 5) 一覧にない呼び名（出水阿久根・加世田・肝属）の物件を、所在地（name）の市区町村に付け直す（2026-11-18 利用者の了承）
+--    ⚠️ サイトのエリアの絞り込みの名前も変わる（例 出水阿久根 → 出水・阿久根・長島・薩摩川内）
+SET SESSION sql_safe_updates = 0;
+--   a) 所在地が「県＋市町村」で始まるもの
+UPDATE ownershouse o
+  JOIN lg_code c ON c.city_name <> '' AND o.name LIKE CONCAT(c.pref_name, c.city_name, '%')
+   SET o.area = c.city_short, o.lg_code = c.code
+ WHERE o.no > 1 AND o.lg_code IS NULL;
+--   b) 所在地が「県＋〇〇郡＋町村」のもの（肝属郡南大隅町・出水郡長島町）
+UPDATE ownershouse o
+  JOIN lg_code c ON c.city_name <> '' AND o.name LIKE CONCAT(c.pref_name, '%郡', c.city_name, '%')
+   SET o.area = c.city_short, o.lg_code = c.code
+ WHERE o.no > 1 AND o.lg_code IS NULL;
+--   c) 所在地が展示場の名前のもの（出水展示場 → 出水市、加世田展示場・南さつま市加世田 → 南さつま市）
+UPDATE ownershouse SET area = '出水', lg_code = '462080' WHERE no > 1 AND lg_code IS NULL AND area = '出水阿久根' AND name LIKE '出水展示場%';
+UPDATE ownershouse SET area = '南さつま', lg_code = '462209' WHERE no > 1 AND lg_code IS NULL AND area = '加世田' AND (name LIKE '加世田展示場%' OR name LIKE '南さつま市%');
+
+-- 確かめる（unmatched が 0 になればよい）
+SELECT SUM(lg_code IS NOT NULL) AS matched, SUM(lg_code IS NULL) AS unmatched FROM ownershouse WHERE no > 1;
+
 -- ---------------------------------------------------------------
 -- 業務ガイドの記事（1本）。backend/scripts/guide/build-guide-sql.cjs で作成
 -- ⚠️ 先に guide_article / guide_history の表があること（2026-10-16_guide_article.sql）
@@ -1895,9 +1915,9 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 - **管理店舗**：注文事業の店舗から選びます。選ぶとブランドも自動で入ります（見学予約の通知先が決まります）
 - **担当**：オーナー様が書いてきた内容のままにします
 
-> 注意：「出水阿久根」「加世田」「肝属」は、市区町村の一覧にない呼び名です。いまの値のまま残してありますが、選び直すと一覧の市区町村の名前に変わり、サイトのエリアの絞り込みも変わります。
+- 管理店舗は「KH鹿屋店」のような名前で選びますが、サイトには「国分ハウジング鹿屋店」のような正式な名前で出ます
 
-> 注意：管理店舗は、保存すると「国分ハウジング鹿屋店」のような名前から「KH鹿屋店」のような名前に変わり、サイトの物件ページにもその名前で出ます。
+> 注意：以前の「出水阿久根」「加世田」「肝属」のエリアは、2026年11月に物件の所在地の市町村（出水・阿久根・長島・薩摩川内・南さつま・南大隅）に付け直しました。サイトのエリアの絞り込みも、この名前で出ます。
 
 ## 地図のピン
 右の地図を押すと、その場所にピンが立ちます。ピンはつかんで動かせます。

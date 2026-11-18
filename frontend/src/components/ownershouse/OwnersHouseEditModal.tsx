@@ -4,7 +4,7 @@ import { GoogleMap, MarkerF } from '@react-google-maps/api';
 import { GoogleMapContext } from '../../context/GoogleMapContext';
 import apiClient from '../../utils/apiClient';
 import type { LgCode, OwnersHouse, ShopOption } from './types';
-import { brandOfShop, formatLatLng, parseLatLng } from './types';
+import { brandOfShop, formatLatLng, parseLatLng, toFormalShopName, toShortShopName } from './types';
 
 /**
  * オーナーズハウスの物件1件の編集（v2.2.284）。一覧（OwnersHouseAdmin.tsx）の行を押すと開く。
@@ -13,7 +13,7 @@ import { brandOfShop, formatLatLng, parseLatLng } from './types';
  * ⚠️ 地図を押す（またはピンを動かす）と lat_and_long が決まる。物件ページの地図（map_address）は ② が保存のときに作り直す。
  * ⚠️ 都道府県・市区町村は lg_code から選ぶ。保存するのは「都府県」「市区町村」を抜いた形（サイトの絞り込みがこの形のため）。
  *   ⚠️ 一覧に無い呼び名（出水阿久根・加世田・肝属）は「いまの値」として選択肢に残す。
- * ⚠️ 管理店舗は shop_list の注文事業の店舗名。いまの値が正式名（国分ハウジング鹿屋店）なら略称（KH鹿屋店）に読み替えて選ぶ。
+ * ⚠️ 管理店舗は shop_list の注文事業の店舗名（略称）で選び、保存するときに正式名称に直す（types.ts の toFormalShopName / toShortShopName）。
  * ⚠️ 種別は本文の house_category で送る（category で送るとゲートウェイの振り分けの鍵になり 502）。
  * ⚠️ 画像の登録は v2.2.285。いまは URL の確認だけ。
  * ─────────────────────────────────────────────
@@ -31,11 +31,6 @@ type Props = {
 
 /** 地図の初期位置（鹿児島県の中ほど） */
 const DEFAULT_CENTER = { lat: 31.7252, lng: 130.6202 };
-
-/** 正式名 → shop_list の略称 */
-const toShopListName = (shop: string): string => shop
-    .replace(/^国分ハウジング/, 'KH').replace(/^デイジャストハウス/, 'DJH').replace(/^なごみ工務店/, 'なごみ')
-    .replace(/^ニーエルホーム/, '2L').replace(/^フルコミホーム/, 'FH').replace(/^ジャスフィーホーム/, 'JH');
 
 const TEXT_FIELDS: Array<[keyof OwnersHouse, string, string]> = [
     ['title', '見出し', 'オーナーズハウスのとき、一覧・物件ページ・地図の吹き出しに出ます'],
@@ -58,7 +53,7 @@ const OwnersHouseEditModal: React.FC<Props> = ({ house, shops, codes, categories
 
     useEffect(() => {
         if (!house) { setForm(null); return; }
-        const shopName = toShopListName(house.shop);
+        const shopName = toShortShopName(house.shop);
         setForm({ ...house, shop: shops.some(s => s.shop === shopName) ? shopName : house.shop });
         setError('');
         setSearchText(house.name);
@@ -100,7 +95,8 @@ const OwnersHouseEditModal: React.FC<Props> = ({ house, shops, codes, categories
         setSaving(true);
         try {
             const { category, no, id, map_address, updated_at, updated_by, ...rest } = form;
-            const res = await apiClient.post('', { request: 'owners_house_admin_save', ...rest, no: no || undefined, house_category: category });
+            // ⚠️ 管理店舗は略称で選び、正式名称で保存する（サイトの表示が正式名称のため）
+            const res = await apiClient.post('', { request: 'owners_house_admin_save', ...rest, shop: toFormalShopName(rest.shop), no: no || undefined, house_category: category });
             if (res.data?.status !== 'success') { setError(res.data?.message ?? '保存に失敗しました。'); return; }
             onSaved();
         } catch (e) {
