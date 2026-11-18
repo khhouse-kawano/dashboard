@@ -14,6 +14,7 @@ import CustomerListModal from "../CustomerListModal";
 import { HOMEPAGE_MEDIUMS, normalizeMedium } from '../customer/customerKaeruUtils';
 import InformationEditKaeru from "../information/InformationEditKaeru";
 import { descending } from '../../utils/descending';
+import PortalOnlyCheck, { isPortalCustomer } from './PortalOnlyCheck';
 
 type Shop = { brand: string; shop: string; section: string; area: string; }
 /**
@@ -65,6 +66,8 @@ const CustomerTrendKaeru: React.FC = () => {
   const [isReverse, setIsReverse] = useState(true);
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  /** 「ポータル反響のみ表示」（v2.2.282）。表はポータル4媒体の行だけになり、ホームページ反響の行と内訳は隠す */
+  const [portalChecked, setPortalChecked] = useState(false);
 
   /** 顧客一覧モーダル。label は「実来場」などの見出し */
   const [listShow, setListShow] = useState<{ show: boolean, label: string, list: CustomerList[] }>({
@@ -148,9 +151,10 @@ const CustomerTrendKaeru: React.FC = () => {
     return originalUserData.filter(o =>
       (targetSection ? sectionShops.includes(o.shop) : true) &&
       (targetShop ? o.shop === targetShop : true) &&
-      (isDuplicate ? true : Number(o.show_dashboard) === 1)
+      (isDuplicate ? true : Number(o.show_dashboard) === 1) &&
+      (portalChecked ? isPortalCustomer(o) : true)
     );
-  }, [originalUserData, originalShopArray, targetSection, targetShop, isDuplicate]);
+  }, [originalUserData, originalShopArray, targetSection, targetShop, isDuplicate, portalChecked]);
 
   const formattedMonthArray = useMemo(() => {
     return isReverse ? [...monthArray].reverse() : [...monthArray];
@@ -410,7 +414,9 @@ const CustomerTrendKaeru: React.FC = () => {
    * ⚠️ `displayMediums` は medium_kaeru.show_graph 由来なので、
    *   DB を直せば表もグラフも同時に変わる。片方だけ変わることはない。
    */
-  const graphSeries = ['ホームページ反響計', ...displayMediums];
+  const allGraphSeries = ['ホームページ反響計', ...displayMediums];
+  /** ⚠️ v2.2.282: ポータル反響のみ表示のときはホームページ反響計を外す。色は allGraphSeries の位置で決める（切り替えても色が動かない） */
+  const graphSeries = portalChecked ? displayMediums : allGraphSeries;
 
   /**
    * 積み上げ棒グラフのデータ。⚠️ グラフ非表示のときは作らない（重いため）
@@ -434,7 +440,7 @@ const CustomerTrendKaeru: React.FC = () => {
     }));
     // ⚠️ displayMediums（＝show_graph）が変われば系列も変わるので依存に入れる
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userData, monthArray, graphCategory, checked.graph.show, showSummary, displayMediums]);
+  }, [userData, monthArray, graphCategory, checked.graph.show, showSummary, displayMediums, portalChecked]);
 
   /**
    * 数字のセルの見た目。
@@ -539,6 +545,7 @@ const CustomerTrendKaeru: React.FC = () => {
             <input type="checkbox" checked={isDuplicate === true} className='me-1' onChange={() => setIsDuplicate(!isDuplicate)} />名寄せした顧客も表示
           </label>
         </div>
+        <PortalOnlyCheck checked={portalChecked} onChange={setPortalChecked} />
       </div>
     </>
   };
@@ -567,8 +574,8 @@ const CustomerTrendKaeru: React.FC = () => {
                 <Tooltip content={CustomTooltip} />
                 <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
                 <Legend content={<CustomLegend />} />
-                {graphSeries.map((seriesName, index) =>
-                  <Bar key={seriesName} dataKey={seriesName} stackId="a" fill={chartColors[index]} />
+                {graphSeries.map(seriesName =>
+                  <Bar key={seriesName} dataKey={seriesName} stackId="a" fill={chartColors[allGraphSeries.indexOf(seriesName)]} />
                 )}
               </BarChart>
             </ResponsiveContainer>
@@ -613,6 +620,8 @@ const CustomerTrendKaeru: React.FC = () => {
                */
               const isHomepageRow = medium === 'ホームページ反響計'
                 || (showSummary && hpMediums.includes(medium));
+              // v2.2.282: ポータル反響のみ表示のときは、ホームページ反響の行と内訳を出さない（mediumIndex は変えないため、ここで飛ばす）
+              if (portalChecked && isHomepageRow) return null;
 
               return (
                 <React.Fragment key={mediumIndex}>
