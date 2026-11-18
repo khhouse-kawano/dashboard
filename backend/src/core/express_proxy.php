@@ -408,6 +408,9 @@ function expressProxyRequests(): array
         // v2.2.283 新規。オーナーズハウス・モデルハウスの物件（ownershouse）の一覧・1件。読み取り・認証なし。⚠️ ① に PHP ハンドラは無い（② だけ）
         'owners_house_list',
         'owners_house_detail',
+        // v2.2.284 新規。オーナーズハウスの管理画面（一覧・保存）。⚠️ ① に PHP ハンドラは無い（② だけ）
+        'owners_house_admin_list',
+        'owners_house_admin_save',
 
         // v2.2.236 新規。LIFULL HOME'S の査定依頼メール → 売り反響（brokerage_listings）。⚠️ ① に PHP ハンドラは無い（② だけ）
         //   ⚠️ GAS（HomesSaleAssessmentToDashboard）は ② に直接送る。① を通る経路は確認用
@@ -931,6 +934,9 @@ function expressProxyExclusive(): array
         // v2.2.283 新規。オーナーズハウス・モデルハウスの物件（ownershouse）の一覧・1件。読み取り・認証なし。⚠️ ① に PHP ハンドラは無い（② だけ）
         'owners_house_list',
         'owners_house_detail',
+        // v2.2.284 新規。オーナーズハウスの管理画面（一覧・保存）。⚠️ ① に PHP ハンドラは無い（② だけ）
+        'owners_house_admin_list',
+        'owners_house_admin_save',
 
         // v2.2.236 新規。LIFULL HOME'S の査定依頼メール → 売り反響（brokerage_listings）。⚠️ ① に PHP ハンドラは無い（② だけ）
         //   ⚠️ GAS（HomesSaleAssessmentToDashboard）は ② に直接送る。① を通る経路は確認用
