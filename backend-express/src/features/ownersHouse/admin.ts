@@ -3,6 +3,7 @@ import { execute, query } from '../../db/pool';
 import type { SqlParam } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
 import { logger } from '../../utils/logger';
+import { withImageUrls } from './images';
 
 /**
  * オーナーズハウスの管理画面（Dashboard の「オーナーズハウス」。frontend/src/components/ownershouse/）。（v2.2.284）
@@ -13,7 +14,7 @@ import { logger } from '../../utils/logger';
  * ⚠️ サイトが読むのは houses.ts（flag = 1 だけ）。ここで flag を '1' 以外にするとサイトから消える。
  * ⚠️ no = 1 は列名が入った見出しの行（category = 'category'）。管理画面には出さず、書き換えもさせない。
  * ⚠️ map_address（物件ページの地図の iframe）は、保存のたびに lat_and_long から作り直す（画面では直させない）。
- * ⚠️ 画像（img_1〜）は v2.2.285 で登録の仕組みを作る。いまは URL をそのまま保存するだけ。
+ * ⚠️ 画像（img_1〜img_14）は images.ts（request: owners_house_admin_image）で登録する。一覧では公開URLにして返す。
  * ─────────────────────────────────────────────
  */
 
@@ -23,10 +24,10 @@ interface Row extends RowDataPacket {
 
 const HEADER_ROW_NO = 1;
 
-/** 画面から直せる列（⚠️ リクエストのキーを列名に使わないための許可リスト。no・id・map_address・updated_* は入れない） */
+/** 画面から直せる列（⚠️ リクエストのキーを列名に使わないための許可リスト。no・id・map_address・updated_* は入れない。⚠️ v2.2.285 から画像は owners_house_admin_image で直す（images.ts）ので入れない） */
 const EDITABLE = [
   'category', 'pref', 'area', 'lg_code', 'name', 'title', 'brand', 'shop', 'shop_zip', 'shop_address', 'staff', 'tag',
-  'feature_1', 'feature_2', 'feature_3', 'feature_4', 'feature_5', 'img_1', 'img_2', 'img_3', 'img_4', 'img_5',
+  'feature_1', 'feature_2', 'feature_3', 'feature_4', 'feature_5',
   'lat_and_long', 'structure', 'large', 'plan', 'flag',
 ] as const;
 
@@ -64,7 +65,7 @@ export const listOwnersHouseAdmin = async (): Promise<AdminResult> => {
     ]);
     return {
       httpStatus: 200,
-      body: { status: 'success', houses, shops, codes, categories: CATEGORIES, brands: OWNERS_HOUSE_BRANDS },
+      body: { status: 'success', houses: houses.map(withImageUrls), shops, codes, categories: CATEGORIES, brands: OWNERS_HOUSE_BRANDS },
     };
   } catch (error) {
     logger.error(`owners_house_admin_list 失敗: ${(error as Error).message}`);
@@ -122,6 +123,7 @@ export const saveOwnersHouseAdmin = async (staff: AuthenticatedStaff | null, bod
     // ⚠️ 新しい物件の id は、今ある id の最大 ＋ 1（8桁）。⚠️ text の NOT NULL 列は空文字で埋める
     const [{ next }] = await query<Row>(`SELECT LPAD(COALESCE(MAX(CAST(id AS UNSIGNED)), 0) + 1, 8, '0') AS next FROM ownershouse WHERE id REGEXP '^[0-9]+$'`);
     const id = String(next);
+    // ⚠️ img_6〜img_14 は DEFAULT '' があるので入れなくてよい
     const columns = ['id', 'feature_5', 'img_1', 'img_2', 'img_3', 'img_4', 'img_5', 'map_address'];
     const fill: Record<string, string> = { id, feature_5: '', img_1: '', img_2: '', img_3: '', img_4: '', img_5: '', map_address: '' };
     const allText = ['category', 'pref', 'area', 'name', 'title', 'brand', 'shop', 'shop_zip', 'shop_address', 'staff', 'tag',

@@ -162,6 +162,7 @@ import { importHomesAssessment } from '../features/realty/homesAssessment';
 import { runOwnersHouseReservation } from '../features/ownersHouse/reservation';
 import { getOwnersHouse, listOwnersHouses } from '../features/ownersHouse/houses';
 import { listOwnersHouseAdmin, saveOwnersHouseAdmin } from '../features/ownersHouse/admin';
+import { saveOwnersHouseImage } from '../features/ownersHouse/images';
 import { runEstimateEntry } from '../features/estimate/entry';
 import {
   AI_ANALYSIS_AUTHORITY,
@@ -2879,6 +2880,22 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await saveOwnersHouseAdmin(ctx.staff, (ctx.body ?? {}) as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * オーナーズハウスの画像1枠の登録・入れ替え・削除（v2.2.285）。features/ownersHouse/images.ts
+ *   ⚠️ 画像は ② の owners-house-img ボリュームに置く（① には置かない）。⚠️ ① に PHP ハンドラは無い（② だけ）。
+ */
+register({
+  request: 'owners_house_admin_image',
+  summary: '【書き込み】オーナーズハウスの画像1枠の登録・削除（ownershouse.img_1〜img_14 と ② の置き場）',
+  phpSource: '(Express のみ)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await saveOwnersHouseImage(ctx.staff, (ctx.body ?? {}) as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

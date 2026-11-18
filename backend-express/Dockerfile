@@ -51,6 +51,10 @@ COPY --from=builder /app/dist ./dist
 # ⚠️ v2.2.199: 各ブランドサイトに配る tracker.js（features/tracking/publicRouter.ts が起動時に読む）。⚠️ dist には入らないので別にコピーする
 COPY --from=builder /app/public ./public
 
+# ⚠️ v2.2.285: オーナーズハウスの画像の置き場（docker-compose の owners-house-img ボリューム）。
+#   ⚠️ 名前付きボリュームは初回にこのフォルダの持ち主を引き継ぐので、node が書けるように先に作っておく。
+RUN mkdir -p /data/owners_house && chown node:node /data/owners_house
+
 USER node
 
 EXPOSE 3001
