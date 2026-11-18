@@ -22,7 +22,8 @@
 
 ### 手順1　【① SQL】
 phpMyAdmin で `2026-11-18_update_log_2.2.281.sql` を **1回だけ**流します。
-- 列の追加（ALTER TABLE）が入っているので、2回流すと `Duplicate column name` で止まります。止まったら、それより後（埋め戻し・業務ガイド）は流れていないので、その部分だけを流してください。
+- 列の追加（ALTER TABLE）が入っているので、2回流すと `Duplicate column name` で止まります。
+- ⚠️ 直す前のファイルを流して、埋め戻しの UPDATE で `ERROR 1175 … safe update mode` が出て止まったとき：更新履歴の1行と列の追加は済んでいます。続きの **`2026-11-18_portal_backfill_2.2.281.sql` を1回だけ**流してください（埋め戻し＋業務ガイド2本）。今のファイルは、UPDATE の前に `SET SESSION sql_safe_updates = 0;` を入れてあります。
 - ファイルの最後近くの「確かめる」の SELECT で、サイトごとの件数が出ます。ローカルでは、注文の SUUMO が 814件、建売の SUUMO が 139件でした。
 
 ```sql
