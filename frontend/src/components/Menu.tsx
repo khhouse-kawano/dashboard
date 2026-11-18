@@ -290,6 +290,8 @@ const Menu = ({ key, onReload }: Props) => {
         { id: 'campaign', path: '/campaign', activePaths: ['/campaign', '/editcampaign'], icon: 'fa-calendar-days', label: 'キャンペーン管理', show: !isSp && category === 'order' && (authority === "BrandAdmin" || authority === "Master"), isAdminOnly: true },
         { id: 'budget', path: '/budget', icon: 'fa-money-check', label: '予算詳細', show: !isSp && (authority === "BrandAdmin" || authority === "Master"), exact: false, isAdminOnly: true },
         { id: 'photo', path: '/photo', icon: 'fa-camera', label: 'K-snap登録', show: !isSp && category === 'order', exact: false },
+        // ⚠️ v2.2.284: オーナーズハウスの管理画面（ownershouse/OwnersHouseAdmin.tsx）。注文だけ・スマホでは出さない
+        { id: 'ownersHouseAdmin', path: '/ownersHouseAdmin', icon: 'fa-house-chimney', label: 'オーナーズハウス', show: !isSp && category === 'order', exact: true },
         { id: 'photo', path: '/insideSales', icon: 'fa-camera', label: 'ISカレンダー', show: (authority === 'insideSales' || authority === 'Master') && category === 'order', exact: false, isAdminOnly: true },
     ], [isSp, category, authority, sync, cancel, lost]);
 

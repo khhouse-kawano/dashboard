@@ -161,6 +161,7 @@ import { importOwnersHouseApplication, listOwnersHouseApplications } from '../fe
 import { importHomesAssessment } from '../features/realty/homesAssessment';
 import { runOwnersHouseReservation } from '../features/ownersHouse/reservation';
 import { getOwnersHouse, listOwnersHouses } from '../features/ownersHouse/houses';
+import { listOwnersHouseAdmin, saveOwnersHouseAdmin } from '../features/ownersHouse/admin';
 import { runEstimateEntry } from '../features/estimate/entry';
 import {
   AI_ANALYSIS_AUTHORITY,
@@ -2850,6 +2851,34 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await getOwnersHouse((ctx.body ?? {}) as Record<string, unknown>);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * オーナーズハウスの管理画面（Dashboard の「オーナーズハウス」）。（v2.2.284）features/ownersHouse/admin.ts
+ *   ⚠️ ① に PHP ハンドラは無い（② だけ）→ express_proxy の2つの一覧に入れてある。
+ */
+register({
+  request: 'owners_house_admin_list',
+  summary: 'オーナーズハウスの管理画面の一覧（ownershouse 全件・注文事業の店舗・lg_code）',
+  phpSource: '(Express のみ)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await listOwnersHouseAdmin();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'owners_house_admin_save',
+  summary: '【書き込み】オーナーズハウスの物件1件の保存（ownershouse）',
+  phpSource: '(Express のみ)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await saveOwnersHouseAdmin(ctx.staff, (ctx.body ?? {}) as Record<string, unknown>);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
