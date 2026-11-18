@@ -63,6 +63,7 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '店舗別反響推移': { route: '/shopTrend', divisions: ['order', 'spec', 'used'], pcOnly: true },
     'カレンダー': { route: '/calendar', divisions: ['order'], pcOnly: true },
     'K-snap登録': { route: '/photo', divisions: ['order'], pcOnly: true },
+    'オーナーズハウス': { route: '/ownersHouseAdmin', divisions: ['order'], pcOnly: true },
     '物件DB': { route: '/property', divisions: ['spec'], pcOnly: true },
     'キャンペーン管理': { route: '/campaign', divisions: ['order'], authority: ADMIN, pcOnly: true },
     '予算詳細': { route: '/budget', divisions: ['order', 'spec', 'used'], authority: ADMIN, pcOnly: true },

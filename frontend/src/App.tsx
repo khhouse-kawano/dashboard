@@ -16,6 +16,7 @@ import Company from "./components/company/Company";
 import NewCampaign from "./components/campaign/NewCampaign";
 import ListRouter from "./components/list/ListRouter";
 import Photo from "./components/photo/Photo";
+import OwnersHouseAdmin from "./components/ownershouse/OwnersHouseAdmin";
 import Hab from "./components/Hab";
 import BudgetKaeru from "./components/BudgetKaeru";
 import Market from "./components/Market";
@@ -205,6 +206,8 @@ function AppInner() {
             ))}
             <Route path="/property" element={<DatabaseProperty />} />
             <Route path="/photo" element={<Photo />} />
+            {/* v2.2.284: オーナーズハウスの管理画面（注文・PC のみ。メニューは Menu.tsx） */}
+            <Route path="/ownersHouseAdmin" element={<OwnersHouseAdmin />} />
             <Route path="/kengakuCloud" element={<KengakuCloud />} />
             <Route path="/insideSales" element={<InsideSales/>} />
             {/* ⚠️ v2.2.239: 中古リノベの今日の架電キュー */}
