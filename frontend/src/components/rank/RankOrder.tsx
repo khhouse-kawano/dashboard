@@ -18,6 +18,7 @@ import { staffSorter } from '../../utils/staffSorter';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import { CustomerName, isDelete } from '../../utils/deletedCustomer';
+import { descending } from '../../utils/descending';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string, prev_staff: string };
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -437,8 +438,8 @@ const RankOrder = () => {
                         <span className="rk_label">対象</span>
                         <select className="rk_select" name="startMonth" value={targetMonth}
                             onChange={(e) => setTargetMonth(e.target.value)}>
-                            {getYears().map(year => <option key={year} value={year}>{year}年5月期</option>)}
-                            {monthArray.map((month, index) => (
+                            {descending(getYears()).map(year => <option key={year} value={year}>{year}年5月期</option>)}
+                            {descending(monthArray).map((month, index) => (
                                 <option key={index} value={month}>{month}</option>
                             ))}
                         </select>

@@ -13,6 +13,7 @@ import UnitPriceGraphModal from '../shop/UnitPriceGraphModal';
 import { UNIT_PRICE_SERIES } from '../shop/unitPriceSeries';
 // ⚠️ 見た目は customer/ と shop/ の4画面で共通（components/rankingUi.tsx）
 import { RankingStyle, SortIcon } from '../rankingUi';
+import { descending } from '../../utils/descending';
 
 /**
  * 販促媒体別ランキング（注文事業）。
@@ -360,7 +361,7 @@ const CustomerOrder = () => {
                         <select className="rk_select" value={startMonth}
                             onChange={(event) => handleSort(event.target.value, endMonth, selectedShop, selectedSection, selectedArea)}>
                             <option value="">指定なし</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <span className="rk_tilde">～</span>
@@ -369,7 +370,7 @@ const CustomerOrder = () => {
                         <select className="rk_select" value={endMonth}
                             onChange={(event) => handleSort(startMonth, event.target.value, selectedShop, selectedSection, selectedArea)}>
                             <option value="">指定なし</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     {/* ⚠️ 店舗・課・エリアは**どれか1つだけ**が効く（他は空にする）。

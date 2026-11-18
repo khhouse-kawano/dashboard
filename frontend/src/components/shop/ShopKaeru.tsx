@@ -13,6 +13,7 @@ import { UNIT_PRICE_SERIES_SPEC } from './unitPriceSeries';
 import { RankingStyle, SortIcon } from '../rankingUi';
 // ⚠️ 表記ゆれの対応表は customer/CustomerKaeru.tsx と共有する。**別に作らないこと**
 import { normalizeMedium } from '../customer/customerKaeruUtils';
+import { descending } from '../../utils/descending';
 
 /**
  * 店舗ランキング（建売分譲事業）。
@@ -474,7 +475,7 @@ const ShopKaeru = () => {
                         <select className="rk_select" value={startMonth}
                             onChange={(event) => handleSort(event.target.value, endMonth, selectedMedium, selectedShop, selectedSection)}>
                             <option value="">指定なし</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <span className="rk_tilde">～</span>
@@ -483,7 +484,7 @@ const ShopKaeru = () => {
                         <select className="rk_select" value={endMonth}
                             onChange={(event) => handleSort(startMonth, event.target.value, selectedMedium, selectedShop, selectedSection)}>
                             <option value="">指定なし</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <div className="rk_field">

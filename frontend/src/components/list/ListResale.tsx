@@ -18,6 +18,7 @@ import { confirmPrivacyErase, postPrivacyErase } from '../../utils/privacyErase'
 import { TAG_DEFINITIONS, TAG_FIELD, isExcluded, isTagOn, notNeedSync } from './listTags';
 import type { TagKey } from './listTags';
 import { hiraToKata } from '../../utils/nexusUtils';
+import { descending } from '../../utils/descending';
 
 type InquiryCustomer = {
     id: number, inquiry_id: string, pg_id: string, inquiry_date: string, medium: string, response_medium: string, first_name: string, last_name: string, category: string,
@@ -542,7 +543,7 @@ const ListResale = ({ onReload }: Props) => {
                           ⚠️ React は <option selected> に警告を出す作法違反でもある。
                         */}
                         <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
@@ -550,7 +551,7 @@ const ListResale = ({ onReload }: Props) => {
                     <div className="m-1">
                         {/* ⚠️ 開始月と同じ理由で value 制御にする */}
                         <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} style={{ fontSize: '13px' }}>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>

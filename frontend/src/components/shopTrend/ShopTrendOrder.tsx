@@ -25,6 +25,7 @@ import { thisYear } from '../../utils/thisYear';
 import { TREND_PERIOD_DEFAULTS, useMonthPeriod } from '../../utils/useMonthPeriod';
 import { useTrendData } from '../../utils/useTrendData';
 import TrendLoadingNotice from '../TrendLoadingNotice';
+import { descending } from '../../utils/descending';
 
 /**
  * 店舗。
@@ -374,14 +375,14 @@ const ShopTrendOrder = () => {
                     {/* ⚠️ v2.2.277: 期間は URL で持つので value で制御する（以前は「開始月」「終了月」の見出しが選ばれたまま、実際は11か月前〜当月だった） */}
                     <div className="m-1">
                         <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
-                            {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(originalMonthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <span className='d-flex align-items-center mx-1'>～</span>
                     <div className="m-1">
                         <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)}>
-                            {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(originalMonthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>

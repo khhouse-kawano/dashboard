@@ -17,6 +17,7 @@ import { staffSorter } from '../../utils/staffSorter';
 import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import { CustomerName } from '../../utils/deletedCustomer';
+import { descending } from '../../utils/descending';
 
 type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -419,8 +420,8 @@ const RankResale = () => {
                 <div className="row mt-3 mb-4" >
                     <div className="col d-flex">
                         <select className="target" name="startMonth" onChange={(e) => setTargetMonth(e.target.value)}>
-                            {getYears().map(year => <option key={year} value={year}>{year}年度</option>)}
-                            {monthArray.map((month, index) => (
+                            {descending(getYears()).map(year => <option key={year} value={year}>{year}年度</option>)}
+                            {descending(monthArray).map((month, index) => (
                                 <option key={index} value={month} selected={targetMonth === month}>{month}</option>
                             ))}
                         </select>

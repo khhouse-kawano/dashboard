@@ -19,6 +19,7 @@ import {
     matchesShownMedium,
     normalizeMedium,
 } from './customerKaeruUtils';
+import { descending } from '../../utils/descending';
 
 /**
  * 販促媒体別ランキング（建売分譲事業）。
@@ -613,7 +614,7 @@ const CustomerKaeru = () => {
                         <select className="rk_select" value={startMonth}
                             onChange={(event) => handleSort(event.target.value, endMonth, selectedShop, selectedSection)}>
                             <option value="">指定なし</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <span className="rk_tilde">～</span>
@@ -622,7 +623,7 @@ const CustomerKaeru = () => {
                         <select className="rk_select" value={endMonth}
                             onChange={(event) => handleSort(startMonth, event.target.value, selectedShop, selectedSection)}>
                             <option value="">指定なし</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>))}
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>))}
                         </select>
                     </div>
                     <div className="rk_field">
