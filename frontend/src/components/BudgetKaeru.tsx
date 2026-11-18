@@ -10,6 +10,7 @@ import { ChartOptions } from 'chart.js';
 import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { getYearMonthArray } from '../utils/getYearMonthArray';
+import { descending } from '../utils/descending';
 
 type PieDataType = {
     labels: string[];
@@ -319,14 +320,14 @@ const Dev = () => {
                     <div className="m-1">
                         <select className="target" onChange={(e) => setStartMonth(e.target.value)}>
                             <option value="" selected>開始月を選択</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>
                     <div className="m-1">
                         <select className="target" onChange={(e) => setEndMonth(e.target.value)}>
                             <option value="" selected>終了月を選択</option>
-                            {monthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                            {descending(monthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                             ))}
                         </select>
                     </div>

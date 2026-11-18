@@ -4,6 +4,7 @@ import BsForm from 'react-bootstrap/Form';
 import apiClient from '../../../utils/apiClient';
 import AuthContext from '../../../context/AuthContext';
 import { getYears } from '../../../utils/getYears';
+import { descending } from '../../../utils/descending';
 
 /**
  * 人事マスタ（staff_list テーブル）の編集画面。
@@ -241,7 +242,7 @@ const EditStaff = () => {
                                         {/* 💡 ③ 選択セレクトボックスのデザイン・クラス・幅を完全に他と統一 */}
                                         <div className="m-1">
                                                 <select className="form-select form-select-sm text-muted" style={{ fontSize: '12px' }} onChange={(e) => setTargetYear(e.target.value)} value={String(targetYear)}>
-                                                        {getYears().map((year => <option key={year} value={year}>{year}年度</option>))}
+                                                        {descending(getYears()).map((year => <option key={year} value={year}>{year}年度</option>))}
                                                 </select>
                                         </div>
                                         <div className="m-1">
@@ -338,7 +339,7 @@ const EditStaff = () => {
                                                                                 style={{ fontSize: '12px', cursor: 'pointer' }}
                                                                                 disabled={isOrdinary}
                                                                         >
-                                                                                {getYears().map(year => <option key={year} value={year}>{year}年度</option>)}
+                                                                                {descending(getYears()).map(year => <option key={year} value={year}>{year}年度</option>)}
                                                                         </BsForm.Select>
                                                                 </td>
                                                                 <td className="p-2">
@@ -536,7 +537,7 @@ const EditStaff = () => {
                                                                                                 style={{ fontSize: '12px', cursor: 'pointer' }}
                                                                                                 disabled={isOrdinary}
                                                                                         >
-                                                                                                {getYears().map(year => <option key={year} value={year}>{year}年度</option>)}
+                                                                                                {descending(getYears()).map(year => <option key={year} value={year}>{year}年度</option>)}
                                                                                         </BsForm.Select>
                                                                                 </td>
 

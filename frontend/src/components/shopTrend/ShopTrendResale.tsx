@@ -25,6 +25,7 @@ import { useMonthPeriod } from '../../utils/useMonthPeriod';
 import type { MonthPeriodDefaults } from '../../utils/useMonthPeriod';
 import { useTrendData } from '../../utils/useTrendData';
 import TrendLoadingNotice from '../TrendLoadingNotice';
+import { descending } from '../../utils/descending';
 
 /**
  * 中古の期間の初期値（v2.2.277 で URL に持つようにしたとき、それまでの決め方のまま移した）。
@@ -700,14 +701,14 @@ const formateSummary = (
             <div className="m-1">
                 {/* ⚠️ v2.2.277: 期間は URL で持つので value で制御する（以前は「開始月」「終了月」の見出しが選ばれたまま、実際は 2026/06〜当月だった） */}
                 <select className="target" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
-                    {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                    {descending(originalMonthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                     ))}
                 </select>
             </div>
             <span className='d-flex align-items-center mx-1'>～</span>
             <div className="m-1">
                 <select className="target" value={endMonth} onChange={(e) => setEndMonth(e.target.value)}>
-                    {originalMonthArray.map((month, index) => (<option key={index} value={month}>{month}</option>
+                    {descending(originalMonthArray).map((month, index) => (<option key={index} value={month}>{month}</option>
                     ))}
                 </select>
             </div>
