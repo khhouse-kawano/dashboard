@@ -46,6 +46,9 @@ services:
     build:
       context: ./backend-express
       target: production
+    # ⚠️ v2.2.285: オーナーズハウスの画像の置き場（features/ownersHouse/images.ts）。⚠️ ボリュームを消すと画像が全部消える
+    volumes:
+      - owners-house-img:/data/owners_house
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -218,6 +221,8 @@ services:
     restart: unless-stopped
 
 volumes:
+  # ⚠️ v2.2.285: オーナーズハウスの画像。⚠️ docker compose down -v で消える
+  owners-house-img:
   caddy-data:
   caddy-config:
   caddy-logs:

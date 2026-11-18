@@ -1,10 +1,11 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from 'react-bootstrap';
 import { GoogleMap, MarkerF } from '@react-google-maps/api';
 import { GoogleMapContext } from '../../context/GoogleMapContext';
 import apiClient from '../../utils/apiClient';
+import OwnersHouseImages from './OwnersHouseImages';
 import type { LgCode, OwnersHouse, ShopOption } from './types';
-import { brandOfShop, formatLatLng, parseLatLng, toFormalShopName, toShortShopName } from './types';
+import { IMAGE_KEYS, brandOfShop, formatLatLng, parseLatLng, toFormalShopName, toShortShopName } from './types';
 
 /**
  * オーナーズハウスの物件1件の編集（v2.2.284）。一覧（OwnersHouseAdmin.tsx）の行を押すと開く。
@@ -15,7 +16,7 @@ import { brandOfShop, formatLatLng, parseLatLng, toFormalShopName, toShortShopNa
  *   ⚠️ 一覧に無い呼び名（出水阿久根・加世田・肝属）は「いまの値」として選択肢に残す。
  * ⚠️ 管理店舗は shop_list の注文事業の店舗名（略称）で選び、保存するときに正式名称に直す（types.ts の toFormalShopName / toShortShopName）。
  * ⚠️ 種別は本文の house_category で送る（category で送るとゲートウェイの振り分けの鍵になり 502）。
- * ⚠️ 画像の登録は v2.2.285。いまは URL の確認だけ。
+ * ⚠️ 画像は OwnersHouseImages.tsx が枠ごとにすぐ保存する。画像を変えたあと閉じたら、一覧を読み直す（onSaved）。
  * ─────────────────────────────────────────────
  */
 
@@ -50,6 +51,8 @@ const OwnersHouseEditModal: React.FC<Props> = ({ house, shops, codes, categories
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [searchText, setSearchText] = useState('');
+    /** 画像を変えたか（変えたら閉じるときに一覧を読み直す） */
+    const imagesChanged = useRef(false);
 
     useEffect(() => {
         if (!house) { setForm(null); return; }
@@ -57,6 +60,7 @@ const OwnersHouseEditModal: React.FC<Props> = ({ house, shops, codes, categories
         setForm({ ...house, shop: shops.some(s => s.shop === shopName) ? shopName : house.shop });
         setError('');
         setSearchText(house.name);
+        imagesChanged.current = false;
     }, [house, shops]);
 
     const prefOptions = useMemo(() => codes.filter(c => c.city_short === ''), [codes]);
@@ -94,7 +98,9 @@ const OwnersHouseEditModal: React.FC<Props> = ({ house, shops, codes, categories
         if (form.lat_and_long && !parseLatLng(form.lat_and_long)) { setError('地図の位置が不正です。地図を押し直してください。'); return; }
         setSaving(true);
         try {
+            // ⚠️ 画像の列は送らない（OwnersHouseImages が保存する。② も受け付けない）
             const { category, no, id, map_address, updated_at, updated_by, ...rest } = form;
+            IMAGE_KEYS.forEach(k => { delete (rest as Partial<OwnersHouse>)[k]; });
             // ⚠️ 管理店舗は略称で選び、正式名称で保存する（サイトの表示が正式名称のため）
             const res = await apiClient.post('', { request: 'owners_house_admin_save', ...rest, shop: toFormalShopName(rest.shop), no: no || undefined, house_category: category });
             if (res.data?.status !== 'success') { setError(res.data?.message ?? '保存に失敗しました。'); return; }
@@ -107,10 +113,12 @@ const OwnersHouseEditModal: React.FC<Props> = ({ house, shops, codes, categories
         }
     };
 
+    const close = () => (imagesChanged.current ? onSaved() : onClose());
+
     const isUnlistedArea = form.area !== '' && !cityOptions.some(c => c.city_short === form.area);
 
     return (
-        <Modal show onHide={onClose} size="xl" centered scrollable>
+        <Modal show onHide={close} size="xl" centered scrollable>
             <style>{`
                 .ohm_body { font-size: 13px; color: #1f2937; }
                 .ohm_grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
@@ -122,10 +130,16 @@ const OwnersHouseEditModal: React.FC<Props> = ({ house, shops, codes, categories
                 .ohm_hint { font-size: 10px; color: #9ca3af; grid-column: 2; margin-top: -4px; }
                 .ohm_map { height: 380px; border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
                 .ohm_latlng { font-size: 11px; color: #4b5563; font-variant-numeric: tabular-nums; }
-                .ohm_thumbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-                .ohm_thumb { aspect-ratio: 4 / 3; background: #f3f4f6; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #9ca3af; }
-                .ohm_thumb img { width: 100%; height: 100%; object-fit: cover; }
                 .ohm_caution { font-size: 11px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 6px 10px; }
+                .ohm_img_grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+                .ohm_img_main { grid-column: span 1; }
+                .ohm_img_box { aspect-ratio: 4 / 3; background: #f3f4f6; border: 1px dashed #d1d5db; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #9ca3af; cursor: pointer; }
+                .ohm_img_box:hover { border-color: #2563eb; color: #2563eb; }
+                .ohm_img_box:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+                .ohm_img_box img { width: 100%; height: 100%; object-fit: cover; }
+                .ohm_img_main .ohm_img_box { border-style: solid; border-color: #bfdbfe; }
+                .ohm_img_foot { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #6b7280; margin-top: 2px; }
+                .ohm_img_remove { border: none; background: none; color: #b91c1c; font-size: 10px; padding: 0; cursor: pointer; }
                 .ohm_switch { display: flex; align-items: center; gap: 8px; font-weight: 700; }
             `}</style>
             <Modal.Header closeButton>
@@ -235,20 +249,16 @@ const OwnersHouseEditModal: React.FC<Props> = ({ house, shops, codes, categories
                         </div>
 
                         <div className="ohm_section">
-                            <div className="ohm_section_title">画像（いま登録されているもの）</div>
-                            <div className="ohm_thumbs">
-                                {(['img_1', 'img_2', 'img_3', 'img_4', 'img_5'] as const).map((key, i) => (
-                                    <div className="ohm_thumb" key={key}>{form[key] ? <img src={form[key]} alt={`画像${i + 1}`} /> : `画像${i + 1}なし`}</div>
-                                ))}
-                            </div>
-                            <div className="ohm_hint mt-1" style={{ gridColumn: 'auto' }}>画像の登録・入れ替えは次の版でできるようになります。</div>
+                            <div className="ohm_section_title">画像（14枚まで。メイン4枚＋物件ページの下のカルーセル10枚）</div>
+                            <OwnersHouseImages no={form.no} images={IMAGE_KEYS.map(k => form[k])}
+                                onChanged={(slot, url) => { imagesChanged.current = true; set(IMAGE_KEYS[slot - 1], url); }} />
                         </div>
                         {form.updated_at && <div className="text-muted mt-2" style={{ fontSize: '11px' }}>最終更新：{form.updated_at}（{form.updated_by || '不明'}）</div>}
                     </div>
                 </div>
             </Modal.Body>
             <Modal.Footer>
-                <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onClose} disabled={saving}>閉じる</button>
+                <button type="button" className="btn btn-sm btn-outline-secondary" onClick={close} disabled={saving}>閉じる</button>
                 <button type="button" className="btn btn-sm btn-primary" onClick={save} disabled={saving}>{saving ? '保存中…' : '保存する'}</button>
             </Modal.Footer>
         </Modal>

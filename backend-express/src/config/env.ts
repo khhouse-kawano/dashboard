@@ -72,6 +72,14 @@ export const env = {
     .map((pair) => ({ brand: pair.slice(0, pair.indexOf(':')).trim(), id: pair.slice(pair.indexOf(':') + 1).trim() }))
     .filter((a) => a.brand !== '' && /^(act_)?\d+$/.test(a.id)),
 
+  /**
+   * オーナーズハウスの画像の置き場と公開URL（v2.2.285。features/ownersHouse/images.ts）。
+   * ⚠️ 置き場は docker-compose の owners-house-img ボリューム（/data/owners_house）。消すと画像が全部消える。
+   * ⚠️ 公開URL は末尾を / にする。本番は https://api.khg-marketing.info/owners_house/img/、ローカルは http://localhost:3001/owners_house/img/
+   */
+  ownersHouseImgDir: process.env.OWNERS_HOUSE_IMG_DIR ?? '/data/owners_house',
+  ownersHouseImgBase: process.env.OWNERS_HOUSE_IMG_BASE ?? 'https://api.khg-marketing.info/owners_house/img/',
+
   /** リクエストボディの上限。PDF等のアップロードを見込んで少し大きめ */
   bodyLimit: process.env.BODY_LIMIT ?? '10mb',
 

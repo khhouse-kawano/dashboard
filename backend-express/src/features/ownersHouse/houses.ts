@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import { logger } from '../../utils/logger';
+import { IMAGE_COLUMNS, withImageUrls } from './images';
 
 /**
  * オーナーズハウス・モデルハウスの物件（ownershouse）。（v2.2.283）
@@ -19,10 +20,10 @@ interface HouseRow extends RowDataPacket {
   [key: string]: unknown;
 }
 
-/** 返す列（⚠️ 表の全列。足したらここにも足す） */
+/** 返す列（⚠️ 表の全列。足したらここにも足す。v2.2.285 で画像は img_1〜img_14） */
 const COLUMNS = [
   'no', 'id', 'category', 'pref', 'area', 'name', 'title', 'brand', 'shop', 'shop_zip', 'shop_address', 'staff', 'tag',
-  'feature_1', 'feature_2', 'feature_3', 'feature_4', 'feature_5', 'img_1', 'img_2', 'img_3', 'img_4', 'img_5',
+  'feature_1', 'feature_2', 'feature_3', 'feature_4', 'feature_5', ...IMAGE_COLUMNS,
   'map_address', 'lat_and_long', 'structure', 'large', 'plan', 'flag',
 ].join(', ');
 
@@ -35,7 +36,8 @@ export interface HouseResult {
 export const listOwnersHouses = async (): Promise<HouseResult> => {
   try {
     const rows = await query<HouseRow>(`SELECT ${COLUMNS} FROM ownershouse WHERE flag = '1' ORDER BY no`);
-    return { httpStatus: 200, body: { status: 'success', data: rows } };
+    // ⚠️ v2.2.285: 画像の列はファイル名で持つので、公開URLにして返す（images.ts）
+    return { httpStatus: 200, body: { status: 'success', data: rows.map(withImageUrls) } };
   } catch (error) {
     logger.error(`owners_house_list 失敗: ${(error as Error).message}`);
     return { httpStatus: 500, body: { status: 'error', message: '物件データの取得に失敗しました。' } };
@@ -48,7 +50,7 @@ export const getOwnersHouse = async (body: Record<string, unknown>): Promise<Hou
   if (id === '') return { httpStatus: 400, body: { status: 'error', message: '物件が指定されていません。' } };
   try {
     const rows = await query<HouseRow>(`SELECT ${COLUMNS} FROM ownershouse WHERE id = ? AND flag = '1' LIMIT 1`, [id]);
-    return { httpStatus: 200, body: { status: 'success', data: rows[0] ?? false } };
+    return { httpStatus: 200, body: { status: 'success', data: rows[0] ? withImageUrls(rows[0]) : false } };
   } catch (error) {
     logger.error(`owners_house_detail 失敗 id=${id}: ${(error as Error).message}`);
     return { httpStatus: 500, body: { status: 'error', message: '物件データの取得に失敗しました。' } };
