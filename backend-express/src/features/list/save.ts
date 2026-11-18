@@ -4,6 +4,7 @@ import type { SqlParam } from '../../db/pool';
 import { logger } from '../../utils/logger';
 import { MASTER_DATA_COLUMNS } from '../information/masterDataColumns';
 import type { ListResult } from './index';
+import { portalMarkSql } from './portal';
 
 /**
  * 反響一覧の書き込み（list/ListOrder.tsx / ListKaeru.tsx / ListResale.tsx）。
@@ -502,6 +503,9 @@ export const runListInsert = async (body: unknown): Promise<ListResult> => {
           `UPDATE ${inquiryTable} SET pg_id = ?, sync = 1 WHERE inquiry_id = ?`,
           [id, inquiryId]
         );
+        // v2.2.281: ポータルからの反響なら顧客台帳に印を付ける（portal.ts）
+        const portal = portalMarkSql(category, inquiryId);
+        if (portal !== null) await tx.execute(portal.sql, portal.params);
       }
 
       // ⚠️ PHP は取り込み後の pg_id を SELECT して返している。

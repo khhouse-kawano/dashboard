@@ -192,7 +192,7 @@ const DatabaseKaeru = ({ }: Props) => {
                     ? ((item.reserved_interview ?? '') !== '' && (item.interview ?? '') === '')
                     : (selectedReserve ? strIncludes(item.interview, dateFormate(selectedReserve)) : true))
                 && (selectedRank ? arrIncludes(item.rank, selectedRank) : true)
-                && (selectedMedium === 'SUUMO(ポータル反響)' ? (item.medium === 'SUUMO' && !item.hp_campaign) : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
+                && (selectedMedium === 'SUUMO(ポータル反響)' ? item.portal_site === 'SUUMO' : selectedMedium ? arrIncludes(item.medium, selectedMedium) : true)
                 && (selectedStatus ? arrIncludes(item.status, selectedStatus) : true)
                 // ⚠️ v2.2.187: 氏名②（customer_2）も名前検索の対象
                 && (nameSearch.debouncedValue ? (strIncludes(item._cleanCustomer, cleanFormattedName) || strIncludes(cleanCustomerName(item.customer_2), cleanFormattedName)) : true)
@@ -486,6 +486,7 @@ const DatabaseKaeru = ({ }: Props) => {
                             <select className="target" onChange={(e) => setSelectedMedium(e.target.value)}>
                                 <option value="">販促媒体を選択</option>
                                 {mediumArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                                {authority !== 'ordinary' && <option value='SUUMO(ポータル反響)'>SUUMO(ポータル反響)</option>}
                             </select>
                         </div>
                         <div className="m-1">
