@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import apiClient from '../../../utils/apiClient';
-import TrackingDetail, { type DetailAxis } from './TrackingDetail';
+import TrackingDetail, { type DetailAxis, type DetailPeriod } from './TrackingDetail';
 import TrackingVendorFunnel from './TrackingVendorFunnel';
 
 /**
@@ -14,7 +14,12 @@ import TrackingVendorFunnel from './TrackingVendorFunnel';
  * ⚠️ ② は features/tracking/sites.ts（⚠️ 権限は ② でも確かめる。メニューから隠すだけでは閉じない）。
  * ⚠️ v2.2.202 サイト名を押すと、その行の下にサマリー（SiteSummary）が開く。⚠️ 開閉はサイトごと（ほかのサイトと連動しない）。
  *   ⚠️ サマリーは開いたときに取りに行く（tracking_site_summary。② は features/tracking/summary.ts）。⚠️「再読み込み」で一覧と開いているサマリーを取り直す。
- *   ⚠️ CV の数え方は ② の features/tracking/conversions.ts（直近30日の反響の khg_vid が、問い合わせの日までにそのサイトに来ていたもの）。
+ *   ⚠️ CV の数え方は ② の features/tracking/conversions.ts。
+ *   ⚠️⚠️ v2.2.287 完了ページ（サイトの「直す」で登録。cv_pages）を登録したサイトは、完了ページを開いたことを CV にする。
+ *     ⚠️ 登録していないサイトは今までどおり、反響の khg_vid が問い合わせの日までにそのサイトに来ていたもの。
+ * ⚠️⚠️ v2.2.287 期間は上の「期間」（period。初期値は今日−6日〜今日の7日間。最大92日は ② が切る）。
+ *   ⚠️ 一覧・サマリー・詳細・業者別の歩留まりは GET で startDate / endDate を送る（① の core/db.php の GET_ALLOWED_REQUESTS）。
+ *   ⚠️ 期間を変えたら一覧と開いているサマリーを取り直す（以前は直近30日で固定）。
  * ⚠️ v2.2.205 自社のフォームでないサイト（かえるホーム）は、CV 用のタグ（cv.js。cvGtmTag）も出す。② が cvForm を返すサイトだけ。
  *   ⚠️ cv.js は「確認画面へ」でメール・電話のハッシュを送り、② が反響と突き合わせる（features/tracking/cvMatch.ts）。
  *   ⚠️ 一覧の CV の下に「フォーム送信 n件（結びつき m件）」。送っているのに結びつかないなら、フォームの入力欄の名前が変わったなど。
@@ -69,12 +74,18 @@ interface Site {
     memo: string;
     updatedBy: string;
     updatedAt: string;
-    touches30d: number;
+    /** v2.2.287 期間の広告からの着地・CV（以前は直近30日） */
+    touches: number;
     lastTouch: string | null;
-    cv30d: number;
-    /** v2.2.205 CV 用のタグ（cv.js）の直近30日の送信・反響に結びついた件数。⚠️ CV 用のタグを使わないブランドは null */
+    cv: number;
+    /** v2.2.287 完了ページ（⚠️ 空なら反響で CV を数える） */
+    cvPages: CvPage[];
+    /** v2.2.205 CV 用のタグ（cv.js）の期間の送信・反響に結びついた件数。⚠️ CV 用のタグを使わないブランドは null */
     cvForm: { sent: number; matched: number } | null;
 }
+
+/** v2.2.287 完了ページ（② の cvPages.ts）。pattern はパスの先頭（/event_ok/ など） */
+interface CvPage { pattern: string; kind: string }
 
 interface Draft {
     id: number | null;
@@ -83,9 +94,30 @@ interface Draft {
     origins: string;
     active: boolean;
     memo: string;
+    /** v2.2.287 完了ページ（1行に「パス 種類」） */
+    cvPages: string;
 }
 
-const emptyDraft: Draft = { id: null, name: '', brand: '', origins: '', active: true, memo: '' };
+const emptyDraft: Draft = { id: null, name: '', brand: '', origins: '', active: true, memo: '', cvPages: '' };
+
+/** 完了ページ → 入力欄の文字（1行に「パス 種類」） */
+const cvPagesToText = (pages: CvPage[]): string => pages.map((p) => `${p.pattern} ${p.kind}`).join('\n');
+/** 入力欄の文字 → 完了ページ（⚠️ 1つ目の空白までがパス、残りが種類。種類が無い行は捨てる。細かい確かめは ② の parseCvPages） */
+const textToCvPages = (text: string): CvPage[] => text.split('\n')
+    .map((line) => line.trim().match(/^(\S+)[\s\u3000]+(.+)$/))
+    .filter((m): m is RegExpMatchArray => m !== null)
+    .map((m) => ({ pattern: m[1], kind: m[2].trim() }));
+
+/** v2.2.287 期間（'YYYY-MM-DD'。日本時間） */
+export type TrackingPeriod = DetailPeriod;
+const DAY_MS = 86_400_000;
+/** 日本時間の今日から n 日前（0 なら今日） */
+const jstDaysAgo = (n: number): string => new Date(Date.now() + 9 * 3600_000 - n * DAY_MS).toISOString().slice(0, 10);
+/** 初期値・「直近 n 日」のボタン：今日−(n−1)日〜今日 */
+const lastDays = (n: number): TrackingPeriod => ({ start: jstDaysAgo(n - 1), end: jstDaysAgo(0) });
+const PERIOD_PRESETS = [7, 30, 92];
+/** ⚠️ ② の period.ts の MAX_DAYS と同じ */
+const PERIOD_MAX_DAYS = 92;
 
 /** クリップボードへ。⚠️ 使えない環境では選択して Ctrl+C を促す */
 const copyText = async (text: string): Promise<boolean> => {
@@ -115,7 +147,11 @@ interface VendorRow {
 }
 
 interface Summary {
-    days: number;
+    period: { start: string; end: string; days: number };
+    /** v2.2.287 page＝完了ページで数える ／ inquiry＝反響で数える */
+    cvMode: 'page' | 'inquiry';
+    /** v2.2.287 CV の種類別（⚠️ 反響で数えるサイトは空） */
+    cvKinds: { kind: string; cv: number }[];
     kpi: { visits: number; ad: number; cv: number };
     landing: SummaryRow[];
     source: SummaryRow[];
@@ -186,7 +222,7 @@ const readableUrl = (url: string): string => {
  * ⚠️ 表記は「PV」（2026-10-20 の指示）。⚠️ 中身は ② の訪問数（30分以内のページの移動はまとめて1件）で、ページが見られた回数より少ない。
  * ⚠️ reloadKey が変わったら取り直す（親の「再読み込み」）。
  */
-const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; reloadKey: number }> = ({ siteId, siteName, brand, reloadKey }) => {
+const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; reloadKey: number; period: TrackingPeriod }> = ({ siteId, siteName, brand, reloadKey, period }) => {
     const [data, setData] = useState<Summary | null>(null);
     const [error, setError] = useState('');
     const [tab, setTab] = useState<SummaryTab>('landing');
@@ -204,14 +240,14 @@ const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; r
     useEffect(() => {
         let alive = true;
         setError('');
-        apiClient.post('', { request: 'tracking_site_summary', site_id: siteId })
+        apiClient.get('', { params: { request: 'tracking_site_summary', site_id: siteId, startDate: period.start, endDate: period.end } })
             .then((response) => { if (alive) setData(response.data as Summary); })
             .catch((e) => {
                 console.error('tracking_site_summary failed:', e);
                 if (alive) setError('サマリーを読み込めませんでした。「再読み込み」を押してください。');
             });
         return () => { alive = false; };
-    }, [siteId, reloadKey]);
+    }, [siteId, reloadKey, period.start, period.end]);
 
     const rows = useMemo(() => {
         const list = data === null ? [] : [...data[tab]];
@@ -261,18 +297,24 @@ const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; r
     return (
         <div className="tk_sum">
             <div className="tk_sum_kpi">
-                <div className="tk_sum_card"><div className="tk_kpi_label">PV（直近{data.days}日）</div><div className="tk_sum_value">{data.kpi.visits.toLocaleString()}</div></div>
+                <div className="tk_sum_card"><div className="tk_kpi_label">PV（{data.period.start}〜{data.period.end}）</div><div className="tk_sum_value">{data.kpi.visits.toLocaleString()}</div></div>
                 <div className="tk_sum_card"><div className="tk_kpi_label">うち広告から</div><div className="tk_sum_value">{data.kpi.ad.toLocaleString()}</div></div>
-                <div className="tk_sum_card"><div className="tk_kpi_label">CV（直近{data.days}日の反響）</div><div className="tk_sum_value">{data.kpi.cv.toLocaleString()}</div></div>
+                <div className="tk_sum_card"><div className="tk_kpi_label">CV（{data.cvMode === 'page' ? '完了ページ' : '反響'}）</div><div className="tk_sum_value">{data.kpi.cv.toLocaleString()}</div></div>
                 <div className="tk_sum_card"><div className="tk_kpi_label">CV率</div><div className="tk_sum_value">{formatRate(rateOf(data.kpi.cv, data.kpi.visits))}</div></div>
             </div>
+            {data.cvKinds.length > 0 && (
+                <div className="tk_kinds" aria-label="CV の種類別">
+                    <span className="tk_sub">CV の種類別：</span>
+                    {data.cvKinds.map((k) => <span key={k.kind} className="tk_kind">{k.kind}<b>{k.cv.toLocaleString()}</b></span>)}
+                </div>
+            )}
             <div className="tk_tabs" role="tablist" aria-label="集計の軸">
                 {([['landing', '着地ページ'], ['source', '流入元']] as [SummaryTab, string][]).map(([key, label]) => (
                     <button key={key} type="button" role="tab" aria-selected={tab === key}
                         className={`tk_tab${tab === key ? ' is_active' : ''}`} onClick={() => setTab(key)}>{label}</button>
                 ))}
                 {/* ⚠️ v2.2.253: CV は一度でも来た着地ページ・流入元すべてに1件ずつ（② conversions.ts）。⚠️ 業者別の帯は今までどおり最後の訪問 */}
-                <span className="tk_sub">CV は、問い合わせの日までに一度でも来た{tab === 'landing' ? '着地ページ' : '流入元'}すべてに1件ずつ付けます（行を足すと、上の CV の合計より多くなります）{showVendor ? '。業者別は最後の訪問で数えます' : ''}</span>
+                <span className="tk_sub">CV は、CV までに一度でも来た{tab === 'landing' ? '着地ページ' : '流入元'}すべてに1件ずつ付けます（行を足すと、上の CV の合計より多くなります）{showVendor ? '。業者別は最後の訪問で数えます' : ''}</span>
             </div>
             <div className="tk_band_wrap">
                 <div className="tk_band_switch" role="group" aria-label="帯グラフの切り替え">
@@ -306,7 +348,7 @@ const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; r
                     </thead>
                     <tbody>
                         {rows.length === 0 ? (
-                            <tr><td className="tk_td tk_empty" colSpan={5}>直近{data.days}日の PV はまだありません。</td></tr>
+                            <tr><td className="tk_td tk_empty" colSpan={5}>この期間の PV はありません。</td></tr>
                         ) : rows.map((r) => (
                             <tr key={r.key} className="tk_row">
                                 <td className="tk_td tk_sum_key" title={r.key}>
@@ -329,8 +371,8 @@ const SiteSummary: React.FC<{ siteId: number; siteName: string; brand: string; r
                     </tbody>
                 </table>
             </div>
-            {detail !== null && <TrackingDetail siteId={siteId} axis={detail.axis} value={detail.value} onClose={() => setDetail(null)} />}
-            {vendor !== null && <TrackingVendorFunnel siteId={siteId} siteName={siteName} vendor={vendor} onClose={() => setVendor(null)} />}
+            {detail !== null && <TrackingDetail siteId={siteId} axis={detail.axis} value={detail.value} period={period} onClose={() => setDetail(null)} />}
+            {vendor !== null && <TrackingVendorFunnel siteId={siteId} siteName={siteName} vendor={vendor} period={period} onClose={() => setVendor(null)} />}
         </div>
     );
 };
@@ -352,30 +394,38 @@ const TrackingSettings: React.FC = () => {
     /** Meta 広告の取り込みの状態（v2.2.203） */
     const [meta, setMeta] = useState<{ configured: boolean; lastImportedAt: string | null }>({ configured: false, lastImportedAt: null });
     const [importMessage, setImportMessage] = useState('');
+    /** v2.2.287 期間（初期値は今日−6日〜今日）。⚠️ 変えたら一覧と開いているサマリーを取り直す */
+    const [period, setPeriod] = useState<TrackingPeriod>(() => lastDays(7));
+
+    /** v2.2.287 古い応答で新しい期間の一覧を上書きしない（期間を続けて変えると、取り直しが重なる） */
+    const loadSeqRef = useRef(0);
 
     const load = useCallback(async () => {
+        const seq = ++loadSeqRef.current;
         setLoading(true);
         setError('');
         try {
-            const response = await apiClient.post('', { request: 'tracking_site_list' });
+            const response = await apiClient.get('', { params: { request: 'tracking_site_list', startDate: period.start, endDate: period.end } });
+            if (seq !== loadSeqRef.current) return;
             setSites(response.data?.sites ?? []);
             if (Array.isArray(response.data?.brands)) setBrands(response.data.brands);
             if (response.data?.meta) setMeta(response.data.meta);
         } catch (e) {
+            if (seq !== loadSeqRef.current) return;
             console.error('tracking_site_list failed:', e);
             setError('サイトの一覧を読み込めませんでした。管理者の権限が必要です。');
         } finally {
-            setLoading(false);
+            if (seq === loadSeqRef.current) setLoading(false);
         }
-    }, []);
+    }, [period.start, period.end]);
 
     useEffect(() => { load(); }, [load]);
 
     const kpi = useMemo(() => ({
         total: sites.length,
         active: sites.filter((s) => s.active).length,
-        touches: sites.reduce((sum, s) => sum + s.touches30d, 0),
-        cv: sites.reduce((sum, s) => sum + s.cv30d, 0),
+        touches: sites.reduce((sum, s) => sum + s.touches, 0),
+        cv: sites.reduce((sum, s) => sum + s.cv, 0),
     }), [sites]);
 
     const importMeta = async () => {
@@ -403,7 +453,7 @@ const TrackingSettings: React.FC = () => {
     const startEdit = (site: Site | null) => {
         setFormError('');
         setDraft(site === null ? { ...emptyDraft } : {
-            id: site.id, name: site.name, brand: site.brand, origins: site.origins.join('\n'), active: site.active, memo: site.memo,
+            id: site.id, name: site.name, brand: site.brand, origins: site.origins.join('\n'), active: site.active, memo: site.memo, cvPages: cvPagesToText(site.cvPages ?? []),
         });
     };
 
@@ -420,6 +470,8 @@ const TrackingSettings: React.FC = () => {
                 origins: draft.origins.split(/[\s,]+/).filter((o) => o !== ''),
                 active: draft.active,
                 memo: draft.memo,
+                // ⚠️ v2.2.287 JSON の文字列で送る（① を通ると {} が [] になるため）
+                cv_pages: JSON.stringify(textToCvPages(draft.cvPages)),
             });
             const newId: number | undefined = response.data?.id;
             setDraft(null);
@@ -465,17 +517,33 @@ const TrackingSettings: React.FC = () => {
                     </div>
                 )}
 
+                {/* ⚠️ v2.2.287 期間。⚠️ 変えると一覧と開いているサマリーを取り直す（load の依存・SiteSummary の period） */}
+                <div className="tk_period" role="group" aria-label="期間">
+                    <span className="tk_label">期間</span>
+                    <input id="tk_period_start" type="date" className="tk_input tk_date_input" value={period.start} max={period.end}
+                        onChange={(e) => { const v = e.target.value; if (v) setPeriod((p) => ({ ...p, start: v })); }} />
+                    <span className="tk_sub">〜</span>
+                    <input id="tk_period_end" type="date" className="tk_input tk_date_input" value={period.end} min={period.start} max={jstDaysAgo(0)}
+                        onChange={(e) => { const v = e.target.value; if (v) setPeriod((p) => ({ ...p, end: v })); }} />
+                    {PERIOD_PRESETS.map((n) => {
+                        const p = lastDays(n);
+                        const active = p.start === period.start && p.end === period.end;
+                        return <button key={n} type="button" className={`tk_tab${active ? ' is_active' : ''}`} aria-pressed={active} onClick={() => setPeriod(p)}>直近{n}日</button>;
+                    })}
+                    <span className="tk_sub">最大{PERIOD_MAX_DAYS}日（長いと終わりの日から{PERIOD_MAX_DAYS}日に切ります）。長い期間は表示に時間がかかります</span>
+                </div>
+
                 <div className="tk_kpi">
                     <div className="tk_kpi_card"><div className="tk_kpi_label">登録サイト</div><div className="tk_kpi_value">{kpi.total}</div></div>
                     <div className="tk_kpi_card"><div className="tk_kpi_label">有効</div><div className="tk_kpi_value">{kpi.active}</div></div>
-                    <div className="tk_kpi_card"><div className="tk_kpi_label">直近30日の広告からの着地</div><div className="tk_kpi_value">{kpi.touches.toLocaleString()}</div></div>
-                    <div className="tk_kpi_card"><div className="tk_kpi_label">直近30日のCV</div><div className="tk_kpi_value">{kpi.cv.toLocaleString()}</div></div>
+                    <div className="tk_kpi_card"><div className="tk_kpi_label">期間の広告からの着地</div><div className="tk_kpi_value">{kpi.touches.toLocaleString()}</div></div>
+                    <div className="tk_kpi_card"><div className="tk_kpi_label">期間のCV</div><div className="tk_kpi_value">{kpi.cv.toLocaleString()}</div></div>
                 </div>
 
                 <div className="tk_caution">
                     ※ タグは、サイトの<b>すべてのページ</b>で1回だけ動くように入れます。GTM を使っているサイトは「GTM 用」を、使っていないサイトは「フッター用」を使ってください（GTM にフッター用を入れても動きません）。<br />
                     ※ 「許可するオリジン」は、タグを貼るサイトの <b>https://ドメイン</b> です（例：https://kh-house.jp）。ここに無いドメインからの記録は保存しません。<br />
-                    ※ サイト名を押すと、そのサイトの着地ページ別・流入元別の PV（広告以外も含む。30分以内のページの移動はまとめて1件）と CV が開きます。CV は、直近30日の反響のうち、問い合わせの日までにそのサイトに来ていた人の数です。サマリーの着地ページ・流入元を押すと、日別・端末・広告別などの詳細が開きます。<br />
+                    ※ サイト名を押すと、そのサイトの着地ページ別・流入元別の PV（広告以外も含む。30分以内のページの移動はまとめて1件）と CV が開きます。CV は、完了ページを登録したサイトは<b>完了ページを開いたこと</b>（同じ人・同じ種類は30分以内か同じ日なら1件）、登録していないサイトは反響のうち問い合わせの日までにそのサイトに来ていた人の数です。完了ページは「直す」で登録します。サマリーの着地ページ・流入元を押すと、日別・端末・広告別などの詳細が開きます。<br />
                     ※ 訪問者ごとのID（顧客ID）はブラウザに保存されます。リリース前に、プライバシーポリシーへ利用目的の記載が必要です。
                 </div>
 
@@ -499,6 +567,11 @@ const TrackingSettings: React.FC = () => {
                         <label className="tk_field is_wide"><span className="tk_label">メモ（設置場所など）</span>
                             <input className="tk_input" value={draft.memo} maxLength={500} onChange={(e) => setDraft({ ...draft, memo: e.target.value })} />
                         </label>
+                        <label className="tk_field is_wide"><span className="tk_label">完了ページ（CV にするページ。1行に「パスの先頭　CV の種類」。例：/event_ok/ 来場予約）</span>
+                            <textarea id="tk_cv_pages" className="tk_input" rows={4} value={draft.cvPages} placeholder={'/event_ok/ 来場予約\n/member_ok/ 会員登録'}
+                                onChange={(e) => setDraft({ ...draft, cvPages: e.target.value })} />
+                            <span className="tk_sub">空にすると、今までどおり反響の流入の記録で CV を数えます。上から順に見て、最初に当てはまった種類にします。</span>
+                        </label>
                         <label className="tk_check">
                             <input type="checkbox" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
                             有効（外すと記録を止めます）
@@ -521,8 +594,8 @@ const TrackingSettings: React.FC = () => {
                                 <th className="tk_th">ブランド</th>
                                 <th className="tk_th">許可するオリジン</th>
                                 <th className="tk_th">状態</th>
-                                <th className="tk_th tk_num">直近30日の着地</th>
-                                <th className="tk_th tk_num">直近30日のCV</th>
+                                <th className="tk_th tk_num">期間の着地</th>
+                                <th className="tk_th tk_num">期間のCV</th>
                                 <th className="tk_th">最後の着地</th>
                                 <th className="tk_th">更新</th>
                                 <th className="tk_th"></th>
@@ -547,9 +620,10 @@ const TrackingSettings: React.FC = () => {
                                         <td className="tk_td">{s.brand ? <span className="tk_tag">{BRAND_LABEL[s.brand] ?? s.brand}</span> : ''}</td>
                                         <td className="tk_td">{s.origins.map((o) => <div key={o} className="tk_origin">{o}</div>)}</td>
                                         <td className="tk_td"><span className={`tk_state${s.active ? ' is_on' : ''}`}>{s.active ? '有効' : '無効'}</span></td>
-                                        <td className="tk_td tk_num">{s.touches30d.toLocaleString()}</td>
+                                        <td className="tk_td tk_num">{s.touches.toLocaleString()}</td>
                                         <td className="tk_td tk_num">
-                                            {s.cv30d.toLocaleString()}
+                                            {s.cv.toLocaleString()}
+                                            {(s.cvPages ?? []).length > 0 && <div className="tk_sub">完了ページで数える</div>}
                                             {s.cvForm && <div className="tk_sub">フォーム送信 {s.cvForm.sent.toLocaleString()}件（結びつき {s.cvForm.matched.toLocaleString()}件）</div>}
                                         </td>
                                         <td className="tk_td tk_date">{s.lastTouch ?? '—'}</td>
@@ -562,7 +636,7 @@ const TrackingSettings: React.FC = () => {
                                     </tr>
                                     {openSummary.has(s.id) && (
                                         <tr className="tk_summary">
-                                            <td className="tk_td" colSpan={9}><SiteSummary siteId={s.id} siteName={s.name} brand={s.brand ?? ''} reloadKey={reloadKey} /></td>
+                                            <td className="tk_td" colSpan={9}><SiteSummary siteId={s.id} siteName={s.name} brand={s.brand ?? ''} reloadKey={reloadKey} period={period} /></td>
                                         </tr>
                                     )}
                                     {openTag === s.id && (
@@ -622,6 +696,10 @@ const CSS = `
 .tk_title { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
 .tk_note { font-size: 11px; color: #6b7280; }
 .tk_kpi { display: flex; gap: 10px; flex-wrap: wrap; }
+.tk_period { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px 12px; }
+.tk_period .tk_input.tk_date_input { width: auto; }
+.tk_kinds { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.tk_kind { font-size: 11px; background: #eff6ff; color: #1d4ed8; border-radius: 999px; padding: 2px 8px; display: inline-flex; gap: 6px; }
 .tk_kpi_card { flex: 1 1 160px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 14px; }
 .tk_kpi_label { font-size: 11px; color: #6b7280; }
 .tk_kpi_value { font-size: 20px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
