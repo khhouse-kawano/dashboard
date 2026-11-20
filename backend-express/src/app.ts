@@ -117,6 +117,20 @@ export const createApp = (): BuiltApp => {
   //    features/index.ts の登録内容から自動生成する。
   //    機能を追加してもこのファイルを触る必要はない。
   // ---------------------------------------------------------------
+  /**
+   * オーナーズハウスの画像（v2.2.285。features/ownersHouse/images.ts）。認証なしの公開・読み取りだけ。
+   * ⚠️ 名前は中身から作る印を含み、入れ替えると名前が変わるので、長くキャッシュさせてよい（immutable）。
+   * ⚠️ 一覧（index）は出さない。. で始まるファイルは返さない。無いファイルは 404 で終わらせる（下の API へ流さない）。
+   *   ⚠️ fallthrough: false にすると無いファイルが errorHandler で 500 になるので、次の行で 404 を返す。
+   */
+  app.use('/owners_house/img', express.static(env.ownersHouseImgDir, {
+    index: false,
+    dotfiles: 'ignore',
+    immutable: true,
+    maxAge: '365d',
+  }));
+  app.use('/owners_house/img', (_req, res) => { res.status(404).end(); });
+
   const { router: featureRouter, routes } = buildFeatureRouter(features);
 
   app.use('/api', createSystemRouter(routes));

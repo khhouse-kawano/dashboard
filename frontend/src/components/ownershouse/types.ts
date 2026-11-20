@@ -3,7 +3,12 @@
  * ⚠️ 物件の表は ownershouse（列の意味は表のコメント）。読み書きは ② の owners_house_admin_list / owners_house_admin_save。
  */
 
-/** ownershouse の1行（② はすべて文字列で返す。no だけ数値） */
+/** 画像の枠の数（v2.2.285。1〜4 メイン・5〜14 カルーセル） */
+export const IMAGE_SLOTS = 14;
+/** 画像の列名 img_1〜img_14 */
+export const IMAGE_KEYS = ['img_1', 'img_2', 'img_3', 'img_4', 'img_5', 'img_6', 'img_7', 'img_8', 'img_9', 'img_10', 'img_11', 'img_12', 'img_13', 'img_14'] as const;
+
+/** ownershouse の1行（② はすべて文字列で返す。no だけ数値。⚠️ 画像の列は ② が公開URLにして返す） */
 export type OwnersHouse = {
     no: number;
     id: string;
@@ -29,6 +34,15 @@ export type OwnersHouse = {
     img_3: string;
     img_4: string;
     img_5: string;
+    img_6: string;
+    img_7: string;
+    img_8: string;
+    img_9: string;
+    img_10: string;
+    img_11: string;
+    img_12: string;
+    img_13: string;
+    img_14: string;
     map_address: string;
     lat_and_long: string;
     structure: string;
@@ -57,7 +71,8 @@ export type AdminListResponse = {
 export const emptyHouse = (category: string): OwnersHouse => ({
     no: 0, id: '', category, pref: '', area: '', lg_code: null, name: '', title: '', brand: '', shop: '', shop_zip: '', shop_address: '',
     staff: '', tag: '', feature_1: '', feature_2: '', feature_3: '', feature_4: '', feature_5: '',
-    img_1: '', img_2: '', img_3: '', img_4: '', img_5: '', map_address: '', lat_and_long: '', structure: '', large: '', plan: '', flag: '0',
+    img_1: '', img_2: '', img_3: '', img_4: '', img_5: '', img_6: '', img_7: '', img_8: '', img_9: '', img_10: '',
+    img_11: '', img_12: '', img_13: '', img_14: '', map_address: '', lat_and_long: '', structure: '', large: '', plan: '', flag: '0',
     updated_at: null, updated_by: null,
 });
 

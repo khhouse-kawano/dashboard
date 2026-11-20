@@ -56,8 +56,12 @@ services:
       # ただし node_modules だけはコンテナ内のものを優先させる（匿名ボリューム）。
       # これが無いと、ホスト側の空/Windows用 node_modules で上書きされて壊れる。
       - /app/node_modules
+      # ⚠️ v2.2.285: オーナーズハウスの画像の置き場
+      - owners-house-img:/data/owners_house
     environment:
       - NODE_ENV=development
+      # ⚠️ v2.2.285: オーナーズハウスの画像の公開URL（ローカル）
+      - OWNERS_HOUSE_IMG_BASE=http://localhost:3001/owners_house/img/
       - PORT=3001
       - DB_HOST=mariadb-db
       - DB_PORT=3306
@@ -147,3 +151,5 @@ services:
 
 volumes:
   db-data:
+  # ⚠️ v2.2.285: オーナーズハウスの画像
+  owners-house-img:
