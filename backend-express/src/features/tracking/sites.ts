@@ -5,6 +5,8 @@ import type { AuthenticatedStaff } from '../../types/staff';
 import { isMetaConfigured } from '../metaAds/importer';
 import { CV_TARGETS } from './conversion';
 import { attributeConversions } from './conversions';
+import { parseCvPages } from './cvPages';
+import { periodBody, type Period } from './period';
 import { AD_TOUCH_SQL } from './params';
 import { clearTrackingSiteCache, normalizeOrigin, parseOrigins } from './touch';
 
@@ -32,9 +34,10 @@ interface SiteRow extends RowDataPacket {
   allowed_origins: string | string[];
   is_active: number;
   memo: string;
+  cv_pages: string | null;
   updated_by: string;
   updated_at: string;
-  touches_30d: number;
+  touches: number;
   last_touch: string | null;
 }
 
@@ -47,39 +50,46 @@ const ok = (body: Record<string, unknown>): TrackingResult => ({ httpStatus: 200
 const fail = (httpStatus: number, message: string): TrackingResult => ({ httpStatus, body: { status: 'error', message } });
 
 /**
- * 一覧（⚠️ 運用の確認用に、直近30日の着地数と最後の着地も返す。⚠️ 画面の見出しが「広告からの着地」なので広告の分だけ数える）。
- * ⚠️ v2.2.202 直近30日の CV も返す（数え方は conversions.ts。⚠️ 広告以外の訪問からの CV も含む）。
- * ⚠️ v2.2.205 CV 用のタグ（cv.js）を使うブランドのサイトは、直近30日に cv.js が送った件数と、反響に結びついた件数も返す（cvForm）。
+ * 一覧（⚠️ 運用の確認用に、期間の着地数と最後の着地も返す。⚠️ 画面の見出しが「広告からの着地」なので広告の分だけ数える）。
+ * ⚠️ v2.2.202 期間の CV も返す（数え方は conversions.ts。⚠️ 広告以外の訪問からの CV も含む）。
+ * ⚠️⚠️ v2.2.287 着地・CV・cv.js の件数は、画面が選んだ期間（period.ts。既定は直近7日）で数える（以前は直近30日）。
+ * ⚠️ v2.2.287 完了ページ（cvPages）も返す。⚠️ 列がまだ無い（① に SQL を流す前）なら、列を読まずに空で返す。
+ * ⚠️ v2.2.205 CV 用のタグ（cv.js）を使うブランドのサイトは、期間に cv.js が送った件数と、反響に結びついた件数も返す（cvForm）。
  *   ⚠️ 送っているのに結びつかないなら、フォームの入力欄の名前が変わったなど（cvMatch.ts）。⚠️ 表がまだ無い＝① に SQL を流す前なら 0。
  */
-export const listTrackingSites = async (staff: AuthenticatedStaff | null): Promise<TrackingResult> => {
+export const listTrackingSites = async (staff: AuthenticatedStaff | null, period: Period): Promise<TrackingResult> => {
   if (!canManageTracking(staff)) return fail(403, 'この画面は管理者だけが使えます。');
-  const conversions = await attributeConversions();
+  const conversions = await attributeConversions(undefined, period);
   // ⚠️ v2.2.203 Meta 広告の最後の取り込み（⚠️ 表がまだ無い＝① に SQL を流す前なら null）
   const lastImport = await query<RowDataPacket & { at: string | null }>("SELECT DATE_FORMAT(MAX(imported_at), '%Y-%m-%d %H:%i') AS at FROM meta_ad_items")
     .then((r) => r[0]?.at ?? null)
     .catch(() => null);
   const cvForm = await query<RowDataPacket & { site_id: number; sent: number; matched: number }>(
     `SELECT site_id, COUNT(*) AS sent, SUM(matched_at IS NOT NULL) AS matched
-       FROM tracking_conversions WHERE created_at >= NOW() - INTERVAL 30 DAY GROUP BY site_id`
+       FROM tracking_conversions WHERE created_at BETWEEN ? AND ? GROUP BY site_id`,
+    [period.since, period.until]
   )
     .then((r) => new Map(r.map((x) => [Number(x.site_id), { sent: Number(x.sent), matched: Number(x.matched) }])))
     .catch(() => new Map<number, { sent: number; matched: number }>());
+  const hasCvPages = await query('SELECT cv_pages FROM tracking_sites LIMIT 0').then(() => true).catch(() => false);
   const rows = await query<SiteRow>(
-    `SELECT s.id, s.site_key, s.name, s.brand, s.allowed_origins, s.is_active, s.memo, s.updated_by,
+    `SELECT s.id, s.site_key, s.name, s.brand, s.allowed_origins, s.is_active, s.memo, ${hasCvPages ? 's.cv_pages' : 'NULL AS cv_pages'}, s.updated_by,
             DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i') AS updated_at,
-            (SELECT COUNT(*) FROM tracking_touches t WHERE t.site_id = s.id AND t.created_at >= NOW() - INTERVAL 30 DAY AND ${AD_TOUCH_SQL}) AS touches_30d,
-            (SELECT DATE_FORMAT(MAX(t.created_at), '%Y-%m-%d %H:%i') FROM tracking_touches t WHERE t.site_id = s.id AND ${AD_TOUCH_SQL}) AS last_touch
+            (SELECT COUNT(*) FROM tracking_touches t WHERE t.site_id = s.id AND t.created_at BETWEEN ? AND ? AND ${AD_TOUCH_SQL}) AS touches,
+            -- ⚠️ v2.2.287 MAX(created_at) は広告の条件で全件を読んで約30秒かかったので、新しい順に1件（idx_tracking_touches_site_time を逆にたどる）
+            (SELECT DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i') FROM tracking_touches t WHERE t.site_id = s.id AND ${AD_TOUCH_SQL} ORDER BY t.created_at DESC LIMIT 1) AS last_touch
        FROM tracking_sites s
-      ORDER BY s.is_active DESC, s.id`
+      ORDER BY s.is_active DESC, s.id`,
+    [period.since, period.until]
   );
   return ok({
     brands: TRACKING_BRANDS,
+    period: periodBody(period),
     meta: { configured: isMetaConfigured(), lastImportedAt: lastImport },
     sites: rows.map((r) => ({
       id: Number(r.id), siteKey: r.site_key, name: r.name, brand: r.brand ?? '', origins: parseOrigins(r.allowed_origins),
-      active: Number(r.is_active) === 1, memo: r.memo, updatedBy: r.updated_by, updatedAt: r.updated_at,
-      touches30d: Number(r.touches_30d), lastTouch: r.last_touch, cv30d: conversions.get(Number(r.id))?.length ?? 0,
+      active: Number(r.is_active) === 1, memo: r.memo, cvPages: parseCvPages(r.cv_pages), updatedBy: r.updated_by, updatedAt: r.updated_at,
+      touches: Number(r.touches), lastTouch: r.last_touch, cv: conversions.get(Number(r.id))?.length ?? 0,
       cvForm: CV_TARGETS[r.brand ?? ''] === undefined ? null : cvForm.get(Number(r.id)) ?? { sent: 0, matched: 0 },
     })),
   });
@@ -95,6 +105,8 @@ export interface SaveSiteInput {
   origins?: unknown;
   active?: unknown;
   memo?: unknown;
+  /** v2.2.287 完了ページ（⚠️ 画面は JSON の文字列で送る。① を通ると {} が [] になるため） */
+  cvPages?: unknown;
 }
 
 const newSiteKey = (): string => {
@@ -116,12 +128,14 @@ export const saveTrackingSite = async (staff: AuthenticatedStaff | null, input: 
   if (bad !== undefined) return fail(400, `「${bad}」はオリジンの形ではありません。https://ドメイン の形で入れてください（/ 以降は不要）。`);
   const active = input.active === false || input.active === 0 ? 0 : 1;
   const memo = typeof input.memo === 'string' ? input.memo.trim().slice(0, 500) : '';
+  const cvPages = parseCvPages(input.cvPages);
+  const cvPagesValue = cvPages.length === 0 ? null : JSON.stringify(cvPages);
   const id = Number(input.id);
 
   if (Number.isInteger(id) && id > 0) {
     const result = await execute(
-      'UPDATE tracking_sites SET name = ?, brand = ?, allowed_origins = ?, is_active = ?, memo = ?, updated_by = ? WHERE id = ?',
-      [name, brand === '' ? null : brand, JSON.stringify(origins), active, memo, staff.name, id]
+      'UPDATE tracking_sites SET name = ?, brand = ?, allowed_origins = ?, is_active = ?, memo = ?, cv_pages = ?, updated_by = ? WHERE id = ?',
+      [name, brand === '' ? null : brand, JSON.stringify(origins), active, memo, cvPagesValue, staff.name, id]
     );
     clearTrackingSiteCache();
     if (result.affectedRows === 0) return fail(404, 'サイトが見つかりません。一覧を開き直してください。');
@@ -129,8 +143,8 @@ export const saveTrackingSite = async (staff: AuthenticatedStaff | null, input: 
   }
   const siteKey = newSiteKey();
   const result = await execute(
-    'INSERT INTO tracking_sites (site_key, name, brand, allowed_origins, is_active, memo, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [siteKey, name, brand === '' ? null : brand, JSON.stringify(origins), active, memo, staff.name]
+    'INSERT INTO tracking_sites (site_key, name, brand, allowed_origins, is_active, memo, cv_pages, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [siteKey, name, brand === '' ? null : brand, JSON.stringify(origins), active, memo, cvPagesValue, staff.name]
   );
   clearTrackingSiteCache();
   return ok({ id: Number(result.insertId), siteKey });

@@ -20,8 +20,12 @@ $contentType = isset($_SERVER["CONTENT_TYPE"]) ? trim($_SERVER["CONTENT_TYPE"]) 
  * ⚠️ 書き込みを伴う request を入れない（GET はリンク1つで送れてしまう）。
  * ⚠️ roll 付きは受けない（list の roll はすべて書き込み）。
  * v2.2.277: 'shopTrend'（店舗別反響推移）を足した。
+ * v2.2.287: アクセス解析の読み取り4つ（期間 startDate / endDate を送る。⚠️ ② 専用。tracking_site_save は書き込みなので入れない）。
  */
-const GET_ALLOWED_REQUESTS = ['list', 'shopTrend', 'customerTrend']; // ⚠️ customerTrend は v2.2.278
+const GET_ALLOWED_REQUESTS = [
+    'list', 'shopTrend', 'customerTrend', // ⚠️ customerTrend は v2.2.278
+    'tracking_site_list', 'tracking_site_summary', 'tracking_detail', 'tracking_vendor_funnel', // ⚠️ v2.2.287
+];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $getRequest = is_string($_GET['request'] ?? null) ? $_GET['request'] : '';

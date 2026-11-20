@@ -2,7 +2,8 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
 import { isMetaConfigured } from '../metaAds/importer';
-import { attributeConversions, CV_TABLES, DAYS, touchedKeys, type Conversion, type ConversionTouch } from './conversions';
+import { attributeConversions, CV_TABLES, touchedKeys, type Conversion, type ConversionTouch } from './conversions';
+import { periodBody, periodDays, type Period } from './period';
 import { AD_TOUCH_SQL } from './params';
 import { canManageTracking, type TrackingResult } from './sites';
 
@@ -10,12 +11,13 @@ import { canManageTracking, type TrackingResult } from './sites';
  * アクセス解析の詳細（v2.2.203。request tracking_detail）。画面は header/TrackingDetail.tsx（サマリーの着地ページ・流入元を押すと開くモーダル）。
  *
  * ─────────────────────────────────────────────
- * ⚠️ 期間は直近30日（DAYS）。⚠️ 対象はサイト1つの、着地ページ1つ（axis=landing）か流入元1つ（axis=source）。
+ * ⚠️ 期間は画面が選んだ期間（v2.2.287。period.ts。既定は直近7日。以前は直近30日）。⚠️ 対象はサイト1つの、着地ページ1つ（axis=landing）か流入元1つ（axis=source）。
  * ⚠️ PV は tracking_touches の行数（30分以内のページの移動はまとめて1件。ページの閲覧回数そのものではない）。
  * ⚠️ CV の数え方は conversions.ts。⚠️ v2.2.253: 問い合わせの日までに、この着地ページ（流入元）に**一度でも来た**反響を CV にする（以前は最後の訪問だけ）。
  *   内訳（流入元別・着地ページ別）と広告別は、その反響の訪問のうち、この着地ページ（流入元）に来た訪問の流入元・着地ページ・広告すべてに1件ずつ。
  *   CV の一覧の流入元・着地ページ・広告は、この着地ページ（流入元）に来た最後の訪問のもの。
  * ⚠️ CV の一覧は個人情報を出さない（日付・反響媒体・キャンペーン・店舗だけ。2026-10-21 の決定）。
+ * ⚠️ v2.2.287 完了ページで数えるサイトは、CV の種類と時刻も出す。⚠️ 反響と結びつかない CV（会員登録など）は反響媒体・店舗が空。
  * ⚠️ Meta 広告の数字（表示回数・クリック・費用）は meta_ad_items / meta_ad_daily（features/metaAds/ が取り込む）。
  *   ⚠️ 広告ID は着地の utm_content（Meta の URL パラメータ {{ad.id}}）でつなぐ。
  *   ⚠️ 着地ページ：そのページに着地した広告だけ。⚠️ 流入元が Meta のとき：そのサイトのブランドで費用・表示のある広告も全部出す。
@@ -79,8 +81,8 @@ interface MetaAdRow extends RowDataPacket {
   spend: number | null;
 }
 
-/** Meta 広告の数字（直近 DAYS 日）。⚠️ 表がまだ無い（① に SQL を流す前）なら null */
-const loadMetaAds = async (adIds: string[], brand: string | null): Promise<MetaAdRow[] | null> => {
+/** Meta 広告の数字（期間の分）。⚠️ 表がまだ無い（① に SQL を流す前）なら null */
+const loadMetaAds = async (adIds: string[], brand: string | null, period: Period): Promise<MetaAdRow[] | null> => {
   const ids = adIds.filter((id) => /^\d+$/.test(id));
   if (ids.length === 0 && brand === null) return [];
   const where = [
@@ -92,10 +94,10 @@ const loadMetaAds = async (adIds: string[], brand: string | null): Promise<MetaA
       `SELECT i.ad_id, i.ad_name, i.campaign_name, i.adset_name, i.status, i.thumbnail_url,
               SUM(d.impressions) AS impressions, SUM(d.clicks) AS clicks, SUM(d.spend) AS spend
          FROM meta_ad_items i
-         LEFT JOIN meta_ad_daily d ON d.ad_id = i.ad_id AND d.day >= CURDATE() - INTERVAL ${DAYS} DAY
+         LEFT JOIN meta_ad_daily d ON d.ad_id = i.ad_id AND d.day BETWEEN ? AND ?
         WHERE ${where}
         GROUP BY i.ad_id, i.ad_name, i.campaign_name, i.adset_name, i.status, i.thumbnail_url`,
-      [...ids, ...(brand !== null ? [brand] : [])]
+      [period.start, period.end, ...ids, ...(brand !== null ? [brand] : [])]
     );
   } catch {
     return null;
@@ -111,16 +113,17 @@ interface FlowRow extends RowDataPacket {
  * ページの前後（v2.2.203）。⚠️ 表がまだ無い（① に SQL を流す前）なら null。
  *   views：このページが見られた回数 ／ next：このページの次に見られたページ ／ prev：このページの前に見ていたページ（NULL＝訪問の最初のページ）
  */
-const loadPageFlow = async (siteId: number, url: string): Promise<{ views: number; visitors: number; next: FlowRow[]; prev: FlowRow[] } | null> => {
-  const since = `created_at >= NOW() - INTERVAL ${DAYS} DAY`;
+const loadPageFlow = async (siteId: number, url: string, period: Period): Promise<{ views: number; visitors: number; next: FlowRow[]; prev: FlowRow[] } | null> => {
+  const since = 'created_at BETWEEN ? AND ?';
+  const range = [period.since, period.until];
   try {
     const [total, next, prev] = await Promise.all([
       query<RowDataPacket & { views: number; visitors: number }>(
-        `SELECT COUNT(*) AS views, COUNT(DISTINCT visitor_id) AS visitors FROM tracking_pageviews WHERE site_id = ? AND url = ? AND ${since}`, [siteId, url]),
+        `SELECT COUNT(*) AS views, COUNT(DISTINCT visitor_id) AS visitors FROM tracking_pageviews WHERE site_id = ? AND url = ? AND ${since}`, [siteId, url, ...range]),
       query<FlowRow>(
-        `SELECT url, COUNT(*) AS views FROM tracking_pageviews WHERE site_id = ? AND prev_url = ? AND url <> prev_url AND ${since} GROUP BY url ORDER BY views DESC LIMIT 20`, [siteId, url]),
+        `SELECT url, COUNT(*) AS views FROM tracking_pageviews WHERE site_id = ? AND prev_url = ? AND url <> prev_url AND ${since} GROUP BY url ORDER BY views DESC LIMIT 20`, [siteId, url, ...range]),
       query<FlowRow>(
-        `SELECT prev_url AS url, COUNT(*) AS views FROM tracking_pageviews WHERE site_id = ? AND url = ? AND (prev_url IS NULL OR prev_url <> url) AND ${since} GROUP BY prev_url ORDER BY views DESC LIMIT 20`, [siteId, url]),
+        `SELECT prev_url AS url, COUNT(*) AS views FROM tracking_pageviews WHERE site_id = ? AND url = ? AND (prev_url IS NULL OR prev_url <> url) AND ${since} GROUP BY prev_url ORDER BY views DESC LIMIT 20`, [siteId, url, ...range]),
     ]);
     return { views: Number(total[0]?.views ?? 0), visitors: Number(total[0]?.visitors ?? 0), next, prev };
   } catch {
@@ -138,7 +141,8 @@ interface InquiryRow extends RowDataPacket {
 
 export const trackingDetail = async (
   staff: AuthenticatedStaff | null,
-  input: { siteId: unknown; axis: unknown; key: unknown }
+  input: { siteId: unknown; axis: unknown; key: unknown },
+  period: Period
 ): Promise<TrackingResult> => {
   const fail = (httpStatus: number, message: string): TrackingResult => ({ httpStatus, body: { status: 'error', message } });
   if (!canManageTracking(staff)) return fail(403, 'この画面は管理者だけが使えます。');
@@ -158,16 +162,16 @@ export const trackingDetail = async (
     `SELECT t.visitor_id, DATE_FORMAT(t.created_at, '%Y-%m-%d') AS day, HOUR(t.created_at) AS hour,
             t.landing_url, t.source, t.utm_campaign, t.utm_content, t.user_agent, ${AD_TOUCH_SQL} AS is_ad
        FROM tracking_touches t
-      WHERE t.site_id = ? AND t.created_at >= NOW() - INTERVAL ${DAYS} DAY AND ${filter}
+      WHERE t.site_id = ? AND t.created_at BETWEEN ? AND ? AND ${filter}
       ORDER BY t.created_at
       LIMIT ${ROW_LIMIT}`,
-    key === '' ? [siteId] : [siteId, key]
+    key === '' ? [siteId, period.since, period.until] : [siteId, period.since, period.until, key]
   );
 
   /** この着地ページ（流入元）に来た訪問か。⚠️ 流入元は大文字・小文字を区別しない */
   const hit = (t: ConversionTouch): boolean =>
     axis === 'landing' ? t.landingUrl === key : t.source.toLowerCase() === key.toLowerCase();
-  const cv = ((await attributeConversions(siteId)).get(siteId) ?? []).filter((c: Conversion) => c.touches.some(hit));
+  const cv = ((await attributeConversions(siteId, period)).get(siteId) ?? []).filter((c: Conversion) => c.touches.some(hit));
 
   // 上の数字
   const perVisitor = new Map<string, number>();
@@ -175,8 +179,7 @@ export const trackingDetail = async (
   const adFlags = rows.map((r) => Number(r.is_ad) === 1);
 
   // 日別（⚠️ 来訪の無い日も 0 で並べる。日本時間）
-  const daily: { day: string; visits: number; cv: number }[] = [];
-  for (let i = DAYS - 1; i >= 0; i--) daily.push({ day: new Date(Date.now() + 9 * 3600_000 - i * 86_400_000).toISOString().slice(0, 10), visits: 0, cv: 0 });
+  const daily = periodDays(period).map((day) => ({ day, visits: 0, cv: 0 }));
   const dayIndex = new Map(daily.map((d, i) => [d.day, i]));
   for (const r of rows) { const i = dayIndex.get(r.day); if (i !== undefined) daily[i].visits += 1; }
   for (const c of cv) { const i = dayIndex.get(c.inquiryDay); if (i !== undefined) daily[i].cv += 1; }
@@ -214,7 +217,7 @@ export const trackingDetail = async (
   // Meta 広告の数字
   const isMetaSource = axis === 'source' && META_SOURCE_PATTERN.test(key);
   const brand = sites[0].brand;
-  const metaRows = await loadMetaAds([...adMap.keys()], isMetaSource && brand ? brand : null);
+  const metaRows = await loadMetaAds([...adMap.keys()], isMetaSource && brand ? brand : null, period);
   const metaById = new Map((metaRows ?? []).map((m) => [m.ad_id, m]));
   const ads = [...new Set([...adMap.keys(), ...metaById.keys()])].map((id) => {
     const a = adMap.get(id);
@@ -235,13 +238,13 @@ export const trackingDetail = async (
     };
   }).sort((x, y) => y.spend - x.spend || y.landings - x.landings);
 
-  const flow = axis === 'landing' && key !== '' ? await loadPageFlow(siteId, key) : null;
+  const flow = axis === 'landing' && key !== '' ? await loadPageFlow(siteId, key, period) : null;
 
   // CV の一覧（⚠️ 個人情報は出さない）
   // ⚠️ v2.2.205 id は表ごとの番号なので、表ごとに引いて「表:id」で探す
   const inquiryById = new Map<string, InquiryRow>();
   for (const table of CV_TABLES) {
-    const ids = cv.filter((c) => c.inquiryTable === table).map((c) => c.inquiryId);
+    const ids = cv.filter((c) => c.inquiryTable === table && c.inquiryId !== null).map((c) => c.inquiryId as number);
     if (ids.length === 0) continue;
     const rows = await query<InquiryRow>(
       `SELECT id, medium, response_medium, hp_campaign, shop FROM ${table} WHERE id IN (${ids.map(() => '?').join(', ')})`,
@@ -255,6 +258,8 @@ export const trackingDetail = async (
     const t = [...c.touches].reverse().find(hit) ?? c.touches[c.touches.length - 1];
     return {
       day: c.inquiryDay,
+      time: c.kind === '' ? '' : c.at.slice(11, 16),
+      kind: c.kind,
       medium: r?.response_medium || r?.medium || '',
       campaign: r?.hp_campaign ?? '',
       shop: r?.shop ?? '',
@@ -262,7 +267,7 @@ export const trackingDetail = async (
       landingUrl: t?.landingUrl ?? c.landingUrl,
       adId: t?.adId ?? c.adId,
     };
-  }).sort((x, y) => y.day.localeCompare(x.day));
+  }).sort((x, y) => y.day.localeCompare(x.day) || y.time.localeCompare(x.time));
 
   return {
     httpStatus: 200,
@@ -271,7 +276,7 @@ export const trackingDetail = async (
       siteId,
       axis,
       key,
-      days: DAYS,
+      period: periodBody(period),
       truncated: rows.length >= ROW_LIMIT,
       kpi: {
         visits: rows.length,

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from 'react-bootstrap';
 import apiClient from '../../../utils/apiClient';
+import type { DetailPeriod } from './TrackingDetail';
 
 /**
  * 業者別の歩留まり（v2.2.232 新規）。アクセス解析のサマリー → 流入元 → 業者別 → 社名を押すと開く（size="lg"）。
@@ -9,6 +10,8 @@ import apiClient from '../../../utils/apiClient';
  * ⚠️ 開いたときに ② の tracking_vendor_funnel を取りに行く（features/tracking/vendorFunnel.ts）。
  * ⚠️ 数えるのは、顧客台帳（注文・建売）の顧客のうち、問い合わせの日までにそのサイトへその業者の広告から一度でも来ていた人。
  *   ⚠️ サマリーの業者別の CV（最後の訪問で数える）とは数え方が違うので、件数は一致しない（注意書きに出す）。
+ * ⚠️⚠️ v2.2.287 完了ページを登録したサイトは CV（完了ページ）を起点に数える（mode: 'cv'）。CV の種類別（kinds）の表も出す。
+ *   ⚠️ 期間はアクセス解析の上で選んだ期間（period）。GET で startDate / endDate を送る。
  * ⚠️ 1行目はブランド（サイト）の総計。⚠️ 並べ替えは店舗の行だけ（総計は先頭のまま）。
  * ⚠️ KPI単価は、広告費を入力できるようになってから総計の行にだけ付ける（2026-10-30 の指示）。
  * ⚠️ アクセス解析（全画面モーダル）の上に重ねるので、幕を z-index 1055 に上げる（TrackingDetail.tsx と同じ）。
@@ -25,8 +28,12 @@ interface FunnelRow {
 }
 
 interface FunnelData {
+    /** v2.2.287 cv＝CV（完了ページ）から数える ／ customer＝顧客台帳から数える（完了ページを登録していないサイト） */
+    mode: 'cv' | 'customer';
     total: FunnelRow;
     rows: FunnelRow[];
+    /** v2.2.287 CV の種類別（⚠️ shop に種類が入る。mode が customer なら空） */
+    kinds: FunnelRow[];
 }
 
 type SortKey = keyof FunnelRow;
@@ -48,7 +55,7 @@ interface Vendor {
     name: string;
 }
 
-const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor: Vendor; onClose: () => void }> = ({ siteId, siteName, vendor, onClose }) => {
+const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor: Vendor; period: DetailPeriod; onClose: () => void }> = ({ siteId, siteName, vendor, period, onClose }) => {
     const [data, setData] = useState<FunnelData | null>(null);
     const [error, setError] = useState('');
     const [sortKey, setSortKey] = useState<SortKey>('inquiry');
@@ -58,14 +65,14 @@ const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor:
         let alive = true;
         setData(null);
         setError('');
-        apiClient.post('', { request: 'tracking_vendor_funnel', site_id: siteId, vendor: vendor.key })
+        apiClient.get('', { params: { request: 'tracking_vendor_funnel', site_id: siteId, vendor: vendor.key, startDate: period.start, endDate: period.end } })
             .then((response) => { if (alive) setData(response.data as FunnelData); })
             .catch((e) => {
                 console.error('tracking_vendor_funnel failed:', e);
                 if (alive) setError('歩留まりを読み込めませんでした。閉じて開き直してください。');
             });
         return () => { alive = false; };
-    }, [siteId, vendor.key]);
+    }, [siteId, vendor.key, period.start, period.end]);
 
     const rows = useMemo(() => {
         const dir = sortOrder === 'asc' ? 1 : -1;
@@ -103,7 +110,7 @@ const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor:
                 <Modal.Title className="tv_title">
                     <span className="tv_axis">業者別の歩留まり</span>
                     {vendor.name}
-                    <span className="tv_sub">{siteName}</span>
+                    <span className="tv_sub">{siteName}　{period.start} 〜 {period.end}</span>
                 </Modal.Title>
             </Modal.Header>
             <Modal.Body className="tv_body">
@@ -112,7 +119,7 @@ const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor:
                 {data !== null && (
                     <>
                         <div className="tv_kpi">
-                            <div className="tv_card"><div className="tv_label">総反響</div><div className="tv_value">{data.total.inquiry.toLocaleString()}</div></div>
+                            <div className="tv_card"><div className="tv_label">{data.mode === 'cv' ? 'CV' : '総反響'}</div><div className="tv_value">{data.total.inquiry.toLocaleString()}</div></div>
                             <div className="tv_card"><div className="tv_label">来場率</div><div className="tv_value">{pct(data.total.meeting, data.total.inquiry)}</div></div>
                             <div className="tv_card"><div className="tv_label">次アポ率</div><div className="tv_value">{pct(data.total.next, data.total.inquiry)}</div></div>
                             <div className="tv_card"><div className="tv_label">契約率</div><div className="tv_value">{pct(data.total.contract, data.total.inquiry)}</div></div>
@@ -122,7 +129,7 @@ const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor:
                                 <thead>
                                     <tr>
                                         <SortHead label="店舗名" k="shop" num={false} />
-                                        {COLUMNS.map((c) => <SortHead key={c.key} label={c.label} k={c.key} />)}
+                                        {COLUMNS.map((c) => <SortHead key={c.key} label={c.key === 'inquiry' && data.mode === 'cv' ? 'CV' : c.label} k={c.key} />)}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -131,7 +138,7 @@ const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor:
                                         <Cells row={data.total} />
                                     </tr>
                                     {rows.length === 0 ? (
-                                        <tr><td className="tv_td tv_empty" colSpan={5}>{vendor.name} の広告から来た反響はまだありません。</td></tr>
+                                        <tr><td className="tv_td tv_empty" colSpan={5}>この期間に {vendor.name} の広告から来た{data.mode === 'cv' ? ' CV' : '反響'}はありません。</td></tr>
                                     ) : rows.map((r) => (
                                         <tr key={r.shop}>
                                             <td className="tv_td">{r.shop}</td>
@@ -141,10 +148,40 @@ const TrackingVendorFunnel: React.FC<{ siteId: number; siteName: string; vendor:
                                 </tbody>
                             </table>
                         </div>
+                        {data.mode === 'cv' && data.kinds.length > 0 && (
+                            <div className="tv_table_wrap">
+                                <table className="tv_table">
+                                    <thead>
+                                        <tr>
+                                            <th className="tv_th">CV の種類</th>
+                                            {COLUMNS.map((c) => <th key={c.key} className="tv_th tv_num">{c.key === 'inquiry' ? 'CV' : c.label}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {data.kinds.map((k) => (
+                                            <tr key={k.shop}>
+                                                <td className="tv_td">{k.shop || '（不明）'}</td>
+                                                <Cells row={k} />
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                         <div className="tv_note">
-                            ※ 問い合わせの日までに、このサイトへ {vendor.name} の Google リスティング広告（キャンペーン名か媒体が {vendor.rule}もの）から一度でも来ていた反響を数えます（2026-10-22 以降の訪問）。
-                            サマリーの業者別の CV は最後の訪問で数えるため、件数は一致しません。<br />
-                            ※ 来場＝初回面談以降の日付あり、次アポ＝事前審査・第二面談・契約の日付あり、契約＝契約済み。重複は数えません。率は総反響に対する割合です。
+                            {data.mode === 'cv' ? (
+                                <>
+                                    ※ この期間の CV（完了ページを開いたこと）のうち、CV までにこのサイトへ {vendor.name} の Google リスティング広告（キャンペーン名か媒体が {vendor.rule}もの）から一度でも来ていたものを数えます（2026-10-22 以降）。
+                                    サマリーの業者別の CV は最後の訪問で数えるため、件数は一致しません。<br />
+                                    ※ 来場・次アポ・契約は、CV と結びついた反響の顧客台帳で数えます。会員登録など反響と結びつかない CV は「反響と結びつかない CV」の行に入り、来場以降は数えません。<br />
+                                </>
+                            ) : (
+                                <>
+                                    ※ 反響取得日がこの期間の反響のうち、問い合わせの日までに、このサイトへ {vendor.name} の Google リスティング広告（キャンペーン名か媒体が {vendor.rule}もの）から一度でも来ていたものを数えます（2026-10-22 以降の訪問）。
+                                    サマリーの業者別の CV は最後の訪問で数えるため、件数は一致しません。<br />
+                                </>
+                            )}
+                            ※ 来場＝初回面談以降の日付あり、次アポ＝事前審査・第二面談・契約の日付あり、契約＝契約済み。重複は{data.mode === 'cv' ? ' CV には数えますが来場以降は数えません' : '数えません'}。率は{data.mode === 'cv' ? ' CV' : '総反響'}に対する割合です。
                         </div>
                     </>
                 )}
