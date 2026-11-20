@@ -6,7 +6,9 @@ import apiClient from '../../../utils/apiClient';
  * アクセス解析の詳細（v2.2.203 新規）。TrackingSettings.tsx のサマリーで、着地ページ・流入元を押すと開く（size="lg"）。
  *
  * ─────────────────────────────────────────────
- * ⚠️ 開いたときに ② の tracking_detail を取りに行く（features/tracking/detail.ts）。期間は直近30日。
+ * ⚠️ 開いたときに ② の tracking_detail を取りに行く（features/tracking/detail.ts）。
+ * ⚠️ v2.2.287 期間はアクセス解析の上で選んだ期間（period）。GET で startDate / endDate を送る（① の core/db.php の GET_ALLOWED_REQUESTS）。
+ *   ⚠️ 完了ページで数えるサイトは、CV の一覧に CV の種類と時刻も出す。
  * ⚠️ PV は訪問（30分以内の移動はまとめて1件）。⚠️ 着地ページでは、ページの閲覧の記録（v2.2.203〜）から閲覧回数と前後のページも出す。
  * ⚠️ Meta 広告の数字は ② が取り込んだもの（features/metaAds/）。⚠️ Meta のクリックとこちらの着地は一致しない。
  * ⚠️ 広告の画像の URL は数日で期限が切れる（② が取り込むたびに新しくする）。読めないときは隠す（場所は空けておく）。
@@ -23,11 +25,13 @@ interface AdRow {
     adId: string; name: string; campaign: string; adset: string; status: string; thumbnail: string; meta: boolean;
     impressions: number; clicks: number; spend: number; landings: number; cv: number;
 }
-interface CvRow { day: string; medium: string; campaign: string; shop: string; source: string; landingUrl: string; adId: string }
+interface CvRow { day: string; time: string; kind: string; medium: string; campaign: string; shop: string; source: string; landingUrl: string; adId: string }
+/** 期間（'YYYY-MM-DD'。⚠️ TrackingSettings.tsx の TrackingPeriod と同じ形） */
+export interface DetailPeriod { start: string; end: string }
 interface Flow { url: string; views: number }
 
 interface Detail {
-    days: number;
+    period: { start: string; end: string; days: number };
     truncated: boolean;
     kpi: { visits: number; ad: number; visitors: number; repeaters: number; cv: number };
     daily: { day: string; visits: number; cv: number }[];
@@ -49,7 +53,7 @@ const readable = (url: string): string => {
 
 type AdSortKey = 'spend' | 'impressions' | 'clicks' | 'landings' | 'cv' | 'cpa';
 
-const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string; onClose: () => void }> = ({ siteId, axis, value, onClose }) => {
+const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string; period: DetailPeriod; onClose: () => void }> = ({ siteId, axis, value, period, onClose }) => {
     const [data, setData] = useState<Detail | null>(null);
     const [error, setError] = useState('');
     const [adSort, setAdSort] = useState<AdSortKey>('spend');
@@ -58,14 +62,14 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
         let alive = true;
         setData(null);
         setError('');
-        apiClient.post('', { request: 'tracking_detail', site_id: siteId, axis, key: value })
+        apiClient.get('', { params: { request: 'tracking_detail', site_id: siteId, axis, key: value, startDate: period.start, endDate: period.end } })
             .then((response) => { if (alive) setData(response.data as Detail); })
             .catch((e) => {
                 console.error('tracking_detail failed:', e);
                 if (alive) setError('詳細を読み込めませんでした。閉じて開き直してください。');
             });
         return () => { alive = false; };
-    }, [siteId, axis, value]);
+    }, [siteId, axis, value, period.start, period.end]);
 
     const ads = useMemo(() => {
         const list = [...(data?.ads ?? [])];
@@ -74,6 +78,8 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
     }, [data, adSort]);
 
     const maxDaily = Math.max(1, ...(data?.daily ?? []).map((d) => d.visits));
+    /** v2.2.287 CV の種類がある（完了ページで数えるサイト） */
+    const hasKind = (data?.cvList ?? []).some((c) => c.kind !== '');
     const maxHour = Math.max(1, ...(data?.hours ?? []).map((h) => h.visits));
     const showMeta = data !== null && (data.meta.isMetaSource || data.ads.some((a) => a.meta));
     const metaTotal = ads.filter((a) => a.meta).reduce((t, a) => ({ spend: t.spend + a.spend, imp: t.imp + a.impressions, clicks: t.clicks + a.clicks, cv: t.cv + a.cv }), { spend: 0, imp: 0, clicks: 0, cv: 0 });
@@ -91,7 +97,7 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
                 <Modal.Title className="td_title">
                     <span className="td_axis">{axis === 'landing' ? '着地ページ' : '流入元'}</span>
                     {axis === 'landing' ? readable(value) : value || '（不明）'}
-                    <span className="td_sub">直近{data?.days ?? 30}日</span>
+                    <span className="td_sub">{period.start} 〜 {period.end}</span>
                 </Modal.Title>
             </Modal.Header>
             <Modal.Body className="td_body">
@@ -167,7 +173,7 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
                                         </thead>
                                         <tbody>
                                             {ads.length === 0 ? (
-                                                <tr><td className="td_td td_empty" colSpan={8}>直近30日に費用・表示・着地のある広告はありません。</td></tr>
+                                                <tr><td className="td_td td_empty" colSpan={8}>この期間に費用・表示・着地のある広告はありません。</td></tr>
                                             ) : ads.map((a) => (
                                                 <tr key={a.adId}>
                                                     <td className="td_td">
@@ -215,15 +221,16 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
                         </div>
 
                         <section className="td_section">
-                            <h6 className="td_h">CV になった反響（{data.cvList.length}件）</h6>
-                            {data.cvList.length === 0 ? <div className="td_sub">直近30日の CV はありません。</div> : (
+                            <h6 className="td_h">CV（{data.cvList.length}件）</h6>
+                            {data.cvList.length === 0 ? <div className="td_sub">この期間の CV はありません。</div> : (
                                 <div className="td_table_wrap">
                                     <table className="td_table">
-                                        <thead><tr><th className="td_th">反響の日</th><th className="td_th">反響媒体</th><th className="td_th">キャンペーン</th><th className="td_th">店舗</th><th className="td_th">{axis === 'landing' ? '流入元' : '着地ページ'}</th></tr></thead>
+                                        <thead><tr><th className="td_th">CV の日</th>{hasKind && <th className="td_th">CV の種類</th>}<th className="td_th">反響媒体</th><th className="td_th">キャンペーン</th><th className="td_th">店舗</th><th className="td_th">{axis === 'landing' ? '流入元' : '着地ページ'}</th></tr></thead>
                                         <tbody>
                                             {data.cvList.map((c, i) => (
                                                 <tr key={`${c.day}-${i}`}>
-                                                    <td className="td_td td_date">{c.day}</td>
+                                                    <td className="td_td td_date">{c.day}{c.time !== '' && ` ${c.time}`}</td>
+                                                    {hasKind && <td className="td_td">{c.kind || '—'}</td>}
                                                     <td className="td_td">{c.medium || '—'}</td>
                                                     <td className="td_td">{c.campaign || '—'}</td>
                                                     <td className="td_td">{c.shop || '—'}</td>
@@ -235,7 +242,7 @@ const TrackingDetail: React.FC<{ siteId: number; axis: DetailAxis; value: string
                                 </div>
                             )}
                         </section>
-                        <div className="td_note">※ PV は1回の訪問（30分以内のページの移動はまとめて1件）を1件と数えます。閲覧回数は、ページが開かれた回数です。CV は、問い合わせの日までにこのページ（流入元）に一度でも来た反響です。内訳・広告別の CV は、そのとき来た流入元・着地ページ・広告すべてに1件ずつ付けます。</div>
+                        <div className="td_note">※ PV は1回の訪問（30分以内のページの移動はまとめて1件）を1件と数えます。閲覧回数は、ページが開かれた回数です。CV は、CV までにこのページ（流入元）に一度でも来た人の CV です（完了ページを登録したサイトは完了ページを開いたこと、それ以外のサイトは反響）。反響媒体・店舗は、反響と結びついた CV だけに出ます。内訳・広告別の CV は、そのとき来た流入元・着地ページ・広告すべてに1件ずつ付けます。</div>
                     </>
                 )}
             </Modal.Body>

@@ -16,6 +16,7 @@ import { canManageTracking, listTrackingSites, saveTrackingSite } from '../featu
 import { trackingSiteSummary } from '../features/tracking/summary';
 import { trackingDetail } from '../features/tracking/detail';
 import { trackingVendorFunnel } from '../features/tracking/vendorFunnel';
+import { parsePeriod } from '../features/tracking/period';
 import { importMetaAds, isMetaConfigured } from '../features/metaAds/importer';
 import { listInquiryTouches } from '../features/tracking/touches';
 import { listCustomerPageviews } from '../features/tracking/customerPageviews';
@@ -863,11 +864,11 @@ register({
  */
 register({
   request: 'tracking_site_list',
-  summary: '広告流入トラッキングのサイト一覧（直近30日の着地数つき。Master / BrandAdmin のみ）',
+  summary: '広告流入トラッキングのサイト一覧（期間の着地数・CV つき。v2.2.287 から画面は GET で startDate / endDate を送る。Master / BrandAdmin のみ）',
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
-    const result = await listTrackingSites(ctx.staff);
+    const result = await listTrackingSites(ctx.staff, parsePeriod(ctx.body.startDate, ctx.body.endDate));
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
@@ -879,8 +880,8 @@ register({
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
-    const { id, name, brand, origins, active, memo } = ctx.body;
-    const result = await saveTrackingSite(ctx.staff, { id, name, brand, origins, active, memo });
+    const { id, name, brand, origins, active, memo, cv_pages: cvPages } = ctx.body;
+    const result = await saveTrackingSite(ctx.staff, { id, name, brand, origins, active, memo, cvPages });
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
@@ -888,11 +889,11 @@ register({
 
 register({
   request: 'tracking_site_summary',
-  summary: 'トラッキング設定のサイト1つのサマリー（直近30日の着地ページ別・流入元別の訪問数とCV。Master / BrandAdmin のみ）',
+  summary: 'トラッキング設定のサイト1つのサマリー（期間の着地ページ別・流入元別の訪問数とCV。v2.2.287 から GET で startDate / endDate。Master / BrandAdmin のみ）',
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
-    const result = await trackingSiteSummary(ctx.staff, ctx.body.site_id);
+    const result = await trackingSiteSummary(ctx.staff, ctx.body.site_id, parsePeriod(ctx.body.startDate, ctx.body.endDate));
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
@@ -900,11 +901,11 @@ register({
 
 register({
   request: 'tracking_vendor_funnel',
-  summary: 'アクセス解析の業者別の歩留まり（サイト1つ・業者1つ。2026-10-22 以降の Google リスティング広告（_pt2 を含めば Bander、それ以外は PURE GROWTH）から来た顧客の店舗別の反響・来場・次アポ・契約。Master / BrandAdmin のみ）',
+  summary: 'アクセス解析の業者別の歩留まり（サイト1つ・業者1つ。2026-10-22 以降の Google リスティング広告（_pt2 を含めば Bander、それ以外は PURE GROWTH）から来た顧客の店舗別の反響・来場・次アポ・契約。v2.2.287 完了ページを登録したサイトは CV から数え、期間は GET の startDate / endDate。Master / BrandAdmin のみ）',
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
-    const result = await trackingVendorFunnel(ctx.staff, ctx.body.site_id, ctx.body.vendor);
+    const result = await trackingVendorFunnel(ctx.staff, ctx.body.site_id, ctx.body.vendor, parsePeriod(ctx.body.startDate, ctx.body.endDate));
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },
@@ -912,11 +913,11 @@ register({
 
 register({
   request: 'tracking_detail',
-  summary: 'アクセス解析の詳細（サイト1つの着地ページ1つ／流入元1つ。直近30日の日別・時間帯・端末・広告別・CV。Meta 広告の数字つき。Master / BrandAdmin のみ）',
+  summary: 'アクセス解析の詳細（サイト1つの着地ページ1つ／流入元1つ。期間（v2.2.287 GET の startDate / endDate）の日別・時間帯・端末・広告別・CV。Meta 広告の数字つき。Master / BrandAdmin のみ）',
   phpSource: '（新規。PHP版なし）',
   auth: 'staff',
   handler: async (ctx) => {
-    const result = await trackingDetail(ctx.staff, { siteId: ctx.body.site_id, axis: ctx.body.axis, key: ctx.body.key });
+    const result = await trackingDetail(ctx.staff, { siteId: ctx.body.site_id, axis: ctx.body.axis, key: ctx.body.key }, parsePeriod(ctx.body.startDate, ctx.body.endDate));
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

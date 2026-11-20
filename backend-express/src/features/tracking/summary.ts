@@ -1,7 +1,8 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import type { AuthenticatedStaff } from '../../types/staff';
-import { attributeConversions, DAYS, touchedKeys } from './conversions';
+import { attributeConversions, loadCvPages, touchedKeys } from './conversions';
+import { periodBody, type Period } from './period';
 import { AD_TOUCH_SQL } from './params';
 import { canManageTracking, type TrackingResult } from './sites';
 import { GOOGLE_LISTING_SQL, isGoogleListing, TRACKING_VENDORS, VENDOR_CASE_SQL, vendorOf } from './vendors';
@@ -10,10 +11,10 @@ import { GOOGLE_LISTING_SQL, isGoogleListing, TRACKING_VENDORS, VENDOR_CASE_SQL,
  * トラッキング設定のサマリーと CV（v2.2.202）。画面は header/TrackingSettings.tsx（サイト名を押すと開く）。
  *
  * ─────────────────────────────────────────────
- * ⚠️ 期間は直近30日（訪問は created_at、反響は inquiry_date）。
- * ⚠️ 訪問数は広告・広告以外の両方（tracking_touches の行数）。⚠️ 一覧の「直近30日の着地」は広告の分だけ（sites.ts）。
- * ⚠️ CV の数え方は conversions.ts。着地ページ別・流入元別は、問い合わせの日までに**一度でも来た**着地ページ・流入元すべてに1件ずつ付ける（v2.2.253。以前は最後の訪問だけ）。
- *   ⚠️ 行の CV を足すと、合計（kpi.cv＝反響の数）より多くなる。⚠️ 訪問が30日より前なら、訪問数 0 の行として出る。
+ * ⚠️ 期間は画面が選んだ期間（v2.2.287。period.ts。既定は直近7日。以前は直近30日）。訪問は created_at、CV は conversions.ts。
+ * ⚠️ 訪問数は広告・広告以外の両方（tracking_touches の行数）。⚠️ 一覧の「期間の着地」は広告の分だけ（sites.ts）。
+ * ⚠️ CV の数え方は conversions.ts（v2.2.287 完了ページを登録したサイトは完了ページ。cvMode・cvKinds で画面に伝える）。着地ページ別・流入元別は、問い合わせの日までに**一度でも来た**着地ページ・流入元すべてに1件ずつ付ける（v2.2.253。以前は最後の訪問だけ）。
+ *   ⚠️ 行の CV を足すと、合計（kpi.cv）より多くなる。⚠️ 訪問が期間より前なら、訪問数 0 の行として出る。
  * ⚠️ v2.2.232 業者別（vendors）。⚠️ v2.2.238 から、2026-10-22 以降の Google リスティング広告の訪問だけを数える（判定は vendors.ts）。
  *   ⚠️ CV は「最後の訪問」が Google リスティング広告のものだけ、その訪問の utm_campaign・utm_medium で分ける。
  * ─────────────────────────────────────────────
@@ -46,7 +47,7 @@ const mergeRows = (rows: GroupRow[], cvKeys: string[], fold: boolean): SummaryRo
 };
 
 /** サイト1つのサマリー（着地ページ別・流入元別）。⚠️ 画面でサイトを開いたときだけ呼ぶ */
-export const trackingSiteSummary = async (staff: AuthenticatedStaff | null, siteIdValue: unknown): Promise<TrackingResult> => {
+export const trackingSiteSummary = async (staff: AuthenticatedStaff | null, siteIdValue: unknown, period: Period): Promise<TrackingResult> => {
   if (!canManageTracking(staff)) return { httpStatus: 403, body: { status: 'error', message: 'この画面は管理者だけが使えます。' } };
   const siteId = Number(siteIdValue);
   if (!Number.isInteger(siteId) || siteId <= 0) return { httpStatus: 400, body: { status: 'error', message: 'サイトが指定されていません。' } };
@@ -55,12 +56,12 @@ export const trackingSiteSummary = async (staff: AuthenticatedStaff | null, site
   const group = (expr: string, where = ''): Promise<GroupRow[]> => query<GroupRow>(
     `SELECT ${expr} AS k, COUNT(*) AS visits, SUM(${AD_TOUCH_SQL}) AS ad
        FROM tracking_touches t
-      WHERE t.site_id = ? AND t.created_at >= NOW() - INTERVAL ${DAYS} DAY${where === '' ? '' : ` AND ${where}`}
+      WHERE t.site_id = ? AND t.created_at BETWEEN ? AND ?${where === '' ? '' : ` AND ${where}`}
       GROUP BY k`,
-    [siteId]
+    [siteId, period.since, period.until]
   );
-  const [landingRows, sourceRows, vendorRows, conversions] = await Promise.all([
-    group('t.landing_url'), group('t.source'), group(VENDOR_CASE_SQL, GOOGLE_LISTING_SQL), attributeConversions(siteId),
+  const [landingRows, sourceRows, vendorRows, conversions, cvPages] = await Promise.all([
+    group('t.landing_url'), group('t.source'), group(VENDOR_CASE_SQL, GOOGLE_LISTING_SQL), attributeConversions(siteId, period), loadCvPages(siteId),
   ]);
   const cv = conversions.get(siteId) ?? [];
   const landing = mergeRows(landingRows, cv.flatMap((c) => touchedKeys(c, (t) => t.landingUrl)), false);
@@ -74,12 +75,19 @@ export const trackingSiteSummary = async (staff: AuthenticatedStaff | null, site
     return { key: v.key, rule: v.rule, name: v.name, visits: row?.visits ?? 0, cv: row?.cv ?? 0 };
   });
 
+  // v2.2.287 CV の種類別（⚠️ 反響で数えるサイトは空）
+  const kindCount = new Map<string, number>();
+  for (const c of cv) if (c.kind !== '') kindCount.set(c.kind, (kindCount.get(c.kind) ?? 0) + 1);
+  const cvKinds = [...kindCount.entries()].map(([kind, n]) => ({ kind, cv: n })).sort((a, b) => b.cv - a.cv);
+
   return {
     httpStatus: 200,
     body: {
       status: 'ok',
       siteId,
-      days: DAYS,
+      period: periodBody(period),
+      cvMode: cvPages.has(siteId) ? 'page' : 'inquiry',
+      cvKinds,
       kpi: {
         visits: landing.reduce((s, r) => s + r.visits, 0),
         ad: landing.reduce((s, r) => s + r.ad, 0),
