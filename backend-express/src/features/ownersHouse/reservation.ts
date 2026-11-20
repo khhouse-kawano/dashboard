@@ -1,4 +1,5 @@
-import { execute } from '../../db/pool';
+import type { RowDataPacket } from 'mysql2/promise';
+import { execute, query } from '../../db/pool';
 import { logger } from '../../utils/logger';
 import { sanitizeHeader, sendMail } from '../../utils/mailer';
 import { NOT_NULL_COLUMNS, type EntryResult } from '../campaignForm/entry';
@@ -20,8 +21,39 @@ import { clean, cleanMultiline, dateOnly, dateTime, stamp } from '../campaignFor
  *   - ブランドの表記をそろえる（Nagomi → なごみ、PGH → PG HOUSE。移植元は送られた値のまま保存していた）
  *   - メールは文字だけ（移植元は入力値をそのまま HTML に入れていた）
  *   - url_params / landing_params・見学先・お問い合わせ内容を残す
+ * ⚠️⚠️ v2.2.286: 店舗・ブランド・見学先は、本文の house_id（物件ID）で ownershouse を引いて決める（画面が送る値は使わない）。
+ *   ⚠️ inquiry_customer.shop は物件の管理店舗（ownershouse.shop）を略称にしたもの（例 国分ハウジング霧島店 → KH霧島店）。
+ *   ⚠️ 物件が見つからないとき（house_id が無い古い画面など）だけ、今までどおり本文の brand / shop / place を使う。
+ *   ⚠️ ① の handlers/owners_house_reservation.php も同じにしている。
  * ─────────────────────────────────────────────
  */
+
+interface HouseRow extends RowDataPacket {
+    id: string;
+    category: string;
+    name: string;
+    title: string;
+    brand: string;
+    shop: string;
+    shop_zip: string;
+    shop_address: string;
+}
+
+/** 物件（ownershouse）。⚠️ 公開を外した直後の予約も受けたいので flag では絞らない */
+const findHouse = async (id: string): Promise<HouseRow | null> => {
+    if (!/^\d{1,12}$/.test(id)) return null;
+    try {
+        const rows = await query<HouseRow>(
+            'SELECT id, category, name, title, brand, shop, shop_zip, shop_address FROM ownershouse WHERE id = ? AND no > 1 LIMIT 1', [id]);
+        return rows[0] ?? null;
+    } catch (error) {
+        logger.error(`owners_house_reservation: 物件を引けませんでした id="${id}": ${(error as Error).message}`);
+        return null;
+    }
+};
+
+/** ownershouse.brand の値 → BRANDS のキー（⚠️ 古いデータに「なごみ」がある） */
+const brandKeyOf = (brand: string): string => (brand === 'なごみ' ? 'Nagomi' : brand);
 
 interface BrandSpec {
     /** inquiry_customer.brand */
@@ -62,12 +94,16 @@ const normalizeShop =(shop: string, spec: BrandSpec | null): string => {
 
 export const runOwnersHouseReservation = async (raw: Record<string, unknown>): Promise<EntryResult> => {
     const body = raw ?? {};
+    // ⚠️ v2.2.286: 物件を引けたら、店舗・ブランド・見学先・種別は物件の値を使う
+    const house = await findHouse(clean(body.house_id, 20));
+    if (!house) logger.warn(`owners_house_reservation: 物件を引けないので本文の店舗を使います house_id="${clean(body.house_id, 20)}"`);
     const a = {
-        brand: clean(body.brand, 20),
-        shop: clean(body.shop, 80),
-        place: clean(body.place, 120),
+        brand: house ? brandKeyOf(house.brand) : clean(body.brand, 20),
+        shop: house ? house.shop : clean(body.shop, 80),
+        place: house ? house.name : clean(body.place, 120),
+        title: house ? house.title : '',
         // ⚠️⚠️ 本文のキーは house_category（⚠️ `category` はゲートウェイの振り分けの鍵に入り、「ループ検知」502 になる）
-        category: clean(body.house_category, 60),
+        category: house ? house.category : clean(body.house_category, 60),
         date: clean(body.date, 20),
         time: clean(body.time, 20),
         name: clean(body.name, 60),
@@ -79,7 +115,7 @@ export const runOwnersHouseReservation = async (raw: Record<string, unknown>): P
         address: clean(body.address, 200),
         medium: clean(body.medium, 60),
         demand: cleanMultiline(body.demand, 2000),
-        url: clean(body.url, 500),
+        url: house ? `https://kh-house.jp/owners_house/owners?id=${house.id}` : clean(body.url, 500),
         urlParams: clean(body.url_params, 2000),
         landingParams: clean(body.landing_params, 2000),
     };
@@ -94,7 +130,7 @@ export const runOwnersHouseReservation = async (raw: Record<string, unknown>): P
     const campaign = `${spec?.prefix ?? 'KHG'}オーナーズハウス`;
     const now = new Date();
     const remarks = [
-        a.place !== '' ? `見学希望：${a.place}${a.category !== '' ? `（${a.category}）` : ''}` : '',
+        a.place !== '' ? `見学希望：${a.place}${a.category !== '' ? `（${a.category}）` : ''}${a.title !== '' ? `「${a.title}」` : ''}` : '',
         a.url !== '' ? `ページ：${a.url}` : '',
         a.demand !== '' ? `ご質問・ご要望：${a.demand}` : '',
     ].filter(Boolean).join('\n');
@@ -152,6 +188,10 @@ export const runOwnersHouseReservation = async (raw: Record<string, unknown>): P
 
     // ---- 3. メール2通（⚠️ 保存が終わってから。⚠️ 2通は別々に送る） ----
     const brandName = spec?.name ?? '国分ハウジンググループ';
+    /** ⚠️ v2.2.286: お問い合わせ先（物件の管理店舗）。サンクスメールに出す */
+    const shopContact = house && house.shop !== ''
+        ? `■お問い合わせ先\n${house.shop}\n${[house.shop_zip !== '' ? `〒${house.shop_zip}` : '', house.shop_address].filter(Boolean).join(' ')}\n\n`
+        : '';
     const detail = [
         ['見学希望場所', a.place], ['お名前', a.name], ['お名前（カナ）', a.kana],
         ['来場希望日', a.date], ['来場希望時間', a.time], ['携帯番号', a.phone], ['メールアドレス', a.mail],
@@ -164,7 +204,8 @@ export const runOwnersHouseReservation = async (raw: Record<string, unknown>): P
         const ok = await sendMail({
             to: customerTo,
             subject: sanitizeHeader(`${brandName}/お問い合わせありがとうございます。`),
-            text: `${a.name} 様\nオーナーズハウス見学のお問い合わせを受け付けました。\n\nお問い合わせ内容は以下となります。\n\n${detail}\n\n`
+            text: `${a.name} 様\nオーナーズハウス見学のお問い合わせを受け付けました。\n担当店舗より見学日時などの詳細についてご連絡いたします。\n\nお問い合わせ内容は以下となります。\n\n${detail}\n\n`
+                + shopContact
                 + 'こちらのメールは配信用のため返信できません。ご意見・ご要望はご予約の店舗までお寄せください。\n\n'
                 + '※お問い合わせいただいた日時が18:00以降または火曜日、水曜日の場合、翌営業日以降のご連絡となりますのであらかじめご了承ください。\n',
             fromName: brandName,
@@ -174,9 +215,15 @@ export const runOwnersHouseReservation = async (raw: Record<string, unknown>): P
 
     const ok = await sendMail({
         to: [...safeAddressList(NOTICE_TO), ...safeAddressList(spec?.cc ?? '')],
-        subject: sanitizeHeader(`${brandName}/オーナーズハウスからの登録がありました。`),
-        text: `オーナーズハウス見学のお問い合わせを受け付けました。\n\nお問い合わせ日時：${dateTime(now)}\n\n${detail}\n`
-            + (a.url !== '' ? `該当URL：${a.url}\n` : '')
+        // ⚠️ v2.2.286: 件名に管理店舗を入れる（どの店舗の反響かを件名で分かるように）
+        subject: sanitizeHeader(`${brandName}/オーナーズハウスからの登録がありました（${shopValue}）。`),
+        text: `オーナーズハウス見学のお問い合わせを受け付けました。\n\nお問い合わせ日時：${dateTime(now)}\n管理店舗：${shopValue}\n`
+            + (a.category !== '' ? `種別：${a.category}\n` : '')
+            + (a.title !== '' ? `物件：${a.title}\n` : '')
+            + `\n${detail}\n`
+            + (a.url !== '' ? `物件ページ：${a.url}\n` : '')
+            + (a.urlParams !== '' ? `流入（送信したページ）：${a.urlParams}\n` : '')
+            + (a.landingParams !== '' ? `流入（最初に開いたページ）：${a.landingParams}\n` : '')
             + '\n管理店舗・担当営業はお施主様との日程調整をお願いします。\n====================\n※のちほどダッシュボードへ反映されます。\n',
         fromName: brandName,
     });

@@ -141,6 +141,35 @@ if ($a['name'] === '' || ($a['phone'] === '' && $a['mail'] === '')) {
     ohrRespond(400, ['status' => 'error', 'message' => '登録に失敗しました。']);
 }
 
+/**
+ * ⚠️⚠️ v2.2.286: 店舗・ブランド・見学先は、本文の house_id（物件ID）で ownershouse を引いて決める（② reservation.ts と同じ）。
+ *   ⚠️ 物件が見つからないとき（house_id が無い古い画面など）だけ、本文の brand / shop / place を使う。
+ *   ⚠️ 公開を外した直後の予約も受けたいので flag では絞らない。
+ */
+$house = null;
+$houseId = ohrClean($data['house_id'] ?? '', 20);
+if (preg_match('/^\d{1,12}$/', $houseId)) {
+    try {
+        $stmt = $pdo->prepare('SELECT id, category, name, title, brand, shop, shop_zip, shop_address FROM ownershouse WHERE id = ? AND no > 1 LIMIT 1');
+        $stmt->execute([$houseId]);
+        $house = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (PDOException $e) {
+        error_log("owners_house_reservation: 物件を引けませんでした id=\"{$houseId}\": " . $e->getMessage());
+    }
+}
+$a['title'] = '';
+if ($house !== null) {
+    // ⚠️ 古いデータに「なごみ」がある（表のキーは Nagomi）
+    $a['brand'] = $house['brand'] === 'なごみ' ? 'Nagomi' : (string) $house['brand'];
+    $a['shop'] = (string) $house['shop'];
+    $a['place'] = (string) $house['name'];
+    $a['title'] = (string) $house['title'];
+    $a['category'] = (string) $house['category'];
+    $a['url'] = 'https://kh-house.jp/owners_house/owners?id=' . $house['id'];
+} else {
+    error_log("owners_house_reservation: 物件を引けないので本文の店舗を使います house_id=\"{$houseId}\"");
+}
+
 $spec = $ohrBrands[$a['brand']] ?? null;
 if ($spec === null) {
     error_log("owners_house_reservation: 知らないブランドです brand=\"{$a['brand']}\"");
@@ -158,7 +187,7 @@ if ($shopValue === '') {
 $campaign = ($spec[1] ?? 'KHG') . 'オーナーズハウス';
 $now = time();
 $remarks = implode("\n", array_filter([
-    $a['place'] !== '' ? '見学希望：' . $a['place'] . ($a['category'] !== '' ? "（{$a['category']}）" : '') : '',
+    $a['place'] !== '' ? '見学希望：' . $a['place'] . ($a['category'] !== '' ? "（{$a['category']}）" : '') . ($a['title'] !== '' ? "「{$a['title']}」" : '') : '',
     $a['url'] !== '' ? 'ページ：' . $a['url'] : '',
     $a['demand'] !== '' ? 'ご質問・ご要望：' . $a['demand'] : '',
 ]));
@@ -260,9 +289,17 @@ foreach ([
 }
 $detail = implode("\n", $detail);
 
+// ⚠️ v2.2.286: お問い合わせ先（物件の管理店舗）。サンクスメールに出す（② と同じ）
+$shopContact = '';
+if ($house !== null && $house['shop'] !== '') {
+    $shopLine = implode(' ', array_filter([$house['shop_zip'] !== '' ? '〒' . $house['shop_zip'] : '', (string) $house['shop_address']]));
+    $shopContact = "■お問い合わせ先\n{$house['shop']}\n{$shopLine}\n\n";
+}
+
 $customerTo = ohrAddresses($a['mail']);
 if ($customerTo) {
-    $body = "{$a['name']} 様\nオーナーズハウス見学のお問い合わせを受け付けました。\n\nお問い合わせ内容は以下となります。\n\n{$detail}\n\n"
+    $body = "{$a['name']} 様\nオーナーズハウス見学のお問い合わせを受け付けました。\n担当店舗より見学日時などの詳細についてご連絡いたします。\n\nお問い合わせ内容は以下となります。\n\n{$detail}\n\n"
+        . $shopContact
         . "こちらのメールは配信用のため返信できません。ご意見・ご要望はご予約の店舗までお寄せください。\n\n"
         . "※お問い合わせいただいた日時が18:00以降または火曜日、水曜日の場合、翌営業日以降のご連絡となりますのであらかじめご了承ください。\n";
     if (!ohrSendMail($customerTo, "{$brandName}/お問い合わせありがとうございます。", $body, $brandName)) {
@@ -270,10 +307,16 @@ if ($customerTo) {
     }
 }
 
-$noticeBody = "オーナーズハウス見学のお問い合わせを受け付けました。\n\nお問い合わせ日時：" . date('Y/m/d H:i:s', $now) . "\n\n{$detail}\n"
-    . ($a['url'] !== '' ? "該当URL：{$a['url']}\n" : '')
+// ⚠️ v2.2.286: 件名に管理店舗。本文に種別・物件・物件ページ・流入（② と同じ）
+$noticeBody = "オーナーズハウス見学のお問い合わせを受け付けました。\n\nお問い合わせ日時：" . date('Y/m/d H:i:s', $now) . "\n管理店舗：{$shopValue}\n"
+    . ($a['category'] !== '' ? "種別：{$a['category']}\n" : '')
+    . ($a['title'] !== '' ? "物件：{$a['title']}\n" : '')
+    . "\n{$detail}\n"
+    . ($a['url'] !== '' ? "物件ページ：{$a['url']}\n" : '')
+    . ($a['urlParams'] !== '' ? "流入（送信したページ）：{$a['urlParams']}\n" : '')
+    . ($a['landingParams'] !== '' ? "流入（最初に開いたページ）：{$a['landingParams']}\n" : '')
     . "\n管理店舗・担当営業はお施主様との日程調整をお願いします。\n====================\n※のちほどダッシュボードへ反映されます。\n";
-if (!ohrSendMail(array_merge(ohrAddresses(OHR_NOTICE_TO), ohrAddresses($spec[3] ?? '')), "{$brandName}/オーナーズハウスからの登録がありました。", $noticeBody, $brandName)) {
+if (!ohrSendMail(array_merge(ohrAddresses(OHR_NOTICE_TO), ohrAddresses($spec[3] ?? '')), "{$brandName}/オーナーズハウスからの登録がありました（{$shopValue}）。", $noticeBody, $brandName)) {
     error_log("owners_house_reservation: 社内通知を送れませんでした name=\"{$a['name']}\" mail=\"{$a['mail']}\" phone=\"{$a['phone']}\"");
 }
 
