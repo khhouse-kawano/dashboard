@@ -18,6 +18,8 @@ import { sortStaff } from '../header/ambassador/useAmbassadorMaster';
 import { GiftDot, GiftLegend } from './GiftMark';
 import { CustomerNameCell, cleanCustomerName } from './customerName2';
 import { descending } from '../../utils/descending';
+// ⚠️ v2.2.290 見た目を販促媒体別（CustomerKaeru）・目標達成状況（RankKaeru）とそろえる（rk_ の CSS を借りる）
+import { RankingStyle } from '../rankingUi';
 
 type shopList = { brand: string, shop: string, section: string };
 // ⚠️ position / khg_id は担当営業セレクトの並べ替えに使う（2026-09-14 追加）。
@@ -545,9 +547,13 @@ const DatabaseKaeru = ({ }: Props) => {
 
     return (
         <>
+            <RankingStyle />
             <style>{DBK_CSS}</style>
-            <div className='content database bg-white p-2'>
-                <div className='p-1 p-md-3 d-flex flex-wrap'>
+            <div className='content database bg-white rk_wrap dbk_wrap'>
+                <div className="rk_head">
+                    <span className="rk_title">顧客DB（建売分譲事業）</span>
+                </div>
+                <div className='rk_bar dbk_bar'>
                     <div className="m-1">
                         <select
                             className="target"
@@ -569,9 +575,9 @@ const DatabaseKaeru = ({ }: Props) => {
                                 className="target"
                                 value={selectedStaff}
                                 style={{
-                                    backgroundColor: selectedStaff ? '#0d6efd' : '#e7f1ff',
-                                    color: selectedStaff ? '#fff' : '#0d6efd',
-                                    borderColor: '#0d6efd',
+                                    backgroundColor: selectedStaff ? '#2563eb' : '#eff6ff',
+                                    color: selectedStaff ? '#fff' : '#2563eb',
+                                    borderColor: '#2563eb',
                                     fontWeight: 700,
                                 }}
                                 onChange={(e) => setSelectedStaff(e.target.value)}
@@ -699,16 +705,15 @@ const DatabaseKaeru = ({ }: Props) => {
                                 value={areaSearch.inputValue} onChange={areaSearch.onChange} />
                         </div>
                     </>}
-                    <div className="bg-success text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-                        onClick={() => setEditId('new')}>新規登録</div>
+                    <button type="button" className="rk_btn m-1" onClick={() => setEditId('new')}>新規登録</button>
                 </div>
                 <div className="d-md-flex">
                     <div className="d-flex flex-wrap align-items-center">
-                        <div className="">{totalCount}<span style={{ fontSize: '12px' }}> 件中 {totalCount === 0 ? 0 : sliceStart + 1}件~{totalCount > activePage * basicLength ? activePage * basicLength : totalCount}件</span>
-                            {listLoading && <span className="ms-2 text-secondary" style={{ fontSize: '11px' }}>読み込み中…</span>}</div>
-                        <div className="ms-1" style={{ fontSize: '11px' }}>
+                        <div><span className="dbk_count_num">{totalCount}</span><span className="dbk_count_sub"> 件中 {totalCount === 0 ? 0 : sliceStart + 1}件~{totalCount > activePage * basicLength ? activePage * basicLength : totalCount}件</span>
+                            {listLoading && <span className="ms-2 dbk_count_sub">読み込み中…</span>}</div>
+                        <div className="ms-2 dbk_count_sub">
                             表示件数
-                            <select style={{ fontSize: '11px', borderRadius: '5px', width: '70px' }} onChange={(e) => setBasicLength(Number(e.target.value))}>
+                            <select className="rk_select ms-1" onChange={(e) => setBasicLength(Number(e.target.value))}>
                                 <option value='20'>20件</option>
                                 <option value='50'>50件</option>
                                 <option value='100'>100件</option>
@@ -744,21 +749,19 @@ const DatabaseKaeru = ({ }: Props) => {
                             </ul>
                         </div>
                         {!isSp && <>
-                            {trash === 1 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setTrash(0)}>非表示リストへ移動</div>}
-                            {trash === 0 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setTrash(1)}>一覧へ戻る</div>}
-                            <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setCallStatusShow(true)}>架電状況集計</div>
+                            {trash === 1 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(0)}>非表示リストへ移動</button>}
+                            {trash === 0 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(1)}>一覧へ戻る</button>}
+                            <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setCallStatusShow(true)}>架電状況集計</button>
                         </>}
                     </div>
                 </div>
                 <div className="w-100 mb-1">
                     <GiftLegend />
                 </div>
-                <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <div className="w-100 dbk_table_wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <div style={{ width: '2020px' }}>{/* v2.2.288 入居希望地の列のぶん広げた（1900px → 2020px） */}
-                        <Table style={{ fontSize: isSp ? '9px' : '11px', textAlign: 'center' }} bordered striped>
+                        {/* ⚠️ v2.2.290 縞模様（striped）は外した。罫線・見出しの色は DBK_CSS の dbk_table */}
+                        <Table className='dbk_table' style={{ fontSize: isSp ? '9px' : '12px', textAlign: 'center' }} bordered>
                             <tbody className='align-middle'>
                                 <tr className='align-middle sticky-header'>
                                     {/* ⚠️ v2.2.289 左の4列（編集・店舗・顧客名・担当営業）は横に動かしても残す（dbk_fix。CSS は下の DBK_CSS） */}
@@ -790,10 +793,7 @@ const DatabaseKaeru = ({ }: Props) => {
                                             targetEmails.some(email => (duplicateDictionary[email] || []).some(id => id !== item.id)) ||
                                             targetPhones.some(phone => (duplicateDictionary[phone] || []).some(id => id !== item.id)));
                                         return <tr key={item.id}>
-                                            <td className='dbk_fix dbk_fix1'><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
-                                                onClick={() => {
-                                                    setEditId(item.id);
-                                                }}>編集</div></td>
+                                            <td className='dbk_fix dbk_fix1'><button type="button" className='dbk_edit' onClick={() => setEditId(item.id)}>編集</button></td>
                                             <td className='dbk_fix dbk_fix2'>{item.shop}</td>
                                             {/* ⚠️ v2.2.187: 氏名②があるときだけ「アイコン（縦中央）／氏名①・氏名②の2行」 */}
                                             <td className='dbk_fix dbk_fix3'><CustomerNameCell
@@ -845,13 +845,45 @@ export default DatabaseKaeru
 /**
  * v2.2.289 左の4列（編集・店舗・顧客名・担当営業）を横に動かしても残す（接頭辞 dbk_）。
  * ⚠️ 幅と left をそろえること（1列目の幅 = 2列目の left …）。⚠️ 背景を塗らないと、後ろの列が透けて見える。
- * ⚠️ 縞模様（table-striped）は box-shadow で付くので、境目の線は border で引く（box-shadow にすると縞が消える）。
+ * ⚠️ 境目の線は border で引く（box-shadow は Bootstrap がセルの色に使っている）。
+ *
+ * v2.2.290 見た目を rankingUi.tsx（rk_）にそろえた。⚠️ 色は rk_ と同じ値を使い、画面だけ違う色にしない。
+ * ⚠️ 絞り込み欄は既存の .target（SearchBox.css・共通）をこの画面の中だけ上書きする（共通 CSS は触らない）。
+ * ⚠️ この文字列の中にバッククォートを書かないこと（テンプレートリテラルが閉じてビルドが壊れる）。
  */
 const DBK_CSS = `
 .database .dbk_fix { position: sticky; z-index: 2; background-color: #fff; }
 .database .dbk_fix1 { left: 0; width: 70px; min-width: 70px; }
 .database .dbk_fix2 { left: 70px; width: 100px; min-width: 100px; }
 .database .dbk_fix3 { left: 170px; width: 170px; min-width: 170px; }
-.database .dbk_fix4 { left: 340px; width: 100px; min-width: 100px; border-right: 2px solid #adb5bd; }
+.database .dbk_fix4 { left: 340px; width: 100px; min-width: 100px; border-right: 2px solid #d1d5db; }
 .database tr.sticky-header > .dbk_fix { z-index: 21; }
+
+.dbk_bar { gap: 2px; align-items: center; }
+.dbk_bar .target { height: 32px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 10px;
+                   font-size: 12px; background-color: #fff; color: #1f2937; outline: none; }
+.dbk_bar .target:focus { border-color: #2563eb; }
+.dbk_bar .target::placeholder { color: #9ca3af; }
+
+.dbk_count_num { font-size: 16px; font-weight: 700; color: #1f2937; font-variant-numeric: tabular-nums; }
+.dbk_count_sub { font-size: 11px; color: #6b7280; }
+.dbk_wrap .rk_select { padding: 3px 8px; font-size: 11px; }
+
+.dbk_wrap .custom-pagination li button { background: #fff; color: #4b5563; border: 1px solid #d1d5db;
+                                          border-radius: 8px; padding: 4px 10px; font-size: 11px; }
+.dbk_wrap .custom-pagination li button:hover { background: #f3f4f6; }
+.dbk_wrap .custom-pagination li.active button { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 700; }
+
+.dbk_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+.dbk_wrap .dbk_table { margin-bottom: 0; color: #1f2937; border-style: hidden; }
+.dbk_wrap .dbk_table td { border-color: #eef2f7; padding: 7px 8px; font-weight: 400;
+                          font-variant-numeric: tabular-nums; }
+.dbk_wrap .dbk_table tr.sticky-header > td { background-color: #f8fafc; color: #4b5563;
+                                              font-weight: 700; font-size: calc(1em - 1px); }
+.dbk_wrap .dbk_table tr:not(.sticky-header):hover > td { background-color: #f8fafc; }
+.dbk_wrap .dbk_table tr:not(.sticky-header) > .dbk_fix3 { font-weight: 700; }
+
+.dbk_edit { border: 1px solid #d1d5db; border-radius: 6px; background: #fff; color: #2563eb;
+            font-size: 11px; font-weight: 700; padding: 3px 10px; cursor: pointer; white-space: nowrap; }
+.dbk_edit:hover { background: #eff6ff; border-color: #2563eb; }
 `;
