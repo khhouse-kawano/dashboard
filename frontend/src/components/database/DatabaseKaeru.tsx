@@ -109,6 +109,25 @@ const DatabaseKaeru = ({ }: Props) => {
     const [selectedArea, setSelectedArea] = useState('');
     useEffect(() => { setSelectedArea(areaSearch.debouncedValue); }, [areaSearch.debouncedValue]);
 
+    /**
+     * v2.2.289 顧客を1ページずつ ② から GET で読む（request database_list。② の features/database/list.ts）。
+     * ⚠️ 絞り込み・並べ替え・ページ分けは ② が行い、画面は今のページの行（pageRows）と件数（serverTotal）だけを持つ。
+     * ⚠️ 条件・ページ・表示件数・非表示リストの state が変わったら取り直す（listParams・activePage・basicLength）。
+     * ⚠️⚠️ ② に届かないとき（① に PHP が無い）は serverMode を false にして、今までどおり全件を POST（request database。
+     *   ① の予備あり）で読み、下の filteredDatabase で絞り込む。⚠️ filteredDatabase と ② の絞り込みは同じ条件にしてある（片方だけ直さない）。
+     */
+    const [serverMode, setServerMode] = useState(true);
+    const [pageRows, setPageRows] = useState<CustomerList[]>([]);
+    const [serverTotal, setServerTotal] = useState(0);
+    const [listLoading, setListLoading] = useState(false);
+    /** 取り直すきっかけ（編集を閉じた・非表示に切り替えた・名寄せをしたあと） */
+    const [listReloadKey, setListReloadKey] = useState(0);
+    /** 古い応答で新しい条件の結果を上書きしない */
+    const listSeqRef = useRef(0);
+    /** 選択肢（担当・店舗・媒体）を読み込み済みか（⚠️ 最初の1回だけ master=1 で取る） */
+    const mastersLoadedRef = useRef(false);
+    const reloadList = () => setListReloadKey((k) => k + 1);
+
     const isSp = useIsSp();
 
     /**
@@ -130,6 +149,11 @@ const DatabaseKaeru = ({ }: Props) => {
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
+    }, []);
+
+    // ⚠️ v2.2.289 全件の読み込みは、② に届かなかったとき（serverMode が false）だけ
+    useEffect(() => {
+        if (serverMode) return;
         const fetchData = async () => {
             try {
                 const response = await apiClient.post("", { request: 'database', category });
@@ -150,14 +174,15 @@ const DatabaseKaeru = ({ }: Props) => {
         };
 
         fetchData();
-    }, []);
+    }, [serverMode]);
 
     // 過去に担当した営業名で該当する顧客IDを取ってくる。
     // 検索語が空のときはAPIを呼ばず、絞り込み自体を無効にする。
     useEffect(() => {
         const staff = pastStaffSearch.debouncedValue;
 
-        if (!staff) {
+        // ⚠️ v2.2.289 ② で読むときは ② が過去担当でも絞る（ここでは呼ばない）
+        if (serverMode || !staff) {
             setPastCustomerIds([]);
             return;
         }
@@ -178,7 +203,7 @@ const DatabaseKaeru = ({ }: Props) => {
         })();
 
         return () => { ignore = true; };
-    }, [pastStaffSearch.debouncedValue]);
+    }, [pastStaffSearch.debouncedValue, serverMode]);
 
     // ⚠️ v2.2.271: 家族の有無も集合で引く（以前は familyList.includes で総当たり）
     const familyIdSet = useMemo(() => new Set(familyList), [familyList]);
@@ -300,6 +325,8 @@ const DatabaseKaeru = ({ }: Props) => {
         selectedStatus,
         selectedFollow,
         nameSearch.debouncedValue,
+        kanaSearch.debouncedValue, // ⚠️ v2.2.289 足した（以前はふりがなを変えてもページが戻らなかった）
+        basicLength, // ⚠️ v2.2.289 表示件数を変えたら1ページ目へ（② で読むと、件数の表示と行がずれるため）
         staffSearch.debouncedValue,
         phoneSearch.debouncedValue,
         addressSearch.debouncedValue,
@@ -311,6 +338,68 @@ const DatabaseKaeru = ({ }: Props) => {
         familyList,
         familyStatus,
     ]);
+
+    /** v2.2.289 ② に送る条件（⚠️ 空の条件は送らない） */
+    const listParams = useMemo(() => Object.fromEntries(Object.entries({
+        trash: String(trash),
+        shop: selectedShop, staff: selectedStaff, register: selectedRegister, reserve: selectedReserve, rank: selectedRank,
+        medium: selectedMedium, status: selectedStatus, follow: selectedFollow, callStatus, family: familyStatus ? '1' : '',
+        name: nameSearch.debouncedValue, kana: kanaSearch.debouncedValue, staffText: staffSearch.debouncedValue,
+        pastStaff: pastStaffSearch.debouncedValue, phone: phoneSearch.debouncedValue, mail: mailSearch.debouncedValue,
+        address: addressSearch.debouncedValue, area: selectedArea,
+    }).filter(([, v]) => v !== '')), [
+        trash, selectedShop, selectedStaff, selectedRegister, selectedReserve, selectedRank, selectedMedium, selectedStatus,
+        selectedFollow, callStatus, familyStatus, nameSearch.debouncedValue, kanaSearch.debouncedValue, staffSearch.debouncedValue,
+        pastStaffSearch.debouncedValue, phoneSearch.debouncedValue, mailSearch.debouncedValue, addressSearch.debouncedValue, selectedArea,
+    ]);
+
+    /**
+     * v2.2.289 今の条件・ページを ② から GET で読む。
+     * ⚠️ setTimeout(0) で1回にまとめる（条件を変えると、上の effect がページを1に戻すので、古いページで1回読まないように）。
+     */
+    useEffect(() => {
+        if (!serverMode) return;
+        const timer = window.setTimeout(async () => {
+            const seq = ++listSeqRef.current;
+            setListLoading(true);
+            try {
+                const response = await apiClient.get('', {
+                    params: {
+                        request: 'database_list', category, ...listParams, page: activePage, perPage: basicLength,
+                        ...(mastersLoadedRef.current ? {} : { master: 1 }),
+                    },
+                });
+                if (seq !== listSeqRef.current) return;
+                const data = response.data;
+                if (!data || data.status !== 'ok') throw new Error('database_list の応答が正しくありません');
+                if (Array.isArray(data.shop)) {
+                    setShopArray(data.shop.filter((item: shopList) => !item.shop.includes('店舗未設定')));
+                    setMediumArray(data.medium.map((item: { medium: string }) => item.medium));
+                    setStaffArray(data.staff);
+                    mastersLoadedRef.current = true;
+                }
+                setPageRows(prepareCustomers(data.customer));
+                setServerTotal(Number(data.total) || 0);
+                setDisplayLength(Number(data.total) || 0);
+                // ⚠️ ページが件数より後ろなら、② が最後のページに寄せて返す。画面もそれに合わせる
+                if (Number(data.page) !== activePage) {
+                    setActivePage(Number(data.page));
+                    setSliceStart((Number(data.page) - 1) * basicLength);
+                }
+            } catch (error) {
+                if (seq !== listSeqRef.current) return;
+                console.error('database_list に失敗しました。全件の読み込みに切り替えます:', error);
+                setServerMode(false);
+            } finally {
+                if (seq === listSeqRef.current) setListLoading(false);
+            }
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [serverMode, category, listParams, activePage, basicLength, listReloadKey]);
+
+    /** 表に出す行と件数（⚠️ ② で読むときは今のページの行。予備のときは画面で絞った結果を切る） */
+    const visibleRows = serverMode ? pageRows : filteredDatabase.slice(sliceStart, sliceStart + basicLength);
+    const totalCount = serverMode ? serverTotal : filteredDatabase.length;
 
     // ページングリンク
     const pages = {
@@ -385,7 +474,9 @@ const DatabaseKaeru = ({ }: Props) => {
                         roll: 'trash'
                     };
                     const response = await apiClient.post("", postData);
-                    setOriginalDatabase(prepareCustomers(response.data.customer));
+                    // ⚠️ v2.2.289 ② で読むときは今のページを読み直す（① が返す全件は使わない）
+                    if (serverMode) reloadList();
+                    else setOriginalDatabase(prepareCustomers(response.data.customer));
                 } catch (error) {
                     console.error("Error fetching data:", error);
                 }
@@ -398,6 +489,12 @@ const DatabaseKaeru = ({ }: Props) => {
 
     const closeInformationEdit = async () => {
         setEditId('');
+        // ⚠️ v2.2.289 ② で読むときは今のページを読み直すだけ（ページは変えない）。
+        //   ⚠️ skipPageReset を立てない（立てると、次に条件を変えたときにページが1に戻らない）
+        if (serverMode) {
+            reloadList();
+            return;
+        }
         const prevPage = activePage;
 
         skipPageReset.current = true;
@@ -411,8 +508,20 @@ const DatabaseKaeru = ({ }: Props) => {
         setActivePage(prevPage);
     };
 
-    const integrationCustomer = (customer: Record<string, string>) => {
+    const integrationCustomer = async (customer: Record<string, string>) => {
         setIntegrate(customer);
+
+        // ⚠️ v2.2.289 ② で読むときは全件を持っていないので、② に候補を頼む（条件は下と同じ）
+        if (serverMode) {
+            try {
+                const response = await apiClient.get('', { params: { request: 'database_list', category, dupOf: customer.id } });
+                setIntegrateList(prepareCustomers(response.data.customer));
+            } catch (error) {
+                console.error('名寄せの候補を読み込めませんでした:', error);
+                setIntegrateList([]);
+            }
+            return;
+        }
 
         const customerMails = [customer.mail, customer.mail_2].filter(Boolean);
         const customerPhones = [customer.phone_number, customer.phone_number_2].filter(Boolean);
@@ -436,6 +545,7 @@ const DatabaseKaeru = ({ }: Props) => {
 
     return (
         <>
+            <style>{DBK_CSS}</style>
             <div className='content database bg-white p-2'>
                 <div className='p-1 p-md-3 d-flex flex-wrap'>
                     <div className="m-1">
@@ -594,7 +704,8 @@ const DatabaseKaeru = ({ }: Props) => {
                 </div>
                 <div className="d-md-flex">
                     <div className="d-flex flex-wrap align-items-center">
-                        <div className="">{filteredDatabase.length}<span style={{ fontSize: '12px' }}> 件中 {sliceStart + 1}件~{filteredDatabase.length > activePage * basicLength ? activePage * basicLength : filteredDatabase.length}件</span></div>
+                        <div className="">{totalCount}<span style={{ fontSize: '12px' }}> 件中 {totalCount === 0 ? 0 : sliceStart + 1}件~{totalCount > activePage * basicLength ? activePage * basicLength : totalCount}件</span>
+                            {listLoading && <span className="ms-2 text-secondary" style={{ fontSize: '11px' }}>読み込み中…</span>}</div>
                         <div className="ms-1" style={{ fontSize: '11px' }}>
                             表示件数
                             <select style={{ fontSize: '11px', borderRadius: '5px', width: '70px' }} onChange={(e) => setBasicLength(Number(e.target.value))}>
@@ -650,10 +761,11 @@ const DatabaseKaeru = ({ }: Props) => {
                         <Table style={{ fontSize: isSp ? '9px' : '11px', textAlign: 'center' }} bordered striped>
                             <tbody className='align-middle'>
                                 <tr className='align-middle sticky-header'>
-                                    <td>顧客情報編集</td>
-                                    <td>店舗</td>
-                                    <td>顧客名<br /><span className='text-success fw-bold'><i className="fa-solid fa-user-plus pe-1"></i>重複顧客</span></td>
-                                    <td>担当営業</td>
+                                    {/* ⚠️ v2.2.289 左の4列（編集・店舗・顧客名・担当営業）は横に動かしても残す（dbk_fix。CSS は下の DBK_CSS） */}
+                                    <td className='dbk_fix dbk_fix1'>顧客情報編集</td>
+                                    <td className='dbk_fix dbk_fix2'>店舗</td>
+                                    <td className='dbk_fix dbk_fix3'>顧客名<br /><span className='text-success fw-bold'><i className="fa-solid fa-user-plus pe-1"></i>重複顧客</span></td>
+                                    <td className='dbk_fix dbk_fix4'>担当営業</td>
                                     <td>ステータス</td>
                                     <td>反響日</td>
                                     <td>初回面談</td>
@@ -668,23 +780,23 @@ const DatabaseKaeru = ({ }: Props) => {
                                     <td>入居希望地</td>
                                     <td>{trash === 1 ? '非表示' : '元に戻す'}</td>
                                 </tr>
-                                {filteredDatabase
-                                    .slice(sliceStart, sliceStart + basicLength)
+                                {visibleRows
                                     .map(item => {
                                         const targetEmails = [normalize(item.mail), normalize(item.mail_2)].filter(Boolean);
                                         const targetPhones = [normalize(item.phone_number), normalize(item.phone_number_2)].filter(Boolean);
 
-                                        const isDuplicate =
+                                        // ⚠️ v2.2.289 ② で読むときは ② が全顧客で調べた印（duplicate）を使う
+                                        const isDuplicate = serverMode ? Number(item.duplicate) === 1 : (
                                             targetEmails.some(email => (duplicateDictionary[email] || []).some(id => id !== item.id)) ||
-                                            targetPhones.some(phone => (duplicateDictionary[phone] || []).some(id => id !== item.id));
+                                            targetPhones.some(phone => (duplicateDictionary[phone] || []).some(id => id !== item.id)));
                                         return <tr key={item.id}>
-                                            <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
+                                            <td className='dbk_fix dbk_fix1'><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
                                                 onClick={() => {
                                                     setEditId(item.id);
                                                 }}>編集</div></td>
-                                            <td>{item.shop}</td>
+                                            <td className='dbk_fix dbk_fix2'>{item.shop}</td>
                                             {/* ⚠️ v2.2.187: 氏名②があるときだけ「アイコン（縦中央）／氏名①・氏名②の2行」 */}
-                                            <td><CustomerNameCell
+                                            <td className='dbk_fix dbk_fix3'><CustomerNameCell
                                                 icons={<>
                                                     <GiftDot gift={item.gift} />
                                                     {(isDuplicate && item.integration) && <span style={{ cursor: 'pointer' }}
@@ -692,7 +804,7 @@ const DatabaseKaeru = ({ }: Props) => {
                                                 </>}
                                                 name={item.customer ?? ''}
                                                 name2={item.customer_2} /></td>
-                                            <td>{item.staff ?? ''}</td>
+                                            <td className='dbk_fix dbk_fix4'>{item.staff ?? ''}</td>
                                             <td>{item.status ?? ''}</td>
                                             <td>{formate(item.register)}</td>
                                             <td>{formate(item.interview) || formate(item.tour)}</td>
@@ -716,7 +828,9 @@ const DatabaseKaeru = ({ }: Props) => {
                 </div>
             </div>
             <PastCustomer pastCustomerShow={pastCustomerShow} setPastCustomerShow={setPastCustomerShow} />
-            <IntegrateModal integrate={integrate} setIntegrate={setIntegrate} integrateList={integrateList} setIntegrateList={setIntegrateList} setOriginalDatabase={setOriginalDatabase} />
+            {/* ⚠️ v2.2.289 ② で読むときは、名寄せのあとに ① が返す全件は使わず、今のページを読み直す */}
+            <IntegrateModal integrate={integrate} setIntegrate={setIntegrate} integrateList={integrateList} setIntegrateList={setIntegrateList}
+                setOriginalDatabase={serverMode ? () => reloadList() : setOriginalDatabase} />
             <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />
             <CallStatusList
                 callStatusShow={callStatusShow}
@@ -727,3 +841,17 @@ const DatabaseKaeru = ({ }: Props) => {
 }
 
 export default DatabaseKaeru
+
+/**
+ * v2.2.289 左の4列（編集・店舗・顧客名・担当営業）を横に動かしても残す（接頭辞 dbk_）。
+ * ⚠️ 幅と left をそろえること（1列目の幅 = 2列目の left …）。⚠️ 背景を塗らないと、後ろの列が透けて見える。
+ * ⚠️ 縞模様（table-striped）は box-shadow で付くので、境目の線は border で引く（box-shadow にすると縞が消える）。
+ */
+const DBK_CSS = `
+.database .dbk_fix { position: sticky; z-index: 2; background-color: #fff; }
+.database .dbk_fix1 { left: 0; width: 70px; min-width: 70px; }
+.database .dbk_fix2 { left: 70px; width: 100px; min-width: 100px; }
+.database .dbk_fix3 { left: 170px; width: 170px; min-width: 170px; }
+.database .dbk_fix4 { left: 340px; width: 100px; min-width: 100px; border-right: 2px solid #adb5bd; }
+.database tr.sticky-header > .dbk_fix { z-index: 21; }
+`;
