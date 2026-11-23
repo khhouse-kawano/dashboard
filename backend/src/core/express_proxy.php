@@ -804,6 +804,10 @@ function expressProxyRequests(): array
         'tracking_touches',
         'customer_pageviews',
 
+        // ⚠️ 2026-11-23（v2.2.289）。顧客DB（建売）を1ページずつ（database/DatabaseKaeru.tsx。画面は GET）。⚠️ ① に PHP ハンドラは無い（② だけ）。
+        //   ⚠️ 両方のリストに入れてある。② に届かないときは、画面が今までの database（POST・① の予備あり）に切り替える。
+        'database_list',
+
         // ⚠️ 2026-11-17（v2.2.276）。反響一覧の重複の詳細（list/DuplicateBadge.tsx）。⚠️ ① に PHP ハンドラは無い（② だけ）。
         //   ⚠️ expressProxyExclusive() にも入れてある（② に届かないときは 502。画面のモーダルに失敗と出る）。
         'inquiryDup',
@@ -1143,6 +1147,10 @@ function expressProxyExclusive(): array
         'meta_ads_import',
         'tracking_touches',
         'customer_pageviews',
+
+        // ⚠️ 2026-11-23（v2.2.289）。顧客DB（建売）を1ページずつ（database/DatabaseKaeru.tsx。画面は GET）。⚠️ ① に PHP ハンドラは無い（② だけ）。
+        //   ⚠️ 両方のリストに入れてある。② に届かないときは、画面が今までの database（POST・① の予備あり）に切り替える。
+        'database_list',
 
         // ⚠️ 2026-10-21（v2.2.206）。K-SNAP の書き込み（① から外す段階0）。② の features/ksnap/index.ts は PHP と同じ動き。
         //   ⚠️ k-snap_show … 写真の公開／営業名の表示の切り替え（UPDATE）
