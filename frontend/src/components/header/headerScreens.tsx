@@ -9,6 +9,7 @@ import SyncLog from './system/SyncLog';
 import AccessLog from './system/AccessLog';
 import SharedReports from './system/SharedReports';
 import BudgetTable from './system/BudgetTable';
+import CallStatusSettings from './system/CallStatusSettings';
 import EditBlackList from './inquiry/EditBlackList';
 import BudgetSimulator from './inquiry/BudgetSimulator';
 import AfterInterview from './inquiry/AfterInterview';
@@ -100,6 +101,8 @@ export interface HeaderScreen {
 
 const isMaster = ({ authority }: ScreenAccess) => authority === 'Master';
 const isAdmin = ({ authority }: ScreenAccess) => authority === 'Master' || authority === 'BrandAdmin';
+/** v2.2.293 Master とインサイドセールス（insideSales）。⚠️ ② の CALL_STATUS_AUTHORITY（features/callStatusMaster.ts）と同じ */
+export const isInsideSales = ({ authority }: ScreenAccess) => authority === 'Master' || authority === 'insideSales';
 
 const claudeLabel = (text: string) => (
     <span className="d-inline-flex align-items-center" style={{ gap: '2px' }}>
@@ -140,6 +143,8 @@ export const HEADER_SCREENS: HeaderScreen[] = [
     },
     // ⚠️ v2.2.243: 予算テーブルは ⚠️⚠️ **Master と BrandAdmin**（budget へ CSV で追加できるため。② の budget_table_* も同じ2つ）
     { menu: 'システム管理', item: '予算テーブル', path: '/budgetTable', allow: isAdmin, render: () => <BudgetTable /> },
+    // ⚠️ v2.2.293: 架電ステータスは ⚠️⚠️ **Master と insideSales**（② の call_status_admin / _save / inside_staff_save も同じ2つ）
+    { menu: 'システム管理', item: '架電ステータス', path: '/callStatusSettings', allow: isInsideSales, render: () => <CallStatusSettings /> },
 
     // ── 反響管理
     // ⚠️ 販促媒体設定はまだ中身が無い（v2.2.240 までと同じく「準備中」を出す）
