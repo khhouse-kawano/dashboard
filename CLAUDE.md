@@ -63,6 +63,16 @@ MSYS_NO_PATHCONV=1 docker exec dashboard-mariadb-db-1 sh -c 'mariadb --default-c
 - ⚠️ **画面（ページ・ヘッダーのメニューの項目）を追加・改名したら、`GUIDE_SCREENS` にも登録・修正する**（ページは Menu.tsx の `MENU_CONFIG`、メニューは Header.tsx の `menuMapping` と同じ条件にそろえる）。⚠️ キーの行は `    '名前': {` の形を崩さない（記事のスクリプトがこの形で名前を読む）。
   - `> 注意：` は黄色、`> 要確認：` は赤（社内ルールなど現場で確かめること）、それ以外の `>` は緑の枠になる。
 
+## 画面を GET 化するとき（v2.2.291〜）
+顧客の件数が膨大になってきたため、一覧の画面は順に GET 化する（全件をブラウザに送って画面で絞るのをやめ、② で絞り込み・ページ分けして1ページ分だけ返す）。手本は `frontend/src/components/database/DatabaseKaeru.tsx`・`DatabaseOrder.tsx` と ② の `backend-express/src/features/database/list.ts`。
+- **GET で送る条件（key と value）は、画面の URL にも出す。URL に条件を付けて開いたら、その条件・ページで開くようにする**（再読み込み・共有で同じ一覧が出る）。共通の処理は `frontend/src/components/database/listUrl.ts`（`readListUrl`・`useListUrlSync`・`useOnListChange`）。
+  - URL のキーは ② に送るキーと同じにする。ページは `page`、表示件数は `perPage`。
+  - ⚠️ トークンなどの認証情報は URL に出さない。`request`・`category` など画面が決めるものも出さない。既定値と空の条件も出さない。
+  - ⚠️ 既にある URL のパラメータ（顧客の編集を開く `?id=` など）は消さずに残す。
+  - 絞り込みの欄は URL から戻した値が見えるように `value` を付ける。
+- 新しい request は `express_proxy.php` の2つのリストと `db.php` の `GET_ALLOWED_REQUESTS` に入れる（上の「開発終了の条件」）。
+- ② に届かないときは、今までの全件読み込み（POST・① の予備）に切り替えて画面で絞る。画面に残す絞り込みと ② の絞り込みは同じ条件にし、テストで条件ごとに件数と並びが一致することを確かめる。
+
 # セキュリティと禁止事項
 - `.env` やクレデンシャル（パスワードやAPIキー等）が含まれるファイルは、いかなる理由があっても読み書きしないこと。
 - システム全体に影響を与える破壊的なコマンド（`rm -rf`, DBの削除など）は実行しないこと。
