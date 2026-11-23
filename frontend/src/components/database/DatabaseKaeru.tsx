@@ -25,6 +25,12 @@ type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number, period: string, position: string, khg_id: string, section: string, status: string };
 type CustomerList = Record<string, string>;
 
+/** v2.2.288 入居希望地（planned_construction_site・_2・_3）のうち、値のあるもの（⚠️ 前後の空白を除く） */
+const plannedSites = (item: CustomerList): string[] =>
+    [item.planned_construction_site, item.planned_construction_site_2, item.planned_construction_site_3]
+        .map((v) => String(v ?? '').trim())
+        .filter((v) => v !== '');
+
 type Props = {
     onReload: () => void,
     key: number
@@ -94,6 +100,14 @@ const DatabaseKaeru = ({ }: Props) => {
     const mailSearch = useDebounce('', 300);
     // 過去担当者の検索は入力のたびにAPIを叩くため、他の検索と同じくデバウンスする
     const pastStaffSearch = useDebounce('', 300);
+    /**
+     * v2.2.288 入居希望地（planned_construction_site・_2・_3）で検索。
+     * ⚠️ 入力欄は areaSearch（300ms 待つ）。⚠️ 確定した値を selectedArea に入れ、絞り込みは selectedArea で行う
+     *   （次のブランチで GET の引数にそのまま使うため）。
+     */
+    const areaSearch = useDebounce('', 300);
+    const [selectedArea, setSelectedArea] = useState('');
+    useEffect(() => { setSelectedArea(areaSearch.debouncedValue); }, [areaSearch.debouncedValue]);
 
     const isSp = useIsSp();
 
@@ -179,6 +193,8 @@ const DatabaseKaeru = ({ }: Props) => {
         // 💡 パフォーマンス最適化: 検索キーワードの正規化（スペース除去＆平仮名変換）は filter の外で1度だけ実行する
         const cleanFormattedName = nameSearch.debouncedValue.replace(/[\s\u3000]+/g, '');
         const normalizedKanaSearch = kataToHira(kanaSearch.debouncedValue.replace(/[\s\u3000]+/g, ''));
+        // v2.2.288 入居希望地は空白を無視して比べる（住所の検索と同じ）
+        const cleanArea = selectedArea.replace(/[\s\u3000]+/g, '');
 
         const result = originalDatabase.filter(item => {
             return (trash === 1 ? (Number(item.trash) ?? 0) !== 0 : true)
@@ -203,6 +219,7 @@ const DatabaseKaeru = ({ }: Props) => {
                 && (phoneSearch.debouncedValue ? (strIncludes(item.phone_number, phoneSearch.debouncedValue) || strIncludes(item.phone_number_2, phoneSearch.debouncedValue)) : true)
                 && (mailSearch.debouncedValue ? (strIncludes(item.mail, mailSearch.debouncedValue) || strIncludes(item.mail_2, mailSearch.debouncedValue)) : true)
                 && (addressSearch.debouncedValue ? String((item.full_address ?? '').replace(/[\s ]+/g, "")).includes(addressSearch.debouncedValue) : true)
+                && (cleanArea ? plannedSites(item).some((site) => site.replace(/[\s\u3000]+/g, '').includes(cleanArea)) : true)
                 && (callStatus ? (item.call_status ?? '') === callStatus : true)
                 && (familyStatus ? familyIdSet.has(item.id) : true)
                 && (pastStaffSearch.debouncedValue ? pastCustomerIdSet.has(item.id) : true)
@@ -231,6 +248,7 @@ const DatabaseKaeru = ({ }: Props) => {
         phoneSearch.debouncedValue,
         addressSearch.debouncedValue,
         mailSearch.debouncedValue,
+        selectedArea,
         callStatus,
         pastStaffSearch.debouncedValue,
         trash,
@@ -286,6 +304,7 @@ const DatabaseKaeru = ({ }: Props) => {
         phoneSearch.debouncedValue,
         addressSearch.debouncedValue,
         mailSearch.debouncedValue,
+        selectedArea,
         callStatus,
         pastStaffSearch.debouncedValue,
         trash,
@@ -563,7 +582,12 @@ const DatabaseKaeru = ({ }: Props) => {
                         </div>
                         <div className="m-1">
                             <input className="target" placeholder='住所で検索'
-                                value={addressSearch.inputValue} onChange={addressSearch.onChange} />                        </div>
+                                value={addressSearch.inputValue} onChange={addressSearch.onChange} />
+                        </div>
+                        <div className="m-1">
+                            <input className="target" placeholder='入居希望地で検索'
+                                value={areaSearch.inputValue} onChange={areaSearch.onChange} />
+                        </div>
                     </>}
                     <div className="bg-success text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
                         onClick={() => setEditId('new')}>新規登録</div>
@@ -622,7 +646,7 @@ const DatabaseKaeru = ({ }: Props) => {
                     <GiftLegend />
                 </div>
                 <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <div style={{ width: '1900px' }}>
+                    <div style={{ width: '2020px' }}>{/* v2.2.288 入居希望地の列のぶん広げた（1900px → 2020px） */}
                         <Table style={{ fontSize: isSp ? '9px' : '11px', textAlign: 'center' }} bordered striped>
                             <tbody className='align-middle'>
                                 <tr className='align-middle sticky-header'>
@@ -641,6 +665,7 @@ const DatabaseKaeru = ({ }: Props) => {
                                     <td>連絡先②</td>
                                     <td>架電状況</td>
                                     <td>架電件数</td>
+                                    <td>入居希望地</td>
                                     <td>{trash === 1 ? '非表示' : '元に戻す'}</td>
                                 </tr>
                                 {filteredDatabase
@@ -679,6 +704,8 @@ const DatabaseKaeru = ({ }: Props) => {
                                             <td style={{ textAlign: 'left' }}>{item.mail_2}<br />{item.phone_number_2}</td>
                                             <td>{item.call_status}</td>
                                             <td>{item.call_log || '0'}</td>
+                                            {/* v2.2.288 入居希望地。⚠️ 値のある欄だけを、2つ以上なら改行して縦に並べる */}
+                                            <td style={{ textAlign: 'left' }}>{plannedSites(item).map((site, i) => <React.Fragment key={i}>{i > 0 && <br />}{site}</React.Fragment>)}</td>
                                             <td style={{ cursor: 'pointer' }} onClick={() => handleGarbage(item.id, item.customer)}>{trash === 1 ? <i className="fa-solid fa-ban"></i> : <i className="fa-solid fa-rotate-left"></i>}</td>
                                         </tr>
                                     })}

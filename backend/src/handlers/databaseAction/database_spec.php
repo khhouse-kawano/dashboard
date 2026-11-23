@@ -73,7 +73,11 @@ $sql_customer = "SELECT
   COALESCE(customer_contacts_email, '') AS mail,
   COALESCE(extra_address_info, '') AS mail_2,
   COALESCE(integration, '') AS integration,
-  COALESCE(call_log, '') AS call_log
+  COALESCE(call_log, '') AS call_log,
+  -- v2.2.288 入居希望地（顧客DB 建売の検索・表の列。② の database/queries.ts と同じ）
+  COALESCE(planned_construction_site, '') AS planned_construction_site,
+  COALESCE(planned_construction_site_2, '') AS planned_construction_site_2,
+  COALESCE(planned_construction_site_3, '') AS planned_construction_site_3
   FROM master_data_kaeru
   WHERE COALESCE(delete_dashboard, 0) = 0; -- v2.2.229: 個人情報削除で削除済みの顧客は返さない（② の database/queries.ts と同じ）
 ";
