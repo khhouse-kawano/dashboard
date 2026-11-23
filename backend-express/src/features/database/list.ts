@@ -2,11 +2,12 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../../db/pool';
 import { giftApplyToCustomers } from './gift';
 import { toColumnar } from './index';
-import { databaseSql, type DatabaseCategory } from './queries';
+import { databaseSql, usedSql, type DatabaseCategory } from './queries';
 
 /**
  * 顧客DB を1ページずつ返す（v2.2.289。request database_list。画面は database/DatabaseKaeru.tsx）。
  * ⚠️ v2.2.291 で注文（database/DatabaseOrder.tsx）も受ける。注文の絞り込みは下の runOrderList（このコメントの説明は建売のもの）。
+ * ⚠️ v2.2.292 で中古（database/DatabaseResale.tsx）も受ける。中古の絞り込みは下の runUsedList。
  *
  * ─────────────────────────────────────────────
  * ⚠️⚠️ 画面は GET で絞り込みの条件・ページ・表示件数を送る（① の core/db.php の GET_ALLOWED_REQUESTS）。
@@ -84,8 +85,9 @@ const paginate = (filtered: Row[], p: DatabaseListParams): { page: number; perPa
   return { page, perPage, pageRows: filtered.slice((page - 1) * perPage, page * perPage) };
 };
 
-export const runDatabaseList = async (category: DatabaseCategory, p: DatabaseListParams): Promise<DatabaseListResult> => {
+export const runDatabaseList = async (category: DatabaseCategory | 'used', p: DatabaseListParams): Promise<DatabaseListResult> => {
   if (category === 'order') return runOrderList(p);
+  if (category === 'used') return runUsedList(p);
   const sql = databaseSql(category);
   const customers = (await query<DynamicRow>(sql.customer)) as unknown as Row[];
 
@@ -283,6 +285,140 @@ const runOrderList = async (p: DatabaseListParams): Promise<DatabaseListResult> 
       introductory: introductoryRows.map((r) => ({ name: r.name })), event: eventRows,
       cancelCount: counts.cancel, loseCount: counts.lose,
     });
+  }
+  return { httpStatus: 200, body };
+};
+
+// ---------------------------------------------------------------------------
+// 中古（v2.2.292。画面は database/DatabaseResale.tsx）
+// ⚠️⚠️ 絞り込みは DatabaseResale.tsx の filteredDatabase（② に届かないときの予備として画面に残っている）と**同じ**。⚠️ 直すときは両方。
+// ⚠️ 注文・建売と違うところ：
+//   ・顧客名は空白を消さずに比べる。メールは mail だけを見て、大文字小文字を区別する。電話は phone_number だけ。
+//   ・「SUUMO(ポータル反響)」は媒体が SUUMO で hp_campaign が空の顧客（portal_site ではない）。
+//   ・担当営業のセレクト・紹介者・イベント・Hotlead・ギフトは無い。
+//   ・重複の印は「メール（そのまま）」と「電話（数字だけにした phone_number）」で見る（画面の duplicateDictionary と同じ）。
+//   ・名寄せの候補は「メール」か「電話（そのまま）」が同じ顧客（画面の integrationCustomer と同じ）。
+//   ・初回通電日・次回架電日（call_sheet）と媒介（brokerage_listings）は、返すページの顧客の分だけ読む。
+// ---------------------------------------------------------------------------
+
+interface CallSheetRow extends RowDataPacket { id: string; call_log: string | null }
+
+/** 全角の数字も半角にして、数字以外を消す（画面の databaseUtils.ts の toHalfWidth と同じ） */
+const toHalfWidth = (v: unknown): string => s(v).normalize('NFKC').replace(/\D/g, '');
+
+/** 画面の並び（Date.parse で新しい順。空や読めない日付は最後） */
+const registerTime = (r: Row): number => {
+  const t = r.register ? Date.parse(s(r.register)) : Number.NEGATIVE_INFINITY;
+  return Number.isNaN(t) ? Number.NEGATIVE_INFINITY : t;
+};
+
+type CallEntry = { day?: unknown; action?: unknown };
+
+/** 架電記録のうち action の日を、画面と同じ並べ方で1つ選ぶ（asc: 古い順の先頭 / desc: 新しい順の先頭） */
+const pickCallDay = (log: CallEntry[], action: string, order: 'asc' | 'desc'): string => {
+  const sorted = log.filter((c) => c.action === action).sort((a, b) => {
+    const diff = new Date(s(a.day)).getTime() - new Date(s(b.day)).getTime();
+    return order === 'asc' ? diff : -diff;
+  });
+  return sorted[0] ? s(sorted[0].day) : '';
+};
+
+const parseCallLog = (v: unknown): CallEntry[] => {
+  try {
+    const parsed: unknown = typeof v === 'string' && v !== '' ? JSON.parse(v) : [];
+    return Array.isArray(parsed) ? (parsed as CallEntry[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const runUsedList = async (p: DatabaseListParams): Promise<DatabaseListResult> => {
+  const customers = (await query<DynamicRow>(usedSql.customer)) as unknown as Row[];
+
+  // 名寄せの候補（画面の integrationCustomer と同じ。⚠️ 非表示の顧客も含む）
+  const dupOf = str(p.dupOf);
+  if (dupOf !== '') {
+    const base = customers.find((c) => c.id === dupOf);
+    if (base === undefined) return { httpStatus: 404, body: { status: 'error', message: '顧客が見つかりません。開き直してください。' } };
+    const list = customers.filter((o) => o.id !== dupOf
+      && ((s(o.mail) !== '' && o.mail === base.mail) || (s(o.phone_number) !== '' && o.phone_number === base.phone_number)));
+    return { httpStatus: 200, body: { status: 'ok', customer: toColumnar(list) } };
+  }
+
+  const trash = str(p.trash) === '0' ? 0 : 1;
+  const shop = str(p.shop), register = str(p.register), reserve = str(p.reserve), rank = str(p.rank);
+  const medium = str(p.medium), status = str(p.status), callStatus = str(p.callStatus);
+  const staffText = str(p.staffText).split(' ')[0], mail = str(p.mail), address = str(p.address);
+  // ⚠️ 顧客名の欄：「名前&電話番号」「名前+住所」（画面の formattedName / formattedNumber / formattedAddress と同じ）
+  const name = str(p.name), phone = str(p.phone);
+  const namePart = name.includes('&') ? name.split('&')[0] : name.includes('+') ? name.split('+')[0] : name;
+  const numberPart = name.includes('&') ? (name.split('&')[1] ?? '') : phone;
+  const addressPart = name.includes('+') ? (name.split('+')[1] ?? '') : '';
+  // ⚠️ id は文字列にせずそのまま比べる（画面の includes / find と同じ。⚠️ id が NULL の顧客を、id が空の家族・架電記録と結びつけない）
+  const familyIds = str(p.family) === '1'
+    ? new Set<unknown>((await query<IdRow>(usedSql.family)).map((r) => r.id))
+    : null;
+
+  // ⚠️ DatabaseResale.tsx の filteredDatabase と同じ順・同じ条件
+  const filtered = customers.filter((c) =>
+    (trash === 1 ? Number(c.trash) !== 0 : Number(c.trash) !== 1)
+    && includes(c.shop, shop)
+    && (register ? includes(c.register, dateFormate(register)) : true)
+    && (reserve === 'notVisited'
+      ? (s(c.reserved_interview) !== '' && s(c.interview) === '')
+      : (reserve ? includes(c.interview, dateFormate(reserve)) : true))
+    && includes(c.rank, rank)
+    && (medium === 'SUUMO(ポータル反響)' ? (c.medium === 'SUUMO' && !c.hp_campaign) : includes(c.medium, medium))
+    && includes(c.status, status)
+    && (name ? (includes(c.customer, namePart) || includes(c.customer_2, namePart)) : true)
+    && (staffText ? includes(c.staff, staffText) : true)
+    && ((phone || name) ? includes(c.phone_number, numberPart) : true)
+    && includes(c.full_address, addressPart)
+    && (mail ? includes(c.mail, mail) : true)
+    && (address ? clean(c.full_address).includes(address) : true)
+    && (callStatus ? s(c.call_status) === callStatus : true)
+    && (familyIds !== null ? familyIds.has(c.id) : true));
+  filtered.sort((a, b) => registerTime(b) - registerTime(a));
+  const { page, perPage, pageRows } = paginate(filtered, p);
+
+  // 重複顧客の印（⚠️ 非表示を含む全顧客で数える。画面の duplicateDictionary と同じ）
+  const dupKeys = (c: Row): string[] => [s(c.mail), toHalfWidth(c.phone_number)].filter(Boolean);
+  const owners = new Map<string, Set<unknown>>();
+  for (const c of customers) {
+    for (const key of dupKeys(c)) {
+      const set = owners.get(key) ?? new Set<unknown>();
+      set.add(c.id);
+      owners.set(key, set);
+    }
+  }
+
+  // 初回通電日・次回架電日・媒介（返すページの顧客の分だけ）
+  const ids = pageRows.map((c) => c.id).filter((id): id is string => typeof id === 'string' && id !== '');
+  const marks = ids.map(() => '?').join(',');
+  const [callRows, brokerRows] = ids.length === 0 ? [[], []] : await Promise.all([
+    query<CallSheetRow>(`SELECT id, call_log FROM call_sheet WHERE id IN (${marks})`, ids),
+    query<DynamicRow>(`SELECT * FROM brokerage_listings
+      WHERE kind = 'ledger' AND show_dashboard = 1 AND COALESCE(master_data_id, '') <> '' AND master_data_id IN (${marks})`, ids),
+  ]);
+  // ⚠️ 同じ id が2行あれば、画面の find と同じく最初の行を使う
+  const callById = new Map<unknown, CallEntry[]>();
+  for (const r of callRows) if (!callById.has(r.id)) callById.set(r.id, parseCallLog(r.call_log));
+  const rows = pageRows.map((c) => {
+    const log = callById.get(c.id) ?? [];
+    return {
+      ...c,
+      duplicate: dupKeys(c).some((key) => [...(owners.get(key) ?? [])].some((id) => id !== c.id)) ? 1 : 0,
+      first_call: pickCallDay(log, '通電', 'asc'),
+      next_call: pickCallDay(log, '次回架電日', 'desc'),
+    };
+  });
+
+  const body: Record<string, unknown> = {
+    status: 'ok', total: filtered.length, page, perPage, customer: toColumnar(rows), broker: brokerRows,
+  };
+  if (str(p.master) === '1') {
+    const [staffRows, mediumRows] = await Promise.all([query<DynamicRow>(usedSql.staff), query<DynamicRow>(usedSql.medium)]);
+    Object.assign(body, { staff: staffRows, medium: mediumRows });
   }
   return { httpStatus: 200, body };
 };
