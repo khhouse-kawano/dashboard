@@ -92,11 +92,21 @@ type GiftRow = Record<string, unknown> & { id?: unknown; gift_base?: unknown };
  *   新しい配列を作ると複製のぶんメモリを余分に使う
  *   （① の PHP では複製だけで memory_limit を超えて Fatal error になった）。
  */
-export const giftApplyToCustomers = async (customers: GiftRow[]): Promise<void> => {
+export const giftApplyToCustomers = async (customers: GiftRow[], onlyThese = false): Promise<void> => {
+  /**
+   * ⚠️ v2.2.289 onlyThese: 渡した顧客の id だけを調べる（顧客DB を1ページずつ返す list.ts。20〜500件）。
+   *   ⚠️ 条件は同じ（INTERVIEW_SQL・FAMILY_SQL に id の絞り込みを足すだけ）。全件を調べると約2秒かかるため。
+   */
+  const ids = onlyThese ? [...new Set(customers.map((c) => String(c.id ?? '')).filter((id) => id !== ''))] : [];
+  if (onlyThese && ids.length === 0) {
+    for (const customer of customers) { customer.gift = 0; delete customer.gift_base; }
+    return;
+  }
+  const inIds = (column: string): string => (onlyThese ? ` AND ${column} IN (${ids.map(() => '?').join(', ')})` : '');
   // ⚠️ 2本は独立しているので並列で投げる
   const [interviewRows, familyRows] = await Promise.all([
-    query<IdRow>(INTERVIEW_SQL),
-    query<IdRow>(FAMILY_SQL),
+    query<IdRow>(INTERVIEW_SQL + inIds('iv.id'), ids),
+    query<IdRow>(FAMILY_SQL + inIds('id'), ids),
   ]);
 
   // ⚠️ 突き合わせは Set で行う。配列の includes だと顧客数 × ID数の総当たりになる
