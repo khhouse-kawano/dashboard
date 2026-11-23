@@ -286,7 +286,11 @@ if (isset($data['request']) && $data['request'] === 'integrate') {
           COALESCE(introduction_person_category, '') AS introduction_person_category,
           COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number,
           COALESCE(customer_contacts_email, '') AS mail,
-          COALESCE(integration, '') AS integration
+          COALESCE(integration, '') AS integration,
+          -- v2.2.288 入居希望地（名寄せのあとも顧客DB 建売の列・検索に出るように。database_spec.php と同じ）
+          COALESCE(planned_construction_site, '') AS planned_construction_site,
+          COALESCE(planned_construction_site_2, '') AS planned_construction_site_2,
+          COALESCE(planned_construction_site_3, '') AS planned_construction_site_3
           FROM master_data_kaeru;
         ";
         $stmt_customer = $pdo->prepare($sql_customer);
