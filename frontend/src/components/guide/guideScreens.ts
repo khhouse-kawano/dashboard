@@ -113,6 +113,9 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '共有レポート': { header: 'システム管理/共有レポート', authority: ['Master', 'BrandAdmin', 'Manager'] },
     // ⚠️ v2.2.243。headerScreens.tsx と同じく Master / BrandAdmin
     '予算テーブル': { header: 'システム管理/予算テーブル', authority: ADMIN },
+    // ⚠️ v2.2.293。headerScreens.tsx の isInsideSales と同じく Master / insideSales。
+    //   ⚠️ キーを「架電ステータス」にしない（記事の本文に多く出る言葉で、関係の無い記事にも「開く」が付くため）
+    '架電ステータスの設定': { header: 'システム管理/架電ステータス', authority: ['Master', 'insideSales'] },
 };
 // GUIDE_SCREENS_END
 

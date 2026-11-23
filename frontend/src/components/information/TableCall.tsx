@@ -3,6 +3,7 @@ import { inputStyle } from '../../utils/informationUtils';
 import { actionButton } from '../../utils/informationUtils';
 import { safeFormate, dateFormate } from '../../utils/informationUtils';
 import AuthContext from '../../context/AuthContext';
+import { useCallStatusOptions, withCurrent } from '../database/callStatusOptions';
 
 type CallAction = {
     day: string;
@@ -32,11 +33,14 @@ type Props = {
     setCall: React.Dispatch<React.SetStateAction<CallAction>>
 };
 
-const actions = ['通電', '未通電', 'SMS送信', 'メール送信', '資料郵送', '次回架電日'];
+// ⚠️ v2.2.293 架電ステータス・アクション内容の選択肢は DB（call_status）から読む（database/callStatusOptions.ts）。
+//   ⚠️ 以前ここにあった固定の一覧は、② に届かないときの予備として callStatusOptions.ts の FALLBACK に移した。
 
 const TableCall = ({ information, setInformation, callLog, setCallLog, interviewer, call, setCall }: Props) => {
     const [callSort, setCallSort] = useState('asc');
-    const { userName } = useContext(AuthContext);
+    const { userName, category } = useContext(AuthContext);
+    /** v2.2.293 この事業（order / spec / used）と全事業の選択肢 */
+    const callStatusOptions = useCallStatusOptions(category);
 
     const newCall = () => (
         <div className="d-flex align-items-center" style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle' }}>
@@ -66,7 +70,7 @@ const TableCall = ({ information, setInformation, callLog, setCallLog, interview
                     }))}
                     value={call.action}>
                     <option value="">アクション内容</option>
-                    {actions.map(item => <option key={item} value={item}>{item}</option>)}
+                    {withCurrent(callStatusOptions.actions, call.action).map(item => <option key={item} value={item}>{item}</option>)}
                 </select>
             </div>
             <div>
@@ -142,6 +146,8 @@ const TableCall = ({ information, setInformation, callLog, setCallLog, interview
             <div style={{ textAlign: 'center' }}>
                 {(callLog.call_log[index]['action'] === '通電' || callLog.call_log[index]['action'] === '未通電') && <i className="fa-solid fa-phone-volume"></i>}
                 {callLog.call_log[index]['action'] === 'SMS送信' && <i className="fa-solid fa-message"></i>}
+                {/* ⚠️ v2.2.293 SMS返信あり（お客様からの返信） */}
+                {callLog.call_log[index]['action'] === 'SMS返信あり' && <i className="fa-solid fa-comment-dots"></i>}
                 {callLog.call_log[index]['action'] === 'メール送信' && <i className="fa-solid fa-envelope"></i>}
                 {callLog.call_log[index]['action'] === '資料郵送' && <i className="fa-solid fa-truck"></i>}
             </div>
@@ -171,11 +177,8 @@ const TableCall = ({ information, setInformation, callLog, setCallLog, interview
                         }}
                         value={information.call_status}>
                         <option value="">架電ステータスを選択</option>
-                        <option value="未通電">未通電</option>
-                        <option value="継続">継続</option>
-                        <option value="来場アポ">来場アポ</option>
-                        <option value="来場済み">来場済み</option>
-                        <option value="架電停止">架電停止</option>
+                        {/* ⚠️ v2.2.293 非表示にしたステータスでも、このお客様に入っている値は残して出す */}
+                        {withCurrent(callStatusOptions.statuses, information.call_status).map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
                 </div>
                 <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '4px', letterSpacing: '.6px', verticalAlign: 'middle', marginLeft: '10px' }}>来場予定日</div>
@@ -240,7 +243,8 @@ const TableCall = ({ information, setInformation, callLog, setCallLog, interview
                                                 { ...log, action: e.target.value, staff: interviewer } : log)
                                         }))}>
                                         <option value="">アクション内容</option>
-                                        {actions.map(item => <option key={item} value={item}>{item}</option>)}
+                                        {/* ⚠️ v2.2.293 非表示にしたアクションでも、記録に入っている値は残して出す */}
+                                        {withCurrent(callStatusOptions.actions, item.action).map(action => <option key={action} value={action}>{action}</option>)}
                                     </select>
                                 </div>
                                 <div>

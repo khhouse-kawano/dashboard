@@ -151,6 +151,7 @@ import { listSecurityLog } from '../features/securityLog';
 import { listSyncLog, writeSyncLog } from '../features/syncLog';
 import { importSuumoKaeruActions } from '../features/suumoKaeru';
 import { BUDGET_TABLE_AUTHORITY, listBudgetTable, uploadBudgetTable } from '../features/budgetTable';
+import { CALL_STATUS_AUTHORITY, adminCallStatus, listCallStatusOptions, saveCallStatus, saveInsideStaff } from '../features/callStatusMaster';
 import { runBeforeSurveyEntry } from '../features/beforeSurvey/entry';
 import { runSurveyCustomers, runSurveyLink, runSurveyStaff } from '../features/survey/staff';
 import { runSurveyPublicAfter, runSurveyPublicBefore, runSurveyPublicMaster, runSurveyPublicStaff } from '../features/survey/public';
@@ -3719,3 +3720,58 @@ for (const category of STAFF_LIST_CATEGORY_VALUES) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// 架電ステータス・架電アクションの選択肢と、インサイドセールスの管理店舗（v2.2.293）。features/callStatusMaster.ts 参照。
+//
+// ⚠️⚠️ ① に PHP ハンドラは無い。express_proxy.php の転送リストと転送専用リストの両方に入れてある。
+// ⚠️ call_status_options は全員（顧客DB・顧客情報が開くたびに読む）。⚠️ 画面は category ではなく division で事業を送る
+//   （category を送るとゲートウェイの鍵に入り、登録の無い組になって ② が受けない）。
+// ⚠️⚠️ 管理の3つは **Master と insideSales だけ**。`auth: 'master'` は Master しか通さないので、
+//   `auth: 'staff'` のうえで CALL_STATUS_AUTHORITY を確かめる（budget_table と同じ形）。
+// ---------------------------------------------------------------------------
+const callStatusResult = (ctx: { res: { status: (code: number) => unknown } }, result: { httpStatus: number; body: Record<string, unknown> }) => {
+  if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+  return result.body;
+};
+
+register({
+  request: 'call_status_options',
+  summary: '架電ステータス・アクションの選択肢（division の事業と全事業の、表示するもの）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => callStatusResult(ctx, await listCallStatusOptions(ctx.body)),
+});
+
+register({
+  request: 'call_status_admin',
+  summary: '架電ステータスの管理画面の一覧（選択肢すべて・インサイドセールスの担当者・注文事業の店舗。Master / insideSales のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    if (!CALL_STATUS_AUTHORITY.includes(ctx.staff?.brand ?? '')) return forbidden(ctx);
+    return callStatusResult(ctx, await adminCallStatus());
+  },
+});
+
+register({
+  request: 'call_status_save',
+  summary: '【書き込み】架電ステータス・アクションの選択肢の追加・編集（Master / insideSales のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    if (!CALL_STATUS_AUTHORITY.includes(ctx.staff?.brand ?? '')) return forbidden(ctx);
+    return callStatusResult(ctx, await saveCallStatus(ctx.body));
+  },
+});
+
+register({
+  request: 'inside_staff_save',
+  summary: '【書き込み】インサイドセールスの担当者の在籍／退職と管理店舗（今年度の担当者だけ。Master / insideSales のみ）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    if (!CALL_STATUS_AUTHORITY.includes(ctx.staff?.brand ?? '')) return forbidden(ctx);
+    return callStatusResult(ctx, await saveInsideStaff(ctx.body));
+  },
+});

@@ -24,6 +24,7 @@ import { RankingStyle } from '../rankingUi';
 import { DBK_CSS } from './databaseListStyle';
 // ⚠️ v2.2.291 GET の条件を画面の URL にも出す・URL の条件で開く
 import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
+import { useCallStatusOptions, withCurrent } from './callStatusOptions';
 
 type shopList = { brand: string, shop: string, section: string };
 // ⚠️ position / khg_id は担当営業セレクトの並べ替えに使う（2026-09-14 追加）。
@@ -60,6 +61,8 @@ const prepareCustomers = (data: unknown): CustomerList[] =>
 
 const DatabaseKaeru = ({ }: Props) => {
     const { authority, category } = useContext(AuthContext);
+    /** v2.2.293 架電状況の選択肢（DB の call_status。② に届かないときは今までの固定の選択肢） */
+    const callStatusOptions = useCallStatusOptions(category);
     /** v2.2.291 開いたときの URL の条件（⚠️ 下の state の初期値にだけ使う） */
     const [initUrl] = useState(() => readListUrl(new URLSearchParams(window.location.search)));
     const [shopArray, setShopArray] = useState<shopList[]>([]);
@@ -638,11 +641,8 @@ const DatabaseKaeru = ({ }: Props) => {
                                 setCallStatus(e.target.value);
                             }}>
                                 <option value="">架電状況</option>
-                                <option value="未通電">未通電</option>
-                                <option value="継続">継続</option>
-                                <option value="来場アポ">来場アポ</option>
-                                <option value="来場済み">来場済み</option>
-                                <option value="架電停止">架電停止</option>
+                                {/* ⚠️ v2.2.293 選択肢は DB（call_status）から。⚠️ URL で開いた値が非表示でも残す */}
+                                {withCurrent(callStatusOptions.statuses, callStatus).map((item) => <option key={item} value={item}>{item}</option>)}
                             </select>
                         </div>
                         <div className="m-1">
