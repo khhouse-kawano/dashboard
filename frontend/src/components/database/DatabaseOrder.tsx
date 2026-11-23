@@ -23,6 +23,10 @@ import NexusBadge from '../NexusBadge';
 import { isNexusRow } from '../../utils/nexusUtils';
 import { CustomerNameCell, cleanCustomerName } from './customerName2';
 import { descending } from '../../utils/descending';
+// ⚠️ v2.2.291 見た目を建売の顧客DB（DatabaseKaeru.tsx）とそろえる（rk_ と DBK_CSS を借りる）。GET の条件を画面の URL にも出す
+import { RankingStyle } from '../rankingUi';
+import { DBK_CSS } from './databaseListStyle';
+import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
 
 // --- 型定義 ---
 type ShopList = { brand: string; shop: string; section: string };
@@ -113,6 +117,8 @@ const EMPTY_HOTLEAD: HotleadInfo = { status: '', url: '', reason: '', actions: n
 
 const DatabaseOrder = ({ onReload }: Props) => {
     const { authority, category, token } = useContext(AuthContext);
+    /** v2.2.291 開いたときの URL の条件（⚠️ 下の state の初期値にだけ使う） */
+    const [initUrl] = useState(() => readListUrl(new URLSearchParams(window.location.search)));
 
     // データリスト関連
     const [originalDatabase, setOriginalDatabase] = useState<CustomerItem[]>([]);
@@ -126,31 +132,31 @@ const DatabaseOrder = ({ onReload }: Props) => {
     const [hotleadList, setHotledList] = useState<Record<string, any>[]>([]);
 
     // 検索・フィルター条件
-    const [selectedShop, setSelectedShop] = useState<string>('');
+    const [selectedShop, setSelectedShop] = useState<string>(initUrl.get('shop'));
     /**
      * セレクトで選んだ担当営業。
      * ⚠️ テキスト検索（staffSearch）とは別に持つ。あちらは部分一致で、
      *   同姓の担当者が増えたため1人を選べるようにした（指示）。
      */
-    const [selectedStaff, setSelectedStaff] = useState<string>('');
-    const [selectedRegister, setSelectedRegister] = useState<string>('');
-    const [selectedReserve, setSelectedReserve] = useState<string>('');
-    const [selectedRank, setSelectedRank] = useState<string>('');
-    const [selectedMedium, setSelectedMedium] = useState<string>('');
-    const [selectedIntroductory, setSelectedIntroductory] = useState<string>('');
-    const [selectedStatus, setSelectedStatus] = useState<string>('');
-    const [searchedEvent, setSearchedEvent] = useState<string>('');
-    const [callStatus, setCallStatus] = useState<string>('');
-    const [trash, setTrash] = useState<number>(1);
-    const [familyStatus, setFamilyStatus] = useState<boolean>(false);
-    const [snapStatus, setSnapStatus] = useState(false);
-    const [hotleadStatus, sethotleadStatus] = useState('');
+    const [selectedStaff, setSelectedStaff] = useState<string>(initUrl.get('staff'));
+    const [selectedRegister, setSelectedRegister] = useState<string>(initUrl.get('register'));
+    const [selectedReserve, setSelectedReserve] = useState<string>(initUrl.get('reserve'));
+    const [selectedRank, setSelectedRank] = useState<string>(initUrl.get('rank'));
+    const [selectedMedium, setSelectedMedium] = useState<string>(initUrl.get('medium'));
+    const [selectedIntroductory, setSelectedIntroductory] = useState<string>(initUrl.get('introductory'));
+    const [selectedStatus, setSelectedStatus] = useState<string>(initUrl.get('status'));
+    const [searchedEvent, setSearchedEvent] = useState<string>(initUrl.get('event'));
+    const [callStatus, setCallStatus] = useState<string>(initUrl.get('callStatus'));
+    const [trash, setTrash] = useState<number>(initUrl.trash);
+    const [familyStatus, setFamilyStatus] = useState<boolean>(initUrl.get('family') === '1');
+    const [snapStatus, setSnapStatus] = useState(initUrl.get('snap') === '1');
+    const [hotleadStatus, sethotleadStatus] = useState(initUrl.get('hotlead'));
 
     // 表示・ページネーション
     const [displayLength, setDisplayLength] = useState<number>(20);
-    const [activePage, setActivePage] = useState<number>(1);
-    const [sliceStart, setSliceStart] = useState<number>(0);
-    const [basicLength, setBasicLength] = useState<number>(20);
+    const [activePage, setActivePage] = useState<number>(initUrl.page);
+    const [sliceStart, setSliceStart] = useState<number>((initUrl.page - 1) * initUrl.perPage);
+    const [basicLength, setBasicLength] = useState<number>(initUrl.perPage);
 
     // モーダル・集計表示制御
     const [callStatusShow, setCallStatusShow] = useState(false);
@@ -162,14 +168,33 @@ const DatabaseOrder = ({ onReload }: Props) => {
     const [editId, setEditId] = useState('');
 
     // カスタムフック・URLパラメータ
-    const nameSearch = useDebounce('', 300);
-    const staffSearch = useDebounce('', 300);
-    const phoneSearch = useDebounce('', 300);
-    const addressSearch = useDebounce('', 300);
+    const nameSearch = useDebounce(initUrl.get('name'), 300);
+    const staffSearch = useDebounce(initUrl.get('staffText'), 300);
+    const phoneSearch = useDebounce(initUrl.get('phone'), 300);
+    const addressSearch = useDebounce(initUrl.get('address'), 300);
     /** ⚠️ メールアドレス。⚠️ **大文字小文字を区別しない**（strIncludesCI） */
-    const mailSearch = useDebounce('', 300);
-    const familySearch = useDebounce('', 300);
+    const mailSearch = useDebounce(initUrl.get('mail'), 300);
+    const familySearch = useDebounce(initUrl.get('familyName'), 300);
     const isSp = useIsSp();
+
+    /**
+     * v2.2.291 顧客を1ページずつ ② から GET で読む（request database_list。② の features/database/list.ts の runOrderList）。
+     * ⚠️ 絞り込み・並べ替え・ページ分けは ② が行い、画面は今のページの行（pageRows）と件数（serverTotal）だけを持つ。
+     * ⚠️ Hotlead は今のページの分だけ、キャンセル・失注の要回答の件数は最初の1回（master=1）に ② が返す。
+     * ⚠️⚠️ ② に届かないときは serverMode を false にして、今までどおり全件を POST（request database。① の予備あり）で読み、
+     *   下の filteredDatabase で絞り込む。⚠️ filteredDatabase と ② の絞り込みは同じ条件にしてある（片方だけ直さない）。
+     */
+    const [serverMode, setServerMode] = useState(true);
+    const [pageRows, setPageRows] = useState<CustomerItem[]>([]);
+    const [serverTotal, setServerTotal] = useState(0);
+    const [listLoading, setListLoading] = useState(false);
+    /** 取り直すきっかけ（編集を閉じた・非表示に切り替えたあと） */
+    const [listReloadKey, setListReloadKey] = useState(0);
+    /** 古い応答で新しい条件の結果を上書きしない */
+    const listSeqRef = useRef(0);
+    /** 選択肢・要回答の件数を読み込み済みか（⚠️ 最初の1回だけ master=1 で取る） */
+    const mastersLoadedRef = useRef(false);
+    const reloadList = () => setListReloadKey((k) => k + 1);
 
     /**
      * 担当営業の選択肢。⚠️ 条件と並び順は databaseUtils.ts の staffOptionsOf を見ること。
@@ -254,8 +279,13 @@ const DatabaseOrder = ({ onReload }: Props) => {
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
+    }, []);
+
+    // ⚠️ v2.2.291 全件の読み込みは、② に届かなかったとき（serverMode が false）だけ
+    useEffect(() => {
+        if (serverMode) return;
         fetchDatabase(true);
-    }, [fetchDatabase]);
+    }, [fetchDatabase, serverMode]);
 
     /**
      * 家族・Hotlead の索引（v2.2.271）。⚠️ 読み込み時に1回だけ作る。
@@ -347,15 +377,91 @@ const DatabaseOrder = ({ onReload }: Props) => {
         snapStatus, searchedEvent, hotleadStatus, hotleadList
     ]);
 
-    // 条件変更時にページをリセットする
-    useEffect(() => {
+    /** v2.2.291 ② に送る条件（⚠️ 空の条件は送らない。キーは URL にもそのまま出る） */
+    const listParams = useMemo(() => Object.fromEntries(Object.entries({
+        trash: String(trash),
+        shop: selectedShop, staff: selectedStaff, register: selectedRegister, reserve: selectedReserve, rank: selectedRank,
+        medium: selectedMedium, introductory: selectedIntroductory, status: selectedStatus, callStatus,
+        hotlead: hotleadStatus, family: familyStatus ? '1' : '', snap: snapStatus ? '1' : '', event: searchedEvent,
+        name: nameSearch.debouncedValue, staffText: staffSearch.debouncedValue, phone: phoneSearch.debouncedValue,
+        mail: mailSearch.debouncedValue, address: addressSearch.debouncedValue, familyName: familySearch.debouncedValue,
+    }).filter(([, v]) => v !== '')), [
+        trash, selectedShop, selectedStaff, selectedRegister, selectedReserve, selectedRank, selectedMedium, selectedIntroductory,
+        selectedStatus, callStatus, hotleadStatus, familyStatus, snapStatus, searchedEvent, nameSearch.debouncedValue,
+        staffSearch.debouncedValue, phoneSearch.debouncedValue, mailSearch.debouncedValue, addressSearch.debouncedValue,
+        familySearch.debouncedValue,
+    ]);
+
+    /**
+     * 条件・表示件数が変わったら1ページ目へ。
+     * ⚠️ v2.2.291 以前は絞り込んだ件数が変わったときに戻していた。② で読むと全件は手元に無いので、条件が実際に変わったときに戻す
+     *   （URL の page で開いたときは戻さない。予備のときは全件の読み込みも対象）。
+     */
+    useOnListChange(`${JSON.stringify(listParams)}|${basicLength}`, [originalDatabase], () => {
         if (skipPageReset.current) {
             skipPageReset.current = false;
             return;
         }
         setActivePage(1);
         setSliceStart(0);
-    }, [filteredDatabase.length]); // 依存配列を絞り込み、filteredDatabaseの件数が変わった時にリセットする方針に変更
+    });
+
+    /** v2.2.291 送る条件・ページ・表示件数を画面の URL にも出す */
+    useListUrlSync(listParams, activePage, basicLength);
+
+    /**
+     * v2.2.291 今の条件・ページを ② から GET で読む（DatabaseKaeru.tsx と同じ作り）。
+     * ⚠️ setTimeout(0) で1回にまとめる（条件を変えると、上の処理がページを1に戻すので、古いページで1回読まないように）。
+     */
+    useEffect(() => {
+        if (!serverMode) return;
+        const timer = window.setTimeout(async () => {
+            const seq = ++listSeqRef.current;
+            setListLoading(true);
+            try {
+                const response = await apiClient.get('', {
+                    params: {
+                        request: 'database_list', category, ...listParams, page: activePage, perPage: basicLength,
+                        ...(mastersLoadedRef.current ? {} : { master: 1 }),
+                    },
+                });
+                if (seq !== listSeqRef.current) return;
+                const data = response.data;
+                if (!data || data.status !== 'ok') throw new Error('database_list の応答が正しくありません');
+                if (Array.isArray(data.shop)) {
+                    setShopArray(data.shop.filter((item: ShopList) => !item.shop.includes('店舗未設定')));
+                    setStaffArray(data.staff ?? []);
+                    setMediumArray(data.medium.filter((item: MediumType) => item.list_medium === 1).map((item: MediumType) => item.medium));
+                    setIntroductoryList((data.introductory ?? []).map((i: { name: string }) => i.name));
+                    setEventList(data.event ?? []);
+                    setCancelLength(Number(data.cancelCount) || 0);
+                    setLoseLength(Number(data.loseCount) || 0);
+                    mastersLoadedRef.current = true;
+                }
+                setPageRows(prepareCustomers(data.customer));
+                // ⚠️ Hotlead は今のページの分だけ（hotleadMap が id で引く）
+                setHotledList(data.hotlead ?? []);
+                setServerTotal(Number(data.total) || 0);
+                setDisplayLength(Number(data.total) || 0);
+                // ⚠️ ページが件数より後ろなら、② が最後のページに寄せて返す。画面もそれに合わせる
+                if (Number(data.page) !== activePage) {
+                    setActivePage(Number(data.page));
+                    setSliceStart((Number(data.page) - 1) * basicLength);
+                }
+            } catch (error) {
+                if (seq !== listSeqRef.current) return;
+                console.error('database_list に失敗しました。全件の読み込みに切り替えます:', error);
+                setServerMode(false);
+            } finally {
+                if (seq === listSeqRef.current) setListLoading(false);
+            }
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [serverMode, category, listParams, activePage, basicLength, listReloadKey]);
+
+    /** 表に出す行と件数（⚠️ ② で読むときは今のページの行。予備のときは画面で絞った結果を切る） */
+    const visibleRows = serverMode ? pageRows : filteredDatabase.slice(sliceStart, sliceStart + basicLength);
+    const totalCount = serverMode ? serverTotal : filteredDatabase.length;
 
     // ページネーション生成（スッキリと配列化）
     const totalPages = Math.ceil((displayLength || 1) / basicLength);
@@ -385,7 +491,9 @@ const DatabaseOrder = ({ onReload }: Props) => {
                 show_dashboard: trash === 1 ? 0 : 1,
                 id, category, roll: 'trash'
             });
-            setOriginalDatabase(prepareCustomers(response.data.customer));
+            // ⚠️ v2.2.291 ② で読むときは今のページを読み直す（① が返す全件は使わない）
+            if (serverMode) reloadList();
+            else setOriginalDatabase(prepareCustomers(response.data.customer));
         } catch (error) {
             console.error("Error fetching data:", error);
         }
@@ -393,13 +501,21 @@ const DatabaseOrder = ({ onReload }: Props) => {
 
     const closeInformationEdit = async () => {
         setEditId('');
+        // ⚠️ v2.2.291 URL の ?id= だけを外す（以前は URL を空にしていた。条件が URL に載るようになったので残す）
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('id');
+        setSearchParams(nextParams, { replace: true });
+        // ⚠️ v2.2.291 ② で読むときは今のページを読み直すだけ（ページは変えない）
+        if (serverMode) {
+            reloadList();
+            return;
+        }
         const prevPage = activePage;
         skipPageReset.current = true;
 
         await fetchDatabase();
 
         setActivePage(prevPage);
-        setSearchParams({});
     };
 
     // ページングリンク
@@ -445,11 +561,17 @@ const DatabaseOrder = ({ onReload }: Props) => {
 
     return (
         <>
-            <div className='content database bg-white p-2'>
-                <div className='p-1 p-md-3 d-flex flex-wrap'>
+            <RankingStyle />
+            <style>{DBK_CSS}</style>
+            <div className='content database bg-white rk_wrap dbk_wrap'>
+                <div className="rk_head">
+                    <span className="rk_title">顧客DB（注文事業）</span>
+                </div>
+                <div className='rk_bar dbk_bar'>
                     <div className="m-1">
                         <select
                             className="target"
+                            value={selectedShop}
                             onChange={(e) => {
                                 // ⚠️ 店舗を変えたら担当営業を外す。別の店舗の担当者が
                                 //   残ると、条件に合う顧客が無く**0件**になる
@@ -469,9 +591,9 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                 className="target"
                                 value={selectedStaff}
                                 style={{
-                                    backgroundColor: selectedStaff ? '#0d6efd' : '#e7f1ff',
-                                    color: selectedStaff ? '#fff' : '#0d6efd',
-                                    borderColor: '#0d6efd',
+                                    backgroundColor: selectedStaff ? '#2563eb' : '#eff6ff',
+                                    color: selectedStaff ? '#fff' : '#2563eb',
+                                    borderColor: '#2563eb',
                                     fontWeight: 700,
                                 }}
                                 onChange={(e) => setSelectedStaff(e.target.value)}
@@ -486,20 +608,20 @@ const DatabaseOrder = ({ onReload }: Props) => {
                     )}
                     {!isSp && <>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>
+                            <select className="target" value={selectedRegister} onChange={(e) => setSelectedRegister(e.target.value)}>
                                 <option value="">反響月を選択</option>
                                 {descending(monthArray).map((item, index) => <option key={index} value={item}>{item}</option>)}
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedReserve(e.target.value)}>
+                            <select className="target" value={selectedReserve} onChange={(e) => setSelectedReserve(e.target.value)}>
                                 <option value="">初回来場月を選択</option>
                                 <option value="notVisited">未来場・来場キャンセル</option>
                                 {descending(monthArray).map((item, index) => <option key={index} value={item}>{item}</option>)}
                             </select>
                         </div></>}
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedRank(e.target.value)}>
+                        <select className="target" value={selectedRank} onChange={(e) => setSelectedRank(e.target.value)}>
                             <option value="">ランクを選択</option>
                             <option value="Sランク">Sランク</option>
                             <option value="Aランク">Aランク</option>
@@ -511,20 +633,20 @@ const DatabaseOrder = ({ onReload }: Props) => {
                     </div>
                     {!isSp && <>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedMedium(e.target.value)}>
+                            <select className="target" value={selectedMedium} onChange={(e) => setSelectedMedium(e.target.value)}>
                                 <option value="">販促媒体を選択</option>
                                 {mediumArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
                                 {authority !== 'ordinary' && <option value='SUUMO(ポータル反響)'>SUUMO(ポータル反響)</option>}
                             </select>
                         </div>
                         {selectedMedium === '紹介' && <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedIntroductory(e.target.value)}>
+                            <select className="target" value={selectedIntroductory} onChange={(e) => setSelectedIntroductory(e.target.value)}>
                                 <option value="">紹介者を選択</option>
                                 {introductoryList.map((item, index) => <option key={index} value={item}>{item}</option>)}
                             </select>
                         </div>}
                         <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedStatus(e.target.value)}>
+                            <select className="target" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
                                 <option value="">ステータスを選択</option>
                                 <option value="見込み">見込み</option>
                                 <option value="契約済み">契約済み</option>
@@ -533,7 +655,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => {
+                            <select className="target" value={callStatus} onChange={(e) => {
                                 setCallStatus(e.target.value);
                             }}>
                                 <option value="">架電状況</option>
@@ -545,7 +667,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => sethotleadStatus(e.target.value)}>
+                            <select className="target" value={hotleadStatus} onChange={(e) => sethotleadStatus(e.target.value)}>
                                 <option value="">Hotlead</option>
                                 <option value="対応停止">対応停止</option>
                                 <option value="アポ予約済み">アポ予約済み</option>
@@ -553,7 +675,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => {
+                            <select className="target" value={familyStatus ? '入力済み' : ''} onChange={(e) => {
                                 if (e.target.value) {
                                     setFamilyStatus(true);
                                 } else {
@@ -565,7 +687,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => {
+                            <select className="target" value={snapStatus ? '登録済み' : ''} onChange={(e) => {
                                 if (e.target.value) {
                                     setSnapStatus(true);
                                 } else {
@@ -577,7 +699,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => {
+                            <select className="target" value={searchedEvent} onChange={(e) => {
                                 setSearchedEvent(e.target.value);
                             }}>
                                 <option value="">イベント名を選択</option>
@@ -613,15 +735,15 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                 value={familySearch.inputValue} onChange={familySearch.onChange} />
                         </div>
                     </>}
-                    <div className="bg-primary text-white px-2 py-1 rounded m-1 target d-flex justify-content-center align-items-center" style={{ border: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-                        onClick={() => setEditId('new')}>新規登録</div>
+                    <button type="button" className="rk_btn m-1" onClick={() => setEditId('new')}>新規登録</button>
                 </div>
                 <div className="d-md-flex">
                     <div className="d-flex flex-wrap align-items-center">
-                        <div className="">{filteredDatabase.length}<span style={{ fontSize: '12px' }}> 件中 {sliceStart + 1}件~{filteredDatabase.length > activePage * basicLength ? activePage * basicLength : filteredDatabase.length}件</span></div>
-                        <div className="ms-1" style={{ fontSize: '11px' }}>
+                        <div><span className="dbk_count_num">{totalCount}</span><span className="dbk_count_sub"> 件中 {totalCount === 0 ? 0 : sliceStart + 1}件~{totalCount > activePage * basicLength ? activePage * basicLength : totalCount}件</span>
+                            {listLoading && <span className="ms-2 dbk_count_sub">読み込み中…</span>}</div>
+                        <div className="ms-2 dbk_count_sub">
                             表示件数
-                            <select style={{ fontSize: '11px', borderRadius: '5px', width: '70px' }} onChange={(e) => setBasicLength(Number(e.target.value))}>
+                            <select className="rk_select ms-1" value={basicLength} onChange={(e) => setBasicLength(Number(e.target.value))}>
                                 <option value='20'>20件</option>
                                 <option value='50'>50件</option>
                                 <option value='100'>100件</option>
@@ -657,41 +779,38 @@ const DatabaseOrder = ({ onReload }: Props) => {
                             </ul>
                         </div>
                         {!isSp && <>
-                            {trash === 1 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setTrash(0)}>非表示リストへ移動</div>}
-                            {trash === 0 && <div className="bg-primary text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setTrash(1)}>一覧へ戻る</div>}
-                            <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setCallStatusShow(true)}>架電状況集計</div>
-                            <div className="bg-danger text-white ms-1 rounded position-relative" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setCancelListShow(true)}>キャンセル集計
+                            {trash === 1 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(0)}>非表示リストへ移動</button>}
+                            {trash === 0 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(1)}>一覧へ戻る</button>}
+                            <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setCallStatusShow(true)}>架電状況集計</button>
+                            {/* ⚠️ v2.2.291 要回答の吹き出しは赤のまま（目立たせるため。指示） */}
+                            <button type="button" className="rk_btn rk_btn_ghost ms-1 position-relative" onClick={() => setCancelListShow(true)}>キャンセル集計
                                 <div className="position-absolute bg-danger text-white d-flex align-items-center justify-content-center"
                                     style={{ top: '-28px', width: '60px', height: '20px', borderRadius: '10px', left: 'calc( 50% - 30px)', letterSpacing: '1px', fontSize: '8px' }}>要回答{cancelLength}件</div>
                                 <div className="position-absolute triangle"></div>
-                            </div>
-                            <div className="bg-danger text-white ms-1 rounded position-relative" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setLoseListShow(true)}>失注集計
+                            </button>
+                            <button type="button" className="rk_btn rk_btn_ghost ms-1 position-relative" onClick={() => setLoseListShow(true)}>失注集計
                                 <div className="position-absolute bg-danger text-white d-flex align-items-center justify-content-center"
                                     style={{ top: '-28px', width: '60px', height: '20px', borderRadius: '10px', left: 'calc( 50% - 30px)', letterSpacing: '1px', fontSize: '8px' }}>要回答{loseLength}件</div>
                                 <div className="position-absolute triangle"></div>
-                            </div>
-                            <div className="bg-danger text-white ms-1 rounded" style={{ fontSize: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                onClick={() => setSurveyShow(true)}>アンケート集計</div></>}
+                            </button>
+                            <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setSurveyShow(true)}>アンケート集計</button></>}
                     </div>
                 </div>
                 <div className="w-100 mb-1">
                     {/* ⚠️ nexus は**注文事業だけ**。建売分譲にはこのアイコンを出していない */}
                     <GiftLegend nexus />
                 </div>
-                <div className="w-100" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <div className="w-100 dbk_table_wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <div style={{ width: '1600px' }}>
-                        <Table style={{ fontSize: isSp ? '9px' : '11px', textAlign: 'center' }} bordered striped>
+                        {/* ⚠️ v2.2.291 縞模様（striped）は外した。罫線・見出しの色は databaseListStyle.ts の DBK_CSS */}
+                        <Table className='dbk_table' style={{ fontSize: isSp ? '9px' : '12px', textAlign: 'center' }} bordered>
                             <tbody className='align-middle'>
                                 <tr className='align-middle sticky-header'>
-                                    <td>顧客情報編集</td>
-                                    <td>店舗</td>
-                                    <td>顧客名</td>
-                                    <td>担当営業</td>
+                                    {/* ⚠️ v2.2.291 左の4列（編集・店舗・顧客名・担当営業）は横に動かしても残す（建売と同じ dbk_fix） */}
+                                    <td className='dbk_fix dbk_fix1'>顧客情報編集</td>
+                                    <td className='dbk_fix dbk_fix2'>店舗</td>
+                                    <td className='dbk_fix dbk_fix3'>顧客名</td>
+                                    <td className='dbk_fix dbk_fix4'>担当営業</td>
                                     <td>ステータス</td>
                                     <td>反響日</td>
                                     <td>初回来場日<br /><span style={{ fontSize: '9px' }}>(来場予約日)</span></td>
@@ -703,21 +822,17 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                     <td>Hotlead<br />ステータス</td>
                                     <td>{trash === 1 ? '非表示' : '元に戻す'}</td>
                                 </tr>
-                                {filteredDatabase
-                                    .slice(sliceStart, sliceStart + basicLength)
+                                {visibleRows
                                     .map(item => {
                                         return <tr key={item.id}>
-                                            <td><div className='hover bg-danger text-white' style={{ fontSize: "12px", cursor: 'pointer', width: 'fit-content', padding: '4px 10px', borderRadius: '5px', margin: '0 auto', textDecoration: 'none' }}
-                                                onClick={() => {
-                                                    setEditId(item.id);
-                                                }}>編集</div></td>
-                                            <td>{safeFormate(item.shop)}</td>
+                                            <td className='dbk_fix dbk_fix1'><button type="button" className='dbk_edit' onClick={() => setEditId(item.id)}>編集</button></td>
+                                            <td className='dbk_fix dbk_fix2'>{safeFormate(item.shop)}</td>
                                             {/*
                                               ⚠️⚠️ **Nexus アイコンはギフトのドットの隣に置く**（2026-09-25 の指示）。
                                                 ⚠️ **改行しないこと。** 行の高さが揃わなくなり、一覧が読みにくくなる。
                                             */}
                                             {/* ⚠️ v2.2.187: 氏名②があるときだけ「アイコン（縦中央）／氏名①・氏名②の2行」（⚠️ その行だけ高くなる。2026-10-12 に了承済み） */}
-                                            <td><CustomerNameCell
+                                            <td className='dbk_fix dbk_fix3'><CustomerNameCell
                                                 icons={<>
                                                     <GiftDot gift={item.gift} />
                                                     {/* ⚠️ `item.rank` は `Sランク` の形。⚠️ **表示用に「ランク」を落とす前の値**を渡すこと */}
@@ -726,7 +841,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                                 </>}
                                                 name={safeFormate(item.customer)}
                                                 name2={item.customer_2} /></td>
-                                            <td>{safeFormate(item.staff)}</td>
+                                            <td className='dbk_fix dbk_fix4'>{safeFormate(item.staff)}</td>
                                             <td>{safeFormate(item.status)}</td>
                                             <td>{safeFormate(item.register)}</td>
                                             <td>{item.interview && safeFormate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
