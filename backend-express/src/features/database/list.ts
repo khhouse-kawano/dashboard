@@ -6,6 +6,7 @@ import { databaseSql, type DatabaseCategory } from './queries';
 
 /**
  * 顧客DB を1ページずつ返す（v2.2.289。request database_list。画面は database/DatabaseKaeru.tsx）。
+ * ⚠️ v2.2.291 で注文（database/DatabaseOrder.tsx）も受ける。注文の絞り込みは下の runOrderList（このコメントの説明は建売のもの）。
  *
  * ─────────────────────────────────────────────
  * ⚠️⚠️ 画面は GET で絞り込みの条件・ページ・表示件数を送る（① の core/db.php の GET_ALLOWED_REQUESTS）。
@@ -35,6 +36,8 @@ export interface DatabaseListParams {
   shop?: unknown; staff?: unknown; register?: unknown; reserve?: unknown; rank?: unknown; medium?: unknown; status?: unknown;
   follow?: unknown; callStatus?: unknown; family?: unknown;
   name?: unknown; kana?: unknown; staffText?: unknown; pastStaff?: unknown; phone?: unknown; mail?: unknown; address?: unknown; area?: unknown;
+  /** v2.2.291 注文だけ */
+  introductory?: unknown; event?: unknown; snap?: unknown; hotlead?: unknown; familyName?: unknown;
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
@@ -71,7 +74,18 @@ export interface DatabaseListResult {
   body: Record<string, unknown>;
 }
 
+/** 表示件数・ページを決めて、そのページの行を切り出す（⚠️ ページが多すぎれば最後のページ、表示件数が不正なら 20） */
+const paginate = (filtered: Row[], p: DatabaseListParams): { page: number; perPage: number; pageRows: Row[] } => {
+  const perPageValue = Number(str(p.perPage));
+  const perPage = PER_PAGES.includes(perPageValue) ? perPageValue : PER_PAGES[0];
+  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const pageValue = Math.floor(Number(str(p.page)) || 1);
+  const page = Math.min(Math.max(1, pageValue), pages);
+  return { page, perPage, pageRows: filtered.slice((page - 1) * perPage, page * perPage) };
+};
+
 export const runDatabaseList = async (category: DatabaseCategory, p: DatabaseListParams): Promise<DatabaseListResult> => {
+  if (category === 'order') return runOrderList(p);
   const sql = databaseSql(category);
   const customers = (await query<DynamicRow>(sql.customer)) as unknown as Row[];
 
@@ -123,13 +137,7 @@ export const runDatabaseList = async (category: DatabaseCategory, p: DatabaseLis
     // ⚠️ ランクが空の顧客は、追客中・追客終了のどちらにも入る（画面の arrIncludes が空の値を「当てはまる」と扱うため。今の動きのまま）
     && (follow === '追客中' ? (s(c.rank) === '' || FOLLOWING.includes(s(c.rank))) : follow === '追客終了' ? (s(c.rank) === '' || FOLLOW_ENDED.includes(s(c.rank))) : true));
   filtered.sort((a, b) => s(b.register).localeCompare(s(a.register)));
-
-  const perPageValue = Number(str(p.perPage));
-  const perPage = PER_PAGES.includes(perPageValue) ? perPageValue : PER_PAGES[0];
-  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
-  const pageValue = Math.floor(Number(str(p.page)) || 1);
-  const page = Math.min(Math.max(1, pageValue), pages);
-  const pageRows = filtered.slice((page - 1) * perPage, page * perPage);
+  const { page, perPage, pageRows } = paginate(filtered, p);
 
   // 重複顧客の印（⚠️ 非表示を含む全顧客で数える。画面の duplicateDictionary と同じ）
   const owners = new Map<string, Set<string>>();
@@ -151,6 +159,130 @@ export const runDatabaseList = async (category: DatabaseCategory, p: DatabaseLis
   if (str(p.master) === '1') {
     const [staffRows, shopRows, mediumRows] = await Promise.all([query<DynamicRow>(sql.staff), query<DynamicRow>(sql.shop), query<DynamicRow>(sql.medium)]);
     Object.assign(body, { staff: staffRows, shop: shopRows, medium: mediumRows });
+  }
+  return { httpStatus: 200, body };
+};
+
+// ---------------------------------------------------------------------------
+// 注文（v2.2.291。画面は database/DatabaseOrder.tsx）
+// ⚠️⚠️ 絞り込みは DatabaseOrder.tsx の filteredDatabase（② に届かないときの予備として画面に残っている）と**同じ**。⚠️ 直すときは両方。
+// ⚠️ 建売と違うところ：重複顧客・名寄せ・ふりがな・過去の担当・追客状況・入居希望地は無い。
+//   紹介者・イベント・K-Snap・Hotlead・家族名がある。顧客名の欄は「名前&電話」「名前+住所」も受ける。
+//   電話は phone_number だけ、メールは mail だけを見て、⚠️ メールだけ大文字小文字を区別しない。
+// ---------------------------------------------------------------------------
+
+/** 失注の要回答（frontend/src/utils/informationUtils.ts の missingLostFields と同じ。⚠️ 直すときは両方） */
+const LOST_REASON_KEY = 'competitor_lost_contract_reason';
+const LOST_FIELD_KEYS = ['competitor_name', 'customized_input_01JRF9CZSW65A151WR30NA4PB3', 'customized_input_01JSE7H4MQES619NBWX6PQDFRH'];
+const isBlank = (v: unknown): boolean => { const t = s(v).trim(); return t === '' || t === 'null'; };
+const hasMissingLostFields = (c: Row): boolean =>
+  isBlank(c[LOST_REASON_KEY]) || (c[LOST_REASON_KEY] === '競合負け' && LOST_FIELD_KEYS.some((k) => isBlank(c[k])));
+
+/**
+ * キャンセル・失注の「要回答」の件数（画面の cancelLength / loseLength と同じ。⚠️ 全顧客で数える）。
+ * ⚠️ 日付は画面と同じく new Date で読む（時刻の無い日付は UTC、時刻付きはサーバーの時刻帯。本番の ② は Asia/Tokyo）。
+ */
+const answerCounts = (customers: Row[]): { cancel: number; lose: number } => {
+  const now = Date.now();
+  const cancelBase = new Date('2026-01-01').getTime();
+  const loseBase = new Date('2026-06-01').getTime();
+  let cancel = 0, lose = 0;
+  for (const c of customers) {
+    if (Number(c.trash) !== 1) continue;
+    const cTarget = new Date(dateFormate(s(c.reserved_interview))).getTime();
+    if (cTarget < now && cancelBase < cTarget && !c.interview && !c.cancel_status && c.status !== '重複') cancel++;
+    const lTarget = new Date(dateFormate(s(c.register))).getTime();
+    if (lTarget < now && loseBase < lTarget && c.status === '失注' && hasMissingLostFields(c)) lose++;
+  }
+  return { cancel, lose };
+};
+
+/** 家族の名前（index.ts の familyNamesOnly と同じ読み方）→ その家族の顧客ID */
+const familyIdsByName = (rows: Row[], key: string): Set<string> => {
+  const ids = new Set<string>();
+  for (const r of rows) {
+    let list: unknown = [];
+    try { list = typeof r.family_info === 'string' ? JSON.parse(r.family_info) : []; } catch { list = []; }
+    if (Array.isArray(list) && list.some((f) => s((f as { name?: unknown } | null)?.name).includes(key))) ids.add(s(r.id));
+  }
+  return ids;
+};
+
+const runOrderList = async (p: DatabaseListParams): Promise<DatabaseListResult> => {
+  const sql = databaseSql('order');
+  const familyName = str(p.familyName);
+  const hotleadStatus = str(p.hotlead);
+  const needFamily = str(p.family) === '1' || familyName !== '';
+  const [customers, familyRows, hotleadRows] = await Promise.all([
+    query<DynamicRow>(sql.customer) as unknown as Promise<Row[]>,
+    needFamily ? (query<DynamicRow>(sql.family) as unknown as Promise<Row[]>) : Promise.resolve([] as Row[]),
+    query<DynamicRow>(sql.hotlead as string) as unknown as Promise<Row[]>,
+  ]);
+
+  const trash = str(p.trash) === '0' ? 0 : 1;
+  const shop = str(p.shop), staff = str(p.staff), register = str(p.register), reserve = str(p.reserve), rank = str(p.rank);
+  const medium = str(p.medium), introductory = str(p.introductory), status = str(p.status), callStatus = str(p.callStatus);
+  const staffText = str(p.staffText).split(' ')[0], address = str(p.address), mailKey = str(p.mail).toLowerCase();
+  const event = str(p.event), snap = str(p.snap) === '1';
+  // ⚠️ 顧客名の欄：「名前&電話番号」「名前+住所」（画面の formattedName / formattedNumber / formattedAddress と同じ）
+  const name = str(p.name), phone = str(p.phone);
+  const namePart = name.includes('&') ? name.split('&')[0] : name.includes('+') ? name.split('+')[0] : name;
+  const numberPart = name.includes('&') ? (name.split('&')[1] ?? '') : phone;
+  const addressPart = name.includes('+') ? (name.split('+')[1] ?? '') : '';
+  const nameKey = clean(namePart);
+  const familyAll = str(p.family) === '1' ? new Set(familyRows.map((r) => s(r.id))) : null;
+  const familyHit = familyName !== '' ? familyIdsByName(familyRows, familyName) : null;
+  const hotleadIds = hotleadStatus !== '' ? new Set(hotleadRows.filter((h) => h.status === hotleadStatus).map((h) => s(h.id))) : null;
+
+  // ⚠️ DatabaseOrder.tsx の filteredDatabase と同じ順・同じ条件
+  const filtered = customers.filter((c) =>
+    (trash === 1 ? Number(c.trash) !== 0 : Number(c.trash) !== 1)
+    && includes(c.shop, shop)
+    && (staff ? s(c.staff) === staff : true)
+    && (register ? includes(c.register, dateFormate(register)) : true)
+    && (reserve === 'notVisited'
+      ? (s(c.reserved_interview) !== '' && s(c.interview) === '')
+      : (reserve ? includes(c.interview, dateFormate(reserve)) : true))
+    && includes(c.rank, rank)
+    && (medium === 'SUUMO(ポータル反響)' ? c.portal_site === 'SUUMO' : includes(c.medium, medium))
+    && includes(c.introduction_person_category, introductory)
+    && includes(c.status, status)
+    && (name ? (clean(c.customer).includes(nameKey) || clean(c.customer_2).includes(nameKey)) : true)
+    && (staffText ? includes(c.staff, staffText) : true)
+    && ((phone || name) ? includes(c.phone_number, numberPart) : true)
+    && includes(c.full_address, addressPart)
+    && (address ? s(c.full_address).replace(/[\s ]+/g, '').includes(address) : true)
+    && (mailKey ? s(c.mail).toLowerCase().includes(mailKey) : true)
+    && (familyHit !== null ? familyHit.has(s(c.id)) : true)
+    && (callStatus ? s(c.call_status) === callStatus : true)
+    && (familyAll !== null ? familyAll.has(s(c.id)) : true)
+    && (event ? (c.event === event && c.medium === 'イベント') : true)
+    // ⚠️ 画面は item.k_snap の真偽で見ている（文字列の '0' も「登録済み」に入る。今の動きのまま）
+    && (snap ? Boolean(c.k_snap) : true)
+    && (hotleadIds !== null ? hotleadIds.has(s(c.hotlead_id)) : true));
+  filtered.sort((a, b) => s(b.register).localeCompare(s(a.register)));
+  const { page, perPage, pageRows } = paginate(filtered, p);
+  const rows = pageRows.map((c) => ({ ...c }));
+  await giftApplyToCustomers(rows, true);
+
+  // ⚠️ Hotlead は返すページの顧客の分だけ（画面の hotleadMap は id で引く。⚠️ 同じ id が2行あれば画面は最初の行を使う）
+  const pageHotleadIds = new Set(rows.map((r) => s(r.hotlead_id)).filter(Boolean));
+  const body: Record<string, unknown> = {
+    status: 'ok', total: filtered.length, page, perPage, customer: toColumnar(rows),
+    hotlead: hotleadRows.filter((h) => pageHotleadIds.has(s(h.id))),
+  };
+  if (str(p.master) === '1') {
+    const [staffRows, shopRows, mediumRows, introductoryRows, eventRows] = await Promise.all([
+      query<DynamicRow>(sql.staff), query<DynamicRow>(sql.shop), query<DynamicRow>(sql.medium),
+      query<DynamicRow>(sql.introductory as string), query<DynamicRow>(sql.event as string),
+    ]);
+    const counts = answerCounts(customers);
+    Object.assign(body, {
+      staff: staffRows, shop: shopRows, medium: mediumRows,
+      // ⚠️ 紹介者は名前だけ（画面は .name しか使わない）
+      introductory: introductoryRows.map((r) => ({ name: r.name })), event: eventRows,
+      cancelCount: counts.cancel, loseCount: counts.lose,
+    });
   }
   return { httpStatus: 200, body };
 };

@@ -20,6 +20,10 @@ import { CustomerNameCell, cleanCustomerName } from './customerName2';
 import { descending } from '../../utils/descending';
 // ⚠️ v2.2.290 見た目を販促媒体別（CustomerKaeru）・目標達成状況（RankKaeru）とそろえる（rk_ の CSS を借りる）
 import { RankingStyle } from '../rankingUi';
+// ⚠️ v2.2.291 表・絞り込みの CSS は注文（DatabaseOrder.tsx）と共通
+import { DBK_CSS } from './databaseListStyle';
+// ⚠️ v2.2.291 GET の条件を画面の URL にも出す・URL の条件で開く
+import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
 
 type shopList = { brand: string, shop: string, section: string };
 // ⚠️ position / khg_id は担当営業セレクトの並べ替えに使う（2026-09-14 追加）。
@@ -56,59 +60,61 @@ const prepareCustomers = (data: unknown): CustomerList[] =>
 
 const DatabaseKaeru = ({ }: Props) => {
     const { authority, category } = useContext(AuthContext);
+    /** v2.2.291 開いたときの URL の条件（⚠️ 下の state の初期値にだけ使う） */
+    const [initUrl] = useState(() => readListUrl(new URLSearchParams(window.location.search)));
     const [shopArray, setShopArray] = useState<shopList[]>([]);
     const [mediumArray, setMediumArray] = useState<string[]>([]);
     const [staffArray, setStaffArray] = useState<staffList[]>([]);
     const [monthArray, setMonthArray] = useState<string[]>([]);
     const [originalDatabase, setOriginalDatabase] = useState<CustomerList[]>([]);
-    const [selectedShop, setSelectedShop] = useState<string>('')
+    const [selectedShop, setSelectedShop] = useState<string>(initUrl.get('shop'))
     /**
      * セレクトで選んだ担当営業。
      * ⚠️ 既存の担当者名テキスト検索とは別に持つ。同姓の担当者が増えたため（指示）。
      */
-    const [selectedStaff, setSelectedStaff] = useState<string>('')
-    const [selectedRegister, setSelectedRegister] = useState<string>('')
-    const [selectedReserve, setSelectedReserve] = useState<string>('')
-    const [selectedRank, setSelectedRank] = useState<string>('')
-    const [selectedMedium, setSelectedMedium] = useState<string>('')
-    const [selectedStatus, setSelectedStatus] = useState<string>('')
+    const [selectedStaff, setSelectedStaff] = useState<string>(initUrl.get('staff'))
+    const [selectedRegister, setSelectedRegister] = useState<string>(initUrl.get('register'))
+    const [selectedReserve, setSelectedReserve] = useState<string>(initUrl.get('reserve'))
+    const [selectedRank, setSelectedRank] = useState<string>(initUrl.get('rank'))
+    const [selectedMedium, setSelectedMedium] = useState<string>(initUrl.get('medium'))
+    const [selectedStatus, setSelectedStatus] = useState<string>(initUrl.get('status'))
     // 過去に担当した営業名で絞り込むための、該当顧客IDの一覧。
     // 以前は架電・面談ログを全件ブラウザに載せて部分一致を取っていたが、
     // ログだけで約30MBあり、サーバー側が memory_limit を超えて応答できなくなっていた。
     // 検索は past_staff_search API に任せ、ここではIDだけを持つ。
     const [pastCustomerIds, setPastCustomerIds] = useState<string[]>([]);
     const [displayLength, setDisplayLength] = useState<number>(20);
-    const [callStatus, setCallStatus] = useState<string>('');
-    const [activePage, setActivePage] = useState<number>(1);
-    const [sliceStart, setSliceStart] = useState<number>(0);
-    const [basicLength, setBasicLength] = useState<number>(20);
-    const [trash, setTrash] = useState<number>(1);
+    const [callStatus, setCallStatus] = useState<string>(initUrl.get('callStatus'));
+    const [activePage, setActivePage] = useState<number>(initUrl.page);
+    const [sliceStart, setSliceStart] = useState<number>((initUrl.page - 1) * initUrl.perPage);
+    const [basicLength, setBasicLength] = useState<number>(initUrl.perPage);
+    const [trash, setTrash] = useState<number>(initUrl.trash);
     const { token } = useContext(AuthContext);
     const [familyList, setFamilyList] = useState<string[]>([]);
-    const [familyStatus, setFamilyStatus] = useState<boolean>(false);
+    const [familyStatus, setFamilyStatus] = useState<boolean>(initUrl.get('family') === '1');
     const skipPageReset = useRef(false);
     const [integrate, setIntegrate] = useState<CustomerList>({});
     const [integrateList, setIntegrateList] = useState<CustomerList[]>([]);
     const [callStatusShow, setCallStatusShow] = useState(false);
-    const [selectedFollow, setSelectedFollow] = useState('');
+    const [selectedFollow, setSelectedFollow] = useState(initUrl.get('follow'));
 
     const [pastCustomerShow, setPastCustomerShow] = useState(false);
 
-    const nameSearch = useDebounce('', 300);
-    const kanaSearch = useDebounce('', 300);
-    const staffSearch = useDebounce('', 300);
-    const phoneSearch = useDebounce('', 300);
-    const addressSearch = useDebounce('', 300);
-    const mailSearch = useDebounce('', 300);
+    const nameSearch = useDebounce(initUrl.get('name'), 300);
+    const kanaSearch = useDebounce(initUrl.get('kana'), 300);
+    const staffSearch = useDebounce(initUrl.get('staffText'), 300);
+    const phoneSearch = useDebounce(initUrl.get('phone'), 300);
+    const addressSearch = useDebounce(initUrl.get('address'), 300);
+    const mailSearch = useDebounce(initUrl.get('mail'), 300);
     // 過去担当者の検索は入力のたびにAPIを叩くため、他の検索と同じくデバウンスする
-    const pastStaffSearch = useDebounce('', 300);
+    const pastStaffSearch = useDebounce(initUrl.get('pastStaff'), 300);
     /**
      * v2.2.288 入居希望地（planned_construction_site・_2・_3）で検索。
      * ⚠️ 入力欄は areaSearch（300ms 待つ）。⚠️ 確定した値を selectedArea に入れ、絞り込みは selectedArea で行う
      *   （次のブランチで GET の引数にそのまま使うため）。
      */
-    const areaSearch = useDebounce('', 300);
-    const [selectedArea, setSelectedArea] = useState('');
+    const areaSearch = useDebounce(initUrl.get('area'), 300);
+    const [selectedArea, setSelectedArea] = useState(initUrl.get('area'));
     useEffect(() => { setSelectedArea(areaSearch.debouncedValue); }, [areaSearch.debouncedValue]);
 
     /**
@@ -309,38 +315,6 @@ const DatabaseKaeru = ({ }: Props) => {
     }, [originalDatabase]);
 
 
-    useEffect(() => {
-        if (skipPageReset.current) {
-            skipPageReset.current = false;
-            return;
-        }
-        setActivePage(1);
-        setSliceStart(0);
-    }, [
-        originalDatabase,
-        selectedShop,
-        selectedStaff,
-        selectedRegister,
-        selectedReserve,
-        selectedRank,
-        selectedMedium,
-        selectedStatus,
-        selectedFollow,
-        nameSearch.debouncedValue,
-        kanaSearch.debouncedValue, // ⚠️ v2.2.289 足した（以前はふりがなを変えてもページが戻らなかった）
-        basicLength, // ⚠️ v2.2.289 表示件数を変えたら1ページ目へ（② で読むと、件数の表示と行がずれるため）
-        staffSearch.debouncedValue,
-        phoneSearch.debouncedValue,
-        addressSearch.debouncedValue,
-        mailSearch.debouncedValue,
-        selectedArea,
-        callStatus,
-        pastStaffSearch.debouncedValue,
-        trash,
-        familyList,
-        familyStatus,
-    ]);
-
     /** v2.2.289 ② に送る条件（⚠️ 空の条件は送らない） */
     const listParams = useMemo(() => Object.fromEntries(Object.entries({
         trash: String(trash),
@@ -354,6 +328,22 @@ const DatabaseKaeru = ({ }: Props) => {
         selectedFollow, callStatus, familyStatus, nameSearch.debouncedValue, kanaSearch.debouncedValue, staffSearch.debouncedValue,
         pastStaffSearch.debouncedValue, phoneSearch.debouncedValue, mailSearch.debouncedValue, addressSearch.debouncedValue, selectedArea,
     ]);
+
+    /**
+     * 条件・表示件数が変わったら1ページ目へ（⚠️ v2.2.289 で表示件数・ふりがなも対象にした）。
+     * ⚠️ v2.2.291 条件が実際に変わったときだけ戻す（URL の page で開いたときに1へ戻さないため。予備のときは全件・家族の読み込みも対象）。
+     */
+    useOnListChange(`${JSON.stringify(listParams)}|${basicLength}`, [originalDatabase, familyList], () => {
+        if (skipPageReset.current) {
+            skipPageReset.current = false;
+            return;
+        }
+        setActivePage(1);
+        setSliceStart(0);
+    });
+
+    /** v2.2.291 送る条件・ページ・表示件数を画面の URL にも出す */
+    useListUrlSync(listParams, activePage, basicLength);
 
     /**
      * v2.2.289 今の条件・ページを ② から GET で読む。
@@ -491,6 +481,10 @@ const DatabaseKaeru = ({ }: Props) => {
 
     const closeInformationEdit = async () => {
         setEditId('');
+        // ⚠️ v2.2.291 URL の ?id= だけを外す（残すと、URL の条件を書き直したときに編集がまた開く。条件は残す）
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('id');
+        setSearchParams(nextParams, { replace: true });
         // ⚠️ v2.2.289 ② で読むときは今のページを読み直すだけ（ページは変えない）。
         //   ⚠️ skipPageReset を立てない（立てると、次に条件を変えたときにページが1に戻らない）
         if (serverMode) {
@@ -557,6 +551,7 @@ const DatabaseKaeru = ({ }: Props) => {
                     <div className="m-1">
                         <select
                             className="target"
+                            value={selectedShop}
                             onChange={(e) => {
                                 // ⚠️ 店舗を変えたら担当営業を外す。別の店舗の担当者が
                                 //   残ると、条件に合う顧客が無く**0件**になる
@@ -591,21 +586,21 @@ const DatabaseKaeru = ({ }: Props) => {
                         </div>
                     )}
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedRegister(e.target.value)}>
+                        <select className="target" value={selectedRegister} onChange={(e) => setSelectedRegister(e.target.value)}>
                             <option value="">反響月を選択</option>
                             {descending(monthArray).map((item, index) => <option key={index} value={item}>{item}</option>)}
                         </select>
                     </div>
                     {!isSp && <>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedReserve(e.target.value)}>
+                            <select className="target" value={selectedReserve} onChange={(e) => setSelectedReserve(e.target.value)}>
                                 <option value="">初回来場月を選択</option>
                                 <option value="notVisited">未来場・来場キャンセル</option>
                                 {descending(monthArray).map((item, index) => <option key={index} value={item}>{item}</option>)}
                             </select>
                         </div></>}
                     <div className="m-1">
-                        <select className="target" onChange={(e) => setSelectedRank(e.target.value)}>
+                        <select className="target" value={selectedRank} onChange={(e) => setSelectedRank(e.target.value)}>
                             <option value="">ランクを選択</option>
                             <option value="Sランク">Sランク</option>
                             <option value="Aランク">Aランク</option>
@@ -618,14 +613,14 @@ const DatabaseKaeru = ({ }: Props) => {
                     </div>
                     {!isSp && <>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedMedium(e.target.value)}>
+                            <select className="target" value={selectedMedium} onChange={(e) => setSelectedMedium(e.target.value)}>
                                 <option value="">販促媒体を選択</option>
                                 {mediumArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
                                 {authority !== 'ordinary' && <option value='SUUMO(ポータル反響)'>SUUMO(ポータル反響)</option>}
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => setSelectedStatus(e.target.value)}>
+                            <select className="target" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
                                 <option value="">ステータスを選択</option>
                                 <option value="追客中">追客中</option>
                                 <option value="接触（通話・返信）">接触（通話・返信）</option>
@@ -639,7 +634,7 @@ const DatabaseKaeru = ({ }: Props) => {
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => {
+                            <select className="target" value={callStatus} onChange={(e) => {
                                 setCallStatus(e.target.value);
                             }}>
                                 <option value="">架電状況</option>
@@ -651,7 +646,7 @@ const DatabaseKaeru = ({ }: Props) => {
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => {
+                            <select className="target" value={selectedFollow} onChange={(e) => {
                                 setSelectedFollow(e.target.value)
                             }}>
                                 <option value="">追客状況</option>
@@ -660,7 +655,7 @@ const DatabaseKaeru = ({ }: Props) => {
                             </select>
                         </div>
                         <div className="m-1">
-                            <select className="target" onChange={(e) => {
+                            <select className="target" value={familyStatus ? '入力済み' : ''} onChange={(e) => {
                                 if (e.target.value) {
                                     setFamilyStatus(true);
                                 } else {
@@ -713,7 +708,7 @@ const DatabaseKaeru = ({ }: Props) => {
                             {listLoading && <span className="ms-2 dbk_count_sub">読み込み中…</span>}</div>
                         <div className="ms-2 dbk_count_sub">
                             表示件数
-                            <select className="rk_select ms-1" onChange={(e) => setBasicLength(Number(e.target.value))}>
+                            <select className="rk_select ms-1" value={basicLength} onChange={(e) => setBasicLength(Number(e.target.value))}>
                                 <option value='20'>20件</option>
                                 <option value='50'>50件</option>
                                 <option value='100'>100件</option>
@@ -764,7 +759,7 @@ const DatabaseKaeru = ({ }: Props) => {
                         <Table className='dbk_table' style={{ fontSize: isSp ? '9px' : '12px', textAlign: 'center' }} bordered>
                             <tbody className='align-middle'>
                                 <tr className='align-middle sticky-header'>
-                                    {/* ⚠️ v2.2.289 左の4列（編集・店舗・顧客名・担当営業）は横に動かしても残す（dbk_fix。CSS は下の DBK_CSS） */}
+                                    {/* ⚠️ v2.2.289 左の4列（編集・店舗・顧客名・担当営業）は横に動かしても残す（dbk_fix。CSS は databaseListStyle.ts の DBK_CSS） */}
                                     <td className='dbk_fix dbk_fix1'>顧客情報編集</td>
                                     <td className='dbk_fix dbk_fix2'>店舗</td>
                                     <td className='dbk_fix dbk_fix3'>顧客名<br /><span className='text-success fw-bold'><i className="fa-solid fa-user-plus pe-1"></i>重複顧客</span></td>
@@ -841,49 +836,3 @@ const DatabaseKaeru = ({ }: Props) => {
 }
 
 export default DatabaseKaeru
-
-/**
- * v2.2.289 左の4列（編集・店舗・顧客名・担当営業）を横に動かしても残す（接頭辞 dbk_）。
- * ⚠️ 幅と left をそろえること（1列目の幅 = 2列目の left …）。⚠️ 背景を塗らないと、後ろの列が透けて見える。
- * ⚠️ 境目の線は border で引く（box-shadow は Bootstrap がセルの色に使っている）。
- *
- * v2.2.290 見た目を rankingUi.tsx（rk_）にそろえた。⚠️ 色は rk_ と同じ値を使い、画面だけ違う色にしない。
- * ⚠️ 絞り込み欄は既存の .target（SearchBox.css・共通）をこの画面の中だけ上書きする（共通 CSS は触らない）。
- * ⚠️ この文字列の中にバッククォートを書かないこと（テンプレートリテラルが閉じてビルドが壊れる）。
- */
-const DBK_CSS = `
-.database .dbk_fix { position: sticky; z-index: 2; background-color: #fff; }
-.database .dbk_fix1 { left: 0; width: 70px; min-width: 70px; }
-.database .dbk_fix2 { left: 70px; width: 100px; min-width: 100px; }
-.database .dbk_fix3 { left: 170px; width: 170px; min-width: 170px; }
-.database .dbk_fix4 { left: 340px; width: 100px; min-width: 100px; border-right: 2px solid #d1d5db; }
-.database tr.sticky-header > .dbk_fix { z-index: 21; }
-
-.dbk_bar { gap: 2px; align-items: center; }
-.dbk_bar .target { height: 32px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 10px;
-                   font-size: 12px; background-color: #fff; color: #1f2937; outline: none; }
-.dbk_bar .target:focus { border-color: #2563eb; }
-.dbk_bar .target::placeholder { color: #9ca3af; }
-
-.dbk_count_num { font-size: 16px; font-weight: 700; color: #1f2937; font-variant-numeric: tabular-nums; }
-.dbk_count_sub { font-size: 11px; color: #6b7280; }
-.dbk_wrap .rk_select { padding: 3px 8px; font-size: 11px; }
-
-.dbk_wrap .custom-pagination li button { background: #fff; color: #4b5563; border: 1px solid #d1d5db;
-                                          border-radius: 8px; padding: 4px 10px; font-size: 11px; }
-.dbk_wrap .custom-pagination li button:hover { background: #f3f4f6; }
-.dbk_wrap .custom-pagination li.active button { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 700; }
-
-.dbk_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
-.dbk_wrap .dbk_table { margin-bottom: 0; color: #1f2937; border-style: hidden; }
-.dbk_wrap .dbk_table td { border-color: #eef2f7; padding: 7px 8px; font-weight: 400;
-                          font-variant-numeric: tabular-nums; }
-.dbk_wrap .dbk_table tr.sticky-header > td { background-color: #f8fafc; color: #4b5563;
-                                              font-weight: 700; font-size: calc(1em - 1px); }
-.dbk_wrap .dbk_table tr:not(.sticky-header):hover > td { background-color: #f8fafc; }
-.dbk_wrap .dbk_table tr:not(.sticky-header) > .dbk_fix3 { font-weight: 700; }
-
-.dbk_edit { border: 1px solid #d1d5db; border-radius: 6px; background: #fff; color: #2563eb;
-            font-size: 11px; font-weight: 700; padding: 3px 10px; cursor: pointer; white-space: nowrap; }
-.dbk_edit:hover { background: #eff6ff; border-color: #2563eb; }
-`;
