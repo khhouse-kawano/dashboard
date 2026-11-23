@@ -193,6 +193,52 @@ const HOTLEAD_SQL = `SELECT id, status, hotlead_url, ticket_stop_reason_type,
 /** 紹介。⚠️ order だけ。spec の PHP には無い */
 const INTRODUCTORY_SQL = `SELECT * FROM introductory`;
 
+/**
+ * 中古（v2.2.292。database_list だけで使う。画面は database/DatabaseResale.tsx）。
+ * ⚠️ 列と別名は ① の databaseAction/database_used.php のまま（⚠️ 片方だけ変えない）。
+ * ⚠️ request database（全件）の中古は今までどおり ① が返す（databaseSql / DatabaseCategory には入れていない）。
+ * ⚠️ 架電記録（call_sheet）と媒介（brokerage_listings）は、返すページの顧客の分だけ list.ts が読む。
+ */
+export const usedSql = {
+  staff: STAFF_SQL,
+  medium: `SELECT * FROM medium_resale`,
+  family: `SELECT id FROM family_info`,
+  customer: `SELECT
+  id,
+  COALESCE(customer_contacts_name, '') AS customer,
+  COALESCE(customer_contacts_name_2, '') AS customer_2,
+  COALESCE(in_charge_store, '') AS shop,
+  COALESCE(in_charge_user, '') AS staff,
+  COALESCE(customized_input_01J82Z5F366ZQ897PXWF6H5ZAM, '') AS \`rank\`,
+  COALESCE(REPLACE(step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7, '/', '-'), '') AS interview,
+  COALESCE(
+    DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y/%m/%d'), '%Y-%m-%d'),
+    DATE_FORMAT(STR_TO_DATE(step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99, '%Y-%m-%d'), '%Y-%m-%d'),
+    ''
+  ) AS register,
+  COALESCE(sales_promotion_name, '') AS medium,
+  COALESCE(status, '') AS status,
+  COALESCE(rank_period, '') AS rank_period,
+  COALESCE(call_status, '') AS call_status,
+  COALESCE(category, '') AS category,
+  COALESCE(cancel_status, '') AS cancel_status,
+  COALESCE(show_dashboard, 0) AS trash,
+  COALESCE(REPLACE(reserved_interview, '/', '-'), '') AS reserved_interview,
+  COALESCE(full_address, '') AS full_address,
+  COALESCE(hp_campaign, '') AS hp_campaign,
+  COALESCE(property_name, '') AS property_name,
+  COALESCE(property_tour_name, '') AS property_tour_name,
+  COALESCE(introduction_person_category, '') AS introduction_person_category,
+  COALESCE(customer_contacts_mobile_phone_number, '') AS phone_number_2,
+  COALESCE(customer_contacts_phone_number, '') AS phone_number,
+  COALESCE(customer_contacts_email, '') AS mail,
+  COALESCE(extra_address_info, '') AS mail_2,
+  COALESCE(integration, '') AS integration,
+  COALESCE(call_log, '') AS call_log
+ FROM master_data_resale
+ WHERE ${NOT_DELETED}`,
+};
+
 export const databaseSql = (category: DatabaseCategory) => ({
   staff: STAFF_SQL,
   shop: SHOP_SQL[category],

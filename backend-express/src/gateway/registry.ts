@@ -2266,7 +2266,7 @@ for (const category of databaseCategories) {
 // ⚠️ 画面は GET で条件・ページ・表示件数を送る（① の core/db.php の GET_ALLOWED_REQUESTS）。
 // ⚠️⚠️ ① に PHP は無い（express_proxy.php の転送リストと転送専用リストの両方に入れてある）。
 //   ⚠️ ② に届かないときは、画面が今までの database（POST・① の予備あり）に切り替えて全件を読む。
-// ⚠️ v2.2.289 で建売（spec）、v2.2.291 で注文（order。database/DatabaseOrder.tsx）。中古は後のブランチ。
+// ⚠️ v2.2.289 で建売（spec）、v2.2.291 で注文（order。database/DatabaseOrder.tsx）。v2.2.292 で中古（used。database/DatabaseResale.tsx）。
 // ---------------------------------------------------------------------------
 const databaseListSummary: Record<DatabaseCategory, string> = {
   spec: '顧客DB（建売）を1ページずつ返す（絞り込みは ② で行う。GET。master=1 で選択肢、dupOf で名寄せの候補）',
@@ -2286,6 +2286,19 @@ for (const category of databaseCategories) {
     },
   });
 }
+// ⚠️ v2.2.292 中古（database/DatabaseResale.tsx）。⚠️ request database（全件）の中古は今までどおり ① が返す（上の databaseCategories に入れない）
+register({
+  request: 'database_list',
+  category: 'used',
+  summary: '顧客DB（中古）を1ページずつ返す（絞り込みは ② で行う。GET。master=1 で選択肢、dupOf で名寄せの候補。表示する行の初回通電日・次回架電日・媒介も返す）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runDatabaseList('used', ctx.body as DatabaseListParams);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
 
 // ---------------------------------------------------------------------------
 // 販促媒体別ランキング（customer/CustomerOrder.tsx / CustomerKaeru.tsx）
