@@ -228,3 +228,20 @@ export const filledField = <K extends string>(key: K, value: unknown): Partial<R
 };
 
 export const lineIdField = (value: unknown) => filledField('line_id', value);
+
+/**
+ * 顧客DB へ取り込むときの販促媒体（v2.2.295。ListKaeru.tsx・ListResale.tsx の handleSync）。
+ *
+ * ⚠️ 反響の媒体（response_medium）が空なら、検索の媒体を入れる（以前は空のまま登録していた）。
+ * ⚠️ 検索の言い方（Web検索・ネット検索など）は、その事業の媒体の表にある名前にそろえる
+ *   （建売 medium_kaeru は「Web検索」、中古 medium_resale は「ネット検索」。⚠️ どちらの表にももう片方の言い方は無い）。
+ * ⚠️ それ以外の値は、表に無くても反響の値のまま（2026-11-24 の指示）。
+ */
+const SEARCH_MEDIUM_BY_DIVISION = { spec: 'Web検索', used: 'ネット検索' } as const;
+const SEARCH_MEDIUM_ALIASES = ['web検索', 'ネット検索', 'インターネット検索'];
+
+export const syncMediumOf = (value: unknown, division: keyof typeof SEARCH_MEDIUM_BY_DIVISION): string => {
+    const medium = String(value ?? '').trim();
+    if (medium === '' || SEARCH_MEDIUM_ALIASES.includes(medium.normalize('NFKC').toLowerCase())) return SEARCH_MEDIUM_BY_DIVISION[division];
+    return medium;
+};
