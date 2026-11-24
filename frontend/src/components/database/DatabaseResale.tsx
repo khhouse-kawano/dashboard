@@ -21,6 +21,7 @@ import { useDebounce } from './useDebounce';
 import { RankingStyle } from '../rankingUi';
 import { DBK_CSS } from './databaseListStyle';
 import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
+import { isRecordSearch, RecordCell, RECORD_COL_WIDTH, RECORD_CSS, RecordSearchCard, type RecordMap } from './recordSearch';
 import { useCallStatusOptions, withCurrent } from './callStatusOptions';
 
 /**
@@ -141,6 +142,9 @@ const DatabaseResale = ({ onReload, key }: Props) => {
      */
     const [serverMode, setServerMode] = useState(true);
     const [pageRows, setPageRows] = useState<CustomerList[]>([]);
+    /** v2.2.296 商談・架電記録から検索する語（⚠️ ボタンで決めた値。ほかの条件と一緒に ② に送る）と、今のページの当たった記録 */
+    const [recordSearch, setRecordSearch] = useState(initUrl.get('record'));
+    const [pageRecords, setPageRecords] = useState<RecordMap>({});
     const [serverTotal, setServerTotal] = useState(0);
     const [listLoading, setListLoading] = useState(false);
     /** 取り直すきっかけ（編集を閉じた・非表示・複製・名寄せ・媒介の保存のあと） */
@@ -273,9 +277,10 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         shop: selectedShop, register: selectedRegister, reserve: selectedReserve, rank: selectedRank,
         medium: selectedMedium, status: selectedStatus, callStatus, family: familyStatus ? '1' : '',
         name: searchedName, staffText: searchedStaff, phone: searchedPhone, mail: searchedMail, address: searchedAddress,
+        record: recordSearch,
     }).filter(([, v]) => v !== '')), [
         trash, selectedShop, selectedRegister, selectedReserve, selectedRank, selectedMedium, selectedStatus, callStatus,
-        familyStatus, searchedName, searchedStaff, searchedPhone, searchedMail, searchedAddress,
+        familyStatus, searchedName, searchedStaff, searchedPhone, searchedMail, searchedAddress, recordSearch,
     ]);
 
     /**
@@ -320,6 +325,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                     mastersLoadedRef.current = true;
                 }
                 setPageRows(prepareCustomers(data.customer));
+                setPageRecords(data.record ?? {});
                 // ⚠️ 媒介は今のページの分だけ（表の broker.find が顧客 id で引く）
                 setBroker(data.broker ?? []);
                 setServerTotal(Number(data.total) || 0);
@@ -352,6 +358,8 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         })
         .slice(sliceStart, sliceStart + basicLength), [serverMode, pageRows, filteredDatabase, sliceStart, basicLength]);
     const totalCount = serverMode ? serverTotal : filteredDatabase.length;
+    /** v2.2.296 商談・架電記録から検索しているか（⚠️ 真のときだけ「商談・架電内容」の列を出す） */
+    const recordMode = isRecordSearch(recordSearch, serverMode);
 
     // ページングリンク
     const pages = {
@@ -553,6 +561,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
         <>
             <RankingStyle />
             <style>{DBK_CSS + DBU_CSS}</style>
+            <style>{RECORD_CSS}</style>
             <div className='content database bg-white rk_wrap dbk_wrap dbu_wrap'>
                 <div className="rk_head">
                     <span className="rk_title">顧客DB（中古リノベ事業）</span>
@@ -685,6 +694,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                 </li>
                             </ul>
                         </div>
+                        <RecordSearchCard value={recordSearch} onSearch={setRecordSearch} disabled={!serverMode} loading={listLoading} />
                         {!isSp && <>
                             {trash === 1 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(0)}>非表示リストへ移動</button>}
                             {trash === 0 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(1)}>一覧へ戻る</button>}
@@ -692,7 +702,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                     </div>
                 </div>
                 <div className="w-100 dbk_table_wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <div style={{ width: '1700px' }}>
+                    <div style={{ width: `${1700 + (recordMode ? RECORD_COL_WIDTH : 0)}px` }}>
                         {/* ⚠️ v2.2.292 縞模様（striped）は外した。罫線・見出しの色は databaseListStyle.ts の DBK_CSS */}
                         <Table className='dbk_table' style={{ fontSize: isSp ? '9px' : '12px', textAlign: 'center' }} bordered>
                             <tbody className='align-middle'>
@@ -703,6 +713,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                     <td className='dbk_fix dbu_shop'>店舗</td>
                                     <td className='dbk_fix dbk_fix3'>顧客名</td>
                                     <td>担当営業</td>
+                                    {recordMode && <td>商談・架電内容</td>}
                                     <td>ステータス</td>
                                     <td>架電状況</td>
                                     <td>架電件数</td>
@@ -754,6 +765,7 @@ const DatabaseResale = ({ onReload, key }: Props) => {
                                                     媒介追加</span>}
                                                 </>} /></td>
                                             <td>{item.staff ?? ''}</td>
+                                            {recordMode && <RecordCell group={pageRecords[item.id ?? '']} />}
                                             <td>{item.status ?? ''}</td>
                                             <td>{item.call_status}</td>
                                             <td>{item.call_log || '0'}</td>
