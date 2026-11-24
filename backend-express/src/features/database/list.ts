@@ -3,11 +3,13 @@ import { query } from '../../db/pool';
 import { giftApplyToCustomers } from './gift';
 import { toColumnar } from './index';
 import { databaseSql, usedSql, type DatabaseCategory } from './queries';
+import { recordKeywordOf, recordsOfPage, searchRecords, type RecordHitGroup } from './recordSearch';
 
 /**
  * 顧客DB を1ページずつ返す（v2.2.289。request database_list。画面は database/DatabaseKaeru.tsx）。
  * ⚠️ v2.2.291 で注文（database/DatabaseOrder.tsx）も受ける。注文の絞り込みは下の runOrderList（このコメントの説明は建売のもの）。
  * ⚠️ v2.2.292 で中古（database/DatabaseResale.tsx）も受ける。中古の絞り込みは下の runUsedList。
+ * ⚠️ v2.2.296 3事業とも条件 record（商談・架電記録から検索。recordSearch.ts）を受け、当たった記録を body.record で返す。
  *
  * ─────────────────────────────────────────────
  * ⚠️⚠️ 画面は GET で絞り込みの条件・ページ・表示件数を送る（① の core/db.php の GET_ALLOWED_REQUESTS）。
@@ -39,6 +41,8 @@ export interface DatabaseListParams {
   name?: unknown; kana?: unknown; staffText?: unknown; pastStaff?: unknown; phone?: unknown; mail?: unknown; address?: unknown; area?: unknown;
   /** v2.2.291 注文だけ */
   introductory?: unknown; event?: unknown; snap?: unknown; hotlead?: unknown; familyName?: unknown;
+  /** v2.2.296 商談・架電記録から検索する語（3事業。recordSearch.ts） */
+  record?: unknown;
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
@@ -85,6 +89,24 @@ const paginate = (filtered: Row[], p: DatabaseListParams): { page: number; perPa
   return { page, perPage, pageRows: filtered.slice((page - 1) * perPage, page * perPage) };
 };
 
+/**
+ * v2.2.296 商談・架電記録から検索する語があれば、当たった記録（顧客ID ごと）。無ければ null。
+ * ⚠️ ほかの条件と AND（顧客の絞り込みに「記録に当たった顧客」を足すだけ）。⚠️ 画面の予備（全件読み込み）にはこの条件は無い。
+ */
+const recordHitsOf = (p: DatabaseListParams): Promise<Map<string, RecordHitGroup> | null> => {
+  const keyword = recordKeywordOf(p.record);
+  return keyword === '' ? Promise.resolve(null) : searchRecords(keyword);
+};
+
+/** ⚠️ id は文字列のときだけ当てる（id が NULL の顧客を当てない） */
+const recordHit = (hits: Map<string, RecordHitGroup> | null, id: unknown): boolean =>
+  hits === null || (typeof id === 'string' && hits.has(id));
+
+/** 返すページの記録を body に足す（検索していないときは足さない） */
+const withRecords = (body: Record<string, unknown>, hits: Map<string, RecordHitGroup> | null, pageRows: Row[]): void => {
+  if (hits !== null) body.record = recordsOfPage(pageRows.map((r) => r.id), hits);
+};
+
 export const runDatabaseList = async (category: DatabaseCategory | 'used', p: DatabaseListParams): Promise<DatabaseListResult> => {
   if (category === 'order') return runOrderList(p);
   if (category === 'used') return runUsedList(p);
@@ -109,9 +131,10 @@ export const runDatabaseList = async (category: DatabaseCategory | 'used', p: Da
   const nameKey = clean(p.name), kanaKey = kataToHira(clean(p.kana)), staffText = str(p.staffText).split(' ')[0];
   const phone = str(p.phone), mail = str(p.mail), address = str(p.address), areaKey = clean(p.area);
   const pastStaff = str(p.pastStaff);
-  const [familyIds, pastIds] = await Promise.all([
+  const [familyIds, pastIds, recordHits] = await Promise.all([
     str(p.family) === '1' ? query<IdRow>(sql.family).then((r) => new Set(r.map((x) => String(x.id)))) : Promise.resolve(null),
     pastStaff !== '' ? pastStaffIds(pastStaff) : Promise.resolve(null),
+    recordHitsOf(p),
   ]);
 
   // ⚠️ DatabaseKaeru.tsx の filteredDatabase と同じ順・同じ条件
@@ -136,6 +159,7 @@ export const runDatabaseList = async (category: DatabaseCategory | 'used', p: Da
     && (callStatus ? s(c.call_status) === callStatus : true)
     && (familyIds !== null ? familyIds.has(s(c.id)) : true)
     && (pastIds !== null ? pastIds.has(s(c.id)) : true)
+    && recordHit(recordHits, c.id)
     // ⚠️ ランクが空の顧客は、追客中・追客終了のどちらにも入る（画面の arrIncludes が空の値を「当てはまる」と扱うため。今の動きのまま）
     && (follow === '追客中' ? (s(c.rank) === '' || FOLLOWING.includes(s(c.rank))) : follow === '追客終了' ? (s(c.rank) === '' || FOLLOW_ENDED.includes(s(c.rank))) : true));
   filtered.sort((a, b) => s(b.register).localeCompare(s(a.register)));
@@ -158,6 +182,7 @@ export const runDatabaseList = async (category: DatabaseCategory | 'used', p: Da
   await giftApplyToCustomers(rows, true);
 
   const body: Record<string, unknown> = { status: 'ok', total: filtered.length, page, perPage, customer: toColumnar(rows) };
+  withRecords(body, recordHits, pageRows);
   if (str(p.master) === '1') {
     const [staffRows, shopRows, mediumRows] = await Promise.all([query<DynamicRow>(sql.staff), query<DynamicRow>(sql.shop), query<DynamicRow>(sql.medium)]);
     Object.assign(body, { staff: staffRows, shop: shopRows, medium: mediumRows });
@@ -215,10 +240,11 @@ const runOrderList = async (p: DatabaseListParams): Promise<DatabaseListResult> 
   const familyName = str(p.familyName);
   const hotleadStatus = str(p.hotlead);
   const needFamily = str(p.family) === '1' || familyName !== '';
-  const [customers, familyRows, hotleadRows] = await Promise.all([
+  const [customers, familyRows, hotleadRows, recordHits] = await Promise.all([
     query<DynamicRow>(sql.customer) as unknown as Promise<Row[]>,
     needFamily ? (query<DynamicRow>(sql.family) as unknown as Promise<Row[]>) : Promise.resolve([] as Row[]),
     query<DynamicRow>(sql.hotlead as string) as unknown as Promise<Row[]>,
+    recordHitsOf(p),
   ]);
 
   const trash = str(p.trash) === '0' ? 0 : 1;
@@ -261,7 +287,8 @@ const runOrderList = async (p: DatabaseListParams): Promise<DatabaseListResult> 
     && (event ? (c.event === event && c.medium === 'イベント') : true)
     // ⚠️ 画面は item.k_snap の真偽で見ている（文字列の '0' も「登録済み」に入る。今の動きのまま）
     && (snap ? Boolean(c.k_snap) : true)
-    && (hotleadIds !== null ? hotleadIds.has(s(c.hotlead_id)) : true));
+    && (hotleadIds !== null ? hotleadIds.has(s(c.hotlead_id)) : true)
+    && recordHit(recordHits, c.id));
   filtered.sort((a, b) => s(b.register).localeCompare(s(a.register)));
   const { page, perPage, pageRows } = paginate(filtered, p);
   const rows = pageRows.map((c) => ({ ...c }));
@@ -273,6 +300,7 @@ const runOrderList = async (p: DatabaseListParams): Promise<DatabaseListResult> 
     status: 'ok', total: filtered.length, page, perPage, customer: toColumnar(rows),
     hotlead: hotleadRows.filter((h) => pageHotleadIds.has(s(h.id))),
   };
+  withRecords(body, recordHits, pageRows);
   if (str(p.master) === '1') {
     const [staffRows, shopRows, mediumRows, introductoryRows, eventRows] = await Promise.all([
       query<DynamicRow>(sql.staff), query<DynamicRow>(sql.shop), query<DynamicRow>(sql.medium),
@@ -355,9 +383,10 @@ const runUsedList = async (p: DatabaseListParams): Promise<DatabaseListResult> =
   const numberPart = name.includes('&') ? (name.split('&')[1] ?? '') : phone;
   const addressPart = name.includes('+') ? (name.split('+')[1] ?? '') : '';
   // ⚠️ id は文字列にせずそのまま比べる（画面の includes / find と同じ。⚠️ id が NULL の顧客を、id が空の家族・架電記録と結びつけない）
-  const familyIds = str(p.family) === '1'
-    ? new Set<unknown>((await query<IdRow>(usedSql.family)).map((r) => r.id))
-    : null;
+  const [familyIds, recordHits] = await Promise.all([
+    str(p.family) === '1' ? query<IdRow>(usedSql.family).then((r) => new Set<unknown>(r.map((x) => x.id))) : Promise.resolve(null),
+    recordHitsOf(p),
+  ]);
 
   // ⚠️ DatabaseResale.tsx の filteredDatabase と同じ順・同じ条件
   const filtered = customers.filter((c) =>
@@ -377,7 +406,8 @@ const runUsedList = async (p: DatabaseListParams): Promise<DatabaseListResult> =
     && (mail ? includes(c.mail, mail) : true)
     && (address ? clean(c.full_address).includes(address) : true)
     && (callStatus ? s(c.call_status) === callStatus : true)
-    && (familyIds !== null ? familyIds.has(c.id) : true));
+    && (familyIds !== null ? familyIds.has(c.id) : true)
+    && recordHit(recordHits, c.id));
   filtered.sort((a, b) => registerTime(b) - registerTime(a));
   const { page, perPage, pageRows } = paginate(filtered, p);
 
@@ -416,6 +446,7 @@ const runUsedList = async (p: DatabaseListParams): Promise<DatabaseListResult> =
   const body: Record<string, unknown> = {
     status: 'ok', total: filtered.length, page, perPage, customer: toColumnar(rows), broker: brokerRows,
   };
+  withRecords(body, recordHits, pageRows);
   if (str(p.master) === '1') {
     const [staffRows, mediumRows] = await Promise.all([query<DynamicRow>(usedSql.staff), query<DynamicRow>(usedSql.medium)]);
     Object.assign(body, { staff: staffRows, medium: mediumRows });

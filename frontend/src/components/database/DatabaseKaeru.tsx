@@ -24,6 +24,7 @@ import { RankingStyle } from '../rankingUi';
 import { DBK_CSS } from './databaseListStyle';
 // ⚠️ v2.2.291 GET の条件を画面の URL にも出す・URL の条件で開く
 import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
+import { isRecordSearch, RecordCell, RECORD_COL_WIDTH, RECORD_CSS, RecordSearchCard, type RecordMap } from './recordSearch';
 import { useCallStatusOptions, withCurrent } from './callStatusOptions';
 
 type shopList = { brand: string, shop: string, section: string };
@@ -129,6 +130,9 @@ const DatabaseKaeru = ({ }: Props) => {
      */
     const [serverMode, setServerMode] = useState(true);
     const [pageRows, setPageRows] = useState<CustomerList[]>([]);
+    /** v2.2.296 商談・架電記録から検索する語（⚠️ ボタンで決めた値。ほかの条件と一緒に ② に送る）と、今のページの当たった記録 */
+    const [recordSearch, setRecordSearch] = useState(initUrl.get('record'));
+    const [pageRecords, setPageRecords] = useState<RecordMap>({});
     const [serverTotal, setServerTotal] = useState(0);
     const [listLoading, setListLoading] = useState(false);
     /** 取り直すきっかけ（編集を閉じた・非表示に切り替えた・名寄せをしたあと） */
@@ -325,11 +329,12 @@ const DatabaseKaeru = ({ }: Props) => {
         medium: selectedMedium, status: selectedStatus, follow: selectedFollow, callStatus, family: familyStatus ? '1' : '',
         name: nameSearch.debouncedValue, kana: kanaSearch.debouncedValue, staffText: staffSearch.debouncedValue,
         pastStaff: pastStaffSearch.debouncedValue, phone: phoneSearch.debouncedValue, mail: mailSearch.debouncedValue,
-        address: addressSearch.debouncedValue, area: selectedArea,
+        address: addressSearch.debouncedValue, area: selectedArea, record: recordSearch,
     }).filter(([, v]) => v !== '')), [
         trash, selectedShop, selectedStaff, selectedRegister, selectedReserve, selectedRank, selectedMedium, selectedStatus,
         selectedFollow, callStatus, familyStatus, nameSearch.debouncedValue, kanaSearch.debouncedValue, staffSearch.debouncedValue,
         pastStaffSearch.debouncedValue, phoneSearch.debouncedValue, mailSearch.debouncedValue, addressSearch.debouncedValue, selectedArea,
+        recordSearch,
     ]);
 
     /**
@@ -374,6 +379,7 @@ const DatabaseKaeru = ({ }: Props) => {
                     mastersLoadedRef.current = true;
                 }
                 setPageRows(prepareCustomers(data.customer));
+                setPageRecords(data.record ?? {});
                 setServerTotal(Number(data.total) || 0);
                 setDisplayLength(Number(data.total) || 0);
                 // ⚠️ ページが件数より後ろなら、② が最後のページに寄せて返す。画面もそれに合わせる
@@ -395,6 +401,8 @@ const DatabaseKaeru = ({ }: Props) => {
     /** 表に出す行と件数（⚠️ ② で読むときは今のページの行。予備のときは画面で絞った結果を切る） */
     const visibleRows = serverMode ? pageRows : filteredDatabase.slice(sliceStart, sliceStart + basicLength);
     const totalCount = serverMode ? serverTotal : filteredDatabase.length;
+    /** v2.2.296 商談・架電記録から検索しているか（⚠️ 真のときだけ「商談・架電内容」の列を出す） */
+    const recordMode = isRecordSearch(recordSearch, serverMode);
 
     // ページングリンク
     const pages = {
@@ -546,6 +554,7 @@ const DatabaseKaeru = ({ }: Props) => {
         <>
             <RankingStyle />
             <style>{DBK_CSS}</style>
+            <style>{RECORD_CSS}</style>
             <div className='content database bg-white rk_wrap dbk_wrap'>
                 <div className="rk_head">
                     <span className="rk_title">顧客DB（建売分譲事業）</span>
@@ -743,6 +752,7 @@ const DatabaseKaeru = ({ }: Props) => {
                                 </li>
                             </ul>
                         </div>
+                        <RecordSearchCard value={recordSearch} onSearch={setRecordSearch} disabled={!serverMode} loading={listLoading} />
                         {!isSp && <>
                             {trash === 1 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(0)}>非表示リストへ移動</button>}
                             {trash === 0 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(1)}>一覧へ戻る</button>}
@@ -754,7 +764,7 @@ const DatabaseKaeru = ({ }: Props) => {
                     <GiftLegend />
                 </div>
                 <div className="w-100 dbk_table_wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <div style={{ width: '2020px' }}>{/* v2.2.288 入居希望地の列のぶん広げた（1900px → 2020px） */}
+                    <div style={{ width: `${2020 + (recordMode ? RECORD_COL_WIDTH : 0)}px` }}>{/* v2.2.288 入居希望地の列のぶん広げた（1900px → 2020px） */}
                         {/* ⚠️ v2.2.290 縞模様（striped）は外した。罫線・見出しの色は DBK_CSS の dbk_table */}
                         <Table className='dbk_table' style={{ fontSize: isSp ? '9px' : '12px', textAlign: 'center' }} bordered>
                             <tbody className='align-middle'>
@@ -764,6 +774,7 @@ const DatabaseKaeru = ({ }: Props) => {
                                     <td className='dbk_fix dbk_fix2'>店舗</td>
                                     <td className='dbk_fix dbk_fix3'>顧客名<br /><span className='text-success fw-bold'><i className="fa-solid fa-user-plus pe-1"></i>重複顧客</span></td>
                                     <td className='dbk_fix dbk_fix4'>担当営業</td>
+                                    {recordMode && <td>商談・架電内容</td>}
                                     <td>ステータス</td>
                                     <td>反響日</td>
                                     <td>初回面談</td>
@@ -800,6 +811,7 @@ const DatabaseKaeru = ({ }: Props) => {
                                                 name={item.customer ?? ''}
                                                 name2={item.customer_2} /></td>
                                             <td className='dbk_fix dbk_fix4'>{item.staff ?? ''}</td>
+                                            {recordMode && <RecordCell group={pageRecords[item.id ?? '']} />}
                                             <td>{item.status ?? ''}</td>
                                             <td>{formate(item.register)}</td>
                                             <td>{formate(item.interview) || formate(item.tour)}</td>
