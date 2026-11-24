@@ -39,7 +39,7 @@ import {
 import { runEventReservation } from '../features/event/reservation';
 import { runEventCheckin } from '../features/event/checkin';
 import type { CallStatusCategory } from '../features/callStatusList';
-import { runCallStatusList } from '../features/callStatusList';
+import { runCallStatusList, runCallStatusSummary } from '../features/callStatusList';
 import { runFamilyInfoShow, runFamilyInfoUpdate } from '../features/familyInfo';
 import { runEventSummary, runEventSummaryBudget, runEventSummaryDetail } from '../features/eventSummary';
 import {
@@ -388,6 +388,28 @@ for (const category of callStatusCategories) {
     phpSource: 'backend/src/handlers/callStatusList.php',
     auth: 'none',
     handler: async () => runCallStatusList(category === '' ? undefined : category),
+  });
+}
+
+/**
+ * 架電状況を期間で読む（v2.2.294。GET。header/callStatus/CallStatusList.tsx）。features/callStatusList.ts の runCallStatusSummary。
+ *
+ * ⚠️ ① に PHP ハンドラは無い（express_proxy.php の転送リストと転送専用リストの両方、db.php の GET_ALLOWED_REQUESTS に入れてある）。
+ *   ⚠️ ② に届かないときは、画面が上の callStatusList（POST・① の予備あり）に切り替えて全件を読み、画面で同じ条件で絞る。
+ * ⚠️ auth: 'staff'（⚠️ 上の callStatusList は移植元に合わせて 'none' のまま）。
+ */
+for (const category of ['order', 'spec', 'used'] as CallStatusCategory[]) {
+  register({
+    request: 'call_status_summary',
+    category,
+    summary: `架電状況を期間（from / to）で読む（${category}。期間の数字に要る顧客・架電シートだけ。GET）`,
+    phpSource: '（新規。PHP版なし）',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runCallStatusSummary(category, ctx.body as Record<string, unknown>);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
   });
 }
 

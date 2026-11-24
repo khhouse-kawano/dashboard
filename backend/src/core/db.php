@@ -22,11 +22,13 @@ $contentType = isset($_SERVER["CONTENT_TYPE"]) ? trim($_SERVER["CONTENT_TYPE"]) 
  * v2.2.277: 'shopTrend'（店舗別反響推移）を足した。
  * v2.2.287: アクセス解析の読み取り4つ（期間 startDate / endDate を送る。⚠️ ② 専用。tracking_site_save は書き込みなので入れない）。
  * v2.2.289: database_list（顧客DB を1ページずつ。条件・ページを送る。⚠️ ② 専用）。
+ * v2.2.294: call_status_summary（架電状況を期間で読む。from / to を送る。⚠️ ② 専用）。
  */
 const GET_ALLOWED_REQUESTS = [
     'list', 'shopTrend', 'customerTrend', // ⚠️ customerTrend は v2.2.278
     'tracking_site_list', 'tracking_site_summary', 'tracking_detail', 'tracking_vendor_funnel', // ⚠️ v2.2.287
     'database_list', // ⚠️ v2.2.289 顧客DB（建売）を1ページずつ（② 専用）
+    'call_status_summary', // ⚠️ v2.2.294 架電状況を期間で読む（② 専用）
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
