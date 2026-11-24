@@ -10,7 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import { setStyleClassUsed } from '../../utils/setStyleClassUsed';
 import { thisYear } from '../../utils/thisYear';
 import { useIsSp } from '../../utils/isSp';
-import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, positions, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField } from './listUtils';
+import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, positions, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, syncMediumOf } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
 import { useListPeriod } from './useListPeriod';
 import DuplicateBadge from './DuplicateBadge';
@@ -273,7 +273,8 @@ const ListResale = ({ onReload }: Props) => {
                 ...lineIdField(filteredCustomer.line_id),
                 postal_code: filteredCustomer.zip || '',
                 full_address: `${filteredCustomer.pref || ''} ${filteredCustomer.city || ''} ${filteredCustomer.town || ''} ${filteredCustomer.street || ''} ${filteredCustomer.building || ''}`,
-                sales_promotion_name: filteredCustomer.response_medium || '',
+                // ⚠️ v2.2.295 媒体が空なら「ネット検索」。検索の言い方はこの事業の媒体の表の名前にそろえる（listUtils.ts の syncMediumOf）
+                sales_promotion_name: syncMediumOf(filteredCustomer.response_medium, 'used'),
                 remarks: filteredCustomer.note || '',
                 reserved_interview: filteredCustomer.reserved_date || '',
                 hp_campaign: filteredCustomer.hp_campaign || '',

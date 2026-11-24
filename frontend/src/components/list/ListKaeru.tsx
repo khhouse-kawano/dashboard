@@ -9,7 +9,7 @@ import { generateULID } from '../../utils/createULID';
 import Modal from 'react-bootstrap/Modal';
 import { setStyleClassSpec } from '../../utils/setStyleClassSpec';
 import { thisYear } from '../../utils/thisYear';
-import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField } from './listUtils';
+import { dateFormate, monthFormate, fetchListData, handleBlack, toHalfWidth, matchesBlackList, isSummaryShop, summaryTableWidth, SUMMARY_COLUMN_WIDTH, lineIdField, filledField, syncMediumOf } from './listUtils';
 import BlackReasonModal from './BlackReasonModal';
 import { useListPeriod } from './useListPeriod';
 import DuplicateBadge from './DuplicateBadge';
@@ -366,7 +366,8 @@ const ListKaeru = ({ onReload }: Props) => {
                 ...filledField('landing_params', filteredCustomer.landing_params),
                 postal_code: filteredCustomer.zip || '',
                 full_address: `${filteredCustomer.pref || ''} ${filteredCustomer.city || ''} ${filteredCustomer.town || ''} ${filteredCustomer.street || ''} ${filteredCustomer.building || ''}`,
-                sales_promotion_name: filteredCustomer.response_medium || '',
+                // ⚠️ v2.2.295 媒体が空なら「Web検索」。検索の言い方はこの事業の媒体の表の名前にそろえる（listUtils.ts の syncMediumOf）
+                sales_promotion_name: syncMediumOf(filteredCustomer.response_medium, 'spec'),
                 remarks: filteredCustomer.note || '',
                 reserved_interview: filteredCustomer.reserved_date || '',
                 hp_campaign: filteredCustomer.hp_campaign || '',
