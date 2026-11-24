@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect, useContext } from 'react';
+import React, { useMemo, useState, useEffect, useContext, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Table from 'react-bootstrap/Table';
 import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
@@ -9,6 +10,7 @@ import { staffSorter } from '../../../utils/staffSorter';
 import { getYearMonthArray } from '../../../utils/getYearMonthArray';
 import { thisYear } from '../../../utils/thisYear';
 import AuthContext from '../../../context/AuthContext';
+import { descending } from '../../../utils/descending';
 
 
 // --- Types ---
@@ -82,6 +84,63 @@ const isInsideSalesShop = (s: shopList): boolean =>
 /** 合計行の見出し。⚠️ 熊本営業課以外も含むため「熊本営業課」とは書かない。 */
 const INSIDE_SALES_TOTAL_LABEL = 'インサイドセールス全体';
 
+/**
+ * v2.2.294 インサイドセールスの担当者（staff_list の shop）。
+ * ⚠️ 「インサイドセールス全体」の対応反響数は、今年度（thisYear）のこの店舗のスタッフが架電記録に名前を残した顧客。
+ */
+const INSIDE_SALES_STAFF_SHOP = 'インサイドセールス';
+
+/**
+ * v2.2.294 期間（開始月〜終了月）。⚠️ 月は 'YYYY/MM'（getYearMonthArray と同じ形）。② と URL には 'YYYY-MM' で送る。
+ * ⚠️ MAX_MONTHS は ② の features/callStatusList.ts の MAX_MONTHS と同じ。
+ */
+const MAX_MONTHS = 12;
+const DEFAULT_MONTHS = 6;
+const monthIndex = (ym: string): number => { const [y, m] = ym.split('/').map(Number); return y * 12 + m - 1; };
+const monthOf = (index: number): string => `${Math.floor(index / 12)}/${String((index % 12) + 1).padStart(2, '0')}`;
+const thisMonth = (): string => { const d = new Date(); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
+const defaultFrom = (): string => monthOf(monthIndex(thisMonth()) - (DEFAULT_MONTHS - 1));
+/** 'YYYY-MM'（URL・②）→ 'YYYY/MM'。⚠️ 形が違えば '' */
+const fromUrlMonth = (v: string | null): string => (v && /^\d{4}-(0[1-9]|1[0-2])$/.test(v) ? v.replace('-', '/') : '');
+const toUrlMonth = (ym: string): string => ym.replace('/', '-');
+const monthsBetween = (from: string, to: string): string[] =>
+    Array.from({ length: Math.max(0, monthIndex(to) - monthIndex(from) + 1) }, (_, i) => monthOf(monthIndex(from) + i));
+
+/**
+ * v2.2.294 期間の数字を出すのに要る分だけにする（⚠️ ② に届かず全件を読んだときに、画面で使う）。
+ * ⚠️⚠️ ② の features/callStatusList.ts の runCallStatusSummary と**同じ**絞り方。⚠️ 直すときは両方。
+ *   顧客      … 表示中（trash = 1）で、反響日が期間の月
+ *   架電シート … この事業の表示中の顧客のもので、架電記録に期間の月の日付がある・来場予定日が期間の月・上の顧客のもの
+ */
+const filterForPeriod = (customers: CustomerList[], callLogs: CallLogList[], months: string[]) => {
+    const hit = (v: string | undefined) => months.some(m => dateFormate(v ?? '').includes(m));
+    const visible = customers.filter(o => Number(o.trash) === 1);
+    const visibleIds = new Set(visible.map(o => String(o.id)));
+    const periodCustomers = visible.filter(o => hit(o.register));
+    const periodIds = new Set(periodCustomers.map(o => String(o.id)));
+    const logs = callLogs.filter(c => visibleIds.has(String(c.id)) && (
+        periodIds.has(String(c.id)) || hit(c.reserved_status) || parseLogs(c.call_log).some(a => hit(a?.day))
+    ));
+    return { customers: periodCustomers, callLogs: logs };
+};
+
+/** v2.2.294 インサイドセールスの表の見た目（Company.tsx の付箋のような区切りに合わせる。接頭辞 csl_） */
+const SHOP_COLORS = ['#2563eb', '#059669', '#d97706', '#dc2626', '#64748b', '#0891b2', '#7c3aed', '#db2777'];
+const CSL_STYLE = `
+.csl_period { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.csl_table { border-collapse: separate !important; border-spacing: 0; }
+.csl_table td, .csl_table th { border-color: #eef0f3 !important; }
+.csl_table tr.csl_gap > td { background: #f4f6f8 !important; border: 0 !important; padding: 0 !important; height: 10px; }
+.csl_table tr.csl_first > td { border-top: 2px solid #94a3b8 !important; }
+.csl_table td.csl_shop { border-left: 5px solid #cbd5e1 !important; background: #fff; }
+.csl_table td.csl_shop::before { content: '店舗'; display: block; width: max-content; margin-bottom: 3px; font-size: 9px; font-weight: 600;
+  letter-spacing: .1em; border-radius: 3px; padding: 0 6px; line-height: 1.6; background: rgba(15,23,42,.08); color: #334155; }
+.csl_table td.csl_shop.csl_total { background: #111827 !important; color: #fff; border-left-color: #111827 !important; }
+.csl_table td.csl_shop.csl_total::before { content: '合計'; background: #374151; color: #e5e7eb; }
+.csl_table tr.csl_total_row > td:not(.csl_shop) { background: #f8fafc; }
+${SHOP_COLORS.map((c, i) => `.csl_table td.csl_shop.csl_col${i} { border-left-color: ${c} !important; }`).join(' ')}
+`;
+
 const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) => {
     const [insideSalesCategory, setInsideSalesCategory] = useState('');
     const [targetShop, setTargetShop] = useState('');
@@ -98,82 +157,175 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
     const [targetInsideSales, setTargetInsideSales] = useState('');
 
     /**
+     * v2.2.294 期間（開始月〜終了月）。⚠️ はじめは今月までの6か月。
+     * ⚠️ ヘッダーの「架電状況」のページ（source あり）で開いたときだけ、URL の from / to（'YYYY-MM'）を読み・書く。
+     *   ⚠️ 顧客DB から開くモーダルでは URL に触らない（顧客DB の一覧の条件が URL に載っているため）。
+     */
+    const [searchParams, setSearchParams] = useSearchParams();
+    /** 開いたときの期間（⚠️ URL の from / to が正しく、12か月以内のときだけ使う。それ以外は既定の6か月） */
+    const [initPeriod] = useState(() => {
+        const sp = new URLSearchParams(window.location.search);
+        const urlFrom = source ? fromUrlMonth(sp.get('from')) : '';
+        const urlTo = source ? fromUrlMonth(sp.get('to')) : '';
+        const valid = urlFrom !== '' && urlTo !== '' && monthIndex(urlFrom) <= monthIndex(urlTo) && monthIndex(urlTo) - monthIndex(urlFrom) < MAX_MONTHS;
+        return valid ? { from: urlFrom, to: urlTo } : { from: defaultFrom(), to: thisMonth() };
+    });
+    const [periodFrom, setPeriodFrom] = useState(initPeriod.from);
+    const [periodTo, setPeriodTo] = useState(initPeriod.to);
+    /** 表の列に出す月（古い順） */
+    const displayMonths = useMemo(() => monthsBetween(periodFrom, periodTo), [periodFrom, periodTo]);
+
+    /** 開始月を選ぶ（⚠️ 終了月が前になる・12か月を超えるときは終了月を寄せる） */
+    const changeFrom = (value: string) => {
+        startRendering();
+        setPeriodFrom(value);
+        if (monthIndex(periodTo) < monthIndex(value)) setPeriodTo(value);
+        else if (monthIndex(periodTo) - monthIndex(value) >= MAX_MONTHS) setPeriodTo(monthOf(monthIndex(value) + MAX_MONTHS - 1));
+    };
+    /** 終了月を選ぶ（⚠️ 開始月が後になる・12か月を超えるときは開始月を寄せる） */
+    const changeTo = (value: string) => {
+        startRendering();
+        setPeriodTo(value);
+        if (monthIndex(value) < monthIndex(periodFrom)) setPeriodFrom(value);
+        else if (monthIndex(value) - monthIndex(periodFrom) >= MAX_MONTHS) setPeriodFrom(monthOf(monthIndex(value) - MAX_MONTHS + 1));
+    };
+
+    // ⚠️ v2.2.294 ページで開いたときは期間を URL にも出す（⚠️ 既定の6か月なら出さない。ほかのパラメータは残す）
+    useEffect(() => {
+        if (!source) return;
+        const next = new URLSearchParams(searchParams);
+        const isDefault = periodFrom === defaultFrom() && periodTo === thisMonth();
+        if (isDefault) { next.delete('from'); next.delete('to'); }
+        else { next.set('from', toUrlMonth(periodFrom)); next.set('to', toUrlMonth(periodTo)); }
+        if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+    }, [source, periodFrom, periodTo, searchParams, setSearchParams]);
+
+    /**
      * 読み込み中の表示（v2.2.177）。
      *
      * ⚠️ 時間がかかるのは2か所: ① 取得（call_sheet 全件など）② 表の集計（⚠️ 描画の中で全架電記録を数えている）。
      *   ・loading   … 取得中
      *   ・rendering … ⚠️ 表を描く前に一度スピナーを描かせるための目印。
      *     ⚠️ 集計は同期処理で画面が固まるので、⚠️ **先にスピナーを描いてから**（setTimeout）表を描く。
-     *     ⚠️ 店舗・担当を切り替えたときも立てる（⚠️ 集計し直しになるため）。
+     *     ⚠️ 店舗・担当・期間を切り替えたときも立てる（⚠️ 集計し直しになるため）。
+     * ⚠️⚠️ v2.2.294 rendering を true / false の state で持たない。⚠️ 番号（renderRequest）を増やし、描いた番号（renderDone）と比べる。
+     *   ⚠️ true / false だと、予備（全件を読み込み済み）で期間を変えたときに 表示を下ろしても画面に反映されず、
+     *     ⚠️ **「集計しています」のまま止まる**ことがあった（ローカルで再現。原因の特定はできていない）。
+     *   ⚠️ 番号なら、立てるたび・下ろすたびに必ず値が変わる。
      */
     const [loading, setLoading] = useState(false);
-    const [rendering, setRendering] = useState(true);
+    const [renderRequest, setRenderRequest] = useState(1);
+    const [renderDone, setRenderDone] = useState(0);
+    const rendering = renderDone !== renderRequest;
+    /** 集計し直す前に「集計しています」を出す（⚠️ 番号を1つ進める） */
+    const startRendering = () => setRenderRequest(n => n + 1);
     useEffect(() => {
         if (!rendering || loading) return;
-        const timer = window.setTimeout(() => setRendering(false), 50);
+        const target = renderRequest;
+        const timer = window.setTimeout(() => setRenderDone(target), 50);
         return () => window.clearTimeout(timer);
-    }, [rendering, loading]);
+    }, [rendering, loading, renderRequest]);
+
+    /**
+     * v2.2.294 ② から期間の分だけ GET で読む（request call_status_summary）。
+     * ⚠️⚠️ ② に届かないときは serverMode を false にして、今までの callStatusList（POST・① の予備あり）で全件を1回だけ読み（fullRef）、
+     *   期間を変えるたびに filterForPeriod（② と同じ絞り方）で絞る。
+     * ⚠️ 店舗・表示の初期値は最初の1回だけ決める（期間を変えても選んだ店舗・担当は変えない）。
+     */
+    const [serverMode, setServerMode] = useState(true);
+    const fullRef = useRef<{ customer: CustomerList[]; callLog: CallLogList[] } | null>(null);
+    const initializedRef = useRef(false);
+    const loadSeqRef = useRef(0);
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
         if (!callStatusShow) return;
+        const seq = ++loadSeqRef.current;
+        const months = monthsBetween(periodFrom, periodTo);
+
+        /** 担当・店舗を入れ、最初の1回だけ表示の初期値を決める */
+        const applyMasters = (shop: any[], staff: any[]) => {
+            const divisionMapping: Record<string, string> = {
+                'order': '注文事業',
+                'spec': '建売分譲事業',
+                'used': '中古リノベ'
+            };
+            const filteredShopList = shop.filter((s: any) => s.division === divisionMapping[categoryValue] && s.show_flag === 1);
+            setShopArray(filteredShopList);
+            setStaffArray(staff.filter((s: any) => Number(s.period) === thisYear));
+            if (initializedRef.current) return;
+            initializedRef.current = true;
+            if (categoryValue === 'order') {
+                setInsideSalesCategory('inside_sales');
+                setTargetShop('inside_sales');
+            } else if (categoryValue === 'used') {
+                setInsideSalesCategory('shopStaff');
+                setTargetShop('中古住宅専門店');
+            } else {
+                setInsideSalesCategory('shopStaff');
+                setTargetShop(filteredShopList.map((f: any) => f.shop)[0]);
+            }
+        };
+
+        /*
+          ⚠️⚠️ 応答の形を先に確かめる（v2.2.177 修正: `Cannot read properties of undefined (reading 'map')`）。
+            ⚠️ エラーの本文（{ status: 'error' … }）や途中で切れた応答だと callLog が無い。
+            ⚠️ 配列が揃っていなければ ⚠️ **何も state に入れずに**失敗として扱う。
+        */
+        const isValid = (body: any): boolean => Boolean(body) && Array.isArray(body.callLog) && Array.isArray(body.shop)
+            && Array.isArray(body.customer) && Array.isArray(body.staff);
+
         const fetchData = async () => {
             setLoading(true);
-            setRendering(true);
+            startRendering();
             try {
-                const response = await apiClient.post('', { request: 'callStatusList', category: categoryValue });
-                /*
-                  ⚠️⚠️ 応答の形を先に確かめる（v2.2.177 修正: `Cannot read properties of undefined (reading 'map')`）。
-                    ⚠️ 応答は 45〜60MB と大きく、⚠️ エラーの本文（{ status: 'error' … }）や途中で切れた応答だと
-                      ⚠️ callLog が無い。⚠️ 以前はそのまま setCallLogList(undefined) して ⚠️ **描画で落ちていた**（画面が真っ白）。
-                    ⚠️ 配列が揃っていなければ ⚠️ **何も state に入れずに**失敗として扱う。
-                */
-                const body = response?.data;
-                if (!body || !Array.isArray(body.callLog) || !Array.isArray(body.shop)
-                    || !Array.isArray(body.customer) || !Array.isArray(body.staff)) {
-                    console.error('架電状況の応答が正しくありません', typeof body === 'object' && body ? Object.keys(body) : typeof body);
-                    throw new Error('invalid callStatusList response');
+                if (serverMode) {
+                    try {
+                        const response = await apiClient.get('', {
+                            params: { request: 'call_status_summary', category: categoryValue, from: toUrlMonth(periodFrom), to: toUrlMonth(periodTo) },
+                        });
+                        if (seq !== loadSeqRef.current) return;
+                        const body = response?.data;
+                        if (!isValid(body)) throw new Error('invalid call_status_summary response');
+                        // ⚠️ ② が表示中の顧客・期間で絞ってある（v2.2.177 の show_dashboard = 1 の決まりも ② が守る）
+                        setCallLogList(body.callLog);
+                        setOriginalDatabase(body.customer);
+                        applyMasters(body.shop, body.staff);
+                        return;
+                    } catch (error) {
+                        if (seq !== loadSeqRef.current) return;
+                        console.error('call_status_summary に失敗しました。全件の読み込みに切り替えます:', error);
+                        // ⚠️ 全件の読み込みは serverMode が変わったあとの読み込みで行う（ここで読むと2回読む）
+                        setServerMode(false);
+                        return;
+                    }
                 }
-                /*
-                  ⚠️ v2.2.177 修正（指示）: ⚠️ **show_dashboard = 1 の顧客だけ**を集計の対象にする。
-                    ⚠️ サーバーは全件返す（⚠️ show_dashboard は `trash` という名前で入っている。⚠️ 名前と中身が逆なので注意）。
-                    ⚠️ 架電シートも ⚠️ **この事業の show_dashboard = 1 の顧客の分だけ**にする
-                      （⚠️ 非表示の顧客への架電を数えない）。⚠️ 顧客台帳に無い id の架電シートも数えない。
-                */
-                const visibleCustomers = body.customer.filter((o: any) => Number(o.trash) === 1);
-                const visibleIds = new Set(visibleCustomers.map((o: any) => String(o.id)));
-                setCallLogList(body.callLog.filter((c: any) => visibleIds.has(String(c.id))));
-                const divisionMapping: Record<string, string> = {
-                    'order': '注文事業',
-                    'spec': '建売分譲事業',
-                    'used': '中古リノベ'
-                };
-                const filteredShopList = body.shop.filter((s: any) => s.division === divisionMapping[categoryValue] && s.show_flag === 1);
-                setShopArray(filteredShopList);
-                setOriginalDatabase(visibleCustomers);
-                setStaffArray(body.staff.filter((s: any) => Number(s.period) === thisYear));
-
-                if (categoryValue === 'order') {
-                    setInsideSalesCategory('inside_sales');
-                    setTargetShop('inside_sales');
-                } else if (categoryValue === 'used') {
-                    setInsideSalesCategory('shopStaff');
-                    setTargetShop('中古住宅専門店');
-                } else {
-                    setInsideSalesCategory('shopStaff');
-                    setTargetShop(filteredShopList.map((f: any) => f.shop)[0]);
+                if (fullRef.current === null) {
+                    const response = await apiClient.post('', { request: 'callStatusList', category: categoryValue });
+                    const body = response?.data;
+                    if (!isValid(body)) {
+                        console.error('架電状況の応答が正しくありません', typeof body === 'object' && body ? Object.keys(body) : typeof body);
+                        throw new Error('invalid callStatusList response');
+                    }
+                    fullRef.current = { customer: body.customer, callLog: body.callLog };
+                    applyMasters(body.shop, body.staff);
                 }
+                if (seq !== loadSeqRef.current) return;
+                const { customers, callLogs } = filterForPeriod(fullRef.current.customer, fullRef.current.callLog, months);
+                setCallLogList(callLogs);
+                setOriginalDatabase(customers);
             } catch (error) {
                 alert('架電状況の取得に失敗しました');
                 console.error(error);
             } finally {
-                setLoading(false);
+                if (seq === loadSeqRef.current) setLoading(false);
             }
         };
-        fetchData();
-
-
-    }, [callStatusShow]);
+        // ⚠️ setTimeout(0) で1回にまとめる（開始月・終了月を両方寄せたとき・StrictMode で effect が2回走ったときに、2回読まない）
+        const timer = window.setTimeout(() => { void fetchData(); }, 0);
+        return () => window.clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [callStatusShow, periodFrom, periodTo, serverMode]);
 
     const insideSaleStaffs = staffArray.filter(s => s.inside === 1);
 
@@ -226,24 +378,38 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
         return (value ?? '').replace(/[\s\u3000]+/g, '');
     };
 
-    const filteredCustomer = useMemo(() => {
-        let ids: string[] = [];
+    /**
+     * v2.2.294 「インサイドセールス全体」の対応反響数に数える担当者（今年度・staff_list の shop がインサイドセールス）。
+     * ⚠️ staffArray は今年度（thisYear）だけに絞ってある。
+     */
+    const insideSalesStaffNames = useMemo(
+        () => staffArray.filter(s => s.shop === INSIDE_SALES_STAFF_SHOP).map(s => safeFormate(s.name)).filter(Boolean),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [staffArray]);
 
-        if (targetInsideSales && targetShop === 'inside_sales') {
-            ids = parsedCallLogs.filter(c =>
-                c.parsedActions.some(action =>
-                    safeFormate(action.staff).includes(safeFormate(targetInsideSales))
-                )
-            ).map(c => c.id);
+    /**
+     * 店舗（など）で絞った顧客。インサイドセールス表示では、担当者が架電記録に名前を残した顧客だけ（＝対応反響数）。
+     * ⚠️ v2.2.294 以前は「インサイドセールス全体」（担当を選んでいない）とき絞っておらず、対応反響数が総反響数と同じだった（指示書で修正）。
+     *   ⚠️ 今は、担当を選べばその人、選ばなければ今年度のインサイドセールスの担当者のだれかが記録に名前を残した顧客。
+     *   ⚠️ 名前の比べ方は担当を選んだときと同じ（空白を消して、記録の担当名に含まれるか）。
+     */
+    const filteredCustomer = useMemo(() => {
+        let ids: Set<string> | null = null;
+
+        if (targetShop === 'inside_sales') {
+            const names = targetInsideSales ? [safeFormate(targetInsideSales)] : insideSalesStaffNames;
+            ids = new Set(parsedCallLogs.filter(c =>
+                c.parsedActions.some(action => names.some(name => safeFormate(action.staff).includes(name)))
+            ).map(c => c.id));
         }
 
         return originalDatabase.filter(o => {
             const isShopMatch = targetShop !== 'estate' ? targetShopList.includes(o.shop) : true;
-            const isStaffMatch = (targetInsideSales && targetShop === 'inside_sales') ? ids.includes(o.id) : true;
+            const isStaffMatch = ids !== null ? ids.has(o.id) : true;
             return isShopMatch && isStaffMatch;
         });
 
-    }, [originalDatabase, targetShop, targetShopList, targetInsideSales, parsedCallLogs]);
+    }, [originalDatabase, targetShop, targetShopList, targetInsideSales, parsedCallLogs, insideSalesStaffNames]);
 
     const isThisMonth = (month: string) => month === `${String(yearValue).padStart(2, '0')}/${String(monthValue).padStart(2, '0')}`;
     const formate = (value: number, month: string) => {
@@ -254,7 +420,7 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
 
     const renderInsideSalesList = () => {
         /** ⚠️ 表に出す月（v2.2.177 修正: 合計列もこの月だけで数える） */
-        const insideMonths = monthArray.slice(8);
+        const insideMonths = displayMonths;
         // ⚠️ 先頭は合計行。sIndex === 0 を isTotalRow として扱うので、並び順を変えないこと。
         const displayShops: shopList[] = [
             { brand: '', shop: INSIDE_SALES_TOTAL_LABEL, section: INSIDE_SALES_SECTION, show_flag: 1 },
@@ -264,13 +430,14 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
 
         return (
             <div className="table-responsive shadow-sm rounded mb-3 border" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                <Table hover className="mb-0 bg-white" style={{ minWidth: `${monthArray.slice(8).length * 110 + 220}px` }} bordered>
+                {/* ⚠️ v2.2.294 店舗ごとに余白の行で区切り、店舗名の左に色の帯を付ける（Company.tsx の付箋のような作り。CSL_STYLE） */}
+                <Table hover className="mb-0 bg-white csl_table" style={{ minWidth: `${displayMonths.length * 110 + 220}px` }} bordered>
                     <thead className="bg-light text-muted" style={{ fontSize: '12px' }}>
                         <tr>
                             <th className="bg-light" style={{ position: 'sticky', top: 0, left: 0, width: '120px', minWidth: '120px', zIndex: 3 }}>店舗</th>
                             <th className="bg-light border-end" style={{ position: 'sticky', top: 0, left: '120px', width: '160px', minWidth: '160px', zIndex: 3 }}>種別</th>
                             <th className="bg-light text-center" style={{ position: 'sticky', top: 0, width: '80px', zIndex: 2 }}>合計</th>
-                            {monthArray.slice(8).map((month, mIndex) => (
+                            {displayMonths.map((month, mIndex) => (
                                 <th key={mIndex} className="bg-light text-center" style={{ position: 'sticky', top: 0, minWidth: '100px', zIndex: 2 }}>{month}</th>
                             ))}
                         </tr>
@@ -309,12 +476,16 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                             const appointFilter = customerFilter.filter(c => c.status === '来場アポ');
                             const interviewFilter = customerFilter.filter(c => c.status === '来場済み');
 
-                            return metrics.map((metric, index) => {
+                            return <React.Fragment key={s.shop}>
+                                {/* ⚠️ v2.2.294 店舗の前の余白（⚠️ data-gap の行は数字を持たない） */}
+                                {sIndex > 0 && <tr data-gap="" className="csl_gap"><td colSpan={displayMonths.length + 3}></td></tr>}
+                                {metrics.map((metric, index) => {
                                 const isImportant = index === 3 || index === 4;
                                 return (
-                                    <tr key={`${sIndex}-${index}`}>
+                                    <tr key={`${sIndex}-${index}`} className={`${index === 0 ? 'csl_first' : ''} ${isTotalRow ? 'csl_total_row' : ''}`}>
                                         {index === 0 && (
-                                            <td rowSpan={9} className="align-middle fw-bold bg-white" style={{ position: 'sticky', left: 0, width: '120px', minWidth: '120px', zIndex: 1 }}>
+                                            <td rowSpan={9} className={`align-middle fw-bold csl_shop ${isTotalRow ? 'csl_total' : `csl_col${(sIndex - 1) % SHOP_COLORS.length}`}`}
+                                                style={{ position: 'sticky', left: 0, width: '120px', minWidth: '120px', zIndex: 1 }}>
                                                 {s.shop}
                                             </td>
                                         )}
@@ -322,9 +493,9 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                                             {isImportant ? <Badge bg={index === 3 ? 'danger' : 'primary'} className="me-1">{metric}</Badge> : metric}
                                         </td>
 
-                                        {['total', ...monthArray.slice(8)].map((month, mIndex) => {
+                                        {['total', ...displayMonths].map((month, mIndex) => {
                                             /*
-                                              ⚠️ v2.2.177 修正: 合計列は ⚠️ **表に出ている月（monthArray.slice(8)）の分だけ**。
+                                              ⚠️ v2.2.177 修正: 合計列は ⚠️ **表に出ている月（displayMonths）の分だけ**。
                                                 ⚠️ 以前は全期間（mIndex === 0 なら true）で、⚠️ 月の列を足しても合計と合わなかった。
                                                 ⚠️ 月の列と同じ判定（includes）を表示中の月で回すので、⚠️ 月の列の合計と必ず一致する。
                                             */
@@ -362,7 +533,8 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                                         })}
                                     </tr>
                                 );
-                            });
+                                })}
+                            </React.Fragment>;
                         })}
                     </tbody>
                 </Table>
@@ -372,20 +544,20 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
 
     const renderShopStaffList = () => {
         /** ⚠️ 表に出す月（v2.2.177 修正: 合計列もこの月だけで数える） */
-        const staffMonths = monthArray.slice(12);
+        const staffMonths = displayMonths;
         console.log(changedStaff)
         const staffListToRender = [{ name: '合計', shop: '', pg_id: '', category: 0, estate: 1 } as unknown as staffList, ...changedStaff];
         const targetCategories = targetShop === 'estate' ? ['土地新着ネット反響数', '総架電数', '通電数', 'アポ取得数', '架電からの来場数'] : ['総架電数', '通電数', 'アポ取得数', '架電からの来場数'];
 
         return (
             <div className="table-responsive shadow-sm rounded mb-3 border" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                <Table hover className="mb-0 bg-white" style={{ minWidth: `${monthArray.slice(12).length * 100 + 470}px` }} bordered>
+                <Table hover className="mb-0 bg-white" style={{ minWidth: `${displayMonths.length * 100 + 470}px` }} bordered>
                     <thead className="bg-light text-muted" style={{ fontSize: '12px' }}>
                         <tr>
                             <th className="bg-light" style={{ position: 'sticky', top: 0, left: 0, width: '150px', minWidth: '150px', zIndex: 3 }}>担当</th>
                             <th className="bg-light border-end" style={{ position: 'sticky', top: 0, left: '150px', width: '240px', minWidth: '240px', zIndex: 3 }}>種別</th>
                             <th className="bg-light text-center" style={{ position: 'sticky', top: 0, width: '80px', zIndex: 2 }}>合計</th>
-                            {monthArray.slice(12).map((month, idx) => (
+                            {displayMonths.map((month, idx) => (
                                 <th key={idx} className="bg-light text-center" style={{ position: 'sticky', top: 0, minWidth: '100px', zIndex: 2 }}>{month}</th>
                             ))}
                         </tr>
@@ -450,10 +622,10 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                                                 })
                                                 : [];
 
-                                            return ['total', ...monthArray.slice(12)].map((month, mIndex) => {
+                                            return ['total', ...displayMonths].map((month, mIndex) => {
                                                 const targetMonthStr = mIndex > 0 ? dateFormate(month) : '';
                                                 /*
-                                                  ⚠️ v2.2.177 修正: 合計列は ⚠️ **表に出ている月（monthArray.slice(12)）の分だけ**。
+                                                  ⚠️ v2.2.177 修正: 合計列は ⚠️ **表に出ている月（displayMonths）の分だけ**。
                                                     ⚠️ 以前は全期間で、⚠️ 月の列を足しても合計と合わなかった。
                                                     ⚠️ 月の列と同じ判定を表示中の月で回す（⚠️ 月の列の合計と必ず一致する）。
                                                 */
@@ -501,6 +673,31 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
         );
     };
 
+    /**
+     * v2.2.294 期間（開始月・終了月）。⚠️ 選択肢は新しい順（descending）。⚠️ 最長12か月（超えるともう片方を寄せる）。
+     * ⚠️ 選んだ月の分だけを読み直す（② に届かないときは、読み込み済みの全件を絞り直す）。
+     */
+    const periodSelect = (
+        <div className="csl_period mb-3 px-1">
+            <div>
+                <Form.Label className="text-muted small fw-bold mb-1">開始月</Form.Label>
+                <Form.Select aria-label="開始月" value={periodFrom} onChange={(e) => changeFrom(e.target.value)}
+                    style={{ fontSize: '13px', width: '130px' }} className="shadow-sm border-0">
+                    {descending(monthArray).map(m => <option key={m} value={m}>{m}</option>)}
+                </Form.Select>
+            </div>
+            <div className="pb-2 text-muted">〜</div>
+            <div>
+                <Form.Label className="text-muted small fw-bold mb-1">終了月</Form.Label>
+                <Form.Select aria-label="終了月" value={periodTo} onChange={(e) => changeTo(e.target.value)}
+                    style={{ fontSize: '13px', width: '130px' }} className="shadow-sm border-0">
+                    {descending(monthArray).map(m => <option key={m} value={m}>{m}</option>)}
+                </Form.Select>
+            </div>
+            <div className="pb-2 text-muted" style={{ fontSize: '11px' }}>{displayMonths.length}か月（最長{MAX_MONTHS}か月）</div>
+        </div>
+    );
+
     const selectCategory = (
         <div className="d-flex justify-content-start align-items-center mb-4 px-1">
             <div className="w-25 min-w-200 me-3">
@@ -509,7 +706,7 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                     value={targetShop}
                     onChange={(e) => {
                         // ⚠️ v2.2.177: 集計し直しになるので先に読み込み中を出す
-                        setRendering(true);
+                        startRendering();
                         setTargetShop(e.target.value);
                         setInsideSalesCategory(e.target.value === 'inside_sales' ? 'inside_sales' : 'shopStaff');
                     }}
@@ -533,7 +730,7 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                     value={targetInsideSales}
                     onChange={(e) => {
                         // ⚠️ v2.2.177: 集計し直しになるので先に読み込み中を出す
-                        setRendering(true);
+                        startRendering();
                         setTargetInsideSales(e.target.value)
                     }}
                     style={{ fontSize: '13px' }}
@@ -565,8 +762,9 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
         : (insideSalesCategory === 'shopStaff' ? renderShopStaffList() : renderInsideSalesList());
 
     return (
-        <>{source ?
+        <><style>{CSL_STYLE}</style>{source ?
             <>
+                {periodSelect}
                 { selectCategory}
                 {statsOrLoading}
             </>
@@ -578,6 +776,7 @@ const CallStatusList = ({ callStatusShow, setCallStatusShow, source }: Props) =>
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body className="bg-light pt-4">
+                    {periodSelect}
                     {categoryValue !== 'used' && selectCategory}
                     {statsOrLoading}
                 </Modal.Body>

@@ -816,6 +816,10 @@ function expressProxyRequests(): array
         'call_status_save',
         'inside_staff_save',
 
+        // ⚠️ 2026-11-23（v2.2.294）。架電状況を期間で読む（header/callStatus/CallStatusList.tsx。画面は GET）。⚠️ ① に PHP ハンドラは無い（② だけ）。
+        //   ⚠️ 両方のリストに入れてある。② に届かないときは、画面が今までの callStatusList（POST・① の予備あり）に切り替える。
+        'call_status_summary',
+
         // ⚠️ 2026-11-17（v2.2.276）。反響一覧の重複の詳細（list/DuplicateBadge.tsx）。⚠️ ① に PHP ハンドラは無い（② だけ）。
         //   ⚠️ expressProxyExclusive() にも入れてある（② に届かないときは 502。画面のモーダルに失敗と出る）。
         'inquiryDup',
@@ -1172,6 +1176,9 @@ function expressProxyExclusive(): array
         'call_status_admin',
         'call_status_save',
         'inside_staff_save',
+
+        // ⚠️ 2026-11-23（v2.2.294）。架電状況を期間で読む。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す。画面は callStatusList に切り替える）。
+        'call_status_summary',
 
         // ⚠️ 2026-11-17（v2.2.276）。反響一覧の重複の詳細。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す）。
         'inquiryDup',
