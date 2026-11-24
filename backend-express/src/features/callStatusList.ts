@@ -153,3 +153,92 @@ export const runCallStatusList = async (
     event,
   };
 };
+
+// ---------------------------------------------------------------------------
+// 期間を選んで読む（v2.2.294。request call_status_summary。GET。画面は header/callStatus/CallStatusList.tsx）
+//
+// ⚠️⚠️ 上の callStatusList（POST）は全顧客・全架電シート（45〜60MB）を返し、画面が月ごとに数えていた。
+//   ⚠️ こちらは、選んだ期間の数字を出すのに要る分だけを返す。⚠️ callStatusList は ② に届かないときの予備として残す。
+// ⚠️⚠️ 絞り方は CallStatusList.tsx の filterForPeriod（予備で全件を読んだときに画面で同じことをする）と**同じ**。⚠️ 直すときは両方。
+//   顧客      … 表示中（show_dashboard = 1。列名は trash）で、反響日（register）が期間の月に入る人
+//   架電シート … この事業の表示中の顧客のもので、次のどれか
+//               ・架電記録（call_log）に期間の月の日付がある
+//               ・来場予定日（reserved_status）が期間の月
+//               ・上の顧客のもの
+//               ⚠️ 架電記録は丸ごと返す（画面は「最後の記録の日付」や「その担当の記録があるか」を見るため）
+// ⚠️ 月の比べ方は画面と同じ（'-' を '/' にして 'YYYY/MM' を含むか）。
+// ---------------------------------------------------------------------------
+
+/** 期間の上限（月）。⚠️ 画面の CallStatusList.tsx の MAX_MONTHS と同じ */
+const MAX_MONTHS = 12;
+const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+const toYm = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+/** from〜to の月（'YYYY/MM'）。⚠️ 逆さま・上限を超える・形が違うときは null */
+export const monthsBetween = (from: string, to: string): string[] | null => {
+  const a = MONTH.exec(from), b = MONTH.exec(to);
+  if (!a || !b) return null;
+  const start = Number(a[1]) * 12 + Number(a[2]) - 1;
+  const end = Number(b[1]) * 12 + Number(b[2]) - 1;
+  if (end < start || end - start + 1 > MAX_MONTHS) return null;
+  return Array.from({ length: end - start + 1 }, (_, i) => {
+    const n = start + i;
+    return `${Math.floor(n / 12)}/${String((n % 12) + 1).padStart(2, '0')}`;
+  });
+};
+
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+const monthHit = (value: unknown, months: string[]): boolean => {
+  const d = String(value ?? '').replace(/-/g, '/');
+  return months.some((m) => d.includes(m));
+};
+
+/** 架電記録（JSON）を読む（画面の parseLogs と同じ。⚠️ 1件だけのオブジェクトは配列にする） */
+const parseLogs = (raw: unknown): { day?: unknown }[] => {
+  if (typeof raw !== 'string' || raw.trim() === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as { day?: unknown }[];
+    if (parsed !== null && typeof parsed === 'object') return [parsed as { day?: unknown }];
+    return [];
+  } catch {
+    return [];
+  }
+};
+
+export interface CallStatusSummaryResult { httpStatus: number; body: Record<string, unknown> }
+
+export const runCallStatusSummary = async (
+  category: CallStatusCategory,
+  p: Record<string, unknown>
+): Promise<CallStatusSummaryResult> => {
+  // ⚠️ 既定は今月までの6か月（⚠️ 本番の ② は Asia/Tokyo）
+  const now = new Date();
+  const from = str(p.from) || toYm(new Date(now.getFullYear(), now.getMonth() - 5, 1));
+  const to = str(p.to) || toYm(now);
+  const months = monthsBetween(from, to);
+  if (months === null) {
+    return { httpStatus: 400, body: { status: 'error', message: `期間は ${MAX_MONTHS}か月までで、開始月を終了月より前にしてください。` } };
+  }
+
+  const [staff, shop, customers, callSheets] = await Promise.all([
+    query<DynamicRow>(STAFF_SQL),
+    query<DynamicRow>(SHOP_SQL),
+    query<DynamicRow>(customerSql(CUSTOMER_TABLES[category])),
+    query<DynamicRow>(CALL_SQL),
+  ]);
+
+  // ⚠️ CallStatusList.tsx の filterForPeriod と同じ
+  const visible = customers.filter((o) => Number(o.trash) === 1);
+  const visibleIds = new Set(visible.map((o) => String(o.id)));
+  const periodCustomers = visible.filter((o) => monthHit(o.register, months));
+  const periodIds = new Set(periodCustomers.map((o) => String(o.id)));
+  const callLog = callSheets.filter((c) => visibleIds.has(String(c.id)) && (
+    periodIds.has(String(c.id))
+    || monthHit(c.reserved_status, months)
+    || parseLogs(c.call_log).some((a) => monthHit(a?.day, months))
+  ));
+
+  return { httpStatus: 200, body: { status: 'ok', from, to, staff, shop, customer: periodCustomers, callLog } };
+};
