@@ -29,6 +29,7 @@ import { InquiryAmbassador } from './ambassador/InquiryAmbassador';
 import InquiryIntroductory from './introductory/InquiryIntroductory';
 import IntroductorySummary from './introductory/IntroductorySummary';
 import EventList from './event/EventList';
+import EventFormBuilder from './event/EventFormBuilder';
 import EventSummary from './event/EventSummary';
 import EventBudget from './event/EventBudget';
 import FestaDashboard from './event/FestaDashboard';
@@ -190,6 +191,8 @@ export const HEADER_SCREENS: HeaderScreen[] = [
 
     // ── 集客イベント
     { menu: '集客イベント', item: '反響一覧', path: '/eventInquiry', render: () => <EventList /> },
+    // ⚠️ v2.2.298 イベントの予約フォームを作る。⚠️ 反響一覧と同じく全員（allow なし。② も auth staff だけ）
+    { menu: '集客イベント', item: 'フォーム作成', path: '/eventForm', render: () => <EventFormBuilder /> },
     {
         menu: '集客イベント', item: '集客サマリー', path: '/eventSummary', render: () => <EventSummary />,
         link: { label: '広告費入力', icon: 'fa-solid fa-yen-sign', path: '/eventBudget' },

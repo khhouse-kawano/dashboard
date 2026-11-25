@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------
+# イベントの予約フォーム（v2.2.298）の .htaccess
+#
+# 配置先: ① khg-marketing.info の public_html/form/.htaccess（index.html と同じ場所）
+#
+# ⚠️ /form/<番号>/ を index.html に向ける（番号ごとにフォルダやファイルは作らない。番号は画面の JS が URL から読む）。
+# ⚠️ index.html は毎回確かめさせる（古い index.html が残ると、直した内容が届かない。backend/forms/form-htaccess.txt と同じ事故を防ぐ）。
+# ---------------------------------------------------------------------------
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /form/
+    RewriteRule ^[0-9]+/?$ index.html [L]
+</IfModule>
+
+<FilesMatch "^index\.html$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache, must-revalidate"
+        Header set Pragma "no-cache"
+    </IfModule>
+</FilesMatch>

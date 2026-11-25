@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>イベントのご予約</title>
+<!--
+  イベントの予約フォーム（v2.2.298。Dashboard の「集客イベント → フォーム作成」で作る）。
+
+  ⚠️ 置き場所: ① khg-marketing.info の public_html/form/（index.html と .htaccess の2つ）。
+    ⚠️ /form/<番号>/ は .htaccess でこのファイルに向ける（番号ごとにファイルは作らない）。番号は URL から読む。
+  ⚠️ 送り先は ② api.khg-marketing.info（event_form_public・event_form_entry）。⚠️ khg-marketing.info そのものには送らない。
+  ⚠️ 入力欄（名前・種類・選択肢・必須）は ② が返す（features/eventForm/fields.ts が元）。ここに一覧を写さない。
+  ⚠️ 見た目は form_get（publicForm.css の .pf-*）に合わせている。ライトのみ（家のページの CSS に影響されないよう色はすべて明示）。
+  ⚠️ ローカルでは ?id=番号 でも開ける（localhost のときだけ）。
+-->
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #f5f7fa; }
+.pf {
+    --pf-accent: #0f3675; --pf-ink: #1d2433; --pf-sub: #5b6476; --pf-line: #d5dbe5;
+    --pf-surface: #f5f7fa; --pf-field: #ffffff; --pf-danger: #c62828; --pf-danger-bg: #fdecec;
+    --pf-radius: 10px;
+    max-width: 640px; margin: 0 auto; padding: 24px 16px 48px;
+    color: var(--pf-ink);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+    font-size: 15px; line-height: 1.7; letter-spacing: .02em; -webkit-font-smoothing: antialiased;
+}
+.pf-steps { display: flex; justify-content: center; gap: 6px; margin: 0 0 24px; padding: 0; list-style: none; font-size: 12px; color: var(--pf-sub); }
+.pf-steps li { display: flex; align-items: center; gap: 6px; }
+.pf-steps li + li::before { content: ""; width: 18px; height: 1px; background: var(--pf-line); }
+.pf-steps .pf-step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;
+    border: 1px solid var(--pf-line); background: #fff; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pf-steps li[aria-current="step"] { color: var(--pf-ink); font-weight: 700; }
+.pf-steps li[aria-current="step"] .pf-step-num { border-color: var(--pf-accent); background: var(--pf-accent); color: #fff; }
+.pf-eyebrow { margin: 0 0 4px; text-align: center; font-size: 12px; font-weight: 700; color: var(--pf-accent); letter-spacing: .12em; }
+.pf-title { margin: 0 0 6px; text-align: center; font-size: 20px; font-weight: 700; line-height: 1.5; text-wrap: balance; }
+.pf-lead { margin: 0 0 24px; text-align: center; font-size: 13px; color: var(--pf-sub); }
+.pf-card { display: flex; flex-direction: column; gap: 18px; padding: 20px; margin: 0 0 16px; border: 1px solid var(--pf-line); border-radius: 14px;
+    background: #fff; box-shadow: 0 1px 2px rgba(29,36,51,.04); }
+.pf-card-title { margin: 0; font-size: 13px; font-weight: 700; color: var(--pf-sub); letter-spacing: .08em; }
+.pf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pf-label { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 13px; font-weight: 600; line-height: 1.5; color: var(--pf-ink); }
+.pf-badge { flex: none; display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.6; letter-spacing: .04em; }
+.pf-badge-req { background: var(--pf-danger-bg); color: var(--pf-danger); }
+.pf-badge-opt { background: var(--pf-surface); color: var(--pf-sub); }
+.pf-input, .pf-select, .pf-textarea { width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid var(--pf-line); border-radius: var(--pf-radius);
+    background: var(--pf-field); color: var(--pf-ink); font: inherit; font-size: 16px; line-height: 1.5; transition: border-color .15s, box-shadow .15s;
+    appearance: none; -webkit-appearance: none; }
+.pf-input::placeholder, .pf-textarea::placeholder { color: #9aa3b2; }
+.pf-select { padding-right: 40px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--pf-sub) 50%), linear-gradient(135deg, var(--pf-sub) 50%, transparent 50%);
+    background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+.pf-textarea { min-height: 120px; resize: vertical; }
+.pf-input:focus, .pf-select:focus, .pf-textarea:focus { outline: none; border-color: var(--pf-accent); box-shadow: 0 0 0 3px rgba(15,54,117,.22); }
+.pf-field[data-invalid="1"] .pf-input, .pf-field[data-invalid="1"] .pf-select, .pf-field[data-invalid="1"] .pf-textarea { border-color: var(--pf-danger); }
+.pf-field[data-invalid="1"] .pf-choice label { border-color: var(--pf-danger); }
+.pf-error { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 600; color: var(--pf-danger); }
+.pf-error::before { content: "!"; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--pf-danger); color: #fff; font-size: 11px; font-weight: 700; }
+.pf-error[hidden] { display: none; }
+.pf-inline { display: flex; gap: 8px; align-items: stretch; }
+.pf-inline .pf-input { flex: 1; }
+/* 選ぶ欄（きっかけ・ご自宅）。⚠️ ボタンの形のラジオ。押しやすいよう最低 44px */
+.pf-choice { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
+.pf-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.pf-choice label { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 16px; border: 1px solid var(--pf-line); border-radius: 999px;
+    background: #fff; font-size: 14px; cursor: pointer; transition: background-color .15s, border-color .15s; }
+.pf-choice input:checked + label { border-color: var(--pf-accent); background: var(--pf-accent); color: #fff; font-weight: 700; }
+.pf-choice input:focus-visible + label { outline: 3px solid rgba(15,54,117,.35); outline-offset: 2px; }
+.pf-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 28px 0 0; }
+.pf-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 18px; border-radius: var(--pf-radius);
+    border: 1px solid var(--pf-line); background: #fff; color: var(--pf-ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: filter .15s, background-color .15s; }
+.pf-btn:hover { background: var(--pf-surface); }
+.pf-btn:focus-visible { outline: 3px solid rgba(15,54,117,.35); outline-offset: 2px; }
+.pf-btn-primary { width: 100%; max-width: 360px; min-height: 54px; border-color: var(--pf-accent); background: var(--pf-accent); color: #fff; font-size: 16px;
+    font-weight: 700; letter-spacing: .06em; }
+.pf-btn-primary:hover { background: var(--pf-accent); filter: brightness(.92); }
+.pf-btn-primary:disabled { filter: grayscale(.4) brightness(1.05); cursor: progress; }
+.pf-summary { margin: 0; display: grid; grid-template-columns: 1fr; gap: 0; }
+.pf-summary div { padding: 12px 0; border-bottom: 1px solid var(--pf-line); }
+.pf-summary div:last-child { border-bottom: 0; }
+.pf-summary dt { font-size: 12px; font-weight: 700; color: var(--pf-sub); }
+.pf-summary dd { margin: 2px 0 0; white-space: pre-wrap; word-break: break-word; }
+@media (min-width: 480px) {
+    .pf-summary div { display: grid; grid-template-columns: 180px 1fr; gap: 12px; }
+    .pf-summary dd { margin: 0; }
+}
+.pf-state { padding: 48px 16px; text-align: center; color: var(--pf-sub); font-size: 14px; }
+.pf-done { text-align: center; padding: 32px 20px; }
+.pf-done-icon { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: var(--pf-accent);
+    color: #fff; font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+.pf-alert { margin: 0 0 16px; padding: 12px 14px; border-radius: var(--pf-radius); background: var(--pf-danger-bg); color: var(--pf-danger); font-size: 13px; font-weight: 600; }
+.pf-alert[hidden] { display: none; }
+/* ⚠️ ロボットよけの欄。人には見せない（display:none だと入力しないロボットもいるので画面の外へ出す） */
+.pf-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="pf" id="app">
+    <p class="pf-state">読み込み中…</p>
+</main>
+<script>
+(function () {
+    'use strict';
+
+    var local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    var ENDPOINT = local ? 'http://localhost:3001/api/gateway' : 'https://api.khg-marketing.info/api/gateway';
+
+    // ⚠️ 番号は /form/<番号>/ から読む（ローカルだけ ?id= も読む）
+    var m = /\/form\/(\d+)\/?/.exec(location.pathname);
+    var formId = m ? m[1] : (local ? (new URLSearchParams(location.search).get('id') || '') : '');
+
+    var app = document.getElementById('app');
+    var form = null;        // ② が返した設定
+    var values = {};        // 入力した値（key → 文字）
+    var step = 1;           // 1 入力・2 確認・3 完了
+
+    /** 要素を作る（⚠️ 文字は必ず textContent で入れる。innerHTML に値を入れない） */
+    function el(tag, attrs, children) {
+        var node = document.createElement(tag);
+        Object.keys(attrs || {}).forEach(function (k) {
+            if (k === 'text') node.textContent = attrs[k];
+            else if (k === 'className') node.className = attrs[k];
+            else if (k.indexOf('on') === 0) node.addEventListener(k.slice(2), attrs[k]);
+            else if (attrs[k] !== false && attrs[k] !== null && attrs[k] !== undefined) node.setAttribute(k, attrs[k] === true ? '' : attrs[k]);
+        });
+        (children || []).forEach(function (c) { if (c) node.appendChild(c); });
+        return node;
+    }
+
+    function post(body) {
+        return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+            .then(function (res) {
+                return res.json().catch(function () { return {}; }).then(function (json) { return { status: res.status, json: json }; });
+            });
+    }
+
+    function state(text) {
+        app.innerHTML = '';
+        app.appendChild(el('p', { className: 'pf-state', text: text }));
+    }
+
+    function steps() {
+        return el('ol', { className: 'pf-steps', 'aria-label': '手続きの段階' }, ['入力', '確認', '完了'].map(function (label, i) {
+            return el('li', { 'aria-current': step === i + 1 ? 'step' : false }, [el('span', { className: 'pf-step-num', text: String(i + 1) }), document.createTextNode(label)]);
+        }));
+    }
+
+    function header() {
+        return [
+            steps(),
+            form.date ? el('p', { className: 'pf-eyebrow', text: form.date }) : null,
+            el('h1', { className: 'pf-title', text: form.name }),
+        ];
+    }
+
+    // ---- 入力のチェック（⚠️ ② も同じ規則で確かめる。ここは早く知らせるため）
+    function digits(s) {
+        return String(s || '').replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xfee0); }).replace(/[^0-9]/g, '');
+    }
+    function check(f, v) {
+        var value = String(v || '').trim();
+        if (value === '') return f.required ? (f.label + 'を' + (f.kind === 'radio' || f.kind === 'number' ? '選んで' : '入力して') + 'ください。') : '';
+        if (f.kind === 'tel' && !/^\d{10,11}$/.test(digits(value))) return f.label + 'は10〜11桁の数字で入力してください。';
+        if (f.kind === 'email' && !/^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/.test(value)) return f.label + 'の形が正しくありません。';
+        if (f.kind === 'zip' && !/^\d{7}$/.test(digits(value))) return f.label + 'は7桁の数字で入力してください。';
+        return '';
+    }
+
+    function setError(key, message) {
+        var field = app.querySelector('[data-key="' + key + '"]');
+        if (!field) return;
+        field.setAttribute('data-invalid', message ? '1' : '0');
+        var p = field.querySelector('.pf-error');
+        p.textContent = message;
+        p.hidden = !message;
+    }
+
+    function lookupZip(button) {
+        var zip = digits(values.zip);
+        if (zip.length !== 7) { setError('zip', '郵便番号は7桁の数字で入力してください。'); return; }
+        button.disabled = true;
+        fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode=' + zip)
+            .then(function (res) { return res.json(); })
+            .then(function (json) {
+                var r = json && json.results && json.results[0];
+                if (!r) { setError('zip', '住所が見つかりませんでした。郵便番号をご確認ください。'); return; }
+                setError('zip', '');
+                var input = app.querySelector('[data-key="address"] input');
+                if (input) {
+                    values.address = r.address1 + r.address2 + r.address3;
+                    input.value = values.address;
+                    input.focus();
+                }
+            })
+            .catch(function () { setError('zip', '住所を検索できませんでした。お手数ですが住所を入力してください。'); })
+            .then(function () { button.disabled = false; });
+    }
+
+    function control(f) {
+        var id = 'f_' + f.key;
+        var onInput = function (e) { values[f.key] = e.target.value; };
+        if (f.kind === 'radio') {
+            return el('div', { className: 'pf-choice', role: 'radiogroup', 'aria-labelledby': id + '_label' }, f.options.map(function (o, i) {
+                return el('span', {}, [
+                    el('input', { type: 'radio', name: f.key, id: id + '_' + i, value: o, checked: values[f.key] === o, onchange: onInput }),
+                    el('label', { 'for': id + '_' + i, text: o }),
+                ]);
+            }));
+        }
+        if (f.kind === 'number') {
+            var opts = [el('option', { value: '', text: '選択してください' })];
+            for (var n = 0; n <= 10; n++) opts.push(el('option', { value: String(n), text: n + '人', selected: values[f.key] === String(n) }));
+            return el('select', { className: 'pf-select', id: id, onchange: onInput }, opts);
+        }
+        if (f.kind === 'textarea') {
+            var ta = el('textarea', { className: 'pf-textarea', id: id, placeholder: f.placeholder || false, maxlength: '1000', oninput: onInput });
+            ta.value = values[f.key] || '';
+            return ta;
+        }
+        var input = el('input', {
+            className: 'pf-input', id: id,
+            type: f.kind === 'tel' ? 'tel' : f.kind === 'email' ? 'email' : 'text',
+            inputmode: f.kind === 'tel' || f.kind === 'zip' ? 'numeric' : false,
+            autocomplete: f.autocomplete || false, placeholder: f.placeholder || false, oninput: onInput,
+        });
+        input.value = values[f.key] || '';
+        if (f.kind !== 'zip') return input;
+        var button = el('button', { type: 'button', className: 'pf-btn', text: '住所を検索' });
+        button.addEventListener('click', function () { lookupZip(button); });
+        return el('div', { className: 'pf-inline' }, [input, button]);
+    }
+
+    function fieldBlock(f) {
+        return el('div', { className: 'pf-field', 'data-key': f.key }, [
+            el('label', { className: 'pf-label', id: 'f_' + f.key + '_label', 'for': f.kind === 'radio' ? false : 'f_' + f.key }, [
+                el('span', { className: 'pf-badge ' + (f.required ? 'pf-badge-req' : 'pf-badge-opt'), text: f.required ? '必須' : '任意' }),
+                document.createTextNode(f.label),
+            ]),
+            control(f),
+            el('p', { className: 'pf-error', role: 'alert', hidden: true }),
+        ]);
+    }
+
+    // ⚠️ カードの分け方。欄を足したら、ここに入れないと「その他」に出る
+    var GROUPS = [
+        { title: 'お客様情報', keys: ['name', 'kana', 'phone', 'mail'] },
+        { title: 'ご住所', keys: ['zip', 'address', 'street'] },
+        { title: 'ご参加について', keys: ['adult', 'child', 'medium'] },
+        { title: 'お住まいについて', keys: ['house', 'area', 'site'] },
+    ];
+
+    function renderInput(alert) {
+        step = 1;
+        app.innerHTML = '';
+        header().forEach(function (n) { if (n) app.appendChild(n); });
+        app.appendChild(el('p', { className: 'pf-lead', text: '以下の項目をご入力のうえ、「確認画面へ」を押してください。' }));
+        var box = el('div', { className: 'pf-alert', role: 'alert', hidden: !alert, text: alert || '' });
+        app.appendChild(box);
+
+        var used = {};
+        var cards = GROUPS.concat([{ title: 'その他', keys: form.fields.map(function (f) { return f.key; }) }]).map(function (g) {
+            var fs = form.fields.filter(function (f) { return g.keys.indexOf(f.key) >= 0 && !used[f.key]; });
+            fs.forEach(function (f) { used[f.key] = true; });
+            return fs.length === 0 ? null : el('section', { className: 'pf-card' }, [el('h2', { className: 'pf-card-title', text: g.title })].concat(fs.map(fieldBlock)));
+        });
+        cards.forEach(function (c) { if (c) app.appendChild(c); });
+
+        // ⚠️ ロボットよけ（人には見えない。入っていたら ② は保存しない）
+        app.appendChild(el('div', { className: 'pf-hp', 'aria-hidden': 'true' }, [
+            el('label', { 'for': 'f_website', text: 'ウェブサイト' }),
+            el('input', { type: 'text', id: 'f_website', tabindex: '-1', autocomplete: 'off', oninput: function (e) { values.website = e.target.value; } }),
+        ]));
+
+        app.appendChild(el('div', { className: 'pf-actions' }, [
+            el('button', { type: 'button', className: 'pf-btn pf-btn-primary', text: '確認画面へ', onclick: toConfirm }),
+        ]));
+    }
+
+    function toConfirm() {
+        var first = null;
+        form.fields.forEach(function (f) {
+            var message = check(f, values[f.key]);
+            setError(f.key, message);
+            if (message && !first) first = f.key;
+        });
+        if (first) {
+            app.querySelector('[data-key="' + first + '"]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        renderConfirm();
+    }
+
+    function shown(f) {
+        var v = String(values[f.key] || '').trim();
+        if (v === '') return '（未入力）';
+        return f.kind === 'number' ? v + '人' : v;
+    }
+
+    function renderConfirm(alert) {
+        step = 2;
+        app.innerHTML = '';
+        header().forEach(function (n) { if (n) app.appendChild(n); });
+        app.appendChild(el('p', { className: 'pf-lead', text: '内容をご確認のうえ、「送信する」を押してください。' }));
+        app.appendChild(el('div', { className: 'pf-alert', role: 'alert', hidden: !alert, text: alert || '' }));
+        app.appendChild(el('section', { className: 'pf-card' }, [
+            el('h2', { className: 'pf-card-title', text: 'ご入力内容' }),
+            el('dl', { className: 'pf-summary' }, form.fields.map(function (f) {
+                return el('div', {}, [el('dt', { text: f.label }), el('dd', { text: shown(f) })]);
+            })),
+        ]));
+        var send = el('button', { type: 'button', className: 'pf-btn pf-btn-primary', text: '送信する' });
+        send.addEventListener('click', function () { submit(send); });
+        app.appendChild(el('div', { className: 'pf-actions' }, [
+            send,
+            el('button', { type: 'button', className: 'pf-btn', text: '入力画面に戻る', onclick: function () { renderInput(); window.scrollTo(0, 0); } }),
+        ]));
+        window.scrollTo(0, 0);
+    }
+
+    function submit(button) {
+        button.disabled = true;
+        button.textContent = '送信中…';
+        var body = { request: 'event_form_entry', id: formId, website: values.website || '' };
+        form.fields.forEach(function (f) { body[f.key] = values[f.key] || ''; });
+        post(body).then(function (r) {
+            if (r.json && r.json.status === 'ok') { renderDone(); return; }
+            var message = (r.json && r.json.message) || ('送信できませんでした（' + r.status + '）。時間をおいて再度お試しください。');
+            if (r.status === 400 && r.json && r.json.field) {
+                // ⚠️ 欄の誤り（② の検査）。入力画面に戻して欄に出す
+                renderInput(message);
+                setError(r.json.field, message);
+                return;
+            }
+            renderConfirm(message);
+        }).catch(function () {
+            renderConfirm('通信できませんでした。電波の状態をご確認のうえ、もう一度「送信する」を押してください。');
+        });
+    }
+
+    function renderDone() {
+        step = 3;
+        app.innerHTML = '';
+        header().forEach(function (n) { if (n) app.appendChild(n); });
+        app.appendChild(el('section', { className: 'pf-card pf-done' }, [
+            el('div', {}, [el('span', { className: 'pf-done-icon', 'aria-hidden': 'true', text: '✓' })]),
+            el('h2', { className: 'pf-title', text: 'お申し込みを受け付けました' }),
+            el('p', { className: 'pf-lead', text: 'ご入力いただいたメールアドレスに、受付内容の控えをお送りしました。届かない場合は、迷惑メールのフォルダもご確認ください。' }),
+        ]));
+        window.scrollTo(0, 0);
+    }
+
+    if (!/^\d+$/.test(formId)) { state('フォームが見つかりませんでした。URL をご確認ください。'); return; }
+    post({ request: 'event_form_public', id: formId }).then(function (r) {
+        if (r.json && r.json.status === 'ok' && r.json.form) {
+            form = r.json.form;
+            document.title = form.name + '｜ご予約フォーム';
+            renderInput();
+            return;
+        }
+        state((r.json && r.json.message) || 'フォームを読み込めませんでした。時間をおいて再度お試しください。');
+    }).catch(function () {
+        state('フォームを読み込めませんでした。時間をおいて再度お試しください。');
+    });
+})();
+</script>
+</body>
+</html>
