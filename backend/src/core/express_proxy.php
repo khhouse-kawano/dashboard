@@ -833,6 +833,12 @@ function expressProxyRequests(): array
         // ⚠️ 2026-11-25（v2.2.300）。全社報告用フォーマットを年度で読む（company/Company.tsx。画面は GET）。⚠️ ① に PHP ハンドラは無い（② だけ）。
         //   ⚠️ 両方のリストに入れてある。② に届かないときは、画面が今までの company（POST・① の予備あり）に切り替える。
         'company_year',
+
+        // ⚠️ 2026-11-25（v2.2.301）。物件DB・詳細・SUUMO物件サマリーを GET で読む（database/DatabaseProperty.tsx ほか）。⚠️ ① に PHP ハンドラは無い（② だけ）。
+        //   ⚠️ 両方のリストに入れてある。② に届かないときは、画面が今までの property（POST・① の予備）に切り替える。
+        'property_list',
+        'property_detail',
+        'property_suumo_latest',
     ];
 }
 
@@ -1199,6 +1205,11 @@ function expressProxyExclusive(): array
 
         // ⚠️ 2026-11-25（v2.2.300）。全社報告用フォーマットを年度で読む。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す。画面は company に切り替える）。
         'company_year',
+
+        // ⚠️ 2026-11-25（v2.2.301）。物件DB・詳細・SUUMO物件サマリー。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す。画面は property の POST に切り替える）。
+        'property_list',
+        'property_detail',
+        'property_suumo_latest',
     ];
 }
 

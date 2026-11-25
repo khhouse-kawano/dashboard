@@ -17,19 +17,9 @@ $stmt_shop->execute();
 $response_shop = $stmt_shop->fetchAll(PDO::FETCH_ASSOC);
 
 
-// 販促媒体
-$sql_medium = "SELECT * FROM medium_kaeru";
-$stmt_medium = $pdo->prepare($sql_medium);
-$stmt_medium->execute();
-$response_medium = $stmt_medium->fetchAll(PDO::FETCH_ASSOC);
-
-
-// 架電情報
-$sql_call = "SELECT * FROM call_sheet";
-$stmt_call = $pdo->prepare($sql_call);
-$stmt_call->execute();
-$response_call = $stmt_call->fetchAll(PDO::FETCH_ASSOC);
-
+// ⚠️ v2.2.301 販促媒体（medium_kaeru）・架電情報（call_sheet）・家族情報（family_info）の全件を返すのをやめた。
+//   ⚠️ 物件DB（DatabaseProperty.tsx）は使っておらず、① のメモリが足りなくなる主な原因だった。
+//   ⚠️ ふだんは ② の property_list（GET）を使う。ここは ② に届かないときの予備。
 
 // 顧客一覧（kaeru と resale を結合）
 $sql_customer = "
@@ -102,13 +92,6 @@ $stmt_customer = $pdo->prepare($sql_customer);
 $stmt_customer->execute();
 $response_customer = $stmt_customer->fetchAll(PDO::FETCH_ASSOC);
 
-// 家族情報
-$sql_family = "SELECT * FROM family_info";
-$stmt_family = $pdo->prepare($sql_family);
-$stmt_family->execute();
-$response_family = $stmt_family->fetchAll(PDO::FETCH_ASSOC);
-
-
 // 物件リスト
 $sql_property = "SELECT * FROM property_db";
 $stmt_property = $pdo->prepare($sql_property);
@@ -140,10 +123,7 @@ $response_homes = $stmt_homes->fetchAll(PDO::FETCH_ASSOC);
 $result = [
         "staff" => $response_staff,
         "shop" => $response_shop,
-        "medium" => $response_medium,
         "customer" => $response_customer,
-        "call" => $response_call,
-        "family" => $response_family,
         "property" => $response_property,
         "athome" => $response_athome,
         "suumo" => $response_SUUMO,
