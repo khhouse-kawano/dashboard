@@ -30,9 +30,11 @@ type Props = {
     onLastYear: () => void;
     onCancel: () => void;
     onMulti: () => void;
+    /** v2.2.300 年度の契約を読んでいる途中（⚠️ 期の右に「読み込み中…」を出す） */
+    loading: boolean;
 };
 
-const CompanyToolbar = ({ category, targetYear, divisionArray, sectionList, shops, showLastYear, showCancel, showMulti, canMerge, onYear, onJump, onRanking, onQuarter, onLastYear, onCancel, onMulti }: Props) => {
+const CompanyToolbar = ({ category, targetYear, divisionArray, sectionList, shops, showLastYear, showCancel, showMulti, canMerge, onYear, onJump, onRanking, onQuarter, onLastYear, onCancel, onMulti, loading }: Props) => {
     const hasSummary = category === 'order' || category === 'spec';
     const btnClass = `co_btn${category === 'spec' ? ' spec' : ''}`;
     return (
@@ -42,6 +44,7 @@ const CompanyToolbar = ({ category, targetYear, divisionArray, sectionList, shop
                     {descending(getYears()).map(year => <option key={year} value={year}>{year}年5月期</option>)}
                 </select>
             </div>
+            {loading && <span className="co_note" role="status">読み込み中…</span>}
             <div className="m-1">
                 <select className="target" aria-label="事業部へ移る" onChange={(e) => onJump(e.target.value)}>
                     <option value="">事業部を選択</option>

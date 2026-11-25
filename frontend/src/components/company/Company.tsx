@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AuthContext from "../../context/AuthContext";
 import { getPeriod } from '../../utils/getPeriod';
+import { getYears } from '../../utils/getYears';
 import InformationEdit from '../information/InformationEdit';
 import InformationEditKaeru from '../information/InformationEditKaeru';
 import InformationEditResale from '../information/InformationEditResale';
@@ -37,6 +39,12 @@ import type { Achievement, Customer, RealtyDeal, Section, Shop, Staff } from './
  * ⚠️⚠️ **「要確認」モーダルはこの画面が持っていない**（2026-09-28 に移した）。
  *   ⚠️ 「URL が変わるたびに出す」ため `App.tsx` に1つだけ置いてある。**ここに戻さないこと。**
  *
+ * ⚠️ v2.2.300 年度ごとに読む（GET の company_year。② の features/company/index.ts の runCompanyYear）
+ *   ・開いたとき・期（targetYear）を変えたときに、その年度で読み直す。⚠️ 表示の切り替え（昨年実績・キャンセル・併売店）では読まない
+ *   ・② は契約者だけを年度（＋前年度・今月・S〜C ランク）で絞って返す。画面はそれを今までと同じ集計にかける（数字は変わらない）
+ *   ・期は画面の URL にも出す（?year=2025。今年度は出さない）。URL の year で開くと、その期で開く
+ *   ・② に届かないときは、今までの company（POST・① の予備あり）で全年度を1回だけ読み、以後は読み直さない（画面が期で絞る）
+ *
  * ⚠️ 不動産企画係（v2.2.264）
  *   ・1つの事業部として売上を出す（② の company が返す realty_deals。数え方は月次売上管理と同じ）
  *   ・事業が不動産企画係のときも開ける（不動産企画係の事業部を先頭に出す。中古リノベのときは中古リノベのすぐ次、注文・建売は最後）
@@ -45,6 +53,23 @@ import type { Achievement, Customer, RealtyDeal, Section, Shop, Staff } from './
  */
 
 const EMPTY_EDIT_ID: Record<string, string> = { order: '', kaeru: '', resale: '' };
+
+/** URL の year（⚠️ 選べる期のどれかのときだけ使う。それ以外・無しは今年度） */
+const yearFromUrl = (): number => {
+    const value = new URLSearchParams(window.location.search).get('year') ?? '';
+    return getYears().includes(value) ? Number(value) : thisYear;
+};
+
+/** company / company_year の応答（⚠️ 形を確かめてから state に入れる。途中で切れた応答・エラーの本文を入れない） */
+type CompanyBody = {
+    staff: Staff[]; shop: Shop[]; section: Section[];
+    contract: Customer[]; contract_kaeru: Customer[]; contract_resale: Customer[];
+    achievement: Achievement[]; realty_deals?: RealtyDeal[];
+};
+const isCompanyBody = (body: unknown): body is CompanyBody => {
+    const b = body as Partial<CompanyBody> | null;
+    return !!b && [b.staff, b.shop, b.section, b.contract, b.contract_kaeru, b.contract_resale, b.achievement].every(Array.isArray);
+};
 
 const Company = () => {
     const { token, authority, category } = useContext(AuthContext);
@@ -57,7 +82,7 @@ const Company = () => {
     const [show, setShow] = useState(false);
     const [contract, setContract] = useState<Customer[]>([]);
     const [achievement, setAchievement] = useState<Achievement[]>([]);
-    const [targetYear, setTargetYear] = useState<number | null>(thisYear);
+    const [targetYear, setTargetYear] = useState<number | null>(yearFromUrl);
     const [editId, setEditId] = useState<Record<string, string>>(EMPTY_EDIT_ID);
     const [showLastYear, setShowLastYear] = useState(false);
     const [showCancel, setShowCancel] = useState(true);
@@ -70,19 +95,72 @@ const Company = () => {
     /** 4半期サマリー（注文と建売）。⚠️ 中身は QuarterSummary.tsx。契約・予算は、この画面のデータをそのまま渡す */
     const [showQuarterSummary, setShowQuarterSummary] = useState(false);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const response = await apiClient.post('', { request: 'company' });
-            setOriginalStaffList(response.data.staff);
-            setShopList(response.data.shop);
-            setSectionList(response.data.section);
-            setCustomerList([...response.data.contract, ...response.data.contract_kaeru, ...response.data.contract_resale]);
-            setAchievement(response.data.achievement);
-            // ⚠️ ② だけが返す（① が代わりに返したときは無い → 不動産企画係の売上は空）
-            setRealtyDeals(response.data.realty_deals ?? []);
-        };
-        fetchData();
+    /** v2.2.300 ② で年度ごとに読めるか（⚠️ 一度失敗したら false にして、以後は全年度の company を使う） */
+    const [serverMode, setServerMode] = useState(true);
+    /** ⚠️ はじめは true（最初の読み込みは setTimeout のあとに始まるので、false だと開いた直後に「読み込み済み」に見える） */
+    const [loading, setLoading] = useState(true);
+    /** 全年度の company を読み終えたか（⚠️ 予備のときは1回だけ読む） */
+    const fullLoadedRef = useRef(false);
+    /** 読み込みの番号（⚠️ 期を続けて変えたとき、古い応答を表に入れない） */
+    const loadSeqRef = useRef(0);
+
+    const apply = useCallback((body: CompanyBody) => {
+        setOriginalStaffList(body.staff);
+        setShopList(body.shop);
+        setSectionList(body.section);
+        setCustomerList([...body.contract, ...body.contract_kaeru, ...body.contract_resale]);
+        setAchievement(body.achievement);
+        // ⚠️ ② だけが返す（① が代わりに返したときは無い → 不動産企画係の売上は空）
+        setRealtyDeals(body.realty_deals ?? []);
     }, []);
+
+    useEffect(() => {
+        // ⚠️ 予備で全年度を読み終えていれば、期を変えても読み直さない（画面が期で絞る）
+        if (!serverMode && fullLoadedRef.current) return;
+        const seq = ++loadSeqRef.current;
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                if (serverMode) {
+                    try {
+                        const response = await apiClient.get('', { params: { request: 'company_year', year: targetYear } });
+                        if (seq !== loadSeqRef.current) return;
+                        if (!isCompanyBody(response?.data)) throw new Error('invalid company_year response');
+                        apply(response.data);
+                        return;
+                    } catch (error) {
+                        if (seq !== loadSeqRef.current) return;
+                        console.error('company_year に失敗しました。全年度の読み込みに切り替えます:', error);
+                        // ⚠️ 全年度の読み込みは serverMode が変わったあとの読み込みで行う（ここで読むと2回読む）
+                        setServerMode(false);
+                        return;
+                    }
+                }
+                const response = await apiClient.post('', { request: 'company' });
+                if (seq !== loadSeqRef.current) return;
+                if (!isCompanyBody(response?.data)) throw new Error('invalid company response');
+                fullLoadedRef.current = true;
+                apply(response.data);
+            } catch (error) {
+                console.error('全社報告用フォーマットの読み込みに失敗しました:', error);
+                alert('全社報告用フォーマットのデータを読み込めませんでした。時間をおいて開き直してください。');
+            } finally {
+                if (seq === loadSeqRef.current) setLoading(false);
+            }
+        };
+        // ⚠️ setTimeout(0) で1回にまとめる（StrictMode で effect が2回走ったときに2回読まない）
+        const timer = window.setTimeout(() => { void fetchData(); }, 0);
+        return () => window.clearTimeout(timer);
+    }, [targetYear, serverMode, apply]);
+
+    // ⚠️ v2.2.300 期を URL にも出す（⚠️ 今年度なら出さない。ほかのパラメータ（顧客を開く ?id= など）は残す）
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        const next = new URLSearchParams(searchParams);
+        if (targetYear === null || targetYear === thisYear) next.delete('year');
+        else next.set('year', String(targetYear));
+        if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+    }, [targetYear, searchParams, setSearchParams]);
 
     const divisionArray: string[] = useMemo(() => DIVISION_ORDER[category] ?? DIVISION_ORDER.order, [category]);
     const staffList = useMemo(() => originalStaffList.filter(o => o.period === String(targetYear)), [originalStaffList, targetYear]);
@@ -165,7 +243,7 @@ const Company = () => {
 
     return (
         <>
-            <div className='content company co_page p-0'>
+            <div className={`content company co_page p-0${loading ? ' co_loading' : ''}`}>
                 <style>{COMPANY_STYLE}</style>
                 <CompanyToolbar
                     category={category}
@@ -184,6 +262,7 @@ const Company = () => {
                     onLastYear={toggleLastYear}
                     onCancel={toggleCancel}
                     onMulti={toggleMulti}
+                    loading={loading}
                 />
                 <CompanyTable
                     rows={rows}
