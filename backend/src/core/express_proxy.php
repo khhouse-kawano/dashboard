@@ -823,6 +823,12 @@ function expressProxyRequests(): array
         // ⚠️ 2026-11-17（v2.2.276）。反響一覧の重複の詳細（list/DuplicateBadge.tsx）。⚠️ ① に PHP ハンドラは無い（② だけ）。
         //   ⚠️ expressProxyExclusive() にも入れてある（② に届かないときは 502。画面のモーダルに失敗と出る）。
         'inquiryDup',
+
+        // ⚠️ 2026-11-25（v2.2.298）。集客イベント → フォーム作成（header/event/EventFormBuilder.tsx）。⚠️ ① に PHP ハンドラは無い（② だけ）。
+        //   ⚠️ 両方のリストに入れてある。save は書き込みだが ① では代われないので、② に届かないときは 502（画面に失敗と出る）。
+        //   ⚠️ 公開フォームの event_form_public / event_form_entry は ② へ直接届くので、ここには入れない。
+        'event_form:list',
+        'event_form:save',
     ];
 }
 
@@ -1182,6 +1188,10 @@ function expressProxyExclusive(): array
 
         // ⚠️ 2026-11-17（v2.2.276）。反響一覧の重複の詳細。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す）。
         'inquiryDup',
+
+        // ⚠️ 2026-11-25（v2.2.298）。イベントの予約フォームの一覧・作成・更新。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す）。
+        'event_form:list',
+        'event_form:save',
     ];
 }
 

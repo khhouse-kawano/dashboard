@@ -52,6 +52,9 @@ const GUARDED_REQUESTS = new Set([
     //   ⚠️ 2L は 2lhome.net の result_api.php（サーバー）から届くので、2L のお客様全員が同じ IP になる（件数は月に十件ほど）
     'estimate_entry',
     'owners_house_reservation',
+    // ⚠️ v2.2.298 イベントの予約フォーム（https://khg-marketing.info/form/<番号>/）の申し込み。認証なしの書き込み口
+    //   ⚠️ 設定の読み込み（event_form_public）は別の request なので制限しない
+    'event_form_entry',
 ]);
 
 const WINDOW_MS = 10 * 60_000;

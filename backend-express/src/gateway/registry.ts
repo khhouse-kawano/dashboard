@@ -38,6 +38,8 @@ import {
 } from '../features/introductory';
 import { runEventReservation } from '../features/event/reservation';
 import { runEventCheckin } from '../features/event/checkin';
+import { runEventFormList, runEventFormSave } from '../features/eventForm/admin';
+import { runEventFormEntry, runEventFormPublic } from '../features/eventForm/public';
 import type { CallStatusCategory } from '../features/callStatusList';
 import { runCallStatusList, runCallStatusSummary } from '../features/callStatusList';
 import { runFamilyInfoShow, runFamilyInfoUpdate } from '../features/familyInfo';
@@ -699,6 +701,64 @@ register({
   auth: 'none',
   handler: async (ctx) => {
     const result = await runEventReservation(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// v2.2.298 イベントの予約フォーム（集客イベント → フォーム作成。features/eventForm/）
+//
+// ⚠️ event_form … 社内の画面（auth staff・反響一覧を開けるスタッフ全員）。① の express_proxy.php の2つのリストに入れてある。
+// ⚠️ event_form_public / event_form_entry … 公開フォーム（https://khg-marketing.info/form/<番号>/）から ② へ直接届く。認証なし。
+//   ⚠️ event_form_entry は publicFormRateLimit の GUARDED_REQUESTS に入れてある（ここに登録しただけでは制限が掛からない）。
+//   ⚠️ 本文に category を入れないこと（鍵がずれて ① へ転送される）。
+// ---------------------------------------------------------------------------
+register({
+  request: 'event_form',
+  roll: 'list',
+  summary: 'イベントの予約フォームの一覧・入力欄の定義・選べるイベント名',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runEventFormList();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'event_form',
+  roll: 'save',
+  summary: '【書き込み】イベントの予約フォームの作成・更新（番号は自動）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runEventFormSave(ctx.body, ctx.staff);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'event_form_public',
+  summary: '【認証なし】イベントの予約フォームの設定（通知先は返さない）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runEventFormPublic(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+register({
+  request: 'event_form_entry',
+  summary: '【書き込み・認証なし】イベントの予約フォームからの申し込み（event_db）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await runEventFormEntry(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

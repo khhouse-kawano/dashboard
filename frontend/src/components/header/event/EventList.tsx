@@ -47,6 +47,8 @@ type CustomerData = {
     request: string;
     medium: string;
     area: string;
+    /** 建築予定地（v2.2.298）。⚠️ フォーム作成で作ったフォームから届いた予約にだけ入る。列追加前の行は NULL */
+    site: string | null;
     question: string;
     /** 個人情報の取り扱いへの同意。⚠️ NULL は同意欄が無かった頃の予約 */
     agree: number | null;
@@ -177,7 +179,8 @@ const createSyncPayload = (item: CustomerData): Record<string, string> => ({
     sales_promotion_name: 'イベント',
     customized_input_01JRCT12N9X24PCQ5QZPAYKB93: item.title || '',
     status: '見込み',
-    planned_construction_site: item.area || '',
+    // ⚠️ v2.2.298 建築予定地（site）があればそれを入れる。⚠️ 無い予約は今までどおり希望エリア（area）
+    planned_construction_site: item.site || item.area || '',
     brand: brands[(item.shop || '').slice(0, 2)] || ''
 });
 
@@ -227,6 +230,30 @@ const compactInputStyle: React.CSSProperties = {
     boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)',
     height: '24px',
 };
+
+/**
+ * v2.2.298 画面の枠・見出し・絞り込み・カード（顧客DB の rk_ / dbk_ と同じ色・大きさ・角丸）。
+ * ⚠️ 表の中（行の色・入力欄・見出しの thStyle）は変えていない。⚠️ この文字列の中にバッククォートを書かないこと。
+ */
+const EV_CSS = `
+.ev_wrap { font-size: 13px; color: #1f2937; background: #fff; height: 100%; overflow: auto; padding: 16px 20px 24px; box-sizing: border-box; }
+.ev_sticky { position: sticky; top: -16px; z-index: 5; background: #fff; margin: -16px 0 12px; padding: 16px 0 0; }
+.ev_head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.ev_title { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
+.ev_note { font-size: 11px; color: #6b7280; font-variant-numeric: tabular-nums; }
+.ev_bar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e5e7eb;
+          border-radius: 10px; padding: 10px 12px; }
+.ev_field { display: flex; flex-direction: column; margin: 0; }
+.ev_label { font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 2px; }
+.ev_select { height: 32px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 10px; font-size: 12px; background: #fff; color: #1f2937; outline: none; }
+.ev_select:focus { border-color: #2563eb; }
+.ev_btn { height: 32px; border-radius: 8px; padding: 0 14px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid transparent;
+          white-space: nowrap; background: #2563eb; color: #fff; display: inline-flex; align-items: center; }
+.ev_btn:hover { background: #1d4ed8; }
+.ev_btn:disabled { background: #93c5fd; cursor: default; }
+.ev_card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.ev_table_wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; overflow-x: auto; }
+`;
 
 const thStyle: React.CSSProperties = {
     ...styles.label,
@@ -539,26 +566,7 @@ const EventList = () => {
         rowRefs.current[id][field] = el;
     };
 
-    /**
-     * イベントの特設ページ。
-     *
-     * ⚠️ イベントごとにURLが違う。絞り込みで選んでいるイベントのものを開く。
-     *   1つに固定すると、イベントが変わるたびに古いページへ飛ぶ
-     *   （実際に 2026-09-07 まで前年の住まいるフェス2025を指したままだった）。
-     */
-    const EVENT_URLS: Record<string, string> = {
-        'おうちづくりフェスタ2026': 'https://kh-house.jp/festa/',
-        '住まいるフェスティバル2026': 'https://kh-house.jp/lp/smilefes_akune_2025/',
-    };
-
-    /** ⚠️ 未選択・未登録のイベントのときは最新のものを開く */
-    const currentEventUrl = EVENT_URLS[targetEvent] ?? 'https://kh-house.jp/festa/';
-
-    const openUrl = () => {
-        window.open(currentEventUrl, '_blank');
-    };
-
-
+    // ⚠️ v2.2.298 「特設URLはこちら」のボタン（EVENT_URLS）は外した（指示）。フォームの URL は「フォーム作成」で出す
 
     const reload = () => {
         fetchData();
@@ -657,54 +665,70 @@ const EventList = () => {
 
     return (
         <>
-            {/* ⚠️ v2.2.241: スクロールするのはこの枠（⚠️ それまでは全画面モーダルの Modal.Body。p-2 と背景色も同じ） */}
-            <div className="p-2" style={{ backgroundColor: '#f8f9fe', height: '100%', overflow: 'auto' }}>
+            {/*
+              ⚠️ v2.2.241: スクロールするのはこの枠（⚠️ それまでは全画面モーダルの Modal.Body）。
+              ⚠️ v2.2.298: 顧客DB（DatabaseOrder.tsx の rk_ / dbk_）に合わせて、白地に「見出し・絞り込み・集計・一覧」をカードで並べた。
+                ⚠️ 色・文字の大きさ・角丸は rk_ と同じ値（画面だけ違う色にしない）。⚠️ クラスは ev_ で始める（共通の CSS を汚さない）。
+            */}
+            <style>{EV_CSS}</style>
+            <div className="ev_wrap">
 
                     {/*
-                      ⚠️⚠️ 上部の操作（v2.2.166）。⚠️ 「特設URLはこちら」〜絞り込みまでを ⚠️ **上に固定する**。
-                        ⚠️ スクロールしているのは外側の枠（v2.2.240 までは Modal.Body）。⚠️ 枠の p-2（8px）ぶん top を上げ、
-                          ⚠️ 同じ色で塗って ⚠️ **固定した行の上に表がのぞかない**ようにしている。
-                        ⚠️ 表（.table-responsive）より前に描くので、z-index は表の見出しより上にする。
-                      ⚠️ 絞り込みは ⚠️ **左寄せでボタンの右**に並べる（ps-3 で間隔。2026-10-06 の指示。v2.2.241 で「閉じる」は外した）。
-                        ⚠️ 並び: イベント → 店舗 → 来場予定日 → 来場予定時間 → 来場状況（来場状況は 2026-10-06 の確認で右端から移した）。
+                      ⚠️⚠️ 上部の操作（v2.2.166）。⚠️ 見出し〜絞り込みまでを ⚠️ **上に固定する**。
+                        ⚠️ スクロールしているのは外側の枠（ev_wrap）。⚠️ 枠の上の余白（16px）ぶん top を上げ、
+                          ⚠️ 白で塗って ⚠️ **固定した行の上に表がのぞかない**ようにしている（ev_sticky）。
+                        ⚠️ 表より前に描くので、z-index は表の見出しより上にする。
+                      ⚠️ v2.2.298: 「特設URLはこちら」を外した（指示）。⚠️ 絞り込みの並びは今までどおり:
+                        イベント → 店舗 → 来場予定日 → 来場予定時間 → 来場状況。
                     */}
-                    <div className="d-flex flex-wrap align-items-center mb-2"
-                        style={{ position: 'sticky', top: '-8px', zIndex: 5, backgroundColor: '#f8f9fe', padding: '8px 0', margin: '-8px 0 8px' }}>
-                        <div className="d-flex gap-2">
-                            <button style={{ ...styles.buttonSecondary, padding: '4px 10px', fontSize: '11px' }} onClick={openUrl}>
-                                <i className="fa-solid fa-arrow-up-right-from-square me-1"></i>特設URLはこちら
-                            </button>
-                            <button style={{ ...styles.buttonPrimary, padding: '4px 10px', fontSize: '11px' }} onClick={reload} disabled={loading}>
+                    <div className="ev_sticky">
+                        <div className="ev_head">
+                            <span className="ev_title">集客イベントの反響一覧</span>
+                            <span className="ev_note">{loading ? '読み込み中…' : `${filteredData.length.toLocaleString()}件 ／ 全 ${data.length.toLocaleString()}件`}</span>
+                        </div>
+                        <div className="ev_bar">
+                            {/* ⚠️ イベントを変えると来場予定日・時間も戻す（changeEvent の注記参照） */}
+                            <label className="ev_field">
+                                <span className="ev_label">イベント</span>
+                                <select className="ev_select" value={targetEvent} onChange={(e) => changeEvent(e.target.value)}>
+                                    <option value="">全イベント表示</option>
+                                    {eventArray.map(item => <option key={item} value={item}>{item}</option>)}
+                                </select>
+                            </label>
+                            <label className="ev_field">
+                                <span className="ev_label">店舗</span>
+                                <select className="ev_select" value={targetShop} onChange={(e) => setTargetShop(e.target.value)}>
+                                    <option value="">全店舗表示</option>
+                                    {shopArray.map(item => <option key={item} value={item}>{item}</option>)}
+                                </select>
+                            </label>
+                            <label className="ev_field">
+                                <span className="ev_label">来場予定日</span>
+                                <select className="ev_select" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}>
+                                    <option value="">来場予定日を選択</option>
+                                    {dateArray.map(item => <option key={item} value={item}>{item}</option>)}
+                                </select>
+                            </label>
+                            <label className="ev_field">
+                                <span className="ev_label">来場予定時間</span>
+                                <select className="ev_select" value={targetTime} onChange={(e) => setTargetTime(e.target.value)}>
+                                    <option value="">来場予定時間を選択</option>
+                                    {timeArray.map(item => <option key={item} value={item}>{item}</option>)}
+                                </select>
+                            </label>
+                            <label className="ev_field">
+                                <span className="ev_label">来場状況</span>
+                                <select className="ev_select" value={isVisited === null ? '' : String(isVisited)}
+                                    onChange={(e) => setIsVisited(e.target.value === '' ? null : Number(e.target.value))}>
+                                    <option value="">来場状況</option>
+                                    <option value="1">来場済み</option>
+                                    <option value="0">未来場</option>
+                                </select>
+                            </label>
+                            <button className="ev_btn" onClick={reload} disabled={loading}>
                                 {loading ? <Spinner size="sm" animation="border" className="me-1" /> : <i className="fa-solid fa-rotate-right me-1"></i>}
                                 リロード
                             </button>
-                        </div>
-
-                        {/* 💡 絞り込み用セレクトタグ。⚠️ v2.2.166: 左寄せでボタンの右へ（ps-3） */}
-                        <div className="d-flex flex-wrap gap-2 align-items-center ps-3">
-                            {/* ⚠️ イベントを変えると来場予定日・時間も戻す（changeEvent の注記参照） */}
-                            <select style={{ ...compactInputStyle, width: 'auto' }} value={targetEvent} onChange={(e) => changeEvent(e.target.value)}>
-                                <option value="">全イベント表示</option>
-                                {eventArray.map(item => <option key={item} value={item}>{item}</option>)}
-                            </select>
-                            <select style={{ ...compactInputStyle, width: 'auto' }} value={targetShop} onChange={(e) => setTargetShop(e.target.value)}>
-                                <option value="">全店舗表示</option>
-                                {shopArray.map(item => <option key={item} value={item}>{item}</option>)}
-                            </select>
-                            <select style={{ ...compactInputStyle, width: 'auto' }} value={targetDate} onChange={(e) => setTargetDate(e.target.value)}>
-                                <option value="">来場予定日を選択</option>
-                                {dateArray.map(item => <option key={item} value={item}>{item}</option>)}
-                            </select>
-                            <select style={{ ...compactInputStyle, width: 'auto' }} value={targetTime} onChange={(e) => setTargetTime(e.target.value)}>
-                                <option value="">来場予定時間を選択</option>
-                                {timeArray.map(item => <option key={item} value={item}>{item}</option>)}
-                            </select>
-                            <select style={{ ...compactInputStyle, width: 'auto' }} value={isVisited === null ? '' : String(isVisited)}
-                                onChange={(e) => setIsVisited(e.target.value === '' ? null : Number(e.target.value))}>
-                                <option value="">来場状況</option>
-                                <option value="1">来場済み</option>
-                                <option value="0">未来場</option>
-                            </select>
                         </div>
                     </div>
 
@@ -715,7 +739,7 @@ const EventList = () => {
                         ⚠️⚠️ **ここは <style>{...} のテンプレートリテラルの中にバッククォートを書かないこと。**
                     */}
                     {summaryTable && (
-                        <div className="bg-white rounded shadow-sm border mb-2 p-2">
+                        <div className="ev_card">
                             <style>{`
                                 .ev_sum_title { font-size: 12px; font-weight: 700; color: #32325d; margin-bottom: 4px; }
                                 .ev_sum_title small { font-size: 10px; font-weight: 400; color: #8898aa; margin-left: 8px; }
@@ -777,7 +801,7 @@ const EventList = () => {
 
                     {error && <Alert variant="danger" className="py-1 px-2 mb-2" style={{ fontSize: '11px' }}>{error}</Alert>}
 
-                    <div className="bg-white rounded shadow-sm border table-responsive">
+                    <div className="ev_table_wrap">
                         <Table hover className="m-0 align-top text-nowrap" style={{ minWidth: '1920px' }}>
                             <thead>
                                 <tr>
@@ -795,6 +819,8 @@ const EventList = () => {
                                     <th style={{ ...thStyle, width: '160px', whiteSpace: 'normal' }}>ご検討</th>
                                     <th style={{ ...thStyle, width: '100px' }}>きっかけ</th>
                                     <th style={{ ...thStyle, width: '120px' }}>希望エリア</th>
+                                    {/* ⚠️ v2.2.298 追加。フォーム作成のフォームから届いた予約にだけ入る */}
+                                    <th style={{ ...thStyle, width: '120px' }}>建築予定地</th>
                                     <th style={{ ...thStyle, width: '130px' }}>チェックイン</th>
                                     <th style={{ ...thStyle, width: '130px' }}>チェックアウト</th>
                                     <th style={{ ...thStyle, width: '180px' }}>事前質問</th>
@@ -876,6 +902,7 @@ const EventList = () => {
                                             </td>
                                             <td className="p-1 align-middle" style={{ fontSize: '11px' }}>{item.medium || ''}</td>
                                             <td className="p-1 align-middle" style={{ fontSize: '11px', whiteSpace: 'normal' }}>{item.area || ''}</td>
+                                            <td className="p-1 align-middle" style={{ fontSize: '11px', whiteSpace: 'normal' }}>{item.site || ''}</td>
                                             <td className="p-1 align-middle">
                                                 <input type="text" style={compactInputStyle} placeholder="2026/03/21 10:05" ref={setRef(item.id, 'check_in_time')} defaultValue={item.check_in_time || ''} onBlur={() => handleBlur(item.id, 'check_in_time')} />
                                             </td>
@@ -904,7 +931,7 @@ const EventList = () => {
                                 })}
                                 {sortedData.length === 0 && !loading && (
                                     <tr>
-                                        <td colSpan={17} className="text-center p-4 text-muted" style={{ fontSize: '11px' }}>データがありません</td>
+                                        <td colSpan={18} className="text-center p-4 text-muted" style={{ fontSize: '11px' }}>データがありません</td>
                                     </tr>
                                 )}
 
@@ -912,7 +939,7 @@ const EventList = () => {
                                     div を直接入れるとブラウザが table の外へ弾き出し、
                                     交差判定が働かずスクロールしても増えなくなる */}
                                 <tr ref={loaderRef}>
-                                    <td colSpan={17} className="text-center text-muted p-2" style={{ fontSize: '11px' }}>
+                                    <td colSpan={18} className="text-center text-muted p-2" style={{ fontSize: '11px' }}>
                                         {sortedData.length > displayLength
                                             ? `読み込み中…（${displayLength} / ${sortedData.length} 件）`
                                             : sortedData.length > 0 ? `全 ${sortedData.length} 件` : ''}
