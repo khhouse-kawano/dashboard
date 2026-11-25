@@ -24,7 +24,7 @@ import { RankingStyle } from '../rankingUi';
 import { DBK_CSS } from './databaseListStyle';
 // ⚠️ v2.2.291 GET の条件を画面の URL にも出す・URL の条件で開く
 import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
-import { isRecordSearch, RecordCell, RECORD_COL_WIDTH, RECORD_CSS, RecordSearchCard, type RecordMap } from './recordSearch';
+import { isRecordSearch, RecordCell, RECORD_COL_WIDTH, RECORD_CSS, recordErrorOf, RecordSearchCard, type RecordMap } from './recordSearch';
 import { useCallStatusOptions, withCurrent } from './callStatusOptions';
 
 type shopList = { brand: string, shop: string, section: string };
@@ -133,6 +133,8 @@ const DatabaseKaeru = ({ }: Props) => {
     /** v2.2.296 商談・架電記録から検索する語（⚠️ ボタンで決めた値。ほかの条件と一緒に ② に送る）と、今のページの当たった記録 */
     const [recordSearch, setRecordSearch] = useState(initUrl.get('record'));
     const [pageRecords, setPageRecords] = useState<RecordMap>({});
+    /** v2.2.297 記録の検索が失敗した理由（⚠️ 失敗しても予備の全件読み込みには切り替えない） */
+    const [recordError, setRecordError] = useState('');
     const [serverTotal, setServerTotal] = useState(0);
     const [listLoading, setListLoading] = useState(false);
     /** 取り直すきっかけ（編集を閉じた・非表示に切り替えた・名寄せをしたあと） */
@@ -380,6 +382,7 @@ const DatabaseKaeru = ({ }: Props) => {
                 }
                 setPageRows(prepareCustomers(data.customer));
                 setPageRecords(data.record ?? {});
+                setRecordError('');
                 setServerTotal(Number(data.total) || 0);
                 setDisplayLength(Number(data.total) || 0);
                 // ⚠️ ページが件数より後ろなら、② が最後のページに寄せて返す。画面もそれに合わせる
@@ -389,6 +392,12 @@ const DatabaseKaeru = ({ }: Props) => {
                 }
             } catch (error) {
                 if (seq !== listSeqRef.current) return;
+                // ⚠️ v2.2.297 記録の検索の失敗は予備に落とさない（落とすと検索が使えなくなる）。一覧は前のまま残し、カードに理由を出す
+                if (listParams.record) {
+                    console.error('database_list（商談・架電記録の検索）に失敗しました:', error);
+                    setRecordError(recordErrorOf(error));
+                    return;
+                }
                 console.error('database_list に失敗しました。全件の読み込みに切り替えます:', error);
                 setServerMode(false);
             } finally {
@@ -402,7 +411,7 @@ const DatabaseKaeru = ({ }: Props) => {
     const visibleRows = serverMode ? pageRows : filteredDatabase.slice(sliceStart, sliceStart + basicLength);
     const totalCount = serverMode ? serverTotal : filteredDatabase.length;
     /** v2.2.296 商談・架電記録から検索しているか（⚠️ 真のときだけ「商談・架電内容」の列を出す） */
-    const recordMode = isRecordSearch(recordSearch, serverMode);
+    const recordMode = isRecordSearch(recordSearch, serverMode) && recordError === '';
 
     // ページングリンク
     const pages = {
@@ -752,7 +761,8 @@ const DatabaseKaeru = ({ }: Props) => {
                                 </li>
                             </ul>
                         </div>
-                        <RecordSearchCard value={recordSearch} onSearch={setRecordSearch} disabled={!serverMode} loading={listLoading} />
+                        {/* ⚠️ v2.2.297 同じ語で押したら読み直す（失敗のあとにもう一度試せるように） */}
+                        <RecordSearchCard value={recordSearch} onSearch={(keyword) => (keyword === recordSearch ? reloadList() : setRecordSearch(keyword))} disabled={!serverMode} loading={listLoading} error={recordError} />
                         {!isSp && <>
                             {trash === 1 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(0)}>非表示リストへ移動</button>}
                             {trash === 0 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(1)}>一覧へ戻る</button>}
