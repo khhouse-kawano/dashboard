@@ -83,7 +83,7 @@ import {
   runFundingPlanGet,
   runFundingPlanSave,
 } from '../features/fundingPlan';
-import { runChangeCompanyAchievement, runCompany } from '../features/company';
+import { runChangeCompanyAchievement, runCompany, runCompanyYear } from '../features/company';
 import { runListEvent } from '../features/list/event';
 import { runHeader } from '../features/header';
 import type { InformationCategory } from '../features/information';
@@ -2239,6 +2239,23 @@ register({
   auth: 'staff',
   handler: async (ctx) => {
     const result = await runCompany();
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+/**
+ * v2.2.300 会社実績を年度ごとに読む（company/Company.tsx。画面は GET で ?request=company_year&year=2026）。
+ * ⚠️ ① に PHP ハンドラは無い（② だけ）。① の db.php の GET_ALLOWED_REQUESTS と express_proxy.php の2つのリストに入れてある。
+ * ⚠️ ② に届かないときは、画面が今までの company（POST・① の予備あり）に切り替えて画面で絞る。
+ */
+register({
+  request: 'company_year',
+  summary: '会社実績の初期データ（年度で絞った契約者。ほかは company と同じ）',
+  phpSource: '(Express のみ。PHPハンドラは無い)',
+  auth: 'staff',
+  handler: async (ctx) => {
+    const result = await runCompanyYear(ctx.body);
     if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
     return result.body;
   },

@@ -829,6 +829,10 @@ function expressProxyRequests(): array
         //   ⚠️ 公開フォームの event_form_public / event_form_entry は ② へ直接届くので、ここには入れない。
         'event_form:list',
         'event_form:save',
+
+        // ⚠️ 2026-11-25（v2.2.300）。全社報告用フォーマットを年度で読む（company/Company.tsx。画面は GET）。⚠️ ① に PHP ハンドラは無い（② だけ）。
+        //   ⚠️ 両方のリストに入れてある。② に届かないときは、画面が今までの company（POST・① の予備あり）に切り替える。
+        'company_year',
     ];
 }
 
@@ -1192,6 +1196,9 @@ function expressProxyExclusive(): array
         // ⚠️ 2026-11-25（v2.2.298）。イベントの予約フォームの一覧・作成・更新。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す）。
         'event_form:list',
         'event_form:save',
+
+        // ⚠️ 2026-11-25（v2.2.300）。全社報告用フォーマットを年度で読む。⚠️ ① に PHP ハンドラが無いので、落ちたら ① では処理できない（502 を返す。画面は company に切り替える）。
+        'company_year',
     ];
 }
 
