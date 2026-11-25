@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 
 /**
  * v2.2.296 顧客DB（注文 DatabaseOrder.tsx・建売 DatabaseKaeru.tsx・中古 DatabaseResale.tsx）の「商談・架電記録から検索」。
@@ -8,6 +9,8 @@ import React, { useEffect, useState } from 'react';
  * ⚠️ 入力しても自動では検索しない（1回に約1秒かかるため）。Enter か「商談・架電記録から検索」ボタンで送る。
  * ⚠️ ほかの絞り込みはそのまま残して、記録に当たった顧客にさらに絞る。
  * ⚠️ 検索しているときだけ、担当営業とステータスの間に「商談・架電内容」の列を足す（RECORD_COL_WIDTH だけ表を広げる）。
+ * ⚠️ v2.2.297 記録の検索が失敗しても、予備の全件読み込みには切り替えない（切り替えると検索が使えなくなる）。
+ *   一覧は前のまま残し、カードに理由（recordErrorOf）を出す。列も出さない。
  * ⚠️ この中の文字列 RECORD_CSS にバッククォートを書かないこと。
  */
 
@@ -39,6 +42,16 @@ export const RECORD_COL_WIDTH = 440;
  */
 export const isRecordSearch = (keyword: string, serverMode: boolean): boolean => serverMode && keyword !== '';
 
+/** 記録の検索が失敗した理由（① ② が返した文。無ければステータス番号・エラーの文） */
+export const recordErrorOf = (error: unknown): string => {
+    if (axios.isAxiosError(error)) {
+        const message: unknown = error.response?.data?.message;
+        if (typeof message === 'string' && message !== '') return message;
+        if (error.response) return `応答 ${error.response.status}`;
+    }
+    return error instanceof Error ? error.message : '原因不明';
+};
+
 export const RECORD_CSS = `
 .dbr_card { margin: 4px; padding: 6px 10px; gap: 6px; }
 .dbr_card .target { width: 220px; }
@@ -47,6 +60,7 @@ export const RECORD_CSS = `
 .dbr_card .rk_btn:disabled { opacity: .5; cursor: not-allowed; }
 .dbr_note { font-size: 11px; color: #6b7280; white-space: nowrap; }
 .dbr_note_warn { color: #b45309; }
+.dbr_note_error { display: inline-block; color: #b91c1c; font-weight: 700; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
 .database .dbk_table td.dbr_cell { width: ${RECORD_COL_WIDTH}px; min-width: ${RECORD_COL_WIDTH}px; text-align: left; vertical-align: top; }
 .dbr_item { display: grid; grid-template-columns: 74px 96px 1fr; gap: 6px; padding: 3px 0; line-height: 1.5; }
 .dbr_item + .dbr_item { border-top: 1px dashed #e5e7eb; }
@@ -68,10 +82,12 @@ interface RecordSearchCardProps {
     disabled: boolean;
     /** 一覧を読み込み中か */
     loading: boolean;
+    /** 記録の検索が失敗した理由（失敗していなければ空） */
+    error: string;
 }
 
 /** 「商談・架電記録から検索」のカード（ページ送りの右に置く。見た目は rk_bar・dbk_bar） */
-export const RecordSearchCard: React.FC<RecordSearchCardProps> = ({ value, onSearch, disabled, loading }) => {
+export const RecordSearchCard: React.FC<RecordSearchCardProps> = ({ value, onSearch, disabled, loading, error }) => {
     const [input, setInput] = useState(value);
     // ⚠️ 解除・URL から戻したときに入力欄もそろえる
     useEffect(() => setInput(value), [value]);
@@ -90,6 +106,7 @@ export const RecordSearchCard: React.FC<RecordSearchCardProps> = ({ value, onSea
             {value !== '' && <button type='button' className='rk_btn rk_btn_ghost' onClick={() => onSearch('')}>解除</button>}
             {disabled && <span className='dbr_note dbr_note_warn'>この検索は今は使えません</span>}
             {!disabled && loading && value !== '' && <span className='dbr_note'>記録を検索しています…</span>}
+            {!disabled && !loading && error !== '' && <span className='dbr_note dbr_note_error' title={error}>記録の検索に失敗しました（{error}）</span>}
         </form>
     );
 };
