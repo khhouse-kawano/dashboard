@@ -81,9 +81,12 @@ const KIND_LABEL: Record<string, string> = {
 const initialFields = (defs: FieldDef[]): FieldSettings =>
     Object.fromEntries(defs.map(d => [d.key, { show: true, required: d.defaultRequired }]));
 
+/** 新しいフォームの反響の通知先（To）の初期値（2026-11-25 の指示）。⚠️ 書き換え・追加はできる。編集では保存済みの値を出す */
+const DEFAULT_MAIL_TO = 'mkt@kh-house.jp';
+
 const emptyDraft = (defs: FieldDef[]): Draft => ({
     id: null, titleMode: 'pick', calendarId: '', newStart: '', newEnd: '', newName: '', currentTitle: '',
-    mail_to: '', mail_cc: '', fields: initialFields(defs), active: true,
+    mail_to: DEFAULT_MAIL_TO, mail_cc: '', fields: initialFields(defs), active: true,
 });
 
 const draftOf = (f: EventForm): Draft => ({
