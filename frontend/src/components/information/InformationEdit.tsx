@@ -992,8 +992,12 @@ const InformationEdit = ({ id, token, onClose, authority }: Props) => {
                                                 idMapping={idMapping}
                                                 setShowDetail={setShowDetail}
                                                 mediumArray={mediumArray} />
-                                            {/* ⚠️ v2.2.276: SUUMO は成約時に課金がある。Nexus の注意書きと同じ見た目（保存は止めない） */}
-                                            <NexusNotice messages={category === 'order' && (information[idMapping('反響媒体')] ?? '').trim() === 'SUUMO' ? [SUUMO_FEE_MESSAGE] : []} />
+                                            {/*
+                                              ⚠️ v2.2.276: SUUMO は成約時に課金がある。Nexus の注意書きと同じ見た目（保存は止めない）
+                                              ⚠️ v2.2.299: 出すのは注文で、顧客の portal_site（ポータルサイトの反響の取り込み元）が SUUMO のときだけ（2026-11-25 の指示）。
+                                                ⚠️ 反響媒体の欄で SUUMO を選んだだけ・新規登録の顧客には出さない。portal_site は information の読み込み（SELECT *）に入っている
+                                            */}
+                                            <NexusNotice messages={category === 'order' && String(information.portal_site ?? '').trim() === 'SUUMO' ? [SUUMO_FEE_MESSAGE] : []} />
                                         </td>
                                     </tr>
                                     <tr>
