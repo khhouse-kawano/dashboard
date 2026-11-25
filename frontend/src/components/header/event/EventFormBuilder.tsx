@@ -10,12 +10,23 @@ import apiClient from '../../../utils/apiClient';
  * ⚠️ 入力欄の名前・種類・選択肢は ② の features/eventForm/fields.ts が元。この画面は受け取って並べるだけ（写さない）。
  * ⚠️ 使えるのは反響一覧を開けるスタッフ全員（2026-11-25 の指示）。② も auth staff だけで権限は見ない。
  * ⚠️ 作ったフォームは消さない（URL を配ったあとに消すと開いた人が困る）。止めるときは「受付中」を外す。
- * ⚠️ 新しいイベント名は「開催日_名前」（例: 2026-12-06_○○フェア）。集客サマリーはこの形で開催日と結び付ける。
+ * ⚠️ v2.2.299 イベントはイベントカレンダー（event_calendar の全社 shop='khg'・表示中 flag=1）から選ぶ。
+ *   ⚠️「新しく追加する」は開始日・終了日・名前を ② に送り、② がカレンダーに1行入れる（画面からカレンダーへは書かない）。
+ *   ⚠️ 反響一覧に出る名前は「開始日_名前」（例: 2026-12-05_○○フェア）。集客サマリーはこの形で開催日と結び付ける。
  * ⚠️ fields は JSON の文字列で送る（① を通ると空の {} が [] に変わるため）。
  * ─────────────────────────────────────────────
  */
 
 type FieldKey = string;
+
+/** イベントカレンダーのイベント（② の features/eventForm/calendar.ts） */
+interface CalendarEvent {
+    id: number;
+    title: string;
+    startDate: string;
+    endDate: string;
+    url: string;
+}
 
 interface FieldDef {
     key: FieldKey;
@@ -33,6 +44,8 @@ interface EventForm {
     id: number;
     url: string;
     title: string;
+    /** ⚠️ v2.2.298 で作ったフォームは null（編集でイベントを選び直す） */
+    calendar_id: number | null;
     mail_to: string;
     mail_cc: string;
     fields: FieldSettings;
@@ -45,11 +58,15 @@ interface EventForm {
 
 interface Draft {
     id: number | null;
-    /** 'pick' = 今あるイベント名から選ぶ、'new' = 開催日と名前を入れて追加する */
+    /** 'pick' = イベントカレンダーから選ぶ、'new' = 開始日・終了日・名前を入れて追加する */
     titleMode: 'pick' | 'new';
-    pickedTitle: string;
-    newDate: string;
+    /** 選んだカレンダーのイベントの id（⚠️ select の値なので文字。未選択は ''） */
+    calendarId: string;
+    newStart: string;
+    newEnd: string;
     newName: string;
+    /** 編集のときの今のイベント名（⚠️ v2.2.298 のフォームは選び直すまでこれを見せる） */
+    currentTitle: string;
     mail_to: string;
     mail_cc: string;
     fields: FieldSettings;
@@ -65,17 +82,25 @@ const initialFields = (defs: FieldDef[]): FieldSettings =>
     Object.fromEntries(defs.map(d => [d.key, { show: true, required: d.defaultRequired }]));
 
 const emptyDraft = (defs: FieldDef[]): Draft => ({
-    id: null, titleMode: 'pick', pickedTitle: '', newDate: '', newName: '',
+    id: null, titleMode: 'pick', calendarId: '', newStart: '', newEnd: '', newName: '', currentTitle: '',
     mail_to: '', mail_cc: '', fields: initialFields(defs), active: true,
 });
 
 const draftOf = (f: EventForm): Draft => ({
-    id: f.id, titleMode: 'pick', pickedTitle: f.title, newDate: '', newName: '',
-    mail_to: f.mail_to, mail_cc: f.mail_cc, fields: f.fields, active: f.active,
+    id: f.id, titleMode: 'pick', calendarId: f.calendar_id === null ? '' : String(f.calendar_id), newStart: '', newEnd: '', newName: '',
+    currentTitle: f.title, mail_to: f.mail_to, mail_cc: f.mail_cc, fields: f.fields, active: f.active,
 });
 
-const titleOf = (d: Draft): string =>
-    d.titleMode === 'pick' ? d.pickedTitle : (d.newDate !== '' && d.newName.trim() !== '' ? `${d.newDate}_${d.newName.trim()}` : '');
+/** 選択肢の表記（2026-12-05〜12-06　○○フェア）。⚠️ 1日だけのイベントは開始日だけ */
+const eventLabel = (e: CalendarEvent): string =>
+    `${e.startDate}${e.endDate !== '' && e.endDate !== e.startDate ? `〜${e.endDate.slice(5)}` : ''}　${e.title}`;
+
+/** 反響一覧に出る名前（② の eventTitleOf と同じ形）。⚠️ 決まっていなければ '' */
+const titleOf = (d: Draft, events: CalendarEvent[]): string => {
+    if (d.titleMode === 'new') return d.newStart !== '' && d.newName.trim() !== '' ? `${d.newStart}_${d.newName.trim()}` : '';
+    const e = events.find(ev => String(ev.id) === d.calendarId);
+    return e ? `${e.startDate}_${e.title}` : '';
+};
 
 const messageOf = (error: unknown): string => {
     if (axios.isAxiosError(error)) {
@@ -114,8 +139,9 @@ const CSS = `
 .ef_seg { display: inline-flex; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; align-self: flex-start; }
 .ef_seg button { border: 0; background: #fff; color: #4b5563; font-size: 11px; font-weight: 700; padding: 4px 12px; cursor: pointer; }
 .ef_seg button.is_on { background: #2563eb; color: #fff; }
-.ef_row2 { display: flex; gap: 8px; }
-.ef_row2 > :first-child { flex: 0 0 150px; }
+.ef_row3 { display: flex; gap: 6px; align-items: center; }
+.ef_row3 .ef_input { flex: 1 1 0; min-width: 0; }
+.ef_tilde { color: #9ca3af; }
 .ef_table_wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto; background: #fff; }
 .ef_table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
 .ef_table th { position: sticky; top: 0; background: #f8fafc; border-bottom: 1px solid #e5e7eb; padding: 8px 10px; text-align: left;
@@ -137,7 +163,8 @@ const CSS = `
 /** 集客イベント → フォーム作成 */
 const EventFormBuilder = () => {
     const [forms, setForms] = useState<EventForm[]>([]);
-    const [titles, setTitles] = useState<string[]>([]);
+    /** 選べるイベント（イベントカレンダーの全社・表示中。開始日の新しい順） */
+    const [events, setEvents] = useState<CalendarEvent[]>([]);
     const [defs, setDefs] = useState<FieldDef[]>([]);
     const [loading, setLoading] = useState(false);
     const [loadError, setLoadError] = useState('');
@@ -155,7 +182,7 @@ const EventFormBuilder = () => {
         try {
             const res = await apiClient.post('', { request: 'event_form', roll: 'list' });
             setForms(res.data.forms ?? []);
-            setTitles(res.data.titles ?? []);
+            setEvents(res.data.events ?? []);
             setDefs(res.data.fields ?? []);
         } catch (error) {
             console.error('event_form（一覧）の読み込みに失敗しました:', error);
@@ -184,10 +211,19 @@ const EventFormBuilder = () => {
 
     const save = async () => {
         if (!draft) return;
-        const title = titleOf(draft);
-        if (title === '') {
-            setSaveError(draft.titleMode === 'pick' ? 'イベント名を選んでください。' : '開催日とイベント名を入力してください。');
+        if (draft.titleMode === 'pick' && titleOf(draft, events) === '') {
+            setSaveError('イベントを選んでください。');
             return;
+        }
+        if (draft.titleMode === 'new') {
+            if (draft.newStart === '' || draft.newEnd === '' || draft.newName.trim() === '') {
+                setSaveError('開始日・終了日・イベント名を入力してください。');
+                return;
+            }
+            if (draft.newEnd < draft.newStart) {
+                setSaveError('終了日は開始日より後の日にしてください。');
+                return;
+            }
         }
         if (draft.mail_to.trim() === '') {
             setSaveError('反響の通知先のメールアドレスを入力してください。');
@@ -199,7 +235,11 @@ const EventFormBuilder = () => {
             const res = await apiClient.post('', {
                 request: 'event_form', roll: 'save',
                 ...(draft.id === null ? {} : { id: draft.id }),
-                title, mail_to: draft.mail_to, mail_cc: draft.mail_cc,
+                // ⚠️ 今あるイベントは calendar_id、新しいイベントは new_*（② がカレンダーに入れる）。⚠️ イベント名そのものは送らない
+                ...(draft.titleMode === 'pick'
+                    ? { calendar_id: Number(draft.calendarId) }
+                    : { new_title: draft.newName.trim(), new_start: draft.newStart, new_end: draft.newEnd }),
+                mail_to: draft.mail_to, mail_cc: draft.mail_cc,
                 fields: JSON.stringify(draft.fields), active: draft.active,
             });
             // ⚠️ 一覧を読み直してから「保存しました」を出す（先に出すと、一覧の受付中・停止が古いまま見える）
@@ -263,25 +303,37 @@ const EventFormBuilder = () => {
 
                         <div className="ef_grid">
                             <div className="ef_field">
-                                <span className="ef_label">イベント名</span>
+                                <span className="ef_label">イベント</span>
                                 <div className="ef_seg">
-                                    <button className={draft.titleMode === 'pick' ? 'is_on' : ''} onClick={() => update({ titleMode: 'pick' })}>今あるイベントから選ぶ</button>
+                                    <button className={draft.titleMode === 'pick' ? 'is_on' : ''} onClick={() => update({ titleMode: 'pick' })}>イベントカレンダーから選ぶ</button>
                                     <button className={draft.titleMode === 'new' ? 'is_on' : ''} onClick={() => update({ titleMode: 'new' })}>新しく追加する</button>
                                 </div>
                                 {draft.titleMode === 'pick' ? (
-                                    <select className="ef_input" value={draft.pickedTitle} onChange={e => update({ pickedTitle: e.target.value })}>
-                                        <option value="">イベントを選択</option>
-                                        {titles.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
+                                    <>
+                                        <select className="ef_input" value={draft.calendarId} onChange={e => update({ calendarId: e.target.value })} aria-label="イベント">
+                                            <option value="">イベントを選択（全社イベント）</option>
+                                            {events.map(e => <option key={e.id} value={String(e.id)}>{eventLabel(e)}</option>)}
+                                        </select>
+                                        {/*
+                                          ⚠️ 編集で、今のイベントが選択肢に無いとき（v2.2.298 で作ったフォーム・カレンダーで非表示にしたイベント）は、
+                                            選び直すまで今の名前を見せる（⚠️ 選択欄は空に見えるため）
+                                        */}
+                                        {draft.id !== null && !events.some(ev => String(ev.id) === draft.calendarId) && (
+                                            <span className="ef_hint" style={{ color: '#b45309' }}>今のイベント名は「{draft.currentTitle}」です。イベントカレンダーから選び直してください。</span>
+                                        )}
+                                    </>
                                 ) : (
                                     <>
-                                        <div className="ef_row2">
-                                            <input className="ef_input" type="date" value={draft.newDate} onChange={e => update({ newDate: e.target.value })} aria-label="開催日" />
-                                            <input className="ef_input" type="text" value={draft.newName} maxLength={200} placeholder="イベント名（例：完成見学会 霧島市）" onChange={e => update({ newName: e.target.value })} aria-label="イベント名" />
+                                        <div className="ef_row3">
+                                            <input className="ef_input" type="date" value={draft.newStart} onChange={e => update({ newStart: e.target.value, newEnd: draft.newEnd === '' ? e.target.value : draft.newEnd })} aria-label="開始日" />
+                                            <span className="ef_tilde">〜</span>
+                                            <input className="ef_input" type="date" value={draft.newEnd} min={draft.newStart || undefined} onChange={e => update({ newEnd: e.target.value })} aria-label="終了日" />
                                         </div>
-                                        <span className="ef_hint">反響一覧には「{titleOf(draft) || '開催日_イベント名'}」の名前で出ます</span>
+                                        <input className="ef_input" type="text" value={draft.newName} maxLength={200} placeholder="イベント名（例：完成見学会 霧島市）" onChange={e => update({ newName: e.target.value })} aria-label="イベント名" />
+                                        <span className="ef_hint">保存するとイベントカレンダー（全社）にも入ります</span>
                                     </>
                                 )}
+                                <span className="ef_hint">反響一覧には「{titleOf(draft, events) || '開始日_イベント名'}」の名前で出ます</span>
                             </div>
                             <div className="ef_field">
                                 <span className="ef_label">反響の通知先（To）</span>

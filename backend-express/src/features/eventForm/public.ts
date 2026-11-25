@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query, type SqlParam } from '../../db/pool';
 import { logger } from '../../utils/logger';
+import { findCalendarEvent, formatEventDate } from './calendar';
 import { FIELD_DEFS, normalizeSettings, type FieldDef, type FieldKey } from './fields';
 import { sendEntryNotice, sendEntryThanks } from './mail';
 
@@ -23,6 +24,7 @@ import { sendEntryNotice, sendEntryThanks } from './mail';
 interface FormRow extends RowDataPacket {
   id: number;
   title: string;
+  calendar_id: number | null;
   mail_to: string;
   mail_cc: string;
   fields: string | null;
@@ -37,21 +39,23 @@ export interface PublicResult {
 const NOT_FOUND: PublicResult = { httpStatus: 404, body: { status: 'error', message: 'このフォームは見つかりませんでした。URL をご確認ください。' } };
 const CLOSED: PublicResult = { httpStatus: 410, body: { status: 'closed', message: 'このイベントの受付は終了しました。' } };
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
-
-/** event_db.title の先頭の開催日（2026-12-06_）を外して、画面に出す名前と開催日に分ける */
-export const splitTitle = (title: string): { name: string; date: string } => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})_(.+)$/.exec(title);
-  if (!m) return { name: title, date: '' };
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  if (Number.isNaN(d.getTime())) return { name: m[4], date: '' };
-  return { name: m[4], date: `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）` };
+/**
+ * 画面とメールに出すイベント名と開催日。
+ * ⚠️ 名前は event_db.title の先頭の開催日（2026-12-06_）を外したもの。
+ * ⚠️ v2.2.299 開催日はイベントカレンダーの開始日〜終了日（2026-11-25 の指示）。
+ *   ⚠️ カレンダーに無い（v2.2.298 のフォーム・非表示にした）ときは名前の先頭の日付だけ。
+ */
+const headingOf = async (form: FormRow): Promise<{ name: string; date: string }> => {
+  const m = /^(\d{4}-\d{2}-\d{2})_(.+)$/.exec(form.title);
+  const name = m ? m[2] : form.title;
+  const event = form.calendar_id === null ? null : await findCalendarEvent(form.calendar_id);
+  return { name, date: event ? formatEventDate(event.startDate, event.endDate) : formatEventDate(m ? m[1] : '') };
 };
 
 const loadForm = async (value: unknown): Promise<FormRow | null> => {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) return null;
-  const rows = await query<FormRow>('SELECT id, title, mail_to, mail_cc, fields, active FROM event_form WHERE id = ?', [id]);
+  const rows = await query<FormRow>('SELECT id, title, calendar_id, mail_to, mail_cc, fields, active FROM event_form WHERE id = ?', [id]);
   return rows[0] ?? null;
 };
 
@@ -66,7 +70,7 @@ export const runEventFormPublic = async (body: Record<string, unknown>): Promise
   const form = await loadForm(body.id);
   if (!form) return NOT_FOUND;
   if (form.active !== 1) return CLOSED;
-  const { name, date } = splitTitle(form.title);
+  const { name, date } = await headingOf(form);
   return {
     httpStatus: 200,
     body: {
@@ -176,7 +180,7 @@ export const runEventFormEntry = async (body: Record<string, unknown>): Promise<
     return { httpStatus: 500, body: { status: 'error', message: 'お申し込みの登録に失敗しました。時間をおいて再度お試しください。' } };
   }
 
-  const { name: eventName, date: eventDate } = splitTitle(form.title);
+  const { name: eventName, date: eventDate } = await headingOf(form);
   const mailData = {
     formId: form.id,
     eventName,
