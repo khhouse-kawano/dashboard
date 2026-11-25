@@ -29,6 +29,7 @@ const GET_ALLOWED_REQUESTS = [
     'tracking_site_list', 'tracking_site_summary', 'tracking_detail', 'tracking_vendor_funnel', // ⚠️ v2.2.287
     'database_list', // ⚠️ v2.2.289 顧客DB（建売）を1ページずつ（② 専用）
     'call_status_summary', // ⚠️ v2.2.294 架電状況を期間で読む（② 専用）
+    'company_year', // ⚠️ v2.2.300 全社報告用フォーマットを年度で読む（② 専用）
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

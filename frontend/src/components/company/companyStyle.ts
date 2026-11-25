@@ -30,6 +30,8 @@ export const COMPANY_STYLE = `
 
 /* ⚠️ 余白は .co_scroll ではなく中の .co_pad に付ける（.co_scroll に付けると、固定する行・列がその分だけずれて止まる） */
 .co_scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/* v2.2.300 年度の契約を読んでいるあいだは表を薄くする（⚠️ 前の年度の数字が新しい年度の数字に見えないように） */
+.co_page.co_loading .co_scroll { opacity: .4; pointer-events: none; transition: opacity .15s; }
 .co_pad { display: flex; justify-content: center; width: max-content; min-width: 100%; box-sizing: border-box; padding: 14px 18px 48px; }
 .co_card { width: max-content; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
 .co_tbl { border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: #1f2937; margin: 0; }
