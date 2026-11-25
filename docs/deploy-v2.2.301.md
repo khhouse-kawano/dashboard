@@ -13,6 +13,22 @@
 - ⚠️ sync（手順6）は ② のあとに上げてください。先に上げると ② が property_db_portal を知らず、summary のたびに「物件DB を補えませんでした」のエラーメールが届きます（summary 自体は今までどおり更新されます）。
 - 物件DB の考え方（ポータルだけで代われるか・列の対応・書き換えの決まり）は `docs/property-db-portal.md`。
 
+## 先に（夜間モードの解除）
+この版は夜間モード（離席モード）で作りました。夜間モードのままだと push・設定の書き換えが断られるので、デプロイの前に解除します。
+1. `C:\Users\shinji-kawano\.claude\settings.json` から次の2つを手で消す（ほかの設定は残す。その前の行 `"theme": "auto",` の最後のカンマも消す）
+   ```json
+     "permissions": {
+       "denyInsteadOfPrompting": true
+     },
+     "autoContinueAtUsageLimit": true
+   ```
+2. VS Code を再読み込みする（コマンドパレット →「ウィンドウの再読み込み」）。⚠️ 同じセッションでは、一度断られた操作は断られ続ける
+3. 2つのブランチを push する
+   ```bash
+   git -C /c/Users/shinji-kawano/react/dashboard push -u origin v2.2.301
+   git -C /c/Users/shinji-kawano/projects/sync push -u origin away/20261125-property-db
+   ```
+
 ## 順序
 ```
 1. GitHub で v2.2.301 を production へマージ（PR）
