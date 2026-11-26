@@ -19,6 +19,7 @@ import { useIsSp } from '../../utils/isSp';
 import apiClient from '../../utils/apiClient';
 import { CustomerName } from '../../utils/deletedCustomer';
 import { descending } from '../../utils/descending';
+import { addMonths } from '../../utils/addMonths';
 
 type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -524,8 +525,8 @@ const RankOrder = () => {
                                         <>{(!isPeriod && (item.label !== 'Eランク' && item.label !== 'Fランク')) &&
                                             <React.Fragment key={`sub-${i}`}>
                                                 <td>{targetMonth}</td>
-                                                <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 1).padStart(2, '0')}</td>
-                                                <td>{targetMonth.split('/')[0]}/{String(Number(targetMonth.split('/')[1]) + 2).padStart(2, '0')}</td>
+                                                <td>{addMonths(targetMonth, 1)}</td>
+                                                <td>{addMonths(targetMonth, 2)}</td>
                                             </React.Fragment>
                                         }</>
                                     );
@@ -659,8 +660,8 @@ const RankOrder = () => {
                                                         setNewRank(item.id, '', e.target.value);
                                                     }}>
                                                     {[targetMonth,
-                                                        `${targetMonth.split('/')[0]}/${String(Number(targetMonth.split('/')[1]) + 1).padStart(2, '0')}`,
-                                                        `${targetMonth.split('/')[0]}/${String(Number(targetMonth.split('/')[1]) + 2).padStart(2, '0')}`].map(period => {
+                                                        addMonths(targetMonth, 1),
+                                                        addMonths(targetMonth, 2)].map(period => {
                                                             return <option value={period} key={period} selected={period === item.rank_period}>{period}</option>
                                                         }
                                                         )}
