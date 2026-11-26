@@ -11,6 +11,9 @@ INSERT INTO update_log (version, date, note) VALUES
 -- ⚠️ 2026-11-26 の本番のバックアップでは master_data に「2026/13」が36件。master_data_kaeru・master_data_resale は0件（念のため同じ式で直す）
 -- 確認：SELECT rank_period, COUNT(*) FROM master_data WHERE rank_period REGEXP '^[0-9]{4}/1[34]$' GROUP BY rank_period;
 -- ---------------------------------------------------------------
+-- ⚠️ ① は安全な更新モード（キーの列を使わない WHERE の UPDATE を止める。ERROR 1175）なので、この3文の間だけ外す
+SET SQL_SAFE_UPDATES = 0;
 UPDATE master_data SET rank_period = CONCAT(LEFT(rank_period, 4) + 1, '/0', RIGHT(rank_period, 2) - 12) WHERE rank_period REGEXP '^[0-9]{4}/1[34]$';
 UPDATE master_data_kaeru SET rank_period = CONCAT(LEFT(rank_period, 4) + 1, '/0', RIGHT(rank_period, 2) - 12) WHERE rank_period REGEXP '^[0-9]{4}/1[34]$';
 UPDATE master_data_resale SET rank_period = CONCAT(LEFT(rank_period, 4) + 1, '/0', RIGHT(rank_period, 2) - 12) WHERE rank_period REGEXP '^[0-9]{4}/1[34]$';
+SET SQL_SAFE_UPDATES = 1;
