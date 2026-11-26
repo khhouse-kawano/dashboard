@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useMemo } from 'react';
+import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
 import Table from "react-bootstrap/Table";
 import Modal from 'react-bootstrap/Modal';
 import AuthContext from '../../context/AuthContext';
@@ -13,6 +13,12 @@ import { removeAllSpaces } from './databaseUtils';
 import SuumoPropertySummary from './SuumoPropertySummary';
 import { RankingStyle } from '../rankingUi';
 import { DBK_CSS } from './databaseListStyle';
+import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
+import { useDebounce } from './useDebounce';
+
+/** v2.2.304 並べ替えの既定（PV の合計の多い順）。⚠️ ② の runPropertyPage と同じ。既定は URL に出さない */
+const DEFAULT_SORT = { key: 'pv_total', direction: 'desc' as const };
+const SORT_KEYS = ['register', 'pv_total', 'pv_suumo', 'pv_homes', 'pv_athome'];
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
@@ -42,27 +48,36 @@ const safeClean = (str?: string | null) => str ? String(str).replace(/[\s ]+/g, 
 
 const DatabaseProperty = () => {
     const { token, category, authority } = useContext(AuthContext);
+    /** v2.2.304 開いたときの URL の条件（⚠️ 下の state の初期値にだけ使う） */
+    const [initUrl] = useState(() => readListUrl(new URLSearchParams(window.location.search)));
     const [shopArray, setShopArray] = useState<string[]>([]);
     const [staffArray, setStaffArray] = useState<staffList[]>([]);
     const [originalPropertyList, setOriginalPropertyList] = useState<Property[]>([]);
-    const [sliceStart, setSliceStart] = useState<number>(0);
-    const [basicLength, setBasicLength] = useState<number>(20);
+    const [sliceStart, setSliceStart] = useState<number>((initUrl.page - 1) * initUrl.perPage);
+    const [basicLength, setBasicLength] = useState<number>(initUrl.perPage);
     const [targetId, setTargetId] = useState('');
-    const [activePage, setActivePage] = useState<number>(1);
-    const [selectedShop, setSelectedShop] = useState<string>('');
-    const [selectedRank, setSelectedRank] = useState<string>('');
-    const [searchedName, setSearchedName] = useState<string>('');
-    const [searchedStaff, setSearchedStaff] = useState<string>('');
-    const [searchedAddress, setSearchedAddress] = useState<string>('');
-    const [checkedCompanyProperty, setCheckedCompanyProperty] = useState(false);
+    const [activePage, setActivePage] = useState<number>(initUrl.page);
+    const [selectedShop, setSelectedShop] = useState<string>(initUrl.get('shop'));
+    const [selectedRank, setSelectedRank] = useState<string>(initUrl.get('rank'));
+    // ⚠️ v2.2.304 文字の検索は 300ms 待ってから絞る（入力のたびに ② へ送らない）
+    const nameSearch = useDebounce(initUrl.get('name'), 300);
+    const staffSearch = useDebounce(initUrl.get('staff'), 300);
+    const addressSearch = useDebounce(initUrl.get('address'), 300);
+    const searchedName = nameSearch.debouncedValue;
+    const searchedStaff = staffSearch.debouncedValue;
+    const searchedAddress = addressSearch.debouncedValue;
+    const [checkedCompanyProperty, setCheckedCompanyProperty] = useState(initUrl.get('company') === '1');
     const [checkedMap, setCheckedMap] = useState(false);
-    const [checkedContract, setCheckedContract] = useState(false);
+    const [checkedContract, setCheckedContract] = useState(initUrl.get('contract') === '1');
     const [targetProperty, setTargetProperty] = useState<Property>({});
     const [customerList, setCustomerList] = useState<Customer[]>([]);
     const [suumoSummary, setSuumoSummary] = useState<Record<string, string>[]>([]);
     const [homesSummary, setHomesSummary] = useState<Record<string, string>[]>([]);
     const [athomeSummary, setAthomeSummary] = useState<Record<string, string>[]>([]);
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'pv_total', direction: 'desc' });
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>(() => ({
+        key: SORT_KEYS.includes(initUrl.get('sort')) ? initUrl.get('sort') : DEFAULT_SORT.key,
+        direction: initUrl.get('dir') === 'asc' ? 'asc' : initUrl.get('dir') === 'desc' ? 'desc' : DEFAULT_SORT.direction,
+    }));
     const [editId, setEditId] = useState('');
     // ⚠️ v2.2.301 URL に ?date=（SUUMO物件サマリーの取得日）があれば、開いたときにサマリーも開く（再読み込み・共有で同じ表が出る）
     const [showSuumoSummary, setShowSuumoSummary] = useState(() => new URLSearchParams(window.location.search).has('date'));
@@ -77,37 +92,40 @@ const DatabaseProperty = () => {
     };
 
     /**
-     * v2.2.301 読み込み。⚠️ ふだんは ② の property_list（GET）。事業（category）の店舗の物件・その物件のポータル3つ・問い合わせ物件名のある顧客だけが届く。
-     *   ⚠️ ② に届かないときは今までの property:list（POST・① の予備。全件）に切り替える。
-     *   ⚠️ どちらで読んでも下の絞り込み（店舗・顧客の事業）を同じようにかける（② で絞ってあっても結果は変わらない）。
+     * 読み込み。
+     * ⚠️ v2.2.304 ふだんは ② の property_list に page を付けて GET し、絞り込み・並べ替えをした1ページ分だけを受け取る（serverRows・serverTotal）。
+     *   ⚠️ 受け取った行は画面で絞り込み・並べ替えをしない（「契約済み」は全物件の最新の取り込み日で決まるため、1ページ分では判定できない）。
+     * ⚠️ ② に届かないときは serverMode を false にして、今までの property:list（POST・① の予備。全件）を読み、下の propertyList で絞る。
+     *   ⚠️ 画面の絞り込みと ② の runPropertyPage は同じ式にしてある（片方だけ直さない）。
      */
     const [loading, setLoading] = useState(true);
+    const [serverMode, setServerMode] = useState(true);
+    const [serverRows, setServerRows] = useState<Property[]>([]);
+    const [serverTotal, setServerTotal] = useState(0);
+    /** 古い応答で新しい条件の結果を上書きしない */
+    const listSeqRef = useRef(0);
+    const apply = (data: any, setRows: (rows: Property[]) => void) => {
+        const shopList = category === 'spec' ? (data.shop ?? []).map((s: any) => s.shop) : categoryList;
+        setShopArray(shopList);
+        setStaffArray(data.staff || []);
+        const filteredList = (data.property ?? []).filter((p: any) => removeAllSpaces(p.store_name) === removeAllSpaces(categoryMapping[category]));
+        setRows(filteredList);
+        const filteredCustomerList = (data.customer ?? []).filter((c: any) => removeAllSpaces(c.category) === removeAllSpaces(categoryMapping[category]));
+        setCustomerList(filteredCustomerList);
+        setSuumoSummary(data.suumo ?? []);
+        setAthomeSummary(data.athome ?? []);
+        setHomesSummary(data.homes ?? []);
+    };
+
+    // ⚠️ 全件の読み込みは、② に届かなかったとき（serverMode が false）だけ
     useEffect(() => {
+        if (serverMode) return;
         let cancelled = false;
-        const apply = (data: any) => {
-            const shopList = category === 'spec' ? (data.shop ?? []).map((s: any) => s.shop) : categoryList;
-            setShopArray(shopList);
-            setStaffArray(data.staff || []);
-            const filteredList = (data.property ?? []).filter((p: any) => removeAllSpaces(p.store_name) === removeAllSpaces(categoryMapping[category]));
-            setOriginalPropertyList(filteredList);
-            const filteredCustomerList = (data.customer ?? []).filter((c: any) => removeAllSpaces(c.category) === removeAllSpaces(categoryMapping[category]));
-            setCustomerList(filteredCustomerList);
-            setSuumoSummary(data.suumo ?? []);
-            setAthomeSummary(data.athome ?? []);
-            setHomesSummary(data.homes ?? []);
-        };
         const fetchData = async () => {
             setLoading(true);
             try {
-                try {
-                    const response = await apiClient.get('', { params: { request: 'property_list', category } });
-                    if (!Array.isArray(response?.data?.property)) throw new Error('invalid property_list response');
-                    if (!cancelled) apply(response.data);
-                } catch (error) {
-                    console.error('property_list に失敗しました。全件の読み込みに切り替えます:', error);
-                    const response = await apiClient.post("", { request: 'property', roll: 'list' });
-                    if (!cancelled) apply(response.data);
-                }
+                const response = await apiClient.post("", { request: 'property', roll: 'list' });
+                if (!cancelled) apply(response.data, setOriginalPropertyList);
             } catch (error) {
                 console.error("Error fetching data:", error);
             } finally {
@@ -117,7 +135,7 @@ const DatabaseProperty = () => {
         fetchData();
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [category]);
+    }, [serverMode, category]);
 
     const filteredCustomer = useMemo(() => {
         return customerList.filter(c => c.property_name);
@@ -140,7 +158,8 @@ const DatabaseProperty = () => {
             return recentDate !== value;
         };
 
-        const targetList = originalPropertyList.filter(o => {
+        // ⚠️ v2.2.304 ② から受け取った1ページ分は、② が絞り込み・並べ替え済み（ここでは PV の計算だけをする）
+        const targetList = serverMode ? serverRows : originalPropertyList.filter(o => {
             const safePropName = normalizePropertyName(o.property_name);
             const baseCustomers = filteredCustomer.filter(f => {
                 const customerPropName = normalizePropertyName(f.property_name);
@@ -215,6 +234,7 @@ const DatabaseProperty = () => {
             };
         });
 
+        if (serverMode) return mappedResult;
         const sortedResult = [...mappedResult].sort((a, b) => {
             const getValue = (item: Record<string, any>, key: string): number => {
                 if (key === 'register' || key === 'tour') return item[key]?.length ?? 0;
@@ -232,18 +252,81 @@ const DatabaseProperty = () => {
         originalPropertyList, checkedCompanyProperty, selectedShop, searchedName,
         searchedAddress, searchedStaff, selectedRank, filteredCustomer, staffArray,
         category, checkedContract, suumoSummary, homesSummary, athomeSummary,
-        sortConfig
+        sortConfig, serverMode, serverRows
+    ]);
+
+    /**
+     * v2.2.304 ② に送る条件（⚠️ URL のキーも同じ。空の条件と既定の並べ替えは送らない・出さない）。
+     * ⚠️ 店舗は建売（spec）だけ選べる（中古の画面には店舗の欄が無い）。
+     */
+    const listParams = useMemo(() => Object.fromEntries(Object.entries({
+        shop: selectedShop, rank: selectedRank, name: searchedName, address: searchedAddress, staff: searchedStaff,
+        company: checkedCompanyProperty ? '1' : '', contract: checkedContract ? '1' : '',
+        sort: sortConfig.key === DEFAULT_SORT.key && sortConfig.direction === DEFAULT_SORT.direction ? '' : sortConfig.key,
+        dir: sortConfig.key === DEFAULT_SORT.key && sortConfig.direction === DEFAULT_SORT.direction ? '' : sortConfig.direction,
+    }).filter(([, v]) => v !== '')), [
+        selectedShop, selectedRank, searchedName, searchedAddress, searchedStaff, checkedCompanyProperty, checkedContract, sortConfig,
     ]);
 
     /**
      * v2.2.301 ページ数は「絞り込んだあとの件数」で数える（⚠️ それまでは絞り込む前の全件で数えていて、ページ送りが空のページまで進んだ）。
      * ⚠️ 絞り込み・表示件数・並べ替えを変えたら1ページ目に戻す（戻さないと、少なくなった一覧で空のページが出る）。
+     * ⚠️ v2.2.304 条件が実際に変わったときだけ戻す（URL の page で開いたときに1へ戻さない。予備で全件を読み終えたときも戻さない）。
      */
-    const displayLength = propertyList.length;
-    useEffect(() => {
+    const displayLength = serverMode ? serverTotal : propertyList.length;
+    useOnListChange(`${category}|${JSON.stringify(listParams)}|${basicLength}`, [], () => {
         setActivePage(1);
         setSliceStart(0);
-    }, [selectedShop, selectedRank, searchedName, searchedAddress, searchedStaff, checkedCompanyProperty, checkedContract, basicLength, sortConfig, category]);
+    });
+    // ⚠️ v2.2.304 予備のとき、ページが件数より後ろなら最後のページに寄せる（② の runPropertyPage と同じ）
+    useEffect(() => {
+        if (serverMode || loading) return;
+        const lastPage = Math.max(1, Math.ceil(propertyList.length / basicLength));
+        if (activePage > lastPage) {
+            setActivePage(lastPage);
+            setSliceStart((lastPage - 1) * basicLength);
+        }
+    }, [serverMode, loading, propertyList.length, basicLength, activePage]);
+
+    /** v2.2.304 条件・ページ・表示件数を画面の URL にも出す（⚠️ SUUMO 掲載順位の ?date= と顧客の ?id= は残す） */
+    useListUrlSync(listParams, activePage, basicLength, ['id', 'date']);
+
+    /**
+     * v2.2.304 今の条件・ページを ② から GET で読む。
+     * ⚠️ setTimeout(0) で1回にまとめる（条件を変えると上でページが1に戻るので、古いページで1回読まないように）。
+     */
+    useEffect(() => {
+        if (!serverMode) return;
+        const timer = window.setTimeout(async () => {
+            const seq = ++listSeqRef.current;
+            setLoading(true);
+            try {
+                const response = await apiClient.get('', {
+                    params: { request: 'property_list', category, ...listParams, page: activePage, perPage: basicLength },
+                });
+                if (seq !== listSeqRef.current) return;
+                const data = response?.data;
+                if (!data || data.status !== 'ok' || !Array.isArray(data.property)) throw new Error('invalid property_list response');
+                apply(data, setServerRows);
+                setServerTotal(Number(data.total) || 0);
+                // ⚠️ ページが件数より後ろなら、② が最後のページに寄せて返す。画面もそれに合わせる
+                if (Number(data.page) !== activePage) {
+                    setActivePage(Number(data.page));
+                    setSliceStart((Number(data.page) - 1) * basicLength);
+                }
+                setLoading(false);
+            } catch (error) {
+                if (seq !== listSeqRef.current) return;
+                console.error('property_list に失敗しました。全件の読み込みに切り替えます:', error);
+                setServerMode(false);
+            }
+        }, 0);
+        return () => window.clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [serverMode, category, listParams, activePage, basicLength]);
+
+    /** 表に出す行（⚠️ ② で読むときは受け取った1ページ分。予備のときは画面で絞った結果を切る） */
+    const visibleRows = serverMode ? propertyList : propertyList.slice(sliceStart, sliceStart + basicLength);
 
     const pages: Record<string, number | null> = { page1: null, page2: null, page3: null, page4: null, page5: null };
     Object.entries(pages).forEach(([key, _], index) => {
@@ -269,9 +352,9 @@ const DatabaseProperty = () => {
 
     useEffect(() => {
         if (!targetId) return;
-        const target = originalPropertyList.find(o => o.property_id === targetId);
+        const target = (serverMode ? serverRows : originalPropertyList).find(o => o.property_id === targetId);
         if (target) setTargetProperty(target);
-    }, [targetId, originalPropertyList]);
+    }, [targetId, originalPropertyList, serverMode, serverRows]);
 
     const closeInformationEdit = async () => setEditId('');
 
@@ -317,9 +400,9 @@ const DatabaseProperty = () => {
                             {ranks.map((rank, rIndex) => <option key={rIndex} value={rank}>{rank}</option>)}
                         </select>
                     </div>
-                    <div className="m-1"><input className="target" type='text' placeholder='物件名で検索' onChange={(e) => setSearchedName(e.target.value)} /></div>
-                    <div className="m-1"><input className="target" type='text' placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} /></div>
-                    <div className="m-1"><input className="target" type='text' placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} /></div>
+                    <div className="m-1"><input className="target" type='text' placeholder='物件名で検索' aria-label="物件名" value={nameSearch.inputValue} onChange={nameSearch.onChange} /></div>
+                    <div className="m-1"><input className="target" type='text' placeholder='住所で検索' aria-label="住所" value={addressSearch.inputValue} onChange={addressSearch.onChange} /></div>
+                    <div className="m-1"><input className="target" type='text' placeholder='営業名で検索' aria-label="営業名" value={staffSearch.inputValue} onChange={staffSearch.onChange} /></div>
                     <label className="m-1 d-flex align-items-center gap-1" style={{ fontSize: '12px' }}>
                         <input type='checkbox' id="checkCompany" onChange={() => setCheckedCompanyProperty(!checkedCompanyProperty)} checked={checkedCompanyProperty} />
                         自社物件を表示
@@ -335,8 +418,8 @@ const DatabaseProperty = () => {
                 <div className="d-md-flex align-items-center justify-content-between mb-1">
                     <div className="d-flex flex-wrap align-items-center">
                         <div>
-                            <span className="dbk_count_num">{propertyList.length}</span>
-                            <span className="dbk_count_sub"> 件中 {propertyList.length === 0 ? 0 : sliceStart + 1}件~{Math.min(activePage * basicLength, propertyList.length)}件</span>
+                            <span className="dbk_count_num">{displayLength}</span>
+                            <span className="dbk_count_sub"> 件中 {displayLength === 0 ? 0 : sliceStart + 1}件~{Math.min(activePage * basicLength, displayLength)}件</span>
                             {loading && <span className="ms-2 dbk_count_sub">読み込み中…</span>}
                         </div>
                         <div className="ms-2 dbk_count_sub">
@@ -390,7 +473,7 @@ const DatabaseProperty = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {propertyList.slice(sliceStart, sliceStart + basicLength).map((item, index) => (
+                                    {visibleRows.map((item, index) => (
                                         <tr key={item.property_id || index}>
                                             <td className="text-muted">{sliceStart + index + 1}</td>
                                             <td>

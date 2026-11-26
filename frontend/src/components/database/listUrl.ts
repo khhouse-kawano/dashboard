@@ -23,18 +23,24 @@ export const readListUrl = (sp: URLSearchParams) => {
     };
 };
 
-/** 今の条件・ページ・表示件数を URL に書く（⚠️ 履歴は増やさない。replace） */
-export const useListUrlSync = (listParams: Record<string, string>, page: number, perPage: number) => {
+/**
+ * 今の条件・ページ・表示件数を URL に書く（⚠️ 履歴は増やさない。replace）。
+ * ⚠️ v2.2.304 keep：条件とは別に残すパラメータ（既定は ?id=。物件DB は SUUMO 掲載順位の ?date= も残す）
+ */
+export const useListUrlSync = (listParams: Record<string, string>, page: number, perPage: number, keep: string[] = ['id']) => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const keepKey = keep.join(',');
     useEffect(() => {
         const next = new URLSearchParams();
         Object.entries(listParams).forEach(([k, v]) => { if (!(k === 'trash' && v === '1')) next.set(k, v); });
         if (page > 1) next.set('page', String(page));
         if (perPage !== DEFAULT_PER_PAGE) next.set('perPage', String(perPage));
-        const id = searchParams.get('id');
-        if (id) next.set('id', id);
+        keepKey.split(',').forEach((k) => {
+            const v = searchParams.get(k);
+            if (v) next.set(k, v);
+        });
         if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
-    }, [listParams, page, perPage, searchParams, setSearchParams]);
+    }, [listParams, page, perPage, searchParams, setSearchParams, keepKey]);
 };
 
 /**
