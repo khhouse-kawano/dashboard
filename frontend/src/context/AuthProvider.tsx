@@ -19,6 +19,8 @@ const AuthProvider = ({ children }: Props) => {
     });
     const [userName, setUserName] = useState(() => localStorage.getItem("userName") || "");
     const [shopName, setShopName] = useState(() => localStorage.getItem("shopName") || "");
+    // ⚠️ v2.2.302: 保存せず、画面を移るたびの get_token で受け取る
+    const [staffId, setStaffId] = useState(0);
     const version = newVersion;
 
     const [isChecking, setIsChecking] = useState(true);
@@ -69,6 +71,7 @@ const AuthProvider = ({ children }: Props) => {
                 if (typeof latestAuthority === 'string' && latestAuthority !== localStorage.getItem('authority')) {
                     setAuthority(latestAuthority);
                 }
+                setStaffId(Number(response.data[0].id) || 0);
 
                 const today = new Date();
                 const responseDate = response.data[0].timestamp ?? '';
@@ -104,7 +107,7 @@ const AuthProvider = ({ children }: Props) => {
 
     return (
         <AuthContext.Provider
-            value={{ authority, setAuthority, token, setToken, category, setCategory, version, userName, setUserName, shopName, setShopName }}
+            value={{ authority, setAuthority, token, setToken, category, setCategory, version, userName, setUserName, shopName, setShopName, staffId }}
         >
             {children}
         </AuthContext.Provider>

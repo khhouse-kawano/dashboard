@@ -75,6 +75,8 @@ export const AI_ANALYSIS_AUTHORITY = ['Master', 'BrandAdmin', 'Manager'];
 export interface ScreenAccess {
     authority: string;
     category: string;
+    /** v2.2.302 ログイン中のスタッフの id（AuthContext の staffId） */
+    staffId: number;
 }
 
 export interface HeaderScreen {
@@ -105,6 +107,9 @@ const isMaster = ({ authority }: ScreenAccess) => authority === 'Master';
 const isAdmin = ({ authority }: ScreenAccess) => authority === 'Master' || authority === 'BrandAdmin';
 /** v2.2.293 Master とインサイドセールス（insideSales）。⚠️ ② の CALL_STATUS_AUTHORITY（features/callStatusMaster.ts）と同じ */
 export const isInsideSales = ({ authority }: ScreenAccess) => authority === 'Master' || authority === 'insideSales';
+/** v2.2.302 テーブル定義書を見られるスタッフ。⚠️ ② の TABLE_DEFINITION_STAFF_ID（features/tableDefinition.ts）と同じ */
+const TABLE_DEFINITION_STAFF_ID = 1;
+const isTableDefinitionViewer = (access: ScreenAccess) => isMaster(access) && access.staffId === TABLE_DEFINITION_STAFF_ID;
 
 const claudeLabel = (text: string) => (
     <span className="d-inline-flex align-items-center" style={{ gap: '2px' }}>
@@ -147,8 +152,8 @@ export const HEADER_SCREENS: HeaderScreen[] = [
     { menu: 'システム管理', item: '予算テーブル', path: '/budgetTable', allow: isAdmin, render: () => <BudgetTable /> },
     // ⚠️ v2.2.293: 架電ステータスは ⚠️⚠️ **Master と insideSales**（② の call_status_admin / _save / inside_staff_save も同じ2つ）
     { menu: 'システム管理', item: '架電ステータス', path: '/callStatusSettings', allow: isInsideSales, render: () => <CallStatusSettings /> },
-    // ⚠️ v2.2.301: テーブル定義書は ⚠️⚠️ **Master だけ**・閲覧のみ（DB の構造が全部見えるため。② の table_definition も auth: 'master'）
-    { menu: 'システム管理', item: 'テーブル定義書', path: '/tableDefinition', allow: isMaster, render: () => <TableDefinition /> },
+    // ⚠️ v2.2.301: テーブル定義書は閲覧のみ（DB の構造が全部見えるため）。⚠️⚠️ v2.2.302 から **Master かつ staff id 1 だけ**（② の table_definition も同じ）
+    { menu: 'システム管理', item: 'テーブル定義書', path: '/tableDefinition', allow: isTableDefinitionViewer, render: () => <TableDefinition /> },
 
     // ── 反響管理
     // ⚠️ 販促媒体設定はまだ中身が無い（v2.2.240 までと同じく「準備中」を出す）

@@ -17,7 +17,7 @@ import type { HeaderScreen } from './headerScreens';
  *   ⚠️ 項目・URL・見られる人は headerScreens.tsx にまとめてある。⚠️ ここに項目を書き足さないこと。
  */
 const Header = ({ }) => {
-    const { authority, category } = useContext(AuthContext);
+    const { authority, category, staffId } = useContext(AuthContext);
     const [newEstate, setNewEstate] = useState<number | null>(0);
 
     const navigate = useNavigate();
@@ -185,7 +185,7 @@ const Header = ({ }) => {
                             className="shadow-sm border border-light-subtle py-1"
                             style={{ fontSize: '13px', minWidth: '160px' }}
                         >
-                            {menuItemsOf(menu, { authority, category }).map((screen) => (
+                            {menuItemsOf(menu, { authority, category, staffId }).map((screen) => (
                                 <Dropdown.Item
                                     key={screen.item}
                                     className="py-2 px-3 text-dark position-relative"
