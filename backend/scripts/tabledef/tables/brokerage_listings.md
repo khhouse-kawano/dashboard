@@ -1,0 +1,134 @@
+---
+table: brokerage_listings
+title: 不動産企画係のレコード
+business: realty
+source: 改修
+---
+不動産企画係アプリ（realty）の全レコードを1つの表に入れたもの。1行が1レコードで、kind で種別を分ける。
+種別：leads 売り反響 / buyLeads 買い反響 / ledger 媒介獲得台帳 / deals 商談案件 / resales 買取再販 / renewals 媒介更新 / settlements 精算書 / logs 変更履歴 / notices 通知 / sellerReports 販売報告 / comments コメント（viewings も受け付ける）。
+種別ごとに使う列が違い、使わない列は NULL。列名は以前のアプリ（Supabase の records.data）のキーをそのまま使っている（camelCase）。
+書くのは ② features/realty/（planner・broker・activity の request、架電ナビ navi_save、媒介紐付 ledger_link、いえらぶ突き合わせ、取り込み importer.ts、HOME'S 査定メール homesAssessment.ts）と ① handlers/portal/*_resale.php・sumai_step.php（sync のポータル反響。INSERT のみ）。① の brokerAction・plannerAction・activityAction は ② の予備。
+読むのは frontend/src/components/realty/ の各画面と、中古の顧客DB・顧客詳細（master_data_id で中古の顧客とつなぐ）・会社レポート。
+⚠️ 削除は論理削除（show_dashboard = 0・deleted_at）。⚠️ id は ① core/brokerage_id.php・② が採番する文字列で、行どうしの参照（ledgerId・dealId・entityId）はこの id を使う。
+⚠️ 照合順序は utf8mb4_unicode_ci（realty_properties と同じ）。⚠️ 電話・メール・名前などの個人情報を含む。
+
+## 列
+- internal_id: 内部の連番（主キー。自動採番）。控えの表（_bk_）との突き合わせに使う
+- kind: レコード種別 leads/buyLeads/ledger/deals/resales/renewals/settlements/logs/notices/sellerReports/comments。⚠️ NULL の行が1件ある（2026-11 時点のローカル）
+- id: システムID（例: xmsbtyw0p36）。UUIDではない。⚠️ 行どうしの参照はこの値
+- no: 管理番号（台帳 No. など。台帳は ledger の最大値 + 1 で採番）
+- freq: 報告周期（ledger。1か月 / 2週間）
+- note: 備考
+- staff: 担当（v2.2.252 から空白なしの氏名にそろえた）
+- category: 物件区分（戸建・マンション・住宅用地 など）
+- phase: フェーズ
+- priority [推論]: 優先度（deals。（推定）以前のアプリの項目。Dashboard から作る商談は空）
+- type: 売/買/買取（deals）。notices では通知の種類（assign・unassign・cobroker・mention）
+- addr1: 所在地の市区町村（ledger。台帳の編集画面）
+- addr2: 所在地の番地まで（ledger）。⚠️ 売り反響から作った台帳は住所全体が入る。⚠️ 後ろに URL が付くことがある
+- addr: 住所（leads・resales。売り反響の物件の所在地）
+- property: 物件名
+- targetProperty: 希望物件（buyLeads）
+- propName: 物件名（settlements）
+- price: 価格
+- budget: 予算
+- fee: 仲介手数料
+- feeManual: 手数料を手入力したか 0:false, 1:true
+- portal: 買い反響の反響元のポータル（buyLeads）。⚠️ ledger では以前のアプリが担当と同じ略称を入れていた列で、Dashboard の画面は読まない
+- seller: 売主
+- buyer: 買主
+- customer: 顧客名（deals・HOME'S 査定メールの売り反響）
+- name: 顧客名（leads・buyLeads）
+- source: 反響元（leads）
+- contact: 連絡先（「電話 / メール」の形。以前のアプリの1欄。v2.2.251・252 で phone・mail と相互に埋めた）
+- phone: 電話番号
+- mail: メールアドレス
+- keyInfo: 鍵情報
+- keyStatus: 鍵の保管場所・状況（ledger。自由入力）
+- baikaiType: 専任媒介/一般媒介/買取
+- propStatus: アクティブ/成約完了/媒介終了
+- currentStatus: 現況
+- expiry: 媒介有効期限(ledger)
+- expiryFix: 有効期限を手入力で固定 0:false 1:true(ledger)
+- reinsDate: REINS登録日
+- priceRevDate: 価格改定日
+- lastReportDate: 最終報告日
+- endReason: 追客終了理由
+- ledgerNo: 媒介台帳の管理番号
+- ledgerId: 媒介台帳のid(deals・leads・buyLeads)
+- extId: CSV取込・sync の重複判定キー (例: ieul:123)。⚠️ 取り込みで消えた行は NULL にする
+- dealId: 商談案件の id（buyLeads・ledger などから商談に連携したとき。入っていれば「案件連携済」）
+- dealNo: 商談案件の管理番号（settlements）
+- subStaff: 協同担当(deals)
+- subRatio: 協同担当の取り分 0-100(deals)
+- coBroker: 協力会社情報 JSON(deals/ledger)
+- delivery: 引渡(settlements)
+- reformPrice: リフォーム受注額（円・参考値）
+- reformGp: リフォーム粗利（円）
+- reformNote: リフォームの内容・備考
+- lostReason: 商談の失注理由（v2.2.244）
+- lostDate: 商談の失注日（v2.2.244）
+- lostNote: 商談の失注の詳細（v2.2.244）
+- createdAt: 商談リストへの登録日（YYYY-MM-DD）
+- receivedDate: 受信日
+- connectDate: 通電日
+- contactDate: 接触日
+- visitDate: 訪問査定日
+- viewDate: 内見日
+- baikaiDate: 媒介契約日
+- contractDate: 契約日
+- settleDate: 決済日
+- followDate: フォロー日
+- inputDate: 入力日(renewals)
+- renewDate: 更新日(renewals)
+- applicationDate: 物件の申込日
+- nextDate: 次回連絡日
+- nextNote: 次回アクションのメモ（自由テキスト）
+- callDates: 架電/LINE/メールの履歴 JSON [{date,type,staff}]。架電キュー・架電ナビが足す。⚠️ 架電実績はこの列から数える
+- reason: 売却理由(leads)。架電ナビが空のときだけ入れる
+- timing: 売却希望時期(leads)。架電ナビが空のときだけ入れる
+- status: 進捗ステータス(resales。販売中・決済完了 など)
+- buyPrice: 仕入価格(税込)(resales)
+- buyBuilding: 仕入のうち建物価格(税込)(resales)
+- buySellerReg: 仕入先のインボイス登録有無(resales)
+- buyStockAsset: 棚卸資産(宅建業者特例の対象) 0:false 1:true(resales)
+- taxCheckDate: 消費税確認日(resales)
+- buyContractDate: 仕入契約日(resales)
+- buySettleDate: 仕入決済日(resales)
+- listPrice: 売出価格(税込)(resales)
+- listDate: 売出日(resales)
+- sellPrice: 成約価格(税込)(resales)
+- sellBuilding: 成約のうち建物価格(税込)(resales)
+- sellStaff: 販売担当(resales)
+- sellContractDate: 売買契約日(resales)
+- sellSettleDate: 売買決済日(resales)
+- targetGp: 目標粗利(resales)
+- costs: 原価明細の配列 JSON [{cat,label,key,tax,plan,actual}](resales)
+- at: 発生日時 ISO8601(logs/notices)
+- to: 通知先/変更後の担当・値(logs/notices)
+- from: 変更前の値(logs)
+- field: 変更したフィールド名(logs)
+- label: 変更対象の表示名(logs)
+- entity: 対象種別 lead/buy/deal/ledger/resale(logs/notices)
+- entityId: 対象のid(logs/notices)
+- entityNo: 対象の管理番号(logs)
+- title: 通知タイトル(notices)
+- body: 通知本文(notices)
+- read: 既読 0:false 1:true(notices)。activity:read で本人宛を既読にする
+- by: 実施者
+- data: 精算書のフォーム値 JSON(settlements)
+- updatedAt: 更新日時(settlements。アプリ側が入れる文字列)
+- docDraft: 契約書フォームの下書き JSON（DocumentFormData）
+- docDraftAt: 下書きを保存した日時
+- docDraftBy: 下書きを保存した担当者
+- master_data_id: ※master_data_resale と連携しているid（中古の顧客DB・顧客詳細が読む）
+- property_db_id: ※property_dbと連携するid（いえらぶの物件）
+- property_db_name: ※property_dbと連携する物件名
+- property_db_match: いえらぶの物件のつなぎ方（auto＝自動の突き合わせ・staff＝担当が選んだ・none。v2.2.258）
+- show_dashboard: 一覧への表示 1:表示 0:非表示(論理削除)。⚠️ NULL も表示扱い
+- deleted_at: 論理削除した日時（NULL なら未削除）
+- deleted_by: 論理削除した担当者
+- raw_data: Supabase records.data の原本 JSON（無損失保持）。⚠️ 列に無いキー（アポの appt など）もここに入る
+- created_at: 作成日時
+- updated_at: 更新日時
+- propertyId: 媒介物件（realty_properties.id。v2.2.250）。台帳・売り反響・買い反響から物件へのつなぎ

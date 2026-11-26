@@ -117,6 +117,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     // ⚠️ v2.2.293。headerScreens.tsx の isInsideSales と同じく Master / insideSales。
     //   ⚠️ キーを「架電ステータス」にしない（記事の本文に多く出る言葉で、関係の無い記事にも「開く」が付くため）
     '架電ステータスの設定': { header: 'システム管理/架電ステータス', authority: ['Master', 'insideSales'] },
+    // ⚠️ v2.2.301。headerScreens.tsx と同じく Master だけ
+    'テーブル定義書': { header: 'システム管理/テーブル定義書', authority: ['Master'] },
 };
 // GUIDE_SCREENS_END
 

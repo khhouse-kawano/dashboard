@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
 import Table from 'react-bootstrap/Table';
 import apiClient from '../../utils/apiClient';
@@ -42,32 +43,77 @@ const getPlanBadgeStyle = (plan: string) => {
     return { ...baseStyle, backgroundColor: '#edf2f7', color: '#718096', border: '1px solid #e2e8f0' };
 };
 
+/** URL の取得日（?date=YYYY-MM-DD）。⚠️ 形が違えば ''（最新の日） */
+const dateFromUrl = (): string => {
+    const value = new URLSearchParams(window.location.search).get('date') ?? '';
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+};
+
 const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) => {
     const [isLoading, setIsLoading] = useState(false);
     const [properties, setProperties] = useState<SuumoProperty[]>([]);
 
     const [selectedPrefecture, setSelectedPrefecture] = useState<string>('鹿児島県');
     const [selectedCity, setSelectedCity] = useState<string>('');
-    // 表示する取得日（YYYY-MM-DD）。データ取得後に最新日で初期化される
-    const [selectedDate, setSelectedDate] = useState<string>('');
+    // 表示する取得日（YYYY-MM-DD）。⚠️ v2.2.301 URL の ?date= で開く。無ければデータ取得後に最新日で初期化される
+    const [selectedDate, setSelectedDate] = useState<string>(dateFromUrl);
+
+    /**
+     * v2.2.301 読み込み。⚠️ ふだんは ② の property_suumo_latest（GET）で、選んだ取得日（初めは最新の日）の行だけを読む（2026-11-25 の指示）。
+     *   ⚠️ 日付を選び直したら、その日を読み直す。⚠️ 前回の順位に使う行（その日より前で最新の1行）も ② が付けて返す。
+     *   ⚠️ 取得日の選択肢は ② が返す一覧（serverDates）。
+     * ⚠️ ② に届かないときは今までの property:suumo（POST・全期間）を1回だけ読み、日付は画面で選ぶ（serverDates は null）。
+     */
+    const [serverMode, setServerMode] = useState(true);
+    const [serverDates, setServerDates] = useState<string[] | null>(null);
+    /** 読み終えた取得日（⚠️ ② の応答で日付を直したときに、同じ日をもう一度読まないため）。予備で全期間を読んだら 'full' */
+    const loadedRef = useRef<string | null>(null);
 
     useEffect(() => {
-        if (!showSuumoSummary) return; 
+        if (!showSuumoSummary) {
+            // ⚠️ 閉じたら、次に開いたときに読み直す（今までと同じ）
+            loadedRef.current = null;
+            return;
+        }
+        if (serverMode ? loadedRef.current === selectedDate && selectedDate !== '' : loadedRef.current === 'full') return;
+        let cancelled = false;
         const fetchData = async () => {
             setIsLoading(true);
             try {
+                if (serverMode) {
+                    try {
+                        const response = await apiClient.get('', { params: { request: 'property_suumo_latest', ...(selectedDate ? { date: selectedDate } : {}) } });
+                        const data = response?.data;
+                        if (!Array.isArray(data?.suumo) || !Array.isArray(data?.dates)) throw new Error('invalid property_suumo_latest response');
+                        if (cancelled) return;
+                        loadedRef.current = String(data.date ?? '');
+                        setServerDates(data.dates);
+                        setProperties(data.suumo);
+                        if (data.date && data.date !== selectedDate) setSelectedDate(data.date);
+                        return;
+                    } catch (error) {
+                        if (cancelled) return;
+                        console.error('property_suumo_latest に失敗しました。全期間の読み込みに切り替えます:', error);
+                        setServerMode(false);
+                        return;
+                    }
+                }
                 const response = await apiClient.post('', { request: 'property', roll: 'suumo' });
+                if (cancelled) return;
                 if (response.data && response.data.suumo) {
+                    loadedRef.current = 'full';
+                    setServerDates(null);
                     setProperties(response.data.suumo);
                 }
             } catch (error) {
                 console.error("SUUMOデータの取得に失敗しました:", error);
             } finally {
-                setIsLoading(false);
+                if (!cancelled) setIsLoading(false);
             }
         };
         fetchData();
-    }, [showSuumoSummary]);
+        return () => { cancelled = true; };
+    }, [showSuumoSummary, selectedDate, serverMode]);
 
     useEffect(() => {
         setSelectedCity('');
@@ -77,26 +123,34 @@ const SuumoPropertySummary = ({ showSuumoSummary, setShowSuumoSummary }: Props) 
         return selectedCity ? [selectedCity] : (AREA_MAPPING[selectedPrefecture] || []);
     }, [selectedPrefecture, selectedCity]);
 
-    /** 取得日の一覧（YYYY-MM-DD）。新しい順 */
+    /** 取得日の一覧（YYYY-MM-DD）。新しい順。⚠️ v2.2.301 ② で読んだときは ② が返す一覧（読んだ行は選んだ日と前回の分だけのため） */
     const availableDates = useMemo(() => {
+        if (serverDates) return serverDates;
         const dates = properties
             .map(p => p.registered_at?.split(' ')[0])
             .filter((d): d is string => Boolean(d));
         return [...new Set(dates)].sort((a, b) => (a < b ? 1 : -1));
-    }, [properties]);
+    }, [properties, serverDates]);
 
     // 初期値は最新の取得日。
     // ⚠️ 再取得で選択中の日付が消えることがあるため、その場合も最新へ戻す。
     //   存在しない日付を選んだままだと、表が空になって原因が分からなくなる。
+    // ⚠️ v2.2.301 一覧がまだ無い（読み込み前）ときは触らない（URL の ?date= で開いたときに、読み込む前に消さないため）
     useEffect(() => {
-        if (availableDates.length === 0) {
-            setSelectedDate('');
-            return;
-        }
+        if (availableDates.length === 0) return;
         if (!availableDates.includes(selectedDate)) {
             setSelectedDate(availableDates[0]);
         }
     }, [availableDates, selectedDate]);
+
+    // ⚠️ v2.2.301 開いているあいだは、選んだ取得日を URL（?date=）にも出す（最新の日なら出さない）。閉じたら消す。ほかのパラメータは残す
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        const next = new URLSearchParams(searchParams);
+        if (!showSuumoSummary || selectedDate === '' || selectedDate === availableDates[0]) next.delete('date');
+        else next.set('date', selectedDate);
+        if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+    }, [showSuumoSummary, selectedDate, availableDates, searchParams, setSearchParams]);
 
     /**
      * 物件URLごとの順位の履歴。新しい順に並べる。
