@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Form from 'react-bootstrap/Form';
+import { useSearchParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import apiClient from '../../../utils/apiClient';
 import { setStyleClass } from '../../../utils/setStyleClass';
@@ -80,6 +81,22 @@ const MONTHS = (() => {
     }
     return list;
 })();
+
+/**
+ * v2.2.305 期間の既定＝当月−5か月〜当月（6か月）。
+ * ⚠️ URL の startMonth・endMonth・area は既定なら出さない。⚠️「指定なし」（全期間）は空の値で残す（?startMonth=）。
+ */
+const DEFAULT_START = MONTHS[5];
+const DEFAULT_END = MONTHS[0];
+const URL_DEFAULTS: Record<'startMonth' | 'endMonth' | 'area', string> = { startMonth: DEFAULT_START, endMonth: DEFAULT_END, area: '' };
+const fromUrl = (key: keyof typeof URL_DEFAULTS): string => {
+    const sp = new URLSearchParams(window.location.search);
+    const value = sp.get(key);
+    if (value === null) return URL_DEFAULTS[key];
+    // ⚠️ 月は選択肢にある値か空（指定なし）だけを受ける
+    if (key !== 'area' && value !== '' && !MONTHS.includes(value)) return URL_DEFAULTS[key];
+    return value;
+};
 
 /** パネル①：総反響 → 来場 → 次アポ → 契約。⚠️ 下の小さい数字は総反響に対する率 */
 const FunnelPanel = ({ funnel }: { funnel: Funnel }) => (
@@ -266,22 +283,34 @@ const DuplicateInquirySummary = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    /** ⚠️ 期間（反響取得日）。⚠️ 既定は空＝全期間 */
-    const [startMonth, setStartMonth] = useState('');
-    const [endMonth, setEndMonth] = useState('');
+    /** ⚠️ 期間（反響取得日）。⚠️ v2.2.305 既定は当月−5か月〜当月（それまでは空＝全期間）。空は「指定なし」 */
+    const [startMonth, setStartMonth] = useState(() => fromUrl('startMonth'));
+    const [endMonth, setEndMonth] = useState(() => fromUrl('endMonth'));
     /**
      * エリア（都道府県）。⚠️ ② が full_address から決める（2026-10-16 の指示）。
      *   ⚠️ 期間と同じく **カードのブランド側の反響だけ** を絞る。⚠️ 都道府県が分からない顧客は、選ぶと出なくなる。
      */
-    const [targetArea, setTargetArea] = useState('');
+    const [targetArea, setTargetArea] = useState(() => fromUrl('area'));
     /** ⚠️ 選択肢は最初に取れたものを持ち続ける（⚠️ 取り直し中に select が空にならないように） */
     const [areaOptions, setAreaOptions] = useState<string[]>([]);
+
+    /** v2.2.305 期間・エリアを URL にも出す（⚠️ 既定は出さない。ほかのパラメータは残す。履歴は増やさない） */
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        const next = new URLSearchParams(searchParams);
+        ([['startMonth', startMonth], ['endMonth', endMonth], ['area', targetArea]] as const).forEach(([key, value]) => {
+            if (value === URL_DEFAULTS[key]) next.delete(key);
+            else next.set(key, value);
+        });
+        if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+    }, [startMonth, endMonth, targetArea, searchParams, setSearchParams]);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
-            const res = await apiClient.post('', { request: 'duplicate_summary', startMonth, endMonth, area: targetArea });
+            // ⚠️ v2.2.305 POST → GET（① の db.php の GET_ALLOWED_REQUESTS に入れてある。② だけが処理する）
+            const res = await apiClient.get('', { params: { request: 'duplicate_summary', startMonth, endMonth, area: targetArea } });
             if (res.data?.status !== 'ok') {
                 setError(res.data?.message ?? '集計を取得できませんでした。');
                 return;
@@ -296,7 +325,11 @@ const DuplicateInquirySummary = () => {
         }
     }, [startMonth, endMonth, targetArea]);
 
-    useEffect(() => { void fetchData(); }, [fetchData]);
+    // ⚠️ v2.2.305 setTimeout(0) で1回にまとめる（StrictMode で effect が2回走ったときに2回読まない）
+    useEffect(() => {
+        const timer = window.setTimeout(() => { void fetchData(); }, 0);
+        return () => window.clearTimeout(timer);
+    }, [fetchData]);
 
     /** KHG カードの横棒（ブランドごとの重複反響）とパネル② */
     const groupBars = useMemo(

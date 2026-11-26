@@ -842,6 +842,8 @@ function expressProxyRequests(): array
 
         // ⚠️ 2026-11-26（v2.2.301）。テーブル定義書（header/TableDefinition.tsx。Master だけ・閲覧のみ）。⚠️ ① に PHP ハンドラは無い（② だけ）。両方のリストに入れてある。
         'table_definition',
+        // ⚠️ 2026-11-26（v2.2.305）。ランクの月ごとの読み込み（rank/RankOrder.tsx ほか。GET）。⚠️ ① に PHP ハンドラは無い（② だけ。画面は落ちたら POST の rank に切り替える）。両方のリストに入れてある。
+        'rank_list',
     ];
 }
 
@@ -1216,6 +1218,8 @@ function expressProxyExclusive(): array
 
         // ⚠️ 2026-11-26（v2.2.301）。テーブル定義書。⚠️ 落ちたら ① では処理できない（502。画面は「読み込めません」と出す）。
         'table_definition',
+        // ⚠️ 2026-11-26（v2.2.305）。ランクの月ごとの読み込み。⚠️ 落ちたら 502（画面は POST の rank＝全件に切り替える）。
+        'rank_list',
     ];
 }
 

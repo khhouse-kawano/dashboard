@@ -358,10 +358,9 @@ const Menu = ({ key, onReload }: Props) => {
                         >
                             <i className={`fa-solid ${item.icon} me-1 text-secondary`}></i>
                             {item.label}
+                            {/* ⚠️ v2.2.305 「管理者専用」の札を鍵のアイコンにした（ヘッダーのメニューの見られる人を限った項目と同じ印） */}
                             {item.isAdminOnly && (
-                                <span className="bg-primary text-white rounded ms-2" style={{ fontSize: '8px', padding: '1px 3px' }}>
-                                    管理者専用
-                                </span>
+                                <i className="fa-solid fa-lock ms-2 text-secondary" style={{ fontSize: '10px' }} title="管理者専用" aria-label="管理者専用"></i>
                             )}
                             {item.badges?.map((badge, idx) => (
                                 <div key={idx} className="position-absolute menu_sync" style={{ top: badge.top, right: '10px' }}>
