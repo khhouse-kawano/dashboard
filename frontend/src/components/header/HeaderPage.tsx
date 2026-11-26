@@ -19,9 +19,9 @@ import type { HeaderScreen } from './headerScreens';
  * ─────────────────────────────────────────────
  */
 const HeaderPage = ({ screen }: { screen: HeaderScreen }) => {
-    const { authority, category } = useContext(AuthContext);
+    const { authority, category, staffId } = useContext(AuthContext);
     const navigate = useNavigate();
-    const allowed = canOpenScreen(screen, { authority, category });
+    const allowed = canOpenScreen(screen, { authority, category, staffId });
 
     const body = !allowed
         ? <div className="hp_notice">この画面を見る権限がありません。</div>

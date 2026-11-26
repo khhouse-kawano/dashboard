@@ -32,22 +32,22 @@ export const openGuideScreenHere: OpenHere = (name, articleDivision) =>
     openHereRef === null ? `「${name}」は開けません。画面を再読み込みしてください。` : openHereRef.current(name, articleDivision);
 
 export const useGuideScreenReceiver = (): void => {
-    const { authority, category, shopName, setCategory } = useContext(AuthContext);
+    const { authority, category, shopName, setCategory, staffId } = useContext(AuthContext);
     const navigate = useNavigate();
     const location = useLocation();
     // ⚠️ message の受け口は1回だけ付ける。⚠️ 最新の値は ref から読む
-    const latest = useRef({ authority, category, shopName, setCategory, navigate });
-    latest.current = { authority, category, shopName, setCategory, navigate };
+    const latest = useRef({ authority, category, shopName, setCategory, navigate, staffId });
+    latest.current = { authority, category, shopName, setCategory, navigate, staffId };
 
     /** 開く。⚠️ 開けなければ、その理由 */
     const openRef = useRef((name: string, articleDivision: string | null): string | null => {
-        const { authority: a, category: c, shopName: s, setCategory: setC, navigate: nav } = latest.current;
+        const { authority: a, category: c, shopName: s, setCategory: setC, navigate: nav, staffId: id } = latest.current;
         const plan = planScreen(name, articleDivision, c, s);
         if (!plan.ok) return plan.message;
         const screen = GUIDE_SCREENS[name];
         // ⚠️ ヘッダーの画面は、切り替えたあとの事業で見られるかを確かめる（⚠️ 見られない項目はメニューにも出ていない）
         const header = screen.header === undefined ? undefined : headerScreenOf(screen.header);
-        if (header && !canOpenScreen(header, { authority: a, category: plan.division ?? c })) return `「${name}」はこのアカウントでは開けません。`;
+        if (header && !canOpenScreen(header, { authority: a, category: plan.division ?? c, staffId: id })) return `「${name}」はこのアカウントでは開けません。`;
         if (plan.switchLabel !== null && plan.division !== null) {
             setC(plan.division);
             markCategoryChosen(plan.division);
