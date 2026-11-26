@@ -73,6 +73,8 @@ export interface PropertyResult {
  * ⚠️ 架電記録（call）・家族情報（family）・媒体（medium）は画面が使っていないので返さない（① のメモリ不足の主な原因だった）。
  */
 export const runPropertyList = async (body: Record<string, unknown>): Promise<PropertyResult> => {
+  // ⚠️ v2.2.304 page が付いていれば、② で絞り込み・並べ替えをして1ページ分だけ返す（付いていなければ今までどおり全件。古い画面のため）
+  if (String(body.page ?? '') !== '') return runPropertyPage(body);
   const target = STORE_OF[String(body.category ?? '')];
   const [staff, shop, properties] = await Promise.all([
     query<DynamicRow>('SELECT * FROM staff_list WHERE `rank` = 1'),
@@ -115,6 +117,131 @@ export const runPropertyList = async (body: Record<string, unknown>): Promise<Pr
 
 const normalizePropertyName = (value: unknown): string =>
   (value ? String(value).replace(/[（(]非?公開[）)]/g, '').replace(/[\s ]+/g, '') : '');
+
+/**
+ * v2.2.304 物件DB の1ページ（property_list に page を付けたとき）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ 絞り込み・PV の計算・並べ替えは、画面（DatabaseProperty.tsx の propertyList）と**同じ式**にしてある。
+ *   ② に届かないとき画面は全件を読んで同じ計算をするので、片方だけ直すと GET と予備で表が変わる。
+ * ⚠️ PV の合計で並べるので SQL の LIMIT では決まらない。事業の物件は全部読んで計算し、送るのだけを1ページ分にする。
+ * ⚠️ 返す property は並べ替えたあとの1ページ分の行（property_db のまま）。customer・suumo・athome・homes はその物件にひもづく分だけ。
+ *   画面はそれを並べ替え・絞り込みをせずに表に出す（⚠️「契約済み」の判定は全物件の最新の取り込み日で決まるので、画面で絞り直さない）。
+ * 引数：page・perPage・shop（店舗。担当の所属）・rank・name（物件名）・address・staff（担当名）・company=1（自社物件）・contract=1（契約済み）・sort・dir
+ * ─────────────────────────────────────────────
+ */
+const PROPERTY_PER_PAGES = [20, 50, 100, 500];
+const PROPERTY_SORT_KEYS = new Set(['register', 'pv_total', 'pv_suumo', 'pv_homes', 'pv_athome']);
+// ⚠️ 画面の safeClean と同じ
+const safeClean = (value: unknown): string => (value ? String(value).replace(/[\s ]+/g, '') : '');
+/** 今日の日（⚠️ 画面はブラウザの日本時間の getDate()。② は日本時間で数える） */
+const tokyoDay = (): number => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', day: 'numeric' }).format(new Date())) || 1;
+
+const runPropertyPage = async (body: Record<string, unknown>): Promise<PropertyResult> => {
+  const target = STORE_OF[String(body.category ?? '')];
+  const perPageAsked = Number(body.perPage);
+  const perPage = PROPERTY_PER_PAGES.includes(perPageAsked) ? perPageAsked : PROPERTY_PER_PAGES[0];
+  const text = (key: string): string => String(body[key] ?? '');
+  const sortKey = PROPERTY_SORT_KEYS.has(text('sort')) ? text('sort') : 'pv_total';
+  const sortDir = text('dir') === 'asc' ? 'asc' : 'desc';
+
+  const [staff, shop, properties] = await Promise.all([
+    query<DynamicRow>('SELECT * FROM staff_list WHERE `rank` = 1'),
+    query<DynamicRow>("SELECT shop, section FROM shop_list WHERE division = '建売分譲事業' AND show_flag = 1"),
+    target ? query<DynamicRow>('SELECT * FROM property_db') : Promise.resolve([] as DynamicRow[]),
+  ]);
+  const empty = { status: 'ok', staff, shop, property: [], customer: [], suumo: [], athome: [], homes: [], total: 0, page: 1, perPage };
+  if (!target) return { httpStatus: 200, body: empty };
+
+  const store = removeAllSpaces(target.store);
+  const all = properties.filter((p) => removeAllSpaces(p.store_name) === store);
+  const [customers, suumo, athome, homes] = await Promise.all([
+    query<DynamicRow>(customerSql(target.table, target.label, "WHERE property_name IS NOT NULL AND property_name <> ''")),
+    query<DynamicRow>('SELECT * FROM suumo_resale_summary'),
+    query<DynamicRow>('SELECT * FROM athome_summary_db'),
+    query<DynamicRow>('SELECT * FROM homes_summary_db'),
+  ]);
+
+  // ---- 絞り込み（⚠️ 画面の targetList と同じ）
+  const shopName = text('shop'), rank = text('rank'), name = text('name'), address = text('address'), staffText = text('staff');
+  const company = text('company') === '1', contract = text('contract') === '1';
+  const targetStaffs = staff.filter((s) => s.shop === shopName).map((s) => safeClean(s.name));
+  const formate = (value: string) => new Date((value ?? '').replace(/\//g, '-')).getTime();
+  // ⚠️ 契約済み＝最新の取り込み日（registered）に無い物件。画面と同じく、並べ替えた先頭の registered と比べる
+  const recentDate = [...all].sort((a, b) => formate(String(b.registered)) - formate(String(a.registered)))[0]?.registered;
+  const isContract = (value: string) => recentDate !== value;
+  const customersOf = (p: DynamicRow) => {
+    const safePropName = normalizePropertyName(p.property_name);
+    return customers.filter((c) => {
+      const customerPropName = normalizePropertyName(c.property_name);
+      if (!safePropName || !customerPropName) return false;
+      return customerPropName.includes(safePropName);
+    });
+  };
+  const targetList = all.filter((o) => {
+    const base = customersOf(o);
+    return (
+      (company ? safeClean(String(o.agency)) === '株式会社国分ハウジング' : true)
+      && (shopName ? targetStaffs.includes(safeClean(String(o.property_staff))) : true)
+      && (name ? (String(o.property_name) || '').includes(name) : true)
+      && (address ? (String(o.address) || '').includes(address) : true)
+      && (staffText ? safeClean(String(o.property_staff)).includes(safeClean(staffText)) : true)
+      && (rank ? base.some((f) => f.rank === rank) : true)
+      && (contract ? isContract(String(o.registered)) : !isContract(String(o.registered)))
+    );
+  });
+
+  // ---- PV（⚠️ 画面の mappedResult と同じ）と並べ替え
+  const today = tokyoDay();
+  const suumoOf = (id: string) => suumo.find((s) => String(s.management_no).trim() === id);
+  const homesOf = (id: string) => homes.find((s) => String(s.company_management_number).trim() === id);
+  const athomeOf = (id: string) => athome.find((a) => { const no = String(a.management_no ?? '').trim(); return no.slice(-6) === id || no === id; });
+  const scored = targetList.map((t) => {
+    const id = String(t.property_id ?? '').trim();
+    const rawAthome = athomeOf(id);
+    const pvSuumo = Number(suumoOf(String(t.property_id).trim())?.pv_total ?? 0);
+    const pvHomes = Math.ceil((Number(homesOf(String(t.property_id).trim())?.detail_page_views ?? 0) / today) * 10) / 10;
+    let pvAthome = 0;
+    if (rawAthome?.start_date && rawAthome?.end_date) {
+      const startDate = new Date(String(rawAthome.start_date).replace(/\//g, '-'));
+      const endDate = new Date(String(rawAthome.end_date).replace(/\//g, '-'));
+      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+        const elapsedDays = Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+        pvAthome = Math.ceil((Number(rawAthome.pv_total ?? 0) / elapsedDays) * 10) / 10;
+      }
+    }
+    const values: Record<string, number> = {
+      register: customersOf(t).filter((b) => b.register).length,
+      pv_total: Number(pvSuumo ?? 0) + Number(pvHomes ?? 0) + Number(pvAthome ?? 0),
+      pv_suumo: Number(pvSuumo ?? 0), pv_homes: pvHomes, pv_athome: pvAthome,
+    };
+    return { row: t, value: Number(values[sortKey] ?? 0) };
+  });
+  scored.sort((a, b) => {
+    if (a.value < b.value) return sortDir === 'asc' ? -1 : 1;
+    if (a.value > b.value) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // ---- 1ページ分（⚠️ ページが件数より後ろなら最後のページに寄せる）
+  const total = scored.length;
+  const lastPage = Math.max(1, Math.ceil(total / perPage));
+  const page = Math.min(Math.max(1, Math.floor(Number(body.page)) || 1), lastPage);
+  const property = scored.slice((page - 1) * perPage, page * perPage).map((s) => s.row);
+  const ids = new Set(property.map((p) => trimmed(p.property_id)));
+  const names = property.map((p) => normalizePropertyName(p.property_name)).filter((n) => n !== '');
+  return {
+    httpStatus: 200,
+    body: {
+      status: 'ok', staff, shop, property, total, page, perPage,
+      customer: customers.filter((c) => { const n = normalizePropertyName(c.property_name); return n !== '' && names.some((p) => n.includes(p)); }),
+      // ⚠️ 元の並び順のまま残す（画面は find で最初の1件を使う）
+      suumo: suumo.filter((s) => ids.has(trimmed(s.management_no))),
+      athome: athome.filter((a) => { const no = trimmed(a.management_no); return ids.has(no.slice(-6)) || ids.has(no); }),
+      homes: homes.filter((h) => ids.has(trimmed(h.company_management_number))),
+    },
+  };
+};
 
 /**
  * 物件の詳細（property_detail）。⚠️ 返すキーは ① の property:detail と同じ（status・property・suumo・homes・athome・customers）。
