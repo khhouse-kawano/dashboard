@@ -144,12 +144,15 @@ import {
 import { runMetaAdsBookmark, runMetaAdsList } from '../features/metaAds';
 import { runMetaScrape } from '../features/metaAds/scrape';
 import { runPropertySuumo } from '../features/property';
+import { runPropertyDetail, runPropertyList, runPropertySuumoLatest } from '../features/propertyGet';
+import { importPropertyFromPortal } from '../features/propertyPortal';
 import { runSuumoPropertyInsert } from '../features/suumoProperty';
 import { runShopList } from '../features/shopList';
 import { runUpdateLog } from '../features/updateLog';
 import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import { listLoanPlanRates, uploadLoanPlanRates } from '../features/loanPlanRate';
 import { listSecurityLog } from '../features/securityLog';
+import { runTableDefinition } from '../features/tableDefinition';
 import { listSyncLog, writeSyncLog } from '../features/syncLog';
 import { importSuumoKaeruActions } from '../features/suumoKaeru';
 import { BUDGET_TABLE_AUTHORITY, listBudgetTable, uploadBudgetTable } from '../features/budgetTable';
@@ -1202,6 +1205,82 @@ register({
   phpSource: 'backend/src/handlers/propertyAction/property_suumo.php',
   auth: 'none',
   handler: async () => runPropertySuumo(),
+});
+
+// ---------------------------------------------------------------------------
+// v2.2.301 物件DB・詳細・SUUMO物件サマリーを GET で読む（features/propertyGet.ts）。
+// ⚠️ ① に PHP ハンドラは無い（② だけ）。① の db.php の GET_ALLOWED_REQUESTS と express_proxy.php の2つのリストに入れてある。
+// ⚠️ ① の GET は roll 付きを受けないので、名前に roll を入れない。
+// ⚠️ ② に届かないときは、画面が今までの property（POST・① の予備）に切り替える。
+// ---------------------------------------------------------------------------
+const propertyHandler = (run: (body: Record<string, unknown>) => Promise<{ httpStatus: number; body: unknown }>) =>
+  async (ctx: { body: Record<string, unknown>; res: { status: (code: number) => unknown } }) => {
+    const result = await run(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  };
+
+/**
+ * v2.2.301 物件DB をポータルのデータで補う（features/propertyPortal.ts）。
+ * ⚠️ sync の summary の処理が ② へ直接送る（① を通さない。① の express_proxy.php にも入れない）。ログイン無し・合い言葉（SYNC_LOG_SECRET）。
+ *   ⚠️ 合い言葉の総当たりは publicFormRateLimit.ts の syncLogLimiter（失敗だけを数える）。
+ * ⚠️ 物件DB にある物件は空の列だけ埋め、無い物件はアカウントの店舗で作る（2026-11-25 の決定）。
+ */
+register({
+  request: 'property_db_portal',
+  summary: '【書き込み・合い言葉】物件DB をポータル（SUUMO・HOME\'S・at home）の書き出しで補う（空の列だけ・無い物件は作る）',
+  phpSource: '（新規。PHP版なし）',
+  auth: 'none',
+  handler: async (ctx) => {
+    const result = await importPropertyFromPortal(ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  },
+});
+
+// ⚠️ 本文の category はゲートウェイの鍵に入る（request:roll:category の完全一致）。⚠️ 事業ごとに登録する（無しも）。
+//   ⚠️ property_list は category で返す物件が変わる（spec・realty 以外は空）。detail・suumo_latest は category を見ないが、送られても当たるように登録する。
+['', 'order', 'spec', 'used', 'realty'].forEach((category) => {
+  register({
+    request: 'property_list',
+    category,
+    summary: `物件DB の一覧（${category || '事業なし'}。事業の店舗の物件・その物件のポータル3つ・問い合わせ物件名のある顧客）`,
+    phpSource: '(Express のみ。予備は backend/src/handlers/propertyAction/property_list.php)',
+    auth: 'staff',
+    handler: propertyHandler(runPropertyList),
+  });
+
+  register({
+    request: 'property_detail',
+    category,
+    summary: '物件の詳細（物件・ポータル3つ・その物件に問い合わせた顧客）',
+    phpSource: '(Express のみ。予備は backend/src/handlers/propertyAction/property_detail.php)',
+    auth: 'staff',
+    handler: propertyHandler(runPropertyDetail),
+  });
+
+  register({
+    request: 'property_suumo_latest',
+    category,
+    summary: 'SUUMO物件サマリー（選んだ取得日・省略は最新の日の行と、前回の順位用の行・取得日の一覧）',
+    phpSource: '(Express のみ。予備は backend/src/handlers/propertyAction/property_suumo.php)',
+    auth: 'staff',
+    handler: propertyHandler(runPropertySuumoLatest),
+  });
+
+  /**
+   * v2.2.301 テーブル定義書（features/tableDefinition.ts。システム管理 → テーブル定義書）。Master だけ・閲覧のみ。
+   * ⚠️ ① に PHP ハンドラは無い（② だけ）。① の db.php の GET_ALLOWED_REQUESTS と express_proxy.php の2つのリストに入れてある。
+   * ⚠️ 画面は category を送らないが、ログインの事業が付いても当たるように事業ごとに登録する。
+   */
+  register({
+    request: 'table_definition',
+    category,
+    summary: 'テーブル定義書（table なし＝一覧と列の説明・table あり＝その表の列。型は実物から）',
+    phpSource: '（新規。PHP版なし）',
+    auth: 'master',
+    handler: propertyHandler(runTableDefinition),
+  });
 });
 
 // ---------------------------------------------------------------------------

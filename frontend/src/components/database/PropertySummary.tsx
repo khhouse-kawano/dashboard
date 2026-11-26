@@ -96,7 +96,18 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
         const fetchDetail = async () => {
             setIsLoading(true);
             try {
-                const response = await apiClient.post('', { request: 'property', roll: 'detail', id: targetId });
+                /**
+                 * v2.2.301 ふだんは ② の property_detail（GET）。顧客はこの物件に問い合わせた人だけが届く。
+                 * ⚠️ ② に届かないときは今までの property:detail（POST・① の予備。建売・中古の全顧客）。⚠️ どちらでも下の filteredCustomer で同じように絞る。
+                 */
+                let response;
+                try {
+                    response = await apiClient.get('', { params: { request: 'property_detail', id: targetId } });
+                    if (response?.data?.status !== 'success') throw new Error('invalid property_detail response');
+                } catch (error) {
+                    console.error('property_detail に失敗しました。今までの読み込みに切り替えます:', error);
+                    response = await apiClient.post('', { request: 'property', roll: 'detail', id: targetId });
+                }
                 if (response.data.status === 'success') {
                     setTargetProperty(response.data.property || null);
                     setSuumoData(response.data.suumo || null);

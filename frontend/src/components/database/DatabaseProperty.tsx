@@ -11,6 +11,8 @@ import apiClient from '../../utils/apiClient';
 import PropertySummary from './PropertySummary';
 import { removeAllSpaces } from './databaseUtils';
 import SuumoPropertySummary from './SuumoPropertySummary';
+import { RankingStyle } from '../rankingUi';
+import { DBK_CSS } from './databaseListStyle';
 
 type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
@@ -42,7 +44,6 @@ const DatabaseProperty = () => {
     const { token, category, authority } = useContext(AuthContext);
     const [shopArray, setShopArray] = useState<string[]>([]);
     const [staffArray, setStaffArray] = useState<staffList[]>([]);
-    const [displayLength, setDisplayLength] = useState<number>(20);
     const [originalPropertyList, setOriginalPropertyList] = useState<Property[]>([]);
     const [sliceStart, setSliceStart] = useState<number>(0);
     const [basicLength, setBasicLength] = useState<number>(20);
@@ -63,7 +64,8 @@ const DatabaseProperty = () => {
     const [athomeSummary, setAthomeSummary] = useState<Record<string, string>[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'pv_total', direction: 'desc' });
     const [editId, setEditId] = useState('');
-    const [showSuumoSummary, setShowSuumoSummary] = useState(false);
+    // ⚠️ v2.2.301 URL に ?date=（SUUMO物件サマリーの取得日）があれば、開いたときにサマリーも開く（再読み込み・共有で同じ表が出る）
+    const [showSuumoSummary, setShowSuumoSummary] = useState(() => new URLSearchParams(window.location.search).has('date'));
 
     const [portalModal, setPortalModal] = useState<{ type: 'SUUMO' | "HOME'S" | 'athome', data: Record<string, string> } | null>(null);
 
@@ -74,26 +76,47 @@ const DatabaseProperty = () => {
         realty: '国分ハウジンググループ中古住宅専門店'
     };
 
+    /**
+     * v2.2.301 読み込み。⚠️ ふだんは ② の property_list（GET）。事業（category）の店舗の物件・その物件のポータル3つ・問い合わせ物件名のある顧客だけが届く。
+     *   ⚠️ ② に届かないときは今までの property:list（POST・① の予備。全件）に切り替える。
+     *   ⚠️ どちらで読んでも下の絞り込み（店舗・顧客の事業）を同じようにかける（② で絞ってあっても結果は変わらない）。
+     */
+    const [loading, setLoading] = useState(true);
     useEffect(() => {
+        let cancelled = false;
+        const apply = (data: any) => {
+            const shopList = category === 'spec' ? (data.shop ?? []).map((s: any) => s.shop) : categoryList;
+            setShopArray(shopList);
+            setStaffArray(data.staff || []);
+            const filteredList = (data.property ?? []).filter((p: any) => removeAllSpaces(p.store_name) === removeAllSpaces(categoryMapping[category]));
+            setOriginalPropertyList(filteredList);
+            const filteredCustomerList = (data.customer ?? []).filter((c: any) => removeAllSpaces(c.category) === removeAllSpaces(categoryMapping[category]));
+            setCustomerList(filteredCustomerList);
+            setSuumoSummary(data.suumo ?? []);
+            setAthomeSummary(data.athome ?? []);
+            setHomesSummary(data.homes ?? []);
+        };
         const fetchData = async () => {
+            setLoading(true);
             try {
-                const response = await apiClient.post("", { request: 'property', roll: 'list' });
-                const shopList = category === 'spec' ? (response.data.shop ?? []).map((s: any) => s.shop) : categoryList;
-                setShopArray(shopList);
-                setDisplayLength(response.data.property?.length || 0);
-                setStaffArray(response.data.staff || []);
-                const filteredList = response.data.property.filter((p: any) => removeAllSpaces(p.store_name) === removeAllSpaces(categoryMapping[category])) || [];
-                setOriginalPropertyList(filteredList);
-                const filteredCustomerList = response.data.customer.filter((c: any) => removeAllSpaces(c.category) === removeAllSpaces(categoryMapping[category])) || [];
-                setCustomerList(filteredCustomerList);
-                setSuumoSummary(response.data.suumo);
-                setAthomeSummary(response.data.athome);
-                setHomesSummary(response.data.homes);
+                try {
+                    const response = await apiClient.get('', { params: { request: 'property_list', category } });
+                    if (!Array.isArray(response?.data?.property)) throw new Error('invalid property_list response');
+                    if (!cancelled) apply(response.data);
+                } catch (error) {
+                    console.error('property_list に失敗しました。全件の読み込みに切り替えます:', error);
+                    const response = await apiClient.post("", { request: 'property', roll: 'list' });
+                    if (!cancelled) apply(response.data);
+                }
             } catch (error) {
                 console.error("Error fetching data:", error);
+            } finally {
+                if (!cancelled) setLoading(false);
             }
         };
         fetchData();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [category]);
 
     const filteredCustomer = useMemo(() => {
@@ -212,6 +235,16 @@ const DatabaseProperty = () => {
         sortConfig
     ]);
 
+    /**
+     * v2.2.301 ページ数は「絞り込んだあとの件数」で数える（⚠️ それまでは絞り込む前の全件で数えていて、ページ送りが空のページまで進んだ）。
+     * ⚠️ 絞り込み・表示件数・並べ替えを変えたら1ページ目に戻す（戻さないと、少なくなった一覧で空のページが出る）。
+     */
+    const displayLength = propertyList.length;
+    useEffect(() => {
+        setActivePage(1);
+        setSliceStart(0);
+    }, [selectedShop, selectedRank, searchedName, searchedAddress, searchedStaff, checkedCompanyProperty, checkedContract, basicLength, sortConfig, category]);
+
     const pages: Record<string, number | null> = { page1: null, page2: null, page3: null, page4: null, page5: null };
     Object.entries(pages).forEach(([key, _], index) => {
         if (activePage > 3 && Math.ceil(displayLength / basicLength) > 6 && Math.ceil(displayLength / basicLength) === activePage) {
@@ -257,52 +290,67 @@ const DatabaseProperty = () => {
 
     return (
         <>
-            <div className="content database bg-light p-3">
-                {/* 検索コントロール群 */}
-                <div className='d-flex flex-wrap align-items-center mb-2 gap-2'>
-                    {category === 'spec' && (
-                        <select className="form-select form-select-sm w-auto shadow-sm" onChange={(e) => setSelectedShop(e.target.value)} value={selectedShop}>
-                            <option value="">店舗を選択</option>
-                            {shopArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
-                        </select>
-                    )}
-                    <select className="form-select form-select-sm w-auto shadow-sm" onChange={(e) => setSelectedRank(e.target.value)} value={selectedRank}>
-                        <option value="">ランクを選択</option>
-                        {ranks.map((rank, rIndex) => <option key={rIndex} value={rank}>{rank}</option>)}
-                    </select>
-                    <input className="form-control form-control-sm w-auto shadow-sm" type='text' placeholder='物件名で検索' onChange={(e) => setSearchedName(e.target.value)} />
-                    <input className="form-control form-control-sm w-auto shadow-sm" type='text' placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} />
-                    <input className="form-control form-control-sm w-auto shadow-sm" type='text' placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} />
+            {/*
+              v2.2.301 見た目を顧客DB（DatabaseOrder.tsx）にそろえた：見出し（rk_head）・絞り込みのカード（rk_bar dbk_bar・欄は .target）・件数（dbk_count_*）・表の枠（dbk_table_wrap）。
+              ⚠️ 色・大きさは rankingUi.tsx（RankingStyle）と databaseListStyle.ts（DBK_CSS）のものを使い、ここで色を決めない。
+              ⚠️ ボタンは左に並べる（右上の Active users の表示と重なるため）。
+            */}
+            <RankingStyle />
+            <style>{DBK_CSS}</style>
+            <div className="content database bg-white rk_wrap dbk_wrap">
+                <div className="rk_head">
+                    <span className="rk_title">{category === 'realty' ? '掲載物件一覧' : '物件DB'}</span>
+                    <span className="rk_note">いえらぶの物件に、SUUMO・HOME'S・at home の閲覧数と反響を並べています</span>
                 </div>
-
-                <div className='d-flex flex-wrap align-items-center mb-3 gap-3' style={{ fontSize: '12px' }}>
-                    <div className="form-check">
-                        <input className="form-check-input shadow-sm" type='checkbox' id="checkCompany" onChange={() => setCheckedCompanyProperty(!checkedCompanyProperty)} checked={checkedCompanyProperty} />
-                        <label className="form-check-label" htmlFor="checkCompany">自社物件を表示</label>
+                <div className="rk_bar dbk_bar">
+                    {category === 'spec' && (
+                        <div className="m-1">
+                            <select className="target" aria-label="店舗" onChange={(e) => setSelectedShop(e.target.value)} value={selectedShop}>
+                                <option value="">店舗を選択</option>
+                                {shopArray.map((item, index) => <option key={index} value={item}>{item}</option>)}
+                            </select>
+                        </div>
+                    )}
+                    <div className="m-1">
+                        <select className="target" aria-label="ランク" onChange={(e) => setSelectedRank(e.target.value)} value={selectedRank}>
+                            <option value="">ランクを選択</option>
+                            {ranks.map((rank, rIndex) => <option key={rIndex} value={rank}>{rank}</option>)}
+                        </select>
                     </div>
-                    <div className="form-check">
-                        <input className="form-check-input shadow-sm" type='checkbox' id="checkContract" onChange={() => setCheckedContract(!checkedContract)} checked={checkedContract} />
-                        <label className="form-check-label" htmlFor="checkContract">契約済みの物件を表示</label>
-                    </div>
-                    <div className='text-white bg-primary shadow px-2 py-1 rounded'
-                    style={{cursor: 'pointer'}} onClick={() => setShowSuumoSummary(true)}>SUUMO掲載順位</div>
+                    <div className="m-1"><input className="target" type='text' placeholder='物件名で検索' onChange={(e) => setSearchedName(e.target.value)} /></div>
+                    <div className="m-1"><input className="target" type='text' placeholder='住所で検索' onChange={(e) => setSearchedAddress(e.target.value)} /></div>
+                    <div className="m-1"><input className="target" type='text' placeholder='営業名で検索' onChange={(e) => setSearchedStaff(e.target.value)} /></div>
+                    <label className="m-1 d-flex align-items-center gap-1" style={{ fontSize: '12px' }}>
+                        <input type='checkbox' id="checkCompany" onChange={() => setCheckedCompanyProperty(!checkedCompanyProperty)} checked={checkedCompanyProperty} />
+                        自社物件を表示
+                    </label>
+                    <label className="m-1 d-flex align-items-center gap-1" style={{ fontSize: '12px' }}>
+                        <input type='checkbox' id="checkContract" onChange={() => setCheckedContract(!checkedContract)} checked={checkedContract} />
+                        契約済みの物件を表示
+                    </label>
+                    <button type="button" className="rk_btn m-1" onClick={() => setShowSuumoSummary(true)}>SUUMO掲載順位</button>
                 </div>
 
                 {/* ページネーション & 件数表示 */}
-                <div className="d-flex justify-content-between align-items-end mb-2">
-                    <div className="d-flex align-items-center gap-2">
-                        <div className="fw-bold text-secondary">
-                            全 {propertyList.length} 件 <span className="fw-normal" style={{ fontSize: '12px' }}>({sliceStart + 1} ~ {Math.min(activePage * basicLength, propertyList.length)}件)</span>
+                <div className="d-md-flex align-items-center justify-content-between mb-1">
+                    <div className="d-flex flex-wrap align-items-center">
+                        <div>
+                            <span className="dbk_count_num">{propertyList.length}</span>
+                            <span className="dbk_count_sub"> 件中 {propertyList.length === 0 ? 0 : sliceStart + 1}件~{Math.min(activePage * basicLength, propertyList.length)}件</span>
+                            {loading && <span className="ms-2 dbk_count_sub">読み込み中…</span>}
                         </div>
-                        <select className="form-select form-select-sm shadow-sm" style={{ width: '80px' }} value={basicLength} onChange={(e) => setBasicLength(Number(e.target.value))}>
-                            <option value='20'>20件</option>
-                            <option value='50'>50件</option>
-                            <option value='100'>100件</option>
-                            <option value='500'>500件</option>
-                        </select>
+                        <div className="ms-2 dbk_count_sub">
+                            表示件数
+                            <select className="rk_select ms-1" aria-label="表示件数" value={basicLength} onChange={(e) => setBasicLength(Number(e.target.value))}>
+                                <option value='20'>20件</option>
+                                <option value='50'>50件</option>
+                                <option value='100'>100件</option>
+                                <option value='500'>500件</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <ul className="custom-pagination m-0">
+                    <div className="m-1 pt-3">
+                        <ul className="custom-pagination">
                             <li><button onClick={() => handlePageClick(1)}>«</button></li>
                             <li><button onClick={() => handlePageClick(Math.max(activePage - 1, 1))}>‹</button></li>
                             {Object.entries(pages).map(([key, value]) => {
@@ -319,11 +367,11 @@ const DatabaseProperty = () => {
                     </div>
                 </div>
 
-                {/* テーブルUI */}
-                <div className="card shadow-sm border-0 rounded-3">
-                    <div className="card-body p-0">
-                        <div className="table-responsive" style={{ maxHeight: 'calc(100vh - 200px)', overflow: 'auto' }}>
-                            <table className="table table-hover align-middle mb-0 text-center text-nowrap" style={{ fontSize: '12px' }}>
+                {/* テーブルUI（⚠️ v2.2.301 枠は dbk_table_wrap） */}
+                <div className="dbk_table_wrap">
+                    <div>
+                        <div className="table-responsive" style={{ maxHeight: 'calc(100vh - 230px)', overflow: 'auto' }}>
+                            <table className="table table-hover align-middle mb-0 text-center text-nowrap dbk_table" style={{ fontSize: '12px' }}>
                                 <thead className="table-light border-bottom border-2" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                                     <tr>
                                         <th className="py-2" style={{ width: '40px' }}>No</th>
