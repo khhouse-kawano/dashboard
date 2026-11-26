@@ -1,7 +1,8 @@
 <?php
 try {
 
-    $sql = "SELECT name, brand, api_token, timestamp FROM staff WHERE api_token = ?";
+    // ⚠️ v2.2.302: id を足した（画面がテーブル定義書のメニューを出すかの判定に使う。② も同じ id を自分で確かめる）
+    $sql = "SELECT id, name, brand, api_token, timestamp FROM staff WHERE api_token = ?";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$data['token']]);

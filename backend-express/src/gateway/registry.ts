@@ -1269,7 +1269,8 @@ register({
   });
 
   /**
-   * v2.2.301 テーブル定義書（features/tableDefinition.ts。システム管理 → テーブル定義書）。Master だけ・閲覧のみ。
+   * v2.2.301 テーブル定義書（features/tableDefinition.ts。システム管理 → テーブル定義書）。閲覧のみ。
+   * ⚠️ v2.2.302 から Master のうち TABLE_DEFINITION_STAFF_ID のスタッフだけ（それ以外の Master は runTableDefinition が 403）。
    * ⚠️ ① に PHP ハンドラは無い（② だけ）。① の db.php の GET_ALLOWED_REQUESTS と express_proxy.php の2つのリストに入れてある。
    * ⚠️ 画面は category を送らないが、ログインの事業が付いても当たるように事業ごとに登録する。
    */
@@ -1279,7 +1280,11 @@ register({
     summary: 'テーブル定義書（table なし＝一覧と列の説明・table あり＝その表の列。型は実物から）',
     phpSource: '（新規。PHP版なし）',
     auth: 'master',
-    handler: propertyHandler(runTableDefinition),
+    handler: async (ctx) => {
+      const result = await runTableDefinition(ctx.body, ctx.staff);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
   });
 });
 

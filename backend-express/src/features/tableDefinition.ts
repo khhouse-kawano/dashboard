@@ -1,8 +1,10 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { query } from '../db/pool';
+import type { AuthenticatedStaff } from '../types/staff';
 
 /**
- * テーブル定義書（v2.2.301。header/TableDefinition.tsx。システム管理 → テーブル定義書。Master だけ・閲覧のみ）。
+ * テーブル定義書（v2.2.301。header/TableDefinition.tsx。システム管理 → テーブル定義書。閲覧のみ）。
+ * ⚠️ v2.2.302 から Master のうち TABLE_DEFINITION_STAFF_ID のスタッフだけ。
  *
  * ─────────────────────────────────────────────
  * ⚠️ 説明は table_definition / column_definition（原稿は backend/scripts/tabledef/tables/*.md。画面からは書き換えない）。
@@ -127,8 +129,15 @@ const detailDefinition = async (table: string): Promise<TableDefinitionResult> =
   };
 };
 
+/**
+ * v2.2.302 見られるのは Master のうちこのスタッフだけ（Master の判定は gateway の auth: 'master'）。
+ * ⚠️ 画面の headerScreens.tsx の TABLE_DEFINITION_STAFF_ID と同じ値にする
+ */
+export const TABLE_DEFINITION_STAFF_ID = 1;
+
 /** table_definition（GET）。table を付ければその表の列、付けなければ一覧 */
-export const runTableDefinition = async (body: Record<string, unknown>): Promise<TableDefinitionResult> => {
+export const runTableDefinition = async (body: Record<string, unknown>, staff: AuthenticatedStaff | null): Promise<TableDefinitionResult> => {
+  if (staff?.id !== TABLE_DEFINITION_STAFF_ID) return { httpStatus: 403, body: { status: 'error', message: 'この操作を行う権限がありません。' } };
   const table = text(body.table).trim();
   return table === '' ? listDefinitions() : detailDefinition(table);
 };

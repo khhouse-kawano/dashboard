@@ -11,7 +11,9 @@ type AuthContextType = {
   userName: string,
   setUserName: (value: string) => void,
   shopName: string,
-  setShopName: (value: string) => void
+  setShopName: (value: string) => void,
+  /** v2.2.302 ログイン中のスタッフの id（get_token の結果。0 = まだ分からない）。⚠️ 画面の出し分けだけに使う（判定は ② が自分でする） */
+  staffId: number
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   setUserName: (value: string) => { },
   shopName: "",
   setShopName: (value: string) => { },
+  staffId: 0,
 });
 
 export default AuthContext;
