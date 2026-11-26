@@ -31,6 +31,7 @@ const GET_ALLOWED_REQUESTS = [
     'call_status_summary', // ⚠️ v2.2.294 架電状況を期間で読む（② 専用）
     'company_year', // ⚠️ v2.2.300 全社報告用フォーマットを年度で読む（② 専用）
     'property_list', 'property_detail', 'property_suumo_latest', // ⚠️ v2.2.301 物件DB・詳細・SUUMO物件サマリー（② 専用）
+    'table_definition', // ⚠️ v2.2.301 テーブル定義書（② 専用・Master）
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

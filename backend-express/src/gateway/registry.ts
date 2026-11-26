@@ -152,6 +152,7 @@ import { runUpdateLog } from '../features/updateLog';
 import { getLatestLoanRates, uploadLoanRates } from '../features/loanRate';
 import { listLoanPlanRates, uploadLoanPlanRates } from '../features/loanPlanRate';
 import { listSecurityLog } from '../features/securityLog';
+import { runTableDefinition } from '../features/tableDefinition';
 import { listSyncLog, writeSyncLog } from '../features/syncLog';
 import { importSuumoKaeruActions } from '../features/suumoKaeru';
 import { BUDGET_TABLE_AUTHORITY, listBudgetTable, uploadBudgetTable } from '../features/budgetTable';
@@ -1265,6 +1266,20 @@ register({
     phpSource: '(Express のみ。予備は backend/src/handlers/propertyAction/property_suumo.php)',
     auth: 'staff',
     handler: propertyHandler(runPropertySuumoLatest),
+  });
+
+  /**
+   * v2.2.301 テーブル定義書（features/tableDefinition.ts。システム管理 → テーブル定義書）。Master だけ・閲覧のみ。
+   * ⚠️ ① に PHP ハンドラは無い（② だけ）。① の db.php の GET_ALLOWED_REQUESTS と express_proxy.php の2つのリストに入れてある。
+   * ⚠️ 画面は category を送らないが、ログインの事業が付いても当たるように事業ごとに登録する。
+   */
+  register({
+    request: 'table_definition',
+    category,
+    summary: 'テーブル定義書（table なし＝一覧と列の説明・table あり＝その表の列。型は実物から）',
+    phpSource: '（新規。PHP版なし）',
+    auth: 'master',
+    handler: propertyHandler(runTableDefinition),
   });
 });
 

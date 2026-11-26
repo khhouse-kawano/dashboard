@@ -1,0 +1,115 @@
+---
+table: estate_info
+title: 土地情報（売地の在庫）
+business: common
+source: 推論
+---
+外部の物件情報（アットホーム・スーモ・ホームズ・レインズ・手入力）から集めた売地の情報。1物件 = 1行（property_id で一意）。ローカルでは約5.5万件で、すべて 土地 / 売地 / 在庫有。
+書くのは ① handlers/estate_update.php（request: estate_update。行の配列を property_id で追加・更新。⚠️ 呼び出し元は Dashboard の中に無く、外部の同期処理とみられる。以前は header/unused/SyncEstate.tsx から外部の同期サーバーを呼んでいた）。
+読むのは ① estate.php（Estate.tsx。顧客の希望エリア customers_estate と合わせて直近1年の土地を出す）・estateInfo.php（EstateInfo.tsx。1件の詳細）と、ヘッダー・メニューの新着件数（① header.php・menu.php／② header.ts・menu.ts。登録が直近3日の件数）。
+⚠️ Estate.tsx を開く入口（setEstateId）が Menu.tsx の中に見当たらず、画面からは開けない可能性がある（推定）。⚠️ ローカルの registered_at は 2026-06-30 が最後で、取り込みが止まっている可能性がある。
+列の説明は列名と登録値からの推定（元のシステムの項目名を英語にしたもの）。
+
+## 列
+- id: 連番（主キー）
+- property_id: 元のシステムの物件番号。⚠️ 取り込みの突き合わせのキー
+- property_type: 物件種別（ローカルは「土地」だけ）
+- property_category: 物件種目（ローカルは「売地」だけ）
+- reins_property_id: レインズの物件番号
+- sales_status: 販売状況（ローカルは「在庫有」だけ）
+- transaction_status: 取引状況（公開中・書面による購入申し込みあり・売主都合で一時紹介停止中 など）
+- price: 価格（円）
+- address_pref: 所在地の都道府県
+- address_city: 所在地の市区町村
+- address_town: 所在地の町名
+- property_name: 物件名
+- room_number: 部屋番号
+- latitude: 緯度
+- longitude: 経度
+- railway_line: 沿線
+- nearest_station: 最寄り駅
+- walk_time1: 駅からの徒歩（分）
+- bus_time: バスの乗車時間（分）
+- bus_route: バスの路線
+- bus_stop: バス停
+- walk_time2: バス停からの徒歩（分）
+- unit_price_sqm: ㎡単価
+- unit_price_tsubo: 坪単価
+- yield_percent: 利回り（%）
+- land_right: 土地の権利（所有権 など）
+- zoning1: 用途地域1
+- zoning2: 用途地域2
+- current_status: 現況（更地・古家あり など）
+- special_note_flag: 特記事項の有無（0 / 1）
+- delivery: 引渡時期
+- delivery_condition: 引渡条件
+- note1: 備考1
+- note2: 備考2
+- sales_point: セールスポイント
+- brokerage_type: 取引態様（売主・代理・専任媒介・一般媒介 など。表記がそろっていない）
+- equipment_free: 設備（自由記述）
+- feature_free: 特徴（自由記述）
+- condition_free: 条件（自由記述）
+- free_memo: メモ（自由記述）
+- registered_at: 情報の登録日。⚠️ 新着件数・直近1年の絞り込みに使う
+- updated_at: 情報の更新日（取り込みで更新したときは取り込んだ日）
+- contracted_at: 成約日
+- contracted_year_month: 成約年月
+- info_source: 情報の出どころ（アットホーム・スーモ・ホームズ・レインズ・手入力）
+- register_method: 登録方法（0 / 1）
+- display_flag: 表示の区分（0 / 1 / 2）
+- image_exists_flag: 画像の有無（0 / 1）
+- latlng_set_flag: 緯度経度を設定済みか（0 / 1）
+- listing_company: 元付け（情報を出している不動産会社）
+- listing_company_tel: 元付けの電話番号
+- construction_company: 施工会社（建築条件付きの指定業者）
+- permission_type: 広告の掲載許可の区分
+- photo_permission_type: 写真の掲載許可の区分
+- permission_date: 掲載許可の日
+- permission_fax_id: 掲載許可の FAX の番号
+- permission_fax_sent_flag: 掲載許可の FAX を送ったか（0 / 1）
+- permission_fax_sent_date: 掲載許可の FAX を送った日
+- floor_plan: 間取り
+- floor_plan_code: 間取りのコード
+- floor_plan_detail: 間取りの内訳
+- built_year_month: 築年月
+- exclusive_area: 専有面積（㎡）
+- balcony_area: バルコニー面積（㎡）
+- direction: 向き
+- floors_above: 地上階数
+- floors_below: 地下階数
+- floor_number: 所在階
+- total_units: 総戸数
+- parking_flag: 駐車場の有無（0 / 1）
+- parking_fee: 駐車場の料金
+- parking_count: 駐車場の台数
+- parking_deposit: 駐車場の敷金
+- parking_note: 駐車場の備考
+- management_fee: 管理費
+- reserve_fund: 修繕積立金
+- management_type: 管理形態
+- management_method: 管理方式
+- land_area: 土地面積（㎡）
+- private_road_area: 私道負担面積（㎡）
+- building_area: 建物面積（㎡）
+- building_structure: 建物の構造
+- national_land_law: 国土法の届出
+- city_planning: 都市計画（市街化区域 など）
+- land_category: 地目
+- topography: 地勢
+- bcr1: 建ぺい率1（%）
+- far1: 容積率1（%）
+- bcr2: 建ぺい率2（%）
+- far2: 容積率2（%）
+- corner_flag: 角地か（0 / 1）
+- road_condition1: 接道の状況1
+- road_condition2: 接道の状況2
+- road_condition3: 接道の状況3
+- best_use: 最適用途
+- legal_restrictions: 法令上の制限
+- movie_url1: 動画の URL 1
+- movie_url2: 動画の URL 2
+- no_brokerage_fee_flag: 仲介手数料なしか（0 / 1）
+- admin_memo: 管理者のメモ
+- reins_no_image_flag: レインズの画像なし（0 / 1）
+- reins_image_import_flag: レインズの画像を取り込んだか（0 / 1）

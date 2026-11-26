@@ -1,0 +1,201 @@
+---
+table: master_data_kaeru
+title: 建売の顧客
+business: spec
+source: 改修
+---
+建売（かえるホーム）の顧客台帳。1行＝顧客1人（id が顧客ID）。注文の master_data と同じ系統の列（元は PG CLOUD の書き出しの列名）。
+書くもの：反響一覧（ListKaeru.tsx）の取り込み（① list_kaeru_sync.php・② features/list/save.ts）、顧客の編集（InformationEditKaeru.tsx → information_spec_add／update・② information/save.ts）、商談ステップ（② interviewKpi.ts の SPEC_MAP）、ランク・名寄せ・個人情報削除（privacy.ts）、紹介・アンバサダーの取り込み（inquirySync.ts）、住所の経緯度（customer_address.php）。
+読むもの：顧客DB（DatabaseKaeru.tsx・database/list.ts）、販促媒体別・店舗別の集計（CustomerKaeru・ShopKaeru・customerTrend・shopTrend）、地図、物件DB、要確認（dailyAction.ts）、日報など。
+⚠️ 同じ step_migration_item_* でも注文と意味が違う列がある（01J82Z5F1RR18… は注文＝契約日／建売＝申込日。建売の契約は 01JP74NGRTT95…）。⚠️ DB のコメントより interviewKpi.ts の対応表が正。
+⚠️ 書ける列は information/masterDataColumns.ts（元は ① core/allowed_columns.php）で絞る。注文にしか無い列（勝因・敗因の5列・url_params など）を送ると保存が失敗する。
+⚠️ in_charge_store は「鹿児島1係」のような係名。category は「建売」と「spec」の表記が混在する（一覧はテーブル単位なので絞りに使わない）。
+
+## 列
+- no: 連番（自動採番）
+- id: 顧客ID。反響の取り込みで作る。⚠️ 反響（inquiry_customer_kaeru.pg_id）・call_sheet・interview_sheet・master_data_log がこの値で結ぶ
+- date [推論]: （推定）PG CLOUD 時代の登録日
+- customer_contacts_name: 氏名①（お客様名）
+- in_charge_store: 担当店舗（係名。例 鹿児島1係・宮崎係）。shop_list の division = 建売分譲事業 の shop
+- in_charge_user: 担当営業。未設定のときは「<店舗> 管理」
+- reaction_date [推論]: （推定）PG CLOUD 時代の反響日。⚠️ いまの集計は反響取得日（step_migration_item_01J82Z5F13B6…）を使う
+- first_interviewed_date [推論]: （推定）PG CLOUD 時代の初回面談日
+- full_address: 住所①
+- sales_promotion_name: 販促媒体①（反響媒体）。⚠️ medium_kaeru の媒体名が正（別名は customerKaeruUtils.ts の normalizeMedium が寄せる）
+- status: 追客の状況（例 追客中・追客終了・接触（通話・返信）・来店あり・契約済み・未設定）
+- category: 事業区分。「建売」と「spec」が混在
+- has_owned_land: 土地の有無
+- customer_contacts_name_kana: ふりがな①
+- customer_tags: 顧客タグ
+- customized_input_01J82Z5F366ZQ897PXWF6H5ZAM: 顧客ランク（Sランク〜Hランク）
+- customized_input_01J95TC6KEES87F0YXH29AJP7K: DB のコメントは「購入可能時期」。⚠️ 建売の画面は購入可能時期に 01JSE7RNV3… を使う。注文では面談時アンケート（fundingPlan の k_worry）
+- customized_input_01JRCT12N9X24PCQ5QZPAYKB93: 集客イベント（analysis/columns.ts）
+- customized_input_01JRF9CZSW65A151WR30NA4PB3: 他決理由（詳細な失注理由。lostList.ts・competitor.ts）
+- customized_input_01JSE7DKY5RYY3T8T8NVR1AJMN: 重視項目
+- customized_input_01JSE7H4MQES619NBWX6PQDFRH: 敗因（負けた理由の自由記述。informationUtils.ts の LOSE_REASON_KEY）
+- customized_input_01JSE7RNV3VK78YC2GYAG0554D: 購入可能時期（建売の顧客の編集の欄。注文では契約スケジュール）
+- customer_contacts_phone_number: 電話番号①
+- customer_contacts_mobile_phone_number: 電話番号②（携帯）
+- customer_contacts_email: メールアドレス①
+- line_id: LINE ID
+- customer_contacts_gender [推論]: 性別
+- customer_contacts_birth_date: 生年月日
+- customer_contacts_employment_type: 雇用形態
+- customer_contacts_employer_name: 勤務先名
+- customer_contacts_employer_address: 勤務先住所
+- customer_contacts_years_of_service: 勤続年数
+- customer_contacts_annual_income: 年収
+- customer_contacts_count [推論]: （推定）家族の人数
+- elementary_school_id [推論]: （推定）小学校区
+- junior_high_school_id [推論]: （推定）中学校区
+- postal_code: 郵便番号
+- extra_address_info: メールアドレス②（⚠️ 列名は住所の補足だが、メールの2つ目に使っている）
+- current_contract_type: 現居契約形態
+- current_utility_costs: 現居光熱費
+- current_rent: 現居家賃
+- budget: 予算総額
+- land_budget: 土地予算
+- desired_purchase_date [推論]: 希望購入時期
+- repayment_years: 返済希望年数
+- bonus_repayment_amount [推論]: ボーナス返済額
+- current_loan_status [推論]: 今の借入の状況
+- remarks: 備考。反響の取り込みで反響の内容が入る
+- brand: ブランド（例 国分ハウジング。ほとんど空）
+- first_interviewed_user: 担当営業を変えたときの変更前の担当（顧客の編集が入れる）
+- last_action_step_migration_item_name: 店舗管理への変更理由（担当を「<店舗> 管理」に変えたときに選ぶ。失注・計画中止・連絡不能など）。⚠️ 列名と中身が違う
+- last_action_step_migration_item_date [推論]: （推定）PG CLOUD 時代の最後の商談ステップの日付
+- upcoming_date [推論]: （推定）PG CLOUD 時代の次の予定日
+- step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: 反響取得日（登録日）。反響一覧・集計の「反響」の月はこの日付
+- step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z: 接触（通話・返信）の日
+- step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7: 初回面談（来場）の日
+- step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN: DB のコメントは「LINEグループ作成」。⚠️ 建売の商談ステップからは入らない（ほぼ空）
+- step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0: 仲介契約の日
+- step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR: 事前審査（顧客の編集では「ローン事前承認済み」）の日
+- step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG: 物件案内の日（反響一覧の上の集計の tour）
+- step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW: 自社契約の日。⚠️ 建売の「契約」はこれ（注文では使わない列）
+- step_migration_item_01JSENACS2FC422ZHEZWNSXNYA: 2回目以降面談の日
+- step_migration_item_01J82Z5F1RR18Z792C7KZS88QG: 申し込みの日。⚠️ 注文では契約日。建売で契約として数えない
+- step_migration_item_01J82Z5F1WE8SKEES6VNN37B22: DB のコメントは「次回アクション予定」。⚠️ 建売の商談ステップからは入らない
+- step_migration_item_01J95TGVT725CV1Z4HTWB22DAV: 事前取得（現金確認含む）の日（顧客の編集の欄）
+- introduction_person_name: 紹介者の名前（お友達紹介）
+- introduction_person_category: 紹介者の区分
+- introduction_date: 紹介日
+- created_by_name [推論]: 作成者
+- updated_by_name [推論]: 最終更新者
+- created_at [推論]: 作成日時（text）
+- updated_at [推論]: 更新日時（text）
+- customer_contacts_preferred_method_of_contact [推論]: 希望の連絡方法
+- customer_contacts_preferred_contact_time [推論]: 希望の連絡時間帯
+- customer_contacts_holiday_list [推論]: 休日
+- customer_contacts_commute [推論]: 通勤
+- customer_contacts_homecoming_time [推論]: 帰宅時間
+- customer_contacts_parents_place_info [推論]: 実家の情報
+- email_subscription_status [推論]: メール配信の可否
+- monthly_repayment_amount: 月々支払予算
+- self_budget: 自己資金
+- budget_reason [推論]: 予算の理由
+- desired_purchase_date_reason [推論]: 購入時期の理由
+- current_loan_balance: 負債総額
+- current_monthly_repayment_amount [推論]: 今の借入の月々返済額
+- house_hunting_motivation: 住まい探しの動機
+- discovered_reason_name [推論]: 知ったきっかけ
+- inquiry_reason: 問い合わせのきっかけ
+- desired_property_category2 [推論]: 希望の物件種別
+- desired_elementary_school1 [推論]: 希望の小学校①
+- desired_elementary_school2 [推論]: 希望の小学校②
+- desired_elementary_school3 [推論]: 希望の小学校③
+- desired_junior_high_school1 [推論]: 希望の中学校①
+- desired_junior_high_school2 [推論]: 希望の中学校②
+- desired_junior_high_school3 [推論]: 希望の中学校③
+- desired_land_area: 希望土地面積
+- desired_occupancy_area [推論]: 希望の居住面積
+- desired_area1_postal_code [推論]: 希望エリア①の郵便番号
+- desired_area1_address: 希望エリア①
+- desired_area2_postal_code [推論]: 希望エリア②の郵便番号
+- desired_area2_address [推論]: 希望エリア②
+- desired_area3_postal_code [推論]: 希望エリア③の郵便番号
+- desired_area3_address [推論]: 希望エリア③
+- desired_nearby_station1_line_name [推論]: 希望の最寄り駅①の路線
+- desired_nearby_station1_name [推論]: 希望の最寄り駅①
+- desired_nearby_station1_distance [推論]: 希望の最寄り駅①までの距離
+- desired_nearby_station2_line_name [推論]: 希望の最寄り駅②の路線
+- desired_nearby_station2_name [推論]: 希望の最寄り駅②
+- desired_nearby_station2_distance [推論]: 希望の最寄り駅②までの距離
+- desired_nearby_station3_line_name [推論]: 希望の最寄り駅③の路線
+- desired_nearby_station3_name [推論]: 希望の最寄り駅③
+- desired_nearby_station3_distance [推論]: 希望の最寄り駅③までの距離
+- desired_area_reason [推論]: 希望エリアの理由
+- desired_floor [推論]: 希望の階数
+- desired_layout_rooms_number [推論]: 希望の部屋数
+- desired_layout_rooms_arrangement [推論]: 希望の間取り
+- desired_parking_number [推論]: 希望の駐車台数
+- desired_age_of_construction_max [推論]: 許容する築年数の上限
+- desired_has_solar_power [推論]: 太陽光の希望
+- planned_construction_site: 入居希望地①（物件マッチングメールの条件）
+- contracted_property_id [推論]: （推定）契約した物件の ID
+- contract_land_application_date: DB のコメントは「リフォーム粗利見込」。⚠️ 建売では空（中古と同じコメントが付いている）
+- contract_building_application_date: DB のコメントは「仲介粗利見込」。⚠️ 建売ではほぼ使っていない（推定）
+- contract_planned_date [推論]: 契約予定日
+- contract_land_agreement_date [推論]: 土地の契約日
+- contract_building_agreement_date [推論]: 建物の契約日
+- contract_application_fee_planned_date [推論]: 申込金の予定日
+- contract_payment_planned_date [推論]: 支払いの予定日
+- contraction_contract_price [推論]: 契約金額
+- contraction_estimate_number [推論]: 契約時の見積番号
+- contraction_funding_plan_number [推論]: 契約時の資金計画番号
+- contraction_purchase_order_issued_date [推論]: 契約時の発注日
+- additional_contraction_contract_price [推論]: 追加契約の金額
+- additional_contraction_estimate_number [推論]: 追加契約の見積番号
+- additional_contraction_funding_plan_number [推論]: 追加契約の資金計画番号
+- additional_contraction_purchase_order_issued_date [推論]: 追加契約の発注日
+- handover_contract_price [推論]: 引渡時の金額
+- handover_estimate_number [推論]: 引渡時の見積番号
+- handover_funding_plan_number [推論]: 引渡時の資金計画番号
+- handover_purchase_order_issued_date [推論]: 引渡時の発注日
+- customer_mortgage_examinations_status [推論]: 住宅ローン審査の状況
+- customer_mortgage_examinations_application_date [推論]: 住宅ローン審査の申込日
+- customer_mortgage_examinations_proposal_date [推論]: 住宅ローンの提案日
+- customer_mortgage_examinations_bank_name [推論]: 住宅ローンの銀行
+- customer_mortgage_examinations_desired_loan_amount [推論]: 希望借入額
+- memo_developer_application_company [推論]: メモ（開発申請の会社）
+- memo_lawyer [推論]: メモ（司法書士）
+- memo_fire_insurance [推論]: メモ（火災保険）
+- memo_site_survey [推論]: メモ（現地調査）
+- memo_ground_survey [推論]: メモ（地盤調査）
+- memo_other_related_person [推論]: メモ（その他の関係者）
+- competitor_lost_contract_date: 解約発生日（ステータスが「解約」のときに入れる。TableStatus.tsx）
+- competitors_text: 競合の会社（顧客の編集の「競合情報」。カンマ区切り）
+- competitor_name: 他決した会社
+- competitor [推論]: 競合の有無・内容
+- competitor_lost_contract_reason: DB のコメントは「解約発生日」。⚠️ 画面の解約発生日は competitor_lost_contract_date に入る。この列の今の使い道は（推定）他決・解約の理由
+- customer_desired_floor: 新築計画
+- customer_desired_period: 入居希望時期
+- customer_desired_estate: 土地の状況
+- customer_desired_order [推論]: （推定）注文住宅の希望
+- call_status: 架電状況（例 架電停止・未通電・継続・来場済み）
+- khg_id [推論]: （推定）グループ共通の顧客ID。ほぼ空
+- desired_pref: 希望の県
+- show_dashboard: 集計に数えるか。1＝表示・0＝非表示（ゴミ箱）
+- rank_period: 契約見込み月（顧客ランクの横の年月）
+- step_migration_item_catalog: 資料送付の日（建売では空）
+- hp_campaign: ホームページのキャンペーン名（反響から引き継ぐ。例 資料請求・会員登録・先取物件）
+- reserved_interview: 来場予約の日（反響から引き継ぐ）
+- cancel_status: キャンセルの扱い（要確認の「キャンセル」に出すか。空でないと出さない）
+- property_name: 問い合わせ物件（カンマ区切り。物件DB の物件名）。物件DB の反響状況がこれで結ぶ
+- property_tour_name: 案内した物件
+- property_contract_name: 契約した物件
+- lat_lng: 住所の経緯度（「緯度,経度」か「取得不可」）。customer_address.php が入れる。地図が読む
+- integration: 名寄せ済みの印（1＝名寄せした）
+- call_log: 架電回数（顧客の編集の保存で数を入れる）。⚠️ 架電の記録の本体は call_sheet.call_log（JSON 配列）
+- customer_contacts_name_2: 氏名②
+- customer_contacts_name_kana_2: ふりがな②
+- planned_construction_site_2: 入居希望地②
+- planned_construction_site_3: 入居希望地③
+- sales_promotion_name_2: 販促媒体②
+- step_migration_item_01J95TGVT725FT1OLHTWBLP96Y [推論]: （推定）建売では使っていない（中古では2回目以降物件案内）
+- memo_marketing: マーケ用メモ。面談シートの上部から入力する（架電用メモとは別）
+- next_action_date: 次回アクション日（商談ステップの最新の予定日。⚠️ この列だけ一番新しい日付が入る）
+- landing_params: 反響から引き継いだ流入の情報（khg_vid など。v2.2.205）
+- delete_dashboard: 個人情報削除の印。1＝削除済み（伏せ字にした顧客。集計には数える。v2.2.229）
+- portal_flag: ポータルサイトからの反響なら1（v2.2.281。② list/portal.ts が取り込みのときに立てる）
+- portal_site: ポータルサイト名（SUUMO・HOME'S・athome・ALLGRIT。v2.2.281）

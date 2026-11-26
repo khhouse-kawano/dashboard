@@ -1,0 +1,158 @@
+---
+table: hotlead_db
+title: HOTLEAD のチケット（注文住宅）
+business: order
+source: 改修
+---
+HOTLEAD（反響の一次対応・来場予約の代行サービス）のチケット。1行が1件のチケット（id）。列は HOTLEAD から届く項目名そのまま。
+sync の runHotlead.ts が HOTLEAD から取った行を1件ずつ ① の request hotlead（handlers/hotlead.php）へ送り、id があれば UPDATE、無ければ INSERT する。
+同じ処理で、顧客DB（master_data）の同じ人（店舗・氏名・電話・メールが一致し、hotlead_id が空）に hotlead_id を入れる。店舗名の頭は送り元のアカウント（hotlead → KH／hotlead_2 → DJH。hotlead_brand。この表には保存しない）。
+画面は顧客DB（注文。DatabaseOrder.tsx）。② の database（features/database/queries.ts）が id・status・hotlead_url・ticket_stop_reason_type と、行動履歴の架電・メール・SMS の回数だけを返す。
+⚠️ 列はすべて text。日時は ISO 形式（例 2026-01-01T09:16:08+09:00）。
+⚠️ 下の列のうち [推論] は、HOTLEAD の項目名から推した説明（コードでは読んでいない）。
+
+## 列
+- no: 連番（自動採番）
+- id: HOTLEAD のチケットID。上書きの鍵。顧客DB の hotlead_id に入る
+- status: チケットのステータス（顧客DB の画面に出る）
+- ticket_stop_reason_type: チケット停止理由の区分（顧客DB の画面に出る）
+- ticket_stop_reason [推論]: チケット停止理由（自由記述）
+- ticket_at [推論]: チケットの発生日時
+- updated_at [推論]: HOTLEAD 側の更新日時
+- hotlead_url: HOTLEAD の管理画面でのチケットの URL（顧客DB の画面から開く）
+- store_id [推論]: HOTLEAD 上の店舗ID
+- store_name: HOTLEAD 上の店舗名（例 霧島店。ブランドは付かない）。顧客DB との突き合わせに使う
+- unit_id [推論]: HOTLEAD 上のユニット（部署）ID
+- unit_name [推論]: HOTLEAD 上のユニット（部署）名
+- client_user_name [推論]: 担当者名（自社側）
+- appointment_status [推論]: アポイントのステータス
+- appointment_start_at [推論]: アポイントの日時
+- appointment_start_at2 [推論]: アポイントの日時（第2）
+- appointment_place_type [推論]: アポイントの場所の種類
+- appointment_place [推論]: アポイントの場所
+- appointment_adult_count [推論]: 来場予定の大人の人数
+- appointment_adult_count_note [推論]: 来場予定の大人の人数（補足）
+- appointment_child_count [推論]: 来場予定の子どもの人数
+- appointment_child_count_note [推論]: 来場予定の子どもの人数（補足）
+- appointment_transportation [推論]: 来場の交通手段
+- appointment_guidance_types [推論]: 案内の種類
+- appointment_guidance [推論]: 案内の内容
+- appointment_cancel_reason_type [推論]: アポイントのキャンセル理由の区分
+- appointment_cancel_reason [推論]: アポイントのキャンセル理由
+- name: 氏名。顧客DB との突き合わせに使う
+- name_kana [推論]: 氏名カナ
+- age [推論]: 年齢
+- gender [推論]: 性別
+- phone: 電話番号。顧客DB との突き合わせに使う
+- phone_note [推論]: 電話の補足
+- email: メールアドレス。顧客DB との突き合わせに使う
+- zip_code [推論]: 郵便番号
+- address [推論]: 住所
+- desired_contact_method [推論]: 希望の連絡方法
+- inquiry_detail [推論]: 問い合わせ内容
+- appointment_desired_date1_note [推論]: 来場希望日 第1（補足）
+- appointment_desired_date2_note [推論]: 来場希望日 第2（補足）
+- family_adult_count [推論]: 家族の大人の人数
+- family_child_count [推論]: 家族の子どもの人数
+- family_pet_count [推論]: ペットの数
+- family_pet_count_note [推論]: ペットの補足
+- holidays [推論]: 休日
+- interests [推論]: 興味・関心
+- employment_status [推論]: 勤務形態
+- employment_company_name [推論]: 勤務先
+- years_of_service [推論]: 勤続年数
+- salary [推論]: 年収
+- fund [推論]: 自己資金
+- cashing [推論]: （推定）借入・キャッシングの有無
+- cashing_note [推論]: （推定）借入の補足
+- has_scheduled_loan [推論]: 予定しているローンの有無
+- property_find_duration [推論]: 物件を探している期間
+- property_find_duration_note [推論]: 物件を探している期間（補足）
+- done_loan_simulate [推論]: ローンの試算をしたか
+- done_loan_simulate_note [推論]: ローンの試算（補足）
+- social_style [推論]: ソーシャルスタイル（人柄の分類）
+- social_style_note [推論]: ソーシャルスタイル（補足）
+- interest_other_property_or_company [推論]: ほかの物件・会社への関心
+- visited_property_experience [推論]: 物件見学の経験
+- inquiry_competitor_status [推論]: 他社への問い合わせ状況
+- residence_type [推論]: 今の住まいの形態
+- monthly_house_payment [推論]: 今の住居費（月）
+- housing_loan_balance [推論]: 住宅ローンの残高
+- car_name [推論]: 車種
+- car_count [推論]: 車の台数
+- monthly_parking_fee [推論]: 駐車場代（月）
+- current_floor_plan [推論]: 今の住まいの間取り
+- demand_house_floors_count [推論]: 希望の階数
+- demand_property_types [推論]: 希望の物件種別
+- demand_higher_price [推論]: 予算の上限
+- demand_higher_price_note [推論]: 予算の上限（補足）
+- demand_parking_capacity [推論]: 希望の駐車台数
+- demand_other_condition [推論]: その他の希望条件
+- demand_area [推論]: 希望エリア
+- demand_train_station [推論]: 希望の駅
+- demand_walking_time [推論]: 駅からの徒歩の希望
+- demand_walking_time_note [推論]: 駅からの徒歩の希望（補足）
+- demand_time_to_relocate [推論]: 住み替えの希望時期
+- demand_time_to_relocate_note [推論]: 住み替えの希望時期（補足）
+- purchasing_reason [推論]: 購入の理由
+- inquiry_reasons [推論]: 問い合わせの理由
+- demand_building_site [推論]: 建築地の希望
+- has_building_site [推論]: 建築地（土地）の有無
+- has_building_site_note [推論]: 建築地の有無（補足）
+- demand_time_to_build [推論]: 建築の希望時期
+- visited_exhibition_experience [推論]: 住宅展示場の来場経験
+- relation_with_property [推論]: 物件との関係（売却）
+- demand_selling_price [推論]: 売却の希望価格
+- demand_selling_price_note [推論]: 売却の希望価格（補足）
+- selling_property_type [推論]: 売却物件の種別
+- selling_address [推論]: 売却物件の住所
+- selling_address_kana [推論]: 売却物件の住所（カナ）
+- selling_land_area [推論]: 売却物件の土地面積
+- selling_building_area [推論]: 売却物件の建物面積
+- selling_occupied_area [推論]: 売却物件の専有面積
+- selling_built_at [推論]: 売却物件の建築年
+- selling_resident [推論]: 売却物件の居住状況
+- selling_property_purchased_price [推論]: 売却物件の購入価格
+- selling_remodeling_history [推論]: 売却物件のリフォーム歴
+- selling_purchased_time [推論]: 売却物件の購入時期
+- selling_floor_plan [推論]: 売却物件の間取り
+- selling_management_fee [推論]: 売却物件の管理費
+- selling_repair_reserve_fund [推論]: 売却物件の修繕積立金
+- selling_property_right [推論]: 売却物件の権利
+- property_name1 [推論]: 反響した物件1の物件名
+- property_URL1 [推論]: 反響した物件1の URL
+- property_type1 [推論]: 反響した物件1の種別
+- property_address1 [推論]: 反響した物件1の住所
+- property_price1 [推論]: 反響した物件1の価格
+- property_building_area1 [推論]: 反響した物件1の建物面積
+- property_land_area1 [推論]: 反響した物件1の土地面積
+- property_floor_plan1 [推論]: 反響した物件1の間取り
+- property_code1 [推論]: 反響した物件1の物件コード
+- lead_at1 [推論]: 反響した物件1の反響日時
+- property_name2 [推論]: 反響した物件2の物件名
+- property_URL2 [推論]: 反響した物件2の URL
+- property_type2 [推論]: 反響した物件2の種別
+- property_address2 [推論]: 反響した物件2の住所
+- property_price2 [推論]: 反響した物件2の価格
+- property_building_area2 [推論]: 反響した物件2の建物面積
+- property_land_area2 [推論]: 反響した物件2の土地面積
+- property_floor_plan2 [推論]: 反響した物件2の間取り
+- property_code2 [推論]: 反響した物件2の物件コード
+- lead_at2 [推論]: 反響した物件2の反響日時
+- property_name3 [推論]: 反響した物件3の物件名
+- property_URL3 [推論]: 反響した物件3の URL
+- property_type3 [推論]: 反響した物件3の種別
+- property_address3 [推論]: 反響した物件3の住所
+- property_price3 [推論]: 反響した物件3の価格
+- property_building_area3 [推論]: 反響した物件3の建物面積
+- property_land_area3 [推論]: 反響した物件3の土地面積
+- property_floor_plan3 [推論]: 反響した物件3の間取り
+- property_code3 [推論]: 反響した物件3の物件コード
+- lead_at3 [推論]: 反響した物件3の反響日時
+- request_material_file_name1 [推論]: 資料請求の資料名1
+- request_material_file_name2 [推論]: 資料請求の資料名2
+- request_material_file_name3 [推論]: 資料請求の資料名3
+- media_name1 [推論]: 反響元の媒体名1
+- media_name2 [推論]: 反響元の媒体名2
+- media_name3 [推論]: 反響元の媒体名3
+- action_history: 行動履歴（架電・メール・SMS などの記録の文）。顧客DB の画面は「架電」「メール」「SMS」の回数だけを使う

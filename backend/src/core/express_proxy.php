@@ -839,6 +839,9 @@ function expressProxyRequests(): array
         'property_list',
         'property_detail',
         'property_suumo_latest',
+
+        // ⚠️ 2026-11-26（v2.2.301）。テーブル定義書（header/TableDefinition.tsx。Master だけ・閲覧のみ）。⚠️ ① に PHP ハンドラは無い（② だけ）。両方のリストに入れてある。
+        'table_definition',
     ];
 }
 
@@ -1210,6 +1213,9 @@ function expressProxyExclusive(): array
         'property_list',
         'property_detail',
         'property_suumo_latest',
+
+        // ⚠️ 2026-11-26（v2.2.301）。テーブル定義書。⚠️ 落ちたら ① では処理できない（502。画面は「読み込めません」と出す）。
+        'table_definition',
     ];
 }
 

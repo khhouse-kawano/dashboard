@@ -10,6 +10,7 @@ import AccessLog from './system/AccessLog';
 import SharedReports from './system/SharedReports';
 import BudgetTable from './system/BudgetTable';
 import CallStatusSettings from './system/CallStatusSettings';
+import TableDefinition from './system/TableDefinition';
 import EditBlackList from './inquiry/EditBlackList';
 import BudgetSimulator from './inquiry/BudgetSimulator';
 import AfterInterview from './inquiry/AfterInterview';
@@ -146,6 +147,8 @@ export const HEADER_SCREENS: HeaderScreen[] = [
     { menu: 'システム管理', item: '予算テーブル', path: '/budgetTable', allow: isAdmin, render: () => <BudgetTable /> },
     // ⚠️ v2.2.293: 架電ステータスは ⚠️⚠️ **Master と insideSales**（② の call_status_admin / _save / inside_staff_save も同じ2つ）
     { menu: 'システム管理', item: '架電ステータス', path: '/callStatusSettings', allow: isInsideSales, render: () => <CallStatusSettings /> },
+    // ⚠️ v2.2.301: テーブル定義書は ⚠️⚠️ **Master だけ**・閲覧のみ（DB の構造が全部見えるため。② の table_definition も auth: 'master'）
+    { menu: 'システム管理', item: 'テーブル定義書', path: '/tableDefinition', allow: isMaster, render: () => <TableDefinition /> },
 
     // ── 反響管理
     // ⚠️ 販促媒体設定はまだ中身が無い（v2.2.240 までと同じく「準備中」を出す）

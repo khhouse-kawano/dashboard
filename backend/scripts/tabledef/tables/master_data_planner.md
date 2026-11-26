@@ -1,0 +1,192 @@
+---
+table: master_data_planner
+title: 中古リノベ顧客の古い写し
+business: used
+source: 推論
+---
+コードからの使用箇所なし（推定：中古リノベの顧客台帳 master_data_resale の古い写し。2026-08 ごろまでの約2,500行で、id はほぼすべて master_data_resale と一致し、master_data とは重ならない）。
+列は master_data・master_data_resale と同じ PGクラウド由来の形で、工程の列（step_migration_item_*）の DB コメントは中古の意味（訪問査定・媒介取得・売買契約・リフォーム契約など）になっている。
+名前の「planner」の由来は不明。⚠️ 画面・処理からは使っていない（推定）。開発用の個人情報マスク（backend/scripts/sql/dev/mask_personal_info.sql）の対象には入っている。
+⚠️ 今の中古の顧客は master_data_resale を見る。この表を直しても画面には出ない。
+
+## 列
+- no: 連番（自動採番）
+- id: 顧客ID（ULID）。interview_sheet・call_sheet・family_info・funding_plan などの id と同じ値
+- date: （推定）PGクラウドでの登録日時。取り込み以前の行だけ入っている
+- customer_contacts_name: 氏名①（顧客DB では customer）
+- in_charge_store: 取引区分（買い:中古リノベ / 売り:ポータル / 買い:ポータル）。中古の表と同じく店舗名ではない
+- in_charge_user: 担当営業（staff_list.name）
+- reaction_date: （推定）PGクラウドの反響日
+- first_interviewed_date: 初回面談日として PGクラウドから来た列
+- full_address: 住所①
+- sales_promotion_name: 反響媒体（medium_list の medium。例 SUUMO・HOME'S）
+- status: 顧客の状態（見込み / 会社管理 / 失注 / 重複 / 契約済み / 解約 など）
+- category: 事業・取引区分（used / 買い:中古リノベ / 売り:ポータル など）
+- has_owned_land: 土地の有無（有 / 無）
+- customer_contacts_name_kana: ふりがな①
+- customer_tags: （推定）PGクラウドのタグ（ブランド・有効などの文字列）。取り込み以後は使っていない
+- customized_input_01J82Z5F366ZQ897PXWF6H5ZAM: ランク（Sランク〜Eランク）。顧客DB・ランク・会社実績の rank
+- customized_input_01J95TC6KEES87F0YXH29AJP7K: 面談前アンケート（面談時アンケートのメモ）
+- customized_input_01JRCT12N9X24PCQ5QZPAYKB93: 集客イベント（分析・架電一覧の event）
+- customized_input_01JRF9CZSW65A151WR30NA4PB3: 他決理由（競合負け・失注の理由）
+- customized_input_01JSE7DKY5RYY3T8T8NVR1AJMN: 重視項目
+- customized_input_01JSE7H4MQES619NBWX6PQDFRH: 他決理由メモ欄（reason_detail）
+- customized_input_01JSE7RNV3VK78YC2GYAG0554D: 契約スケジュール（月内 / 1か月後 / 3か月後 / 1年以上後 など。databaseList.ts）
+- customer_contacts_phone_number: DB コメントは「※電話番号①」（注文の表と①②が逆）
+- customer_contacts_mobile_phone_number: DB コメントは「※電話番号②」
+- customer_contacts_email: メールアドレス①
+- customer_contacts_gender: 性別（PGクラウド由来）
+- customer_contacts_birth_date: 生年月日
+- customer_contacts_employment_type: 雇用形態
+- customer_contacts_employer_name: 勤務先名
+- customer_contacts_employer_address: 勤務先住所
+- customer_contacts_years_of_service: 勤続年数
+- customer_contacts_annual_income: 年収
+- customer_contacts_count: （推定）PGクラウドの家族人数（「0人」「1人」…）。家族は family_info を使う
+- elementary_school_id: （推定）PGクラウドの小学校区ID
+- junior_high_school_id: （推定）PGクラウドの中学校区ID
+- postal_code: 郵便番号
+- extra_address_info: メールアドレス②（列名は住所の補足だが、メール②として使っている）
+- current_contract_type: 現居契約形態（賃貸(アパート) / 持家(戸建) など）
+- current_utility_costs: 現居光熱費（資金計画書の電気代の初期値）
+- current_rent: 現居家賃
+- budget: 予算総額
+- land_budget: 土地予算
+- desired_purchase_date: 購入希望時期（PGクラウド由来）
+- repayment_years: 返済年数
+- bonus_repayment_amount: ボーナス返済額（PGクラウド由来）
+- current_loan_status: 現在の借入状況（PGクラウド由来）
+- remarks: 備考
+- brand: ブランド（国分ハウジング / デイジャストハウス / PG HOUSE / なごみ工務店 など）
+- first_interviewed_user: 旧担当（担当を変えたときの前の担当営業）
+- last_action_step_migration_item_name: 担当変更理由（DB コメント）
+- last_action_step_migration_item_date: PGクラウドの最終アクション日
+- upcoming_date: （推定）PGクラウドの次回予定日
+- step_migration_item_01J82Z5F13B6QVM6X0TCWZHW99: 反響取得日
+- step_migration_item_01J82Z5F1990Y4G2TZ6XSCRX3Z: 通電日
+- step_migration_item_01J82Z5F1GQB02S1DEBZPBFDW7: 初回面談（初回来場）日
+- step_migration_item_01JSE75MPCGQW7V2MTY9VM4HXN: 訪問査定日（売り）
+- step_migration_item_01JV6AVXQMJY6XR4STWCHNKVE0: 媒介取得日（売り）
+- step_migration_item_01JSE0CRECT96FMYTZ1ZREC3QR: 事前審査日
+- step_migration_item_01JV6AVXR4X6HW3JQ0G53Y26GG: 物件案内日（買い）
+- step_migration_item_01JP74NGRTT95X4Z8AQZ2QK2PW: 売買契約日（買い）
+- step_migration_item_01JSENACS2FC422ZHEZWNSXNYA: DB コメントは「※次回アポ」。中古では2回目以降面談
+- step_migration_item_01J82Z5F1RR18Z792C7KZS88QG: リフォーム契約日（買い:中古リノベ）
+- step_migration_item_01J82Z5F1WE8SKEES6VNN37B22: 査定書提出日（売り）
+- step_migration_item_01J95TGVT725CV1Z4HTWB22DAV: 査定アポ（売り）／2回目以降物件案内（買い）。取引区分で意味が変わる
+- introduction_person_name: 紹介者の名前
+- introduction_person_category: 紹介者の区分（オーナー様 / SUUMOカウンター / 社員 / 協力業者 など）
+- introduction_date: 紹介日
+- created_by_name: PGクラウドでの作成者
+- updated_by_name: PGクラウドでの最終更新者
+- created_at: PGクラウドでの作成日時
+- updated_at: PGクラウドでの最終更新日時
+- customer_contacts_preferred_method_of_contact: 希望の連絡方法
+- customer_contacts_preferred_contact_time: 希望の連絡時間帯
+- customer_contacts_holiday_list: 休日
+- customer_contacts_commute: 通勤手段・時間
+- customer_contacts_homecoming_time: 帰宅時間
+- customer_contacts_parents_place_info: 実家の場所
+- email_subscription_status: メール配信の状態（購読中 / 購読停止 / 契約後購読）。PGクラウド由来
+- monthly_repayment_amount: 月々支払予算
+- self_budget: 自己資金
+- budget_reason: 予算の根拠
+- desired_purchase_date_reason: 購入希望時期の理由
+- current_loan_balance: 負債総額（現在の借入残高）
+- current_monthly_repayment_amount: 現在の月々返済額
+- house_hunting_motivation: 建築動機（チェックボックスの値をカンマ区切り）
+- discovered_reason_name: 当社を知ったきっかけ（PGクラウド由来）
+- inquiry_reason: 問い合せのきっかけ（チェックボックスの値をカンマ区切り）
+- desired_property_category2: 希望物件種別②
+- desired_elementary_school1: 希望小学校区①
+- desired_elementary_school2: 希望小学校区②
+- desired_elementary_school3: 希望小学校区③
+- desired_junior_high_school1: 希望中学校区①
+- desired_junior_high_school2: 希望中学校区②
+- desired_junior_high_school3: 希望中学校区③
+- desired_land_area: 希望土地面積
+- desired_occupancy_area: 希望延床面積
+- desired_area1_postal_code: 希望エリア①の郵便番号
+- desired_area1_address: 希望エリア①
+- desired_area2_postal_code: 希望エリア②の郵便番号
+- desired_area2_address: 希望エリア②
+- desired_area3_postal_code: 希望エリア③の郵便番号
+- desired_area3_address: 希望エリア③
+- desired_nearby_station1_line_name: 希望最寄り駅①の路線
+- desired_nearby_station1_name: 希望最寄り駅①
+- desired_nearby_station1_distance: 希望最寄り駅①からの距離
+- desired_nearby_station2_line_name: 希望最寄り駅②の路線
+- desired_nearby_station2_name: 希望最寄り駅②
+- desired_nearby_station2_distance: 希望最寄り駅②からの距離
+- desired_nearby_station3_line_name: 希望最寄り駅③の路線
+- desired_nearby_station3_name: 希望最寄り駅③
+- desired_nearby_station3_distance: 希望最寄り駅③からの距離
+- desired_area_reason: 希望エリアの理由
+- desired_floor: 希望の階数
+- desired_layout_rooms_number: 希望の部屋数
+- desired_layout_rooms_arrangement: 希望の間取り
+- desired_parking_number: 希望の駐車台数
+- desired_age_of_construction_max: 希望の築年数の上限
+- desired_has_solar_power: 太陽光の希望（有 / 無）
+- planned_construction_site: 建設予定地（入居希望地①）
+- contracted_property_id: （推定）契約した物件のID。ほぼ空
+- contract_land_application_date: リフォーム粗利見込
+- contract_building_application_date: 仲介粗利見込
+- contract_planned_date: （推定）契約予定日
+- contract_land_agreement_date: 土地の契約日
+- contract_building_agreement_date: 建物の契約日
+- contract_application_fee_planned_date: 申込金の入金予定日
+- contract_payment_planned_date: 入金予定日
+- contraction_contract_price: 予算（DB コメント）。中古の会社実績では粗利額として読む
+- contraction_estimate_number: 契約時の見積番号
+- contraction_funding_plan_number: 契約時の資金計画番号
+- contraction_purchase_order_issued_date: 契約時の発注日
+- additional_contraction_contract_price: 予算詳細（DB コメント）
+- additional_contraction_estimate_number: 追加契約の見積番号
+- additional_contraction_funding_plan_number: 追加契約の資金計画番号
+- additional_contraction_purchase_order_issued_date: 追加契約の発注日
+- handover_contract_price: 引渡時の金額
+- handover_estimate_number: 引渡時の見積番号
+- handover_funding_plan_number: 引渡時の資金計画番号
+- handover_purchase_order_issued_date: 引渡時の発注日
+- customer_mortgage_examinations_status: 住宅ローン審査の状態
+- customer_mortgage_examinations_application_date: 住宅ローン審査の申込日
+- customer_mortgage_examinations_proposal_date: 住宅ローン審査の提案日
+- customer_mortgage_examinations_bank_name: 審査の金融機関
+- customer_mortgage_examinations_desired_loan_amount: 希望借入額
+- memo_developer_application_company: メモ（開発申請の会社）
+- memo_lawyer: メモ（司法書士）
+- memo_fire_insurance: メモ（火災保険）
+- memo_site_survey: メモ（現地調査）
+- memo_ground_survey: メモ（地盤調査）
+- memo_other_related_person: 架電用メモ（列名は「その他関係者メモ」だが架電のメモとして使う）
+- competitor_lost_contract_date: 解約発生日
+- competitors_text: 競合リスト（検討中の他社）
+- competitor_name: 競合負けの相手（契約した他社）
+- competitor: （推定）PGクラウドの競合。ほぼ空
+- competitor_lost_contract_reason: 失注（競合負け）の理由
+- customer_desired_floor: 新築計画（新築平屋 / 新築2階建て / 建て替え… など）
+- customer_desired_period: 入居時期
+- customer_desired_estate: 土地の状況
+- customer_desired_order: （推定）注文住宅を選ぶ理由など。ほぼ空（建築動機と同じ選択肢の値が少し入っている）
+- call_status: 架電状況（call_status 表の status。未通電 / 継続 / 架電停止 / 来場アポ など）
+- khg_id: （推定）KHG の会員・反響の番号。4〜6桁の数字が入る
+- desired_pref: 希望の県。全件空
+- show_dashboard: 1 = 表示 / 0 = ゴミ箱（顧客DB の trash）。集計は 1 だけを数える
+- rank_period: ランクの見込み時期（契約見込み月。例 2026/12）
+- step_migration_item_catalog: 資料送付日（商談ステップ「資料送付」）
+- hp_campaign: HP のキャンペーン名（キャンペーンフォームからの反響。入っていれば HP 反響として数える）
+- reserved_interview: 来場予約日（未来場・来場キャンセルの判定に使う）
+- cancel_status: 来場キャンセルの理由（不明 / 0次面談でお断り / 急用 など）
+- property_name: （推定）問い合わせ・検討中の物件名
+- property_tour_name: （推定）案内した物件名
+- lat_lng: 住所から取った緯度経度（customer_address.php が入れる。取れないときは「取得不可」）。地図画面で使う
+- integration: （推定）1 = 顧客の統合で残した側の印（master_data_resale では integrate_used.php が入れる）
+- call_log: 架電回数（数値の文字列）
+- property_contract_name: （推定）契約した物件名。全件空
+- customer_contacts_name_2: 氏名②
+- customer_contacts_name_kana_2: ふりがな②
+- planned_construction_site_2: 入居希望地②
+- planned_construction_site_3: 入居希望地③
+- sales_promotion_name_2: 販促媒体②
+- step_migration_item_01J95TGVT725FT1OLHTWBLP96Y: 2回目以降物件案内
