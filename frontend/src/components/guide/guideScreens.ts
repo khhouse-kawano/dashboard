@@ -119,6 +119,8 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     '架電ステータスの設定': { header: 'システム管理/架電ステータス', authority: ['Master', 'insideSales'] },
     // ⚠️ v2.2.301。headerScreens.tsx と同じく Master だけ
     'テーブル定義書': { header: 'システム管理/テーブル定義書', authority: ['Master'] },
+    // ⚠️ v2.2.309。headerScreens.tsx と同じく Master だけ（v2.2.231 で外したものを戻した）
+    'SatBaseサマリー': { header: 'システム管理/SatBaseサマリー', authority: ['Master'] },
 };
 // GUIDE_SCREENS_END
 
