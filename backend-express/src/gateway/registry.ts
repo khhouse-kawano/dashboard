@@ -63,6 +63,12 @@ import { runMap } from '../features/map';
 import type { MapCategory } from '../features/map/queries';
 import { runSatbaseImport, runSatbaseList, runSatbaseUpdate } from '../features/satbase';
 import { runSatbasePage } from '../features/satbasePage';
+import {
+  runLandApproachDelete, runLandApproachList, runLandApproachSave, runLandDaily, runLandDailySave, runLandDealDelete, runLandDealGet,
+  runLandDealList, runLandDealSave, runLandMaster, runLandMemberSave, runLandReportSave, runLandStaffCandidates, runLandSummary,
+  runLandVendorDelete, runLandVendorGet, runLandVendorList, runLandVendorSave, type LandResult,
+} from '../features/landAcquisition';
+import { runLandImport } from '../features/landAcquisition/importLegacy';
 import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
@@ -2618,6 +2624,50 @@ register({
   auth: 'master',
   handler: async (ctx) => runSatbasePage(ctx.body),
 });
+
+/**
+ * v2.2.311 土地仕入（建売営業のメニューの「土地仕入」。features/landAcquisition/。移行元は仕入KPI管理 v7.3）。
+ * ⚠️ 担当事業（staff.shop）が spec・all の人だけ。移行元の取り込み（land:import）だけ Master。
+ * ⚠️ 読み込み（land_*）は GET。⚠️ GET は roll を受けないので request ごとに名前を分けた。① の db.php の GET_ALLOWED_REQUESTS と
+ *   express_proxy.php の2つのリストに入れてある。画面は GET が落ちたら同じ request を POST で送る（中身は同じ）。
+ * ⚠️ 書き込みは POST の land:<roll>。
+ */
+const LAND_SHOPS = ['spec', 'all'];
+const land = (run: (staff: AuthenticatedStaff, body: GatewayContext['body']) => Promise<LandResult>) =>
+  async (ctx: GatewayContext) => {
+    if (ctx.staff === null || !LAND_SHOPS.includes(ctx.staff.shop)) {
+      ctx.res.status(403);
+      return { status: 'error', message: 'この操作を行う権限がありません（建売営業の画面です）。' };
+    }
+    const result = await run(ctx.staff, ctx.body);
+    if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+    return result.body;
+  };
+const LAND_PHP = '（新規。PHP版なし）';
+register({ request: 'land_master', summary: '土地仕入: 担当者・エリア・選択肢・KPI の定義・反響ソース・設定と、ログイン中の人の担当', phpSource: LAND_PHP, auth: 'staff', handler: land((s) => runLandMaster(s)) });
+register({ request: 'land_summary', summary: '土地仕入: 仕入ダッシュボード（KPI の実績・目標・達成率、返答期日アラート、案件化待ち、担当者別、月次推移、エリア別）', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandSummary(body)) });
+register({ request: 'land_deal_list', summary: '土地仕入: 仕入案件を絞り込み・並べ替えて少しずつ（offset・limit）', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandDealList(body)) });
+register({ request: 'land_deal_get', summary: '土地仕入: 仕入案件1件', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandDealGet(body)) });
+register({ request: 'land_vendor_list', summary: '土地仕入: 業者マスタを絞り込み・並べ替えて少しずつ（アプローチ・案件の数も）', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandVendorList(body)) });
+register({ request: 'land_vendor_get', summary: '土地仕入: 業者1社と、そのアプローチ履歴・案件', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandVendorGet(body)) });
+register({ request: 'land_approach_list', summary: '土地仕入: アプローチの記録を少しずつ（担当・月・種別・案件化待ち）', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandApproachList(body)) });
+register({ request: 'land_daily', summary: '土地仕入: 担当者×月の、まとめ入力・日報・日別の件数', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandDaily(body)) });
+register({ request: 'land_staff_candidates', summary: '土地仕入: 担当者に結び付けるスタッフの候補（担当事業が spec・all）', phpSource: LAND_PHP, auth: 'staff', handler: land(() => runLandStaffCandidates()) });
+register({ request: 'land', roll: 'deal_save', summary: '【書き込み】土地仕入: 仕入案件を保存（送った項目だけ。ステータスを変えたら日付を埋める）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandDealSave(s, body)) });
+register({ request: 'land', roll: 'deal_delete', summary: '【書き込み】土地仕入: 仕入案件を消す（delete_flag）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandDealDelete(s, body)) });
+register({ request: 'land', roll: 'vendor_save', summary: '【書き込み】土地仕入: 業者を保存', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandVendorSave(s, body)) });
+register({ request: 'land', roll: 'vendor_delete', summary: '【書き込み】土地仕入: 業者を業者マスタから外す（delete_flag）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandVendorDelete(s, body)) });
+register({ request: 'land', roll: 'approach_save', summary: '【書き込み】土地仕入: アプローチを保存', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandApproachSave(s, body)) });
+register({ request: 'land', roll: 'approach_delete', summary: '【書き込み】土地仕入: アプローチを消す（delete_flag）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandApproachDelete(s, body)) });
+register({ request: 'land', roll: 'daily_save', summary: '【書き込み】土地仕入: まとめ入力（1日・1担当者に1件）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandDailySave(s, body)) });
+register({ request: 'land', roll: 'report_save', summary: '【書き込み】土地仕入: 日報（1日・1担当者に1本）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandReportSave(s, body)) });
+register({ request: 'land', roll: 'member_save', summary: '【書き込み】土地仕入: 担当者のスタッフとの結び付け・エリア・停止中', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandMemberSave(s, body)) });
+register({ request: 'land', roll: 'import', summary: '【書き込み】土地仕入: 移行元（仕入KPI管理）の JSON を取り込む（記録を入れ替える。dryRun なら件数だけ）。Master だけ', phpSource: LAND_PHP, auth: 'master', handler: async (ctx) => {
+  if (ctx.staff === null) return null;
+  const result = await runLandImport(ctx.staff, ctx.body);
+  if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+  return result.body;
+} });
 
 // ⚠️ 物件更新（CSV 取り込み）。v2.2.170 新規。⚠️ **Master だけ**（台帳を丸ごと書き換えるため）。
 //   ⚠️ `dryRun: true` は件数を返すだけ（⚠️ 書かない）。

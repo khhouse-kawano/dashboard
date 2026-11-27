@@ -11,6 +11,7 @@ import apiClient from "../utils/apiClient";
 import { isPendingSync } from './list/listTags';
 import { missingLostFields } from '../utils/informationUtils';
 import RealtyMenu from './realty/RealtyMenu';
+import LandMenu, { LandMenuHeading } from './landAcquisition/LandMenu';
 import GuideSearchPanel, { GuideListItem, divisionColorOf, divisionLabelOf, fetchGuideListOnce } from './guide/GuideSearchPanel';
 import { GUIDE_COMMON, allowedGuideDivisions, isGuideCategory, openGuide } from './guide/openGuide';
 
@@ -348,6 +349,8 @@ const Menu = ({ key, onReload }: Props) => {
                 {category === 'realty' && (
                     <RealtyMenu isSp={isSp} isActive={(path) => fullPath === path || (path === '/broker' && currentPath === '/broker')} onNavigate={handleNavigate} />
                 )}
+                {/* ⚠️ v2.2.311: 建売営業は「建売営業」（今までの項目）と「土地仕入」（landAcquisition/LandMenu.tsx）に分ける */}
+                {category === 'spec' && <LandMenuHeading label="建売営業" />}
                 {category !== 'realty' && MENU_CONFIG.filter(item => item.show).map((item, index) => {
                     const isActive = checkIsActive(item);
                     return (
@@ -370,6 +373,9 @@ const Menu = ({ key, onReload }: Props) => {
                         </div>
                     );
                 })}
+                {category === 'spec' && !isSp && (
+                    <LandMenu isActive={(path) => fullPath === path || (!path.includes('?') && currentPath === path)} onNavigate={handleNavigate} />
+                )}
             </div>
 
             <Estate estateId={estateId} setEstateId={setEstateId} />
