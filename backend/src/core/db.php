@@ -32,6 +32,7 @@ const GET_ALLOWED_REQUESTS = [
     'company_year', // ⚠️ v2.2.300 全社報告用フォーマットを年度で読む（② 専用）
     'property_list', 'property_detail', 'property_suumo_latest', // ⚠️ v2.2.301 物件DB・詳細・SUUMO物件サマリー（② 専用）
     'table_definition', // ⚠️ v2.2.301 テーブル定義書（② 専用・Master）
+    'duplicate_summary', 'rank_list', // ⚠️ v2.2.305 重複反響サマリー（② 専用）・ランクの月ごとの読み込み（② 専用。予備は POST の rank）
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

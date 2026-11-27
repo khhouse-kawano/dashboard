@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useContext, useCallback, useRef } from 'react';
 // ⚠️ 見た目は customer/ shop/ rank/ map/ で共通（components/rankingUi.tsx）
 import { RankingStyle } from '../rankingUi';
 import Table from "react-bootstrap/Table";
@@ -20,6 +20,7 @@ import apiClient from '../../utils/apiClient';
 import { CustomerName, isDelete } from '../../utils/deletedCustomer';
 import { descending } from '../../utils/descending';
 import { addMonths } from '../../utils/addMonths';
+import { readRankPeriod, useRankLoader, useRankPeriodUrl } from './rankLoad';
 
 type Customer = { id: string, customer: string, date: string, status: string, rank: string, register: string, interview: string, shop: string, staff: string, section: string; contract: string, rank_period: string, appointment: string, screening: string, prev_staff: string };
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -62,17 +63,32 @@ const RankOrder = () => {
     const [memoList, setMemoList] = useState<Memo[]>([]);
     const isSp = useIsSp();
 
-    const fetchCustomerData = async () => {
-        return await apiClient.post('', { request: "rank", category });
-    };
+    /**
+     * ⚠️ v2.2.305 対象の月の分だけ読む（② の rank_list。GET）。② に届かないときは今までの POST（全件）。rankLoad.ts
+     */
+    const rankLoader = useRankLoader(category);
+    const fetchCustomerData = async () => rankLoader.fetchRank(targetMonth);
+    /** 古い月の応答で新しい月の表を上書きしない */
+    const loadSeqRef = useRef(0);
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
-        setTargetMonth(`${year}/${month}`);
+        // ⚠️ v2.2.305 URL の ?period= で開く（無ければ今月）
+        setTargetMonth(readRankPeriod() || `${year}/${month}`);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
+    /** v2.2.305 対象の月を URL にも出す（今月なら出さない） */
+    useRankPeriodUrl(targetMonth, `${year}/${month}`);
+
+    // ⚠️ v2.2.305 対象の月が変わるたびに読む（⚠️ 予備で全件を読み終えていれば読み直さない）
+    useEffect(() => {
+        if (targetMonth === '' || !rankLoader.needsReload()) return;
+        const seq = ++loadSeqRef.current;
         const fetchData = async () => {
             try {
                 const response = await fetchCustomerData();
+                if (seq !== loadSeqRef.current) return;
                 const responseCustomer = response.data.customer.map(c => ({
                     ...c,
                     staff: [c.staff, c.prev_staff ?? '']
@@ -98,8 +114,8 @@ const RankOrder = () => {
         };
 
         fetchData();
-
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [targetMonth]);
 
     useEffect(() => {
         const [yearValue, monthValue] = targetMonth.split('/');
@@ -289,7 +305,9 @@ const RankOrder = () => {
         };
         const fetchData = async () => {
             try {
-                const response = await apiClient.post("", postData);
+                const posted = await apiClient.post("", postData);
+                // ⚠️ v2.2.305 ② で読んでいるときは今の月で読み直す（応答の customer は全員分のため）
+                const response = rankLoader.isServerMode() ? await fetchCustomerData() : posted;
                 const responseCustomer = response.data.customer.map(c => ({
                     ...c,
                     staff: [c.staff, c.prev_staff ?? '']
@@ -326,7 +344,9 @@ const RankOrder = () => {
         };
         try {
             const response = await apiClient.post('', postData);
-            const responseCustomer = response.data.newCustomers.map(c => ({
+            // ⚠️ v2.2.305 ② で読んでいるときは今の月で読み直す（応答の newCustomers は全員分で、列も少ない）
+            const customers = rankLoader.isServerMode() ? (await fetchCustomerData()).data.customer : response.data.newCustomers;
+            const responseCustomer = customers.map(c => ({
                 ...c,
                 staff: [c.staff, c.prev_staff ?? '']
             }));

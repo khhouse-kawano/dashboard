@@ -193,6 +193,8 @@ const Header = ({ }) => {
                                 >
                                     {/* ⚠️ 競合分析はロゴ＋文言で出す（ヘッダーの「による分析」と同じ形。headerScreens.tsx の label） */}
                                     {screen.label ?? screen.item}
+                                    {/* ⚠️ v2.2.305 見られる人を限っている項目（headerScreens.tsx の allow）に鍵（左のメニューの「管理者専用」と同じ印） */}
+                                    {screen.allow && <i className="fa-solid fa-lock ms-2 text-secondary" style={{ fontSize: '10px' }} title="見られる人を限っています" aria-label="見られる人を限っています"></i>}
                                     {isEstate(screen.item) && <div className="position-absolute menu_sync" style={{ top: '12px', right: '10px' }}>新着 {newEstate}件</div>}
                                 </Dropdown.Item>
                             ))}

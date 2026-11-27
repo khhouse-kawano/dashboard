@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useContext, useCallback, useRef } from 'react';
 // ⚠️ 見出しの折り返しを止める CSS（components/rankingUi.tsx）
 import { RankingStyle } from '../rankingUi';
 import Table from "react-bootstrap/Table";
@@ -19,6 +19,7 @@ import apiClient from '../../utils/apiClient';
 import { CustomerName } from '../../utils/deletedCustomer';
 import { descending } from '../../utils/descending';
 import { addMonths } from '../../utils/addMonths';
+import { readRankPeriod, useRankLoader, useRankPeriodUrl } from './rankLoad';
 
 type Customer = Record<string, string>;
 type Achievement = { category: string, name: string, period: string, value: string }
@@ -68,17 +69,32 @@ const RankResale = () => {
     };
     const [memoList, setMemoList] = useState<Memo[]>([]);
 
-    const fetchCustomerData = async () => {
-        return await apiClient.post('', { request: "rank", category });
-    };
+    /**
+     * ⚠️ v2.2.305 対象の月の分だけ読む（② の rank_list。GET）。② に届かないときは今までの POST（全件）。rankLoad.ts
+     */
+    const rankLoader = useRankLoader(category);
+    const fetchCustomerData = async () => rankLoader.fetchRank(targetMonth);
+    /** 古い月の応答で新しい月の表を上書きしない */
+    const loadSeqRef = useRef(0);
 
     useEffect(() => {
         setMonthArray(getYearMonthArray(2025, 1));
-        setTargetMonth(`${year}/${month}`);
+        // ⚠️ v2.2.305 URL の ?period= で開く（無ければ今月）
+        setTargetMonth(readRankPeriod() || `${year}/${month}`);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
+    /** v2.2.305 対象の月を URL にも出す（今月なら出さない） */
+    useRankPeriodUrl(targetMonth, `${year}/${month}`);
+
+    // ⚠️ v2.2.305 対象の月が変わるたびに読む（⚠️ 予備で全件を読み終えていれば読み直さない）
+    useEffect(() => {
+        if (targetMonth === '' || !rankLoader.needsReload()) return;
+        const seq = ++loadSeqRef.current;
         const fetchData = async () => {
             try {
                 const response = await fetchCustomerData();
+                if (seq !== loadSeqRef.current) return;
                 await setCustomerList(response.data.customer);
                 await setExpectedContract(response.data.expected);
                 await setOriginalStaffList(response.data.staff);
@@ -97,8 +113,8 @@ const RankResale = () => {
         };
 
         fetchData();
-
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [targetMonth]);
 
     useEffect(() => {
         const [yearValue, monthValue] = targetMonth.split('/');
@@ -340,7 +356,8 @@ const RankResale = () => {
         };
         try {
             const response = await apiClient.post('', postData);
-            await setCustomerList(response.data.newCustomers);
+            // ⚠️ v2.2.305 ② で読んでいるときは今の月で読み直す（応答の newCustomers は全員分で、列も少ない）
+            await setCustomerList(rankLoader.isServerMode() ? (await fetchCustomerData()).data.customer : response.data.newCustomers);
         } catch (e) {
             console.error(e);
         }

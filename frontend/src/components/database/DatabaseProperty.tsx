@@ -10,7 +10,7 @@ import InformationEditResale from '../information/InformationEditResale';
 import apiClient from '../../utils/apiClient';
 import PropertySummary from './PropertySummary';
 import { removeAllSpaces } from './databaseUtils';
-import SuumoPropertySummary from './SuumoPropertySummary';
+import { useNavigate } from 'react-router-dom';
 import { RankingStyle } from '../rankingUi';
 import { DBK_CSS } from './databaseListStyle';
 import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
@@ -79,8 +79,8 @@ const DatabaseProperty = () => {
         direction: initUrl.get('dir') === 'asc' ? 'asc' : initUrl.get('dir') === 'desc' ? 'desc' : DEFAULT_SORT.direction,
     }));
     const [editId, setEditId] = useState('');
-    // ⚠️ v2.2.301 URL に ?date=（SUUMO物件サマリーの取得日）があれば、開いたときにサマリーも開く（再読み込み・共有で同じ表が出る）
-    const [showSuumoSummary, setShowSuumoSummary] = useState(() => new URLSearchParams(window.location.search).has('date'));
+    // ⚠️ v2.2.305 SUUMO掲載順位はページ（/suumoRanking。SuumoPropertySummary.tsx）にした。ここからはボタンで移るだけ
+    const navigate = useNavigate();
 
     const [portalModal, setPortalModal] = useState<{ type: 'SUUMO' | "HOME'S" | 'athome', data: Record<string, string> } | null>(null);
 
@@ -288,8 +288,8 @@ const DatabaseProperty = () => {
         }
     }, [serverMode, loading, propertyList.length, basicLength, activePage]);
 
-    /** v2.2.304 条件・ページ・表示件数を画面の URL にも出す（⚠️ SUUMO 掲載順位の ?date= と顧客の ?id= は残す） */
-    useListUrlSync(listParams, activePage, basicLength, ['id', 'date']);
+    /** v2.2.304 条件・ページ・表示件数を画面の URL にも出す（⚠️ 顧客の ?id= は残す。v2.2.305 から SUUMO 掲載順位は別のページなので ?date= は使わない） */
+    useListUrlSync(listParams, activePage, basicLength);
 
     /**
      * v2.2.304 今の条件・ページを ② から GET で読む。
@@ -411,7 +411,10 @@ const DatabaseProperty = () => {
                         <input type='checkbox' id="checkContract" onChange={() => setCheckedContract(!checkedContract)} checked={checkedContract} />
                         契約済みの物件を表示
                     </label>
-                    <button type="button" className="rk_btn m-1" onClick={() => setShowSuumoSummary(true)}>SUUMO掲載順位</button>
+                    {/* ⚠️ v2.2.305 建売だけ。SUUMO掲載順位のページ（/suumoRanking）へ移る（左のメニューには無い） */}
+                    {category === 'spec' && (
+                        <button type="button" className="rk_btn m-1" onClick={() => navigate('/suumoRanking')}>SUUMO掲載順位</button>
+                    )}
                 </div>
 
                 {/* ページネーション & 件数表示 */}
@@ -687,7 +690,6 @@ const DatabaseProperty = () => {
             />
             {category === 'spec' && <InformationEditKaeru id={editId} token={token} onClose={closeInformationEdit} authority={authority} />}
             {category === 'used' && <InformationEditResale id={editId} token={token} onClose={closeInformationEdit} authority={authority} />}
-            <SuumoPropertySummary showSuumoSummary={showSuumoSummary} setShowSuumoSummary={setShowSuumoSummary}/>
         </>
     );
 }
