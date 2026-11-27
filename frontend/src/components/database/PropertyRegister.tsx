@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
 import { removeAllSpaces } from './databaseUtils';
+import LedgerPropertyStatus from './LedgerPropertyStatus';
 
 const styles = {
     label: { color: '#303030', fontSize: '11px', marginBottom: '4px', letterSpacing: '.6px', fontWeight: '500', display: 'flex', alignItems: 'center' },
@@ -91,9 +92,22 @@ type Props = {
     isSaving: boolean,
     handleUpdate: () => void,
     customerId?: string,
+    /**
+     * v2.2.307 保存済みの台帳のいえらぶ番号（property_db_id）。渡されて空でなければ「物件の状況」「台帳の編集」のタブを出す（LedgerPropertyStatus.tsx）。
+     * ⚠️ 媒介獲得台帳（DatabaseBroker.tsx）だけが渡す。顧客DB・顧客情報から新しい台帳を作るときは渡さない（保存前の台帳には出さない）。
+     * ⚠️ 編集欄でいえらぶの連携を変えても、保存するまではこの値（保存済み）で出す。
+     */
+    statusPropertyDbId?: string,
+    /** v2.2.307 「物件の状況」の報告書作成（この画面を閉じて物件の詳細を報告書の編集から開く。DatabaseBroker.tsx） */
+    onOpenReport?: (propertyDbId: string) => void,
 };
 
-const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, setEditData, staffList, isSaving, handleUpdate, customerId }: Props) => {
+const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, setEditData, staffList, isSaving, handleUpdate, customerId, statusPropertyDbId, onOpenReport }: Props) => {
+    /** v2.2.307 表示中のタブ（物件の状況が出るときは、開いたら物件の状況から） */
+    const showStatus = !!statusPropertyDbId;
+    const [tab, setTab] = useState<'status' | 'edit'>('status');
+    useEffect(() => { setTab('status'); }, [targetPropertyId]);
+    const editTab = !showStatus || tab === 'edit';
     const [customerList, setCustomerList] = useState<Record<string, string>[]>([]);
     const [propertyList, setPropertyList] = useState<Record<string, string>[]>([]);
 
@@ -283,7 +297,28 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                         <i className="bi bi-pencil-square me-2" style={{ color: '#a0aec0' }}></i>物件情報の編集
                     </Modal.Title>
                 </Modal.Header>
-                <Modal.Body className="pt-3 pb-4">
+                {/* ⚠️ v2.2.307 いえらぶと連携済みの保存済みの台帳だけ、「物件の状況」と「台帳の編集」のタブ */}
+                {showStatus && (
+                    <ul className="nav nav-tabs px-3 mt-2" role="tablist" style={{ fontSize: '13px' }}>
+                        {([['status', '物件の状況'], ['edit', '台帳の編集']] as const).map(([key, label]) => (
+                            <li key={key} className="nav-item" role="presentation">
+                                <button type="button" role="tab" aria-selected={tab === key} className={`nav-link ${tab === key ? 'active fw-bold' : 'text-secondary'}`}
+                                    onClick={() => setTab(key)}>{label}</button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {showStatus && tab === 'status' && (
+                    <Modal.Body className="pt-3 pb-4" style={{ backgroundColor: '#fafbfe' }}>
+                        <LedgerPropertyStatus
+                            ledgerId={targetPropertyId}
+                            propertyDbId={statusPropertyDbId as string}
+                            staffList={staffList}
+                            onOpenReport={() => onOpenReport?.(statusPropertyDbId as string)}
+                        />
+                    </Modal.Body>
+                )}
+                {editTab && <Modal.Body className="pt-3 pb-4">
                     <div className="row g-3">
 
                         {/* 顧客連携 */}
@@ -539,9 +574,10 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                             <textarea style={styles.textarea} rows={3} value={editData.note || ''} onChange={e => handleInputChange('note', e.target.value)}></textarea>
                         </div>
                     </div>
-                </Modal.Body>
+                </Modal.Body>}
 
-                <Modal.Footer className="border-0 rounded-bottom d-flex justify-content-between pt-0 pb-3 px-3">
+                {/* ⚠️ v2.2.307 保存は「台帳の編集」のタブのときだけ */}
+                {editTab && <Modal.Footer className="border-0 rounded-bottom d-flex justify-content-between pt-0 pb-3 px-3">
                     <button style={styles.buttonSecondary} onClick={() => setTargetPropertyId('')} disabled={isSaving}>
                         キャンセル
                     </button>
@@ -549,7 +585,7 @@ const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, set
                         {isSaving ? <span className="spinner-border spinner-border-sm me-2" style={{ width: '1rem', height: '1rem' }}></span> : null}
                         <i className="bi bi-save me-2"></i> 保存する
                     </button>
-                </Modal.Footer>
+                </Modal.Footer>}
             </Modal>
         </>
     )
