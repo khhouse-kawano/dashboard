@@ -27,7 +27,7 @@ import { descending } from '../../utils/descending';
 import { RankingStyle } from '../rankingUi';
 import { DBK_CSS } from './databaseListStyle';
 import { readListUrl, useListUrlSync, useOnListChange } from './listUrl';
-import { isRecordSearch, RecordCell, RECORD_COL_WIDTH, RECORD_CSS, recordErrorOf, RecordSearchCard, type RecordMap } from './recordSearch';
+import { isRecordSearch, RecordCell, RECORD_COL_WIDTH, RECORD_CSS, recordErrorOf, RecordSearchCard, readRecordMatch, recordMatchParam, recordWordsOf, type RecordMap, type RecordMatch } from './recordSearch';
 import { useCallStatusOptions, withCurrent } from './callStatusOptions';
 
 /** v2.2.297 キャンセル集計・失注集計のボタンの中の「要回答」の札（赤） */
@@ -197,6 +197,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
     const [pageRows, setPageRows] = useState<CustomerItem[]>([]);
     /** v2.2.296 商談・架電記録から検索する語（⚠️ ボタンで決めた値。ほかの条件と一緒に ② に送る）と、今のページの当たった記録 */
     const [recordSearch, setRecordSearch] = useState(initUrl.get('record'));
+    /** v2.2.306 空白で区切った語の合わせ方（すべて含む＝既定／いずれかを含む）。URL・② のキーは recordMode */
+    const [recordMatch, setRecordMatch] = useState<RecordMatch>(() => readRecordMatch(initUrl.get('recordMode')));
     const [pageRecords, setPageRecords] = useState<RecordMap>({});
     /** v2.2.297 記録の検索が失敗した理由（⚠️ 失敗しても予備の全件読み込みには切り替えない） */
     const [recordError, setRecordError] = useState('');
@@ -400,11 +402,13 @@ const DatabaseOrder = ({ onReload }: Props) => {
         name: nameSearch.debouncedValue, staffText: staffSearch.debouncedValue, phone: phoneSearch.debouncedValue,
         mail: mailSearch.debouncedValue, address: addressSearch.debouncedValue, familyName: familySearch.debouncedValue,
         record: recordSearch,
+        // ⚠️ v2.2.306 検索語があるときだけ。既定（すべて含む）は出さない（② には下の GET で毎回送る）
+        recordMode: recordSearch ? recordMatchParam(recordMatch) : '',
     }).filter(([, v]) => v !== '')), [
         trash, selectedShop, selectedStaff, selectedRegister, selectedReserve, selectedRank, selectedMedium, selectedIntroductory,
         selectedStatus, callStatus, hotleadStatus, familyStatus, snapStatus, searchedEvent, nameSearch.debouncedValue,
         staffSearch.debouncedValue, phoneSearch.debouncedValue, mailSearch.debouncedValue, addressSearch.debouncedValue,
-        familySearch.debouncedValue, recordSearch,
+        familySearch.debouncedValue, recordSearch, recordMatch,
     ]);
 
     /**
@@ -437,6 +441,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
                 const response = await apiClient.get('', {
                     params: {
                         request: 'database_list', category, ...listParams, page: activePage, perPage: basicLength,
+                        // ⚠️ v2.2.306 合わせ方は検索語があれば毎回送る（送らないと ② は語を区切らない）
+                        ...(listParams.record ? { recordMode: recordMatch } : {}),
                         ...(mastersLoadedRef.current ? {} : { master: 1 }),
                     },
                 });
@@ -803,7 +809,8 @@ const DatabaseOrder = ({ onReload }: Props) => {
                             </ul>
                         </div>
                         {/* ⚠️ v2.2.297 同じ語で押したら読み直す（失敗のあとにもう一度試せるように） */}
-                        <RecordSearchCard value={recordSearch} onSearch={(keyword) => (keyword === recordSearch ? reloadList() : setRecordSearch(keyword))} disabled={!serverMode} loading={listLoading} error={recordError} />
+                        <RecordSearchCard value={recordSearch} onSearch={(keyword) => (keyword === recordSearch ? reloadList() : setRecordSearch(keyword))} disabled={!serverMode} loading={listLoading} error={recordError}
+                            match={recordMatch} onMatch={setRecordMatch} />
                         {!isSp && <>
                             {trash === 1 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(0)}>非表示リストへ移動</button>}
                             {trash === 0 && <button type="button" className="rk_btn rk_btn_ghost ms-1" onClick={() => setTrash(1)}>一覧へ戻る</button>}
@@ -866,7 +873,7 @@ const DatabaseOrder = ({ onReload }: Props) => {
                                                 name={safeFormate(item.customer)}
                                                 name2={item.customer_2} /></td>
                                             <td className='dbk_fix dbk_fix4'>{safeFormate(item.staff)}</td>
-                                            {recordMode && <RecordCell group={pageRecords[item.id]} />}
+                                            {recordMode && <RecordCell group={pageRecords[item.id]} words={recordWordsOf(recordSearch)} />}
                                             <td>{safeFormate(item.status)}</td>
                                             <td>{safeFormate(item.register)}</td>
                                             <td>{item.interview && safeFormate(item.interview)}{item.cancel_status && <span className='text-danger fw-bold'
