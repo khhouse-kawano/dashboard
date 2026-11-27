@@ -33,6 +33,7 @@ const GET_ALLOWED_REQUESTS = [
     'property_list', 'property_detail', 'property_suumo_latest', // ⚠️ v2.2.301 物件DB・詳細・SUUMO物件サマリー（② 専用）
     'table_definition', // ⚠️ v2.2.301 テーブル定義書（② 専用・Master）
     'duplicate_summary', 'rank_list', // ⚠️ v2.2.305 重複反響サマリー（② 専用）・ランクの月ごとの読み込み（② 専用。予備は POST の rank）
+    'broker_ledger_list', // ⚠️ v2.2.308 媒介獲得台帳を30件ずつ（② 専用。予備は POST の broker:list）
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

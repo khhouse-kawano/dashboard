@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useContext, useCallback, useRef } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
 import { dateFormate, parseTextWithUrl, thStyle, getReinsStatus, getPropertyStatus } from './databaseUtils';
@@ -13,6 +13,9 @@ import { loadRecords } from '../realty/common/realtyState';
 import AuthContext from '../../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import type { Row, StaffSetting } from '../realty/summary/kpi';
+import { useListUrlSync } from './listUrl';
+import { useDebounce } from './useDebounce';
+import { filterAndSortLedgers, LEDGER_SORT_KEYS, type LedgerSortKey } from './brokerLedgerFilter';
 
 export interface BrokerData {
     internal_id: number;
@@ -75,21 +78,69 @@ const IELOVE_BADGE: Record<IeloveState, string> = {
     linked: 'bg-success bg-opacity-75', review: 'bg-warning text-dark', unmatched: 'bg-light text-secondary border', none: 'bg-secondary bg-opacity-50',
 };
 
-type SortKey ='displayName' | 'displayAddress' | 'displayPrice' | 'phase' | 'staff' | 'date' | 'medium' | 'updated_at';
+type SortKey = LedgerSortKey;
+const IELOVE_STATES = Object.keys(IELOVE_LABEL) as IeloveState[];
+
+/** v2.2.308 1回に読む件数（1画面に収まる程度。下までスクロールすると次の分を読む） */
+const PAGE_SIZE = 30;
+/** 表の下の端からこの高さ（px）まで近づいたら、次の分を読む */
+const LOAD_MORE_MARGIN = 200;
+
+/**
+ * v2.2.308 左に固定する5列（No・編集・反響元・担当・媒介契約日）の幅と左の位置。
+ * ⚠️ 幅を決めないと左の位置がずれるので、5列は幅を固定し、はみ出す文字は「…」にする（title で全部見える）
+ */
+const FIX_WIDTHS = [44, 64, 120, 96, 100];
+const FIX_LEFTS = FIX_WIDTHS.map((_, i) => FIX_WIDTHS.slice(0, i).reduce((a, b) => a + b, 0));
+const fixStyle = (i: number): React.CSSProperties => ({ left: FIX_LEFTS[i], width: FIX_WIDTHS[i], minWidth: FIX_WIDTHS[i], maxWidth: FIX_WIDTHS[i] });
+const fixClass = (i: number) => `dbb_fix${i === FIX_WIDTHS.length - 1 ? ' dbb_fix_last' : ''}`;
+const DBB_CSS = `
+.dbb_table thead th { position: sticky; top: 0; z-index: 10; }
+.dbb_table .dbb_fix { position: sticky; z-index: 5; overflow: hidden; text-overflow: ellipsis; }
+.dbb_table thead th.dbb_fix { z-index: 12; }
+.dbb_table .dbb_fix_last::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 1px; background: #dee2e6; }
+`;
 
 const DatabaseBroker = () => {
-    const [originalData, setOriginalData] = useState<BrokerData[]>([]);
+    /** v2.2.308 開いたときの URL の条件（⚠️ 下の state の初期値にだけ使う） */
+    const [initUrl] = useState(() => new URLSearchParams(window.location.search));
+    const urlValue = (key: string) => initUrl.get(key) ?? '';
+    /**
+     * v2.2.308 ふだん（serverMode）は ② の broker_ledger_list（GET）で30件ずつ読む（loadedRows・total）。
+     * ⚠️ ② に届かないときは serverMode を false にして、今までの broker:list（POST・全件）を allLedgers に読み、
+     *   brokerLedgerFilter.ts で絞って30件ずつ出す。
+     */
+    const [serverMode, setServerMode] = useState(true);
+    const [loadedRows, setLoadedRows] = useState<BrokerData[]>([]);
+    const [total, setTotal] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [allLedgers, setAllLedgers] = useState<BrokerData[]>([]);
+    const [shownCount, setShownCount] = useState(PAGE_SIZE);
+    /** 読み込み済みの台帳（編集・買付登録で行を探す） */
+    const originalData = serverMode ? loadedRows : allLedgers;
     const [staffList, setStaffList] = useState<string[]>([]);
+    const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+    /** ② が返す、いえらぶの状態ごとの件数の元（つながっている台帳の数と、つながっていない台帳の id） */
+    const [ieloveBase, setIeloveBase] = useState<{ linked: number; unlinkedIds: string[] } | null>(null);
+    const [sameProperty, setSameProperty] = useState<Record<string, string[]>>({});
+    /** 古い応答で新しい条件の結果を上書きしない */
+    const listSeqRef = useRef(0);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
-    // === 検索用のState ===
-    const [searchAddress, setSearchAddress] = useState<string>('');
-    const [searchCustomer, setSearchCustomer] = useState<string>('');
-    const [searchStaff, setSearchStaff] = useState<string>('');
-    const [searchCategory, setSearchCategory] = useState<string>('');
-    const [searchStatus, setSearchStatus] = useState('');
+    // === 検索用のState ===（⚠️ v2.2.308 文字の検索は 300ms 待ってから絞る。URL の条件で開く）
+    const addressSearch = useDebounce(urlValue('address'), 300);
+    const customerSearch = useDebounce(urlValue('customer'), 300);
+    const searchAddress = addressSearch.debouncedValue;
+    const searchCustomer = customerSearch.debouncedValue;
+    const [searchStaff, setSearchStaff] = useState<string>(urlValue('staff'));
+    const [searchCategory, setSearchCategory] = useState<string>(urlValue('propCategory'));
+    const [searchStatus, setSearchStatus] = useState(urlValue('status'));
 
     // === テーブル制御用のState ===
-    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>(() => ({
+        key: (LEDGER_SORT_KEYS as string[]).includes(urlValue('sort')) ? urlValue('sort') as SortKey : 'date',
+        direction: urlValue('dir') === 'asc' ? 'asc' : 'desc',
+    }));
 
     // === モーダル制御用のState ===
     const [targetPropertyId, setTargetPropertyId] = useState<string>('');
@@ -148,10 +199,12 @@ const DatabaseBroker = () => {
             .then(res => setIelove(res.data?.ledgers ?? {}))
             .catch(e => console.error('[DatabaseBroker] いえらぶの物件とのつながりを読めませんでした', e));
     }, []);
+    // ⚠️ v2.2.308 計算に数秒かかるので、一覧（broker_ledger_list）とは別に1回だけ読む（読み終わるまで札は「…」）
     useEffect(() => { loadIelove(); }, [loadIelove]);
     const ieloveStateOf = (item: BrokerData): IeloveState | '' =>
         item.property_db_id ? 'linked' : ielove?.[item.id]?.state ?? '';
-    const [searchIelove, setSearchIelove] = useState<IeloveState | ''>('');
+    const [searchIelove, setSearchIelove] = useState<IeloveState | ''>(() =>
+        (IELOVE_STATES as string[]).includes(urlValue('ielove')) ? urlValue('ielove') as IeloveState : '');
     const [matching, setMatching] = useState(false);
     /** 「いえらぶと突き合わせ」：今すぐ ② の突き合わせを動かし、一覧を読み直す */
     const runIeloveMatch = async () => {
@@ -159,9 +212,7 @@ const DatabaseBroker = () => {
         try {
             const res = await apiClient.post('', { request: 'broker', roll: 'ielove_match' });
             if (res.data?.status !== 'success') throw new Error(res.data?.message || '突き合わせに失敗しました');
-            const list = await apiClient.post('', { request: 'broker', roll: 'list' });
-            setOriginalData(list.data.brokerage.filter((b: BrokerData) => b.kind === 'ledger' && b.show_dashboard === 1));
-            loadIelove();
+            await reloadList();
             alert(`いえらぶの物件と突き合わせました。\n台帳 ${res.data.ledgers}件・買い反響 ${res.data.buyLeads}件を新しくつなぎました。`);
         } catch (e) {
             console.error(e);
@@ -180,30 +231,100 @@ const DatabaseBroker = () => {
     const focusNo = searchParams.get('ledgerNo') ?? '';
     /** 買付登録・解除のあと、一覧の台帳を直し、案件の No. を読み直す */
     const onOfferSaved = (ledgerId: string, fields: Row) => {
-        setOriginalData(prev => prev.map(d => (d.id === ledgerId ? { ...d, ...fields } as BrokerData : d)));
+        const patch = (prev: BrokerData[]) => prev.map(d => (d.id === ledgerId ? { ...d, ...fields } as BrokerData : d));
+        setLoadedRows(patch);
+        setAllLedgers(patch);
         loadDeals();
     };
 
+    /** v2.2.308 ② に送る条件（⚠️ URL にも同じキーで出す。既定の並び＝媒介契約日の新しい順と、空の条件は出さない） */
+    const listParams = useMemo(() => {
+        const p: Record<string, string> = {};
+        const add = (k: string, v: string) => { if (v) p[k] = v; };
+        add('address', searchAddress);
+        add('customer', searchCustomer);
+        add('staff', searchStaff);
+        add('propCategory', searchCategory);
+        add('status', searchStatus);
+        add('ielove', searchIelove);
+        if (sortConfig.key !== 'date' || sortConfig.direction !== 'desc') {
+            p.sort = sortConfig.key;
+            p.dir = sortConfig.direction;
+        }
+        return p;
+    }, [searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus, searchIelove, sortConfig]);
+    // ⚠️ ?ledgerNo=（売り反響の「媒介獲得台帳で開く」）は残す
+    useListUrlSync(listParams, 1, 20, ['ledgerNo']);
 
-    // データ取得
-    useEffect(() => {
+    /**
+     * v2.2.308 ② から offset 件目から limit 件を GET で読む。replace＝読み込み済みを捨てて入れ替える（条件を変えた・読み直し）。
+     * ⚠️ 初めの分には ledgerNo を付ける（② がその台帳の行が入るところまで返す）
+     */
+    const fetchPage = async (offset: number, limit: number, replace: boolean) => {
+        const seq = ++listSeqRef.current;
+        setLoading(true);
+        try {
+            const response = await apiClient.get('', {
+                params: { request: 'broker_ledger_list', ...listParams, offset, limit, ...(offset === 0 && focusNo ? { ledgerNo: focusNo } : {}) },
+            });
+            if (seq !== listSeqRef.current) return;
+            const data = response?.data;
+            if (!data || data.status !== 'ok' || !Array.isArray(data.rows)) throw new Error('invalid broker_ledger_list response');
+            setLoadedRows(prev => (replace ? data.rows : [...prev.slice(0, offset), ...data.rows]));
+            setTotal(Number(data.total) || 0);
+            setStaffList(data.staffList ?? []);
+            setCategoryOptions(data.categories ?? []);
+            setIeloveBase(data.ieloveBase ?? null);
+            setSameProperty(prev => ({ ...prev, ...(data.sameProperty ?? {}) }));
+            setLoading(false);
+        } catch (e) {
+            if (seq !== listSeqRef.current) return;
+            console.error('broker_ledger_list に失敗しました。全件の読み込みに切り替えます:', e);
+            setServerMode(false);
+        }
+    };
+
+    /** 予備：今までの broker:list（POST・全件）。⚠️ ② と同じ並びの元（internal_id の順）にそろえる */
+    const fetchAllLedgers = async () => {
         const now = new Date();
         const year = now.getFullYear();
         const thisYear = now.getMonth() <= 4 ? year : year + 1;
-        const fetchData = async () => {
-            try {
-                const response = await apiClient.post('', { request: 'broker', roll: 'list' });
-                const filtered = response.data.brokerage.filter(b => b.kind === 'ledger' && b.show_dashboard === 1);
-                setOriginalData(filtered);
-                const filteredStaff = response.data.staff.filter(s => (s.shop === '不動産企画係' || s.shop === '中古住宅専門店') && s.period === String(thisYear)).map(s => s.name);
-                setStaffList(filteredStaff);
-            } catch (e) {
-                alert('通信エラーが発生しました');
-                console.error(e);
-            }
-        };
-        fetchData();
-    }, []);
+        try {
+            const response = await apiClient.post('', { request: 'broker', roll: 'list' });
+            const filtered = response.data.brokerage.filter((b: BrokerData) => b.kind === 'ledger' && b.show_dashboard === 1);
+            setAllLedgers([...filtered].sort((a, b) => a.internal_id - b.internal_id));
+            const filteredStaff = response.data.staff.filter((s: Record<string, string>) => (s.shop === '不動産企画係' || s.shop === '中古住宅専門店') && s.period === String(thisYear)).map((s: Record<string, string>) => s.name);
+            setStaffList(filteredStaff);
+        } catch (e) {
+            alert('通信エラーが発生しました');
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /** 保存・非表示・いえらぶとの突き合わせのあと：読み込み済みの範囲を読み直す */
+    const reloadList = async () => {
+        loadIelove();
+        if (serverMode) await fetchPage(0, Math.max(PAGE_SIZE, loadedRows.length), true);
+        else await fetchAllLedgers();
+    };
+
+    // データ取得（⚠️ 条件を変えたら初めの30件から。setTimeout(0) で StrictMode の2回の effect を1回にまとめる）
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = 0;
+        if (!serverMode) { setShownCount(PAGE_SIZE); return; }
+        const timer = window.setTimeout(() => { fetchPage(0, PAGE_SIZE, true); }, 0);
+        return () => window.clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [serverMode, listParams]);
+
+    // ⚠️ 全件の読み込みは、② に届かなかったとき（serverMode が false）だけ
+    useEffect(() => {
+        if (serverMode) return;
+        fetchAllLedgers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [serverMode]);
 
     // 💡 編集ボタンを押した時に、選択された行のデータをフォームの初期値としてセットする
     useEffect(() => {
@@ -223,83 +344,62 @@ const DatabaseBroker = () => {
         return Array.from(new Set(staffs)).sort();
     }, [originalData]);
 
-    const uniqueCategoryList = useMemo(() => {
-        const categories = originalData.map(d => d.category).filter(Boolean) as string[];
-        return Array.from(new Set(categories)).sort();
-    }, [originalData]);
-
-    // === フィルタリング＆ソート処理 ===
-    const processedData = useMemo(() => {
-        // 1. まずフィルタリング（絞り込み）
-        const filtered = originalData.filter(item => {
-            // 住所の結合文字列を作成
-            const combinedAddress = `${item.addr1 || ''} ${item.addr2 || ''} ${item.addr || ''} ${item.property || ''} ${item.targetProperty || ''}`.toLowerCase();
-            const matchAddress = !searchAddress || combinedAddress.includes(searchAddress.toLowerCase());
-
-            // 顧客名の結合文字列を作成
-            const combinedCustomer = `${item.seller || ''} ${item.name || ''} ${item.customer || ''}`.toLowerCase();
-            const matchCustomer = !searchCustomer || combinedCustomer.includes(searchCustomer.toLowerCase());
-
-            // 担当と物件種別は完全一致 (未選択の場合は全て表示)
-            const matchStaff = !searchStaff || item.staff === searchStaff;
-            const matchCategory = !searchCategory || item.category === searchCategory;
-            const matchStatus = !searchStatus || item.propStatus === searchStatus
-            const matchIelove = !searchIelove || ieloveStateOf(item) === searchIelove;
-
-            return matchAddress && matchCustomer && matchStaff && matchCategory && matchStatus && matchIelove;
-        });
-
-        // 2. 絞り込んだ結果をソート
-        const getSortValue = (item: BrokerData, key: SortKey) => {
-            switch (key) {
-                case 'displayName': return item.seller || item.name || item.customer || '';
-                case 'displayAddress': return `${item.addr1 || ''} ${item.addr2 || ''} ${item.addr || ''}`.trim() || item.property || item.targetProperty || '';
-                case 'displayPrice': return item.price || item.budget || 0;
-                /*
-                 * ⚠️ v2.2.245: 媒介契約日（contractDate）だけで並べる。列の見出しも「媒介契約日」。
-                 *   以前は受信日・登録日を先に／代わりに見ていたため、媒介契約日が空の行（6件）が登録日の位置に混ざっていた。
-                 *   空の行は新しい順のとき最後に来る（台帳の行に受信日が入っているものは無い）。
-                 */
-                case 'date': return item.contractDate || '';
-                case 'phase': return item.phase || item.currentStatus || '';
-                case 'staff': return item.staff || '';
-                default: return '';
-            }
-        };
-
-        filtered.sort((a, b) => {
-            const aValue = getSortValue(a, sortConfig.key);
-            const bValue = getSortValue(b, sortConfig.key);
-
-            if (typeof aValue === 'number' && typeof bValue === 'number') {
-                return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
-            }
-            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-        });
-
-        return filtered;
+    // === フィルタリング＆ソート処理 ===（⚠️ v2.2.308 予備のときだけ。ふだんは ② が絞って並べる。brokerLedgerFilter.ts）
+    const processedFallback = useMemo(() => {
+        if (serverMode) return [];
+        return filterAndSortLedgers(allLedgers, {
+            address: searchAddress, customer: searchCustomer, staff: searchStaff,
+            propCategory: searchCategory, status: searchStatus, ielove: searchIelove,
+        }, sortConfig.key, sortConfig.direction, ieloveStateOf);
         // eslint-disable-next-line react-hooks/exhaustive-deps -- ieloveStateOf は ielove だけを読む
-    }, [originalData, sortConfig, searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus, searchIelove, ielove]);
+    }, [serverMode, allLedgers, sortConfig, searchAddress, searchCustomer, searchStaff, searchCategory, searchStatus, searchIelove, ielove]);
 
-    /** いえらぶの状態ごとの件数（絞り込みの選択肢に出す） */
+    /** 表に出す行と、条件に合う件数 */
+    const visibleRows = serverMode ? loadedRows : processedFallback.slice(0, shownCount);
+    const totalCount = serverMode ? total : processedFallback.length;
+    const hasMore = visibleRows.length < totalCount;
+
+    /** 物件種別の選択肢（⚠️ 予備のときは読んだ台帳から） */
+    const uniqueCategoryList = useMemo(() => {
+        if (serverMode) return categoryOptions;
+        const categories = allLedgers.map(d => d.category).filter(Boolean) as string[];
+        return Array.from(new Set(categories)).sort();
+    }, [serverMode, categoryOptions, allLedgers]);
+
+    /** いえらぶの状態ごとの件数（絞り込みの選択肢に出す。⚠️ ふだんは ② の ieloveBase＝表示する台帳すべてから数える） */
     const ieloveCounts = useMemo(() => {
         const c: Record<string, number> = {};
-        for (const d of originalData) { const s = ieloveStateOf(d); if (s) c[s] = (c[s] ?? 0) + 1; }
+        if (serverMode) {
+            if (!ieloveBase) return c;
+            if (ieloveBase.linked > 0) c.linked = ieloveBase.linked;
+            for (const id of ieloveBase.unlinkedIds) { const s = ielove?.[id]?.state; if (s) c[s] = (c[s] ?? 0) + 1; }
+            return c;
+        }
+        for (const d of allLedgers) { const s = ieloveStateOf(d); if (s) c[s] = (c[s] ?? 0) + 1; }
         return c;
         // eslint-disable-next-line react-hooks/exhaustive-deps -- ieloveStateOf は ielove だけを読む
-    }, [originalData, ielove]);
+    }, [serverMode, ieloveBase, allLedgers, ielove]);
 
     // ⚠️ v2.2.250: 媒介物件ごとの台帳 No.（同じ物件に台帳が2件以上あるとき、一覧に「同じ物件の台帳 N件」を出す）
+    //   ⚠️ v2.2.308 ふだんは ② が、読んだ行の物件の分を返す（sameProperty）
     const ledgerNosByProperty = useMemo(() => {
+        if (serverMode) return sameProperty;
         const m: Record<string, string[]> = {};
-        for (const d of originalData) {
+        for (const d of allLedgers) {
             if (!d.propertyId) continue;
             (m[d.propertyId] = m[d.propertyId] ?? []).push(String(d.no ?? '―'));
         }
         return m;
-    }, [originalData]);
+    }, [serverMode, sameProperty, allLedgers]);
+
+    // ⚠️ v2.2.308 予備のとき、?ledgerNo= の行が入るところまで出す（ふだんは ② が初めの分でそこまで返す）
+    const focusShownRef = useRef(false);
+    useEffect(() => {
+        if (serverMode || focusNo === '' || focusShownRef.current || processedFallback.length === 0) return;
+        focusShownRef.current = true;
+        const at = processedFallback.findIndex(d => String(d.no ?? '') === focusNo);
+        if (at >= PAGE_SIZE) setShownCount(at + 1);
+    }, [serverMode, focusNo, processedFallback]);
 
     // ⚠️ v2.2.248: ?ledgerNo= の行が一覧に出たら、見えるところまで動かす（1回だけ）
     const [focusedNo, setFocusedNo] = useState('');
@@ -309,12 +409,26 @@ const DatabaseBroker = () => {
         if (!el) return;
         el.scrollIntoView({ block: 'center' });
         setFocusedNo(focusNo);
-    }, [focusNo, focusedNo, processedData]);
+    }, [focusNo, focusedNo, visibleRows]);
 
     /*
-     * ⚠️ v2.2.245: ページ割りをやめ、媒介契約日の新しい順に全件を1枚で出す（制作者の要望。以前は20件ごと）。
-     *   件数が増えて重くなったら、100件ごとのページ割りに戻す（要望の第二案）。
+     * ⚠️ v2.2.245: ページ割りをやめ、媒介契約日の新しい順に全件を1枚で出していた。
+     * ⚠️ v2.2.308: 表示に時間がかかるので、30件ずつ読み、表の下の端までスクロールしたら次の30件を読む。
      */
+    const loadMore = () => {
+        if (loading || !hasMore) return;
+        if (serverMode) fetchPage(loadedRows.length, PAGE_SIZE, false);
+        else setShownCount(c => c + PAGE_SIZE);
+    };
+    /** 表の下の端が見えていたら次の分を読む（スクロールのたびと、読み終わったとき。⚠️ 1画面に収まって下の端が見えたままのときも続けて読む） */
+    const loadMoreIfNearBottom = () => {
+        const el = scrollRef.current;
+        if (el && el.scrollHeight - el.scrollTop - el.clientHeight < LOAD_MORE_MARGIN) loadMore();
+    };
+    useEffect(() => {
+        loadMoreIfNearBottom();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading, visibleRows.length, totalCount]);
 
     // === UIヘルパー ===
     const requestSort = (key: SortKey) => {
@@ -345,9 +459,9 @@ const DatabaseBroker = () => {
             };
             const response = await apiClient.post('', payload);
             if (response.data.status === 'error') alert('更新に失敗しました');
-            const filtered = response.data.brokerage.filter(b => b.kind === 'ledger' && b.show_dashboard === 1);
-            setOriginalData(filtered);
-            loadIelove(); // ⚠️ v2.2.258: 保存のあと ② がいえらぶと突き合わせるので、札を読み直す
+            const filtered = (response.data.brokerage ?? []).filter((b: BrokerData) => b.kind === 'ledger' && b.show_dashboard === 1);
+            // ⚠️ v2.2.258: 保存のあと ② がいえらぶと突き合わせるので、札も読み直す（v2.2.308 から読み込み済みの範囲を読み直す）
+            await reloadList();
             const saved = filtered.find((b: BrokerData) => b.id === targetPropertyId);
             if (toOffer && saved && response.data.status !== 'error'
                 && window.confirm('台帳の現況を「買付有」にしました。\n商談案件管理へつなぐには、買付の内容（買主・買付金額・契約希望日）が要ります。\n買付登録の画面を開きますか？')) {
@@ -398,9 +512,8 @@ const DatabaseBroker = () => {
                 return;
             }
 
-            // 成功時、show_dashboard が 1 のものだけを再セットして画面から消す
-            const filtered = response.data.brokerage.filter((b: BrokerData) => b.kind === 'ledger' && b.show_dashboard === 1);
-            setOriginalData(filtered);
+            // 成功時、読み込み済みの範囲を読み直して画面から消す（v2.2.308）
+            await reloadList();
 
         } catch (e) {
             console.error(e);
@@ -421,8 +534,8 @@ const DatabaseBroker = () => {
                                 type="text"
                                 className="form-control form-control-sm"
                                 placeholder="例: 鹿児島市"
-                                value={searchAddress}
-                                onChange={(e) => setSearchAddress(e.target.value)}
+                                value={addressSearch.inputValue}
+                                onChange={addressSearch.onChange}
                             />
                         </div>
                         <div className="col-md-2">
@@ -431,8 +544,8 @@ const DatabaseBroker = () => {
                                 type="text"
                                 className="form-control form-control-sm"
                                 placeholder="例: 山田"
-                                value={searchCustomer}
-                                onChange={(e) => setSearchCustomer(e.target.value)}
+                                value={customerSearch.inputValue}
+                                onChange={customerSearch.onChange}
                             />
                         </div>
                         <div className="col-md-2">
@@ -496,7 +609,8 @@ const DatabaseBroker = () => {
             <div className="d-flex justify-content-between align-items-center mb-2">
                 <div className="d-flex align-items-center gap-3">
                     <div className="fw-bold text-secondary">
-                        該当 {processedData.length} 件
+                        該当 {totalCount} 件
+                        {hasMore && <span className="fw-normal ms-2" style={{ fontSize: '11px' }}>（{visibleRows.length}件を表示中。下へスクロールすると続きを読みます）</span>}
                     </div>
                     {/*
                       ⚠️ v2.2.245: 「媒介追加」を消した。媒介は必ず売り反響の「媒介受託」から作る（v2.2.248 からは売り反響の「媒介紐付」→ ② の planner:ledger_link）。
@@ -516,15 +630,17 @@ const DatabaseBroker = () => {
             {/* === テーブルUI === */}
             <div className="card shadow-sm border-0 rounded-3">
                 <div className="card-body p-0">
-                    <div className="table-responsive" style={{ maxHeight: 'calc(100vh - 200px)', overflow: 'auto' }}>
-                        <table className="table table-hover align-middle mb-0 text-center text-nowrap" style={{ fontSize: '12px' }}>
-                            <thead className="table-light border-bottom border-2" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                    {/* ⚠️ v2.2.308 見出しは上に、左の5列（No〜媒介契約日）は左に固定（DBB_CSS）。下の端までスクロールすると次の30件を読む */}
+                    <style>{DBB_CSS}</style>
+                    <div ref={scrollRef} className="table-responsive" style={{ maxHeight: 'calc(100vh - 200px)', overflow: 'auto' }} onScroll={loadMoreIfNearBottom}>
+                        <table className="table table-hover align-middle mb-0 text-center text-nowrap dbb_table" style={{ fontSize: '12px' }}>
+                            <thead className="table-light border-bottom border-2">
                                 <tr>
-                                    <th className="py-2" style={{ width: '40px' }}>No</th>
-                                    <th className="py-2">編集</th>
-                                    <th className="py-2" style={thStyle} onClick={() => requestSort('medium')}>反響元 {getSortIcon('medium')}</th>
-                                    <th className="py-2" style={thStyle} onClick={() => requestSort('staff')}>担当 {getSortIcon('staff')}</th>
-                                    <th className="py-2" style={thStyle} onClick={() => requestSort('date')}>媒介契約日 {getSortIcon('date')}</th>
+                                    <th className={`py-2 ${fixClass(0)}`} style={fixStyle(0)}>No</th>
+                                    <th className={`py-2 ${fixClass(1)}`} style={fixStyle(1)}>編集</th>
+                                    <th className={`py-2 ${fixClass(2)}`} style={{ ...thStyle, ...fixStyle(2) }} onClick={() => requestSort('medium')}>反響元 {getSortIcon('medium')}</th>
+                                    <th className={`py-2 ${fixClass(3)}`} style={{ ...thStyle, ...fixStyle(3) }} onClick={() => requestSort('staff')}>担当 {getSortIcon('staff')}</th>
+                                    <th className={`py-2 ${fixClass(4)}`} style={{ ...thStyle, ...fixStyle(4) }} onClick={() => requestSort('date')}>媒介契約日 {getSortIcon('date')}</th>
                                     <th className="py-2" style={thStyle} onClick={() => requestSort('updated_at')}>情報更新日 {getSortIcon('updated_at')}</th>
                                     <th className="py-2">契約満了予定</th>
                                     <th className="py-2">残日数</th>
@@ -546,8 +662,8 @@ const DatabaseBroker = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {processedData.length > 0 ? (
-                                    processedData.map((item, index) => {
+                                {visibleRows.length > 0 ? (
+                                    visibleRows.map((item, index) => {
                                         const displayPrice = item.price || 0;
 
                                         const rawAddress = [item.addr1, item.addr2, item.addr, item.property, item.targetProperty]
@@ -566,8 +682,8 @@ const DatabaseBroker = () => {
 
                                         return (
                                             <tr key={item.id} id={`ledger-row-${String(item.no ?? '')}`} style={focusNo !== '' && String(item.no ?? '') === focusNo ? { outline: '2px solid #fd7e14', background: '#fff3cd' } : undefined}>
-                                                <td className="text-muted">{index + 1}</td>
-                                                <td>
+                                                <td className={`text-muted ${fixClass(0)}`} style={fixStyle(0)}>{index + 1}</td>
+                                                <td className={fixClass(1)} style={fixStyle(1)}>
                                                     <button
                                                         className="btn btn-sm btn-outline-danger rounded-pill px-3 py-0"
                                                         style={{ fontSize: "11px" }}
@@ -576,9 +692,9 @@ const DatabaseBroker = () => {
                                                         編集
                                                     </button>
                                                 </td>
-                                                <td>{item.source || '-'}</td>
-                                                <td>{item.staff || '-'}</td>
-                                                <td className="text-muted">{dateFormate(item.contractDate || '')}</td>
+                                                <td className={fixClass(2)} style={fixStyle(2)} title={item.source || ''}>{item.source || '-'}</td>
+                                                <td className={fixClass(3)} style={fixStyle(3)} title={item.staff || ''}>{item.staff || '-'}</td>
+                                                <td className={`text-muted ${fixClass(4)}`} style={fixStyle(4)}>{dateFormate(item.contractDate || '')}</td>
                                                 <td className="text-muted">{dateFormate(item.updated_at || '')}</td>
                                                 <td className="text-muted">{expiry ? expiry.date.replace(/-/g, '/') : '-'}</td>
                                                 <td className="text-end fw-bold">
@@ -717,7 +833,14 @@ const DatabaseBroker = () => {
                                 ) : (
                                     <tr>
                                         <td colSpan={21} className="text-center py-4 text-muted">
-                                            該当するデータが見つかりません。
+                                            {loading ? '読み込み中…' : '該当するデータが見つかりません。'}
+                                        </td>
+                                    </tr>
+                                )}
+                                {visibleRows.length > 0 && (hasMore || loading) && (
+                                    <tr>
+                                        <td colSpan={21} className="text-start py-2 text-muted" style={{ fontSize: '11px' }}>
+                                            {loading ? <><span className="spinner-border spinner-border-sm me-1" style={{ width: '.8rem', height: '.8rem' }}></span>読み込み中…</> : '下へスクロールすると続きを読みます'}
                                         </td>
                                     </tr>
                                 )}
