@@ -199,6 +199,7 @@ import { runImportCheck, runImportFinish, runImportRecords } from '../features/r
 import { runCallLogs, runCallLogsImport, runCallMark, runCallUndo, runNaviSave, runPracticeLogsImport } from '../features/realty/calls';
 import { runLedgerLink } from '../features/realty/ledgerLink';
 import { runIeloveCandidates, runIeloveMatchNow } from '../features/realty/ieloveMatch';
+import { runBrokerLedgerList } from '../features/realty/ledgerList';
 import { runIeloveImport, runIeloveImportStatus } from '../features/realty/ieloveImport';
 import { runUsedQueueList, runUsedQueueMark } from '../features/callq/usedQueue';
 import { INQUIRY_CATEGORIES, MASTER_CATEGORIES, runPrivacyEraseInquiry, runPrivacyEraseMaster } from '../features/privacy';
@@ -1413,6 +1414,9 @@ register({ request: 'broker', roll: 'update', summary: '【書き込み】台帳
 // ⚠️ v2.2.258 新規（② だけ）。媒介獲得台帳といえらぶの物件・買い反響のつながり。features/realty/ieloveMatch.ts
 //   台帳の編集画面（PropertyRegister.tsx）は中古の顧客DB・顧客詳細からも開くので broker と同じ担当事業
 register({ request: 'broker', roll: 'ielove_candidates', summary: '媒介獲得台帳の、いえらぶの物件の候補と状態', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(BROKER_SHOPS, (_s, body) => runIeloveCandidates(body)) });
+// ⚠️ v2.2.308 新規（② だけ・GET）。媒介獲得台帳を絞り込み・並べ替えて30件ずつ（features/realty/ledgerList.ts）。
+//   ⚠️ GET は roll を受けないので request だけ。① の db.php の GET_ALLOWED_REQUESTS と express_proxy.php の2つのリストに入れてある。画面は落ちたら POST の broker:list（全件）に切り替える
+register({ request: 'broker_ledger_list', summary: '媒介獲得台帳を絞り込み・並べ替えて少しずつ（offset・limit）', phpSource: '（新規。PHP版なし。予備は POST の broker:list）', auth: 'staff', handler: realty(BROKER_SHOPS, (_s, body) => runBrokerLedgerList(body)) });
 register({ request: 'broker', roll: 'ielove_match', summary: '【書き込み】媒介獲得台帳といえらぶの物件・買い反響を今すぐ突き合わせる', phpSource: '(Express のみ。PHPハンドラは無い)', auth: 'staff', handler: realty(BROKER_SHOPS, () => runIeloveMatchNow()) });
 // ⚠️ v2.2.260 新規（② だけ）。いえらぶの物件一覧（CSV）の取り込み（設定・データ管理）。features/realty/ieloveImport.ts
 //   ⚠️ いえらぶの2段階認証の義務化で sync（runIeloveProperty.ts）の自動の取り込みが止まったための代わり
