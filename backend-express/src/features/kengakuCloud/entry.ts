@@ -15,6 +15,7 @@ import { clean, cleanMultiline } from '../campaignForm/text';
  *   違うところ:
  *   - NOT NULL の列をすべて埋める（移植元は 13 列だけで、sql_mode が緩いから通っていた）
  *   - reserved_time・line_id・URL パラメータ・質問（remarks）も保存する
+ *   - 建築予定時期も備考（remarks）の先頭に入れ、質問と一緒に社内通知にも載せる（v2.2.310）
  *   - 保存に失敗したらメールを送らない（移植元は失敗しても送っていた）
  *   - inquiry_id の末尾にミリ秒（同じ秒に2件来ると inquiry_id が重なり、同期で別の反響まで同期済みになるため）
  * ─────────────────────────────────────────────
@@ -29,8 +30,15 @@ export interface KengakuCloudResult {
 const FORM_KEYS = new Set([
     'request', 'roll', 'name', 'kana', 'mail', 'mobile', 'full_address', 'brand', 'shop', 'campaign',
     'medium', 'reserved_date', 'reserved_time', 'age', 'line_id', 'message', 'benefit_agreement', 'url_params',
-    'landing_params',
+    'landing_params', 'build_timing',
 ]);
+
+/**
+ * 建築予定時期（v2.2.310）。gtm_reserve_save_v4 が build_timing で送る。
+ * ⚠️ v3 のままの GTM は、表の見出しの文字をそのまま名前にして送る（「建築予定時期について」）ので、そちらも読む。
+ */
+const readBuildTiming = (body: Record<string, unknown>): string =>
+    clean(body.build_timing ?? body['建築予定時期について'] ?? body['建築予定時期'], 100);
 
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'] as const;
 
@@ -138,6 +146,7 @@ export const runKengakuCloudEntry = async (
     const age = clean(body.age, 20);
     const lineId = clean(body.line_id, 200).replace(/\s+/g, '').slice(0, 100);
     const message = cleanMultiline(body.message, 2000);
+    const buildTiming = readBuildTiming(body);
     const urlParams = readUrlParams(body);
     const landingParams = readLandingParams(body);
     const query = new URLSearchParams(urlParams);
@@ -169,7 +178,8 @@ export const runKengakuCloudEntry = async (
     values.hp_campaign = campaign;
     values.reserved_date = reservedDate;
     values.reserved_time = reservedTime;
-    values.remarks = message;
+    // ⚠️ 反響の表に建築予定時期の列が無いため、備考の先頭に1行で入れる（v2.2.310）
+    values.remarks = [buildTiming === '' ? '' : `建築予定時期：${buildTiming}`, message].filter(s => s !== '').join('\n');
     // ⚠️ utm は url_params を優先し、無ければ landing_params（tracker.js が最初のページで覚えたもの）から
     for (const key of UTM_KEYS) values[key] = clean(query.get(key) ?? landingQuery.get(key), 200);
     values.line_id = lineId === '' ? null : lineId;
@@ -212,6 +222,8 @@ export const runKengakuCloudEntry = async (
         + line('年齢', age)
         + line('住所', address)
         + line('お問い合わせのきっかけ', medium)
+        + line('建築予定時期', buildTiming)
+        + line('ご質問・ご連絡事項', message)
         + '====================\n※のちほどDashboardへ反映されます。\n';
 
     const ok = await sendMail({
