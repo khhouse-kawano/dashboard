@@ -3,7 +3,7 @@ import { query } from '../../db/pool';
 import { giftApplyToCustomers } from './gift';
 import { toColumnar } from './index';
 import { databaseSql, usedSql, type DatabaseCategory } from './queries';
-import { recordKeywordOf, recordsOfPage, searchRecords, type RecordHitGroup } from './recordSearch';
+import { recordKeywordOf, recordModeOf, recordsOfPage, searchRecords, type RecordHitGroup } from './recordSearch';
 
 /**
  * 顧客DB を1ページずつ返す（v2.2.289。request database_list。画面は database/DatabaseKaeru.tsx）。
@@ -43,6 +43,8 @@ export interface DatabaseListParams {
   introductory?: unknown; event?: unknown; snap?: unknown; hotlead?: unknown; familyName?: unknown;
   /** v2.2.296 商談・架電記録から検索する語（3事業。recordSearch.ts） */
   record?: unknown;
+  /** v2.2.306 語を空白で区切ったときの合わせ方（and＝すべて含む・or＝いずれかを含む。無ければ区切らない＝古い画面） */
+  recordMode?: unknown;
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
@@ -95,7 +97,7 @@ const paginate = (filtered: Row[], p: DatabaseListParams): { page: number; perPa
  */
 const recordHitsOf = (p: DatabaseListParams): Promise<Map<string, RecordHitGroup> | null> => {
   const keyword = recordKeywordOf(p.record);
-  return keyword === '' ? Promise.resolve(null) : searchRecords(keyword);
+  return keyword === '' ? Promise.resolve(null) : searchRecords(keyword, recordModeOf(p.recordMode));
 };
 
 /** ⚠️ id は文字列のときだけ当てる（id が NULL の顧客を当てない） */
