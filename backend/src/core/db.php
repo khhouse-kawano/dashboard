@@ -35,6 +35,9 @@ const GET_ALLOWED_REQUESTS = [
     'duplicate_summary', 'rank_list', // ⚠️ v2.2.305 重複反響サマリー（② 専用）・ランクの月ごとの読み込み（② 専用。予備は POST の rank）
     'broker_ledger_list', // ⚠️ v2.2.308 媒介獲得台帳を30件ずつ（② 専用。予備は POST の broker:list）
     'satbase_page', // ⚠️ v2.2.309 SatBaseサマリーを30件ずつ（② 専用・Master。予備は POST の satbase_list）
+    // ⚠️ v2.2.311 土地仕入の読み込み（② 専用・担当事業 spec / all。予備は同じ request の POST）
+    'land_master', 'land_summary', 'land_deal_list', 'land_deal_get', 'land_vendor_list', 'land_vendor_get',
+    'land_approach_list', 'land_daily', 'land_staff_candidates',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

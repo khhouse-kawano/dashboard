@@ -65,6 +65,12 @@ export const GUIDE_SCREENS: Record<string, GuideScreen> = {
     'K-snap登録': { route: '/photo', divisions: ['order'], pcOnly: true },
     'オーナーズハウス': { route: '/ownersHouseAdmin', divisions: ['order'], pcOnly: true },
     '物件DB': { route: '/property', divisions: ['spec'], pcOnly: true },
+    // ⚠️ v2.2.311。建売営業の「土地仕入」（landAcquisition/LandMenu.tsx の LAND_MENU と同じ）。⚠️ 移行中の画面（仕入分析・個人別実績・目標・月次入力）は入れていない
+    '仕入ダッシュボード': { route: '/landDashboard', divisions: ['spec'], pcOnly: true },
+    '日次・アプローチ': { route: '/landDaily', divisions: ['spec'], pcOnly: true },
+    '仕入案件一覧': { route: '/landDeals', divisions: ['spec'], pcOnly: true },
+    '業者マスタ': { route: '/landVendors', divisions: ['spec'], pcOnly: true },
+    '仕入設定': { route: '/landSettings', divisions: ['spec'], pcOnly: true },
     'キャンペーン管理': { route: '/campaign', divisions: ['order'], authority: ADMIN, pcOnly: true },
     '予算詳細': { route: '/budget', divisions: ['order', 'spec', 'used'], authority: ADMIN, pcOnly: true },
     'マーケット情報': { route: '/market' },

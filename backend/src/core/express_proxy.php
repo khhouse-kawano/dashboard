@@ -848,6 +848,12 @@ function expressProxyRequests(): array
         'broker_ledger_list',
         // ⚠️ 2026-11-27（v2.2.309）。SatBaseサマリーを30件ずつ（header/system/SatBaseDatabase.tsx。GET・Master）。⚠️ ① に PHP ハンドラは無い（② だけ。画面は落ちたら POST の satbase_list に切り替える）。両方のリストに入れてある。
         'satbase_page',
+        // ⚠️ 2026-11-27（v2.2.311）。土地仕入（landAcquisition/。建売営業のメニュー）。⚠️ ① に PHP ハンドラは無い（② だけ）。両方のリストに入れてある。
+        //   読み込みは GET（落ちたら同じ request を POST）、書き込みは land:<roll>。
+        'land_master', 'land_summary', 'land_deal_list', 'land_deal_get', 'land_vendor_list', 'land_vendor_get',
+        'land_approach_list', 'land_daily', 'land_staff_candidates',
+        'land:deal_save', 'land:deal_delete', 'land:vendor_save', 'land:vendor_delete', 'land:approach_save', 'land:approach_delete',
+        'land:daily_save', 'land:report_save', 'land:member_save', 'land:import',
     ];
 }
 
@@ -1228,6 +1234,11 @@ function expressProxyExclusive(): array
         'broker_ledger_list',
         // ⚠️ 2026-11-27（v2.2.309）。SatBaseサマリーを30件ずつ。⚠️ 落ちたら 502（画面は POST の satbase_list＝全件に切り替える）。
         'satbase_page',
+        // ⚠️ 2026-11-27（v2.2.311）。土地仕入。⚠️ ① に PHP ハンドラが無いので、落ちたら 502（画面は「読み込めません」と出す）。
+        'land_master', 'land_summary', 'land_deal_list', 'land_deal_get', 'land_vendor_list', 'land_vendor_get',
+        'land_approach_list', 'land_daily', 'land_staff_candidates',
+        'land:deal_save', 'land:deal_delete', 'land:vendor_save', 'land:vendor_delete', 'land:approach_save', 'land:approach_delete',
+        'land:daily_save', 'land:report_save', 'land:member_save', 'land:import',
     ];
 }
 

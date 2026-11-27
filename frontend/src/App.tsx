@@ -40,6 +40,12 @@ import DatabaseBroker from "./components/database/DatabaseBroker";
 import InsideSales from "./components/insideSales/InsideSales";
 // ⚠️ v2.2.221: 不動産企画係（category = realty）の画面は components/realty にまとめた
 import RealtyRoute from "./components/realty/RealtyRoute";
+import LandRoute, { LandPending } from "./components/landAcquisition/LandRoute";
+import LandDashboard from "./components/landAcquisition/LandDashboard";
+import LandDaily from "./components/landAcquisition/LandDaily";
+import LandDeals from "./components/landAcquisition/LandDeals";
+import LandVendors from "./components/landAcquisition/LandVendors";
+import LandSettings from "./components/landAcquisition/LandSettings";
 import Summary from "./components/realty/summary/Summary";
 import MonthlySalesReport from "./components/realty/report/MonthlySalesReport";
 import LeadSell from "./components/realty/sell/LeadSell";
@@ -239,6 +245,13 @@ function AppInner() {
             <Route path="/realtyCallQueue" element={<RealtyRoute><CallQueue /></RealtyRoute>} />
             <Route path="/realtyCallNavi" element={<RealtyRoute><CallNavi /></RealtyRoute>} />
             <Route path="/realtyPending" element={<RealtyRoute><RealtyPending /></RealtyRoute>} />
+            {/* ⚠️ v2.2.311: 建売営業の「土地仕入」（仕入KPI管理の移行。landAcquisition/LandMenu.tsx）。⚠️ 担当事業が spec / all の人だけ（LandRoute）。⚠️ URL は1段 */}
+            <Route path="/landDashboard" element={<LandRoute><LandDashboard /></LandRoute>} />
+            <Route path="/landDaily" element={<LandRoute><LandDaily /></LandRoute>} />
+            <Route path="/landDeals" element={<LandRoute><LandDeals /></LandRoute>} />
+            <Route path="/landVendors" element={<LandRoute><LandVendors /></LandRoute>} />
+            <Route path="/landSettings" element={<LandRoute><LandSettings /></LandRoute>} />
+            <Route path="/landPending" element={<LandRoute><LandPending /></LandRoute>} />
             {/* ⚠️ v2.2.221〜222 の2段の URL。⚠️ 画面の中から移ってきたときだけ効く（再読み込みは上の理由で届かない） */}
             <Route path="/realty/summary" element={<Navigate to="/summary" replace />} />
             <Route path="/realty/report" element={<Navigate to="/report" replace />} />
