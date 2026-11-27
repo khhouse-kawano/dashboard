@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useContext, useMemo, useRef } from 'react';
 import Table from "react-bootstrap/Table";
-import Modal from 'react-bootstrap/Modal';
+// ⚠️ v2.2.307 ポータルの掲載サマリは PortalDetailModal.tsx に移した（媒介獲得台帳でも使う）
+import PortalDetailModal, { type PortalDetail } from './PortalDetailModal';
 import AuthContext from '../../context/AuthContext';
 import { GoogleMap, MarkerF } from '@react-google-maps/api';
 import Blue from "../../assets/images/blue_ping.png";
@@ -24,15 +25,6 @@ type shopList = { brand: string, shop: string, section: string };
 type staffList = { name: string; shop: string; pg_id: string; category: number; estate: number, rank: number };
 type Property = Record<string, string | number>;
 type Customer = Record<string, string>;
-
-// 💡 モーダル内の洗練されたデザイン用スタイル
-const modalStyles = {
-    card: { border: 'none', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', marginBottom: '16px', backgroundColor: '#fff' },
-    cardHeader: { backgroundColor: '#fff', borderBottom: '1px solid #edf2f7', padding: '12px 16px', fontSize: '13px', fontWeight: 'bold', color: '#4a5568', borderRadius: '8px 8px 0 0' },
-    table: { margin: 0, fontSize: '12px', borderCollapse: 'collapse' as const, width: '100%' },
-    th: { backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500', width: '22%', padding: '10px 12px', borderBottom: '1px solid #edf2f7', verticalAlign: 'middle' },
-    td: { color: '#2d3748', fontWeight: 'bold', padding: '10px 12px', borderBottom: '1px solid #edf2f7', verticalAlign: 'middle', whiteSpace: 'pre-wrap' as const, wordBreak: 'break-word' as const }
-};
 
 const parseLatLng = (latLngStr?: string | null) => {
     if (!latLngStr || typeof latLngStr !== 'string') return null;
@@ -82,7 +74,7 @@ const DatabaseProperty = () => {
     // ⚠️ v2.2.305 SUUMO掲載順位はページ（/suumoRanking。SuumoPropertySummary.tsx）にした。ここからはボタンで移るだけ
     const navigate = useNavigate();
 
-    const [portalModal, setPortalModal] = useState<{ type: 'SUUMO' | "HOME'S" | 'athome', data: Record<string, string> } | null>(null);
+    const [portalModal, setPortalModal] = useState<PortalDetail | null>(null);
 
     const ranks = ['Sランク', 'Aランク', 'Bランク', 'Cランク', 'Dランク', 'Eランク'];
     const categoryList = ['買い:ポータル', '売り:ポータル', '買い:中古リノベ'];
@@ -539,149 +531,7 @@ const DatabaseProperty = () => {
             </div>
 
             {/* 💡 洗練されたポータル詳細情報用モーダル */}
-            <Modal show={!!portalModal} onHide={() => setPortalModal(null)} size="lg" centered>
-                <Modal.Header closeButton className="border-0 pb-0">
-                    <Modal.Title style={{ color: '#495057', fontSize: '16px', fontWeight: 'bold', letterSpacing: '0.5px' }}>
-                        {portalModal?.type === 'SUUMO' && <i className="bi bi-phone me-2 text-success"></i>}
-                        {portalModal?.type === "HOME'S" && <i className="bi bi-house me-2 text-danger"></i>}
-                        {portalModal?.type === 'athome' && <i className="bi bi-geo-alt me-2 text-primary"></i>}
-                        {portalModal?.type} 掲載サマリ
-                    </Modal.Title>
-                </Modal.Header>
-                <Modal.Body className="pt-3 pb-4" style={{ backgroundColor: '#fafbfe' }}>
-
-                    {/* === SUUMO View === */}
-                    {portalModal?.type === 'SUUMO' && portalModal.data && (
-                        <div className="row g-3">
-                            <div className="col-12">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>概要・キャッチ</div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>基本情報</th><td style={modalStyles.td}>{portalModal.data.basic_info}</td></tr>
-                                            <tr><th style={modalStyles.th}>立地・価格</th><td style={modalStyles.td}>{portalModal.data.location_and_price}</td></tr>
-                                            <tr><th style={modalStyles.th}>サマリー</th><td style={modalStyles.td}>{portalModal.data.summary}</td></tr>
-                                            <tr><th style={modalStyles.th}>キャッチ・PR</th><td style={modalStyles.td}>{portalModal.data.catch_and_layout}</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div className="col-md-6">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>ステータス・画像</div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>成約状況</th><td style={modalStyles.td}>{portalModal.data.contract_status}</td></tr>
-                                            <tr><th style={modalStyles.th}>ネット掲載</th><td style={modalStyles.td}>{portalModal.data.suumo_net_status}</td></tr>
-                                            <tr><th style={modalStyles.th}>総画像数</th><td style={modalStyles.td}>{portalModal.data.total_images} 枚</td></tr>
-                                            <tr><th style={modalStyles.th}>更新日時</th><td style={modalStyles.td}>{portalModal.data.timestamps_info}</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div className="col-md-6">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>PV・反響</div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>累計 PV</th><td style={{ ...modalStyles.td, color: '#38a169', fontSize: '16px' }}>{portalModal.data.pv_total}</td></tr>
-                                            <tr><th style={modalStyles.th}>直近1週 PV</th><td style={{ ...modalStyles.td, color: '#2b6cb0', fontSize: '14px' }}>{portalModal.data.pv_recent_week}</td></tr>
-                                            <tr><th style={modalStyles.th}>オプション</th><td style={modalStyles.td}>{portalModal.data.suumo_net_options}</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* === HOME'S View === */}
-                    {portalModal?.type === "HOME'S" && portalModal.data && (
-                        <div className="row g-3">
-                            <div className="col-12">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>物件情報</div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>物件名</th><td style={modalStyles.td}>{portalModal.data.property_name}</td></tr>
-                                            <tr><th style={modalStyles.th}>住所</th><td style={modalStyles.td}>{portalModal.data.address}</td></tr>
-                                            <tr><th style={modalStyles.th}>交通</th><td style={modalStyles.td}>{portalModal.data.railway_line} {portalModal.data.station} <span className="ms-2 text-muted">徒歩{portalModal.data.walk_minutes}分</span></td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div className="col-md-6">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>価格・属性</div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>価格</th><td style={{ ...modalStyles.td, color: '#e53e3e' }}>{portalModal.data.price_rent}</td></tr>
-                                            <tr><th style={modalStyles.th}>種別 / 築年</th><td style={modalStyles.td}>{portalModal.data.property_type} / {portalModal.data.construction_year}</td></tr>
-                                            <tr><th style={modalStyles.th}>間取り</th><td style={modalStyles.td}>{portalModal.data.layout || '-'} <span className="ms-2 text-muted">{portalModal.data.exclusive_area || ''}</span></td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div className="col-md-6">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>掲載・反響</div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>ステータス</th><td style={modalStyles.td}>{portalModal.data.status}</td></tr>
-                                            <tr><th style={modalStyles.th}>閲覧数 (PV)</th><td style={{ ...modalStyles.td, color: '#c53030', fontSize: '16px' }}>{portalModal.data.detail_page_views}</td></tr>
-                                            <tr><th style={modalStyles.th}>問合せ数</th><td style={modalStyles.td}>{portalModal.data.inquiries_count} 件 <span className="text-muted ms-2">(率: {portalModal.data.inquiry_rate})</span></td></tr>
-                                            <tr><th style={modalStyles.th}>掲載 / 更新</th><td style={{ ...modalStyles.td, fontSize: '11px' }}>{portalModal.data.created_date} / {portalModal.data.updated_date}</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* === athome View === */}
-                    {portalModal?.type === 'athome' && portalModal.data && (
-                        <div className="row g-3">
-                            <div className="col-12">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>物件情報</div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>住所</th><td style={modalStyles.td}>{portalModal.data.address}</td></tr>
-                                            <tr><th style={modalStyles.th}>交通</th><td style={modalStyles.td}>{portalModal.data.line_station}</td></tr>
-                                            <tr><th style={modalStyles.th}>種目 / 掲載日</th><td style={modalStyles.td}>{portalModal.data.property_type} <span className="ms-3 text-muted">公開: {portalModal.data.published_date}</span></td></tr>
-                                            <tr><th style={modalStyles.th}>価格</th><td style={{ ...modalStyles.td, color: '#e53e3e', fontSize: '14px' }}>{portalModal.data.price_man_yen} 万円</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div className="col-md-6">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>PV詳細 <span className="fw-normal text-muted ms-2" style={{ fontSize: '11px' }}>{portalModal.data.start_date} ~ {portalModal.data.end_date}</span></div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>合計 PV</th><td style={{ ...modalStyles.td, color: '#2b6cb0', fontSize: '16px' }}>{portalModal.data.pv_total}</td></tr>
-                                            <tr><th style={modalStyles.th}>PC / SP</th><td style={modalStyles.td}>{portalModal.data.pv_pc} / {portalModal.data.pv_sp}</td></tr>
-                                            <tr><th style={modalStyles.th}>お気に入り</th><td style={modalStyles.td}>{portalModal.data.favorite_count} 件</td></tr>
-                                            <tr><th style={modalStyles.th}>画像 / ムービー</th><td style={modalStyles.td}>{portalModal.data.photo_count} 枚 / 再生: {portalModal.data.movie_play_count} 回</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div className="col-md-6">
-                                <div style={modalStyles.card}>
-                                    <div style={modalStyles.cardHeader}>反響詳細</div>
-                                    <table style={modalStyles.table}>
-                                        <tbody>
-                                            <tr><th style={modalStyles.th}>合計 反響</th><td style={{ ...modalStyles.td, color: '#d69e2e', fontSize: '16px' }}>{portalModal.data.inquiry_total}</td></tr>
-                                            <tr><th style={modalStyles.th}>PC / SP</th><td style={modalStyles.td}>{portalModal.data.inquiry_pc} / {portalModal.data.inquiry_sp}</td></tr>
-                                            <tr><th style={modalStyles.th}>通話 / LINE</th><td style={modalStyles.td}>{portalModal.data.inquiry_call} / {portalModal.data.inquiry_line}</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </Modal.Body>
-            </Modal>
+            <PortalDetailModal portal={portalModal} onClose={() => setPortalModal(null)} />
 
             <PropertySummary
                 targetId={targetId}

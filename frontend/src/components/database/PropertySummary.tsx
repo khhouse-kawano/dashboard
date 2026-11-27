@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useMemo, useContext } from 'react';
+import React, { useEffect, useState, useMemo, useContext, useRef } from 'react';
 import Table from "react-bootstrap/Table";
 import Form from 'react-bootstrap/Form';
 import AuthContext from '../../context/AuthContext';
 import Modal from 'react-bootstrap/Modal';
 import apiClient from '../../utils/apiClient';
+// ⚠️ v2.2.307 基本情報・PVサマリ・地図と PV の計算は propertyParts.tsx に切り出した（媒介獲得台帳の「物件の状況」でも使う）
+import { PropertyBasicInfo, PropertyMap, PropertyPvSummary, propertyPvOf } from './propertyParts';
 
 type Property = Record<string, any>;
 type Customer = Record<string, any>;
@@ -12,6 +14,8 @@ type Props = {
     targetId: string,
     setTargetId: React.Dispatch<React.SetStateAction<string>>,
     setEditId: React.Dispatch<React.SetStateAction<string>>,
+    /** v2.2.307 true なら、読み込んだあと報告書の編集から開く（媒介獲得台帳の「物件の状況」の「報告書作成」） */
+    openReport?: boolean,
 };
 
 // 💡 編集用フォームの型定義を拡張 (全項目対応)
@@ -63,7 +67,7 @@ const normalizePropertyName = (str?: string | null | number) => {
     return String(str).replace(/[（(]非?公開[）)]/g, '').replace(/[\s ]+/g, '');
 };
 
-const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
+const PropertySummary = ({ targetId, setTargetId, setEditId, openReport }: Props) => {
     const { category, userName } = useContext(AuthContext);
     const [isLoading, setIsLoading] = useState(false);
     const [targetProperty, setTargetProperty] = useState<Property | null>(null);
@@ -125,24 +129,13 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
         fetchDetail();
     }, [targetId]);
 
+    /**
+     * ⚠️ v2.2.307 物件DB と同じ式（propertyParts.tsx の propertyPvOf）。⚠️ SUUMO は pv_recent_week（直近1週）から pv_total（累計）に変えた（指示）。
+     *   報告書の「SUUMO 詳細閲覧（1日あたり）」は今までどおり pv_recent_week（報告書の文面がその意味のため）。
+     */
     const pvData = useMemo(() => {
         if (!targetProperty) return { suumo: 0, homes: 0, athome: 0, total: 0 };
-        const pv_suumo = Number(suumoData?.pv_recent_week ?? 0); 
-        const now = new Date();
-        const today = now.getDate() || 1;
-        const pv_homes_raw = Number(homesData?.detail_page_views ?? 0);
-        const pv_homes = Math.ceil((pv_homes_raw / today) * 10) / 10;
-        let pv_athome = 0;
-        if (athomeData?.start_date && athomeData?.end_date) {
-            const startDate = new Date(String(athomeData.start_date).replace(/\//g, '-'));
-            const endDate = new Date(String(athomeData.end_date).replace(/\//g, '-'));
-            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                const diffTime = endDate.getTime() - startDate.getTime();
-                const elapsedDays = Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
-                pv_athome = Math.ceil((Number(athomeData.pv_total ?? 0) / elapsedDays) * 10) / 10;
-            }
-        }
-        return { suumo: pv_suumo, homes: pv_homes, athome: pv_athome, total: pv_suumo + pv_homes + pv_athome };
+        return propertyPvOf(suumoData, homesData, athomeData);
     }, [targetProperty, suumoData, homesData, athomeData]);
 
     const filteredCustomer = useMemo(() => {
@@ -210,6 +203,16 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
         });
         setIsEditingReport(true);
     };
+
+    /** v2.2.307 openReport のとき、読み込みが終わったら1回だけ報告書の編集を開く（⚠️ 閉じたら次に開いたときにまた開く） */
+    const reportOpenedRef = useRef(false);
+    useEffect(() => {
+        if (!targetId) { reportOpenedRef.current = false; return; }
+        if (!openReport || reportOpenedRef.current || isLoading || !targetProperty) return;
+        reportOpenedRef.current = true;
+        handleOpenEditReport();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [targetId, openReport, isLoading, targetProperty]);
 
     const handleGenerateReport = () => {
         const originalTitle = document.title;
@@ -388,69 +391,10 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
 
                         <div className="row g-3">
                             <div className="col-12">
-                                <div className="card shadow-sm border-0 rounded-3">
-                                    <div className="card-header bg-white border-bottom-0 pt-3 pb-1">
-                                        <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>基本情報</h6>
-                                    </div>
-                                    <div className="card-body pt-1 pb-3 px-3">
-                                        <Table bordered className="mb-0 align-middle" style={{ fontSize: '12px', borderColor: '#e2e8f0', borderRight: '1px solid #e2e8f0' }}>
-                                            <tbody>
-                                                <tr>
-                                                    <th style={{ width: '15%', backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>所在地</th>
-                                                    <td style={{ width: '35%', color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.address}</td>
-                                                    <th style={{ width: '15%', backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>担当営業</th>
-                                                    <td style={{ width: '35%', color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.property_staff}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>価格</th>
-                                                    <td style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: '13px' }}>{targetProperty?.price}</td>
-                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>取扱</th>
-                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.seller}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>土地面積</th>
-                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.land_area}</td>
-                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>建築面積</th>
-                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.building_area}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>間取り</th>
-                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.layout}</td>
-                                                    <th style={{ backgroundColor: '#f8f9fa', color: '#718096', fontWeight: '500' }}>建築時期</th>
-                                                    <td style={{ color: '#2d3748', fontWeight: 'bold' }}>{targetProperty?.building_age}</td>
-                                                </tr>
-                                            </tbody>
-                                        </Table>
-                                    </div>
-                                </div>
+                                <PropertyBasicInfo property={targetProperty} />
                             </div>
-
                             <div className="col-12">
-                                <div className="card shadow-sm border-0 rounded-3">
-                                    <div className="card-header bg-white border-bottom-0 pt-3 pb-1">
-                                        <h6 className="fw-bold mb-0" style={{ fontSize: '13px', color: '#4a5568' }}>PVサマリ</h6>
-                                    </div>
-                                    <div className="card-body pt-1 pb-3 px-3">
-                                        <Table bordered className="mb-0 text-center align-middle" style={{ fontSize: '12px', borderColor: '#e2e8f0', borderRight: '1px solid #e2e8f0' }}>
-                                            <thead style={{ backgroundColor: '#f8f9fa' }}>
-                                                <tr>
-                                                    <th style={{ color: '#718096', fontWeight: '500' }}>総PV</th>
-                                                    <th style={{ color: '#38a169', fontWeight: '500' }}>SUUMO</th>
-                                                    <th style={{ color: '#e53e3e', fontWeight: '500' }}>HOME'S</th>
-                                                    <th style={{ color: '#3182ce', fontWeight: '500' }}>athome</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td className="fw-bold" style={{ fontSize: '14px', color: '#2d3748' }}>{pvData.total.toLocaleString()}</td>
-                                                    <td className="fw-bold" style={{ color: '#2f855a' }}>{pvData.suumo.toLocaleString()}</td>
-                                                    <td className="fw-bold" style={{ color: '#c53030' }}>{pvData.homes.toLocaleString()}</td>
-                                                    <td className="fw-bold" style={{ color: '#2b6cb0' }}>{pvData.athome.toLocaleString()}</td>
-                                                </tr>
-                                            </tbody>
-                                        </Table>
-                                    </div>
-                                </div>
+                                <PropertyPvSummary pv={pvData} />
                             </div>
 
                             <div className="col-12">
@@ -482,17 +426,7 @@ const PropertySummary = ({ targetId, setTargetId, setEditId }: Props) => {
 
                             {targetProperty?.lat_lng && (
                                 <div className="col-12">
-                                    <div className="rounded-3 overflow-hidden shadow-sm" style={{ height: '250px', backgroundColor: '#e2e8f0', border: '1px solid #e2e8f0' }}>
-                                        <iframe
-                                            width="100%"
-                                            height="100%"
-                                            frameBorder="0"
-                                            style={{ border: 0 }}
-                                            src={`https://maps.google.com/maps?q=${targetProperty.lat_lng}&hl=ja&z=16&output=embed`}
-                                            allowFullScreen
-                                            title="Property Location Map"
-                                        ></iframe>
-                                    </div>
+                                    <PropertyMap latLng={targetProperty.lat_lng} />
                                 </div>
                             )}
 
