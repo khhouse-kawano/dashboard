@@ -101,6 +101,19 @@ const DatabaseBroker = () => {
     const [isSaving, setIsSaving] = useState(false);
 
     const [targetId, setTargetId] = useState('');
+    /** v2.2.307 物件の詳細を報告書の編集から開くか（台帳の「物件の状況」の報告書作成から開いたとき） */
+    const [summaryReport, setSummaryReport] = useState(false);
+    /** v2.2.307 開いている台帳の、保存済みのいえらぶ番号（「物件の状況」のタブを出すか。⚠️ 編集中の値ではなく保存済みの値） */
+    const statusPropertyDbId = useMemo(
+        () => String(originalData.find(d => d.id === targetPropertyId)?.property_db_id ?? ''),
+        [originalData, targetPropertyId]);
+    /** v2.2.307 報告書作成：台帳の画面を閉じて、物件の詳細を報告書の編集から開く（⚠️ 印刷は物件の詳細のモーダルだけで行うため） */
+    const openReportFromLedger = (propertyDbId: string) => {
+        setTargetPropertyId('');
+        setEditData({});
+        setSummaryReport(true);
+        setTargetId(propertyDbId);
+    };
 
     /**
      * ⚠️ v2.2.246: 買付登録（realty/common/BuyOfferModal.tsx）。
@@ -721,7 +734,9 @@ const DatabaseBroker = () => {
                 editData={editData} setEditData={setEditData}
                 staffList={staffList}
                 isSaving={isSaving}
-                handleUpdate={handleUpdate} />
+                handleUpdate={handleUpdate}
+                statusPropertyDbId={statusPropertyDbId}
+                onOpenReport={openReportFromLedger} />
             <BuyOfferModal
                 ledger={offerLedger as Row | null}
                 staffSettings={staffSettings}
@@ -731,8 +746,9 @@ const DatabaseBroker = () => {
             />
             <PropertySummary
                 targetId={targetId}
-                setTargetId={setTargetId}
+                setTargetId={(v) => { setTargetId(v); setSummaryReport(false); }}
                 setEditId={setCustomerId}
+                openReport={summaryReport}
             />
         </div>
     );
