@@ -206,6 +206,66 @@ const runRankRead = async (category: RankCategory): Promise<RankResult> => {
 };
 
 // ---------------------------------------------------------------------------
+// 4. v2.2.305 月ごとの読み込み（rank_list。GET）
+// ---------------------------------------------------------------------------
+
+/** 顧客の列のうち、日付ではない列（⚠️ これ以外の列はすべて日付として月を見る） */
+const NOT_DATE_COLUMNS = new Set(['id', 'customer', 'shop', 'staff', 'prev_staff', 'rank', 'status', 'rank_period', 'delete_dashboard', 'budget_total']);
+
+/**
+ * 対象の月の一覧（'YYYY/MM'）。period が 'YYYY/MM' ならその月、'YYYY'（○年5月期）なら前の年の6月〜その年の5月。
+ * ⚠️ 画面の getFiscalYearMonthsFromJune（RankOrder・RankResale）と getTargetYears（RankKaeru）と同じ。
+ */
+export const rankPeriodMonths = (period: string): string[] => {
+  const ym = /^(\d{4})\/(\d{2})$/.exec(period);
+  if (ym) return [period];
+  if (!/^\d{4}$/.test(period)) return [];
+  const year = Number(period);
+  const months: string[] = [];
+  for (let m = 6; m <= 12; m += 1) months.push(`${year - 1}/${String(m).padStart(2, '0')}`);
+  for (let m = 1; m <= 5; m += 1) months.push(`${year}/${String(m).padStart(2, '0')}`);
+  return months;
+};
+
+/**
+ * 画面の初期データのうち、顧客を「対象の月に関係する人」だけにして返す（それ以外は runRankRead と同じ）。
+ *
+ * ─────────────────────────────────────────────
+ * ⚠️⚠️ 返す顧客 ＝ 次のどちらか（⚠️ 画面はこれまでどおり月で数え直すので、多めに返しても数字は変わらない）
+ *   1. 日付の列（NOT_DATE_COLUMNS 以外）のどれかに、対象の月（'YYYY/MM'）を含む人
+ *      ⚠️ '-' を '/' にしてから含むかで見る（画面の dateFormate・formate と同じ。⚠️ 建売は includes で比べている）
+ *   2. ランクが付いていて、画面がランクの列で数える状態の人（月を問わない。rankCounted）
+ *      ⚠️ 表の S〜D ランクの列は月を問わず数える（注文・中古は状態が「見込み」、建売は状態に「契約」を含まない人）。
+ *      ⚠️ 画面（RankOrder・RankResale の getFiltered、RankKaeru の getFiltered）の条件と同じにする（片方だけ直さない）。
+ * ⚠️ 期間の指定が無い・読めないときは 400（⚠️ 全件を返さない。全件は POST の rank＝予備）。
+ * ─────────────────────────────────────────────
+ */
+export const runRankList = async (body: unknown): Promise<RankResult> => {
+  const data = (body ?? {}) as Record<string, unknown>;
+  const category = resolveCategory(data.category);
+  if (!isRankCategory(category)) return { httpStatus: 400, body: { status: 'error', message: '無効なカテゴリです' } };
+  const months = rankPeriodMonths(asString(data.period));
+  if (months.length === 0) return { httpStatus: 400, body: { status: 'error', message: '対象の月が指定されていません' } };
+
+  const read = await runRankRead(category);
+  const all = (read.body as { customer: DynamicRow[] }).customer;
+  const rankCounted = (c: DynamicRow): boolean => {
+    if (asString(c.rank) === '') return false;
+    const status = asString(c.status);
+    return category === 'spec' ? !status.includes('契約') : status === '見込み';
+  };
+  const customer = all.filter((c) => {
+    if (rankCounted(c)) return true;
+    return Object.entries(c).some(([key, value]) => {
+      if (NOT_DATE_COLUMNS.has(key)) return false;
+      const text = asString(value).replace(/-/g, '/');
+      return text !== '' && months.some((m) => text.includes(m));
+    });
+  });
+  return { httpStatus: 200, body: { ...(read.body as object), customer, status: 'ok', period: asString(data.period) } };
+};
+
+// ---------------------------------------------------------------------------
 
 export const runRank = async (body: unknown): Promise<RankResult> => {
   const data = (body ?? {}) as Record<string, unknown>;

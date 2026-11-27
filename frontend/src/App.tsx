@@ -8,6 +8,7 @@ import ShopRouter from './components/shop/ShopRouter';
 import BudgetAccounting from "./components/BudgetAccounting";
 import DatabaseRouter from "./components/database/DatabaseRouter";
 import DatabaseProperty from "./components/database/DatabaseProperty";
+import SuumoPropertySummary from "./components/database/SuumoPropertySummary";
 import RankRouter from "./components/rank/RankRouter";
 import AuthProvider from "./context/AuthProvider";
 import Customer from "./components/customer/CustomerRouter";
@@ -205,6 +206,8 @@ function AppInner() {
               <Route key={s.path} path={s.path} element={<HeaderPage key={s.path} screen={s} />} />
             ))}
             <Route path="/property" element={<DatabaseProperty />} />
+            {/* ⚠️ v2.2.305 SUUMO掲載順位（それまでは物件DB の全画面モーダル）。⚠️ 左のメニューには出さない。物件DB（建売）のボタンからだけ開く */}
+            <Route path="/suumoRanking" element={<SuumoPropertySummary />} />
             <Route path="/photo" element={<Photo />} />
             {/* v2.2.284: オーナーズハウスの管理画面（注文・PC のみ。メニューは Menu.tsx） */}
             <Route path="/ownersHouseAdmin" element={<OwnersHouseAdmin />} />

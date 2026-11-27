@@ -72,7 +72,7 @@ import {
   runListStaffChange,
   runListTag,
 } from '../features/list/save';
-import { runRank } from '../features/rank';
+import { runRank, runRankList } from '../features/rank';
 import {
   runContractExpectedUpdate,
   runInterviewLogShow,
@@ -1869,6 +1869,23 @@ for (const category of ['', 'order', 'spec', 'used']) {
     auth: 'staff',
     handler: async (ctx) => {
       const result = await runRank(ctx.body);
+      if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
+      return result.body;
+    },
+  });
+
+  /**
+   * v2.2.305 ランクを月ごとに読む（GET。period＝'YYYY/MM' か期の 'YYYY'）。⚠️ 顧客は対象の月に関係する人とランク付きの人だけ。
+   * ⚠️ ① に PHP ハンドラは無い（db.php の GET_ALLOWED_REQUESTS と express_proxy.php の2つのリストに入れてある）。画面は落ちたら POST の rank（全件）に切り替える。
+   */
+  register({
+    request: 'rank_list',
+    category,
+    summary: `ランクの月ごとの読み込み（${category === '' ? '既定=order' : category}。対象の月に関係する顧客とランク付きの顧客だけ）`,
+    phpSource: '（新規。PHP版なし。予備は POST の rank）',
+    auth: 'staff',
+    handler: async (ctx) => {
+      const result = await runRankList(ctx.body);
       if (result.httpStatus !== 200) ctx.res.status(result.httpStatus);
       return result.body;
     },

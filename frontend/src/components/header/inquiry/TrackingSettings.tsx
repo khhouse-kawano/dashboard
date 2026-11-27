@@ -540,13 +540,6 @@ const TrackingSettings: React.FC = () => {
                     <div className="tk_kpi_card"><div className="tk_kpi_label">期間のCV</div><div className="tk_kpi_value">{kpi.cv.toLocaleString()}</div></div>
                 </div>
 
-                <div className="tk_caution">
-                    ※ タグは、サイトの<b>すべてのページ</b>で1回だけ動くように入れます。GTM を使っているサイトは「GTM 用」を、使っていないサイトは「フッター用」を使ってください（GTM にフッター用を入れても動きません）。<br />
-                    ※ 「許可するオリジン」は、タグを貼るサイトの <b>https://ドメイン</b> です（例：https://kh-house.jp）。ここに無いドメインからの記録は保存しません。<br />
-                    ※ サイト名を押すと、そのサイトの着地ページ別・流入元別の PV（広告以外も含む。30分以内のページの移動はまとめて1件）と CV が開きます。CV は、完了ページを登録したサイトは<b>完了ページを開いたこと</b>（同じ人・同じ種類は30分以内か同じ日なら1件）、登録していないサイトは反響のうち問い合わせの日までにそのサイトに来ていた人の数です。完了ページは「直す」で登録します。サマリーの着地ページ・流入元を押すと、日別・端末・広告別などの詳細が開きます。<br />
-                    ※ 訪問者ごとのID（顧客ID）はブラウザに保存されます。リリース前に、プライバシーポリシーへ利用目的の記載が必要です。
-                </div>
-
                 {draft !== null && (
                     <div className="tk_form" role="group" aria-label={draft.id === null ? 'サイトを登録' : 'サイトを直す'}>
                         <div className="tk_form_title">{draft.id === null ? 'サイトを登録' : 'サイトを直す'}</div>
@@ -703,7 +696,6 @@ const CSS = `
 .tk_kpi_card { flex: 1 1 160px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 14px; }
 .tk_kpi_label { font-size: 11px; color: #6b7280; }
 .tk_kpi_value { font-size: 20px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.tk_caution { font-size: 11px; color: #92400e; line-height: 1.8; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 12px; flex-shrink: 0; }
 .tk_form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; flex-shrink: 0; }
 .tk_form_title { flex: 1 1 100%; font-weight: 700; font-size: 13px; }
 .tk_field { display: flex; flex-direction: column; gap: 2px; margin: 0; }

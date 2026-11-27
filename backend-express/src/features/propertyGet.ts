@@ -276,8 +276,20 @@ export const runPropertyDetail = async (body: Record<string, unknown>): Promise<
 };
 
 /**
+ * v2.2.305 県ごとの市町村（⚠️ 画面 database/SuumoPropertySummary.tsx の AREA_MAPPING と同じ。片方だけ直さない）。
+ * ⚠️ suumo_property に県の列は無く、area（市町村名）の完全一致で絞る。
+ */
+export const SUUMO_AREA_MAPPING: Record<string, string[]> = {
+  '鹿児島県': ['鹿児島市', '鹿屋市', '薩摩川内市', '日置市', '霧島市', '姶良市'],
+  '宮崎県': ['宮崎市', '都城市', '延岡市', '日向市', '西都市', '北諸県郡', '東諸県郡', '児湯郡'],
+  '大分県': ['大分市', '別府市', '中津市', '由布市', '速水郡'],
+  '熊本県': ['熊本市中央区', '熊本市東区', '熊本市西区', '熊本市南区', '熊本市北区', '八代市', '荒尾市', '玉名市', '菊池市', '宇土市', '宇城市', '合志市', '菊池郡', '上益城郡'],
+};
+
+/**
  * SUUMO物件サマリー（property_suumo_latest）。
  * ⚠️ 取得日（date＝'YYYY-MM-DD'）の行だけを返す。⚠️ 省略・無い日付のときは最新の取得日（2026-11-25 の指示）。
+ * ⚠️ v2.2.305 pref（県）を付けたら、その県の市町村の行だけ（SUUMO_AREA_MAPPING）。付けなければ全部。
  * ⚠️ 画面の「前回の順位」のため、その日の物件（url）ごとに、それより前の取得日のうち最新の1行もあわせて返す
  *   （画面は url ごとの履歴から「選んだ日より前の最初の1件」を前回にしている）。
  * ⚠️ dates は取得日の一覧（新しい順）。画面の取得日の選択肢に使う。
@@ -289,9 +301,14 @@ export const runPropertySuumoLatest = async (body: Record<string, unknown>): Pro
   const dates = dateRows.map((r) => String(r.d)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
   const asked = String(body.date ?? '');
   const date = dates.includes(asked) ? asked : (dates[0] ?? '');
-  if (date === '') return { httpStatus: 200, body: { suumo: [], dates, date } };
+  // ⚠️ v2.2.305 pref を送ってきたら、その県の市町村の行だけ（⚠️ 知らない県・空なら行は返さない）。送らない古い画面には今までどおり全部
+  const hasPref = body.pref !== undefined;
+  const cities = hasPref ? (SUUMO_AREA_MAPPING[String(body.pref)] ?? []) : null;
+  if (date === '' || (cities !== null && cities.length === 0)) return { httpStatus: 200, body: { suumo: [], dates, date } };
 
-  const rows = await query<DynamicRow>('SELECT * FROM suumo_property WHERE registered_at LIKE ?', [`${date}%`]);
+  const rows = cities === null
+    ? await query<DynamicRow>('SELECT * FROM suumo_property WHERE registered_at LIKE ?', [`${date}%`])
+    : await query<DynamicRow>(`SELECT * FROM suumo_property WHERE registered_at LIKE ? AND area IN (${cities.map(() => '?').join(', ')})`, [`${date}%`, ...cities]);
   const urls = [...new Set(rows.map((r) => String(r.url ?? '')).filter((u) => u !== ''))];
   let previous: DynamicRow[] = [];
   if (urls.length > 0) {
