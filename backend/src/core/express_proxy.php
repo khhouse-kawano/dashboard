@@ -844,6 +844,8 @@ function expressProxyRequests(): array
         'table_definition',
         // ⚠️ 2026-11-26（v2.2.305）。ランクの月ごとの読み込み（rank/RankOrder.tsx ほか。GET）。⚠️ ① に PHP ハンドラは無い（② だけ。画面は落ちたら POST の rank に切り替える）。両方のリストに入れてある。
         'rank_list',
+        // ⚠️ 2026-11-27（v2.2.308）。媒介獲得台帳を30件ずつ（database/DatabaseBroker.tsx。GET）。⚠️ ① に PHP ハンドラは無い（② だけ。画面は落ちたら POST の broker:list に切り替える）。両方のリストに入れてある。
+        'broker_ledger_list',
     ];
 }
 
@@ -1220,6 +1222,8 @@ function expressProxyExclusive(): array
         'table_definition',
         // ⚠️ 2026-11-26（v2.2.305）。ランクの月ごとの読み込み。⚠️ 落ちたら 502（画面は POST の rank＝全件に切り替える）。
         'rank_list',
+        // ⚠️ 2026-11-27（v2.2.308）。媒介獲得台帳を30件ずつ。⚠️ 落ちたら 502（画面は POST の broker:list＝全件に切り替える）。
+        'broker_ledger_list',
     ];
 }
 

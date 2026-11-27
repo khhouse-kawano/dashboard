@@ -103,10 +103,13 @@ type Props = {
 };
 
 const PropertyRegister = ({ targetPropertyId, setTargetPropertyId, editData, setEditData, staffList, isSaving, handleUpdate, customerId, statusPropertyDbId, onOpenReport }: Props) => {
-    /** v2.2.307 表示中のタブ（物件の状況が出るときは、開いたら物件の状況から） */
+    /**
+     * v2.2.307 表示中のタブ。
+     * ⚠️ v2.2.308 開いたら「台帳の編集」から（指示）。「物件の状況」は押したときに初めて読み込む（LedgerPropertyStatus はタブを開くまで作らない）。
+     */
     const showStatus = !!statusPropertyDbId;
-    const [tab, setTab] = useState<'status' | 'edit'>('status');
-    useEffect(() => { setTab('status'); }, [targetPropertyId]);
+    const [tab, setTab] = useState<'status' | 'edit'>('edit');
+    useEffect(() => { setTab('edit'); }, [targetPropertyId]);
     const editTab = !showStatus || tab === 'edit';
     const [customerList, setCustomerList] = useState<Record<string, string>[]>([]);
     const [propertyList, setPropertyList] = useState<Record<string, string>[]>([]);
