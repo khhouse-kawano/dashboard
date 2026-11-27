@@ -11,6 +11,7 @@ import SharedReports from './system/SharedReports';
 import BudgetTable from './system/BudgetTable';
 import CallStatusSettings from './system/CallStatusSettings';
 import TableDefinition from './system/TableDefinition';
+import SatBaseDatabase from './system/SatBaseDatabase';
 import EditBlackList from './inquiry/EditBlackList';
 import BudgetSimulator from './inquiry/BudgetSimulator';
 import AfterInterview from './inquiry/AfterInterview';
@@ -154,6 +155,8 @@ export const HEADER_SCREENS: HeaderScreen[] = [
     { menu: 'システム管理', item: '架電ステータス', path: '/callStatusSettings', allow: isInsideSales, render: () => <CallStatusSettings /> },
     // ⚠️ v2.2.301: テーブル定義書は閲覧のみ（DB の構造が全部見えるため）。⚠️⚠️ v2.2.302 から **Master かつ staff id 1 だけ**（② の table_definition も同じ）
     { menu: 'システム管理', item: 'テーブル定義書', path: '/tableDefinition', allow: isTableDefinitionViewer, render: () => <TableDefinition /> },
+    // ⚠️ v2.2.309: SatBaseサマリー（建売の物件台帳の写し。v2.2.231 で外したものを戻した）は ⚠️⚠️ **Master だけ**（お客様名の列があるため。② の satbase_* も auth: 'master'）
+    { menu: 'システム管理', item: 'SatBaseサマリー', path: '/satbase', allow: isMaster, render: () => <SatBaseDatabase /> },
 
     // ── 反響管理
     // ⚠️ 販促媒体設定はまだ中身が無い（v2.2.240 までと同じく「準備中」を出す）

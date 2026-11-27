@@ -62,6 +62,7 @@ import { runCustomer } from '../features/customer';
 import { runMap } from '../features/map';
 import type { MapCategory } from '../features/map/queries';
 import { runSatbaseImport, runSatbaseList, runSatbaseUpdate } from '../features/satbase';
+import { runSatbasePage } from '../features/satbasePage';
 import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
@@ -2582,10 +2583,11 @@ for (const category of mapCategories) {
 
 register({
   request: 'satbase_list',
-  summary: 'SatBase の物件台帳の一覧（全件。絞り込みと並べ替えは画面）',
+  summary: 'SatBase の物件台帳の一覧（全件。絞り込みと並べ替えは画面）。v2.2.309 から satbase_page の予備',
   // ⚠️ 移植元は無い。⚠️ **最初から Express だけにある**（① に PHP は置かない）
   phpSource: '（新規。PHP版なし）',
-  auth: 'staff',
+  // ⚠️ v2.2.309 から Master だけ（画面がシステム管理の Master だけになった。お客様名の列があるため）
+  auth: 'master',
   handler: async () => runSatbaseList(),
 });
 
@@ -2594,7 +2596,8 @@ register({
   summary: '【書き込み】広告出稿状況 / Instagram投稿状況のトグルを更新する',
   // ⚠️ 移植元は無い。⚠️ **最初から Express だけにある**（① に PHP は置かない）
   phpSource: '（新規。PHP版なし）',
-  auth: 'staff',
+  // ⚠️ v2.2.309 から Master だけ（画面と同じ）
+  auth: 'master',
   handler: async (ctx) =>
     runSatbaseUpdate({
       propertyId: Number(ctx.body.propertyId ?? 0),
@@ -2602,6 +2605,18 @@ register({
       value: Number(ctx.body.value ?? 0),
       staff: String(ctx.staff?.name ?? ''),
     }),
+});
+
+/**
+ * v2.2.309 SatBaseサマリーを絞り込み・並べ替えて30件ずつ（GET。features/satbasePage.ts）。Master だけ。
+ * ⚠️ ① に PHP ハンドラは無い（db.php の GET_ALLOWED_REQUESTS と express_proxy.php の2つのリストに入れてある）。画面は落ちたら POST の satbase_list（全件）に切り替える。
+ */
+register({
+  request: 'satbase_page',
+  summary: 'SatBase の物件台帳を絞り込み・並べ替えて少しずつ（offset・limit）。カードの数と選択肢も',
+  phpSource: '（新規。PHP版なし。予備は POST の satbase_list）',
+  auth: 'master',
+  handler: async (ctx) => runSatbasePage(ctx.body),
 });
 
 // ⚠️ 物件更新（CSV 取り込み）。v2.2.170 新規。⚠️ **Master だけ**（台帳を丸ごと書き換えるため）。
