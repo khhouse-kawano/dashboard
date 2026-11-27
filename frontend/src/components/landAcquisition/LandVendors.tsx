@@ -4,6 +4,7 @@ import { useDebounce } from '../database/useDebounce';
 import { errorText, fmtNum, landGet, useLandMaster, type LandVendor } from './landApi';
 import { LoadState, SelSelect, SortTh } from './LandParts';
 import LandVendorModal from './LandVendorModal';
+import { downloadCsv, fetchAllRows, stamp } from './landCsv';
 import { LAND_CSS } from './landStyle';
 
 /**
@@ -76,6 +77,22 @@ const LandVendors = () => {
         loadMoreIfNearBottom();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading, rows.length, total]);
+    /** 今の条件で全件を CSV に（移行元の業者マスタの書き出しと同じ列） */
+    const [exporting, setExporting] = useState(false);
+    const exportCsv = async () => {
+        setExporting(true);
+        try {
+            const all = await fetchAllRows<LandVendor>('land_vendor_list', listParams);
+            downloadCsv(`業者マスタ_${stamp()}.csv`, [
+                ['担当', (v) => v.ownerName], ['業者名', (v) => v.name], ['住所', (v) => v.addr], ['ランク', (v) => v.rank], ['担当者名', (v) => v.contact],
+                ['最終訪問日', (v) => v.lastVisit], ['経過日数', (v) => v.daysSince ?? ''], ['温度感', (v) => v.temp], ['買取数', (v) => v.buyCount], ['備考', (v) => v.memo],
+                ['決済完了区画', (v) => v.settledLots ?? 0], ['買取実績合計', (v) => v.buyTotal ?? 0], ['区分', (v) => v.vkind], ['電話番号', (v) => v.tel], ['メール', (v) => v.email],
+                ['エリア', (v) => v.area], ['ホームページ', (v) => v.url], ['AP回数', (v) => v.ap ?? 0], ['AP(当月)', (v) => v.apMonth ?? 0], ['AP(期別)', (v) => v.apFy ?? 0],
+                ['案件数', (v) => v.deals ?? 0], ['最終接触', (v) => v.lastContact ?? ''],
+            ], all);
+        } catch (e) { setError(errorText(e, '書き出せませんでした。')); } finally { setExporting(false); }
+    };
+
     const onSort = (k: string) => setSort((s) => (s.key === k ? { key: k, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key: k, dir: 'desc' }));
 
     if (!master) return <div className="ld_wrap"><style>{LAND_CSS}</style><LoadState loading={!masterError} error={masterError} /></div>;
@@ -87,6 +104,7 @@ const LandVendors = () => {
                 <div className="ld_head">
                     <span className="ld_title"><i className="fa-solid fa-building me-2 text-primary" aria-hidden="true" />業者マスタ</span>
                     <button className="ld_btn is_primary" onClick={() => setModal({ id: null })}><i className="fa-solid fa-plus me-1" aria-hidden="true" />業者を追加</button>
+                    <button className="ld_btn" disabled={exporting} onClick={() => void exportCsv()}><i className="fa-solid fa-file-csv me-1" aria-hidden="true" />{exporting ? '書き出し中…' : 'CSV で書き出す'}</button>
                 </div>
                 <div className="ld_bar">
                     <div><div className="ld_label">検索</div><input className="ld_input is_wide" placeholder="業者名・担当者名・住所・電話・メモ" value={qSearch.inputValue} onChange={qSearch.onChange} /></div>

@@ -228,6 +228,50 @@ export const sumActuals = (list: Actual[]): Actual => {
     return acc;
 };
 
+// ---------------------------------------------------------------------------
+// 工程別の転換率・ボトルネック診断（移行元の convOf・bottleneckScoped）
+// ---------------------------------------------------------------------------
+export const FUNNEL_STAGES = [
+    { k: 'f1', label: '業者AP → 情報取得', short: 'AP→情報', from: 'ap', to: 'info' },
+    { k: 'f2', label: '情報取得 → 社長提案', short: '情報→提案', from: 'info', to: 'prop' },
+    { k: 'f3', label: '社長提案 → 買付', short: '提案→買付', from: 'prop', to: 'offer' },
+    { k: 'f4', label: '買付 → 契約', short: '買付→契約', from: 'offer', to: 'contract' },
+] as const;
+/** 相対低下率のしきい値（%）・低下幅のしきい値（ポイント）・判定に要る母数（件）。⚠️ 3つそろったときだけ「低下」 */
+export const BN_DROP_RATE = 15;
+export const BN_DROP_PT = 3;
+export const BN_MIN_BASE = 3;
+
+export type Conv = Record<string, { pct: number | null; num: number; den: number }>;
+/** 工程間の転換率（%。小数1桁）。分母0は null */
+export const convOf = (a: Record<string, number>): Conv => Object.fromEntries(FUNNEL_STAGES.map(st => {
+    const den = Number(a[st.from] || 0); const num = Number(a[st.to] || 0);
+    return [st.k, { pct: den > 0 ? Math.round((num / den) * 1000) / 10 : null, num, den }];
+}));
+
+export interface BnCompare { label: string; judged: boolean; conv: Conv | null }
+export interface BnRow {
+    key: string; label: string; short: string; cur: number | null; num: number; den: number; bad: boolean;
+    cmps: { label: string; judged: boolean; v: { base: number; rel: number; pt: number; bad: boolean } | null }[];
+}
+/** 比べる相手ごとに判定する。⚠️ judged が false の比較は参考（色を付けない） */
+export const bottleneckRows = (cur: Conv, compares: BnCompare[]): BnRow[] => FUNNEL_STAGES.map(st => {
+    const c = cur[st.k];
+    const cmps = compares.map(x => {
+        const base = x.conv?.[st.k];
+        if (!base || c.pct === null || base.pct === null || base.pct <= 0 || c.den < BN_MIN_BASE || base.den < BN_MIN_BASE) return { label: x.label, judged: x.judged, v: null };
+        const rel = Math.round(((c.pct - base.pct) / base.pct) * 1000) / 10;
+        const pt = Math.round((c.pct - base.pct) * 10) / 10;
+        return { label: x.label, judged: x.judged, v: { base: base.pct, rel, pt, bad: x.judged && rel <= -BN_DROP_RATE && pt <= -BN_DROP_PT } };
+    });
+    return { key: st.k, label: st.label, short: st.short, cur: c.pct, num: c.num, den: c.den, cmps, bad: cmps.some(x => x.v?.bad) };
+});
+/** いちばん落ち込んでいる工程（無ければ null） */
+export const worstStage = (rows: BnRow[]): BnRow | null => {
+    const worst = (r: BnRow) => Math.min(0, ...r.cmps.filter(x => x.v?.bad).map(x => x.v!.rel));
+    return rows.filter(r => r.bad).sort((a, b) => worst(a) - worst(b))[0] ?? null;
+};
+
 /** 平均達成率（目標が入っている KPI だけ） */
 export const avgRate = (a: Actual, t: Record<string, number>, keys: string[]): number | null => {
     const ps = keys.map(k => rate(a[k] ?? 0, t[k] ?? 0)).filter((v): v is number => v !== null);

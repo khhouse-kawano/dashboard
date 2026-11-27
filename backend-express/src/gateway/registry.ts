@@ -65,10 +65,15 @@ import { runSatbaseImport, runSatbaseList, runSatbaseUpdate } from '../features/
 import { runSatbasePage } from '../features/satbasePage';
 import {
   runLandApproachDelete, runLandApproachList, runLandApproachSave, runLandDaily, runLandDailySave, runLandDealDelete, runLandDealGet,
-  runLandDealList, runLandDealSave, runLandMaster, runLandMemberSave, runLandReportSave, runLandStaffCandidates, runLandSummary,
+  runLandDealList, runLandDealSave, runLandMaster, runLandMemberSave, runLandReportSave, runLandStaffCandidates,
   runLandVendorDelete, runLandVendorGet, runLandVendorList, runLandVendorSave, type LandResult,
 } from '../features/landAcquisition';
+import { runLandSummary } from '../features/landAcquisition/analysis';
 import { runLandImport } from '../features/landAcquisition/importLegacy';
+import {
+  runLandAnalysis, runLandKpiSave, runLandManualSave, runLandOptionSave, runLandReview, runLandReviewSave, runLandSettingSave,
+  runLandSettingsData, runLandSourceSave, runLandStockSave, runLandTargetSave, runLandTargets,
+} from '../features/landAcquisition/analysis';
 import { runGoogleReviewList, runGoogleReviewSave, runGoogleReviewSummary } from '../features/googleReview';
 import type { CustomerCategory } from '../features/customer/queries';
 import type { DatabaseCategory } from '../features/database/queries';
@@ -2662,6 +2667,18 @@ register({ request: 'land', roll: 'approach_delete', summary: '【書き込み�
 register({ request: 'land', roll: 'daily_save', summary: '【書き込み】土地仕入: まとめ入力（1日・1担当者に1件）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandDailySave(s, body)) });
 register({ request: 'land', roll: 'report_save', summary: '【書き込み】土地仕入: 日報（1日・1担当者に1本）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandReportSave(s, body)) });
 register({ request: 'land', roll: 'member_save', summary: '【書き込み】土地仕入: 担当者のスタッフとの結び付け・エリア・停止中', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandMemberSave(s, body)) });
+register({ request: 'land_analysis', summary: '土地仕入: 仕入分析（ボトルネック診断・工程別転換率・達成率ヒートマップ・失注の要因・適正在庫）', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandAnalysis(body)) });
+register({ request: 'land_targets', summary: '土地仕入: 目標・月次入力（月間目標・手入力の実績・自動の実績・年間目標）', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandTargets(body)) });
+register({ request: 'land_review', summary: '土地仕入: 担当者の月次レビュー（新しい順に24か月）', phpSource: LAND_PHP, auth: 'staff', handler: land((_s, body) => runLandReview(body)) });
+register({ request: 'land_settings_data', summary: '土地仕入: 仕入設定（年度・アラート・適正在庫・選択肢・反響ソース・KPI の定義・エリア・更新履歴）', phpSource: LAND_PHP, auth: 'staff', handler: land(() => runLandSettingsData()) });
+register({ request: 'land', roll: 'target_save', summary: '【書き込み】土地仕入: 月間・年間目標（0 や空は消す）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandTargetSave(s, body)) });
+register({ request: 'land', roll: 'manual_save', summary: '【書き込み】土地仕入: 手入力の実績', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandManualSave(s, body)) });
+register({ request: 'land', roll: 'review_save', summary: '【書き込み】土地仕入: 月次レビュー（担当者×月に1件）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandReviewSave(s, body)) });
+register({ request: 'land', roll: 'setting_save', summary: '【書き込み】土地仕入: 年度・返答期日の日数', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandSettingSave(s, body)) });
+register({ request: 'land', roll: 'stock_save', summary: '【書き込み】土地仕入: 適正在庫（年度の行を入れ替える）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandStockSave(s, body)) });
+register({ request: 'land', roll: 'option_save', summary: '【書き込み】土地仕入: 選択肢（1つの種類をまるごと。消さずに止める）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandOptionSave(s, body)) });
+register({ request: 'land', roll: 'source_save', summary: '【書き込み】土地仕入: 反響ソース', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandSourceSave(s, body)) });
+register({ request: 'land', roll: 'kpi_save', summary: '【書き込み】土地仕入: KPI の定義（新しい KPI は手入力だけ）', phpSource: LAND_PHP, auth: 'staff', handler: land((s, body) => runLandKpiSave(s, body)) });
 register({ request: 'land', roll: 'import', summary: '【書き込み】土地仕入: 移行元（仕入KPI管理）の JSON を取り込む（記録を入れ替える。dryRun なら件数だけ）。Master だけ', phpSource: LAND_PHP, auth: 'master', handler: async (ctx) => {
   if (ctx.staff === null) return null;
   const result = await runLandImport(ctx.staff, ctx.body);

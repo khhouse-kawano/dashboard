@@ -3,6 +3,7 @@ import { useListUrlSync } from '../database/listUrl';
 import { errorText, fmtNum, landGet, landPost, mapUrlOf, monthLabel, useAsync, useLandMaster, type KpiDef, type LandApproach, type LandVendor } from './landApi';
 import { Field, LoadState, MapLink, MemberSelect } from './LandParts';
 import LandDealModal, { type DealPreset } from './LandDealModal';
+import { downloadCsv, fetchAllRows, stamp } from './landCsv';
 import { LAND_CSS, rateClass } from './landStyle';
 import { AP_TYPES_LEAD, TSUBO_M2 } from './landLogic';
 
@@ -118,6 +119,21 @@ const LandDaily = () => {
         if (memberId === null) return;
         if (del && !window.confirm(`${date} の日報を削除します。よろしいですか？`)) return;
         void run(() => landPost('report_save', { date, memberId, ...report, ...(del ? { delete: true } : {}) }), del ? '日報を削除しました。' : '日報を保存しました。');
+    };
+
+    /** その担当者のアプローチを全期間 CSV に（移行元のアプローチ履歴の書き出しと同じ列） */
+    const exportCsv = async () => {
+        if (memberId === null) return;
+        setBusy(true);
+        try {
+            const all = await fetchAllRows<LandApproach>('land_approach_list', { sel: `m:${memberId}` });
+            downloadCsv(`アプローチ履歴_${stamp()}.csv`, [
+                ['日付', (a) => a.date], ['時刻', (a) => a.time], ['担当', (a) => a.memberName], ['業者名', (a) => a.vendorName], ['先方担当者名', (a) => a.contact],
+                ['種別', (a) => a.type], ['反応・感触', (a) => a.reaction], ['情報取得数', (a) => a.infoCount], ['取得情報', (a) => a.memo], ['物件所在地', (a) => a.address],
+                ['地図リンク', (a) => mapUrlOf(a.address, a.mapUrl)], ['土地面積(㎡)', (a) => a.landM2 ?? ''], ['土地面積(坪)', (a) => a.tsubo ?? ''],
+                ['案件候補', (a) => (a.isCandidate ? '○' : '')], ['案件化', (a) => (a.dealCount > 0 ? '案件化済み' : '')], ['記録者', (a) => a.createdBy],
+            ], all);
+        } catch (e) { setMsg({ ok: false, text: errorText(e, '書き出せませんでした。') }); } finally { setBusy(false); }
     };
 
     if (!master) return <div className="ld_wrap"><style>{LAND_CSS}</style><LoadState loading={!masterError} error={masterError} /></div>;
@@ -251,7 +267,8 @@ const LandDaily = () => {
                         </div>
 
                         <div className="ld_card">
-                            <div className="ld_card_head"><span className="ld_card_title">個人アプローチ履歴（{memberName}・{monthLabel(month)}）</span><span className="ld_badge">{history.data?.total ?? 0}件</span></div>
+                            <div className="ld_card_head"><span className="ld_card_title">個人アプローチ履歴（{memberName}・{monthLabel(month)}）</span><span className="ld_badge">{history.data?.total ?? 0}件</span>
+                                <button className="ld_btn is_sm" disabled={busy} onClick={() => void exportCsv()}><i className="fa-solid fa-file-csv me-1" aria-hidden="true" />{memberName}の全期間を CSV で書き出す</button></div>
                             <div className="ld_table_wrap" style={{ maxHeight: 480 }}>
                                 <table className="ld_table"><thead><tr>
                                     <th className="ld_th">日付</th><th className="ld_th">業者名</th><th className="ld_th">種別</th><th className="ld_th">先方の担当</th><th className="ld_th">反応</th>

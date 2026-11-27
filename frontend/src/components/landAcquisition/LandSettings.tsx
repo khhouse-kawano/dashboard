@@ -3,12 +3,13 @@ import AuthContext from '../../context/AuthContext';
 import { errorText, landGet, landPost, reloadLandMaster, useAsync, useLandMaster } from './landApi';
 import { LoadState } from './LandParts';
 import { LAND_CSS } from './landStyle';
+import LandSettingsMore from './LandSettingsMore';
 
 /**
- * 仕入設定（建売営業 → 土地仕入 → 仕入設定。/landSettings。v2.2.311。移行元の「設定・データ」タブの一部）。
+ * 仕入設定（建売営業 → 土地仕入 → 仕入設定。/landSettings。v2.2.311。移行元の「設定・データ」タブ）。
  *
- * ⚠️ v2.2.311 は「担当者（スタッフとの結び付け・エリア・停止中）」と「移行元から取り込む（Master だけ）」だけ。
- *   目標・適正在庫・アラートの日数・選択肢・反響ソース・KPI の定義は v2.2.312 で足す。
+ * ⚠️ 担当者（スタッフとの結び付け・エリア・停止中）・年度とアラート・適正在庫・選択肢・反響ソース・KPI の定義・更新履歴（LandSettingsMore.tsx）・
+ *   移行元から取り込む（Master だけ）。⚠️ 目標は「目標・月次入力」（LandTargets.tsx）。
  * ⚠️ 取り込みは移行元の JSON バックアップ。資料（_files）は外し、JSON を文字列のまま送る（① を通ると {} が [] になるため）。
  */
 
@@ -112,6 +113,8 @@ const LandSettings = () => {
                             </tbody></table>
                     </div>
                 </div>
+
+                <LandSettingsMore master={master} />
 
                 {isMaster && (
                     <div className="ld_card">

@@ -3,12 +3,13 @@ import Modal from 'react-bootstrap/Modal';
 import { errorText, landGet, landPost, type LandApproach, type LandDeal, type LandMaster, type LandVendor } from './landApi';
 import { Field, MemberSelect } from './LandParts';
 import { STATUS_CLASS } from './landStyle';
+import { extractVendorFields } from './vendorExtract';
 
 /**
  * 業者の追加・編集と、その業者へのアプローチ履歴・案件（v2.2.311。移行元の openVendorModal）。
  * ⚠️ 保存は ② の land:vendor_save。⚠️ 名前を変えると、案件・アプローチの業者名もそろう。
  * ⚠️ 買取実績 ＝ 手入力の買取数（過去の実績）＋ 決済完了の案件の区画数（自動）。
- * ⚠️ 会社概要などのテキストから自動で抜き出す機能は v2.2.312 で移す。
+ * ⚠️ 会社概要・名刺などのテキストから自動で抜き出せる（vendorExtract.ts。画面の中だけ。空いている欄だけに入れる）。
  */
 
 type Detail = { vendor: LandVendor; approaches: LandApproach[]; deals: LandDeal[] };
@@ -23,10 +24,12 @@ const LandVendorModal = ({ show, vendorId, master, onClose, onSaved }: {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [extractText, setExtractText] = useState('');
+    const [extractNote, setExtractNote] = useState('');
 
     useEffect(() => {
         if (!show) return;
-        setError('');
+        setError(''); setExtractText(''); setExtractNote('');
         if (vendorId === null) { setForm({ vkind: master.options.vendor_kind?.[0] ?? '不動産業者', ownerMemberId: master.meMemberId }); setDetail(null); return; }
         setLoading(true);
         landGet<Detail>('land_vendor_get', { id: vendorId })
@@ -35,6 +38,22 @@ const LandVendorModal = ({ show, vendorId, master, onClose, onSaved }: {
             .finally(() => setLoading(false));
     }, [show, vendorId, master]);
 
+    /** 貼り付けたテキストから抜き出し、空いている欄だけに入れる（⚠️ 入っている値は上書きしない） */
+    const applyExtract = () => {
+        const x = extractVendorFields(extractText);
+        const filled: string[] = [];
+        const LABEL: Record<string, string> = { name: '業者名', contact: '担当者名', tel: '電話番号', email: 'メール', area: 'エリア', addr: '住所', url: 'URL', memo: 'メモ' };
+        setForm((f) => {
+            const next = { ...f };
+            (Object.keys(LABEL) as (keyof typeof LABEL)[]).forEach((k) => {
+                const v = x[k as keyof typeof x];
+                if (v && !String(f[k as keyof LandVendor] ?? '').trim()) { (next as Record<string, unknown>)[k] = v; filled.push(LABEL[k]); }
+            });
+            if (vendorId === null && x.vkind) next.vkind = x.vkind;
+            return next;
+        });
+        setExtractNote(filled.length ? `${filled.join('・')}を入れました。確かめてから保存してください。` : '空いている欄に入れられる値はありませんでした。');
+    };
     const setStr = (k: keyof LandVendor) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
     const save = async () => {
         if (!(form.name ?? '').trim()) { setError('業者名を入れてください。'); return; }
@@ -61,6 +80,13 @@ const LandVendorModal = ({ show, vendorId, master, onClose, onSaved }: {
                 {error !== '' && <div className="ld_error mb-2">{error}</div>}
                 {loading ? <div className="ld_note">読み込み中…</div> : (
                     <>
+                        <details className="mb-3" open={vendorId === null}>
+                            <summary className="ld_section_title" style={{ cursor: 'pointer' }}>会社概要・名刺・署名などのテキストから自動で抜き出す</summary>
+                            <textarea className="ld_textarea" style={{ minHeight: 90 }} value={extractText} onChange={(e) => setExtractText(e.target.value)}
+                                placeholder="ホームページの会社概要や、メールの署名を貼り付けます" />
+                            <button className="ld_btn mt-1" disabled={extractText.trim() === ''} onClick={applyExtract}>抜き出して空いている欄に入れる</button>
+                            {extractNote && <span className="ld_note ms-2">{extractNote}</span>}
+                        </details>
                         <div className="ld_grid">
                             <Field label="業者名"><input className="ld_input" value={form.name ?? ''} onChange={setStr('name')} /></Field>
                             <Field label="区分">

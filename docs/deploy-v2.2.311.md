@@ -1,12 +1,14 @@
-# デプロイ手順 v2.2.311　建売営業のメニューに「土地仕入」（仕入KPI管理の移行 その1）
+# デプロイ手順 v2.2.311　建売営業のメニューに「土地仕入」（仕入KPI管理 v7.3 の移行）
 
 | # | 何が変わるか | どこ |
 |---|---|---|
 | 1 | 土地仕入のテーブル16個（land_*）と初期値（エリア・KPI の定義・選択肢・設定） | ① DB `backend/scripts/sql/2026-11-27_land_acquisition_tables.sql` |
-| 2 | 更新履歴1行・業務ガイド6本（土地仕入の流れ／仕入ダッシュボード／日次・アプローチ／仕入案件一覧／業者マスタ／仕入設定。すべて（建売営業））・テーブル定義書16テーブル | ① DB `backend/scripts/sql/2026-11-27_update_log_2.2.311.sql` |
-| 3 | 新しい request：読み込み（GET）9つ `land_master` `land_summary` `land_deal_list` `land_deal_get` `land_vendor_list` `land_vendor_get` `land_approach_list` `land_daily` `land_staff_candidates`、書き込み（POST）`land:deal_save` `deal_delete` `vendor_save` `vendor_delete` `approach_save` `approach_delete` `daily_save` `report_save` `member_save` `import`（import だけ Master）。担当事業が spec・all の人だけ | ② VPS（features/landAcquisition/（新規）・gateway/registry.ts） |
+| 2 | 更新履歴1行・業務ガイド9本（土地仕入の流れ／仕入ダッシュボード／日次・アプローチ／仕入案件一覧／業者マスタ／仕入設定／仕入分析／個人別実績／目標・月次入力。すべて（建売営業））・テーブル定義書16テーブル | ① DB `backend/scripts/sql/2026-11-27_update_log_2.2.311.sql` |
+| 3 | 新しい request：読み込み（GET）13個 `land_master` `land_summary` `land_analysis` `land_targets` `land_review` `land_settings_data` `land_deal_list` `land_deal_get` `land_vendor_list` `land_vendor_get` `land_approach_list` `land_daily` `land_staff_candidates`、書き込み（POST）`land:` の `deal_save` `deal_delete` `vendor_save` `vendor_delete` `approach_save` `approach_delete` `daily_save` `report_save` `member_save` `target_save` `manual_save` `review_save` `setting_save` `stock_save` `option_save` `source_save` `kpi_save` `import`（import だけ Master）。担当事業が spec・all の人だけ | ② VPS（features/landAcquisition/（新規）・gateway/registry.ts） |
 | 4 | GET の許可リストと、② へ送るリスト2つに上の request | ① PHP `backend/src/core/db.php`・`backend/src/core/express_proxy.php` |
-| 5 | 建売営業のメニューを「建売営業」「土地仕入」に分ける。土地仕入：仕入ダッシュボード・日次・アプローチ・仕入案件一覧・業者マスタ・仕入設定（PC だけ）。仕入分析・個人別実績・目標・月次入力は「移行中」（仕入KPI管理を案内） | Dashboard（frontend の build） |
+| 5 | 建売営業のメニューを「建売営業」「土地仕入」に分ける。土地仕入：仕入ダッシュボード・日次・アプローチ・仕入案件一覧・業者マスタ・仕入分析・個人別実績・目標・月次入力・仕入設定（PC だけ）。案件・業者・アプローチの CSV の書き出し、業者のテキストからの自動抜き出し、ダッシュボード・分析の印刷 | Dashboard（frontend の build） |
+
+- 移していないもの：資料（図面などの添付）・Excel／CSV の取り込み（過去データの一括読み込み）。資料は仕入KPI管理に残ります。
 
 - ⚠️ v2.2.310 を先に済ませてください。
 - ⚠️ 手順2（テーブル）を手順3（update_log の SQL）より先に。update_log の SQL の末尾にテーブル定義書の SQL が入っていて、テーブルが無いと説明が付きません。
@@ -63,7 +65,7 @@ curl -s -o /dev/null -w '%{http_code}\n' 'https://khg-marketing.info/dashboard/a
 
 ### 手順6　【Dashboard の画面】
 いつもどおり build して、アップロードします。
-- 新しいファイル：`src/components/landAcquisition/`（LandMenu・LandRoute・LandDashboard・LandDaily・LandDeals・LandDealModal・LandVendors・LandVendorModal・LandSettings・LandParts・landApi・landLogic・landStyle）
+- 新しいファイル：`src/components/landAcquisition/`（LandMenu・LandRoute・LandDashboard・LandAnalysis・LandMember・LandTargets・LandDaily・LandDeals・LandDealModal・LandVendors・LandVendorModal・LandSettings・LandSettingsMore・LandParts・landApi・landLogic・landStyle・landCsv・vendorExtract）
 - 変えたファイル：`src/App.tsx`・`src/components/Menu.tsx`・`src/components/guide/guideScreens.ts`・`src/utils/version.ts`
 
 ### 手順7　【仕入KPI管理のデータを取り込む】（Master）
@@ -80,6 +82,8 @@ curl -s -o /dev/null -w '%{http_code}\n' 'https://khg-marketing.info/dashboard/a
 3. 仕入案件一覧：30件出て、下までスクロールすると次の30件。件数が仕入KPI管理の案件一覧と同じ
 4. 業者マスタ：社数が仕入KPI管理と同じ
 5. 日次・アプローチ：自分が選ばれて開く（結び付けたスタッフでログインしたとき）
+6. 仕入分析：ボトルネック診断・ヒートマップの色が、仕入KPI管理のダッシュボードと同じ月で同じになる
+7. 目標・月次入力：取り込んだ月間目標・年間目標が出る
 
 ## 切り戻し
 - 画面：前の build に戻せば、メニューから消えます。

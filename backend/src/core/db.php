@@ -38,6 +38,7 @@ const GET_ALLOWED_REQUESTS = [
     // ⚠️ v2.2.311 土地仕入の読み込み（② 専用・担当事業 spec / all。予備は同じ request の POST）
     'land_master', 'land_summary', 'land_deal_list', 'land_deal_get', 'land_vendor_list', 'land_vendor_get',
     'land_approach_list', 'land_daily', 'land_staff_candidates',
+    'land_analysis', 'land_targets', 'land_review', 'land_settings_data',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

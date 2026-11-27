@@ -4,7 +4,7 @@ import React from 'react';
  * 建売営業（category = spec）のメニューの「土地仕入」（v2.2.311〜）。Menu.tsx が spec のときだけ、建売営業の項目の下に出す。
  *
  * ⚠️ 移行元は「仕入KPI管理 v7.3」（1ページのアプリ）。機能ごとに画面を分けた。
- * ⚠️ まだ移していない画面は「移行中」を付け、/landPending?view=… で移行元のアプリを案内する。移したら path を差し替える。
+ * ⚠️ まだ移していない画面は pending: true で「移行中」を付けられる（今は無い）。
  * ⚠️ URL は1段にする（`/land/…` にしない。App.tsx の注記）。
  * ⚠️ 項目を足す・名前を変えたら guide/guideScreens.ts の GUIDE_SCREENS もそろえる。
  */
@@ -15,14 +15,11 @@ export const LAND_MENU: LandMenuItem[] = [
     { id: 'landDaily', path: '/landDaily', icon: 'fa-shoe-prints', label: '日次・アプローチ' },
     { id: 'landDeals', path: '/landDeals', icon: 'fa-map-location-dot', label: '仕入案件一覧' },
     { id: 'landVendors', path: '/landVendors', icon: 'fa-building', label: '業者マスタ' },
-    { id: 'analysis', path: '/landPending?view=analysis', icon: 'fa-magnifying-glass-chart', label: '仕入分析', pending: true },
-    { id: 'member', path: '/landPending?view=member', icon: 'fa-user', label: '個人別実績', pending: true },
-    { id: 'targets', path: '/landPending?view=targets', icon: 'fa-bullseye', label: '目標・月次入力', pending: true },
+    { id: 'landAnalysis', path: '/landAnalysis', icon: 'fa-magnifying-glass-chart', label: '仕入分析' },
+    { id: 'landMember', path: '/landMember', icon: 'fa-user', label: '個人別実績' },
+    { id: 'landTargets', path: '/landTargets', icon: 'fa-bullseye', label: '目標・月次入力' },
     { id: 'landSettings', path: '/landSettings', icon: 'fa-gear', label: '仕入設定' },
 ];
-
-/** 移行中の画面の名前（LandPending.tsx が使う） */
-export const landPendingLabelOf = (view: string): string => LAND_MENU.find((i) => i.pending && i.path.endsWith(`=${view}`))?.label ?? '';
 
 /** 見出し（建売営業・土地仕入）。⚠️ 見た目は不動産企画係のメニュー（RealtyMenu.tsx の rlt-menu-grp）と同じ */
 const STYLE = `

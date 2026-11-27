@@ -854,6 +854,9 @@ function expressProxyRequests(): array
         'land_approach_list', 'land_daily', 'land_staff_candidates',
         'land:deal_save', 'land:deal_delete', 'land:vendor_save', 'land:vendor_delete', 'land:approach_save', 'land:approach_delete',
         'land:daily_save', 'land:report_save', 'land:member_save', 'land:import',
+        'land_analysis', 'land_targets', 'land_review', 'land_settings_data',
+        'land:target_save', 'land:manual_save', 'land:review_save', 'land:setting_save', 'land:stock_save',
+        'land:option_save', 'land:source_save', 'land:kpi_save',
     ];
 }
 
@@ -1239,6 +1242,9 @@ function expressProxyExclusive(): array
         'land_approach_list', 'land_daily', 'land_staff_candidates',
         'land:deal_save', 'land:deal_delete', 'land:vendor_save', 'land:vendor_delete', 'land:approach_save', 'land:approach_delete',
         'land:daily_save', 'land:report_save', 'land:member_save', 'land:import',
+        'land_analysis', 'land_targets', 'land_review', 'land_settings_data',
+        'land:target_save', 'land:manual_save', 'land:review_save', 'land:setting_save', 'land:stock_save',
+        'land:option_save', 'land:source_save', 'land:kpi_save',
     ];
 }
 

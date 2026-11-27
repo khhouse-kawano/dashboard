@@ -1,14 +1,14 @@
 -- =====================================================================
--- v2.2.311 建売営業のメニューに「土地仕入」を追加（仕入KPI管理の移行 その1） ＋ update_log
+-- v2.2.311 建売営業のメニューに「土地仕入」を追加（仕入KPI管理 v7.3 の移行） ＋ update_log ＋ 業務ガイド9本 ＋ テーブル定義書16テーブル
 --
 -- ⚠️ 実行環境: ① レンタルサーバー（mysql / phpMyAdmin）。⚠️ 1回だけ流す（流すたびに更新履歴が1行増える）
 -- ⚠️ 先に 2026-11-27_land_acquisition_tables.sql（テーブルの作成）を流すこと
 -- =====================================================================
 INSERT INTO update_log (version, date, note) VALUES
-('2.2.311', '2026-11-27', '建売営業のメニューを「建売営業」と「土地仕入」に分けました。土地仕入に、仕入ダッシュボード・日次・アプローチ・仕入案件一覧・業者マスタを追加しました（仕入KPI管理からの移行）。');
+('2.2.311', '2026-11-27', '建売営業のメニューを「建売営業」と「土地仕入」に分けました。土地仕入に、仕入ダッシュボード・日次・アプローチ・仕入案件一覧・業者マスタ・仕入分析・個人別実績・目標・月次入力・仕入設定を追加しました（仕入KPI管理からの移行）。');
 
 -- ---------------------------------------------------------------
--- 業務ガイドの記事（6本）。backend/scripts/guide/build-guide-sql.cjs で作成
+-- 業務ガイドの記事（9本）。backend/scripts/guide/build-guide-sql.cjs で作成
 -- ⚠️ 先に guide_article / guide_history の表があること（2026-10-16_guide_article.sql）
 -- ⚠️ 同じタイトルの記事は上書きする（⚠️ 手で直された記事でも開発側を優先）。⚠️ 直前の内容は guide_history に残す
 -- ---------------------------------------------------------------
@@ -32,12 +32,14 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 
 ## 数字を見る
 - [[仕入ダッシュボード（建売営業）]] で、業者AP・情報取得・社長提案・買付・契約・仕入区画の実績と目標を見ます
+- どこで詰まっているかは [[仕入分析（建売営業）]]、1人ずつの数字と月次レビューは [[個人別実績（建売営業）]] で見ます
 - 業者ごとの付き合いは [[業者マスタ（建売営業）]] で見ます
 
-## まだ移していない画面
-仕入分析・個人別実績・目標・月次入力は、次の版で移します。メニューに「移行中」と出ている間は、今までの仕入KPI管理で見てください。
+## 月のはじめ・終わりにやること
+- [[目標・月次入力（建売営業）]] で、その月の目標を入れる
+- 月末に [[個人別実績（建売営業）]] で月次レビュー（育成フェーズ・ボトルネック・上長コメント）を残す
 
-> 要確認：移行が終わるまで、記録を Dashboard と仕入KPI管理のどちらに入れるかを、チームで決めてください（両方に入れると数字が合わなくなります）。
+> 要確認：Dashboard で記録を始めたら、今までの仕入KPI管理には入れないでください（両方に入れると数字が合わなくなります）。図面などの資料は、まだ仕入KPI管理にあります。
 
 ## 関係する記事
 - [[仕入設定（建売営業）]]
@@ -147,6 +149,9 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 
 > 注意：図面などの資料の添付は、まだ移していません。今は仕入KPI管理で見てください。
 
+## CSV で書き出す
+上の「CSV で書き出す」で、今の絞り込みの案件をすべて CSV に書き出します（Excel でそのまま開けます）。「決済完了の実績」のときは、決済完了の案件の列になります。
+
 ## 決済完了の実績
 上の「決済完了の実績」に切り替えると、決済まで進んだ案件を、過去の実績として探せます（決済日の新しい順。購入金額・坪単価・契約条件で比べられます）。
 ', 110, 1, '開発（業務ガイド更新）')
@@ -172,7 +177,11 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 - 業者名を変えると、案件・アプローチに出ている業者名も変わります
 - 「業者マスタから外す」を押しても、案件・アプローチの業者名は残ります
 
-> 注意：会社概要などのテキストから自動で抜き出す機能は、次の版で移します。
+## テキストから自動で抜き出す
+業者の画面の「会社概要・名刺・署名などのテキストから自動で抜き出す」に、ホームページの会社概要やメールの署名を貼り付けて、ボタンを押します。業者名・電話番号・メール・住所・エリア・担当者名・URL を抜き出し、空いている欄だけに入れます（入っている値は変えません）。確かめてから保存してください。
+
+## CSV で書き出す
+上の「CSV で書き出す」で、今の絞り込みの業者をすべて CSV に書き出します（アプローチ数・買取実績・最終接触も入ります）。
 ', 120, 1, '開発（業務ガイド更新）')
   ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
     body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
@@ -180,7 +189,7 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
   SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '仕入設定（建売営業）';
 INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
-  VALUES ('仕入設定（建売営業）', 'spec', '画面の使い方', '土地仕入れチームの担当者（Dashboard のログインとの結び付け・エリア・停止中）と、仕入KPI管理からの取り込み。', '左のメニュー「土地仕入」→「仕入設定」。土地仕入の画面の設定です。
+  VALUES ('仕入設定（建売営業）', 'spec', '画面の使い方', '土地仕入れチームの担当者（Dashboard のログインとの結び付け）、年度・アラート、適正在庫、選択肢、反響ソース、KPI の定義、更新履歴、仕入KPI管理からの取り込み。', '左のメニュー「土地仕入」→「仕入設定」。土地仕入の画面の設定です。
 
 [[画面:仕入設定]]
 
@@ -189,6 +198,27 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 - 1人のスタッフは、1人の担当者にだけ結び付けられます
 - エリアを変えると、エリアの合算の数字も変わります
 - 停止中にした担当者は、選択肢とチームの目標から外れます。過去の記録は残ります
+
+## 年度・買付 返答期日のアラート
+対象年度（6月始まり）と、返答期日の既定（買付日から何日後）、アラートを出し始める日数（期日の何日前から）を変えられます。
+
+## 適正在庫
+担当者・詳細エリアごとに、適正在庫・在庫・販売を入れます。「行を足す」で増やし、「保存」でその年度の分をまとめて入れ替えます。数字は [[仕入分析（建売営業）]] に出ます。
+
+## 選択肢
+反応・感触、失注理由、契約条件、業者の区分、育成フェーズ、ボトルネックなどの選択肢を足したり止めたりできます。止めた選択肢は、新しく選べなくなるだけで、保存済みの記録には残ります。
+
+> 注意：アプローチ種別の名前を変えると、集計では「訪問」に数えられます。種別は変えずに使ってください。
+
+## 反響ソース
+土地の情報がどこから来たか（業者・ポータルなど）を登録します。1件でも登録すると、案件の画面で選べるようになります。
+
+## KPI の定義
+カードに出す KPI の名前・単位・使うかどうかを変えられます。新しい KPI（手入力の KPI）も足せます。足した KPI の目標と実績は [[目標・月次入力（建売営業）]] で入れます。
+- 業者AP・情報取得・社長提案・買付・契約・仕入区画は、記録から自動で数えます（数え方は変えられません）
+
+## 更新履歴
+誰が・いつ・何を変えたかの新しい200件です。
 
 ## 仕入KPI管理から取り込む（マスターのみ）
 今までの仕入KPI管理の「設定・データ → 書き出し・バックアップ」で書き出した JSON を選ぶと、まず件数だけを確かめます。「取り込む」を押すと入れ替えます。
@@ -199,6 +229,85 @@ INSERT INTO guide_article (title, division, section, summary, body, sort, publis
 
 > 要確認：取り込むのは、Dashboard で記録を始める前に1回だけにしてください。あとから取り込むと、Dashboard で入れた記録が消えます。
 ', 130, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+-- spec/screen-140.md：仕入分析（建売営業）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '仕入分析（建売営業）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('仕入分析（建売営業）', 'spec', '画面の使い方', '土地仕入れのボトルネック診断（工程ごとの転換率の低下）、担当者別の転換率、達成率ヒートマップ、失注・見送りの要因、適正在庫。', '左のメニュー「土地仕入」→「仕入分析」。数字の流れのどこで詰まっているかを見る画面です。
+
+[[画面:仕入分析]]
+
+## 上の欄
+担当（チーム全員・エリアの合算・1人ずつ）、集計期間（毎月・通期）、対象月を選びます。条件は画面のアドレスにも付きます。「印刷 / PDF」で印刷できます。
+
+## ボトルネック診断
+業者AP → 情報取得 → 社長提案 → 買付 → 契約の、工程ごとの転換率（次の工程に進んだ割合）を出し、下がっている工程に印を付けます。
+- 毎月：先月と比べます。1人のときはチーム、チーム全員のときは年度の平均とも比べます
+- 通期：年間目標から逆算した転換率と比べます
+- 「低下」にするのは、相対で15%以上かつ3ポイント以上下がった工程だけです。母数が3件未満の工程は「—」にして判定しません
+
+## 担当者別 工程別転換率
+担当者ごとの転換率です。いちばん下は目標から逆算した転換率で、これを下回っている工程が、その人の詰まりどころです。
+
+## 達成率ヒートマップ
+担当者・エリア・チームごとに、月ごとの達成率を色で並べます（緑＝100%以上、黄＝70%以上、赤＝70%未満）。右上で、全指標の平均か、1つの指標かを選べます。
+
+## 失注・見送りの要因
+期間中に動いた案件のうち、見送り・買付の否決になったものを、失注理由ごとに数えます。「未登録」が多いときは、[[仕入案件一覧（建売営業）]] で理由を入れてください。
+
+## 適正在庫
+担当者・詳細エリアごとの適正在庫・在庫・過不足・販売・充足率です。数字は [[仕入設定（建売営業）]] で入れます（自動では動きません）。
+', 140, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+-- spec/screen-150.md：個人別実績（建売営業）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '個人別実績（建売営業）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('個人別実績（建売営業）', 'spec', '画面の使い方', '担当者1人の KPI の実績と目標、ボトルネック、年度の累計、エリアの中での比較、月次レビュー（育成フェーズ・ボトルネック・上長コメント）。', '左のメニュー「土地仕入」→「個人別実績」。担当者1人の数字と、月ごとの面談の記録（月次レビュー）を見る画面です。
+
+[[画面:個人別実績]]
+
+## 見られるもの
+- 上のカード：その人の KPI の実績・目標・達成率と、平均達成率（ペース内か遅れか）
+- ボトルネック診断：チームと比べて下がっている工程
+- 年度の累計と年間目標
+- 買付の返答期日アラート：その人の返答待ちの買付
+- エリアの中での比較：同じエリアの人の数字
+- 最近のアプローチと担当案件
+
+ログインした人が担当者に結び付いていれば、開いたときに自分が選ばれます。
+
+## 月次レビュー
+対象月の、育成フェーズ・ボトルネック・良かった事（本人）・重点課題（翌月のテーマ）・上長コメントを入れて「保存」します。1人・1か月に1件で、同じ月に保存すると上書きされます。
+- 下の表に、これまでのレビューが出ます。行を押すと、その月に切り替わります
+- 育成フェーズとボトルネックの選択肢は、[[仕入設定（建売営業）]] で変えられます
+', 150, 1, '開発（業務ガイド更新）')
+  ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
+    body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
+-- spec/screen-160.md：目標・月次入力（建売営業）
+INSERT INTO guide_history (article_id, title, section, summary, body, published, edited_by, edited_at)
+  SELECT id, title, section, summary, body, published, updated_by, updated_at FROM guide_article WHERE title = '目標・月次入力（建売営業）';
+INSERT INTO guide_article (title, division, section, summary, body, sort, published, updated_by)
+  VALUES ('目標・月次入力（建売営業）', 'spec', '画面の使い方', '担当者ごとの月間目標・年間目標と、記録から数えられない実績の手入力。', '左のメニュー「土地仕入」→「目標・月次入力」。目標と、手で足す実績を入れる画面です。
+
+[[画面:目標・月次入力]]
+
+## 月間目標
+上で対象月を選び、担当者 × KPI の表に目標を入れて「保存」します。
+
+## 手入力の実績
+記録（アプローチ・まとめ入力・案件）から自動で数えた実績に、ここで入れた数を足します。各欄の下の「自動」が、自動で数えた数です。
+- 1件ずつ記録していない分を補うときに使います
+- 仕入設定で足した KPI（手入力の KPI）は、ここで入れた数だけで数えます
+
+## 年間目標
+年度（6月〜翌5月）の目標です。通期の達成率に使います。
+
+> 注意：0 か空にして保存すると、その欄は消えます。チームの目標は、稼働中の担当者の目標を足したものです。
+', 160, 1, '開発（業務ガイド更新）')
   ON DUPLICATE KEY UPDATE division = VALUES(division), section = VALUES(section), summary = VALUES(summary),
     body = VALUES(body), sort = VALUES(sort), published = 1, updated_by = VALUES(updated_by);
 

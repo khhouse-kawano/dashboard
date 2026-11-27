@@ -3,10 +3,10 @@ import { execute, query, withTransaction, type Tx } from '../../db/pool';
 import { logger } from '../../utils/logger';
 import type { AuthenticatedStaff } from '../../types/staff';
 import {
-    ALERT_DEFAULT, AP_BREAKDOWN, AP_TYPES_LEAD, AUTO_KPI_KEYS, REPLY_LEVEL_ORDER, STATUS, STATUS_SETTLED,
-    applyStatus, avgRate, computeActual, daysUntil, fyMonths, fyOf, fyProgress, m2ToTsubo, monthProgress,
-    nextStatus, rate, replyLevel, replyPending, simMaxOffer, sumActuals, tsuboUnitOf, ymOf,
-    type Actual, type CalcApproach, type CalcDaily, type CalcDeal, type CalcManual,
+    ALERT_DEFAULT, AP_BREAKDOWN, AP_TYPES_LEAD, STATUS, STATUS_SETTLED,
+    applyStatus, daysUntil, fyMonths, fyOf, m2ToTsubo,
+    nextStatus, replyLevel, replyPending, simMaxOffer, tsuboUnitOf, ymOf,
+    type CalcApproach, type CalcDaily, type CalcDeal, type CalcManual,
 } from './logic';
 
 /**
@@ -22,21 +22,21 @@ import {
  */
 
 export interface LandResult { httpStatus: number; body: Record<string, unknown> }
-const ok = (body: Record<string, unknown>): LandResult => ({ httpStatus: 200, body: { status: 'ok', ...body } });
-const fail = (httpStatus: number, message: string): LandResult => ({ httpStatus, body: { status: 'error', message } });
+export const ok = (body: Record<string, unknown>): LandResult => ({ httpStatus: 200, body: { status: 'ok', ...body } });
+export const fail = (httpStatus: number, message: string): LandResult => ({ httpStatus, body: { status: 'error', message } });
 
-type Row = RowDataPacket & Record<string, unknown>;
-type Body = Record<string, unknown>;
+export type Row = RowDataPacket & Record<string, unknown>;
+export type Body = Record<string, unknown>;
 
-const str = (v: unknown, max = 255): string => String(v ?? '').trim().slice(0, max);
-const int = (v: unknown, def = 0): number => { const n = Number(v); return Number.isFinite(n) ? Math.round(n) : def; };
-const intOrNull = (v: unknown): number | null => { if (v === '' || v === null || v === undefined) return null; const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
-const decOrNull = (v: unknown): number | null => {
+export const str = (v: unknown, max = 255): string => String(v ?? '').trim().slice(0, max);
+export const int = (v: unknown, def = 0): number => { const n = Number(v); return Number.isFinite(n) ? Math.round(n) : def; };
+export const intOrNull = (v: unknown): number | null => { if (v === '' || v === null || v === undefined) return null; const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
+export const decOrNull = (v: unknown): number | null => {
     if (v === '' || v === null || v === undefined) return null;
     const n = Number(String(v).replace(/[,，\s]/g, ''));
     return Number.isFinite(n) ? n : null;
 };
-const numOf = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+export const numOf = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 /** 日付（YYYY-MM-DD）。⚠️ 移行元の「2026/9/1」「2026年9月1日」なども読む。読めなければ null */
 export const dateOrNull = (v: unknown): string | null => {
     const s = String(v ?? '').trim().replace(/[年月]/g, '-').replace(/日/g, '').replace(/[/.]/g, '-');
@@ -45,14 +45,14 @@ export const dateOrNull = (v: unknown): string | null => {
     const d = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
     return Number.isNaN(Date.parse(`${d}T00:00:00Z`)) ? null : d;
 };
-const ymOrEmpty = (v: unknown): string => (/^\d{4}-\d{2}$/.test(String(v ?? '')) ? String(v) : '');
+export const ymOrEmpty = (v: unknown): string => (/^\d{4}-\d{2}$/.test(String(v ?? '')) ? String(v) : '');
 
 /** 日本時間の今日 */
 export const todayJst = (): string => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
 const nowJst = (): string => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 19).replace('T', ' ');
-const whoOf = (staff: AuthenticatedStaff): string => str(staff.name, 60);
+export const whoOf = (staff: AuthenticatedStaff): string => str(staff.name, 60);
 
-const audit = async (who: string, act: string, target: string, name: string, note = '', tx?: Tx): Promise<void> => {
+export const audit = async (who: string, act: string, target: string, name: string, note = '', tx?: Tx): Promise<void> => {
     const sql = 'INSERT INTO land_audit (at, user_name, act, target, name, note) VALUES (?, ?, ?, ?, ?, ?)';
     const params = [nowJst(), who, act, target, str(name, 200), str(note, 500)];
     try {
@@ -67,9 +67,9 @@ const audit = async (who: string, act: string, target: string, name: string, not
 // マスタ（担当者・エリア・選択肢・KPI・反響ソース・設定）
 // ---------------------------------------------------------------------------
 export interface LandMember { id: number; name: string; areaId: number | null; areaName: string; staffId: number | null; active: boolean }
-interface Settings { fyStart: number; leadDays: number; warnDays: number }
+export interface Settings { fyStart: number; leadDays: number; warnDays: number }
 
-const loadSettings = async (): Promise<Settings> => {
+export const loadSettings = async (): Promise<Settings> => {
     const rows = await query<Row>('SELECT setting_key, setting_value FROM land_setting');
     const map = new Map(rows.map(r => [String(r.setting_key), String(r.setting_value)]));
     const n = (k: string, def: number, lo: number, hi: number) => {
@@ -82,12 +82,12 @@ const loadSettings = async (): Promise<Settings> => {
     };
 };
 
-const loadAreas = async (): Promise<{ id: number; name: string; label: string }[]> =>
+export const loadAreas = async (): Promise<{ id: number; name: string; label: string }[]> =>
     (await query<Row>('SELECT id, name, label FROM land_area WHERE active = 1 ORDER BY sort, id'))
         .map(r => ({ id: Number(r.id), name: String(r.name), label: String(r.label || r.name) }));
 
-const AREA_OTHER = 'その他';
-const loadMembers = async (): Promise<LandMember[]> =>
+export const AREA_OTHER = 'その他';
+export const loadMembers = async (): Promise<LandMember[]> =>
     (await query<Row>(
         'SELECT m.id, m.name, m.area_id, m.staff_id, m.active, a.label, a.name AS area_name FROM land_member m'
         + ' LEFT JOIN land_area a ON a.id = m.area_id ORDER BY m.active DESC, a.sort IS NULL, a.sort, m.sort, m.id'
@@ -97,12 +97,12 @@ const loadMembers = async (): Promise<LandMember[]> =>
         staffId: r.staff_id === null ? null : Number(r.staff_id), active: Number(r.active) === 1,
     }));
 
-const loadKpiDefs = async (): Promise<{ key: string; label: string; unit: string; calc: string; description: string }[]> =>
+export const loadKpiDefs = async (): Promise<{ key: string; label: string; unit: string; calc: string; description: string }[]> =>
     (await query<Row>('SELECT kpi_key, label, unit, calc, description FROM land_kpi_def WHERE active = 1 ORDER BY sort, id'))
         .map(r => ({ key: String(r.kpi_key), label: String(r.label), unit: String(r.unit), calc: String(r.calc), description: String(r.description) }));
 
 /** sel（'' / 'm:ID' / 'a:ID'）→ 担当者の id の集合（null＝全員）。⚠️ 停止中の人も含める（過去の記録を落とさない） */
-const membersOfSel = (sel: string, members: LandMember[]): Set<number> | null => {
+export const membersOfSel = (sel: string, members: LandMember[]): Set<number> | null => {
     const m = /^([ma]):(\d+)$/.exec(sel);
     if (!m) return null;
     const id = Number(m[2]);
@@ -159,7 +159,7 @@ const dealOf = (r: Row): LandDeal => ({
 const loadDeals = async (): Promise<LandDeal[]> => (await query<Row>(DEAL_SELECT)).map(dealOf);
 
 /** 一覧・画面に付ける計算の値（⚠️ 保存しない） */
-const withCalc = (d: LandDeal, today: string, warnDays: number) => ({
+export const withCalc = (d: LandDeal, today: string, warnDays: number) => ({
     ...d,
     simMaxOffer: simMaxOffer(d), tsuboUnit: tsuboUnitOf(d), tsubo: m2ToTsubo(d.landM2),
     replyLevel: replyLevel(d, today, warnDays), replyDays: replyPending(d) ? daysUntil(d.replyDue, today) : null,
@@ -492,8 +492,8 @@ export const runLandVendorDelete = async (staff: AuthenticatedStaff, body: Body)
 // ---------------------------------------------------------------------------
 // アプローチ・まとめ入力・日報
 // ---------------------------------------------------------------------------
-const AP_SELECT = 'SELECT a.*, m.name AS member_name, m.area_id, (SELECT COUNT(*) FROM land_deal d WHERE d.ap_id = a.id AND d.delete_flag = 0) AS deal_count FROM land_approach a LEFT JOIN land_member m ON m.id = a.member_id WHERE a.delete_flag = 0';
-const approachOf = (r: Row) => ({
+export const AP_SELECT = 'SELECT a.*, m.name AS member_name, m.area_id, (SELECT COUNT(*) FROM land_deal d WHERE d.ap_id = a.id AND d.delete_flag = 0) AS deal_count FROM land_approach a LEFT JOIN land_member m ON m.id = a.member_id WHERE a.delete_flag = 0';
+export const approachOf = (r: Row) => ({
     id: Number(r.id), date: String(r.ap_date), time: String(r.ap_time), memberId: r.member_id === null ? null : Number(r.member_id),
     memberName: String(r.member_name ?? ''), vendorId: r.vendor_id === null ? null : Number(r.vendor_id), vendorName: String(r.vendor_name),
     type: String(r.ap_type), contact: String(r.contact), reaction: String(r.reaction), infoCount: Number(r.info_count), memo: String(r.memo ?? ''),
@@ -667,7 +667,7 @@ export const runLandReportSave = async (staff: AuthenticatedStaff, body: Body): 
 // ---------------------------------------------------------------------------
 // 集計（仕入ダッシュボード）
 // ---------------------------------------------------------------------------
-const loadCalcData = async (): Promise<{ deals: LandDeal[]; approaches: CalcApproach[]; daily: CalcDaily[]; manual: CalcManual[]; calcDeals: CalcDeal[] }> => {
+export const loadCalcData = async (): Promise<{ deals: LandDeal[]; approaches: CalcApproach[]; daily: CalcDaily[]; manual: CalcManual[]; calcDeals: CalcDeal[] }> => {
     const [deals, aps, daily, manual] = await Promise.all([
         loadDeals(),
         query<Row>('SELECT id, member_id, ap_date, ap_type, info_count FROM land_approach WHERE delete_flag = 0'),
@@ -681,96 +681,6 @@ const loadCalcData = async (): Promise<{ deals: LandDeal[]; approaches: CalcAppr
         daily: daily.map(dailyOf).map(d => ({ memberId: d.memberId, date: d.date, counts: d.counts, info: d.info })),
         manual: manual.map(m => ({ ym: String(m.ym), memberId: Number(m.member_id), kpiKey: String(m.kpi_key), value: numOf(m.value) })),
     };
-};
-
-/**
- * 仕入ダッシュボード。scope = month（対象月）/ fy（年度の累計）。sel で担当・エリアに絞る。
- * 返すもの：KPI ごとの実績・目標・達成率、経過率、買付の返答期日アラート、案件化待ち、担当者別の進捗、月次推移、エリア別
- */
-export const runLandSummary = async (body: Body): Promise<LandResult> => {
-    const [settings, members, areas, kpiDefs, data, targets] = await Promise.all([
-        loadSettings(), loadMembers(), loadAreas(), loadKpiDefs(), loadCalcData(),
-        query<Row>('SELECT period_type, period, member_id, kpi_key, value FROM land_target'),
-    ]);
-    const today = todayJst();
-    const fy = int(body.fy, settings.fyStart) || settings.fyStart;
-    const months = fyMonths(fy);
-    const scope = str(body.scope) === 'fy' ? 'fy' : 'month';
-    const month = months.includes(ymOrEmpty(body.month)) ? ymOrEmpty(body.month) : (months.includes(today.slice(0, 7)) ? today.slice(0, 7) : months[0]);
-    const sel = str(body.sel, 20);
-    const keys = kpiDefs.map(k => k.key);
-    const activeIds = new Set(members.filter(m => m.active).map(m => m.id));
-
-    const actualOf = (set: Set<number> | null, m: string): Actual => computeActual(m, set, { deals: data.calcDeals, approaches: data.approaches, daily: data.daily, manual: data.manual }, keys);
-    const scopeActual = (set: Set<number> | null): Actual => (scope === 'fy' ? sumActuals(months.map(m => actualOf(set, m))) : actualOf(set, month));
-    /** 目標。⚠️ チーム（set が null）は稼働中の人だけを足す（移行元の teamTarget・teamAnnual） */
-    const targetOf = (set: Set<number> | null, periodType: 'month' | 'year', period: string): Record<string, number> => {
-        const t: Record<string, number> = Object.fromEntries(keys.map(k => [k, 0]));
-        for (const r of targets) {
-            if (String(r.period_type) !== periodType || String(r.period) !== period) continue;
-            const id = Number(r.member_id);
-            if (set === null ? !activeIds.has(id) : !set.has(id)) continue;
-            const k = String(r.kpi_key);
-            if (k in t) t[k] += numOf(r.value);
-        }
-        return t;
-    };
-    const scopeTarget = (set: Set<number> | null) => (scope === 'fy' ? targetOf(set, 'year', String(fy)) : targetOf(set, 'month', month));
-
-    const set = membersOfSel(sel, members);
-    const actual = scopeActual(set);
-    const target = scopeTarget(set);
-    const progress = scope === 'fy' ? fyProgress(fy, today) : monthProgress(month, today);
-    const kpis = kpiDefs.map(k => ({ ...k, actual: actual[k.key] ?? 0, target: target[k.key] ?? 0, rate: rate(actual[k.key] ?? 0, target[k.key] ?? 0) }));
-
-    // 買付の返答期日アラート（⚠️ 対象月に関係なく、今の返答待ち全部）
-    const inSel = (id: number | null) => set === null || (id !== null && set.has(id));
-    const pending = data.deals.filter(d => replyPending(d) && inSel(d.memberId))
-        .map(d => withCalc(d, today, settings.warnDays))
-        .sort((a, b) => (REPLY_LEVEL_ORDER[a.replyLevel] - REPLY_LEVEL_ORDER[b.replyLevel]) || String(a.replyDue ?? '9999').localeCompare(String(b.replyDue ?? '9999')));
-    const alertCounts = { over: 0, today: 0, soon: 0, ok: 0, unset: 0, total: pending.length, act: 0 };
-    for (const d of pending) alertCounts[d.replyLevel as 'over' | 'today' | 'soon' | 'ok' | 'unset']++;
-    alertCounts.act = alertCounts.over + alertCounts.today;
-
-    // 案件化待ち（案件候補で、まだ案件にしていないアプローチ）
-    const candParams: unknown[] = [];
-    let candCond = '';
-    if (set) { if (set.size === 0) candCond = ' AND 1 = 0'; else { candCond = ` AND a.member_id IN (${[...set].map(() => '?').join(', ')})`; candParams.push(...set); } }
-    const candidates = (await query<Row>(`${AP_SELECT} AND a.is_candidate = 1 AND NOT EXISTS (SELECT 1 FROM land_deal d WHERE d.ap_id = a.id AND d.delete_flag = 0)${candCond} ORDER BY a.ap_date DESC, a.id DESC LIMIT 20`, candParams as never[])).map(approachOf);
-
-    // 担当者別の進捗（稼働中の人。sel で絞っていればその中だけ）
-    const memberRows = members.filter(m => m.active && inSel(m.id)).map(m => {
-        const one = new Set([m.id]);
-        const a = scopeActual(one); const t = scopeTarget(one);
-        return { id: m.id, name: m.name, areaName: m.areaName, actual: Object.fromEntries(keys.map(k => [k, a[k] ?? 0])), target: t, avgRate: avgRate(a, t, keys) };
-    });
-
-    // 月次推移（年度の12か月。sel の範囲）
-    const trend = months.map(m => {
-        const a = actualOf(set, m); const t = targetOf(set, 'month', m);
-        return { month: m, actual: Object.fromEntries(keys.map(k => [k, a[k] ?? 0])), target: t };
-    });
-
-    // エリア別（チーム全員のときだけ）
-    const areaRows = set !== null ? [] : [...areas.map(a => ({ id: a.id, name: a.label })), { id: 0, name: AREA_OTHER }].map(a => {
-        const s = new Set(members.filter(m => (a.id === 0 ? m.areaId === null : m.areaId === a.id)).map(m => m.id));
-        if (s.size === 0) return null;
-        const act = scopeActual(s); const t = scopeTarget(new Set([...s].filter(id => activeIds.has(id))));
-        return { id: a.id, name: a.name, memberCount: [...s].filter(id => activeIds.has(id)).length, actual: Object.fromEntries(keys.map(k => [k, act[k] ?? 0])), target: t, avgRate: avgRate(act, t, keys) };
-    }).filter(Boolean);
-
-    // 進行中の案件（工程が終わっていないもの）
-    const open = data.deals.filter(d => inSel(d.memberId) && !['契約', STATUS_SETTLED, '見送り'].includes(d.status));
-    const openCounts: Record<string, number> = {};
-    for (const d of open) openCounts[d.status] = (openCounts[d.status] ?? 0) + 1;
-
-    return ok({
-        fy, months, scope, month, sel, today, progress, kpis, avgRate: avgRate(actual, target, keys),
-        breakdown: Object.fromEntries(AP_BREAKDOWN.map(b => [b.k, actual[b.k] ?? 0])), apRec: actual.apRec ?? 0,
-        alert: { counts: alertCounts, rows: pending.slice(0, 30) }, candidates, members: memberRows, trend, areas: areaRows,
-        openCounts, openTotal: open.length,
-        autoKeys: AUTO_KPI_KEYS,
-    });
 };
 
 // ---------------------------------------------------------------------------

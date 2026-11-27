@@ -71,6 +71,7 @@ const LandDashboard = () => {
                     <span className="ld_title"><i className="fa-solid fa-chart-line me-2 text-primary" aria-hidden="true" />仕入ダッシュボード</span>
                     <button className="ld_btn is_primary" onClick={() => setModal({ id: null })}><i className="fa-solid fa-plus me-1" aria-hidden="true" />案件を登録</button>
                     <button className="ld_btn" onClick={() => void reload()}><i className="fa-solid fa-rotate me-1" aria-hidden="true" />再読み込み</button>
+                    <button className="ld_btn" onClick={() => window.print()}><i className="fa-solid fa-print me-1" aria-hidden="true" />印刷 / PDF</button>
                 </div>
 
                 <div className="ld_bar">

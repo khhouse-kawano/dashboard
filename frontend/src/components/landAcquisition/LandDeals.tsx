@@ -4,6 +4,7 @@ import { useDebounce } from '../database/useDebounce';
 import { errorText, fmtNum, landGet, landPost, mapUrlOf, monthLabel, useLandMaster, type LandDeal } from './landApi';
 import { DueBadge, LoadState, MapLink, SelSelect, SortTh } from './LandParts';
 import LandDealModal from './LandDealModal';
+import { downloadCsv, fetchAllRows, stamp } from './landCsv';
 import { LAND_CSS, REPLY_CLASS, STATUS_CLASS } from './landStyle';
 import { fyMonths, m2ToTsubo } from './landLogic';
 
@@ -90,6 +91,36 @@ const LandDeals = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading, rows.length, total]);
 
+    /** 今の条件で全件を CSV に（移行元の「案件」「決済完了案件」の書き出しと同じ列） */
+    const [exporting, setExporting] = useState(false);
+    const exportCsv = async () => {
+        setExporting(true);
+        try {
+            const all = await fetchAllRows<LandDeal>('land_deal_list', listParams);
+            const n = (v: number | null) => (v === null ? '' : v);
+            if (settled) {
+                downloadCsv(`決済完了案件_${stamp()}.csv`, [
+                    ['決済日', (d) => d.settleDate], ['契約日', (d) => d.contractDate], ['担当', (d) => d.memberName], ['情報提供業者', (d) => d.vendorName],
+                    ['売主名', (d) => d.sellerName], ['媒介業者名', (d) => d.agentName], ['所在地', (d) => d.address], ['地積(㎡)', (d) => n(d.landM2)], ['地積(坪)', (d) => n(d.tsubo)],
+                    ['区画数', (d) => d.lots], ['購入金額(万円)', (d) => n(d.buyPrice ?? d.price)], ['金額区分', (d) => (d.buyPrice !== null ? '購入金額' : d.price !== null ? '想定仕入価格' : '')],
+                    ['坪単価(万円/坪)', (d) => n(d.tsuboUnit)], ['契約条件', (d) => d.terms], ['契約条件メモ', (d) => d.termsMemo], ['地図リンク', (d) => mapUrlOf(d.address, d.mapUrl)], ['メモ', (d) => d.memo],
+                ], all);
+            } else {
+                downloadCsv(`仕入案件_${stamp()}.csv`, [
+                    ['取得日', (d) => d.infoDate], ['担当', (d) => d.memberName], ['業者名', (d) => d.vendorName], ['所在地', (d) => d.address], ['種別', (d) => d.kind],
+                    ['区画数', (d) => d.lots], ['想定仕入価格(万円)', (d) => n(d.price)], ['ステータス', (d) => d.status], ['社長提案日', (d) => d.propDate], ['買付日', (d) => d.offerDate],
+                    ['契約日', (d) => d.contractDate], ['買付提出先', (d) => d.offerTo], ['返答期日', (d) => d.replyDue], ['残り日数', (d) => n(d.replyDays)],
+                    ['返答状況', (d) => d.replyResult || (d.replyLevel !== 'done' ? '返答待ち' : '')], ['回答日', (d) => d.replyDate], ['返答メモ', (d) => d.replyMemo], ['メモ', (d) => d.memo],
+                    ['失注理由', (d) => d.lostReason], ['失注メモ', (d) => d.lostMemo], ['想定総販売価格(万円)', (d) => n(d.simSales)], ['想定建築費(万円)', (d) => n(d.simBuild)],
+                    ['解体造成費(万円)', (d) => n(d.simDemolition)], ['諸経費率(%)', (d) => d.simExpenseRate], ['目標利益率(%)', (d) => d.simProfitRate], ['買付上限額(万円)', (d) => n(d.simMaxOffer)],
+                    ['決済日', (d) => d.settleDate], ['土地面積(㎡)', (d) => n(d.landM2)], ['土地面積(坪)', (d) => n(d.tsubo)], ['地図リンク', (d) => mapUrlOf(d.address, d.mapUrl)],
+                    ['発生元アプローチ', (d) => (d.apId ? 'あり' : '')], ['売主名', (d) => d.sellerName], ['媒介業者名', (d) => d.agentName], ['購入金額(万円)', (d) => n(d.buyPrice)],
+                    ['坪単価(万円/坪)', (d) => n(d.tsuboUnit)], ['契約条件', (d) => d.terms], ['契約条件メモ', (d) => d.termsMemo],
+                ], all);
+            }
+        } catch (e) { setError(errorText(e, '書き出せませんでした。')); } finally { setExporting(false); }
+    };
+
     const onSort = (k: string) => setSort((s) => (s.key === k ? { key: k, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key: k, dir: 'desc' }));
     const switchTab = (v: boolean) => { setSettled(v); setSort({ key: v ? 'settleDate' : 'infoDate', dir: 'desc' }); };
 
@@ -118,6 +149,7 @@ const LandDeals = () => {
                 <div className="ld_head">
                     <span className="ld_title"><i className="fa-solid fa-map-location-dot me-2 text-primary" aria-hidden="true" />仕入案件一覧</span>
                     <button className="ld_btn is_primary" onClick={() => setModal({ id: null })}><i className="fa-solid fa-plus me-1" aria-hidden="true" />案件を登録</button>
+                    <button className="ld_btn" disabled={exporting} onClick={() => void exportCsv()}><i className="fa-solid fa-file-csv me-1" aria-hidden="true" />{exporting ? '書き出し中…' : 'CSV で書き出す'}</button>
                     <div className="ld_tabs">
                         <button className={`ld_btn${!settled ? ' is_on' : ''}`} onClick={() => switchTab(false)}>案件一覧</button>
                         <button className={`ld_btn${settled ? ' is_on' : ''}`} onClick={() => switchTab(true)}>決済完了の実績</button>
